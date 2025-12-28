@@ -12,7 +12,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { PikeBridge } from '@pike-lsp/pike-bridge';
+import { PikeBridge, PikeParseResult } from '@pike-lsp/pike-bridge';
 
 interface PerformanceMetrics {
     operation: string;
@@ -198,7 +198,7 @@ describe('Performance Tests - Memory and Resource Usage', () => {
         const code = generatePikeCode(50, 'RapidTest');
 
         const start = performance.now();
-        const results = [];
+        const results: PikeParseResult[] = [];
 
         for (let i = 0; i < iterations; i++) {
             const result = await bridge.parse(code, `rapid${i}.pike`);

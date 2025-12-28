@@ -2,6 +2,7 @@
     "name": "@pike-lsp/pike-analyzer",
     "version": "1.0.0",
     "description": "Pike semantic analysis using pike-bridge",
+    "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "scripts": {

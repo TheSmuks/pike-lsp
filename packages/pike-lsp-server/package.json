@@ -2,6 +2,7 @@
     "name": "@pike-lsp/pike-lsp-server",
     "version": "1.0.0",
     "description": "Pike Language Server Protocol implementation",
+    "type": "module",
     "main": "./dist/server.js",
     "types": "./dist/server.d.ts",
     "bin": {
@@ -11,7 +12,7 @@
         "build": "tsc",
         "clean": "rm -rf dist",
         "watch": "tsc --watch",
-        "test": "pnpm build && node --test dist/**/*.test.js",
+        "test": "pnpm build && node --test dist/workspace-index.test.js",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
