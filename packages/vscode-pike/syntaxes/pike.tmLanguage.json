@@ -230,36 +230,36 @@
         "punctuation": {
             "patterns": [
                 {
-                    "name": "punctuation.section.block.begin.pike",
-                    "match": "\\{"
+                    "match": "\\{",
+                    "name": "punctuation.definition.block.begin.pike punctuation.section.block.begin.pike"
                 },
                 {
-                    "name": "punctuation.section.block.end.pike",
-                    "match": "\\}"
+                    "match": "\\}",
+                    "name": "punctuation.definition.block.end.pike punctuation.section.block.end.pike"
                 },
                 {
-                    "name": "punctuation.section.parens.begin.pike",
-                    "match": "\\("
+                    "match": "\\(",
+                    "name": "punctuation.definition.parentheses.begin.pike punctuation.section.parens.begin.pike"
                 },
                 {
-                    "name": "punctuation.section.parens.end.pike",
-                    "match": "\\)"
+                    "match": "\\)",
+                    "name": "punctuation.definition.parentheses.end.pike punctuation.section.parens.end.pike"
                 },
                 {
-                    "name": "punctuation.section.brackets.begin.pike",
-                    "match": "\\["
+                    "match": "\\[",
+                    "name": "punctuation.definition.brackets.begin.pike punctuation.section.brackets.begin.pike"
                 },
                 {
-                    "name": "punctuation.section.brackets.end.pike",
-                    "match": "\\]"
+                    "match": "\\]",
+                    "name": "punctuation.definition.brackets.end.pike punctuation.section.brackets.end.pike"
                 },
                 {
-                    "name": "punctuation.terminator.pike",
-                    "match": ";"
+                    "match": ";",
+                    "name": "punctuation.terminator.statement.pike punctuation.terminator.pike"
                 },
                 {
-                    "name": "punctuation.separator.pike",
-                    "match": ","
+                    "match": ",",
+                    "name": "punctuation.separator.comma.pike punctuation.separator.pike"
                 }
             ]
         }

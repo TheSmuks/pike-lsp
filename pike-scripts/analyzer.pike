@@ -1628,12 +1628,63 @@ protected mapping handle_resolve_stdlib(mapping params) {
   // Introspect
   mapping introspection = introspect_program(prog);
 
-  // Try to parse source file for autodoc documentation
+  // Parse source file to get all exported symbols (not just introspected ones)
   if (sizeof(source_path) > 0) {
-    mapping docs = parse_stdlib_documentation(source_path);
-    if (docs && sizeof(docs) > 0) {
-      // Merge documentation into introspected symbols
-      introspection = merge_documentation(introspection, docs);
+    // Read and parse the source file
+    string code;
+    mixed read_err = catch {
+      // Clean up path - remove line number suffix if present
+      string clean_path = source_path;
+      if (has_value(clean_path, ":")) {
+        array parts = clean_path / ":";
+        // Check if last part is a number (line number)
+        if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
+          int is_line_num = 1;
+          foreach(parts[-1] / "", string c) {
+            if (c < "0" || c > "9") { is_line_num = 0; break; }
+          }
+          if (is_line_num) {
+            clean_path = parts[..sizeof(parts)-2] * ":";
+          }
+        }
+      }
+      code = Stdio.read_file(clean_path);
+    };
+
+    if (code && sizeof(code) > 0) {
+      // Parse the file to get all symbols using the existing parser
+      mapping parse_params = ([ "code": code, "filename": source_path ]);
+      mapping parse_response = handle_parse(parse_params);
+
+      // handle_parse returns { "result": { "symbols": [...], "diagnostics": [...] } }
+      if (parse_response && parse_response->result && parse_response->result->symbols && sizeof(parse_response->result->symbols) > 0) {
+        array parsed_symbols = parse_response->result->symbols;
+
+        // Merge parsed symbols into introspection
+        // Add any new symbols that weren't in introspection
+        if (!introspection->symbols) {
+          introspection->symbols = ({});
+        }
+
+        // Create a set of introspected symbol names for quick lookup
+        multiset(string) introspected_names = (multiset)(map(introspection->symbols, lambda(mapping s) { return s->name; }));
+
+        // Add parsed symbols that weren't in introspection
+        foreach(parsed_symbols, mapping sym) {
+          string name = sym->name;
+          if (name && !introspected_names[name]) {
+            introspection->symbols += ({ sym });
+            introspected_names[name] = 1;
+          }
+        }
+      }
+
+      // Parse documentation and merge it
+      mapping docs = parse_stdlib_documentation(source_path);
+      if (docs && sizeof(docs) > 0) {
+        // Merge documentation into introspected symbols
+        introspection = merge_documentation(introspection, docs);
+      }
     }
   }
 

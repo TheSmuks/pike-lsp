@@ -52,6 +52,7 @@ import {
 } from 'vscode-languageserver/node.js';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import * as fs from 'fs/promises';
 import { PikeBridge, PikeSymbol, PikeDiagnostic, PikeFunctionType, IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 import { WorkspaceIndex } from './workspace-index.js';
 import { TypeDatabase, CompiledProgramInfo } from './type-database.js';
@@ -862,18 +863,118 @@ connection.onHover(async (params): Promise<Hover | null> => {
     }
     const word = text.slice(wordStart, wordEnd);
 
-    // Check if hovering over a stdlib module reference
+    // Check if hovering over a qualified symbol reference (e.g., "MIME.encode_base64url")
     if (word && word.includes('.') && stdlibIndex) {
         try {
-            const module = await stdlibIndex.getModule(word);
-            if (module?.symbols && module.symbols.size > 0) {
+            // Extract current file path for module resolution
+            const currentFile = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+            // Try parsing as a qualified symbol reference (Module.symbol)
+            const lastDotIndex = word.lastIndexOf('.');
+            if (lastDotIndex > 0) {
+                const modulePath = word.substring(0, lastDotIndex);
+                const symbolName = word.substring(lastDotIndex + 1);
+
+                connection.console.log(`[HOVER] Qualified symbol: module="${modulePath}", symbol="${symbolName}"`);
+
+                // Get the module from stdlib index to verify it exists and get the path
+                const module = await stdlibIndex.getModule(modulePath);
+                if (module?.symbols) {
+                    // Verify the symbol exists
+                    const introspectedSymbol = module.symbols.get(symbolName);
+                    if (introspectedSymbol) {
+                        connection.console.log(`[HOVER] Found ${symbolName} in ${modulePath}`);
+
+                        // Get the resolved path to the module file
+                        const targetPath = module.resolvedPath
+                            ? module.resolvedPath
+                            : bridge ? await bridge.resolveModule(modulePath, currentFile) : null;
+
+                        if (targetPath) {
+                            // Clean path - remove line number suffix if present
+                            const cleanPath = targetPath.split(':')[0] ?? targetPath;
+                            const targetUri = `file://${cleanPath}`;
+
+                            // Check if the target document is already open and cached
+                            const targetCached = documentCache.get(targetUri);
+
+                            let hoverSymbol: PikeSymbol | null = null;
+
+                            if (targetCached) {
+                                // Search for the symbol in the cached document's symbols (has full type info)
+                                const targetSymbol = findSymbolByName(targetCached.symbols, symbolName);
+                                if (targetSymbol) {
+                                    connection.console.log(`[HOVER] Using cached symbol with full type info`);
+                                    hoverSymbol = targetSymbol;
+                                }
+                            }
+
+                            // Document not in cache - parse it to get the symbol with full type info
+                            if (!hoverSymbol && bridge) {
+                                try {
+                                    // Read the file content
+                                    const code = await fs.readFile(cleanPath, 'utf-8');
+                                    const parseResult = await bridge.parse(code, cleanPath);
+
+                                    // Search in parsed symbols
+                                    const foundSymbol = findSymbolByName(parseResult.symbols, symbolName);
+                                    if (foundSymbol) {
+                                        connection.console.log(`[HOVER] Found symbol with full type info by parsing`);
+                                        hoverSymbol = foundSymbol;
+                                    }
+                                } catch (parseErr) {
+                                    connection.console.log(`[HOVER] Failed to parse target file: ${parseErr}`);
+                                }
+                            }
+
+                            // If we found the symbol, use it for hover (has full type signature)
+                            if (hoverSymbol) {
+                                // Merge with introspected documentation if available
+                                if (introspectedSymbol.documentation) {
+                                    (hoverSymbol as unknown as Record<string, unknown>)['documentation'] = introspectedSymbol.documentation;
+                                }
+
+                                const content = buildHoverContent(hoverSymbol);
+                                if (content) {
+                                    return {
+                                        contents: { kind: MarkupKind.Markdown, value: content }
+                                    };
+                                }
+                            }
+
+                            // Fallback: use introspected symbol (limited type info but better than nothing)
+                            const fallbackSymbol: PikeSymbol = {
+                                name: introspectedSymbol.name,
+                                kind: introspectedSymbol.kind === 'function' ? 'method' : introspectedSymbol.kind,
+                                modifiers: introspectedSymbol.modifiers,
+                                type: introspectedSymbol.type,
+                            };
+
+                            if (introspectedSymbol.documentation) {
+                                (fallbackSymbol as unknown as Record<string, unknown>)['documentation'] = introspectedSymbol.documentation;
+                            }
+
+                            const content = buildHoverContent(fallbackSymbol);
+                            if (content) {
+                                return {
+                                    contents: { kind: MarkupKind.Markdown, value: content }
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: Try treating the entire word as a module name
+            const fallbackModule = await stdlibIndex.getModule(word);
+            if (fallbackModule?.symbols && fallbackModule.symbols.size > 0) {
                 const parts: string[] = [];
                 parts.push(`**Module**: \`${word}\``);
                 parts.push('');
-                parts.push(`Exported symbols: ${module.symbols.size}`);
+                parts.push(`Exported symbols: ${fallbackModule.symbols.size}`);
 
-                if (module.resolvedPath) {
-                    const pathDisplay = module.resolvedPath.replace(/:\d+$/, '');
+                if (fallbackModule.resolvedPath) {
+                    const pathDisplay = fallbackModule.resolvedPath.replace(/:\d+$/, '');
                     parts.push('');
                     parts.push(`*Source*: ${pathDisplay}`);
                 }
@@ -1041,6 +1142,94 @@ connection.onDefinition(async (params): Promise<Location | Location[] | null> =>
         try {
             // Extract filename from URI for context-aware resolution
             const currentFile = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+            // Check if this is a qualified symbol reference (e.g., "MIME.encode_base64url")
+            const lastDotIndex = word.lastIndexOf('.');
+            if (lastDotIndex > 0 && stdlibIndex) {
+                // Split into module path and symbol name
+                const modulePath = word.substring(0, lastDotIndex);
+                const symbolName = word.substring(lastDotIndex + 1);
+
+                connection.console.log(`[DEFINITION] Qualified symbol: module="${modulePath}", symbol="${symbolName}"`);
+
+                // Get the module from stdlib index to verify it exists and get the path
+                const module = await stdlibIndex.getModule(modulePath);
+                if (module?.symbols) {
+                    // Verify the symbol exists
+                    const symbol = module.symbols.get(symbolName);
+                    if (symbol) {
+                        connection.console.log(`[DEFINITION] Found ${symbolName} in ${modulePath}`);
+
+                        // Get the resolved path to the module file
+                        const targetPath = module.resolvedPath
+                            ? module.resolvedPath
+                            : await bridge.resolveModule(modulePath, currentFile);
+
+                        if (targetPath) {
+                            // Clean path - remove line number suffix if present
+                            const cleanPath = targetPath.split(':')[0] ?? targetPath;
+                            const targetUri = `file://${cleanPath}`;
+
+                            // Check if the target document is already open and cached
+                            const targetCached = documentCache.get(targetUri);
+
+                            if (targetCached) {
+                                // Search for the symbol in the cached document's symbols
+                                const targetSymbol = findSymbolByName(targetCached.symbols, symbolName);
+                                if (targetSymbol?.position) {
+                                    const symbolLine = Math.max(0, targetSymbol.position.line - 1);
+                                    connection.console.log(`[DEFINITION] Found ${symbolName} at line ${symbolLine + 1} in cached document`);
+                                    return {
+                                        uri: targetUri,
+                                        range: {
+                                            start: { line: symbolLine, character: 0 },
+                                            end: { line: symbolLine, character: symbolName.length },
+                                        },
+                                    };
+                                }
+                            }
+
+                            // Document not in cache - parse it to find the symbol
+                            if (bridge) {
+                                try {
+                                    // Read the file content
+                                    const code = await fs.readFile(cleanPath, 'utf-8');
+                                    const parseResult = await bridge.parse(code, cleanPath);
+
+                                    // Search in parsed symbols
+                                    const foundSymbol = findSymbolByName(parseResult.symbols, symbolName);
+                                    if (foundSymbol?.position) {
+                                        const symbolLine = Math.max(0, foundSymbol.position.line - 1);
+                                        connection.console.log(`[DEFINITION] Found ${symbolName} at line ${symbolLine + 1} by parsing`);
+                                        return {
+                                            uri: targetUri,
+                                            range: {
+                                                start: { line: symbolLine, character: 0 },
+                                                end: { line: symbolLine, character: symbolName.length },
+                                            },
+                                        };
+                                    }
+                                } catch (parseErr) {
+                                    connection.console.log(`[DEFINITION] Failed to parse target file: ${parseErr}`);
+                                }
+                            }
+
+                            // Fallback: return the start of the file
+                            const { uri, line } = pikePathToUri(targetPath);
+                            const targetLine = line ?? 0;
+                            return {
+                                uri,
+                                range: {
+                                    start: { line: targetLine, character: 0 },
+                                    end: { line: targetLine, character: symbolName.length },
+                                },
+                            };
+                        }
+                    } else {
+                        connection.console.log(`[DEFINITION] Symbol ${symbolName} not found in module ${modulePath}`);
+                    }
+                }
+            }
 
             // Pike's master()->resolv() knows best - just ask it!
             const resolved = await bridge.resolveModule(word, currentFile);
@@ -1793,7 +1982,7 @@ connection.onCompletionResolve((item): CompletionItem => {
 /**
  * Signature help handler - show function parameters
  */
-connection.onSignatureHelp((params): SignatureHelp | null => {
+connection.onSignatureHelp(async (params): Promise<SignatureHelp | null> => {
     const uri = params.textDocument.uri;
     const document = documents.get(uri);
     const cached = documentCache.get(uri);
@@ -1829,17 +2018,70 @@ connection.onSignatureHelp((params): SignatureHelp | null => {
         }
     }
 
-    // Get the function name before the paren
+    // Get the function name before the paren (support both Module.func and func)
     const textBefore = text.slice(0, funcStart);
-    const funcMatch = textBefore.match(IDENTIFIER_PATTERNS.BARE_IDENTIFIER);
-    if (!funcMatch) {
+
+    // Try to match qualified name first (e.g., MIME.encode_base64url)
+    const qualifiedMatch = textBefore.match(/([\w.]+)\s*$/);
+    if (!qualifiedMatch) {
         return null;
     }
 
-    const funcName = funcMatch[1];
+    const funcName = qualifiedMatch[1]!;
+    let funcSymbol: PikeSymbol | null = null;
 
-    // Find the function in symbols
-    const funcSymbol = cached.symbols.find(s => s.name === funcName && s.kind === 'method');
+    // Check if this is a qualified stdlib symbol
+    if (funcName.includes('.') && stdlibIndex) {
+        const lastDotIndex = funcName.lastIndexOf('.');
+        const modulePath = funcName.substring(0, lastDotIndex);
+        const symbolName = funcName.substring(lastDotIndex + 1);
+
+        connection.console.log(`SignatureHelp: Qualified symbol: module="${modulePath}", symbol="${symbolName}"`);
+
+        try {
+            const currentFile = decodeURIComponent(uri.replace(new RegExp('^file://', ''), ''));
+            const module = await stdlibIndex.getModule(modulePath);
+
+            if (module?.symbols && module.symbols.has(symbolName)) {
+                // Get the resolved path
+                const targetPath = module.resolvedPath
+                    ? module.resolvedPath
+                    : bridge ? await bridge.resolveModule(modulePath, currentFile) : null;
+
+                if (targetPath) {
+                    const cleanPath = targetPath.split(':')[0] ?? targetPath;
+                    const targetUri = `file://${cleanPath}`;
+
+                    // Check cache first
+                    const targetCached = documentCache.get(targetUri);
+                    if (targetCached) {
+                        funcSymbol = findSymbolByName(targetCached.symbols, symbolName) ?? null;
+                        connection.console.log(`SignatureHelp: Found in cached document`);
+                    }
+
+                    // Parse if not in cache
+                    if (!funcSymbol && bridge) {
+                        try {
+                            const code = await fs.readFile(cleanPath, 'utf-8');
+                            const parseResult = await bridge.parse(code, cleanPath);
+                            funcSymbol = findSymbolByName(parseResult.symbols, symbolName) ?? null;
+                            connection.console.log(`SignatureHelp: Found by parsing`);
+                        } catch (parseErr) {
+                            connection.console.log(`SignatureHelp: Failed to parse: ${parseErr}`);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            connection.console.log(`SignatureHelp: Error resolving stdlib symbol: ${err}`);
+        }
+    }
+
+    // Fallback: search in current document
+    if (!funcSymbol) {
+        funcSymbol = cached.symbols.find(s => s.name === funcName && s.kind === 'method') ?? null;
+    }
+
     if (!funcSymbol) {
         return null;
     }
@@ -2848,8 +3090,19 @@ function buildCompletionItem(
 
 
 /**
+ * Find symbol by name in an array of symbols (searches flattened symbols)
+ */
+function findSymbolByName(symbols: PikeSymbol[], name: string): PikeSymbol | null {
+    for (const symbol of symbols) {
+        if (symbol.name === name) {
+            return symbol;
+        }
+    }
+    return null;
+}
 
 
+/**
  * Find symbol at given position in document
  */
 function findSymbolAtPosition(
