@@ -80,6 +80,26 @@ export class WorkspaceIndex {
     }
 
     /**
+     * Flatten nested symbol tree into a single-level array
+     * This ensures all class members are indexed at the workspace level
+     */
+    private flattenSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
+        const flat: PikeSymbol[] = [];
+
+        for (const sym of symbols) {
+            // Add the symbol itself
+            flat.push(sym);
+
+            // Recursively flatten children
+            if (sym.children && sym.children.length > 0) {
+                flat.push(...this.flattenSymbols(sym.children));
+            }
+        }
+
+        return flat;
+    }
+
+    /**
      * Index a single document
      */
     async indexDocument(uri: string, content: string, version: number): Promise<void> {
@@ -92,7 +112,7 @@ export class WorkspaceIndex {
 
         try {
             const result = await this.bridge.parse(content, filename);
-            const symbols = result.symbols;
+            const symbols = this.flattenSymbols(result.symbols);
 
             // Remove old entries from lookup
             const existing = this.documents.get(uri);
@@ -232,13 +252,13 @@ export class WorkspaceIndex {
                     // Store indexed document
                     this.documents.set(uri, {
                         uri,
-                        symbols: result.symbols,
+                        symbols: this.flattenSymbols(result.symbols),
                         version,
                         lastModified: Date.now(),
                     });
 
                     // Add to lookup
-                    this.addToLookup(uri, result.symbols);
+                    this.addToLookup(uri, this.flattenSymbols(result.symbols));
                     indexed++;
                 }
             } catch (err) {
@@ -258,13 +278,13 @@ export class WorkspaceIndex {
                         // Store indexed document
                         this.documents.set(uri, {
                             uri,
-                            symbols: parseResult.symbols,
+                            symbols: this.flattenSymbols(parseResult.symbols),
                             version: 1,
                             lastModified: Date.now(),
                         });
 
                         // Add to lookup
-                        this.addToLookup(uri, parseResult.symbols);
+                        this.addToLookup(uri, this.flattenSymbols(parseResult.symbols));
                         indexed++;
                     } catch {
                         // Skip files that fail to parse
