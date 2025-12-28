@@ -49,7 +49,7 @@ import {
     CodeActionKind,
     DocumentLink,
     CodeLens,
-} from 'vscode-languageserver/node';
+} from 'vscode-languageserver/node.js';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { PikeBridge, PikeSymbol, PikeDiagnostic, PikeFunctionType, IntrospectedSymbol } from '@pike-lsp/pike-bridge';
