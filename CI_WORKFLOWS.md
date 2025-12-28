@@ -2,6 +2,23 @@
 
 This repository uses GitHub Actions for CI/CD. Here's how to use the workflows:
 
+## Testing Locally with `act`
+
+To test workflows locally using [act](https://github.com/nektos/act):
+
+```bash
+# Install act (if not already installed)
+# macOS: brew install act
+# Linux: https://github.com/nektos/act#installation
+
+# Run tests with ubuntu-24.04 image
+act -P ubuntu-24.04=catthehacker/ubuntu:act-24.04
+
+# Note: GitHub Actions uses sudo for apt commands,
+# but act's Docker containers don't have sudo installed.
+# The workflows are configured for GitHub Actions (not act).
+```
+
 ## Workflows
 
 ### 1. Test Workflow (`.github/workflows/test.yml`)

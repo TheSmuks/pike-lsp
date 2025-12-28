@@ -32,8 +32,8 @@ jobs:
       - name: Install Pike
         run: |
           # Add Pike repository and install
-          apt-get update
-          apt-get install -y pike8.0
+          sudo apt-get update
+          sudo apt-get install -y pike8.0
 
       - name: Verify Pike installation
         run: |
@@ -77,8 +77,8 @@ jobs:
 
       - name: Install Pike
         run: |
-          apt-get update
-          apt-get install -y pike8.0
+          sudo apt-get update
+          sudo apt-get install -y pike8.0
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
