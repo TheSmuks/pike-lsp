@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: pnpm
+
+      - name: Install Pike
+        run: |
+          apt-get update
+          apt-get install -y pike8.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run tests
+        run: |
+          pnpm --filter @pike-lsp/pike-bridge test
+          pnpm --filter @pike-lsp/pike-lsp-server test
+
+      - name: Build VSIX
+        working-directory: packages/vscode-pike
+        run: pnpm package
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: packages/vscode-pike/vscode-pike-*.vsix
+          generate_release_notes: true
+          name: Release ${{ steps.version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload VSIX to artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-pike-extension
+          path: packages/vscode-pike/vscode-pike-*.vsix
+          retention-days: 90
