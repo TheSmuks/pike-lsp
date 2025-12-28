@@ -1,0 +1,17 @@
+{
+    "files": [],
+    "references": [
+        {
+            "path": "./packages/pike-bridge"
+        },
+        {
+            "path": "./packages/pike-analyzer"
+        },
+        {
+            "path": "./packages/pike-lsp-server"
+        },
+        {
+            "path": "./packages/vscode-pike"
+        }
+    ]
+}

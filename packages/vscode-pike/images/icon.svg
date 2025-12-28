@@ -1,0 +1,10 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="128" height="128" rx="20" fill="#1e3a5f"/>
+
+  <!-- P for Pike -->
+  <text x="64" y="95" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#4fc3f7" text-anchor="middle">P</text>
+
+  <!-- LSP accent -->
+  <rect x="30" y="105" width="68" height="4" rx="2" fill="#ff7043"/>
+</svg>

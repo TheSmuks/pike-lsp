@@ -1,0 +1,461 @@
+/**
+ * Pike Bridge Types
+ * 
+ * TypeScript type definitions matching Pike's output from Tools.AutoDoc.PikeParser
+ * and Tools.AutoDoc.PikeObjects.
+ */
+
+/**
+ * Source position in Pike code
+ */
+export interface PikePosition {
+    /** File path or identifier */
+    file: string;
+    /** Line number (1-indexed) */
+    line: number;
+    /** Column number (1-indexed), if available */
+    column?: number;
+}
+
+/**
+ * Pike type representation
+ * Matches Tools.AutoDoc.PikeObjects Type classes
+ */
+export type PikeType =
+    | PikeIntType
+    | PikeFloatType
+    | PikeStringType
+    | PikeArrayType
+    | PikeMappingType
+    | PikeMultisetType
+    | PikeFunctionType
+    | PikeObjectType
+    | PikeProgramType
+    | PikeMixedType
+    | PikeVoidType
+    | PikeZeroType
+    | PikeOrType;
+
+export interface PikeIntType {
+    kind: 'int';
+    min?: string;
+    max?: string;
+}
+
+export interface PikeFloatType {
+    kind: 'float';
+}
+
+export interface PikeStringType {
+    kind: 'string';
+    min?: string;
+    max?: string;
+}
+
+export interface PikeArrayType {
+    kind: 'array';
+    valueType?: PikeType;
+}
+
+export interface PikeMappingType {
+    kind: 'mapping';
+    indexType?: PikeType;
+    valueType?: PikeType;
+}
+
+export interface PikeMultisetType {
+    kind: 'multiset';
+    indexType?: PikeType;
+}
+
+export interface PikeFunctionType {
+    kind: 'function';
+    argTypes?: PikeType[];
+    returnType?: PikeType;
+}
+
+export interface PikeObjectType {
+    kind: 'object';
+    className?: string;
+}
+
+export interface PikeProgramType {
+    kind: 'program';
+    className?: string;
+}
+
+export interface PikeMixedType {
+    kind: 'mixed';
+}
+
+export interface PikeVoidType {
+    kind: 'void';
+}
+
+export interface PikeZeroType {
+    kind: 'zero';
+}
+
+export interface PikeOrType {
+    kind: 'or';
+    types: PikeType[];
+}
+
+/**
+ * Base Pike symbol
+ * Matches Tools.AutoDoc.PikeObjects.PikeObject
+ */
+export interface PikeSymbol {
+    /** Symbol name */
+    name: string;
+    /** Symbol kind */
+    kind: PikeSymbolKind;
+    /** Modifiers (public, private, static, etc.) */
+    modifiers: string[];
+    /** Position in source */
+    position?: PikePosition;
+    /** Type information (from introspection) */
+    type?: PikeType;
+    /** Child symbols (for classes, modules, etc.) */
+    children?: PikeSymbol[];
+}
+
+export type PikeSymbolKind =
+    | 'class'
+    | 'method'
+    | 'variable'
+    | 'constant'
+    | 'typedef'
+    | 'enum'
+    | 'enum_constant'
+    | 'inherit'
+    | 'import'
+    | 'module';
+
+/**
+ * Pike method/function
+ * Matches Tools.AutoDoc.PikeObjects.Method
+ */
+export interface PikeMethod extends PikeSymbol {
+    kind: 'method';
+    /** Argument names */
+    argNames: (string | null)[];
+    /** Argument types */
+    argTypes: (PikeType | null)[];
+    /** Return type */
+    returnType?: PikeType;
+}
+
+/**
+ * Pike class
+ * Matches Tools.AutoDoc.PikeObjects.Class
+ */
+export interface PikeClass extends PikeSymbol {
+    kind: 'class';
+    /** Child symbols */
+    children: PikeSymbol[];
+    /** Inherited classes */
+    inherits: string[];
+}
+
+/**
+ * Pike variable
+ * Matches Tools.AutoDoc.PikeObjects.Variable
+ */
+export interface PikeVariable extends PikeSymbol {
+    kind: 'variable';
+    /** Variable type */
+    type?: PikeType;
+}
+
+/**
+ * Pike constant
+ * Matches Tools.AutoDoc.PikeObjects.Constant
+ */
+export interface PikeConstant extends PikeSymbol {
+    kind: 'constant';
+    /** Constant type */
+    type?: PikeType;
+}
+
+/**
+ * Pike typedef
+ * Matches Tools.AutoDoc.PikeObjects.Typedef
+ */
+export interface PikeTypedef extends PikeSymbol {
+    kind: 'typedef';
+    /** Type being defined */
+    type?: PikeType;
+}
+
+/**
+ * Pike token from Parser.Pike
+ */
+export interface PikeToken {
+    /** Token text */
+    text: string;
+    /** Line number (1-indexed) */
+    line: number;
+    /** File identifier */
+    file: number | string;
+}
+
+/**
+ * PERF-001: Token occurrence (identifier position)
+ * Returned by find_occurrences for symbol position indexing
+ */
+export interface TokenOccurrence {
+    /** Identifier text */
+    text: string;
+    /** Line number (1-indexed) */
+    line: number;
+    /** Character position (0-indexed) */
+    character: number;
+}
+
+/**
+ * PERF-001: Result of find_occurrences request
+ */
+export interface FindOccurrencesResult {
+    /** All identifier occurrences found */
+    occurrences: TokenOccurrence[];
+}
+
+/**
+ * PERF-002: Input for batch parse request
+ */
+export interface BatchParseInput {
+    /** Source code to parse */
+    code: string;
+    /** Filename for this file */
+    filename: string;
+}
+
+/**
+ * PERF-002: Result for a single file in batch parse
+ */
+export interface BatchParseFileResult {
+    /** Filename of the parsed file */
+    filename: string;
+    /** Symbols extracted from the file */
+    symbols: PikeSymbol[];
+    /** Diagnostics (errors/warnings) from parsing */
+    diagnostics: PikeDiagnostic[];
+}
+
+/**
+ * PERF-002: Result of batch parse operation
+ */
+export interface BatchParseResult {
+    /** Results for each file */
+    results: BatchParseFileResult[];
+    /** Number of files processed */
+    count: number;
+}
+
+/**
+ * Pike diagnostic (error/warning)
+ */
+export interface PikeDiagnostic {
+    /** Diagnostic message */
+    message: string;
+    /** Severity: error, warning, info */
+    severity: 'error' | 'warning' | 'info';
+    /** Position in source */
+    position: PikePosition;
+    /** End position (if range) */
+    endPosition?: PikePosition;
+}
+
+/**
+ * Result of parsing a Pike file
+ */
+export interface PikeParseResult {
+    /** Extracted symbols */
+    symbols: PikeSymbol[];
+    /** Diagnostics (errors/warnings) */
+    diagnostics: PikeDiagnostic[];
+    /** Tokens (if requested) */
+    tokens?: PikeToken[];
+}
+
+/**
+ * Autodoc documentation for a symbol
+ */
+export interface AutodocDocumentation {
+    /** Main description text */
+    text?: string;
+    /** Parameter documentation */
+    params?: Record<string, string>;
+    /** Return value description */
+    returns?: string;
+    /** Throws description */
+    throws?: string;
+    /** Notes */
+    notes?: string[];
+    /** Bugs */
+    bugs?: string[];
+    /** Deprecation message */
+    deprecated?: string;
+    /** Examples */
+    examples?: string[];
+    /** See also references */
+    seealso?: string[];
+    /** Member documentation (for mappings) */
+    members?: Record<string, string>;
+    /** Items (for list/dl documentation) */
+    items?: Array<{ label: string; text: string }>;
+}
+
+/**
+ * Introspected symbol from compiled program
+ */
+export interface IntrospectedSymbol {
+    /** Symbol name */
+    name: string;
+    /** Symbol type */
+    type: PikeType;
+    /** Symbol kind */
+    kind: 'function' | 'variable' | 'constant' | 'class';
+    /** Modifiers (public, private, static, etc.) */
+    modifiers: string[];
+    /** Parsed autodoc documentation (if available) */
+    documentation?: AutodocDocumentation;
+}
+
+/**
+ * Inheritance information
+ */
+export interface InheritanceInfo {
+    /** Path to parent class/module */
+    path: string;
+    /** Program ID for reference */
+    program_id?: string;
+}
+
+/**
+ * Result of introspecting a compiled Pike program
+ */
+export interface IntrospectionResult {
+    /** Success flag */
+    success: number;
+    /** All symbols found */
+    symbols: IntrospectedSymbol[];
+    /** Functions only */
+    functions: IntrospectedSymbol[];
+    /** Variables only */
+    variables: IntrospectedSymbol[];
+    /** Classes only */
+    classes: IntrospectedSymbol[];
+    /** Inheritance information */
+    inherits: InheritanceInfo[];
+    /** Diagnostics from compilation */
+    diagnostics: PikeDiagnostic[];
+}
+
+/**
+ * Result of resolving a stdlib module
+ */
+export interface StdlibResolveResult {
+    /** Whether module was found */
+    found: number;
+    /** Path to module source */
+    path?: string;
+    /** Module path that was resolved */
+    module?: string;
+    /** Symbols in the module */
+    symbols?: IntrospectedSymbol[];
+    /** Functions in the module */
+    functions?: IntrospectedSymbol[];
+    /** Variables in the module */
+    variables?: IntrospectedSymbol[];
+    /** Classes in the module */
+    classes?: IntrospectedSymbol[];
+    /** Inheritance information */
+    inherits?: InheritanceInfo[];
+    /** Error message if not found */
+    error?: string;
+}
+
+/**
+ * Result of getting inherited members
+ */
+export interface InheritedMembersResult {
+    /** Whether class was found */
+    found: number;
+    /** Inherited members */
+    members: IntrospectedSymbol[];
+    /** Number of parent classes */
+    inherit_count?: number;
+}
+
+/**
+ * Diagnostic for an uninitialized variable
+ */
+export interface UninitializedVariableDiagnostic {
+    /** Warning message */
+    message: string;
+    /** Severity (always 'warning' for uninitialized vars) */
+    severity: 'warning';
+    /** Position where the variable is used */
+    position: {
+        line: number;
+        character: number;
+    };
+    /** Name of the variable */
+    variable: string;
+    /** Type of the variable */
+    type?: string;
+    /** State of initialization */
+    state?: 'uninitialized' | 'maybe_init';
+}
+
+/**
+ * Result of analyzing uninitialized variables
+ */
+export interface AnalyzeUninitializedResult {
+    /** Diagnostics for uninitialized variable usage */
+    diagnostics: UninitializedVariableDiagnostic[];
+}
+
+/**
+ * Completion context result from get_completion_context
+ * Uses Pike's tokenizer for accurate context detection
+ */
+export interface CompletionContext {
+    /** Context type */
+    context: 'none' | 'global' | 'member_access' | 'scope_access' | 'identifier';
+    /** Object/module name for member access (e.g., "Stdio" from "Stdio.") */
+    objectName: string;
+    /** Partial prefix being typed */
+    prefix: string;
+    /** Access operator (if member access) */
+    operator: '->' | '.' | '::' | '';
+}
+
+/**
+ * Request to Pike subprocess
+ */
+export interface PikeRequest {
+    /** Request ID for matching responses */
+    id: number;
+    /** Method to call */
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context';
+    /** Request parameters */
+    params: Record<string, unknown>;
+}
+
+/**
+ * Response from Pike subprocess
+ */
+export interface PikeResponse {
+    /** Request ID this responds to */
+    id: number;
+    /** Result on success */
+    result?: unknown;
+    /** Error on failure */
+    error?: {
+        code: number;
+        message: string;
+    };
+}

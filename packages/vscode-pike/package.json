@@ -1,0 +1,99 @@
+{
+    "name": "vscode-pike",
+    "displayName": "Pike Language Support",
+    "description": "Complete language support for Pike including IntelliSense, go-to-definition, find references, diagnostics, hover, signature help, code completion, semantic tokens, call hierarchy, and workspace symbols.",
+    "version": "1.0.0",
+    "publisher": "pike-lsp",
+    "license": "MIT",
+    "icon": "images/icon.png",
+    "galleryBanner": {
+        "color": "#1e3a5f",
+        "theme": "dark"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/pike-lsp/pike-lsp"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Programming Languages",
+        "Linters"
+    ],
+    "keywords": [
+        "pike",
+        "pike programming language",
+        "lsp",
+        "intellisense",
+        "autocomplete",
+        "syntax highlighting",
+        "code navigation",
+        "diagnostics"
+    ],
+    "activationEvents": [
+        "onLanguage:pike"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "languages": [
+            {
+                "id": "pike",
+                "aliases": [
+                    "Pike",
+                    "pike"
+                ],
+                "extensions": [
+                    ".pike",
+                    ".pmod"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "pike",
+                "scopeName": "source.pike",
+                "path": "./syntaxes/pike.tmLanguage.json"
+            }
+        ],
+        "configuration": {
+            "type": "object",
+            "title": "Pike",
+            "properties": {
+                "pike.pikePath": {
+                    "type": "string",
+                    "default": "pike",
+                    "description": "Path to the Pike executable"
+                },
+                "pike.trace.server": {
+                    "type": "string",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "default": "off",
+                    "description": "Traces the communication between VS Code and the Pike language server"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "clean": "rm -rf dist",
+        "watch": "tsc --watch",
+        "package": "vsce package --no-dependencies",
+        "typecheck": "tsc --noEmit",
+        "vscode:prepublish": "pnpm build"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "@types/vscode": "^1.85.0",
+        "@vscode/vsce": "^2.22.0",
+        "typescript": "^5.3.0"
+    }
+}

@@ -1,0 +1,267 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Pike",
+    "scopeName": "source.pike",
+    "patterns": [
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#preprocessor"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#type-annotations"
+        },
+        {
+            "include": "#types"
+        },
+        {
+            "include": "#function-calls"
+        },
+        {
+            "include": "#modifiers"
+        },
+        {
+            "include": "#operators"
+        },
+        {
+            "include": "#punctuation"
+        }
+    ],
+    "repository": {
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.block.documentation.pike",
+                    "begin": "/\\*!",
+                    "end": "\\*/",
+                    "captures": {
+                        "0": {
+                            "name": "punctuation.definition.comment.pike"
+                        }
+                    }
+                },
+                {
+                    "name": "comment.line.documentation.pike",
+                    "match": "//!.*$"
+                },
+                {
+                    "name": "comment.block.pike",
+                    "begin": "/\\*",
+                    "end": "\\*/",
+                    "captures": {
+                        "0": {
+                            "name": "punctuation.definition.comment.pike"
+                        }
+                    }
+                },
+                {
+                    "name": "comment.line.double-slash.pike",
+                    "match": "//.*$"
+                }
+            ]
+        },
+        "preprocessor": {
+            "patterns": [
+                {
+                    "name": "meta.preprocessor.pike",
+                    "match": "^\\s*(#\\s*(pike|include|define|undef|if|ifdef|ifndef|else|elif|endif|error|warning|pragma|line|string|charset|require))\\b.*$",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.control.preprocessor.pike"
+                        }
+                    }
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.multiline.pike",
+                    "begin": "#\"",
+                    "end": "\"",
+                    "beginCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.begin.pike"
+                        }
+                    },
+                    "endCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.end.pike"
+                        }
+                    }
+                },
+                {
+                    "name": "string.quoted.double.pike",
+                    "begin": "\"",
+                    "end": "\"",
+                    "beginCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.begin.pike"
+                        }
+                    },
+                    "endCaptures": {
+                        "0": {
+                            "name": "punctuation.definition.string.end.pike"
+                        }
+                    },
+                    "patterns": [
+                        {
+                            "name": "constant.character.escape.pike",
+                            "match": "\\\\."
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.pike",
+                    "match": "'(?:[^'\\\\]|\\\\.)*'"
+                }
+            ]
+        },
+        "numbers": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.hex.pike",
+                    "match": "\\b0[xX][0-9a-fA-F]+\\b"
+                },
+                {
+                    "name": "constant.numeric.binary.pike",
+                    "match": "\\b0[bB][01]+\\b"
+                },
+                {
+                    "name": "constant.numeric.octal.pike",
+                    "match": "\\b0[0-7]+\\b"
+                },
+                {
+                    "name": "constant.numeric.float.pike",
+                    "match": "\\b[0-9]+\\.[0-9]*([eE][+-]?[0-9]+)?\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.pike",
+                    "match": "\\b[0-9]+\\b"
+                }
+            ]
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.pike",
+                    "match": "\\b(break|case|catch|continue|default|do|else|for|foreach|if|return|sscanf|switch|while|throw|try|gauge|lambda)\\b"
+                },
+                {
+                    "name": "keyword.other.pike",
+                    "match": "\\b(class|constant|enum|extern|global|import|inherit|typedef)\\b"
+                },
+                {
+                    "name": "constant.language.pike",
+                    "match": "\\b(this|this_program|this_object|UNDEFINED|__FILE__|__LINE__|__DIR__|__REAL_VERSION__|__func__|true|false)\\b"
+                }
+            ]
+        },
+        "types": {
+            "patterns": [
+                {
+                    "name": "storage.type.pike",
+                    "match": "\\b(array|float|function|int|mapping|mixed|multiset|object|program|string|void|zero|bool|auto)\\b"
+                }
+            ]
+        },
+        "function-calls": {
+            "patterns": [
+                {
+                    "comment": "Function calls - exclude type keywords which are handled by type-annotations",
+                    "name": "meta.function-call.pike",
+                    "match": "\\b(?!(array|mapping|multiset|function|object|program|type|int|float|string|mixed|void|zero|bool|auto)\\b)([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+                    "captures": {
+                        "2": {
+                            "name": "entity.name.function.pike"
+                        }
+                    }
+                }
+            ]
+        },
+        "type-annotations": {
+            "patterns": [
+                {
+                    "name": "meta.type.complex.pike",
+                    "match": "\\b(array|mapping|multiset|function|object|program|type)\\s*\\(",
+                    "captures": {
+                        "1": {
+                            "name": "storage.type.pike"
+                        }
+                    }
+                },
+                {
+                    "name": "meta.type.qualified.pike",
+                    "match": "\\b([A-Z][A-Za-z0-9_]*)(\\.([A-Z][A-Za-z0-9_]*))*\\b",
+                    "captures": {
+                        "0": {
+                            "name": "entity.name.type.class.pike"
+                        }
+                    }
+                }
+            ]
+        },
+        "modifiers": {
+            "patterns": [
+                {
+                    "name": "storage.modifier.pike",
+                    "match": "\\b(final|inline|local|nomask|optional|private|protected|public|static|variant)\\b"
+                }
+            ]
+        },
+        "operators": {
+            "patterns": [
+                {
+                    "name": "keyword.operator.pike",
+                    "match": "(->|\\.\\.\\.|\\.\\.|\\.)|(!|~|\\+\\+|--|\\*|/|%|\\+|-|<<|>>|<|>|<=|>=|==|!=|&|\\^|\\||&&|\\|\\||\\?|:|=|\\+=|-=|\\*=|/=|%=|<<=|>>=|&=|\\^=|\\|=)"
+                }
+            ]
+        },
+        "punctuation": {
+            "patterns": [
+                {
+                    "name": "punctuation.section.block.begin.pike",
+                    "match": "\\{"
+                },
+                {
+                    "name": "punctuation.section.block.end.pike",
+                    "match": "\\}"
+                },
+                {
+                    "name": "punctuation.section.parens.begin.pike",
+                    "match": "\\("
+                },
+                {
+                    "name": "punctuation.section.parens.end.pike",
+                    "match": "\\)"
+                },
+                {
+                    "name": "punctuation.section.brackets.begin.pike",
+                    "match": "\\["
+                },
+                {
+                    "name": "punctuation.section.brackets.end.pike",
+                    "match": "\\]"
+                },
+                {
+                    "name": "punctuation.terminator.pike",
+                    "match": ";"
+                },
+                {
+                    "name": "punctuation.separator.pike",
+                    "match": ","
+                }
+            ]
+        }
+    }
+}

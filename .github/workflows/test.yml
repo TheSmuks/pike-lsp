@@ -1,0 +1,56 @@
+name: Test
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install Pike
+        run: |
+          # Add Pike repository and install
+          sudo apt-get update
+          sudo apt-get install -y pike8.0
+
+      - name: Verify Pike installation
+        run: |
+          pike --version
+          which pike
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run Pike Bridge tests
+        run: pnpm --filter @pike-lsp/pike-bridge test
+
+      - name: Run LSP Server tests
+        run: pnpm --filter @pike-lsp/pike-lsp-server test
+
+      - name: Run integration tests
+        run: pnpm --filter @pike-lsp/pike-lsp-server test:integration

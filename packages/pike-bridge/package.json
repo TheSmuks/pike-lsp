@@ -1,0 +1,23 @@
+{
+    "name": "@pike-lsp/pike-bridge",
+    "version": "1.0.0",
+    "description": "TypeScript <-> Pike subprocess communication layer",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "clean": "rm -rf dist",
+        "watch": "tsc --watch",
+        "test": "pnpm build && node --test dist/**/*.test.js",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
