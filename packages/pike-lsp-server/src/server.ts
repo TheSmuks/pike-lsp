@@ -460,6 +460,41 @@ function buildSymbolPositionIndexRegex(text: string, symbols: PikeSymbol[]): Map
 }
 
 /**
+ * Flatten nested symbol tree into a single-level array
+ * This ensures all class members are indexed at the document level
+ */
+function flattenSymbols(symbols: PikeSymbol[], parentName = ''): PikeSymbol[] {
+    const flat: PikeSymbol[] = [];
+
+    for (const sym of symbols) {
+        // Add the symbol itself
+        flat.push(sym);
+
+        // Recursively flatten children with qualified names
+        if (sym.children && sym.children.length > 0) {
+            const qualifiedPrefix = parentName ? `${parentName}.${sym.name}` : sym.name;
+
+            for (const child of sym.children) {
+                // Create a copy with qualified name for easier lookup
+                const childWithQualName = {
+                    ...child,
+                    // Store qualified name for namespaced lookup
+                    qualifiedName: `${qualifiedPrefix}.${child.name}`
+                };
+                flat.push(childWithQualName);
+
+                // Recursively handle nested children
+                if (child.children && child.children.length > 0) {
+                    flat.push(...flattenSymbols(child.children, qualifiedPrefix));
+                }
+            }
+        }
+    }
+
+    return flat;
+}
+
+/**
  * Validate document with debouncing
  */
 function validateDocumentDebounced(document: TextDocument): void {
@@ -580,8 +615,14 @@ async function validateDocument(document: TextDocument): Promise<void> {
             const legacySymbols: PikeSymbol[] = [];
 
             if (parseResult) {
-                // For each parsed symbol, enrich with type info from introspection
-                for (const parsedSym of parseResult.symbols) {
+                // Flatten nested symbols to include class members
+                // This ensures get_n, get_e, set_random etc. are indexed
+                const flatParseSymbols = flattenSymbols(parseResult.symbols);
+
+                connection.console.log(`[VALIDATE] Flattened ${parseResult.symbols.length} symbols to ${flatParseSymbols.length} total (including class members)`);
+
+                // For each parsed symbol (including nested), enrich with type info from introspection
+                for (const parsedSym of flatParseSymbols) {
                     // Skip symbols with null names
                     if (!parsedSym.name) continue;
 
