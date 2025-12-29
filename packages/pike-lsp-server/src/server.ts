@@ -53,6 +53,9 @@ import {
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { PikeBridge, PikeSymbol, PikeDiagnostic, PikeFunctionType, IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 import { WorkspaceIndex } from './workspace-index.js';
 import { TypeDatabase, CompiledProgramInfo } from './type-database.js';
@@ -133,14 +136,53 @@ const semanticTokensLegend: SemanticTokensLegend = {
     tokenModifiers
 };
 
+/**
+ * Find the analyzer.pike script path.
+ * Checks multiple locations to support both development and bundled scenarios.
+ */
+function findAnalyzerPath(): string | undefined {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+
+    // Possible analyzer.pike locations
+    const possiblePaths = [
+        // Bundled: server/pike-scripts/analyzer.pike (same dir as server.js)
+        path.resolve(__dirname, 'pike-scripts', 'analyzer.pike'),
+        // Development: monorepo structure ../../../pike-scripts/analyzer.pike
+        path.resolve(__dirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
+        // Alternative development path
+        path.resolve(__dirname, '..', '..', 'pike-scripts', 'analyzer.pike'),
+    ];
+
+    for (const p of possiblePaths) {
+        if (fsSync.existsSync(p)) {
+            return p;
+        }
+    }
+
+    return undefined;
+}
+
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
     connection.console.log('Pike LSP Server initializing...');
 
+    // Find analyzer.pike script
+    const analyzerPath = findAnalyzerPath();
+    if (analyzerPath) {
+        connection.console.log(`Found analyzer.pike at: ${analyzerPath}`);
+    } else {
+        connection.console.warn('Could not find analyzer.pike script');
+    }
+
     // Initialize Pike bridge
     const initOptions = params.initializationOptions as { pikePath?: string } | undefined;
-    bridge = new PikeBridge({
+    const bridgeOptions: { pikePath: string; analyzerPath?: string } = {
         pikePath: initOptions?.pikePath ?? 'pike',
-    });
+    };
+    if (analyzerPath) {
+        bridgeOptions.analyzerPath = analyzerPath;
+    }
+    bridge = new PikeBridge(bridgeOptions);
 
     // Initialize stdlib index manager
     stdlibIndex = new StdlibIndexManager(bridge);

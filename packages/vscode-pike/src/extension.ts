@@ -25,12 +25,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
 
     // Try multiple possible server locations
     const possiblePaths = [
-        // Development: sibling package
-        context.asAbsolutePath(path.join('..', 'pike-lsp-server', 'dist', 'server.js')),
-        // Development: from workspace root
-        path.join(context.extensionPath, '..', 'pike-lsp-server', 'dist', 'server.js'),
-        // Production: bundled server
+        // Production: bundled server (check first for installed extensions)
         context.asAbsolutePath(path.join('server', 'server.js')),
+        // Development: sibling package (monorepo structure)
+        context.asAbsolutePath(path.join('..', 'pike-lsp-server', 'dist', 'server.js')),
+        // Development: alternative path
+        path.join(context.extensionPath, '..', 'pike-lsp-server', 'dist', 'server.js'),
     ];
 
     let serverModule: string | null = null;

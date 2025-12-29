@@ -35,6 +35,9 @@
         "onLanguage:pike"
     ],
     "main": "./dist/extension.js",
+    "extensionKind": [
+        "workspace"
+    ],
     "contributes": {
         "languages": [
             {
@@ -81,11 +84,12 @@
     },
     "scripts": {
         "build": "tsc",
-        "clean": "rm -rf dist",
+        "clean": "rm -rf dist server",
         "watch": "tsc --watch",
-        "package": "vsce package --no-dependencies",
+        "bundle-server": "bash scripts/bundle-server.sh",
+        "package": "pnpm bundle-server && vsce package --no-dependencies",
         "typecheck": "tsc --noEmit",
-        "vscode:prepublish": "pnpm build"
+        "vscode:prepublish": "pnpm build && pnpm bundle-server"
     },
     "dependencies": {
         "vscode-languageclient": "^9.0.1"
@@ -94,6 +98,7 @@
         "@types/node": "^20.10.0",
         "@types/vscode": "^1.85.0",
         "@vscode/vsce": "^2.22.0",
+        "esbuild": "^0.20.0",
         "typescript": "^5.3.0"
     }
 }

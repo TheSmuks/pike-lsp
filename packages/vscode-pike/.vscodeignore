@@ -27,3 +27,9 @@ pnpm-lock.yaml
 
 # CI/CD
 .github/
+
+# Build scripts (not needed in VSIX)
+scripts/
+
+# Server source maps (optional, remove for smaller package)
+server/**/*.map
