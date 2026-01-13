@@ -2375,6 +2375,28 @@ protected array(mapping) analyze_scope(array tokens, array(string) lines,
       continue;
     }
 
+    // Detect lambda definitions
+    if (is_lambda_definition(tokens, i, end_idx)) {
+      // Skip to lambda body and analyze it
+      int body_start = find_next_token(tokens, i, end_idx, "{");
+      if (body_start >= 0) {
+        int body_end = find_matching_brace(tokens, body_start, end_idx);
+        if (body_end > body_start) {
+          // Add lambda parameters as initialized variables
+          mapping(string:mapping) param_vars = extract_function_params(tokens, i, body_start);
+
+          // Analyze lambda body with parameters pre-initialized
+          array(mapping) func_diags = analyze_function_body(
+            tokens, lines, filename, body_start + 1, body_end, param_vars
+          );
+          diagnostics += func_diags;
+
+          i = body_end + 1;
+          continue;
+        }
+      }
+    }
+
     // Detect function/method definitions
     if (is_function_definition(tokens, i, end_idx)) {
       // Skip to function body and analyze it
@@ -2462,6 +2484,24 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
       if (scope_depth <= 0) break;  // End of function body
       i++;
       continue;
+    }
+
+    // Detect lambda definitions inside function bodies
+    if (is_lambda_definition(tokens, i, end_idx)) {
+      int body_start = find_next_token(tokens, i, end_idx, "{");
+      if (body_start >= 0) {
+        int body_end = find_matching_brace(tokens, body_start, end_idx);
+        if (body_end > body_start) {
+          mapping(string:mapping) param_vars = extract_function_params(tokens, i, body_start);
+          array(mapping) func_diags = analyze_function_body(
+            tokens, lines, filename, body_start + 1, body_end, param_vars
+          );
+          diagnostics += func_diags;
+
+          i = body_end + 1;
+          continue;
+        }
+      }
     }
 
     // Detect variable declarations
@@ -2810,6 +2850,38 @@ protected int is_function_definition(array tokens, int start_idx, int end_idx) {
   }
 
   // Next should be { for function body (or ; for declaration-only)
+  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  if (i >= end_idx || i >= sizeof(tokens)) return 0;
+
+  return tokens[i]->text == "{";
+}
+
+//! Check if tokens at index represent a lambda definition
+protected int is_lambda_definition(array tokens, int start_idx, int end_idx) {
+  int i = start_idx;
+
+  // Skip whitespace
+  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  if (i >= end_idx || i >= sizeof(tokens)) return 0;
+
+  if (tokens[i]->text != "lambda") return 0;
+  i++;
+
+  // Need opening paren for parameter list
+  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  if (i >= end_idx || i >= sizeof(tokens)) return 0;
+  if (tokens[i]->text != "(") return 0;
+
+  // Find matching close paren
+  int paren_depth = 1;
+  i++;
+  while (i < end_idx && i < sizeof(tokens) && paren_depth > 0) {
+    if (tokens[i]->text == "(") paren_depth++;
+    else if (tokens[i]->text == ")") paren_depth--;
+    i++;
+  }
+
+  // Next should be { for lambda body
   while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
 

@@ -230,6 +230,21 @@ void test(string s) {
             assert.ok(!diag, 'Should not warn for function parameters');
         });
 
+        it('should not warn for lambda parameters', async () => {
+            const code = `
+void test() {
+    Array.sort_array(({}), lambda(string a, string b) {
+        return sizeof(a) > sizeof(b);
+    });
+}
+`;
+            const result = await bridge.analyzeUninitialized(code, 'test.pike');
+
+            const diagA = result.diagnostics.find(d => d.variable === 'a');
+            const diagB = result.diagnostics.find(d => d.variable === 'b');
+            assert.ok(!diagA && !diagB, 'Should not warn for lambda parameters');
+        });
+
         it.skip('should detect conditional initialization (maybe_init)', async () => {
             // TODO: Implement branch-aware control flow analysis
             const code = `
