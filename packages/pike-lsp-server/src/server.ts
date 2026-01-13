@@ -76,6 +76,8 @@ const documents = new TextDocuments(TextDocument);
 
 // Pike bridge for parsing and compilation
 let bridge: PikeBridge | null = null;
+let bridgeUnavailableReason: string | null = null;
+let bridgeUnavailableLogged = false;
 
 // Type database for compiled programs and type inference
 const typeDatabase = new TypeDatabase();
@@ -183,22 +185,30 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
     }
-    bridge = new PikeBridge(bridgeOptions);
-
-    // Initialize stdlib index manager
-    stdlibIndex = new StdlibIndexManager(bridge);
-
-    // Log bridge stderr
-    bridge.on('stderr', (msg: string) => {
-        connection.console.log(`[Pike] ${msg}`);
-    });
+    const bridgeCandidate = new PikeBridge(bridgeOptions);
 
     // Check if Pike is available
     try {
-        const available = await bridge.checkPike();
+        const available = await bridgeCandidate.checkPike();
         if (!available) {
-            connection.console.warn('Pike executable not found. Some features may not work.');
+            bridgeUnavailableReason = 'Pike executable not found. Some features may not work.';
+            bridgeUnavailableLogged = false;
+            connection.console.warn(bridgeUnavailableReason);
+            bridge = null;
+            stdlibIndex = null;
         } else {
+            bridgeUnavailableReason = null;
+            bridgeUnavailableLogged = false;
+            bridge = bridgeCandidate;
+
+            // Initialize stdlib index manager
+            stdlibIndex = new StdlibIndexManager(bridge);
+
+            // Log bridge stderr
+            bridge.on('stderr', (msg: string) => {
+                connection.console.log(`[Pike] ${msg}`);
+            });
+
             await bridge.start();
             connection.console.log('Pike bridge started');
         }
@@ -567,7 +577,10 @@ async function validateDocument(document: TextDocument): Promise<void> {
     connection.console.log(`[VALIDATE] Starting validation for: ${uri}`);
 
     if (!bridge) {
-        connection.console.error('[VALIDATE] Bridge is null!');
+        if (bridgeUnavailableReason && !bridgeUnavailableLogged) {
+            connection.console.warn(`[VALIDATE] ${bridgeUnavailableReason}`);
+            bridgeUnavailableLogged = true;
+        }
         return;
     }
 
@@ -4664,9 +4677,16 @@ connection.onCodeLensResolve((lens): CodeLens => {
 
 connection.onShutdown(async () => {
     connection.console.log('Pike LSP Server shutting down...');
-    if (bridge) {
-        await bridge.stop();
+    // Avoid blocking shutdown; cleanup happens on exit.
+});
+
+connection.onExit(() => {
+    if (!bridge) {
+        return;
     }
+    bridge.stop().catch((err) => {
+        connection.console.error(`Failed to stop Pike bridge: ${err}`);
+    });
 });
 
 // Listen for document events
