@@ -88,10 +88,11 @@ export class PikeBridge extends EventEmitter {
         super();
 
         // Default analyzer path relative to this file (ESM-compatible)
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
+        const resolvedFilename =
+            typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
+        const resolvedDirname = path.dirname(resolvedFilename);
         const defaultAnalyzerPath = path.resolve(
-            __dirname,
+            resolvedDirname,
             '..',
             '..',
             '..',

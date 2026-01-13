@@ -141,17 +141,18 @@ const semanticTokensLegend: SemanticTokensLegend = {
  * Checks multiple locations to support both development and bundled scenarios.
  */
 function findAnalyzerPath(): string | undefined {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
+    const resolvedFilename =
+        typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
+    const resolvedDirname = path.dirname(resolvedFilename);
 
     // Possible analyzer.pike locations
     const possiblePaths = [
         // Bundled: server/pike-scripts/analyzer.pike (same dir as server.js)
-        path.resolve(__dirname, 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
         // Development: monorepo structure ../../../pike-scripts/analyzer.pike
-        path.resolve(__dirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
         // Alternative development path
-        path.resolve(__dirname, '..', '..', 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, '..', '..', 'pike-scripts', 'analyzer.pike'),
     ];
 
     for (const p of possiblePaths) {
