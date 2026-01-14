@@ -178,10 +178,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     }
 
     // Initialize Pike bridge
-    const initOptions = params.initializationOptions as { pikePath?: string } | undefined;
-    const bridgeOptions: { pikePath: string; analyzerPath?: string } = {
+    const initOptions = params.initializationOptions as { pikePath?: string, env?: NodeJS.ProcessEnv | undefined};
+    const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv} = {
         pikePath: initOptions?.pikePath ?? 'pike',
+        env: initOptions?.env ?? {},
     };
+
     if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
     }
