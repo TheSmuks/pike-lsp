@@ -60,6 +60,20 @@
                 "path": "./syntaxes/pike.tmLanguage.json"
             }
         ],
+                "commands": [
+                        {
+                                "command": "pike-module-path.add",
+                                "title": "Add to Pike Module Path"
+                        }
+                ],
+                "menus": {
+                        "explorer/context": [
+                                {
+                                        "when": "explorerResourceIsFolder",
+                                        "command": "pike-module-path.add"
+                                }
+                        ]
+                },
         "configuration": {
             "type": "object",
             "title": "Pike",
@@ -68,6 +82,14 @@
                     "type": "string",
                     "default": "pike",
                     "description": "Path to the Pike executable"
+                },
+		"pike.pikeModulePath": {
+                    "type": "array",
+                     "items": {
+                       "type": "string"
+                     },
+                    "default": [],
+                    "description": "Module Path"
                 },
                 "pike.trace.server": {
                     "type": "string",
