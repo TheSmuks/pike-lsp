@@ -10,7 +10,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { ExtensionContext, ConfigurationTarget, commands, workspace, window } from 'vscode';
+import { ExtensionContext, ConfigurationTarget, Position, Uri, commands, workspace, window } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -34,6 +34,31 @@ export async function activate(context: ExtensionContext): Promise<void> {
     });
 
     context.subscriptions.push(disposable);
+
+    const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (arg) => {
+        let uri: string | undefined;
+        let position: { line: number; character: number } | undefined;
+
+        if (Array.isArray(arg)) {
+            [uri, position] = arg;
+        } else if (arg && typeof arg === 'object') {
+            const payload = arg as { uri?: string; position?: { line: number; character: number } };
+            uri = payload.uri;
+            position = payload.position;
+        }
+
+        if (!uri || !position) {
+            return;
+        }
+
+        const refUri = Uri.parse(uri);
+        const refPosition = new Position(position.line, position.character);
+        await commands.executeCommand('editor.action.findReferences', refUri, refPosition, {
+            includeDeclaration: false
+        });
+    });
+
+    context.subscriptions.push(showReferencesDisposable);
 
     // Try multiple possible server locations
     const possiblePaths = [

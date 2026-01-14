@@ -67,6 +67,7 @@ import {
     PATH_PATTERNS,
     PatternHelpers
 } from './utils/regex-patterns.js';
+import { buildCodeLensCommand } from './utils/code-lens.js';
 
 // Create connection using Node's IPC
 const connection = createConnection(ProposedFeatures.all);
@@ -4614,9 +4615,11 @@ connection.onCodeLens((params): CodeLens[] => {
     for (const symbol of cache.symbols) {
         // Only add lenses for certain symbol kinds
         if (symbol.kind === 'method' || symbol.kind === 'class') {
-            const line = (symbol.position?.line ?? 1) - 1;
-            const char = symbol.position?.column ?? 0;
+            const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+            const char = Math.max(0, (symbol.position?.column ?? 1) - 1);
             const symbolName = symbol.name ?? '';
+
+            const position: Position = { line, character: char };
 
             lenses.push({
                 range: {
@@ -4627,7 +4630,7 @@ connection.onCodeLens((params): CodeLens[] => {
                     uri,
                     symbolName,
                     kind: symbol.kind,
-                    range: { line, character: char }
+                    position
                 }
             });
         }
@@ -4641,7 +4644,7 @@ connection.onCodeLens((params): CodeLens[] => {
  * Code Lens resolve handler - compute reference counts
  */
 connection.onCodeLensResolve((lens): CodeLens => {
-    const data = lens.data as { uri: string; symbolName: string; kind: string; range: Range };
+    const data = lens.data as { uri: string; symbolName: string; kind: string; position: Position };
 
     if (!data) {
         return lens;
@@ -4667,11 +4670,7 @@ connection.onCodeLensResolve((lens): CodeLens => {
         }
     }
 
-    lens.command = {
-        title: `${refCount} reference${refCount !== 1 ? 's' : ''}`,
-        command: 'editor.action.findReferences',
-        arguments: [data.uri, data.range]
-    };
+    lens.command = buildCodeLensCommand(refCount, data.uri, data.position);
 
     connection.console.log(`[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`);
     return lens;
