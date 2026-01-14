@@ -117,6 +117,7 @@ const defaultSettings: PikeSettings = {
 };
 
 let globalSettings: PikeSettings = defaultSettings;
+let includePaths: string[] = [];
 
 // Debounce timers for validation
 const validationTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -184,6 +185,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         pikePath: initOptions?.pikePath ?? 'pike',
         env: initOptions?.env ?? {},
     };
+    includePaths = (initOptions?.env?.['PIKE_INCLUDE_PATH'] ?? '')
+        .split(':')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
 
     if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
@@ -4572,11 +4577,22 @@ function resolveIncludePath(filePath: string, documentDir: string): { target: st
         };
     }
 
-    // Relative path
-    const resolvedPath = `${documentDir}/${filePath}`;
+    // Relative path: check document directory first, then include paths.
+    const candidates = [
+        path.resolve(documentDir, filePath),
+        ...includePaths.map((includePath) => path.resolve(includePath, filePath))
+    ];
 
-    // Check if file exists (simplified - in production we'd use fs.existsSync)
-    // For now, just return the resolved path
+    for (const candidate of candidates) {
+        if (fsSync.existsSync(candidate)) {
+            return {
+                target: `file://${candidate}`,
+                tooltip: filePath
+            };
+        }
+    }
+
+    const resolvedPath = path.resolve(documentDir, filePath);
     return {
         target: `file://${resolvedPath}`,
         tooltip: filePath

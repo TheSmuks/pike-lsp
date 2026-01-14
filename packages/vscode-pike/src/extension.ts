@@ -109,6 +109,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
         workspace.onDidChangeConfiguration(async (event) => {
             if (
                 event.affectsConfiguration('pike.pikeModulePath') ||
+                event.affectsConfiguration('pike.pikeIncludePath') ||
                 event.affectsConfiguration('pike.pikePath')
             ) {
                 await restartClient(false);
@@ -136,6 +137,24 @@ function getExpandedModulePaths(): string[] {
     return expandedPaths;
 }
 
+function getExpandedIncludePaths(): string[] {
+    const config = workspace.getConfiguration('pike');
+    const pikeIncludePath = config.get<string[]>('pikeIncludePath', []);
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders !== undefined) {
+        const f = workspace.workspaceFolders[0].uri.fsPath;
+        for (const p of pikeIncludePath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeIncludePath;
+    }
+
+    console.log('Pike include path: ' + JSON.stringify(pikeIncludePath));
+    return expandedPaths;
+}
+
 async function restartClient(showMessage: boolean): Promise<void> {
     if (!serverOptions) {
         return;
@@ -152,6 +171,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
     const expandedPaths = getExpandedModulePaths();
+    const expandedIncludePaths = getExpandedIncludePaths();
 
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
@@ -162,7 +182,10 @@ async function restartClient(showMessage: boolean): Promise<void> {
         },
         initializationOptions: {
             pikePath,
-            env: { 'PIKE_MODULE_PATH': expandedPaths.join(":") },
+            env: {
+                'PIKE_MODULE_PATH': expandedPaths.join(":"),
+                'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
+            },
         },
         outputChannelName: 'Pike Language Server',
     };

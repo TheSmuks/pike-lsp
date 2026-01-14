@@ -91,6 +91,14 @@
                     "default": [],
                     "description": "Module Path"
                 },
+                "pike.pikeIncludePath": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [],
+                    "description": "Include Path"
+                },
                 "pike.trace.server": {
                     "type": "string",
                     "enum": [
