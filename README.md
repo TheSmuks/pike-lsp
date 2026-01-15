@@ -143,6 +143,15 @@ node --test dist/tests/performance-tests.js
 node dist/tests/pike-source-tests.js --verbose
 ```
 
+### Pike Stdlib Source Paths
+The stdlib parsing tests default to `../Pike` relative to this repo. Override as needed:
+
+```bash
+PIKE_SOURCE_ROOT=/path/to/Pike ./scripts/run-tests.sh
+# or
+PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scripts/run-tests.sh
+```
+
 ### Test Coverage
 - **2,977 lines** of test code across 10 test suites
 - **100%** Pike 8 stdlib files parse successfully

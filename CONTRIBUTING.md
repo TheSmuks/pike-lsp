@@ -78,6 +78,15 @@ cd packages/pike-lsp-server
 node --test dist/tests/lsp-tests.js
 ```
 
+#### Pike Stdlib Source Paths
+The stdlib parsing tests look for a Pike source checkout at `../Pike` by default. Override with:
+
+```bash
+PIKE_SOURCE_ROOT=/path/to/Pike ./scripts/run-tests.sh
+# or
+PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scripts/run-tests.sh
+```
+
 ### 4. Commit Changes
 
 Use clear, descriptive commit messages:
