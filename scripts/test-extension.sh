@@ -13,7 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXTENSION_DIR="$PROJECT_ROOT/packages/vscode-pike"
 TEST_FILE="$PROJECT_ROOT/test/fixtures/test.pike"
-PIKE_STDLIB="/home/matias/Antigravity/Pike LSP/Pike/lib/modules"
+PIKE_SOURCE_ROOT="${PIKE_SOURCE_ROOT:-"$PROJECT_ROOT/../Pike"}"
+PIKE_STDLIB="${PIKE_STDLIB:-"$PIKE_SOURCE_ROOT/lib/modules"}"
 
 # Parse arguments
 if [[ "$1" == "--stdlib" ]]; then

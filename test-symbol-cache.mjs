@@ -1,12 +1,20 @@
 import { PikeBridge } from './packages/pike-bridge/dist/index.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const bridge = new PikeBridge({ debug: false });
 await bridge.start();
 bridge.on('stderr', () => {});
 
-// Read the tds.pike file
+// Read the tds.pike file (override with PIKE_SOURCE_ROOT or PIKE_STDLIB)
 const fs = await import('fs');
-const code = fs.readFileSync('/home/matias/Antigravity/Pike LSP/Pike/lib/modules/Sql.pmod/tds.pike', 'utf-8');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(currentDir);
+const defaultPikeSourceRoot = path.resolve(repoRoot, '..', 'Pike');
+const pikeSourceRoot = process.env['PIKE_SOURCE_ROOT'] ?? defaultPikeSourceRoot;
+const pikeStdlib = process.env['PIKE_STDLIB'] ?? path.join(pikeSourceRoot, 'lib/modules');
+const tdsPath = path.join(pikeStdlib, 'Sql.pmod', 'tds.pike');
+const code = fs.readFileSync(tdsPath, 'utf-8');
 
 console.log('=== Testing Symbol Cache for LSP Features ===\n');
 

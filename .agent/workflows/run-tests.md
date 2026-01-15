@@ -10,7 +10,14 @@ This workflow MUST be run after completing any phase before presenting work to t
 
 1. Run the automated test suite:
 ```bash
-/home/matias/Antigravity/Pike\ LSP/pike-lsp/scripts/run-tests.sh
+./scripts/run-tests.sh
+```
+
+If the Pike stdlib sources live elsewhere, set one of:
+```bash
+PIKE_SOURCE_ROOT=/path/to/Pike ./scripts/run-tests.sh
+# or
+PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scripts/run-tests.sh
 ```
 
 2. If tests fail, fix the issues before proceeding.
@@ -37,7 +44,7 @@ This workflow MUST be run after completing any phase before presenting work to t
 
 After automated tests pass, test the extension manually:
 ```bash
-/home/matias/Antigravity/Pike\ LSP/pike-lsp/scripts/test-extension.sh
+./scripts/test-extension.sh
 ```
 
 This opens VSCode/VSCodium with the extension loaded.
