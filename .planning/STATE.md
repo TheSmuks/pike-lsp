@@ -52,9 +52,10 @@ Recent decisions affecting current work:
 - PERF-005: Debug mode disabled by default for performance
 
 **From 01-02 (Compat.pmod):**
-- Use __REAL_VERSION__ for compile-time version detection
-- Prefer conditional functions as primary API over feature flags
-- Graceful degradation on unsupported Pike versions
+- __REAL_VERSION__ returns float (8.0), not string - requires sprintf() for string conversion
+- Compile-time feature detection via #if constant(String.trim_whites)
+- Native String.trim_whites() used on Pike 8.x, polyfill on 7.6/7.8
+- LSPError class properties cannot use `constant` keyword (must be variables)
 
 ### Pending Todos
 
@@ -69,5 +70,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Completed 01-01-PLAN.md (module.pmod with shared infrastructure)
+Stopped at: Completed 01-02-PLAN.md (Compat.pmod with version detection and polyfills)
 Resume file: None
