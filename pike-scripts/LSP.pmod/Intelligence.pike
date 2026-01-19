@@ -362,4 +362,140 @@ class Intelligence {
 
         return "";
     }
+
+    //! Resolve stdlib module and extract symbols with documentation
+    //! Uses LSP.Cache for stdlib data caching with flat module name keys.
+    //!
+    //! @param params Mapping with "module" key (fully qualified module name)
+    //! @returns Mapping with "result" containing module symbols and documentation
+    //!
+    //! Implements two-cache architecture:
+    //! - Stdlib cache: flat by module name, on-demand loading, never invalidated during session
+    //! - Symbols merged from runtime introspection and source file parsing
+    //! - Documentation parsed from AutoDoc comments and merged into results
+    //!
+    //! Per CONTEXT.md decision:
+    //! - Cache check happens before resolution (returns cached data if available)
+    //! - Line number suffix is stripped from Program.defined() paths
+    mapping handle_resolve_stdlib(mapping params) {
+        mixed err = catch {
+            string module_path = params->module || "";
+
+            if (sizeof(module_path) == 0) {
+                return ([ "result": ([ "found": 0, "error": "No module path" ]) ]);
+            }
+
+            // Check cache first - flat module name key per CONTEXT.md decision
+            mapping cached = LSP.Cache.get("stdlib_cache", module_path);
+            if (cached) {
+                return ([ "result": cached ]);
+            }
+
+            // Resolve using master()->resolv()
+            mixed resolved;
+            mixed resolve_err = catch {
+                resolved = master()->resolv(module_path);
+            };
+
+            if (resolve_err || !resolved) {
+                return ([
+                    "result": ([
+                        "found": 0,
+                        "error": resolve_err ? describe_error(resolve_err) : "Module not found"
+                    ])
+                ]);
+            }
+
+            // Get program for introspection
+            program prog;
+            if (objectp(resolved)) {
+                prog = object_program(resolved);
+            } else if (programp(resolved)) {
+                prog = resolved;
+            } else {
+                return ([ "result": ([ "found": 0, "error": "Not a program" ]) ]);
+            }
+
+            // Use native module path resolution (reuses shared helper)
+            string source_path = get_module_path(resolved);
+
+            // Introspect
+            mapping introspection = introspect_program(prog);
+
+            // Parse source file to get all exported symbols (not just introspected ones)
+            if (sizeof(source_path) > 0) {
+                string code;
+                mixed read_err = catch {
+                    // Clean up path - remove line number suffix if present
+                    // Pitfall 2 from RESEARCH.md: Program.defined() returns paths with line numbers
+                    string clean_path = source_path;
+                    if (has_value(clean_path, ":")) {
+                        array parts = clean_path / ":";
+                        // Check if last part is a number (line number)
+                        if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
+                            int is_line_num = 1;
+                            foreach(parts[-1] / "", string c) {
+                                if (c < "0" || c > "9") { is_line_num = 0; break; }
+                            }
+                            if (is_line_num) {
+                                clean_path = parts[..sizeof(parts)-2] * ":";
+                            }
+                        }
+                    }
+                    code = Stdio.read_file(clean_path);
+                };
+
+                if (code && sizeof(code) > 0) {
+                    // Parse the file to get all symbols using Parser class
+                    program ParserClass = master()->resolv("LSP.Parser")->Parser;
+                    object parser = ParserClass();
+                    mapping parse_params = ([ "code": code, "filename": source_path ]);
+                    mapping parse_response = parser->parse_request(parse_params);
+
+                    // parse_request returns { "result": { "symbols": [...], "diagnostics": [...] } }
+                    if (parse_response && parse_response->result &&
+                        parse_response->result->symbols && sizeof(parse_response->result->symbols) > 0) {
+                        array parsed_symbols = parse_response->result->symbols;
+
+                        // Merge parsed symbols into introspection
+                        // Add any new symbols that weren't in introspection
+                        if (!introspection->symbols) {
+                            introspection->symbols = ({});
+                        }
+
+                        // Create a set of introspected symbol names for quick lookup
+                        multiset(string) introspected_names =
+                            (multiset)(map(introspection->symbols, lambda(mapping s) { return s->name; }));
+
+                        // Add parsed symbols that weren't in introspection
+                        foreach(parsed_symbols, mapping sym) {
+                            string name = sym->name;
+                            if (name && !introspected_names[name]) {
+                                introspection->symbols += ({ sym });
+                                introspected_names[name] = 1;
+                            }
+                        }
+                    }
+
+                    // Parse documentation and merge it
+                    mapping docs = parse_stdlib_documentation(source_path);
+                    if (docs && sizeof(docs) > 0) {
+                        // Merge documentation into introspected symbols
+                        introspection = merge_documentation(introspection, docs);
+                    }
+                }
+            }
+
+            mapping result = ([ "found": 1, "path": source_path, "module": module_path ]) + introspection;
+
+            // Cache using LSP.Cache (LRU eviction handled by Cache.pmod)
+            LSP.Cache.put("stdlib_cache", module_path, result);
+
+            return ([ "result": result ]);
+        };
+
+        if (err) {
+            return LSP.LSPError(-32000, describe_error(err))->to_response();
+        }
+    }
 }
