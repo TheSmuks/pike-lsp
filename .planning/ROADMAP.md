@@ -87,7 +87,13 @@ Plans:
 4. Handler errors return JSON-RPC error responses instead of crashing the server
 5. Integration tests pass for introspect and resolve handlers
 
-**Plans**: TBD
+**Plans**: 4 plans (3 autonomous, 1 checkpoint, 4 waves)
+
+Plans:
+- [ ] 03-01-PLAN.md — Create Intelligence.pike with handle_introspect and handle_resolve (Wave 1)
+- [ ] 03-02-PLAN.md — Add handle_resolve_stdlib with stdlib caching and documentation parsing (Wave 2)
+- [ ] 03-03-PLAN.md — Add handle_get_inherited for inheritance traversal (Wave 3)
+- [ ] 03-04-PLAN.md — Write integration tests and update analyzer.pike delegation (Wave 4)
 
 ### Phase 4: Analysis & Entry Point
 
@@ -135,6 +141,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation | 6/6 | Complete | 2026-01-19 |
 | 2. Parser Module | 3/3 | Complete | 2026-01-19 |
-| 3. Intelligence Module | 0/TBD | Not started | - |
+| 3. Intelligence Module | 0/4 | Not started | - |
 | 4. Analysis & Entry Point | 0/TBD | Not started | - |
 | 5. Verification | 0/TBD | Not started | - |
