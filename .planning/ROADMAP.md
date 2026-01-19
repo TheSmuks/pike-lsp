@@ -114,7 +114,15 @@ Plans:
 6. Integration tests pass for occurrences, completion context, and full request/response cycle
 7. All modules load independently without circular dependencies
 
-**Plans**: TBD
+**Plans**: 6 plans (6 autonomous, 2 waves)
+
+Plans:
+- [ ] 04-01-PLAN.md — Create Analysis.pike with handle_find_occurrences (Wave 1)
+- [ ] 04-02-PLAN.md — Add handle_get_completion_context to Analysis.pike (Wave 1)
+- [ ] 04-03-PLAN.md — Add handle_analyze_uninitialized with scope analysis (Wave 1)
+- [ ] 04-04-PLAN.md — Create dispatch table router with Context class (Wave 2)
+- [ ] 04-05-PLAN.md — Remove old handler functions from analyzer.pike (Wave 2)
+- [ ] 04-06-PLAN.md — Write integration tests and response format verification (Wave 2)
 
 ### Phase 5: Verification
 
@@ -144,5 +152,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 6/6 | Complete | 2026-01-19 |
 | 2. Parser Module | 3/3 | Complete | 2026-01-19 |
 | 3. Intelligence Module | 4/4 | Complete | 2026-01-19 |
-| 4. Analysis & Entry Point | 0/TBD | Not started | - |
+| 4. Analysis & Entry Point | 0/6 | Not started | - |
 | 5. Verification | 0/TBD | Not started | - |
