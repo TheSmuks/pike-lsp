@@ -43,43 +43,92 @@ void debug(string fmt, mixed... args) {
   }
 }
 
-protected mapping(string:mixed) handle_request(mapping(string:mixed) request) {
-  string method = request->method;
-  mapping params = request->params || ([]);
+//! ============================================================================
+//! CONTEXT SERVICE CONTAINER
+//! ============================================================================
+//! Context class provides dependency injection for all LSP modules.
+//! Per CONTEXT.md Module Instantiation decision:
+//! - Singleton pattern - modules created once at startup
+//! - Explicit initialization order (caches -> parser -> intelligence -> analysis)
+//! - Context passed to handlers via dispatch() function
 
-  switch (method) {
-    case "parse":
-      return handle_parse(params);
-    case "tokenize":
-      return handle_tokenize(params);
-    case "compile":
-      return handle_compile(params);
-    case "resolve":
-      return handle_resolve(params);
-    case "introspect":
-      return handle_introspect(params);
-    case "resolve_stdlib":
-      return handle_resolve_stdlib(params);
-    case "get_inherited":
-      return handle_get_inherited(params);
-    case "set_debug":
-      return handle_set_debug(params);
-    case "find_occurrences":
-      return handle_find_occurrences(params);
-    case "batch_parse":
-      return handle_batch_parse(params);
-    case "analyze_uninitialized":
-      return handle_analyze_uninitialized(params);
-    case "get_completion_context":
-      return handle_get_completion_context(params);
-    default:
-      return ([
+class Context {
+    // Cache module reference (LSP.Cache is a module with singleton state)
+    // Handlers access cache via LSP.Cache.get/put directly
+    mixed parser;
+    mixed intelligence;
+    mixed analysis;
+    int debug_mode;
+    mapping client_capabilities;
+
+    void create() {
+        // Initialize module instances using master()->resolv pattern
+        // Caches are not stored here - handlers use LSP.Cache module directly
+        program ParserClass = master()->resolv("LSP.Parser")->Parser;
+        parser = ParserClass();
+
+        program IntelligenceClass = master()->resolv("LSP.Intelligence")->Intelligence;
+        intelligence = IntelligenceClass();
+
+        program AnalysisClass = master()->resolv("LSP.Analysis")->Analysis;
+        analysis = AnalysisClass();
+
+        debug_mode = 0;
+        client_capabilities = ([]);
+    }
+}
+
+//! ============================================================================
+//! DISPATCH TABLE ROUTER
+//! ============================================================================
+//! Per CONTEXT.md Router Design Pattern:
+//! - O(1) method lookup via constant mapping
+//! - Each lambda receives (params, Context) for dependency injection
+//! - Handlers delegate directly to module instances via ctx->module->handler()
+//! - set_debug is handled inline (modifies Context, no module needed)
+//! Note: HANDLERS is initialized in main() after module path is added
+
+mapping HANDLERS;
+
+//! Dispatch function - routes method calls to appropriate handlers
+//! Per CONTEXT.md: Single dispatch() function handles routing and error normalization
+protected mapping dispatch(string method, mapping params, Context ctx) {
+    // Get handler from dispatch table
+    function handler = HANDLERS[method];
+
+    if (!handler) {
+        return ([
+            "error": ([
+                "code": -32601,
+                "message": "Method not found: " + method
+            ])
+        ]);
+    }
+
+    // Call handler with error normalization - Context passed through
+    mixed err = catch {
+        return handler(params, ctx);
+    };
+
+    return ([
         "error": ([
-          "code": -32601,
-          "message": "Method not found: " + method
+            "code": -32000,
+            "message": describe_error(err)
         ])
-      ]);
-  }
+    ]);
+}
+
+//! handle_request - routes JSON-RPC requests via dispatch()
+//! Per CONTEXT.md: Creates Context and delegates to dispatch()
+protected mapping(string:mixed) handle_request(mapping(string:mixed) request) {
+    string method = request->method || "";
+    mapping params = request->params || ([]);
+
+    // Create Context for this request (singleton per server instance)
+    program ContextClass = master()->resolv("main")->Context;
+    object ctx = ContextClass();
+
+    return dispatch(method, params, ctx);
 }
 
 protected mapping handle_parse(mapping params) {
@@ -173,13 +222,21 @@ protected mapping handle_compile(mapping params) {
 //! Intelligence handlers (introspect, resolve, resolve_stdlib, get_inherited)
 //! are delegated to LSP.Intelligence class for modularity.
 
-// Intelligence class instance
-program IntelligenceClass = master()->resolv("LSP.Intelligence")->Intelligence;
-object intelligence_instance = IntelligenceClass();
+// Intelligence class instance - lazy initialization
+// Per CONTEXT.md: Use late binding since module path not set at compile time
+private object intelligence_instance;
+
+object get_intelligence_instance() {
+    if (!intelligence_instance) {
+        program IntelligenceClass = master()->resolv("LSP.Intelligence")->Intelligence;
+        intelligence_instance = IntelligenceClass();
+    }
+    return intelligence_instance;
+}
 
 protected mapping handle_resolve(mapping params) {
   mixed err = catch {
-    return intelligence_instance->handle_resolve(params);
+    return get_intelligence_instance()->handle_resolve(params);
   };
 
   return ([
@@ -1011,7 +1068,7 @@ protected mapping|int type_to_json(object|void type) {
 //! Compile Pike code and extract type information via introspection
 protected mapping handle_introspect(mapping params) {
   mixed err = catch {
-    return intelligence_instance->handle_introspect(params);
+    return get_intelligence_instance()->handle_introspect(params);
   };
 
   return ([
@@ -1025,7 +1082,7 @@ protected mapping handle_introspect(mapping params) {
 //! Resolve stdlib module and extract symbols with documentation
 protected mapping handle_resolve_stdlib(mapping params) {
   mixed err = catch {
-    return intelligence_instance->handle_resolve_stdlib(params);
+    return get_intelligence_instance()->handle_resolve_stdlib(params);
   };
 
   return ([
@@ -1206,7 +1263,7 @@ protected mapping merge_documentation(mapping introspection, mapping docs) {
 //! Get inherited members from a class
 protected mapping handle_get_inherited(mapping params) {
   mixed err = catch {
-    return intelligence_instance->handle_get_inherited(params);
+    return get_intelligence_instance()->handle_get_inherited(params);
   };
 
   return ([
@@ -2431,6 +2488,53 @@ protected string reverse(string s) {
 int main(int argc, array(string) argv) {
   // Add module path for LSP.pmod access
   master()->add_module_path("pike-scripts");
+
+  // Initialize HANDLERS dispatch table after module path is set
+  // Per CONTEXT.md Router Design Pattern
+  HANDLERS = ([
+      "parse": lambda(mapping params, object ctx) {
+          return ctx->parser->parse_request(params);
+      },
+      "tokenize": lambda(mapping params, object ctx) {
+          return ctx->parser->tokenize_request(params);
+      },
+      "compile": lambda(mapping params, object ctx) {
+          return ctx->parser->compile_request(params);
+      },
+      "batch_parse": lambda(mapping params, object ctx) {
+          return ctx->parser->batch_parse_request(params);
+      },
+      "introspect": lambda(mapping params, object ctx) {
+          return ctx->intelligence->handle_introspect(params);
+      },
+      "resolve": lambda(mapping params, object ctx) {
+          return ctx->intelligence->handle_resolve(params);
+      },
+      "resolve_stdlib": lambda(mapping params, object ctx) {
+          return ctx->intelligence->handle_resolve_stdlib(params);
+      },
+      "get_inherited": lambda(mapping params, object ctx) {
+          return ctx->intelligence->handle_get_inherited(params);
+      },
+      "find_occurrences": lambda(mapping params, object ctx) {
+          return ctx->analysis->handle_find_occurrences(params);
+      },
+      "analyze_uninitialized": lambda(mapping params, object ctx) {
+          return ctx->analysis->handle_analyze_uninitialized(params);
+      },
+      "get_completion_context": lambda(mapping params, object ctx) {
+          return ctx->analysis->handle_get_completion_context(params);
+      },
+      "set_debug": lambda(mapping params, object ctx) {
+          ctx->debug_mode = params->enabled || 0;
+          return ([
+              "result": ([
+                  "debug_mode": ctx->debug_mode,
+                  "message": ctx->debug_mode ? "Debug mode enabled" : "Debug mode disabled"
+              ])
+          ]);
+      },
+  ]);
 
   // For testing, support single-request mode
   if (argc > 1 && argv[1] == "--test") {
