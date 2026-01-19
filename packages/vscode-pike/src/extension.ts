@@ -10,7 +10,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { ExtensionContext, workspace, window } from 'vscode';
+import { ExtensionContext, ConfigurationTarget, Position, Uri, commands, workspace, window } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -19,9 +19,46 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient | undefined;
+let serverOptions: ServerOptions | null = null;
 
 export async function activate(context: ExtensionContext): Promise<void> {
     console.log('Pike Language Extension is activating...');
+
+    let disposable = commands.registerCommand('pike-module-path.add', async (e) => {
+        const rv = await addModulePathSetting(e.fsPath);
+
+        if (rv)
+            window.showInformationMessage('Folder has been added to the module path');
+        else
+            window.showInformationMessage('Folder was already on the module path');
+    });
+
+    context.subscriptions.push(disposable);
+
+    const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (arg) => {
+        let uri: string | undefined;
+        let position: { line: number; character: number } | undefined;
+
+        if (Array.isArray(arg)) {
+            [uri, position] = arg;
+        } else if (arg && typeof arg === 'object') {
+            const payload = arg as { uri?: string; position?: { line: number; character: number } };
+            uri = payload.uri;
+            position = payload.position;
+        }
+
+        if (!uri || !position) {
+            return;
+        }
+
+        const refUri = Uri.parse(uri);
+        const refPosition = new Position(position.line, position.character);
+        await commands.executeCommand('editor.action.findReferences', refUri, refPosition, {
+            includeDeclaration: false
+        });
+    });
+
+    context.subscriptions.push(showReferencesDisposable);
 
     // Try multiple possible server locations
     const possiblePaths = [
@@ -52,7 +89,7 @@ export async function activate(context: ExtensionContext): Promise<void> {
     }
 
     // Server options - run the server as a Node.js module
-    const serverOptions: ServerOptions = {
+    serverOptions = {
         run: {
             module: serverModule,
             transport: TransportKind.ipc,
@@ -66,11 +103,76 @@ export async function activate(context: ExtensionContext): Promise<void> {
         },
     };
 
-    // Get Pike path from configuration
+    await restartClient(true);
+
+    context.subscriptions.push(
+        workspace.onDidChangeConfiguration(async (event) => {
+            if (
+                event.affectsConfiguration('pike.pikeModulePath') ||
+                event.affectsConfiguration('pike.pikeIncludePath') ||
+                event.affectsConfiguration('pike.pikePath')
+            ) {
+                await restartClient(false);
+            }
+        })
+    );
+
+}
+
+function getExpandedModulePaths(): string[] {
+    const config = workspace.getConfiguration('pike');
+    const pikeModulePath = config.get<string[]>('pikeModulePath', 'pike');
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders !== undefined) {
+        let f = workspace.workspaceFolders[0].uri.fsPath;
+        for (const p of pikeModulePath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeModulePath;
+    }
+
+    console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
+    return expandedPaths;
+}
+
+function getExpandedIncludePaths(): string[] {
+    const config = workspace.getConfiguration('pike');
+    const pikeIncludePath = config.get<string[]>('pikeIncludePath', []);
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders !== undefined) {
+        const f = workspace.workspaceFolders[0].uri.fsPath;
+        for (const p of pikeIncludePath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeIncludePath;
+    }
+
+    console.log('Pike include path: ' + JSON.stringify(pikeIncludePath));
+    return expandedPaths;
+}
+
+async function restartClient(showMessage: boolean): Promise<void> {
+    if (!serverOptions) {
+        return;
+    }
+
+    if (client) {
+        try {
+            await client.stop();
+        } catch (err) {
+            console.error('Error stopping Pike Language Client:', err);
+        }
+    }
+
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
+    const expandedPaths = getExpandedModulePaths();
+    const expandedIncludePaths = getExpandedIncludePaths();
 
-    // Client options
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
             { scheme: 'file', language: 'pike' },
@@ -80,11 +182,14 @@ export async function activate(context: ExtensionContext): Promise<void> {
         },
         initializationOptions: {
             pikePath,
+            env: {
+                'PIKE_MODULE_PATH': expandedPaths.join(":"),
+                'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
+            },
         },
         outputChannelName: 'Pike Language Server',
     };
 
-    // Create the language client
     client = new LanguageClient(
         'pikeLsp',
         'Pike Language Server',
@@ -92,15 +197,37 @@ export async function activate(context: ExtensionContext): Promise<void> {
         clientOptions
     );
 
-    // Start the client (also starts the server)
     try {
         await client.start();
-        console.log('Pike Language Extension activated successfully');
-        window.showInformationMessage('Pike Language Server started');
+        console.log('Pike Language Extension activated successfully!');
+        if (showMessage) {
+            window.showInformationMessage('Pike Language Server started');
+        }
     } catch (err) {
         console.error('Failed to start Pike Language Client:', err);
         window.showErrorMessage(`Failed to start Pike language server: ${err}`);
     }
+}
+
+export async function addModulePathSetting(modulePath): Promise<boolean> {
+    // Get Pike path from configuration
+    const config = workspace.getConfiguration('pike');
+    const pikeModulePath = config.get<string[]>('pikeModulePath', 'pike');
+    let updatedPath: string[] = [];
+
+    if (workspace.workspaceFolders !== undefined) {
+        let f = workspace.workspaceFolders[0].uri.fsPath;
+            modulePath = modulePath.replace(f, "${workspaceFolder}");
+     }
+
+    if (!pikeModulePath.includes(modulePath)) {
+        updatedPath = pikeModulePath.slice();
+        updatedPath.push(modulePath);
+        await config.update('pikeModulePath', updatedPath, ConfigurationTarget.Workspace);
+        return true;
+    }
+
+    return false;
 }
 
 export async function deactivate(): Promise<void> {

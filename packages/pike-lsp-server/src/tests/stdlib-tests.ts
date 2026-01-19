@@ -8,8 +8,13 @@
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-const PIKE_STDLIB = '/home/matias/Antigravity/Pike LSP/Pike/lib/modules';
+const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(CURRENT_DIR, '../../../..');
+const DEFAULT_PIKE_SOURCE_ROOT = path.resolve(REPO_ROOT, '..', 'Pike');
+const PIKE_SOURCE_ROOT = process.env['PIKE_SOURCE_ROOT'] ?? DEFAULT_PIKE_SOURCE_ROOT;
+const PIKE_STDLIB = process.env['PIKE_STDLIB'] ?? path.join(PIKE_SOURCE_ROOT, 'lib/modules');
 
 interface TestResult {
     file: string;

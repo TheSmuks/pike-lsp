@@ -32,6 +32,7 @@ export interface PikeBridgeOptions {
     timeout?: number;
     /** Enable debug logging to stderr. */
     debug?: boolean;
+    env?: NodeJS.ProcessEnv
 }
 
 /**
@@ -88,10 +89,11 @@ export class PikeBridge extends EventEmitter {
         super();
 
         // Default analyzer path relative to this file (ESM-compatible)
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
+        const resolvedFilename =
+            typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
+        const resolvedDirname = path.dirname(resolvedFilename);
         const defaultAnalyzerPath = path.resolve(
-            __dirname,
+            resolvedDirname,
             '..',
             '..',
             '..',
@@ -109,6 +111,7 @@ export class PikeBridge extends EventEmitter {
             analyzerPath: options.analyzerPath ?? defaultAnalyzerPath,
             timeout: options.timeout ?? BRIDGE_TIMEOUT_DEFAULT,
             debug,
+            env: options.env ?? {},
         };
 
         this.debugLog(`Initialized with pikePath="${this.options.pikePath}", analyzerPath="${this.options.analyzerPath}"`);
@@ -130,11 +133,13 @@ export class PikeBridge extends EventEmitter {
         }
 
         this.debugLog(`Starting Pike subprocess: ${this.options.pikePath} ${this.options.analyzerPath}`);
-
+        this.emit('stderr', 'Env: ' + JSON.stringify(this.options.env));
+        
         return new Promise((resolve, reject) => {
             try {
                 this.process = spawn(this.options.pikePath, [this.options.analyzerPath], {
                     stdio: ['pipe', 'pipe', 'pipe'],
+                    env: {...process.env, ...this.options.env}
                 });
 
                 this.debugLog(`Pike subprocess spawned with PID: ${this.process.pid}`);

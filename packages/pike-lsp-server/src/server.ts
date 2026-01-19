@@ -67,6 +67,7 @@ import {
     PATH_PATTERNS,
     PatternHelpers
 } from './utils/regex-patterns.js';
+import { buildCodeLensCommand } from './utils/code-lens.js';
 
 // Create connection using Node's IPC
 const connection = createConnection(ProposedFeatures.all);
@@ -76,6 +77,8 @@ const documents = new TextDocuments(TextDocument);
 
 // Pike bridge for parsing and compilation
 let bridge: PikeBridge | null = null;
+let bridgeUnavailableReason: string | null = null;
+let bridgeUnavailableLogged = false;
 
 // Type database for compiled programs and type inference
 const typeDatabase = new TypeDatabase();
@@ -114,6 +117,7 @@ const defaultSettings: PikeSettings = {
 };
 
 let globalSettings: PikeSettings = defaultSettings;
+let includePaths: string[] = [];
 
 // Debounce timers for validation
 const validationTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -141,17 +145,18 @@ const semanticTokensLegend: SemanticTokensLegend = {
  * Checks multiple locations to support both development and bundled scenarios.
  */
 function findAnalyzerPath(): string | undefined {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
+    const resolvedFilename =
+        typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
+    const resolvedDirname = path.dirname(resolvedFilename);
 
     // Possible analyzer.pike locations
     const possiblePaths = [
         // Bundled: server/pike-scripts/analyzer.pike (same dir as server.js)
-        path.resolve(__dirname, 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
         // Development: monorepo structure ../../../pike-scripts/analyzer.pike
-        path.resolve(__dirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
         // Alternative development path
-        path.resolve(__dirname, '..', '..', 'pike-scripts', 'analyzer.pike'),
+        path.resolve(resolvedDirname, '..', '..', 'pike-scripts', 'analyzer.pike'),
     ];
 
     for (const p of possiblePaths) {
@@ -175,29 +180,43 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     }
 
     // Initialize Pike bridge
-    const initOptions = params.initializationOptions as { pikePath?: string } | undefined;
-    const bridgeOptions: { pikePath: string; analyzerPath?: string } = {
+    const initOptions = params.initializationOptions as { pikePath?: string, env?: NodeJS.ProcessEnv | undefined};
+    const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv} = {
         pikePath: initOptions?.pikePath ?? 'pike',
+        env: initOptions?.env ?? {},
     };
+    includePaths = (initOptions?.env?.['PIKE_INCLUDE_PATH'] ?? '')
+        .split(':')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+
     if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
     }
-    bridge = new PikeBridge(bridgeOptions);
-
-    // Initialize stdlib index manager
-    stdlibIndex = new StdlibIndexManager(bridge);
-
-    // Log bridge stderr
-    bridge.on('stderr', (msg: string) => {
-        connection.console.log(`[Pike] ${msg}`);
-    });
+    const bridgeCandidate = new PikeBridge(bridgeOptions);
 
     // Check if Pike is available
     try {
-        const available = await bridge.checkPike();
+        const available = await bridgeCandidate.checkPike();
         if (!available) {
-            connection.console.warn('Pike executable not found. Some features may not work.');
+            bridgeUnavailableReason = 'Pike executable not found. Some features may not work.';
+            bridgeUnavailableLogged = false;
+            connection.console.warn(bridgeUnavailableReason);
+            bridge = null;
+            stdlibIndex = null;
         } else {
+            bridgeUnavailableReason = null;
+            bridgeUnavailableLogged = false;
+            bridge = bridgeCandidate;
+
+            // Initialize stdlib index manager
+            stdlibIndex = new StdlibIndexManager(bridge);
+
+            // Log bridge stderr
+            bridge.on('stderr', (msg: string) => {
+                connection.console.log(`[Pike] ${msg}`);
+            });
+
             await bridge.start();
             connection.console.log('Pike bridge started');
         }
@@ -566,7 +585,10 @@ async function validateDocument(document: TextDocument): Promise<void> {
     connection.console.log(`[VALIDATE] Starting validation for: ${uri}`);
 
     if (!bridge) {
-        connection.console.error('[VALIDATE] Bridge is null!');
+        if (bridgeUnavailableReason && !bridgeUnavailableLogged) {
+            connection.console.warn(`[VALIDATE] ${bridgeUnavailableReason}`);
+            bridgeUnavailableLogged = true;
+        }
         return;
     }
 
@@ -4555,11 +4577,22 @@ function resolveIncludePath(filePath: string, documentDir: string): { target: st
         };
     }
 
-    // Relative path
-    const resolvedPath = `${documentDir}/${filePath}`;
+    // Relative path: check document directory first, then include paths.
+    const candidates = [
+        path.resolve(documentDir, filePath),
+        ...includePaths.map((includePath) => path.resolve(includePath, filePath))
+    ];
 
-    // Check if file exists (simplified - in production we'd use fs.existsSync)
-    // For now, just return the resolved path
+    for (const candidate of candidates) {
+        if (fsSync.existsSync(candidate)) {
+            return {
+                target: `file://${candidate}`,
+                tooltip: filePath
+            };
+        }
+    }
+
+    const resolvedPath = path.resolve(documentDir, filePath);
     return {
         target: `file://${resolvedPath}`,
         tooltip: filePath
@@ -4598,9 +4631,11 @@ connection.onCodeLens((params): CodeLens[] => {
     for (const symbol of cache.symbols) {
         // Only add lenses for certain symbol kinds
         if (symbol.kind === 'method' || symbol.kind === 'class') {
-            const line = (symbol.position?.line ?? 1) - 1;
-            const char = symbol.position?.column ?? 0;
+            const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+            const char = Math.max(0, (symbol.position?.column ?? 1) - 1);
             const symbolName = symbol.name ?? '';
+
+            const position: Position = { line, character: char };
 
             lenses.push({
                 range: {
@@ -4611,7 +4646,7 @@ connection.onCodeLens((params): CodeLens[] => {
                     uri,
                     symbolName,
                     kind: symbol.kind,
-                    range: { line, character: char }
+                    position
                 }
             });
         }
@@ -4625,7 +4660,7 @@ connection.onCodeLens((params): CodeLens[] => {
  * Code Lens resolve handler - compute reference counts
  */
 connection.onCodeLensResolve((lens): CodeLens => {
-    const data = lens.data as { uri: string; symbolName: string; kind: string; range: Range };
+    const data = lens.data as { uri: string; symbolName: string; kind: string; position: Position };
 
     if (!data) {
         return lens;
@@ -4651,11 +4686,7 @@ connection.onCodeLensResolve((lens): CodeLens => {
         }
     }
 
-    lens.command = {
-        title: `${refCount} reference${refCount !== 1 ? 's' : ''}`,
-        command: 'editor.action.findReferences',
-        arguments: [data.uri, data.range]
-    };
+    lens.command = buildCodeLensCommand(refCount, data.uri, data.position);
 
     connection.console.log(`[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`);
     return lens;
@@ -4663,9 +4694,16 @@ connection.onCodeLensResolve((lens): CodeLens => {
 
 connection.onShutdown(async () => {
     connection.console.log('Pike LSP Server shutting down...');
-    if (bridge) {
-        await bridge.stop();
+    // Avoid blocking shutdown; cleanup happens on exit.
+});
+
+connection.onExit(() => {
+    if (!bridge) {
+        return;
     }
+    bridge.stop().catch((err) => {
+        connection.console.error(`Failed to stop Pike bridge: ${err}`);
+    });
 });
 
 // Listen for document events
