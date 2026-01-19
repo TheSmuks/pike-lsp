@@ -44,8 +44,8 @@ Plans:
 - [x] 01-02-PLAN.md — Create Compat.pmod with version detection and polyfills
 - [x] 01-03-PLAN.md — Create Cache.pmod with LRU caching infrastructure
 - [x] 01-04-PLAN.md — Write unit tests for Compat.pmod and Cache.pmod
-- [ ] 01-05-PLAN.md — Write E2E test infrastructure and module.pmod tests (Wave 3)
-- [ ] 01-06-PLAN.md — Write E2E tests for Compat.pmod and Cache.pmod (Wave 3)
+- [x] 01-05-PLAN.md — Write E2E test infrastructure and module.pmod tests (Wave 3)
+- [x] 01-06-PLAN.md — Write E2E tests for Compat.pmod and Cache.pmod (Wave 3)
 
 ### Phase 2: Parser Module
 
@@ -125,7 +125,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 4/6 | In progress (01-05, 01-06 pending) | - |
+| 1. Foundation | 6/6 | Complete | 2026-01-19 |
 | 2. Parser Module | 0/TBD | Not started | - |
 | 3. Intelligence Module | 0/TBD | Not started | - |
 | 4. Analysis & Entry Point | 0/TBD | Not started | - |

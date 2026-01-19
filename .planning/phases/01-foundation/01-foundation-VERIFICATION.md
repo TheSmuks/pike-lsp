@@ -1,17 +1,26 @@
 ---
 phase: 01-foundation
-verified: 2026-01-19T18:30:00Z
+verified: 2026-01-19T18:33:00Z
 status: passed
-score: 24/24 must-haves verified
+score: 26/26 must-haves verified
+re_verification:
+  previous_status: passed
+  previous_score: 24/24
+  previous_verified: 2026-01-19T18:30:00Z
+  gaps_closed:
+    - "E2E test infrastructure added (01-05)"
+    - "E2E tests for module.pmod, Compat.pmod, Cache.pmod added (01-06)"
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 1: Foundation Verification Report
 
 **Phase Goal:** Establish LSP.pmod directory structure with shared utilities, version compatibility layer, and cache infrastructure that all subsequent modules depend on.
 
-**Verified:** 2026-01-19T18:30:00Z
+**Verified:** 2026-01-19T18:33:00Z
 **Status:** PASSED
-**Mode:** Initial verification
+**Mode:** Re-verification (after E2E test completion)
 
 ## Goal Achievement
 
@@ -38,9 +47,15 @@ score: 24/24 must-haves verified
 | 17  | Compat.trim_whites() polyfill produces correct output | ✓ VERIFIED | 6 tests cover basic, tabs/newlines, empty strings, internal whitespace; all pass |
 | 18  | Cache.pmod unit tests verify LRU eviction behavior | ✓ VERIFIED | test_cache_program_lru_eviction() validates deterministic LRU; test passes |
 | 19  | Cache statistics accurately track hits, misses, and evictions | ✓ VERIFIED | test_cache_statistics() validates stats increment; test passes |
-| 20  | All tests pass with `pike test/tests/foundation-tests.pike` | ✓ VERIFIED | 13 tests run, 13 passed, 0 failed |
+| 20  | All unit tests pass with `pike test/tests/foundation-tests.pike` | ✓ VERIFIED | 13 tests run, 13 passed, 0 failed |
+| 21  | E2E test infrastructure exists with VSCode console format | ✓ VERIFIED | e2e-foundation-tests.pike (1092 lines) with ISO 8601 timestamps and level indicators |
+| 22  | E2E module.pmod tests validate JSON handling with real LSP data | ✓ VERIFIED | 4 tests: json_decode (initialize), json_encode (completion), LSPError.to_response(), debug mode |
+| 23  | E2E Compat.pmod tests validate trim_whites with real Pike patterns | ✓ VERIFIED | 4 tests: real module strings, native behavior match, version detection, Unicode/edge cases |
+| 24  | E2E Cache.pmod tests validate with real compiled programs | ✓ VERIFIED | 5 tests: compile_string() integration, stdlib resolution, LRU with real programs, statistics, clear/reuse |
+| 25  | All E2E tests pass | ✓ VERIFIED | 13 E2E tests run, 13 passed, 0 failed (verified 2026-01-19T19:33:16Z) |
+| 26  | E2E tests use dynamic stdlib discovery (no hardcoded paths) | ✓ VERIFIED | discover_stdlib_path() uses master()->pike_module_path; portable across machines |
 
-**Score:** 20/20 truths verified
+**Score:** 26/26 truths verified
 
 ### Required Artifacts
 
@@ -50,6 +65,7 @@ score: 24/24 must-haves verified
 | `pike-scripts/LSP.pmod/Compat.pmod` | Version compatibility layer with feature detection | ✓ VERIFIED | 84 lines; exports pike_version(), PIKE_VERSION, PIKE_VERSION_STRING, trim_whites() |
 | `pike-scripts/LSP.pmod/Cache.pmod` | LRU caching infrastructure for program_cache and stdlib_cache | ✓ VERIFIED | 279 lines; exports get, put, clear, get_stats, set_limits, get_program, put_program, clear_programs, get_stdlib, put_stdlib, clear_stdlib |
 | `test/tests/foundation-tests.pike` | Unit tests for Compat.pmod and Cache.pmod | ✓ VERIFIED | 372 lines; 13 tests (6 Compat, 7 Cache), all passing |
+| `test/tests/e2e-foundation-tests.pike` | E2E tests with real LSP protocol JSON and real Pike modules | ✓ VERIFIED | 1092 lines; 13 E2E tests (4 module.pmod, 4 Compat, 5 Cache), all passing |
 
 ### Key Link Verification
 
@@ -61,6 +77,9 @@ score: 24/24 must-haves verified
 | Cache.pmod | program_cache mapping | internal storage | ✓ WIRED | private mapping(string:program) program_cache = ([]); |
 | Cache.pmod | stdlib_cache mapping | internal storage | ✓ WIRED | private mapping(string:mapping) stdlib_cache = ([]); |
 | foundation-tests.pike | LSP.pmod | master()->resolv() runtime resolution | ✓ WIRED | setup_module_path() adds pike-scripts to module path; get_compat() and get_cache() resolve modules |
+| e2e-foundation-tests.pike | LSP.pmod | array indexing for module.pmod functions | ✓ WIRED | LSP["json_decode"], LSP["set_debug_mode"], etc. (D005 discovery) |
+| e2e-foundation-tests.pike | Real stdlib modules | master()->resolv() | ✓ WIRED | load_real_module() loads Array, String, Math dynamically |
+| e2e-foundation-tests.pike | compile_string() | direct Pike builtin | ✓ WIRED | test_cache_real_program_compilation_and_caching() compiles and executes cached programs |
 | Cache.get/put/clear | Internal cache methods | switch statement dispatch | ✓ WIRED | Generic methods dispatch to get_program/put_program/clear_programs or stdlib equivalents |
 | LRU eviction | access_counter mapping | incrementing counter | ✓ WIRED | access_counter++ on each operation; cache_access_counter[key] stores timestamp |
 
@@ -90,19 +109,18 @@ score: 24/24 must-haves verified
 
 ### Anti-Patterns Found
 
-None. No TODO, FIXME, PLACEHOLDER, or empty return patterns found in:
-- pike-scripts/LSP.pmod/module.pmod
-- pike-scripts/LSP.pmod/Compat.pmod
-- pike-scripts/LSP.pmod/Cache.pmod
-- test/tests/foundation-tests.pike
+**Non-blocking TODOs in test file** (acceptable documentation comments):
+- Lines 16-18 in e2e-foundation-tests.pike: "TODO: Add tests for Logging.pmod when implemented" - This is documentation of future work, not a stub in production code
+- No TODO/FIXME/PLACEHOLDER patterns found in production modules (module.pmod, Compat.pmod, Cache.pmod)
 
 ### Human Verification Required
 
-None. All verification criteria are programmatically verifiable:
-- Module loading verified via Pike interpreter
-- Constants and functions verified via direct invocation
-- Test results verified via exit code and output parsing
-- Anti-patterns verified via grep scanning
+**Cross-version testing** (deferred to Phase 5):
+- Run tests on Pike 7.6 and 7.8 to verify polyfills work correctly
+- Current verification only done on Pike 8.0
+
+**Visual verification** (not applicable):
+- All verification is programmatic (module loading, test execution, code inspection)
 
 ### Success Criteria (from ROADMAP.md)
 
@@ -118,7 +136,7 @@ None. All verification criteria are programmatically verifiable:
 
 ## Summary
 
-Phase 01-Foundation is **COMPLETE**. All 20 observable truths verified, all 4 required artifacts present and substantive, all 8 key links wired, all 17 foundation requirements satisfied, all 5 success criteria met.
+Phase 01-Foundation is **COMPLETE**. All 26 observable truths verified (20 from initial verification + 6 from E2E tests), all 5 required artifacts present and substantive, all 11 key links wired, all 17 foundation requirements satisfied, all 5 success criteria met.
 
 ### Deliverables
 
@@ -127,6 +145,23 @@ Phase 01-Foundation is **COMPLETE**. All 20 observable truths verified, all 4 re
 3. **Compat.pmod** (84 lines) - Version detection, trim_whites() polyfill
 4. **Cache.pmod** (279 lines) - LRU caching for program_cache and stdlib_cache
 5. **foundation-tests.pike** (372 lines) - 13 passing unit tests
+6. **e2e-foundation-tests.pike** (1092 lines) - 13 passing E2E tests
+
+### Changes Since Previous Verification (2026-01-19T18:30:00Z)
+
+**Added in 01-05 (E2E Test Infrastructure):**
+- e2e-foundation-tests.pike (475 lines initially)
+- VSCode console output format with ISO 8601 timestamps
+- Dynamic stdlib path discovery via master()->pike_module_path
+- 4 module.pmod E2E tests with real LSP protocol JSON
+
+**Added in 01-06 (E2E Tests for Compat and Cache):**
+- e2e-foundation-tests.pike expanded to 1092 lines
+- 4 Compat.pmod E2E tests (real Pike code patterns, native behavior match, version detection, Unicode/edge cases)
+- 5 Cache.pmod E2E tests (compile_string() integration, stdlib resolution, LRU with real programs, statistics, clear/reuse)
+
+**Key Decision D005:**
+- Discovered during 01-05: Pike module.pmod functions must be accessed via array indexing `LSP["function_name"]` rather than arrow notation `LSP->function`
 
 ### Next Steps
 
@@ -134,8 +169,13 @@ Phase 1 foundation is complete. The following infrastructure is ready for Phase 
 - LSP.pmod module with shared utilities
 - Compat.pmod for version-aware string operations
 - Cache.pmod for compiled program caching
+- E2E test infrastructure with real LSP protocol data
 - Test runner framework for continued TDD
 
+**Outstanding:**
+- Cross-version testing on Pike 7.6, 7.8 deferred to Phase 5
+
 ---
-_Verified: 2026-01-19T18:30:00Z_
+_Verified: 2026-01-19T18:33:00Z_
+_Previous: 2026-01-19T18:30:00Z_
 _Verifier: Claude (gsd-verifier)_
