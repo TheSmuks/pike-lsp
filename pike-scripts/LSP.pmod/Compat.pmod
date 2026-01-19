@@ -41,10 +41,6 @@ array(int) pike_version() {
     return result;
 }
 
-#if constant(String.trim_whites)
-// Use native implementation on Pike 8.x
-constant has_trim_whites = 1;
-
 //! Trim leading and trailing whitespace from a string.
 //!
 //! @param s
@@ -54,26 +50,9 @@ constant has_trim_whites = 1;
 //! The string with leading and trailing whitespace removed.
 //!
 //! @note
-//! On Pike 8.x, this uses the native String.trim_whites() implementation.
-//! On Pike 7.6/7.8, this uses a polyfill implementation.
-string trim_whites(string s) {
-    return String.trim_whites(s);
-}
-
-#else
-// Polyfill for Pike 7.6/7.8
-constant has_trim_whites = 0;
-
-//! Trim leading and trailing whitespace from a string.
-//!
-//! @param s
-//! The string to trim.
-//!
-//! @returns
-//! The string with leading and trailing whitespace removed.
-//!
-//! @note
-//! On Pike 7.6/7.8, this is a polyfill implementation.
+//! This always uses our polyfill implementation because Pike 8.x's
+//! native String.trim_whites() does not trim newlines, which is
+//! inconsistent with typical trim behavior and our polyfill.
 string trim_whites(string s) {
     // Handle empty string
     if (sizeof(s) == 0) {
@@ -95,7 +74,7 @@ string trim_whites(string s) {
     while (sizeof(s) > 0) {
         int last = s[-1];
         if (last == ' ' || last == '\t' || last == '\n' || last == '\r') {
-            s = s[0..<2];
+            s = s[0..<1];  // Remove last character (..<1 means all except last)
         } else {
             break;
         }
@@ -103,5 +82,3 @@ string trim_whites(string s) {
 
     return s;
 }
-
-#endif
