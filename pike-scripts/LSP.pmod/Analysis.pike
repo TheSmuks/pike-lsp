@@ -99,6 +99,38 @@ class Analysis {
         ]);
     }
 
+    //! Analyze code for potentially uninitialized variable usage
+    //!
+    //! This is the most complex analysis handler, implementing variable
+    //! initialization tracking across scopes, branches, and function bodies.
+    //!
+    //! @param params Mapping with "code" and "filename" keys
+    //! @returns Mapping with "result" containing "diagnostics" array
+    //!          Returns empty diagnostics on error (not crash)
+    mapping handle_analyze_uninitialized(mapping params) {
+        string code = params->code || "";
+        string filename = params->filename || "input.pike";
+
+        array(mapping) diagnostics = ({});
+
+        mixed err = catch {
+            diagnostics = analyze_uninitialized_impl(code, filename);
+        };
+
+        if (err) {
+            // Return empty diagnostics on error rather than failing
+            // Partial analysis is better than no analysis
+            debug("analyze_uninitialized error: %s\n", describe_error(err));
+            diagnostics = ({});
+        }
+
+        return ([
+            "result": ([
+                "diagnostics": diagnostics
+            ])
+        ]);
+    }
+
     //! Helper to get character position of a token on a line
     //!
     //! Converts token line number to character position by finding the token
