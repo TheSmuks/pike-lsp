@@ -56,13 +56,19 @@ Plans:
 **Requirements**: PRS-01, PRS-02, PRS-03, PRS-04, PRS-05, PRS-06, PRS-07, PRS-08, PRS-09, PRS-10, PRS-11, QLT-01
 
 **Success Criteria** (what must be TRUE):
-1. Parser.pike class exists with handle_parse, handle_tokenize, handle_compile, and handle_batch_parse methods
-2. Parser.pike uses Cache.pmod for compiled program caching instead of direct mapping access
-3. Parser handlers use Compat.trim_whites() for string operations
+1. Parser.pike class exists with parse_request, tokenize_request, compile_request, and batch_parse_request methods
+2. Parser.pike uses LSP.Compat.trim_whites() for string operations
+3. Parser.pike uses LSP.MAX_* constants from module.pmod
 4. Handler errors return JSON-RPC error responses instead of crashing the server
 5. Integration tests pass for parse, tokenize, and compile handlers
+6. analyzer.pike delegates to Parser.pike for all parsing operations
 
-**Plans**: TBD
+**Plans**: 3 plans (3 autonomous, 3 waves)
+
+Plans:
+- [ ] 02-01-PLAN.md — Create Parser.pike with parse_request and protected helpers (Wave 1)
+- [ ] 02-02-PLAN.md — Add tokenize, compile, and batch_parse methods (Wave 2)
+- [ ] 02-03-PLAN.md — Write Parser unit and integration tests (Wave 3)
 
 ### Phase 3: Intelligence Module
 
@@ -126,7 +132,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 6/6 | Complete | 2026-01-19 |
-| 2. Parser Module | 0/TBD | Not started | - |
+| 2. Parser Module | 0/3 | Not started | - |
 | 3. Intelligence Module | 0/TBD | Not started | - |
 | 4. Analysis & Entry Point | 0/TBD | Not started | - |
 | 5. Verification | 0/TBD | Not started | - |
