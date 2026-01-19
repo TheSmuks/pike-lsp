@@ -16,6 +16,18 @@ class Analysis {
         // No state to initialize (stateless pattern)
     }
 
+    // Variable initialization states
+    constant STATE_UNINITIALIZED = 0;  // Never assigned
+    constant STATE_MAYBE_INIT = 1;     // Assigned in some branches only
+    constant STATE_INITIALIZED = 2;    // Definitely assigned
+    constant STATE_UNKNOWN = 3;        // Can't determine (e.g., passed by reference)
+
+    // Types that need explicit initialization (UNDEFINED would cause runtime errors)
+    constant NEEDS_INIT_TYPES = (<
+        "string", "array", "mapping", "multiset",
+        "object", "function", "program", "mixed"
+    >);
+
     //! Find all identifier occurrences using tokenization
     //!
     //! This is much more accurate and faster than regex-based searching.
