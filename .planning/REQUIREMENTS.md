@@ -9,19 +9,19 @@ Requirements for the refactoring milestone. Each maps to roadmap phases.
 
 ### Foundation
 
-- [ ] **FND-01**: Create LSP.pmod/ directory structure following Pike stdlib conventions
-- [ ] **FND-02**: Create module.pmod with shared constants (MAX_TOP_LEVEL_ITERATIONS, MAX_BLOCK_ITERATIONS)
-- [ ] **FND-03**: Create module.pmod with shared error classes (LSPError base class)
-- [ ] **FND-04**: Create module.pmod with JSON helper functions
-- [ ] **FND-05**: Create Compat.pmod with version detection (pike_version() function)
-- [ ] **FND-06**: Create Compat.pmod with `#if constant()` feature detection
-- [ ] **FND-07**: Create Compat.pmod with String.trim_whites() polyfill for Pike 7.6/7.8
-- [ ] **FND-08**: Create Cache.pmod with get/put/clear interface for program_cache
-- [ ] **FND-09**: Create Cache.pmod with get/put/clear interface for stdlib_cache
-- [ ] **FND-10**: Create Cache.pmod with LRU eviction logic (max_cached_programs, max_stdlib_modules)
-- [ ] **FND-11**: Create debug logging infrastructure in module.pmod
-- [ ] **FND-12**: Unit tests for Compat.pmod feature detection
-- [ ] **FND-13**: Unit tests for Cache.pmod LRU operations
+- [x] **FND-01**: Create LSP.pmod/ directory structure following Pike stdlib conventions
+- [x] **FND-02**: Create module.pmod with shared constants (MAX_TOP_LEVEL_ITERATIONS, MAX_BLOCK_ITERATIONS)
+- [x] **FND-03**: Create module.pmod with shared error classes (LSPError base class)
+- [x] **FND-04**: Create module.pmod with JSON helper functions
+- [x] **FND-05**: Create Compat.pmod with version detection (pike_version() function)
+- [x] **FND-06**: Create Compat.pmod with `#if constant()` feature detection
+- [x] **FND-07**: Create Compat.pmod with String.trim_whites() polyfill for Pike 7.6/7.8
+- [x] **FND-08**: Create Cache.pmod with get/put/clear interface for program_cache
+- [x] **FND-09**: Create Cache.pmod with get/put/clear interface for stdlib_cache
+- [x] **FND-10**: Create Cache.pmod with LRU eviction logic (max_cached_programs, max_stdlib_modules)
+- [x] **FND-11**: Create debug logging infrastructure in module.pmod
+- [x] **FND-12**: Unit tests for Compat.pmod feature detection
+- [x] **FND-13**: Unit tests for Cache.pmod LRU operations
 
 ### Parser Module
 
@@ -120,19 +120,19 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | Phase 1 | Pending |
-| FND-02 | Phase 1 | Pending |
-| FND-03 | Phase 1 | Pending |
-| FND-04 | Phase 1 | Pending |
-| FND-05 | Phase 1 | Pending |
-| FND-06 | Phase 1 | Pending |
-| FND-07 | Phase 1 | Pending |
-| FND-08 | Phase 1 | Pending |
-| FND-09 | Phase 1 | Pending |
-| FND-10 | Phase 1 | Pending |
-| FND-11 | Phase 1 | Pending |
-| FND-12 | Phase 1 | Pending |
-| FND-13 | Phase 1 | Pending |
+| FND-01 | Phase 1 | Complete |
+| FND-02 | Phase 1 | Complete |
+| FND-03 | Phase 1 | Complete |
+| FND-04 | Phase 1 | Complete |
+| FND-05 | Phase 1 | Complete |
+| FND-06 | Phase 1 | Complete |
+| FND-07 | Phase 1 | Complete |
+| FND-08 | Phase 1 | Complete |
+| FND-09 | Phase 1 | Complete |
+| FND-10 | Phase 1 | Complete |
+| FND-11 | Phase 1 | Complete |
+| FND-12 | Phase 1 | Complete |
+| FND-13 | Phase 1 | Complete |
 | PRS-01 | Phase 2 | Pending |
 | PRS-02 | Phase 2 | Pending |
 | PRS-03 | Phase 2 | Pending |
@@ -174,14 +174,14 @@ Deferred to future release. Tracked but not in current roadmap.
 | VER-01 | Phase 5 | Pending |
 | VER-02 | Phase 5 | Pending |
 | VER-03 | Phase 5 | Pending |
-| VER-04 | Phase 1 | Pending |
-| VER-05 | Phase 1 | Pending |
+| VER-04 | Phase 1 | Complete |
+| VER-05 | Phase 1 | Complete |
 | VER-06 | Phase 5 | Pending |
 | QLT-01 | Phase 2 | Pending |
 | QLT-02 | Phase 4 | Pending |
 | QLT-03 | Phase 4 | Pending |
-| QLT-04 | Phase 1 | Pending |
-| QLT-05 | Phase 1 | Pending |
+| QLT-04 | Phase 1 | Complete |
+| QLT-05 | Phase 1 | Complete |
 | QLT-06 | Phase 5 | Pending |
 
 **Coverage:**
