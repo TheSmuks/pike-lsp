@@ -26,18 +26,32 @@
 constant MAX_TOP_LEVEL_ITERATIONS = 10000;
 constant MAX_BLOCK_ITERATIONS = 500;
 
-// Helper function for trimming strings (Pike 8.0 doesn't have trim_string())
+// Helper function for trimming strings (Pike 8.0 doesn't have String.trim())
 string trim_string(string s) {
+    int len = sizeof(s);
+    if (len == 0) return "";
+
     // Find first non-whitespace character
     int start = 0;
-    int len = sizeof(s);
-    while (start < len && (<string>({s[start]})) == " " || (<string>({s[start]})) == "\t" || (<string>({s[start]})) == "\n" || (<string>({s[start]})) == "\r"))
-        start++;
+    while (start < len) {
+        string c = s[start..start];
+        if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+            start++;
+        } else {
+            break;
+        }
+    }
 
     // Find last non-whitespace character
     int end = len - 1;
-    while (end >= start && (<string>({s[end]}) == " " || (<string>({s[end]}) == "\t" || (<string>({s[end]}) == "\n" || (<string>({s[end]}) == "\r"))
-        end--;
+    while (end >= start) {
+        string c = s[end..end];
+        if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+            end--;
+        } else {
+            break;
+        }
+    }
 
     if (start > end)
         return "";  // String is all whitespace
