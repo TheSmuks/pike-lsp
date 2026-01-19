@@ -223,4 +223,143 @@ class Intelligence {
 
         return result;
     }
+
+    //! Resolve module path to file system location
+    //! @param params Mapping with "module" and "currentFile" keys
+    //! @returns Mapping with "result" containing "path" and "exists"
+    mapping handle_resolve(mapping params) {
+        mixed err = catch {
+            string module_path = params->module || "";
+            string current_file = params->currentFile || "";
+
+            if (sizeof(module_path) == 0) {
+                return ([ "result": ([ "path": 0, "exists": 0 ]) ]);
+            }
+
+            // Handle local modules (starting with .)
+            if (has_prefix(module_path, ".")) {
+                string local_name = module_path[1..]; // Remove leading dot
+
+                if (sizeof(current_file) > 0 && sizeof(local_name) > 0) {
+                    // Get directory of current file
+                    string current_dir = dirname(current_file);
+
+                    LSP.debug("LOCAL MODULE RESOLVE: .%s\n", local_name);
+                    LSP.debug("  Current file: %s\n", current_file);
+                    LSP.debug("  Current dir:  %s\n", current_dir);
+
+                    // Try .pike file first
+                    string pike_file = combine_path(current_dir, local_name + ".pike");
+                    LSP.debug("  Trying: %s -> %s\n", pike_file, file_stat(pike_file) ? "EXISTS" : "NOT FOUND");
+                    if (file_stat(pike_file)) {
+                        return ([
+                            "result": ([ "path": pike_file, "exists": 1 ])
+                        ]);
+                    }
+
+                    // Try .pmod file
+                    string pmod_file = combine_path(current_dir, local_name + ".pmod");
+                    LSP.debug("  Trying: %s -> %s\n", pmod_file, file_stat(pmod_file) ? "EXISTS" : "NOT FOUND");
+                    if (file_stat(pmod_file) && !file_stat(pmod_file)->isdir) {
+                        return ([
+                            "result": ([ "path": pmod_file, "exists": 1 ])
+                        ]);
+                    }
+
+                    // Try .pmod directory with module.pmod
+                    string pmod_dir = combine_path(current_dir, local_name + ".pmod");
+                    LSP.debug("  Trying: %s -> %s\n", pmod_dir, file_stat(pmod_dir) ? "EXISTS" : "NOT FOUND");
+                    if (file_stat(pmod_dir) && file_stat(pmod_dir)->isdir) {
+                        string module_file = combine_path(pmod_dir, "module.pmod");
+                        if (file_stat(module_file)) {
+                            return ([
+                                "result": ([ "path": module_file, "exists": 1 ])
+                            ]);
+                        }
+                        return ([
+                            "result": ([ "path": pmod_dir, "exists": 1 ])
+                        ]);
+                    }
+                }
+
+                return ([ "result": ([ "path": 0, "exists": 0 ]) ]);
+            }
+
+            // For non-local modules, use Pike's native resolution
+            mixed resolved = master()->resolv(module_path);
+            if (resolved) {
+                string source_path = get_module_path(resolved);
+                return ([
+                    "result": ([
+                        "path": sizeof(source_path) ? source_path : 0,
+                        "exists": sizeof(source_path) ? 1 : 0
+                    ])
+                ]);
+            }
+
+            return ([ "result": ([ "path": 0, "exists": 0 ]) ]);
+        };
+
+        if (err) {
+            return LSP.LSPError(-32000, describe_error(err))->to_response();
+        }
+    }
+
+    //! Get the source file path for a resolved module
+    //! Uses Pike's native module resolution instead of heuristics
+    //! Handles dirnodes (directory modules), joinnodes (merged modules),
+    //! and regular programs/objects.
+    //! @param resolved The resolved module object or program
+    //! @returns The source file path, or empty string if not found
+    protected string get_module_path(mixed resolved) {
+        if (!resolved) return "";
+
+        // Handle objects (most modules resolve to objects)
+        if (objectp(resolved)) {
+            program obj_prog = object_program(resolved);
+
+            // Handle joinnodes first (merged module paths from multiple sources)
+            // These wrap dirnodes, so check first
+            if (obj_prog->is_resolv_joinnode) {
+                // Return first valid path from joined modules
+                array joined = ({});
+                catch { joined = resolved->joined_modules || ({}); };
+                foreach(joined, mixed m) {
+                    string path = get_module_path(m);
+                    if (sizeof(path)) return path;
+                }
+            }
+
+            // Handle dirnodes (like Crypto.pmod/)
+            // Pike creates these for .pmod directories
+            if (obj_prog->is_resolv_dirnode) {
+                // Get the dirname from the dirnode
+                string dirname = "";
+                catch { dirname = resolved->dirname || ""; };
+
+                // Fall back to module.pmod in the directory
+                if (sizeof(dirname)) {
+                    string module_file = combine_path(dirname, "module.pmod");
+                    if (file_stat(module_file)) return module_file;
+                    return dirname;
+                }
+            }
+
+            // Regular object - get its program's definition
+            catch {
+                string path = Program.defined(obj_prog);
+                if (path && sizeof(path)) return path;
+            };
+        }
+
+        // Handle programs directly
+        if (programp(resolved)) {
+            catch {
+                string path = Program.defined(resolved);
+                if (path && sizeof(path)) return path;
+            };
+        }
+
+        return "";
+    }
 }
