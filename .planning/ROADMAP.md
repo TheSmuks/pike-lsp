@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Establish shared infrastructure and version compatibility layer
 - [x] **Phase 2: Parser Module** - Extract parsing, tokenization, and compilation handlers
 - [x] **Phase 3: Intelligence Module** - Extract introspection and resolution handlers
-- [ ] **Phase 4: Analysis & Entry Point** - Extract analysis handlers and refactor main entry point
+- [x] **Phase 4: Analysis & Entry Point** - Extract analysis handlers and refactor main entry point
 - [ ] **Phase 5: Verification** - Cross-version testing and compatibility validation
 
 ## Phase Details
@@ -103,6 +103,8 @@ Plans:
 
 **Depends on**: Phase 1 (module.pmod, Cache.pmod, Compat.pmod), Phase 2 (Parser.pike for tokenization)
 
+**Completed**: 2026-01-19
+
 **Requirements**: ANL-01, ANL-02, ANL-03, ANL-04, ANL-05, ANL-06, ANL-07, ANL-08, ANL-09, ANL-10, ENT-01, ENT-02, ENT-03, ENT-04, ENT-05, ENT-06, QLT-02, QLT-03
 
 **Success Criteria** (what must be TRUE):
@@ -114,15 +116,15 @@ Plans:
 6. Integration tests pass for occurrences, completion context, and full request/response cycle
 7. All modules load independently without circular dependencies
 
-**Plans**: 6 plans (6 autonomous, 2 waves)
+**Plans**: 6 plans (6 autonomous, 3 waves)
 
 Plans:
-- [ ] 04-01-PLAN.md — Create Analysis.pike with handle_find_occurrences (Wave 1)
-- [ ] 04-02-PLAN.md — Add handle_get_completion_context to Analysis.pike (Wave 1)
-- [ ] 04-03-PLAN.md — Add handle_analyze_uninitialized with scope analysis (Wave 1)
-- [ ] 04-04-PLAN.md — Create dispatch table router with Context class (Wave 2)
-- [ ] 04-05-PLAN.md — Remove old handler functions from analyzer.pike (Wave 2)
-- [ ] 04-06-PLAN.md — Write integration tests and response format verification (Wave 2)
+- [x] 04-01-PLAN.md — Create Analysis.pike with handle_find_occurrences (Wave 1)
+- [x] 04-02-PLAN.md — Add handle_get_completion_context to Analysis.pike (Wave 2)
+- [x] 04-03-PLAN.md — Add handle_analyze_uninitialized with scope analysis (Wave 2)
+- [x] 04-04-PLAN.md — Create dispatch table router with Context class (Wave 3)
+- [x] 04-05-PLAN.md — Remove old handler functions from analyzer.pike (Wave 3)
+- [x] 04-06-PLAN.md — Write integration tests and response format verification (Wave 3)
 
 ### Phase 5: Verification
 
@@ -152,5 +154,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation | 6/6 | Complete | 2026-01-19 |
 | 2. Parser Module | 3/3 | Complete | 2026-01-19 |
 | 3. Intelligence Module | 4/4 | Complete | 2026-01-19 |
-| 4. Analysis & Entry Point | 0/6 | Not started | - |
+| 4. Analysis & Entry Point | 6/6 | Complete | 2026-01-19 |
 | 5. Verification | 0/TBD | Not started | - |
