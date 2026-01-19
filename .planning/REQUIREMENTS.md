@@ -39,17 +39,17 @@ Requirements for the refactoring milestone. Each maps to roadmap phases.
 
 ### Intelligence Module
 
-- [ ] **INT-01**: Extract handle_introspect function to Intelligence.pike class
-- [ ] **INT-02**: Extract handle_resolve function to Intelligence.pike class
-- [ ] **INT-03**: Extract handle_resolve_stdlib function to Intelligence.pike class
-- [ ] **INT-04**: Extract handle_get_inherited function to Intelligence.pike class
-- [ ] **INT-05**: Intelligence.pike uses Tools.AutoDoc for documentation parsing
-- [ ] **INT-06**: Intelligence.pike uses Cache.pmod for stdlib data caching
-- [ ] **INT-07**: Intelligence.pike imports from module.pmod (shared utilities)
-- [ ] **INT-08**: Intelligence.pike uses Compat.trim_whites() for string operations
-- [ ] **INT-09**: Intelligence.pike wraps handlers in catch blocks returning JSON-RPC errors
-- [ ] **INT-10**: Integration tests for introspect handler
-- [ ] **INT-11**: Integration tests for resolve handlers
+- [x] **INT-01**: Extract handle_introspect function to Intelligence.pike class
+- [x] **INT-02**: Extract handle_resolve function to Intelligence.pike class
+- [x] **INT-03**: Extract handle_resolve_stdlib function to Intelligence.pike class
+- [x] **INT-04**: Extract handle_get_inherited function to Intelligence.pike class
+- [x] **INT-05**: Intelligence.pike uses Tools.AutoDoc for documentation parsing
+- [x] **INT-06**: Intelligence.pike uses Cache.pmod for stdlib data caching
+- [x] **INT-07**: Intelligence.pike imports from module.pmod (shared utilities)
+- [x] **INT-08**: Intelligence.pike uses Compat.trim_whites() for string operations
+- [x] **INT-09**: Intelligence.pike wraps handlers in catch blocks returning JSON-RPC errors
+- [x] **INT-10**: Integration tests for introspect handler
+- [x] **INT-11**: Integration tests for resolve handlers
 
 ### Analysis Module
 
@@ -144,17 +144,17 @@ Deferred to future release. Tracked but not in current roadmap.
 | PRS-09 | Phase 2 | Complete |
 | PRS-10 | Phase 2 | Complete |
 | PRS-11 | Phase 2 | Complete |
-| INT-01 | Phase 3 | Pending |
-| INT-02 | Phase 3 | Pending |
-| INT-03 | Phase 3 | Pending |
-| INT-04 | Phase 3 | Pending |
-| INT-05 | Phase 3 | Pending |
-| INT-06 | Phase 3 | Pending |
-| INT-07 | Phase 3 | Pending |
-| INT-08 | Phase 3 | Pending |
-| INT-09 | Phase 3 | Pending |
-| INT-10 | Phase 3 | Pending |
-| INT-11 | Phase 3 | Pending |
+| INT-01 | Phase 3 | Complete |
+| INT-02 | Phase 3 | Complete |
+| INT-03 | Phase 3 | Complete |
+| INT-04 | Phase 3 | Complete |
+| INT-05 | Phase 3 | Complete |
+| INT-06 | Phase 3 | Complete |
+| INT-07 | Phase 3 | Complete |
+| INT-08 | Phase 3 | Complete |
+| INT-09 | Phase 3 | Complete |
+| INT-10 | Phase 3 | Complete |
+| INT-11 | Phase 3 | Complete |
 | ANL-01 | Phase 4 | Pending |
 | ANL-02 | Phase 4 | Pending |
 | ANL-03 | Phase 4 | Pending |
