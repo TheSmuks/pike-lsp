@@ -498,4 +498,231 @@ class Intelligence {
             return LSP.LSPError(-32000, describe_error(err))->to_response();
         }
     }
+
+    //! Parse stdlib source file for autodoc documentation
+    //! Returns mapping of symbol name -> documentation mapping
+    //!
+    //! @param source_path Path to the stdlib source file (may have line number suffix)
+    //! @returns Mapping of symbol name to parsed documentation
+    //!
+    //! Uses extract_autodoc_comments and extract_symbol_name helpers.
+    protected mapping parse_stdlib_documentation(string source_path) {
+        mapping docs = ([]);
+
+        // Clean up path - remove line number suffix if present
+        // Pitfall 2 from RESEARCH.md: Program.defined() returns paths with line numbers
+        string clean_path = source_path;
+        if (has_value(clean_path, ":")) {
+            array parts = clean_path / ":";
+            // Check if last part is a number (line number)
+            if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
+                int is_line_num = 1;
+                foreach(parts[-1] / "", string c) {
+                    if (c < "0" || c > "9") { is_line_num = 0; break; }
+                }
+                if (is_line_num) {
+                    clean_path = parts[..sizeof(parts)-2] * ":";
+                }
+            }
+        }
+
+        // Try to read the source file
+        string code;
+        mixed read_err = catch {
+            code = Stdio.read_file(clean_path);
+        };
+
+        if (read_err || !code || sizeof(code) == 0) {
+            return docs;
+        }
+
+        // Parse using Tools.AutoDoc.PikeParser
+        mixed parse_err = catch {
+            // Extract autodoc comments
+            mapping(int:string) autodoc_by_line = extract_autodoc_comments(code);
+
+            // Use simple regex-based extraction for function/method documentation
+            // Look for patterns like: //! @decl type name(args)
+            // or autodoc blocks followed by function definitions
+
+            array(string) lines = code / "\n";
+            string current_doc = "";
+
+            for (int i = 0; i < sizeof(lines); i++) {
+                string line = lines[i];
+                string trimmed = LSP.Compat.trim_whites(line);
+
+                // Collect autodoc comments
+                if (has_prefix(trimmed, "//!")) {
+                    if (sizeof(current_doc) > 0) {
+                        current_doc += "\n" + trimmed[3..];
+                    } else {
+                        current_doc = trimmed[3..];
+                    }
+                    continue;
+                }
+
+                // If we have accumulated docs and hit a non-doc line, try to associate
+                if (sizeof(current_doc) > 0) {
+                    // Look for function/method definition
+                    // Pattern: type name( or PIKEFUN type name(
+                    string name = extract_symbol_name(trimmed);
+                    if (sizeof(name) > 0) {
+                        docs[name] = parse_autodoc(current_doc);
+                    }
+                    current_doc = "";
+                }
+            }
+        };
+
+        return docs;
+    }
+
+    //! Extract autodoc comments from source code
+    //! Returns mapping of declaration line -> documentation text
+    //!
+    //! @param code Source code to extract comments from
+    //! @returns Mapping of line number to documentation text
+    protected mapping(int:string) extract_autodoc_comments(string code) {
+        mapping(int:string) result = ([]);
+        array(string) lines = code / "\n";
+
+        array(string) current_doc = ({});
+        int doc_start_line = 0;
+
+        for (int i = 0; i < sizeof(lines); i++) {
+            string line = LSP.Compat.trim_whites(lines[i]);
+
+            if (has_prefix(line, "//!")) {
+                // Autodoc comment line
+                if (sizeof(current_doc) == 0) {
+                    doc_start_line = i + 1;
+                }
+                // Extract text after //!
+                string doc_text = "";
+                if (sizeof(line) > 3) {
+                    doc_text = line[3..];
+                    if (sizeof(doc_text) > 0 && doc_text[0] == ' ') {
+                        doc_text = doc_text[1..]; // Remove leading space
+                    }
+                }
+                current_doc += ({ doc_text });
+            } else if (sizeof(current_doc) > 0) {
+                // Non-comment line after doc block - this is the declaration
+                // Store doc for this line (the declaration line)
+                result[i + 1] = current_doc * "\n";
+                current_doc = ({});
+            }
+        }
+
+        return result;
+    }
+
+    //! Extract symbol name from a line that might be a function definition
+    //!
+    //! @param line Line of code that may contain a function definition
+    //! @returns The extracted symbol name, or empty string if not found
+    //!
+    //! Handles both Pike function definitions (type name()) and
+    //! PIKEFUN patterns from C modules (PIKEFUN type name()).
+    protected string extract_symbol_name(string line) {
+        // Skip preprocessor and empty lines
+        if (sizeof(line) == 0 || line[0] == '#') return "";
+
+        // PIKEFUN type name( pattern (for C files)
+        if (has_value(line, "PIKEFUN")) {
+            // PIKEFUN return_type name(
+            string ret_type, name;
+            if (sscanf(line, "%*sPIKEFUN%*[ \t]%s%*[ \t]%s(%*s", ret_type, name) == 2) {
+                if (name) return name;
+            }
+        }
+
+        // Look for patterns like: type name( or modifiers type name(
+        // Match: optional_modifiers type name(
+        array(string) tokens = ({});
+        string current = "";
+
+        foreach(line / "", string c) {
+            if (c == "(") {
+                if (sizeof(current) > 0) tokens += ({ LSP.Compat.trim_whites(current) });
+                break;
+            } else if (c == " " || c == "\t") {
+                if (sizeof(current) > 0) {
+                    tokens += ({ LSP.Compat.trim_whites(current) });
+                    current = "";
+                }
+            } else {
+                current += c;
+            }
+        }
+
+        // The function name is typically the last token before (
+        // Filter out modifiers and type keywords
+        multiset(string) skip = (<
+            "static", "public", "private", "protected", "final", "inline",
+            "local", "optional", "variant", "nomask", "extern",
+            "int", "float", "string", "array", "mapping", "multiset",
+            "object", "function", "program", "mixed", "void", "zero", "auto"
+        >);
+
+        for (int i = sizeof(tokens) - 1; i >= 0; i--) {
+            string tok = tokens[i];
+            // Skip type annotations like array(int)
+            if (has_value(tok, "(") || has_value(tok, ")")) continue;
+            if (has_value(tok, "<") || has_value(tok, ">")) continue;
+            if (has_value(tok, "|")) continue;
+            if (skip[tok]) continue;
+            if (sizeof(tok) > 0 && (tok[0] >= 'a' && tok[0] <= 'z' ||
+                                  tok[0] >= 'A' && tok[0] <= 'Z' ||
+                                  tok[0] == '_')) {
+                return tok;
+            }
+        }
+
+        return "";
+    }
+
+    //! Merge documentation into introspected symbols
+    //!
+    //! @param introspection The introspection result mapping
+    //! @param docs Mapping of symbol name -> documentation
+    //! @returns Updated introspection with documentation merged in
+    //!
+    //! Merges documentation into symbols, functions, and variables arrays.
+    protected mapping merge_documentation(mapping introspection, mapping docs) {
+        if (!introspection || !docs) return introspection;
+
+        // Merge into symbols array
+        if (introspection->symbols) {
+            foreach(introspection->symbols; int idx; mapping sym) {
+                string name = sym->name;
+                if (name && docs[name]) {
+                    introspection->symbols[idx] = sym + ([ "documentation": docs[name] ]);
+                }
+            }
+        }
+
+        // Merge into functions array
+        if (introspection->functions) {
+            foreach(introspection->functions; int idx; mapping sym) {
+                string name = sym->name;
+                if (name && docs[name]) {
+                    introspection->functions[idx] = sym + ([ "documentation": docs[name] ]);
+                }
+            }
+        }
+
+        // Merge into variables array
+        if (introspection->variables) {
+            foreach(introspection->variables; int idx; mapping sym) {
+                string name = sym->name;
+                if (name && docs[name]) {
+                    introspection->variables[idx] = sym + ([ "documentation": docs[name] ]);
+                }
+            }
+        }
+
+        return introspection;
+    }
 }
