@@ -1,6 +1,9 @@
 #!/usr/bin/env pike
 #pike __REAL_VERSION__
 
+// Add module path for LSP.pmod
+master()->add_module_path(combine_path(__FILE__, "../"));
+
 //! Pike LSP Analyzer Script
 //!
 //! This script provides parsing and symbol extraction using Pike's
