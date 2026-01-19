@@ -1,9 +1,6 @@
 #!/usr/bin/env pike
 #pike __REAL_VERSION__
 
-// Add module path for LSP.pmod
-master()->add_module_path(combine_path(__FILE__, "../"));
-
 //! Pike LSP Analyzer Script
 //!
 //! This script provides parsing and symbol extraction using Pike's
@@ -86,331 +83,17 @@ protected mapping(string:mixed) handle_request(mapping(string:mixed) request) {
 }
 
 protected mapping handle_parse(mapping params) {
-  string code = params->code || "";
-  string filename = params->filename || "input.pike";
-  int line = params->line || 1;
-  
-  array symbols = ({});
-  array diagnostics = ({});
-  
-  // Extract autodoc comments from original code before preprocessing
-  // Maps line number -> documentation string
-  mapping(int:string) autodoc_by_line = extract_autodoc_comments(code);
+  program ParserClass = master()->resolv("LSP.Parser")->Parser;
+  Parser parser = ParserClass();
 
-  // Preprocess code: remove preprocessor directives that confuse PikeParser
-  // We need to track nesting to properly handle conditional blocks
-  string preprocessed = "";
-  int preprocessed_line = 0;
-  int if_depth = 0;
-
-  foreach(code / "\n", string src_line) {
-    preprocessed_line++;
-    string trimmed = String.trim_whites(src_line);
-
-    // Handle conditional compilation - we can't evaluate these, so skip entire blocks
-    if (has_prefix(trimmed, "#if")) {
-      if_depth++;
-      preprocessed += "\n";  // Keep line number but skip directive
-    } else if (has_prefix(trimmed, "#else") || has_prefix(trimmed, "#elif")) {
-      preprocessed += "\n";  // Keep line number but skip directive
-    } else if (has_prefix(trimmed, "#endif")) {
-      if_depth--;
-      preprocessed += "\n";  // Keep line number but skip directive
-    } else if (if_depth > 0) {
-      // We're inside an #if block that we're skipping - skip this line too
-      preprocessed += "\n";
-    } else if (has_prefix(trimmed, "#pike") ||
-               has_prefix(trimmed, "#pragma") ||
-               has_prefix(trimmed, "#include") ||
-               has_prefix(trimmed, "#define") ||
-               has_prefix(trimmed, "#charset")) {
-      // Other directives - replace with blank line
-      preprocessed += "\n";
-    } else {
-      preprocessed += src_line + "\n";
-    }
-  }
-  
   mixed err = catch {
-    // Create parser instance with preprocessed code
-    object parser = Tools.AutoDoc.PikeParser(preprocessed, filename, line);
-
-    // Parse declarations until EOF
-    int iter = 0;
-
-    // Buffer for collecting autodoc comments during parsing
-    array(string) autodoc_buffer = ({});
-    
-    while (parser->peekToken() != "" && iter++ < MAX_TOP_LEVEL_ITERATIONS) {
-      string current_token = parser->peekToken();
-      
-      // Collect documentation comments into buffer
-      if (has_prefix(current_token, "//!")) {
-        // Extract the comment text (remove //! prefix)
-        // Preserve indentation for continuation lines - only remove single trailing space after //!
-        string doc_text = current_token;
-        if (sizeof(doc_text) > 3) {
-          doc_text = doc_text[3..]; // Remove "//!"
-          // Remove exactly one leading space if present (Pike convention)
-          if (sizeof(doc_text) > 0 && doc_text[0] == ' ') {
-            doc_text = doc_text[1..];
-          }
-        } else {
-          doc_text = "";
-        }
-        autodoc_buffer += ({ doc_text });
-        parser->readToken();
-        continue;
-      }
-      
-      // Try to parse a declaration
-      mixed decl;
-      mixed parse_err = catch {
-        decl = parser->parseDecl();
-      };
-      
-      if (parse_err) {
-        // Skip this token and continue
-        autodoc_buffer = ({}); // Clear buffer on parse error
-        parser->readToken();
-        continue;
-      }
-      
-      if (decl) {
-        // For non-class/enum declarations, add directly to symbols
-        if (arrayp(decl)) {
-          // Get the collected documentation and clear buffer
-          string documentation = sizeof(autodoc_buffer) > 0 ?
-            autodoc_buffer * "\n" : "";
-          autodoc_buffer = ({}); // Clear buffer after use
-
-          foreach(decl, mixed d) {
-            if (objectp(d)) {
-              mixed convert_err = catch {
-                symbols += ({ symbol_to_json(d, documentation) });
-              };
-            }
-          }
-        } else if (objectp(decl)) {
-          // Check if this is a class or enum - if so, we'll handle it below with its members
-          string decl_kind = get_symbol_kind(decl);
-
-          if (decl_kind != "class" && decl_kind != "enum") {
-            // Not a class/enum - get documentation, add to symbols, and clear buffer
-            string documentation = sizeof(autodoc_buffer) > 0 ?
-              autodoc_buffer * "\n" : "";
-            autodoc_buffer = ({}); // Clear buffer after use
-
-            mixed convert_err = catch {
-              symbols += ({ symbol_to_json(decl, documentation) });
-            };
-          }
-          // For classes/enums, we'll add them later after parsing their members
-          // Don't clear autodoc_buffer yet - we need it for the class symbol
-        }
-      } else {
-        // No declaration parsed, clear buffer
-        autodoc_buffer = ({});
-      }
-
-      // Handle block contents (class/enum bodies)
-      // Skip to next declaration
-      parser->skipUntil((<";", "{", "">));
-      if (parser->peekToken() == "{") {
-        // Check if we just parsed a class or enum - if so, parse body contents
-        string decl_kind = "";
-        if (objectp(decl)) {
-          decl_kind = get_symbol_kind(decl);
-        }
-
-        if (decl_kind == "class" || decl_kind == "enum") {
-          // Get the class documentation now (before parsing members)
-          string class_documentation = sizeof(autodoc_buffer) > 0 ?
-            autodoc_buffer * "\n" : "";
-          autodoc_buffer = ({}); // Clear buffer after using it
-
-          // Enter the block to parse members
-          parser->readToken(); // consume '{'
-
-          // Store the class declaration for later
-          mixed class_decl = decl;
-          string class_name = "";
-          if (objectp(decl)) {
-            // Try to get class name for later use
-            catch { class_name = decl->name; };
-          }
-
-          // Parse declarations inside the block and collect as children
-          int block_iter = 0;
-          array(string) member_autodoc_buffer = ({});
-          array(mapping) class_children = ({});
-
-          while (parser->peekToken() != "}" && parser->peekToken() != "" && block_iter++ < 500) {
-            string member_token = parser->peekToken();
-
-            // Collect documentation comments for members
-            if (has_prefix(member_token, "//!")) {
-              string doc_text = member_token;
-              if (sizeof(doc_text) > 3) {
-                doc_text = doc_text[3..];
-                // Remove exactly one leading space if present
-                if (sizeof(doc_text) > 0 && doc_text[0] == ' ') {
-                  doc_text = doc_text[1..];
-                }
-              } else {
-                doc_text = "";
-              }
-              member_autodoc_buffer += ({ doc_text });
-              parser->readToken();
-              continue;
-            }
-
-            // Try to parse a declaration
-            mixed member_decl;
-            mixed member_err = catch {
-              member_decl = parser->parseDecl();
-            };
-
-            if (member_err) {
-              member_autodoc_buffer = ({});
-              parser->readToken();
-              continue;
-            }
-
-            if (member_decl) {
-              string member_doc = sizeof(member_autodoc_buffer) > 0 ?
-                member_autodoc_buffer * "\n" : "";
-              member_autodoc_buffer = ({});
-
-              if (arrayp(member_decl)) {
-                foreach(member_decl, mixed m) {
-                  if (objectp(m)) {
-                    mixed conv_err = catch {
-                      class_children += ({ symbol_to_json(m, member_doc) });
-                    };
-                  }
-                }
-              } else if (objectp(member_decl)) {
-                mixed conv_err = catch {
-                  class_children += ({ symbol_to_json(member_decl, member_doc) });
-                };
-              }
-            } else {
-              member_autodoc_buffer = ({});
-            }
-
-            // Skip to next member declaration
-            parser->skipUntil((<";", "{", "}", "">));
-            if (parser->peekToken() == "{") {
-              // Skip nested blocks (method bodies, nested classes for now)
-              parser->skipBlock();
-            }
-            if (parser->peekToken() == ";") {
-              parser->readToken();
-            }
-          }
-          // Consume the closing '}'
-          if (parser->peekToken() == "}") {
-            parser->readToken();
-          }
-
-          // Now add the class with its children
-          if (objectp(class_decl)) {
-            mixed conv_err = catch {
-              mapping class_json = symbol_to_json(class_decl, class_documentation);
-              // Add children to the class symbol
-              class_json["children"] = class_children;
-              symbols += ({ class_json });
-            };
-          }
-        } else if (decl_kind == "method" || decl_kind == "function") {
-          // Enter function/method body to extract local variables
-          parser->readToken(); // consume '{'
-
-          int body_iter = 0;
-          int brace_depth = 1;
-
-          while (brace_depth > 0 && parser->peekToken() != "" && body_iter++ < MAX_BLOCK_ITERATIONS) {
-            string token = parser->peekToken();
-
-            if (token == "}") {
-              brace_depth--;
-              parser->readToken();
-              continue;
-            }
-
-            if (token == "{") {
-              brace_depth++;
-              parser->readToken();
-              continue;
-            }
-
-            // Try to parse a declaration
-            mixed local_decl;
-            mixed parse_err = catch {
-              local_decl = parser->parseDecl();
-            };
-
-            if (!parse_err && local_decl) {
-              // Successfully parsed - extract variables
-              if (arrayp(local_decl)) {
-                foreach(local_decl, mixed d) {
-                  if (objectp(d)) {
-                    string dkind = get_symbol_kind(d);
-                    if (dkind == "variable" || dkind == "constant" || dkind == "typedef") {
-                      symbols += ({ symbol_to_json(d, "") });
-                    }
-                  }
-                }
-              } else if (objectp(local_decl)) {
-                string dkind = get_symbol_kind(local_decl);
-                if (dkind == "variable" || dkind == "constant" || dkind == "typedef") {
-                  symbols += ({ symbol_to_json(local_decl, "") });
-                }
-              }
-              // parseDecl consumed the declaration, continue to next token
-              continue;
-            } else {
-              // Not a declaration - skip to next statement
-              parser->skipUntil((<";", "{", "}", "">));
-              if (parser->peekToken() == ";") {
-                parser->readToken();
-              }
-            }
-          }
-        } else {
-          // Unknown block type - skip it
-          parser->skipBlock();
-        }
-      }
-      if (parser->peekToken() == ";") {
-        parser->readToken();
-      }
-    }
+    return parser->parse_request(params);
   };
-  
-  if (err) {
-    // Only add diagnostic for truly fatal errors
-    string error_msg = describe_error(err);
-    // Don't report "expected identifier" errors as they're often false positives
-    if (!has_value(error_msg, "expected identifier")) {
-      diagnostics += ({
-        ([
-          "message": error_msg,
-          "severity": "error",
-          "position": ([
-            "file": filename,
-            "line": 1
-          ])
-        ])
-      });
-    }
-  }
-  
+
   return ([
-    "result": ([
-      "symbols": symbols,
-      "diagnostics": diagnostics
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
@@ -453,93 +136,33 @@ protected mapping(int:string) extract_autodoc_comments(string code) {
 }
 
 protected mapping handle_tokenize(mapping params) {
-  string code = params->code || "";
-  
-  array tokens = ({});
-  
+  program ParserClass = master()->resolv("LSP.Parser")->Parser;
+  Parser parser = ParserClass();
+
   mixed err = catch {
-    array(string) split_tokens = Parser.Pike.split(code);
-    array pike_tokens = Parser.Pike.tokenize(split_tokens);
-    
-    foreach (pike_tokens, mixed t) {
-      tokens += ({
-        ([
-          "text": t->text,
-          "line": t->line,
-          "file": t->file
-        ])
-      });
-    }
+    return parser->tokenize_request(params);
   };
-  
-  if (err) {
-    return ([
-      "error": ([
-        "code": -32000,
-        "message": describe_error(err)
-      ])
-    ]);
-  }
-  
+
   return ([
-    "result": ([
-      "tokens": tokens
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
 
 protected mapping handle_compile(mapping params) {
-  string code = params->code || "";
-  string filename = params->filename || "input.pike";
-  
-  array diagnostics = ({});
-  
-  // Capture compilation errors using set_inhibit_compile_errors
-  void capture_error(string file, int line, string msg) {
-    diagnostics += ({
-      ([
-        "message": msg,
-        "severity": "error",
-        "position": ([
-          "file": file,
-          "line": line
-        ])
-      ])
-    });
-  };
-  
-  // Capture warnings too
-  void capture_warning(string file, int line, string msg) {
-    diagnostics += ({
-      ([
-        "message": msg,
-        "severity": "warning",
-        "position": ([
-          "file": file,
-          "line": line
-        ])
-      ])
-    });
-  };
-  
-  // Save old handlers
-  mixed old_error = master()->get_inhibit_compile_errors();
-  
-  // Set our capture handlers
-  master()->set_inhibit_compile_errors(capture_error);
-  
+  program ParserClass = master()->resolv("LSP.Parser")->Parser;
+  Parser parser = ParserClass();
+
   mixed err = catch {
-    // Try to compile
-    compile_string(code, filename);
+    return parser->compile_request(params);
   };
-  
-  // Restore old handler
-  master()->set_inhibit_compile_errors(old_error);
-  
+
   return ([
-    "result": ([
-      "symbols": ({}),
-      "diagnostics": diagnostics
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
@@ -2008,60 +1631,17 @@ int get_char_position(string code, int line_no, string token_text) {
 // PERF-002: Batch parse multiple files in a single request
 // Reduces IPC overhead during workspace indexing
 protected mapping handle_batch_parse(mapping params) {
-  array files = params->files || ({});
-  array results = ({});
+  program ParserClass = master()->resolv("LSP.Parser")->Parser;
+  Parser parser = ParserClass();
 
-  foreach (files, mapping file_info) {
-    string code = file_info->code || "";
-    string filename = file_info->filename || "unknown.pike";
-
-    // Try to parse each file, continuing even if one fails
-    mixed parse_err;
-    mapping parse_result;
-
-    parse_err = catch {
-      parse_result = handle_parse(([
-        "code": code,
-        "filename": filename,
-        "line": 1
-      ]));
-    };
-
-    if (parse_err) {
-      // On error, return result with error diagnostic
-      results += ({
-        ([
-          "filename": filename,
-          "symbols": ({}),
-          "diagnostics": ({
-            ([
-              "severity": "error",
-              "message": "Parse error: " + describe_error(parse_err),
-              "position": ([
-                "file": filename,
-                "line": 1
-              ])
-            ])
-          })
-        ])
-      });
-    } else {
-      // Extract results from parse response
-      mapping parse_data = parse_result->result || ([]);
-      results += ({
-        ([
-          "filename": filename,
-          "symbols": parse_data->symbols || ({}),
-          "diagnostics": parse_data->diagnostics || ({})
-        ])
-      });
-    }
-  }
+  mixed err = catch {
+    return parser->batch_parse_request(params);
+  };
 
   return ([
-    "result": ([
-      "results": results,
-      "count": sizeof(results)
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
@@ -3167,6 +2747,9 @@ protected string reverse(string s) {
 }
 
 int main(int argc, array(string) argv) {
+  // Add module path for LSP.pmod access
+  master()->add_module_path("pike-scripts");
+
   // For testing, support single-request mode
   if (argc > 1 && argv[1] == "--test") {
     // Test mode: parse various declarations
