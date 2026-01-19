@@ -167,172 +167,28 @@ protected mapping handle_compile(mapping params) {
   ]);
 }
 
-//! Get the source file path for a resolved module
-//! Uses Pike's native module resolution instead of heuristics
-//! Handles dirnodes (directory modules), joinnodes (merged modules),
-//! and regular programs/objects.
-protected string get_module_path(mixed resolved) {
-  if (!resolved) return "";
-  
-  // Handle objects (most modules resolve to objects)
-  if (objectp(resolved)) {
-    program obj_prog = object_program(resolved);
-    
-    // Handle joinnodes first (merged module paths from multiple sources)
-    // These wrap dirnodes, so check first
-    if (obj_prog->is_resolv_joinnode) {
-      // Return first valid path from joined modules
-      array joined = ({});
-      catch { joined = resolved->joined_modules || ({}); };
-      foreach(joined, mixed m) {
-        string path = get_module_path(m);
-        if (sizeof(path)) return path;
-      }
-    }
-    
-    // Handle dirnodes (like Crypto.pmod/)
-    // Pike creates these for .pmod directories
-    if (obj_prog->is_resolv_dirnode) {
-      // Get the dirname from the dirnode
-      string dirname = "";
-      catch { dirname = resolved->dirname || ""; };
-      
-      // Fall back to module.pmod in the directory
-      if (sizeof(dirname)) {
-        string module_file = combine_path(dirname, "module.pmod");
-        if (file_stat(module_file)) return module_file;
-        return dirname;
-      }
-    }
-    
-    // Regular object - get its program's definition
-    catch {
-      string path = Program.defined(obj_prog);
-      if (path && sizeof(path)) return path;
-    };
-  }
-  
-  // Handle programs directly
-  if (programp(resolved)) {
-    catch {
-      string path = Program.defined(resolved);
-      if (path && sizeof(path)) return path;
-    };
-  }
-  
-  return "";
-}
+//! ============================================================================
+//! INTELLIGENCE MODULE DELEGATION
+//! ============================================================================
+//! Intelligence handlers (introspect, resolve, resolve_stdlib, get_inherited)
+//! are delegated to LSP.Intelligence class for modularity.
+
+// Intelligence class instance
+program IntelligenceClass = master()->resolv("LSP.Intelligence")->Intelligence;
+object intelligence_instance = IntelligenceClass();
 
 protected mapping handle_resolve(mapping params) {
-  string module_path = params->module || "";
-  string current_file = params->currentFile || "";
-
-  if (sizeof(module_path) == 0) {
-    return ([ "result": ([ "path": 0, "exists": 0 ]) ]);
-  }
-
-  // Handle local modules (starting with .)
-  if (has_prefix(module_path, ".")) {
-    string local_name = module_path[1..]; // Remove leading dot
-
-    if (sizeof(current_file) > 0 && sizeof(local_name) > 0) {
-      // Get directory of current file
-      // If current file is /path/Crypto.pmod/RSA.pmod, dirname gives /path/Crypto.pmod
-      string current_dir = dirname(current_file);
-
-      debug("LOCAL MODULE RESOLVE: .%s\n", local_name);
-      debug("  Current file: %s\n", current_file);
-      debug("  Current dir:  %s\n", current_dir);
-
-      // Try .pike file first
-      string pike_file = combine_path(current_dir, local_name + ".pike");
-      debug("  Trying: %s -> %s\n", pike_file, file_stat(pike_file) ? "EXISTS" : "NOT FOUND");
-      if (file_stat(pike_file)) {
-        return ([
-          "result": ([
-            "path": pike_file,
-            "exists": 1
-          ])
-        ]);
-      }
-
-      // Try .pmod file (same directory)
-      string pmod_file = combine_path(current_dir, local_name + ".pmod");
-      debug("  Trying: %s -> %s\n", pmod_file, file_stat(pmod_file) ? "EXISTS" : "NOT FOUND");
-      if (file_stat(pmod_file) && !file_stat(pmod_file)->isdir) {
-        debug("  FOUND .pmod file: %s\n", pmod_file);
-        return ([
-          "result": ([
-            "path": pmod_file,
-            "exists": 1
-          ])
-        ]);
-      }
-
-      // Try .pmod directory with module.pmod
-      string pmod_dir = combine_path(current_dir, local_name + ".pmod");
-      if (file_stat(pmod_dir) && file_stat(pmod_dir)->isdir) {
-        debug("  Found .pmod directory: %s\n", pmod_dir);
-        string module_file = combine_path(pmod_dir, "module.pmod");
-        if (file_stat(module_file)) {
-          debug("  FOUND module.pmod: %s\n", module_file);
-          return ([
-            "result": ([
-              "path": module_file,
-              "exists": 1
-            ])
-          ]);
-        }
-        // Return directory if module.pmod doesn't exist
-        debug("  FOUND directory (no module.pmod): %s\n", pmod_dir);
-        return ([
-          "result": ([
-            "path": pmod_dir,
-            "exists": 1
-          ])
-        ]);
-      }
-
-      debug("  NOT FOUND\n");
-    } else {
-      debug("LOCAL MODULE RESOLVE FAILED: current_file=%s, local_name=%s\n",
-             current_file, local_name);
-    }
-
-    // Local module not found
-    return ([
-      "result": ([
-        "path": 0,
-        "exists": 0
-      ])
-    ]);
-  }
-
-  // For non-local modules, use Pike's native resolution
   mixed err = catch {
-    mixed resolved = master()->resolv(module_path);
-    if (resolved) {
-      // Use native module path resolution
-      string source_path = get_module_path(resolved);
-
-      return ([
-        "result": ([
-          "path": sizeof(source_path) ? source_path : 0,
-          "exists": sizeof(source_path) ? 1 : 0
-        ])
-      ]);
-    }
+    return intelligence_instance->handle_resolve(params);
   };
 
   return ([
-    "result": ([
-      "path": 0,
-      "exists": 0
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
-
-
 
 
 protected mapping symbol_to_json(object symbol, string|void documentation) {
@@ -1154,176 +1010,30 @@ protected mapping|int type_to_json(object|void type) {
 
 //! Compile Pike code and extract type information via introspection
 protected mapping handle_introspect(mapping params) {
-  string code = params->code || "";
-  string filename = params->filename || "input.pike";
-
-  array diagnostics = ({});
-  program compiled_prog;
-
-  // Capture compilation errors
-  void compile_error_handler(string file, int line, string msg) {
-    diagnostics += ({
-      ([
-        "message": msg,
-        "severity": "error",
-        "position": ([ "file": file, "line": line ])
-      ])
-    });
+  mixed err = catch {
+    return intelligence_instance->handle_introspect(params);
   };
 
-  mixed old_error_handler = master()->get_inhibit_compile_errors();
-  master()->set_inhibit_compile_errors(compile_error_handler);
-
-  // Attempt compilation
-  mixed compile_err = catch {
-    compiled_prog = compile_string(code, filename);
-  };
-
-  master()->set_inhibit_compile_errors(old_error_handler);
-
-  // If compilation failed, return diagnostics
-  if (compile_err || !compiled_prog) {
-    return ([
-      "result": ([
-        "success": 0,
-        "diagnostics": diagnostics,
-        "symbols": ({}),
-        "functions": ({}),
-        "variables": ({}),
-        "classes": ({}),
-        "inherits": ({})
-      ])
-    ]);
-  }
-
-  // Cache the compiled program
-  program_cache[filename] = compiled_prog;
-  cache_access_time[filename] = time();
-  evict_lru_programs();
-
-  // Extract type information
-  mapping result = introspect_program(compiled_prog);
-  result->success = 1;
-  result->diagnostics = diagnostics;
-
-  return ([ "result": result ]);
+  return ([
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
+    ])
+  ]);
 }
 
 //! Resolve stdlib module and extract symbols with documentation
 protected mapping handle_resolve_stdlib(mapping params) {
-  string module_path = params->module || "";
-
-  if (sizeof(module_path) == 0) {
-    return ([ "result": ([ "found": 0, "error": "No module path" ]) ]);
-  }
-
-  // Check cache
-  if (stdlib_cache[module_path]) {
-    cache_access_time[module_path] = time();
-    return ([ "result": stdlib_cache[module_path] ]);
-  }
-
-  // Resolve using master()->resolv()
-  mixed resolved;
-  mixed resolve_err = catch {
-    resolved = master()->resolv(module_path);
+  mixed err = catch {
+    return intelligence_instance->handle_resolve_stdlib(params);
   };
 
-  if (resolve_err || !resolved) {
-    return ([
-      "result": ([
-        "found": 0,
-        "error": resolve_err ? describe_error(resolve_err) : "Module not found"
-      ])
-    ]);
-  }
-
-  // Get program for introspection
-  program prog;
-  if (objectp(resolved)) {
-    prog = object_program(resolved);
-  } else if (programp(resolved)) {
-    prog = resolved;
-  } else {
-    return ([ "result": ([ "found": 0, "error": "Not a program" ]) ]);
-  }
-
-  // Use native module path resolution (reuses shared helper)
-  string source_path = get_module_path(resolved);
-
-  // Introspect
-  mapping introspection = introspect_program(prog);
-
-  // Parse source file to get all exported symbols (not just introspected ones)
-  if (sizeof(source_path) > 0) {
-    // Read and parse the source file
-    string code;
-    mixed read_err = catch {
-      // Clean up path - remove line number suffix if present
-      string clean_path = source_path;
-      if (has_value(clean_path, ":")) {
-        array parts = clean_path / ":";
-        // Check if last part is a number (line number)
-        if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
-          int is_line_num = 1;
-          foreach(parts[-1] / "", string c) {
-            if (c < "0" || c > "9") { is_line_num = 0; break; }
-          }
-          if (is_line_num) {
-            clean_path = parts[..sizeof(parts)-2] * ":";
-          }
-        }
-      }
-      code = Stdio.read_file(clean_path);
-    };
-
-    if (code && sizeof(code) > 0) {
-      // Parse the file to get all symbols using the existing parser
-      mapping parse_params = ([ "code": code, "filename": source_path ]);
-      mapping parse_response = handle_parse(parse_params);
-
-      // handle_parse returns { "result": { "symbols": [...], "diagnostics": [...] } }
-      if (parse_response && parse_response->result && parse_response->result->symbols && sizeof(parse_response->result->symbols) > 0) {
-        array parsed_symbols = parse_response->result->symbols;
-
-        // Merge parsed symbols into introspection
-        // Add any new symbols that weren't in introspection
-        if (!introspection->symbols) {
-          introspection->symbols = ({});
-        }
-
-        // Create a set of introspected symbol names for quick lookup
-        multiset(string) introspected_names = (multiset)(map(introspection->symbols, lambda(mapping s) { return s->name; }));
-
-        // Add parsed symbols that weren't in introspection
-        foreach(parsed_symbols, mapping sym) {
-          string name = sym->name;
-          if (name && !introspected_names[name]) {
-            introspection->symbols += ({ sym });
-            introspected_names[name] = 1;
-          }
-        }
-      }
-
-      // Parse documentation and merge it
-      mapping docs = parse_stdlib_documentation(source_path);
-      if (docs && sizeof(docs) > 0) {
-        // Merge documentation into introspected symbols
-        introspection = merge_documentation(introspection, docs);
-      }
-    }
-  }
-
-  mapping result = ([ "found": 1, "path": source_path, "module": module_path ]) + introspection;
-
-  // Cache with LRU
-  if (sizeof(stdlib_cache) >= max_stdlib_modules) {
-    evict_lru_stdlib();
-  }
-  stdlib_cache[module_path] = result;
-  cache_access_time[module_path] = time();
-
-  return ([ "result": result ]);
+  return ([
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
+    ])
+  ]);
 }
 
 //! Parse stdlib source file for autodoc documentation
@@ -1495,42 +1205,14 @@ protected mapping merge_documentation(mapping introspection, mapping docs) {
 
 //! Get inherited members from a class
 protected mapping handle_get_inherited(mapping params) {
-  string class_name = params->class || "";
-
-  if (sizeof(class_name) == 0) {
-    return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-  }
-
-  // Resolve class
-  mixed resolved;
-  catch { resolved = master()->resolv(class_name); };
-
-  if (!resolved) {
-    return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-  }
-
-  program prog = objectp(resolved) ? object_program(resolved) : resolved;
-  if (!prog) {
-    return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-  }
-
-  // Get inheritance list
-  array inherits = ({});
-  catch { inherits = Program.inherit_list(prog) || ({}); };
-
-  array all_members = ({});
-
-  // Introspect each parent
-  foreach (inherits, program parent_prog) {
-    mapping parent_info = introspect_program(parent_prog);
-    all_members += parent_info->symbols || ({});
-  }
+  mixed err = catch {
+    return intelligence_instance->handle_get_inherited(params);
+  };
 
   return ([
-    "result": ([
-      "found": 1,
-      "members": all_members,
-      "inherit_count": sizeof(inherits)
+    "error": ([
+      "code": -32000,
+      "message": describe_error(err)
     ])
   ]);
 }
