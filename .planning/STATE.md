@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-01-19)
 ## Current Position
 
 Phase: 3 of 5 (Intelligence Module)
-Plan: 3 of 3 (03-03 complete)
-Status: Phase complete - all four Intelligence handlers extracted
-Last activity: 2026-01-19 — Completed 03-03 Inheritance Traversal
+Plan: 4 of 4 (03-04 complete)
+Status: Phase complete - all four Intelligence handlers extracted with tests and delegation
+Last activity: 2026-01-19 — Completed 03-04 Integration Tests and Delegation
 
-Progress: [██████░░] 52%
+Progress: [██████░░] 56%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: 10.5 min
-- Total execution time: 2.1 hours
+- Total plans completed: 16
+- Average duration: 11.2 min
+- Total execution time: 2.9 hours
 
 **By Phase:**
 
@@ -29,13 +29,13 @@ Progress: [██████░░] 52%
 |-------|-------|-------|----------|
 | 1. Foundation | 6 | ~33 min | 5.5 min |
 | 2. Parser Module | 3 | ~54 min | 18 min |
-| 3. Intelligence Module | 3 | ~11 min | 3.7 min |
+| 3. Intelligence Module | 4 | ~16 min | 4.0 min |
 | 4. Analysis & Entry Point | 0 | - | - |
 | 5. Verification | 0 | - | - |
 
 **Recent Trend:**
-- Last 3 plans: 03-01, 03-02, 03-03
-- Trend: Intelligence module complete with all four handlers (introspect, resolve, resolve_stdlib, get_inherited)
+- Last 3 plans: 03-02, 03-03, 03-04
+- Trend: Intelligence module complete with tests and delegation to analyzer.pike
 
 *Updated after each plan completion*
 
@@ -73,6 +73,9 @@ Recent decisions affecting current work:
 - **D020**: Line number suffix stripped from Program.defined() paths before file operations — Pitfall 2 from RESEARCH.md, Program.defined() returns paths like "file.pike:42"
 - **D021**: AutoDoc token types use numeric constants — Pike's DocParser uses integers not named constants (Pitfall 3 from RESEARCH.md)
 - **D022**: Errors in class resolution return empty result (not crash) per CONTEXT.md resolution failure handling — ensures LSP clients get graceful "not found" responses instead of errors
+- **D023**: Integration tests use direct Intelligence class instantiation via master()->resolv('LSP.Intelligence')->Intelligence() — proper module loading in test environment
+- **D024**: Test fixtures organized under test/fixtures/intelligence/ for clarity — separate from parser fixtures
+- **D025**: analyzer.pike keeps old handler helper functions as dead code for safety during migration — can be removed in Phase 4 cleanup
 
 ### Pending Todos
 
@@ -100,7 +103,7 @@ None - all deferred tasks completed.
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Completed Phase 03 Plan 03 Inheritance Traversal
+Stopped at: Completed Phase 03 Plan 04 Integration Tests and Delegation
 Resume file: None
 
 ## Artifacts Created
@@ -137,12 +140,16 @@ Resume file: None
 - `.planning/phases/02-parser-module/02-03-SUMMARY.md` — Parser Test Suite summary
 - `.planning/phases/02-parser-module/02-VERIFICATION.md` — Verification report (7/7 must-haves)
 
-### Phase 3 Intelligence Module (Complete - 3/3 plans complete)
+### Phase 3 Intelligence Module (Complete - 4/4 plans complete)
 
 **Code:**
 - `pike-scripts/LSP.pmod/Intelligence.pike` — Stateless intelligence class with all four handlers: handle_introspect, handle_resolve, handle_resolve_stdlib, handle_get_inherited (1393 lines)
+- `pike-scripts/analyzer.pike` — Updated to delegate all four Intelligence handlers to LSP.Intelligence class
+- `test/tests/intelligence-tests.pike` — 17 integration tests for Intelligence.pike
+- `test/fixtures/intelligence/` — Test fixtures for integration testing
 
 **Documentation:**
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-01-SUMMARY.md` — Introspection and resolution handlers summary
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-02-SUMMARY.md` — Stdlib resolution and documentation parsing summary
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-03-SUMMARY.md` — Inheritance traversal summary
+- `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-04-SUMMARY.md` — Integration tests and delegation summary
