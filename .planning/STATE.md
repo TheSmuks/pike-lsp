@@ -5,33 +5,37 @@
 See: .planning/PROJECT.md (updated 2025-01-19)
 
 **Core value:** Modularity without breaking functionality
-**Current focus:** Phase 1 - Foundation
+**Current focus:** Phase 2 - Parser Module
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation)
-Plan: 4 of TBD
-Status: In progress
-Last activity: 2026-01-19 — Completed 01-04-PLAN.md (Foundation unit tests)
+Phase: 1 of 5 (Foundation complete)
+Plan: 5 of 5
+Status: Phase 1 complete, ready for Phase 2 planning
+Last activity: 2026-01-19 — E2E test infrastructure created and module.pmod validated
 
-Progress: [███░░░░░░] 25%
+Progress: [████░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 4 min
-- Total execution time: 0.2 hours
+- Total plans completed: 5
+- Average duration: 6 min
+- Total execution time: 0.5 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 4 | 5+ | 4 min |
+| 1. Foundation | 5 | ~29 min | 6 min |
+| 2. Parser Module | 0 | - | - |
+| 3. Intelligence Module | 0 | - | - |
+| 4. Analysis & Entry Point | 0 | - | - |
+| 5. Verification | 0 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: 9min, 2min, 2min, 2min
-- Trend: Variable (depends on test complexity)
+- Last 5 plans: 01-01, 01-02, 01-03, 01-04, 01-05 (all complete)
+- Trend: Steady execution with bug fixes discovered via testing
 
 *Updated after each plan completion*
 
@@ -42,30 +46,16 @@ Progress: [███░░░░░░] 25%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-**From 01-04 (Foundation unit tests):**
-- Runtime module resolution via master()->resolv() for test imports
-- Always use polyfill for trim_whites() (Pike 8.x native doesn't trim newlines)
-- Use incrementing counter instead of time() for LRU tracking (deterministic eviction)
-- Test framework uses run_test() wrapper with catch{} for error reporting
-
-**From 01-03 (Cache.pmod):**
-- Incrementing counter-based LRU implementation (changed from timestamp)
-- Manual cache invalidation only (LSP protocol notifies on file changes)
-- Separate cache limits for programs (30) and stdlib (50)
-
-**From 01-01 (module.pmod):**
-- PikeDoc-style //! comments for API documentation
-- PERF-005: Debug mode disabled by default for performance
-
-**From 01-02 (Compat.pmod):**
-- __REAL_VERSION__ returns float (8.0), not string - requires sprintf() for string conversion
-- Compile-time feature detection via #if constant(String.trim_whites)
-- Native String.trim_whites() not used - polyfill handles all whitespace types
-- LSPError class properties cannot use `constant` keyword (must be variables)
+**Phase 1 (Foundation):**
+- **D001**: Added `set_debug_mode()` and `get_debug_mode()` functions due to Pike module variable scoping rules — direct assignment to `debug_mode` from outside module doesn't work
+- **D002**: Used `sprintf()` to convert `__REAL_VERSION__` float to string for `PIKE_VERSION_STRING` constant — `__REAL_VERSION__` returns float not string
+- **D003**: Fixed `LSPError` class to use variable declarations instead of `constant` keyword — `constant` inside classes doesn't work as expected
+- **D004**: Used incrementing counter instead of `time()` for LRU eviction tracking — `time()` has 1-second granularity causing non-deterministic eviction
+- **D005**: Pike module.pmod functions must be accessed via array indexing (`LSP["function_name"]`) rather than arrow notation (`LSP->function`) — module.pmod is treated as a module mapping rather than an object
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
@@ -73,8 +63,31 @@ None yet.
 - Phase 3 (Intelligence): Stdlib resolution across Pike versions has sparse documentation, may need trial-and-error testing during implementation
 - Phase 5 (Verification): Cross-platform testing requirements (especially Windows) need detailed planning
 
+**Bugs fixed during Phase 1:**
+- Compat.pmod trim_whites() had off-by-one error in trailing whitespace removal — fixed during TDD
+- Cache.pmod LRU eviction was non-deterministic using `time()` — changed to incrementing counter
+
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Completed 01-04-PLAN.md (Foundation unit tests with bug fixes)
+Stopped at: Completed 01-05 E2E test infrastructure and module.pmod tests
 Resume file: None
+
+## Artifacts Created
+
+### Phase 1 Foundation (Complete)
+
+**Code:**
+- `pike-scripts/LSP.pmod/module.pmod` — Constants, LSPError class, JSON helpers, debug logging
+- `pike-scripts/LSP.pmod/Compat.pmod` — Version detection, trim_whites() polyfill
+- `pike-scripts/LSP.pmod/Cache.pmod` — LRU caching for programs and stdlib
+- `test/tests/foundation-tests.pike` — 13 unit tests (6 Compat, 7 Cache)
+- `test/tests/e2e-foundation-tests.pike` — 4 E2E tests with VSCode console format
+
+**Documentation:**
+- `.planning/phases/01-foundation/01-foundation-VERIFICATION.md` — Verification report
+- `.planning/phases/01-foundation/01-01-SUMMARY.md` — module.pmod summary
+- `.planning/phases/01-foundation/01-02-SUMMARY.md` — Compat.pmod summary
+- `.planning/phases/01-foundation/01-03-SUMMARY.md` — Cache.pmod summary
+- `.planning/phases/01-foundation/01-04-SUMMARY.md` — Unit tests summary
+- `.planning/phases/01-foundation/01-05-SUMMARY.md` — E2E tests summary
