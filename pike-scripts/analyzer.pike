@@ -125,7 +125,8 @@ protected mapping(string:mixed) handle_request(mapping(string:mixed) request) {
     mapping params = request->params || ([]);
 
     // Create Context for this request (singleton per server instance)
-    program ContextClass = master()->resolv("main")->Context;
+    // Use this_program to reference the current program's Context class
+    program ContextClass = this_program->Context;
     object ctx = ContextClass();
 
     return dispatch(method, params, ctx);
