@@ -154,6 +154,8 @@ mixed get_cache() {
 }
 
 //! Get LSP main module (runtime resolution)
+//! Note: LSP.pmod/module.pmod is accessed as "LSP" after module path setup
+//! Functions in module.pmod must be accessed via array indexing: LSP["function_name"]
 mixed get_module() {
     return master()->resolv("LSP");
 }
@@ -189,8 +191,11 @@ string create_mock_lsp_request(string method, int|string id, void|mapping params
         request->params = params;
     }
     mixed LSP = get_module();
-    if (LSP && LSP->json_encode) {
-        return LSP->json_encode(request);
+    if (LSP) {
+        function json_encode = LSP["json_encode"];
+        if (json_encode) {
+            return json_encode(request);
+        }
     }
     // Fallback if module not available yet
     return Standards.JSON.encode(request);
@@ -230,6 +235,210 @@ void run_test(function test_func, string name) {
 }
 
 // =============================================================================
+// module.pmod E2E Tests with Real LSP JSON Data
+// =============================================================================
+
+//! Test module.pmod json_decode with real LSP initialize request
+void test_module_json_decode_real_lsp_initialize() {
+    mixed LSP = get_module();
+    if (!LSP) {
+        error("LSP module not available");
+    }
+
+    function json_decode = LSP["json_decode"];
+    if (!json_decode) {
+        error("LSP.json_decode not available");
+    }
+
+    // Realistic LSP initialize request JSON
+    string json_request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":12345,\"rootUri\":\"file:///home/user/project\",\"capabilities\":{\"textDocument\":{\"completion\":{\"completionItem\":{\"snippetSupport\":true}}}}}}";
+
+    mixed decoded = json_decode(json_request);
+
+    // Verify decoded structure
+    if (!mappingp(decoded)) {
+        error("Expected mapping, got %O\n", typeof(decoded));
+    }
+
+    // Verify expected keys exist
+    if (decoded->jsonrpc != "2.0") {
+        error("jsonrpc should be '2.0', got %O\n", decoded->jsonrpc);
+    }
+
+    if (decoded->id != 1) {
+        error("id should be 1, got %O\n", decoded->id);
+    }
+
+    if (decoded->method != "initialize") {
+        error("method should be 'initialize', got %O\n", decoded->method);
+    }
+
+    // Verify params.rootUri is accessible
+    if (!decoded->params || !mappingp(decoded->params)) {
+        error("params should be a mapping\n");
+    }
+
+    if (decoded->params->rootUri != "file:///home/user/project") {
+        error("rootUri should be 'file:///home/user/project', got %O\n", decoded->params->rootUri);
+    }
+
+    // Verify nested capabilities
+    if (!decoded->params->capabilities || !mappingp(decoded->params->capabilities)) {
+        error("capabilities should be a mapping\n");
+    }
+
+    if (!decoded->params->capabilities->textDocument) {
+        error("textDocument capabilities missing\n");
+    }
+}
+
+//! Test module.pmod json_encode with real LSP completion response
+void test_module_json_encode_real_lsp_completion_response() {
+    mixed LSP = get_module();
+    if (!LSP) {
+        error("LSP module not available");
+    }
+
+    function json_encode = LSP["json_encode"];
+    if (!json_encode) {
+        error("LSP.json_encode not available");
+    }
+
+    // Create Pike mapping matching LSP CompletionItem response
+    mapping completion_response = ([
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": ([
+            "items": ({
+                ([
+                    "label": "example",
+                    "kind": 1,
+                    "detail": "test detail"
+                ])
+            })
+        ])
+    ]);
+
+    string json_output = json_encode(completion_response);
+
+    // Verify output is valid JSON string
+    if (!stringp(json_output)) {
+        error("Expected string output, got %O\n", typeof(json_output));
+    }
+
+    // Verify JSON contains expected keys
+    if (!has_value(json_output, "result")) {
+        error("JSON should contain 'result' key\n");
+    }
+
+    if (!has_value(json_output, "items")) {
+        error("JSON should contain 'items' key\n");
+    }
+
+    if (!has_value(json_output, "example")) {
+        error("JSON should contain completion item label\n");
+    }
+
+    // Verify it can be decoded back
+    mixed roundtrip = Standards.JSON.decode(json_output);
+    if (!mappingp(roundtrip)) {
+        error("Round-trip decode failed\n");
+    }
+
+    if (roundtrip->result->items[0]->label != "example") {
+        error("Round-trip label incorrect\n");
+    }
+}
+
+//! Test module.pmod LSPError.to_response() produces valid JSON-RPC error
+void test_module_lserror_to_response() {
+    mixed LSP = get_module();
+    if (!LSP) {
+        error("LSP module not available");
+    }
+
+    // LSPError is a class - access via array index and call to instantiate
+    mixed LSPError_class = LSP["LSPError"];
+    if (!LSPError_class) {
+        error("LSP.LSPError not available");
+    }
+
+    // Create LSPError with Invalid Request code (-32600)
+    mixed err = LSPError_class(-32600, "Invalid Request");
+
+    // Verify to_response() produces valid mapping
+    mapping response = err->to_response();
+    if (!mappingp(response)) {
+        error("to_response should return mapping, got %O\n", typeof(response));
+    }
+
+    // Verify response contains "error" key
+    if (!response->error) {
+        error("Response should contain 'error' key\n");
+    }
+
+    // Verify error structure
+    if (!mappingp(response->error)) {
+        error("error should be a mapping\n");
+    }
+
+    if (response->error->code != -32600) {
+        error("error.code should be -32600, got %O\n", response->error->code);
+    }
+
+    if (response->error->message != "Invalid Request") {
+        error("error.message should be 'Invalid Request', got %O\n", response->error->message);
+    }
+
+    // Verify it can be serialized to JSON
+    string json = Standards.JSON.encode(response);
+    if (!stringp(json)) {
+        error("Response should be JSON serializable\n");
+    }
+}
+
+//! Test module.pmod debug output format and mode switching
+void test_module_debug_output_format() {
+    mixed LSP = get_module();
+    if (!LSP) {
+        error("LSP module not available");
+    }
+
+    // Access debug mode functions via array index
+    function set_debug_mode = LSP["set_debug_mode"];
+    function get_debug_mode = LSP["get_debug_mode"];
+    function debug = LSP["debug"];
+
+    if (!set_debug_mode || !get_debug_mode || !debug) {
+        error("LSP debug functions not available");
+    }
+
+    // Ensure debug mode is initially off
+    set_debug_mode(0);
+    if (get_debug_mode() != 0) {
+        error("Debug mode should be 0 after set_debug_mode(0)\n");
+    }
+
+    // Enable debug mode
+    set_debug_mode(1);
+    if (get_debug_mode() != 1) {
+        error("Debug mode should be 1 after set_debug_mode(1)\n");
+    }
+
+    // Call debug() - should not crash with debug mode enabled
+    debug("Test debug message: %s\n", "value");
+
+    // Disable debug mode
+    set_debug_mode(0);
+    if (get_debug_mode() != 0) {
+        error("Debug mode should be 0 after set_debug_mode(0) again\n");
+    }
+
+    // Call debug() with mode off - should not crash or produce output
+    debug("This should not appear: %s\n", "hidden");
+}
+
+// =============================================================================
 // Main Entry Point
 // =============================================================================
 int main() {
@@ -245,8 +454,11 @@ int main() {
     log_info("Test runner initialized");
     write("\n");
 
-    // Run tests (none yet - infrastructure only)
-    // Test cases will be added in the next task
+    // Run module.pmod E2E tests
+    run_test(test_module_json_decode_real_lsp_initialize, "module.pmod JSON decode with real LSP initialize");
+    run_test(test_module_json_encode_real_lsp_completion_response, "module.pmod JSON encode with real LSP completion");
+    run_test(test_module_lserror_to_response, "module.pmod LSPError.to_response()");
+    run_test(test_module_debug_output_format, "module.pmod debug output format");
 
     write("\n");
     log_info("Tests run: %d, passed: %d, failed: %d", tests_run, tests_passed, tests_failed);
