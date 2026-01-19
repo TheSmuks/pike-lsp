@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2025-01-19)
 ## Current Position
 
 Phase: 1 of 5 (Foundation)
-Plan: 3 of TBD
+Plan: 4 of TBD
 Status: In progress
-Last activity: 2026-01-19 — Completed 01-03-PLAN.md (Cache.pmod)
+Last activity: 2026-01-19 — Completed 01-04-PLAN.md (Foundation unit tests)
 
-Progress: [██░░░░░░░] 20%
+Progress: [███░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 2 min
-- Total execution time: 0.1 hours
+- Total plans completed: 4
+- Average duration: 4 min
+- Total execution time: 0.2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 3 | 5 | 2 min |
+| 01-foundation | 4 | 5+ | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 2min, 2min, 2min
-- Trend: Stable (~2 min per plan)
+- Last 5 plans: 9min, 2min, 2min, 2min
+- Trend: Variable (depends on test complexity)
 
 *Updated after each plan completion*
 
@@ -42,8 +42,14 @@ Progress: [██░░░░░░░] 20%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+**From 01-04 (Foundation unit tests):**
+- Runtime module resolution via master()->resolv() for test imports
+- Always use polyfill for trim_whites() (Pike 8.x native doesn't trim newlines)
+- Use incrementing counter instead of time() for LRU tracking (deterministic eviction)
+- Test framework uses run_test() wrapper with catch{} for error reporting
+
 **From 01-03 (Cache.pmod):**
-- Timestamp-based LRU implementation (simpler than doubly-linked list)
+- Incrementing counter-based LRU implementation (changed from timestamp)
 - Manual cache invalidation only (LSP protocol notifies on file changes)
 - Separate cache limits for programs (30) and stdlib (50)
 
@@ -54,7 +60,7 @@ Recent decisions affecting current work:
 **From 01-02 (Compat.pmod):**
 - __REAL_VERSION__ returns float (8.0), not string - requires sprintf() for string conversion
 - Compile-time feature detection via #if constant(String.trim_whites)
-- Native String.trim_whites() used on Pike 8.x, polyfill on 7.6/7.8
+- Native String.trim_whites() not used - polyfill handles all whitespace types
 - LSPError class properties cannot use `constant` keyword (must be variables)
 
 ### Pending Todos
@@ -70,5 +76,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Completed 01-02-PLAN.md (Compat.pmod with version detection and polyfills)
+Stopped at: Completed 01-04-PLAN.md (Foundation unit tests with bug fixes)
 Resume file: None
