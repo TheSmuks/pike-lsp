@@ -10,32 +10,32 @@ See: .planning/PROJECT.md (updated 2025-01-19)
 ## Current Position
 
 Phase: 2 of 5 (Parser Module)
-Plan: 1 of 3
-Status: Parser.pike created, analyzer integration in progress
-Last activity: 2026-01-19 — Phase 02 Plan 01 Parser.pike extraction (2/3 tasks)
+Plan: 2 of 3
+Status: Parser class complete with all request methods, analyzer delegation done
+Last activity: 2026-01-19 — Phase 02 Plan 02 Remaining Parser Methods (4/4 tasks)
 
-Progress: [███░░░░░░] 27%
+Progress: [████░░░░] 36%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 7 min
-- Total execution time: 0.82 hours
+- Total plans completed: 9
+- Average duration: 9 min
+- Total execution time: 1.27 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Foundation | 6 | ~33 min | 5.5 min |
-| 2. Parser Module | 1 (in progress) | ~26 min | 26 min |
+| 2. Parser Module | 2 | ~48 min | 24 min |
 | 3. Intelligence Module | 0 | - | - |
 | 4. Analysis & Entry Point | 0 | - | - |
 | 5. Verification | 0 | - | - |
 
 **Recent Trend:**
-- Last 7 plans: 01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 02-01 (partial)
-- Trend: Parser module extraction in progress, encountered module loading quirks
+- Last 7 plans: 01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 02-01, 02-02
+- Trend: Parser module extraction complete, all handlers delegate to Parser class
 
 *Updated after each plan completion*
 
@@ -60,10 +60,13 @@ Recent decisions affecting current work:
 - **D009**: Parser.pike uses `LSP.MAX_*` constants instead of local `MAX_*` constants — centralized configuration from module.pmod
 - **D010**: Parser is stateless with no cache interaction — cache belongs to handler layer per CONTEXT.md design decision
 - **D011**: Parser throws exceptions, handler catches them — clean separation of concerns between parsing and error handling
+- **D012**: Use `master()->resolv("Parser.Pike")` in Parser class to avoid name conflict — class named Parser shadows builtin Parser.Pike module
+- **D013**: Module path setup must be in main() not at module scope — `__FILE__` not available at module scope in .pike scripts
+- **D014**: Handler wrappers use `master()->resolv("LSP.Parser")->Parser` pattern — `import` statement not supported at module scope in .pike scripts
 
 ### Pending Todos
 
-- **T001**: Complete analyzer.pike integration with Parser.pike (deferred from 02-01 due to module loading quirk)
+None - all deferred tasks completed.
 
 ### Blockers/Concerns
 
@@ -77,10 +80,15 @@ Recent decisions affecting current work:
 - E2E test syntax error: extra parenthesis in array declaration — fixed in 01-06
 - E2E test isolation: cache stats cumulative and limits persisting — fixed with baseline subtraction and set_limits() reset
 
+**Bugs fixed during Phase 2:**
+- 02-01: Module loading quirk with `master()->resolv("LSP.Parser")` — resolved using `import LSP.Parser` or accessing Parser class via array indexing
+- 02-02: Name conflict between Parser class and Parser.Pike builtin module — resolved using `master()->resolv("Parser.Pike")`
+- 02-02: Module scope `__FILE__` compilation error — resolved by moving module path setup to main()
+
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Phase 02 Plan 01 Parser.pike extraction (2/3 tasks complete)
+Stopped at: Completed Phase 02 Plan 02 Remaining Parser Methods
 Resume file: None
 
 ## Artifacts Created
@@ -103,10 +111,12 @@ Resume file: None
 - `.planning/phases/01-foundation/01-05-SUMMARY.md` — E2E test infrastructure summary
 - `.planning/phases/01-foundation/01-06-SUMMARY.md` — Complete E2E test suite summary
 
-### Phase 2 Parser Module (In Progress)
+### Phase 2 Parser Module (In Progress - 2/3 plans complete)
 
 **Code:**
-- `pike-scripts/LSP.pmod/Parser.pike` — Stateless parser class with parse_request and protected helpers
+- `pike-scripts/LSP.pmod/Parser.pike` — Stateless parser class with all four request methods (parse, tokenize, compile, batch_parse)
+- `pike-scripts/analyzer.pike` — Updated to delegate all handlers to Parser class (300+ lines removed)
 
 **Documentation:**
-- `.planning/phases/02-parser-module/02-01-SUMMARY.md` — Parser.pike extraction summary (partial completion)
+- `.planning/phases/02-parser-module/02-01-SUMMARY.md` — Parser.pike extraction summary
+- `.planning/phases/02-parser-module/02-02-SUMMARY.md` — Remaining Parser Methods summary
