@@ -166,8 +166,20 @@ export class PikeBridge extends EventEmitter {
                     // Log Pike warnings/errors but don't fail
                     const message = data.toString().trim();
                     if (message) {
-                        this.debugLog(`STDERR: ${message}`);
-                        this.emit('stderr', message);
+                        // Filter out false positive warnings from Pike's native parser
+                        // These occur when parsing Pike's own stdlib which contains mixed C/Pike code
+                        const suppressedPatterns = [
+                            /^Illegal comment/,
+                            /^Missing ['"]>?['"]\)/,
+                        ];
+                        const isSuppressed = suppressedPatterns.some(p => p.test(message));
+
+                        if (!isSuppressed) {
+                            this.debugLog(`STDERR: ${message}`);
+                            this.emit('stderr', message);
+                        } else {
+                            this.debugLog(`STDERR (suppressed): ${message}`);
+                        }
                     }
                 });
 
