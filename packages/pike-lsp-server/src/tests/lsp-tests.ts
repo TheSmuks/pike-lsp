@@ -8,6 +8,7 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert';
 import { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge';
+import { buildCodeLensCommand } from '../utils/code-lens.js';
 
 // LSP range validation - selectionRange must be contained in range
 function validateDocumentSymbolRanges(
@@ -159,6 +160,24 @@ int very_long_variable_name_that_might_cause_issues = 42;
         }
 
         await bridge.stop();
+    });
+});
+
+describe('LSP Code Lens Command Payload', () => {
+    it('should build a references command payload with position data', () => {
+        const command = buildCodeLensCommand(2, 'file:///test.pike', { line: 3, character: 7 });
+
+        assert.strictEqual(command.command, 'pike.showReferences', 'Should use Pike show references command');
+        assert.strictEqual(command.title, '2 references', 'Should pluralize title correctly');
+        assert.deepStrictEqual(command.arguments, [
+            { uri: 'file:///test.pike', position: { line: 3, character: 7 } }
+        ]);
+    });
+
+    it('should format singular reference titles', () => {
+        const command = buildCodeLensCommand(1, 'file:///test.pike', { line: 0, character: 0 });
+
+        assert.strictEqual(command.title, '1 reference', 'Should use singular title for 1 reference');
     });
 });
 

@@ -12,6 +12,7 @@ MONOREPO_ROOT="$(dirname "$(dirname "$EXT_DIR")")"
 
 SERVER_DIR="$EXT_DIR/server"
 SERVER_ENTRY="$MONOREPO_ROOT/packages/pike-lsp-server/src/server.ts"
+BRIDGE_DIR="$MONOREPO_ROOT/packages/pike-bridge"
 PIKE_SCRIPTS_SRC="$MONOREPO_ROOT/pike-scripts"
 
 echo "Bundling Pike LSP server..."
@@ -28,13 +29,22 @@ if ! command -v npx &> /dev/null; then
     exit 1
 fi
 
+# Ensure pike-bridge dist is up to date (esbuild resolves package main)
+if [ -d "$BRIDGE_DIR" ]; then
+    echo "  Building pike-bridge..."
+    (cd "$BRIDGE_DIR" && pnpm build)
+else
+    echo "ERROR: pike-bridge not found at $BRIDGE_DIR"
+    exit 1
+fi
+
 # Bundle server with esbuild
 echo "  Bundling server with esbuild..."
 npx esbuild "$SERVER_ENTRY" \
     --bundle \
     --platform=node \
     --target=node18 \
-    --format=esm \
+    --format=cjs \
     --outfile="$SERVER_DIR/server.js" \
     --external:vscode \
     --sourcemap \

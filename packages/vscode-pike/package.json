@@ -60,6 +60,20 @@
                 "path": "./syntaxes/pike.tmLanguage.json"
             }
         ],
+                "commands": [
+                        {
+                                "command": "pike-module-path.add",
+                                "title": "Add to Pike Module Path"
+                        }
+                ],
+                "menus": {
+                        "explorer/context": [
+                                {
+                                        "when": "explorerResourceIsFolder",
+                                        "command": "pike-module-path.add"
+                                }
+                        ]
+                },
         "configuration": {
             "type": "object",
             "title": "Pike",
@@ -68,6 +82,22 @@
                     "type": "string",
                     "default": "pike",
                     "description": "Path to the Pike executable"
+                },
+		"pike.pikeModulePath": {
+                    "type": "array",
+                     "items": {
+                       "type": "string"
+                     },
+                    "default": [],
+                    "description": "Module Path"
+                },
+                "pike.pikeIncludePath": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": [],
+                    "description": "Include Path"
                 },
                 "pike.trace.server": {
                     "type": "string",
@@ -83,11 +113,11 @@
         }
     },
     "scripts": {
-        "build": "tsc",
+        "build": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
         "clean": "rm -rf dist server",
         "watch": "tsc --watch",
         "bundle-server": "bash scripts/bundle-server.sh",
-        "package": "pnpm bundle-server && vsce package --no-dependencies",
+        "package": "pnpm build && pnpm bundle-server && vsce package --no-dependencies",
         "typecheck": "tsc --noEmit",
         "vscode:prepublish": "pnpm build && pnpm bundle-server"
     },

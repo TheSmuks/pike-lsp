@@ -1,6 +1,6 @@
 # Pike LSP - Language Server for Pike
 
-[![Build Status](https://github.com/pike-lsp/pike-lsp/actions/workflows/test.yml/badge.svg)](https://github.com/pike-lsp/pike-lsp/actions)
+[![Build Status](https://github.com/andjo/pike-lsp/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/andjo/pike-lsp/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85+-blue.svg)](https://code.visualstudio.com/)
 
@@ -141,6 +141,15 @@ node --test dist/tests/performance-tests.js
 
 # Validate against Pike stdlib
 node dist/tests/pike-source-tests.js --verbose
+```
+
+### Pike Stdlib Source Paths
+The stdlib parsing tests default to `../Pike` relative to this repo. Override as needed:
+
+```bash
+PIKE_SOURCE_ROOT=/path/to/Pike ./scripts/run-tests.sh
+# or
+PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scripts/run-tests.sh
 ```
 
 ### Test Coverage
