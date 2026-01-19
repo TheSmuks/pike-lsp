@@ -6,6 +6,7 @@
 //! - Parser methods throw exceptions on unexpected errors (caller catches)
 
 //! Parser class - Stateless parsing of Pike source code
+//! Use: import LSP.Parser; object p = Parser(); p->parse_request(...);
 class Parser {
     //! Create a new Parser instance
     void create() {
@@ -295,6 +296,145 @@ class Parser {
             "result": ([
                 "symbols": symbols,
                 "diagnostics": diagnostics
+            ])
+        ]);
+    }
+
+    //! Tokenize Pike source code
+    //! @param params Mapping with "code" key
+    //! @returns Mapping with "result" containing "tokens" array
+    //! @throws On tokenization errors (caller catches)
+    mapping tokenize_request(mapping params) {
+        string code = params->code || "";
+        array tokens = ({});
+
+        // Access Parser.Pike via master()->resolv to avoid name conflict with this class
+        program PikeParserModule = master()->resolv("Parser.Pike");
+        array(string) split_tokens = PikeParserModule->split(code);
+        array pike_tokens = PikeParserModule->tokenize(split_tokens);
+
+        foreach (pike_tokens, mixed t) {
+            tokens += ({
+                ([
+                    "text": t->text,
+                    "line": t->line,
+                    "file": t->file
+                ])
+            });
+        }
+
+        return ([
+            "result": ([
+                "tokens": tokens
+            ])
+        ]);
+    }
+
+    //! Compile Pike source code and capture diagnostics
+    //! @param params Mapping with "code" and "filename" keys
+    //! @returns Mapping with "result" containing "symbols" and "diagnostics"
+    //! @throws On compilation errors (caller catches)
+    mapping compile_request(mapping params) {
+        string code = params->code || "";
+        string filename = params->filename || "input.pike";
+
+        array diagnostics = ({});
+
+        // Capture compilation errors using set_inhibit_compile_errors
+        void capture_error(string file, int line, string msg) {
+            diagnostics += ({
+                ([
+                    "message": msg,
+                    "severity": "error",
+                    "position": ([
+                        "file": file,
+                        "line": line
+                    ])
+                ])
+            });
+        };
+
+        // Save old handlers
+        mixed old_error = master()->get_inhibit_compile_errors();
+
+        // Set our capture handlers
+        master()->set_inhibit_compile_errors(capture_error);
+
+        // Try to compile
+        mixed err = catch {
+            compile_string(code, filename);
+        };
+
+        // Restore old handler
+        master()->set_inhibit_compile_errors(old_error);
+
+        return ([
+            "result": ([
+                "symbols": ({}),
+                "diagnostics": diagnostics
+            ])
+        ]);
+    }
+
+    //! Parse multiple Pike source files in a single request
+    //! @param params Mapping with "files" array (each with "code" and "filename")
+    //! @returns Mapping with "result" containing "results" array and "count"
+    //! @throws On batch processing errors (caller catches)
+    mapping batch_parse_request(mapping params) {
+        array files = params->files || ({});
+        array results = ({});
+
+        foreach (files, mapping file_info) {
+            string code = file_info->code || "";
+            string filename = file_info->filename || "unknown.pike";
+
+            // Try to parse each file, continuing even if one fails
+            mixed parse_err;
+            mapping parse_result;
+
+            parse_err = catch {
+                parse_result = parse_request(([
+                    "code": code,
+                    "filename": filename,
+                    "line": 1
+                ]));
+            };
+
+            if (parse_err) {
+                // On error, return result with error diagnostic
+                results += ({
+                    ([
+                        "filename": filename,
+                        "symbols": ({}),
+                        "diagnostics": ({
+                            ([
+                                "severity": "error",
+                                "message": "Parse error: " + describe_error(parse_err),
+                                "position": ([
+                                    "file": filename,
+                                    "line": 1
+                                ])
+                            ])
+                        })
+                    ])
+                });
+            } else {
+                // Extract results from parse response
+                mapping parse_data = parse_result->result || ([]);
+                results += ({
+                    ([
+                        "filename": filename,
+                        "symbols": parse_data->symbols || ({}),
+                        "diagnostics": parse_data->diagnostics || ({})
+                    ])
+                });
+            }
+        }
+
+        return ([
+            "result": ([
+                "results": results,
+                "count": sizeof(results)
             ])
         ]);
     }
