@@ -25,17 +25,17 @@ Requirements for the refactoring milestone. Each maps to roadmap phases.
 
 ### Parser Module
 
-- [ ] **PRS-01**: Extract handle_parse function to Parser.pike class
-- [ ] **PRS-02**: Extract handle_tokenize function to Parser.pike class
-- [ ] **PRS-03**: Extract handle_compile function to Parser.pike class
-- [ ] **PRS-04**: Extract handle_batch_parse function to Parser.pike class
-- [ ] **PRS-05**: Parser.pike uses Cache.pmod for compiled program caching
-- [ ] **PRS-06**: Parser.pike imports from module.pmod (shared utilities)
-- [ ] **PRS-07**: Parser.pike uses Compat.trim_whites() for string operations
-- [ ] **PRS-08**: Parser.pike wraps handlers in catch blocks returning JSON-RPC errors
-- [ ] **PRS-09**: Integration tests for parse handler
-- [ ] **PRS-10**: Integration tests for tokenize handler
-- [ ] **PRS-11**: Integration tests for compile handler
+- [x] **PRS-01**: Extract handle_parse function to Parser.pike class
+- [x] **PRS-02**: Extract handle_tokenize function to Parser.pike class
+- [x] **PRS-03**: Extract handle_compile function to Parser.pike class
+- [x] **PRS-04**: Extract handle_batch_parse function to Parser.pike class
+- [x] **PRS-05**: Parser.pike uses Cache.pmod for compiled program caching
+- [x] **PRS-06**: Parser.pike imports from module.pmod (shared utilities)
+- [x] **PRS-07**: Parser.pike uses Compat.trim_whites() for string operations
+- [x] **PRS-08**: Parser.pike wraps handlers in catch blocks returning JSON-RPC errors
+- [x] **PRS-09**: Integration tests for parse handler
+- [x] **PRS-10**: Integration tests for tokenize handler
+- [x] **PRS-11**: Integration tests for compile handler
 
 ### Intelligence Module
 
@@ -133,17 +133,17 @@ Deferred to future release. Tracked but not in current roadmap.
 | FND-11 | Phase 1 | Complete |
 | FND-12 | Phase 1 | Complete |
 | FND-13 | Phase 1 | Complete |
-| PRS-01 | Phase 2 | Pending |
-| PRS-02 | Phase 2 | Pending |
-| PRS-03 | Phase 2 | Pending |
-| PRS-04 | Phase 2 | Pending |
-| PRS-05 | Phase 2 | Pending |
-| PRS-06 | Phase 2 | Pending |
-| PRS-07 | Phase 2 | Pending |
-| PRS-08 | Phase 2 | Pending |
-| PRS-09 | Phase 2 | Pending |
-| PRS-10 | Phase 2 | Pending |
-| PRS-11 | Phase 2 | Pending |
+| PRS-01 | Phase 2 | Complete |
+| PRS-02 | Phase 2 | Complete |
+| PRS-03 | Phase 2 | Complete |
+| PRS-04 | Phase 2 | Complete |
+| PRS-05 | Phase 2 | Complete |
+| PRS-06 | Phase 2 | Complete |
+| PRS-07 | Phase 2 | Complete |
+| PRS-08 | Phase 2 | Complete |
+| PRS-09 | Phase 2 | Complete |
+| PRS-10 | Phase 2 | Complete |
+| PRS-11 | Phase 2 | Complete |
 | INT-01 | Phase 3 | Pending |
 | INT-02 | Phase 3 | Pending |
 | INT-03 | Phase 3 | Pending |
@@ -177,7 +177,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | VER-04 | Phase 1 | Complete |
 | VER-05 | Phase 1 | Complete |
 | VER-06 | Phase 5 | Pending |
-| QLT-01 | Phase 2 | Pending |
+| QLT-01 | Phase 2 | Complete |
 | QLT-02 | Phase 4 | Pending |
 | QLT-03 | Phase 4 | Pending |
 | QLT-04 | Phase 1 | Complete |
