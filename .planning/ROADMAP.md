@@ -35,7 +35,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 4. Debug logging can be enabled/disabled at runtime through module.pmod utilities
 5. Unit tests pass for Compat.pmod feature detection and Cache.pmod LRU operations
 
-**Plans**: TBD
+**Plans**: 4 plans (3 autonomous)
+
+Plans:
+- [ ] 01-01-PLAN.md — Create LSP.pmod directory and module.pmod with shared utilities
+- [ ] 01-02-PLAN.md — Create Compat.pmod with version detection and polyfills
+- [ ] 01-03-PLAN.md — Create Cache.pmod with LRU caching infrastructure
+- [ ] 01-04-PLAN.md — Write unit tests for Compat.pmod and Cache.pmod
 
 ### Phase 2: Parser Module
 
@@ -115,7 +121,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/TBD | Not started | - |
+| 1. Foundation | 0/4 | Not started | - |
 | 2. Parser Module | 0/TBD | Not started | - |
 | 3. Intelligence Module | 0/TBD | Not started | - |
 | 4. Analysis & Entry Point | 0/TBD | Not started | - |
