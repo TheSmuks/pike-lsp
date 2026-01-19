@@ -26,6 +26,24 @@
 constant MAX_TOP_LEVEL_ITERATIONS = 10000;
 constant MAX_BLOCK_ITERATIONS = 500;
 
+// Helper function for trimming strings (Pike 8.0 doesn't have trim_string())
+string trim_string(string s) {
+    // Find first non-whitespace character
+    int start = 0;
+    int len = sizeof(s);
+    while (start < len && (<string>({s[start]})) == " " || (<string>({s[start]})) == "\t" || (<string>({s[start]})) == "\n" || (<string>({s[start]})) == "\r"))
+        start++;
+
+    // Find last non-whitespace character
+    int end = len - 1;
+    while (end >= start && (<string>({s[end]}) == " " || (<string>({s[end]}) == "\t" || (<string>({s[end]}) == "\n" || (<string>({s[end]}) == "\r"))
+        end--;
+
+    if (start > end)
+        return "";  // String is all whitespace
+    return s[start..end];
+}
+
 // Introspection caches
 mapping(string:program) program_cache = ([]);
 mapping(string:int) cache_access_time = ([]);
@@ -102,7 +120,7 @@ protected mapping handle_parse(mapping params) {
 
   foreach(code / "\n", string src_line) {
     preprocessed_line++;
-    string trimmed = String.trim(src_line);
+    string trimmed = trim_string(src_line);
 
     // Handle conditional compilation - we can't evaluate these, so skip entire blocks
     if (has_prefix(trimmed, "#if")) {
@@ -422,7 +440,7 @@ protected mapping(int:string) extract_autodoc_comments(string code) {
   int doc_start_line = 0;
   
   for (int i = 0; i < sizeof(lines); i++) {
-    string line = String.trim(lines[i]);
+    string line = trim_string(lines[i]);
     
     if (has_prefix(line, "//!")) {
       // Autodoc comment line
@@ -839,7 +857,7 @@ protected mapping parse_autodoc(string doc) {
           while (has_value(normalized, "  ")) {
             normalized = replace(normalized, "  ", " ");
           }
-          string processed = process_inline_markup(String.trim(normalized));
+          string processed = process_inline_markup(trim_string(normalized));
           if (sizeof(processed) > 0) {
 
             // If we're in elem/item mode within a group, save to last group item
@@ -865,7 +883,7 @@ protected mapping parse_autodoc(string doc) {
           text_buffer = ({});
 
           // Parse the new section
-          string trimmed_arg = String.trim(arg);
+          string trimmed_arg = trim_string(arg);
 
           switch (keyword) {
             case "param":
@@ -873,7 +891,7 @@ protected mapping parse_autodoc(string doc) {
               int space_pos = search(trimmed_arg, " ");
               if (space_pos >= 0) {
                 current_param = trimmed_arg[..space_pos-1];
-                string param_desc = String.trim(trimmed_arg[space_pos+1..]);
+                string param_desc = trim_string(trimmed_arg[space_pos+1..]);
                 if (sizeof(param_desc) > 0) {
                   text_buffer = ({ process_inline_markup(param_desc) });
                 }
@@ -959,7 +977,7 @@ protected mapping parse_autodoc(string doc) {
               current_section = "member";
               string mtype = "", mname = "";
               if (sscanf(trimmed_arg, "%s %s", mtype, mname) == 2) {
-                mname = String.trim(replace(mname, "\"", ""));
+                mname = trim_string(replace(mname, "\"", ""));
                 if (sizeof(mname) > 0) {
                   current_param = mname;
                   if (!result->members[mname]) {
@@ -1118,7 +1136,7 @@ protected mapping parse_autodoc(string doc) {
     array(string) lines = doc / "\n";
     array(string) text_lines = ({});
     foreach (lines, string line) {
-      string trimmed = String.trim(line);
+      string trimmed = trim_string(line);
       if (!has_prefix(trimmed, "@"))
         text_lines += ({ process_inline_markup(trimmed) });
     }
@@ -1149,7 +1167,7 @@ protected void save_text_buffer(mapping result, string section, string param, ar
   if (sizeof(buffer) == 0) return;
 
   string text = buffer * " ";  // Join with spaces
-  text = String.trim(text);
+  text = trim_string(text);
   if (sizeof(text) == 0) return;
 
   switch (section) {
@@ -1745,7 +1763,7 @@ protected mapping parse_stdlib_documentation(string source_path) {
 
     for (int i = 0; i < sizeof(lines); i++) {
       string line = lines[i];
-      string trimmed = String.trim(line);
+      string trimmed = trim_string(line);
 
       // Collect autodoc comments
       if (has_prefix(trimmed, "//!")) {
@@ -1793,11 +1811,11 @@ protected string extract_symbol_name(string line) {
 
   foreach(line / "", string c) {
     if (c == "(") {
-      if (sizeof(current) > 0) tokens += ({ String.trim(current) });
+      if (sizeof(current) > 0) tokens += ({ trim_string(current) });
       break;
     } else if (c == " " || c == "\t") {
       if (sizeof(current) > 0) {
-        tokens += ({ String.trim(current) });
+        tokens += ({ trim_string(current) });
         current = "";
       }
     } else {
@@ -2129,14 +2147,14 @@ protected mapping introspect_program(program prog) {
             if (c == "(" || c == "<") depth++;
             else if (c == ")" || c == ">") depth--;
             else if (c == "," && depth == 0) {
-              arg_types += ({ String.trim(current) });
+              arg_types += ({ trim_string(current) });
               current = "";
               continue;
             }
             current += c;
           }
-          if (sizeof(String.trim(current)) > 0) {
-            arg_types += ({ String.trim(current) });
+          if (sizeof(trim_string(current)) > 0) {
+            arg_types += ({ trim_string(current) });
           }
           
           // Build arguments array with placeholder names
@@ -2355,7 +2373,7 @@ protected array(mapping) analyze_scope(array tokens, array(string) lines,
     int line = tok->line;
 
     // Skip whitespace and comments
-    if (sizeof(String.trim(text)) == 0 || has_prefix(text, "//") || has_prefix(text, "/*")) {
+    if (sizeof(trim_string(text)) == 0 || has_prefix(text, "//") || has_prefix(text, "/*")) {
       i++;
       continue;
     }
@@ -2466,7 +2484,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
     int line = tok->line;
 
     // Skip whitespace and comments
-    if (sizeof(String.trim(text)) == 0 || has_prefix(text, "//") || has_prefix(text, "/*")) {
+    if (sizeof(trim_string(text)) == 0 || has_prefix(text, "//") || has_prefix(text, "/*")) {
       i++;
       continue;
     }
@@ -2657,7 +2675,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
           int var_start = comma_or_semi + 1;
           while (var_start < end_idx && var_start < sizeof(tokens)) {
             string t = tokens[var_start]->text;
-            if (sizeof(String.trim(t)) > 0) break;
+            if (sizeof(trim_string(t)) > 0) break;
             var_start++;
           }
 
@@ -2751,7 +2769,7 @@ protected mapping try_parse_declaration(array tokens, int start_idx, int end_idx
 
     // Skip whitespace
     while (i < end_idx && i < sizeof(tokens) &&
-           sizeof(String.trim(tokens[i]->text)) == 0) {
+           sizeof(trim_string(tokens[i]->text)) == 0) {
       i++;
     }
 
@@ -2829,14 +2847,14 @@ protected int is_function_definition(array tokens, int start_idx, int end_idx) {
   }
 
   // Need an identifier (function name)
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
   if (!is_identifier(tokens[i]->text)) return 0;
   if (is_type_keyword(tokens[i]->text)) return 0;  // Not a valid function name
   i++;
 
   // Need opening paren for parameter list
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
   if (tokens[i]->text != "(") return 0;
 
@@ -2850,7 +2868,7 @@ protected int is_function_definition(array tokens, int start_idx, int end_idx) {
   }
 
   // Next should be { for function body (or ; for declaration-only)
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
 
   return tokens[i]->text == "{";
@@ -2861,14 +2879,14 @@ protected int is_lambda_definition(array tokens, int start_idx, int end_idx) {
   int i = start_idx;
 
   // Skip whitespace
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
 
   if (tokens[i]->text != "lambda") return 0;
   i++;
 
   // Need opening paren for parameter list
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
   if (tokens[i]->text != "(") return 0;
 
@@ -2882,7 +2900,7 @@ protected int is_lambda_definition(array tokens, int start_idx, int end_idx) {
   }
 
   // Next should be { for lambda body
-  while (i < end_idx && i < sizeof(tokens) && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+  while (i < end_idx && i < sizeof(tokens) && sizeof(trim_string(tokens[i]->text)) == 0) i++;
   if (i >= end_idx || i >= sizeof(tokens)) return 0;
 
   return tokens[i]->text == "{";
@@ -2904,7 +2922,7 @@ protected mapping(string:mapping) extract_function_params(array tokens, int star
   int i = paren_start + 1;
   while (i < paren_end) {
     // Skip whitespace
-    while (i < paren_end && sizeof(String.trim(tokens[i]->text)) == 0) i++;
+    while (i < paren_end && sizeof(trim_string(tokens[i]->text)) == 0) i++;
     if (i >= paren_end) break;
 
     // Look for: type name or type name = default
@@ -2942,7 +2960,7 @@ protected int find_next_token(array tokens, int start_idx, int end_idx, string t
 protected int find_next_meaningful_token(array tokens, int start_idx, int end_idx) {
   for (int i = start_idx; i < end_idx && i < sizeof(tokens); i++) {
     string text = tokens[i]->text;
-    if (sizeof(String.trim(text)) > 0 && !has_prefix(text, "//") && !has_prefix(text, "/*")) {
+    if (sizeof(trim_string(text)) > 0 && !has_prefix(text, "//") && !has_prefix(text, "/*")) {
       return i;
     }
   }
@@ -2953,7 +2971,7 @@ protected int find_next_meaningful_token(array tokens, int start_idx, int end_id
 protected int find_prev_meaningful_token(array tokens, int start_idx, int min_idx) {
   for (int i = start_idx; i >= min_idx && i >= 0; i--) {
     string text = tokens[i]->text;
-    if (sizeof(String.trim(text)) > 0 && !has_prefix(text, "//") && !has_prefix(text, "/*")) {
+    if (sizeof(trim_string(text)) > 0 && !has_prefix(text, "//") && !has_prefix(text, "/*")) {
       return i;
     }
   }
@@ -3091,7 +3109,7 @@ protected mapping handle_get_completion_context(mapping params) {
 
     for (int i = token_idx; i >= 0; i--) {
       object tok = pike_tokens[i];
-      string text = String.trim(tok->text);
+      string text = trim_string(tok->text);
 
       // Check if this is an access operator
       if (text == "->" || text == "." || text == "::") {
@@ -3114,7 +3132,7 @@ protected mapping handle_get_completion_context(mapping params) {
       string object_parts = "";
       for (int i = operator_idx - 1; i >= 0; i--) {
         object obj_tok = pike_tokens[i];
-        string obj_text = String.trim(obj_tok->text);
+        string obj_text = trim_string(obj_tok->text);
 
         // Stop at statement boundaries or other operators
         if (sizeof(obj_text) == 0 ||
@@ -3198,7 +3216,7 @@ int main(int argc, array(string) argv) {
   // Interactive JSON-RPC mode: read requests from stdin, write responses to stdout
   string line;
   while ((line = Stdio.stdin.gets())) {
-    if (sizeof(String.trim(line)) == 0) continue;
+    if (sizeof(trim_string(line)) == 0) continue;
     
     mixed err = catch {
       mapping request = Standards.JSON.decode(line);
