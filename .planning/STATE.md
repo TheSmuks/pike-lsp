@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-01-19)
 ## Current Position
 
 Phase: 4 of 5 (Analysis & Entry Point)
-Plan: 6 of TBD (in progress)
-Status: Phase 4 Plan 06 complete - Analysis module integration tests and response format verification
-Last activity: 2026-01-19 — Completed 04-06-PLAN (Analysis integration tests)
+Plan: 5 of 6 (complete)
+Status: Phase 4 Plan 05 complete - Clean router entry point
+Last activity: 2026-01-19 — Completed 04-05-PLAN (Clean router, removed ~2400 lines)
 
-Progress: [████████░] 72%
+Progress: [████████░] 76%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
-- Average duration: 9.8 min
-- Total execution time: 3.6 hours
+- Total plans completed: 24
+- Average duration: 9.6 min
+- Total execution time: 3.8 hours
 
 **By Phase:**
 
@@ -30,12 +30,12 @@ Progress: [████████░] 72%
 | 1. Foundation | 6 | ~33 min | 5.5 min |
 | 2. Parser Module | 3 | ~54 min | 18 min |
 | 3. Intelligence Module | 4 | ~16 min | 4.0 min |
-| 4. Analysis & Entry Point | 6 | ~34 min | 5.7 min |
+| 4. Analysis & Entry Point | 5 | ~42 min | 8.4 min |
 | 5. Verification | 0 | - | - |
 
 **Recent Trend:**
-- Last 3 plans: 04-04, 04-05, 04-06 (parallel wave)
-- Trend: Analysis module testing and integration
+- Last 3 plans: 04-03, 04-04, 04-05 (sequential execution)
+- Trend: Analysis handler extraction, Context service container, router cleanup
 
 *Updated after each plan completion*
 
@@ -83,8 +83,15 @@ Recent decisions affecting current work:
 - **D028**: Uses LSP.Compat.trim_whites() instead of String.trim_whites() — Replaced all occurrences in extracted code for Pike 8.x compatibility per CONTEXT.md requirement.
 - **D029**: Graceful degradation on tokenization errors — Returns "none" context with werror logging rather than throwing exceptions, allowing partial functionality during code completion.
 - **D030**: Only warns for types that need initialization — int/float auto-initialize to 0 in Pike, so warnings would be false positives. Only string, array, mapping, object, etc. need explicit initialization.
-- **D031**: Used undefinedp() instead of !value for field existence checks — In response-format-tests, has_field() and field_type_is() helpers use undefinedp() to properly distinguish between "field doesn't exist" and "field has falsy value like 0".
-- **D032**: Split tests into analysis-tests.pike and response-format-tests.pike — Handler behavior tests verify Analysis works correctly. Response format tests verify all handlers maintain compatible JSON-RPC structure.
+- **D031**: HANDLERS initialized in main() not at module scope — Pike resolves modules lazily, module path must be set before LSP module resolution.
+- **D032**: Context fields use 'mixed' type not LSP.Cache/LSP.Parser — Can't use LSP types before module path is set in main(), rely on runtime duck-typing.
+- **D033**: Lambdas use 'object' for Context parameter — Context class defined in same file but type annotations in lambdas have forward declaration issues.
+- **D034**: Intelligence lazy initialization for backward compatibility — Old handler functions still referenced module-scope instance, added get_intelligence_instance() for 04-04.
+- **D035**: Removed all handler functions from analyzer.pike — All handlers now delegated to Parser/Intelligence/Analysis modules via dispatch table (04-05).
+- **D036**: Removed all helper functions from analyzer.pike — Helper functions moved with their handlers to respective modules (04-05).
+- **D037**: Removed global cache variables from analyzer.pike — Cache now managed by LSP.Cache module directly (04-05).
+- **D038**: Simplified main() to single-request mode — Removed --test modes, testing now handled by module-specific test files (04-05).
+- **D039**: analyzer.pike reduced from 2594 to 183 lines (93% reduction) — Clean router with only Context, HANDLERS, dispatch(), handle_request(), main() (04-05).
 
 ### Pending Todos
 
@@ -163,10 +170,11 @@ Resume file: None
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-03-SUMMARY.md` — Inheritance traversal summary
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-04-SUMMARY.md` — Integration tests and delegation summary
 
-### Phase 4 Analysis & Entry Point (In Progress - 6/6 plans complete)
+### Phase 4 Analysis & Entry Point (In Progress - 5/6 plans complete)
 
 **Code:**
 - `pike-scripts/LSP.pmod/Analysis.pike` — Stateless analysis class with three handlers: handle_find_occurrences, handle_get_completion_context, handle_analyze_uninitialized (1157 lines)
+- `pike-scripts/analyzer.pike` — Clean JSON-RPC router with Context, HANDLERS, dispatch() (183 lines, down from 2594)
 - `test/tests/analysis-tests.pike` — 18 integration tests for Analysis handlers
 - `test/tests/response-format-tests.pike` — 13 backward compatibility tests for all handlers
 - `test/fixtures/analysis/` — Test fixtures for Analysis testing
@@ -175,4 +183,5 @@ Resume file: None
 - `.planning/phases/04-analysis-and-entry-point/04-01-SUMMARY.md` — Analysis.pike with handle_find_occurrences summary
 - `.planning/phases/04-analysis-and-entry-point/04-02-SUMMARY.md` — handle_get_completion_context extraction summary
 - `.planning/phases/04-analysis-and-entry-point/04-03-SUMMARY.md` — handle_analyze_uninitialized with dataflow analysis summary
-- `.planning/phases/04-analysis-and-entry-point/04-06-SUMMARY.md` — Analysis module integration tests and response format verification
+- `.planning/phases/04-analysis-and-entry-point/04-04-SUMMARY.md` — Context service container and dispatch table router
+- `.planning/phases/04-analysis-and-entry-point/04-05-SUMMARY.md` — Clean router entry point, removed ~2400 lines
