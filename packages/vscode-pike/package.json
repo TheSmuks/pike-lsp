@@ -60,20 +60,20 @@
                 "path": "./syntaxes/pike.tmLanguage.json"
             }
         ],
-                "commands": [
-                        {
-                                "command": "pike-module-path.add",
-                                "title": "Add to Pike Module Path"
-                        }
-                ],
-                "menus": {
-                        "explorer/context": [
-                                {
-                                        "when": "explorerResourceIsFolder",
-                                        "command": "pike-module-path.add"
-                                }
-                        ]
-                },
+        "commands": [
+            {
+                "command": "pike-module-path.add",
+                "title": "Add to Pike Module Path"
+            }
+        ],
+        "menus": {
+            "explorer/context": [
+                {
+                    "when": "explorerResourceIsFolder",
+                    "command": "pike-module-path.add"
+                }
+            ]
+        },
         "configuration": {
             "type": "object",
             "title": "Pike",
@@ -83,11 +83,11 @@
                     "default": "pike",
                     "description": "Path to the Pike executable"
                 },
-		"pike.pikeModulePath": {
+                "pike.pikeModulePath": {
                     "type": "array",
-                     "items": {
-                       "type": "string"
-                     },
+                    "items": {
+                        "type": "string"
+                    },
                     "default": [],
                     "description": "Module Path"
                 },
@@ -113,22 +113,31 @@
         }
     },
     "scripts": {
-        "build": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
+        "build": "npm run build:extension && npm run build:test",
+        "build:extension": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
+        "build:test": "tsc -p src/test/tsconfig.test.json",
         "clean": "rm -rf dist server",
         "watch": "tsc --watch",
         "bundle-server": "bash scripts/bundle-server.sh",
         "package": "pnpm build && pnpm bundle-server && vsce package --no-dependencies",
         "typecheck": "tsc --noEmit",
-        "vscode:prepublish": "pnpm build && pnpm bundle-server"
+        "vscode:prepublish": "pnpm build && pnpm bundle-server",
+        "test": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
+        "test:unit": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
+        "test:integration": "npm run build:test && node dist/test/extension.test.js"
     },
     "dependencies": {
         "vscode-languageclient": "^9.0.1"
     },
     "devDependencies": {
+        "@types/mocha": "^10.0.10",
         "@types/node": "^20.10.0",
         "@types/vscode": "^1.85.0",
+        "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^2.22.0",
         "esbuild": "^0.20.0",
+        "glob": "^13.0.0",
+        "mocha": "^11.7.5",
         "typescript": "^5.3.0"
     }
 }

@@ -1,6 +1,6 @@
 /**
  * Pike Language Extension for VSCode
- * 
+ *
  * This extension provides Pike language support including:
  * - Syntax highlighting via TextMate grammar
  * - Real-time diagnostics (syntax errors as red squiggles)
@@ -10,7 +10,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { ExtensionContext, ConfigurationTarget, Position, Uri, commands, workspace, window } from 'vscode';
+import { ExtensionContext, ConfigurationTarget, Position, Uri, commands, workspace, window, OutputChannel } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -20,9 +20,28 @@ import {
 
 let client: LanguageClient | undefined;
 let serverOptions: ServerOptions | null = null;
+let outputChannel: OutputChannel;
 
-export async function activate(context: ExtensionContext): Promise<void> {
+/**
+ * Extension API exported for testing
+ */
+export interface ExtensionApi {
+    getClient(): LanguageClient | undefined;
+    getOutputChannel(): OutputChannel;
+    getLogs(): string[];
+}
+
+// Test mode flag - can be set via environment variable
+const TEST_MODE = process.env.PIKE_LSP_TEST_MODE === 'true';
+
+/**
+ * Internal activation implementation
+ */
+async function activateInternal(context: ExtensionContext, testOutputChannel?: OutputChannel): Promise<ExtensionApi> {
     console.log('Pike Language Extension is activating...');
+
+    // Use provided test output channel or create a real one
+    outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
 
     let disposable = commands.registerCommand('pike-module-path.add', async (e) => {
         const rv = await addModulePathSetting(e.fsPath);
@@ -82,10 +101,15 @@ export async function activate(context: ExtensionContext): Promise<void> {
     if (!serverModule) {
         const msg = `Pike LSP server not found. Tried:\n${possiblePaths.join('\n')}`;
         console.error(msg);
+        outputChannel.appendLine(msg);
         window.showWarningMessage(
             'Pike LSP server not found. Syntax highlighting will work but no IntelliSense.'
         );
-        return;
+        return {
+            getClient: () => undefined,
+            getOutputChannel: () => outputChannel,
+            getLogs: () => [],
+        };
     }
 
     // Server options - run the server as a Node.js module
@@ -117,6 +141,34 @@ export async function activate(context: ExtensionContext): Promise<void> {
         })
     );
 
+    // Return the extension API
+    return {
+        getClient: () => client,
+        getOutputChannel: () => outputChannel,
+        getLogs: () => {
+            // If using MockOutputChannel, get logs from it
+            if ('getLogs' in outputChannel && typeof outputChannel.getLogs === 'function') {
+                return (outputChannel as any).getLogs();
+            }
+            return [];
+        },
+    };
+}
+
+/**
+ * Public activate function for VSCode
+ */
+export async function activate(context: ExtensionContext): Promise<void> {
+    await activateInternal(context);
+}
+
+/**
+ * Test helper: Activate extension with mock output channel
+ *
+ * This allows tests to capture all logs from the extension and LSP server.
+ */
+export async function activateForTesting(context: ExtensionContext, mockOutputChannel: OutputChannel): Promise<ExtensionApi> {
+    return activateInternal(context, mockOutputChannel);
 }
 
 function getExpandedModulePaths(): string[] {
@@ -187,7 +239,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
                 'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
             },
         },
-        outputChannelName: 'Pike Language Server',
+        outputChannel,
     };
 
     client = new LanguageClient(

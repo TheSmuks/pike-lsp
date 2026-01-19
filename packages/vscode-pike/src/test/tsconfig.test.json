@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "CommonJS",
+        "moduleResolution": "Node",
+        "lib": ["ES2022"],
+        "strict": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "types": ["mocha", "node"],
+        "outDir": "../../dist/test",
+        "rootDir": "."
+    },
+    "include": [
+        "./mockOutputChannel.test.ts",
+        "./mockOutputChannel.ts"
+    ]
+}
