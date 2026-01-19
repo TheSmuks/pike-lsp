@@ -499,6 +499,79 @@ class Intelligence {
         }
     }
 
+    //! Get inherited members from a class
+    //!
+    //! Retrieves inherited members from parent classes using Program.inherit_list().
+    //!
+    //! @param params Mapping with "class" key (fully qualified class name)
+    //! @returns Mapping with "result" containing inherited members
+    //!
+    //! Per CONTEXT.md decision:
+    //! - Errors in class resolution return empty result (not crash)
+    //! - Handles both object and program resolutions
+    //!
+    //! Note: Basic inheritance traversal (no cycle detection yet)
+    //! - Current implementation handles typical shallow inheritance chains
+    //! - Cycle detection can be added in future enhancement
+    mapping handle_get_inherited(mapping params) {
+        mixed err = catch {
+            string class_name = params->class || "";
+
+            if (sizeof(class_name) == 0) {
+                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+            }
+
+            // Resolve class using master()->resolv()
+            mixed resolved;
+            mixed resolve_err = catch {
+                resolved = master()->resolv(class_name);
+            };
+
+            if (resolve_err || !resolved) {
+                // Per CONTEXT.md: resolution failure returns empty result, not error
+                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+            }
+
+            // Handle both object and program
+            program prog;
+            if (objectp(resolved)) {
+                prog = object_program(resolved);
+            } else if (programp(resolved)) {
+                prog = resolved;
+            } else {
+                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+            }
+
+            if (!prog) {
+                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+            }
+
+            // Get inheritance list using Program.inherit_list()
+            array inherits = ({});
+            catch { inherits = Program.inherit_list(prog) || ({}); };
+
+            array all_members = ({});
+
+            // Introspect each parent program
+            foreach (inherits, program parent_prog) {
+                mapping parent_info = introspect_program(parent_prog);
+                all_members += parent_info->symbols || ({});
+            }
+
+            return ([
+                "result": ([
+                    "found": 1,
+                    "members": all_members,
+                    "inherit_count": sizeof(inherits)
+                ])
+            ]);
+        };
+
+        if (err) {
+            return LSP.LSPError(-32000, describe_error(err))->to_response();
+        }
+    }
+
     //! Parse stdlib source file for autodoc documentation
     //! Returns mapping of symbol name -> documentation mapping
     //!
