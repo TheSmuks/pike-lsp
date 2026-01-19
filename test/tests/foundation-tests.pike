@@ -213,37 +213,160 @@ void test_compat_trim_whites_preserves_internal() {
 // Cache.pmod Unit Tests (FND-13)
 // =============================================================================
 
-//! Placeholder for Cache program put/get test
+//! Test Cache program put/get operations
 void test_cache_program_put_get() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    // Clear cache first for clean state
+    cache->clear("program_cache");
+
+    // Put and get
+    cache->put("program_cache", "key1", "program1");
+    mixed result = cache->get("program_cache", "key1");
+    if (result != "program1") {
+        error("Put/get failed: expected 'program1', got %O\n", result);
+    }
+
+    // Get non-existent key should return 0
+    mixed missing = cache->get("program_cache", "nonexistent");
+    if (missing != 0) {
+        error("Missing key should return 0, got %O\n", missing);
+    }
 }
 
-//! Placeholder for Cache stdlib put/get test
+//! Test Cache stdlib put/get operations
 void test_cache_stdlib_put_get() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->clear("stdlib_cache");
+
+    // Put and get with mapping data
+    mapping data = (["symbols": (["foo": "bar"])]);
+    cache->put("stdlib_cache", "module1", data);
+    mixed result = cache->get("stdlib_cache", "module1");
+    if (!mappingp(result)) {
+        error("Stdlib get should return mapping, got %O\n", result);
+    }
+    if (result->symbols->foo != "bar") {
+        error("Stdlib put/get failed: %O\n", result);
+    }
 }
 
-//! Placeholder for Cache clear test
+//! Test Cache clear operation
 void test_cache_clear() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->clear("program_cache");
+
+    cache->put("program_cache", "key1", "value1");
+    cache->put("program_cache", "key2", "value2");
+
+    cache->clear("program_cache");
+
+    mixed result1 = cache->get("program_cache", "key1");
+    mixed result2 = cache->get("program_cache", "key2");
+
+    if (result1 != 0 || result2 != 0) {
+        error("Clear failed: keys still exist (key1=%O, key2=%O)\n", result1, result2);
+    }
 }
 
-//! Placeholder for Cache LRU eviction test
+//! Test Cache LRU eviction behavior
 void test_cache_program_lru_eviction() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->clear("program_cache");
+    cache->set_limits(3, 50);  // Set small limit for testing
+
+    // Fill cache to limit
+    cache->put("program_cache", "key1", "value1");
+    cache->put("program_cache", "key2", "value2");
+    cache->put("program_cache", "key3", "value3");
+
+    // Access key1 to make it recently used (key2 becomes LRU)
+    cache->get("program_cache", "key1");
+
+    // Add one more - should evict key2 (least recently used)
+    cache->put("program_cache", "key4", "value4");
+
+    // key2 should be evicted
+    if (cache->get("program_cache", "key2") != 0) {
+        error("LRU eviction failed: key2 should have been evicted\n");
+    }
+    // key1 should remain (was accessed)
+    if (cache->get("program_cache", "key1") != "value1") {
+        error("LRU eviction error: key1 should remain\n");
+    }
+    // key3 should remain
+    if (cache->get("program_cache", "key3") != "value3") {
+        error("LRU eviction error: key3 should remain\n");
+    }
+    // key4 should exist
+    if (cache->get("program_cache", "key4") != "value4") {
+        error("LRU eviction error: key4 should exist\n");
+    }
 }
 
-//! Placeholder for Cache statistics test
+//! Test Cache statistics tracking
 void test_cache_statistics() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->clear("program_cache");
+    cache->clear("stdlib_cache");
+
+    // Initial stats
+    mapping stats = cache->get_stats();
+    if (stats->program_size != 0) {
+        error("Initial program_size should be 0, got %d\n", stats->program_size);
+    }
+
+    // Add items
+    cache->put("program_cache", "key1", "value1");
+    cache->put("program_cache", "key2", "value2");
+
+    // Hit and miss
+    cache->get("program_cache", "key1");  // hit
+    cache->get("program_cache", "missing");  // miss
+
+    stats = cache->get_stats();
+    if (stats->program_size != 2) {
+        error("Size should be 2, got %d\n", stats->program_size);
+    }
+    if (stats->program_hits < 1) {
+        error("Hits should be at least 1, got %d\n", stats->program_hits);
+    }
+    if (stats->program_misses < 1) {
+        error("Misses should be at least 1, got %d\n", stats->program_misses);
+    }
 }
 
-//! Placeholder for Cache set_limits test
+//! Test Cache set_limits operation
 void test_cache_set_limits() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->set_limits(5, 10);
+
+    mapping stats = cache->get_stats();
+    if (stats->program_max != 5) {
+        error("program_max should be 5, got %d\n", stats->program_max);
+    }
+    if (stats->stdlib_max != 10) {
+        error("stdlib_max should be 10, got %d\n", stats->stdlib_max);
+    }
 }
 
-//! Placeholder for Cache clear all test
+//! Test Cache clear all operation
 void test_cache_clear_all() {
-    // Task 3: Implement test
+    mixed cache = get_cache();
+
+    cache->put("program_cache", "key1", "value1");
+    cache->put("stdlib_cache", "module1", (["data": "test"]));
+
+    cache->clear("all");
+
+    mapping stats = cache->get_stats();
+    if (stats->program_size != 0 || stats->stdlib_size != 0) {
+        error("Clear all failed: sizes not zero (program=%d, stdlib=%d)\n",
+              stats->program_size, stats->stdlib_size);
+    }
 }

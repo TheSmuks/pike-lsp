@@ -35,8 +35,13 @@ private mapping(string:program) program_cache = ([]);
 // Internal storage for stdlib cache: stores module symbol data
 private mapping(string:mapping) stdlib_cache = ([]);
 
-// Access time tracking for LRU eviction
-private mapping(string:int) cache_access_time = ([]);
+// Access counter for LRU eviction - increments on each cache operation
+// Using a counter instead of time() ensures deterministic LRU behavior
+// even when multiple operations happen in the same second.
+private int access_counter = 0;
+
+// Access tracking for LRU eviction - stores counter value per key
+private mapping(string:int) cache_access_counter = ([]);
 
 // Maximum cache sizes (configurable via set_limits)
 private int max_cached_programs = DEFAULT_MAX_PROGRAMS;
@@ -59,7 +64,8 @@ private mapping(string:int) stats = ([
 program get_program(string key) {
     if (program_cache[key]) {
         stats["program_hits"]++;
-        cache_access_time[key] = time();
+        access_counter++;
+        cache_access_counter[key] = access_counter;
         return program_cache[key];
     }
     stats["program_misses"]++;
@@ -81,14 +87,13 @@ void put_program(string key, program prog) {
         evict_lru_program();
     }
     program_cache[key] = prog;
-    cache_access_time[key] = time();
+    access_counter++;
+    cache_access_counter[key] = access_counter;
 }
 
 //! Clear all programs from cache.
 void clear_programs() {
     program_cache = ([]);
-    // Note: we don't clear cache_access_time entries for programs
-    // as they'll be overwritten on new insertions
 }
 
 //! Get stdlib data from cache.
@@ -100,7 +105,8 @@ void clear_programs() {
 mapping get_stdlib(string key) {
     if (stdlib_cache[key]) {
         stats["stdlib_hits"]++;
-        cache_access_time["stdlib:" + key] = time();
+        access_counter++;
+        cache_access_counter["stdlib:" + key] = access_counter;
         return stdlib_cache[key];
     }
     stats["stdlib_misses"]++;
@@ -122,7 +128,8 @@ void put_stdlib(string key, mapping data) {
         evict_lru_stdlib();
     }
     stdlib_cache[key] = data;
-    cache_access_time["stdlib:" + key] = time();
+    access_counter++;
+    cache_access_counter["stdlib:" + key] = access_counter;
 }
 
 //! Clear all stdlib data from cache.
@@ -136,19 +143,19 @@ void clear_stdlib() {
 //! and removes it from the cache.
 private void evict_lru_program() {
     string lru_key = 0;
-    int lru_time = time() + 1;
+    int lru_count = access_counter + 1;
 
     foreach (program_cache; string key; program prog) {
-        int at = cache_access_time[key] || 0;
-        if (at < lru_time) {
-            lru_time = at;
+        int at = cache_access_counter[key] || 0;
+        if (at < lru_count) {
+            lru_count = at;
             lru_key = key;
         }
     }
 
     if (lru_key) {
         m_delete(program_cache, lru_key);
-        m_delete(cache_access_time, lru_key);
+        m_delete(cache_access_counter, lru_key);
     }
 }
 
@@ -158,20 +165,20 @@ private void evict_lru_program() {
 //! and removes it from the cache.
 private void evict_lru_stdlib() {
     string lru_key = 0;
-    int lru_time = time() + 1;
+    int lru_count = access_counter + 1;
     string prefix = "stdlib:";
 
     foreach (stdlib_cache; string key; mapping data) {
-        int at = cache_access_time[prefix + key] || 0;
-        if (at < lru_time) {
-            lru_time = at;
+        int at = cache_access_counter[prefix + key] || 0;
+        if (at < lru_count) {
+            lru_count = at;
             lru_key = key;
         }
     }
 
     if (lru_key) {
         m_delete(stdlib_cache, lru_key);
-        m_delete(cache_access_time, prefix + lru_key);
+        m_delete(cache_access_counter, prefix + lru_key);
     }
 }
 
