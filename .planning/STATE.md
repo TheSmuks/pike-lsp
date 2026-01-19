@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2025-01-19)
 ## Current Position
 
 Phase: 3 of 5 (Intelligence Module)
-Plan: 1 of TBD (03-01 complete)
+Plan: 2 of TBD (03-02 complete)
 Status: In progress - extracting introspection and resolution handlers
-Last activity: 2026-01-19 — Completed 03-01 Intelligence.pike with handle_introspect and handle_resolve
+Last activity: 2026-01-19 — Completed 03-02 Stdlib Resolution and Documentation Parsing
 
-Progress: [██████░░] 44%
+Progress: [██████░░] 48%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
+- Total plans completed: 11
 - Average duration: 11 min
-- Total execution time: 1.80 hours
+- Total execution time: 1.85 hours
 
 **By Phase:**
 
@@ -29,13 +29,13 @@ Progress: [██████░░] 44%
 |-------|-------|-------|----------|
 | 1. Foundation | 6 | ~33 min | 5.5 min |
 | 2. Parser Module | 3 | ~54 min | 18 min |
-| 3. Intelligence Module | 1 | ~4 min | 4 min |
+| 3. Intelligence Module | 2 | ~7 min | 3.5 min |
 | 4. Analysis & Entry Point | 0 | - | - |
 | 5. Verification | 0 | - | - |
 
 **Recent Trend:**
-- Last 3 plans: 02-03, 03-01
-- Trend: Intelligence module started with Intelligence.pike stateless class (handle_introspect, handle_resolve)
+- Last 3 plans: 02-03, 03-01, 03-02
+- Trend: Intelligence module adding stdlib resolution with AutoDoc documentation parsing
 
 *Updated after each plan completion*
 
@@ -68,6 +68,10 @@ Recent decisions affecting current work:
 - **D015**: Used catch block in each handler returning LSP.LSPError->to_response() for consistent JSON-RPC error responses — handlers wrap all logic in catch and return formatted errors
 - **D016**: Replaced direct program_cache access with LSP.Cache.put() for centralized cache management with LRU eviction — Cache.pmod handles all caching operations
 - **D017**: Replaced String.trim_whites() with LSP.Compat.trim_whites() for Pike 8.x compatibility — Pike 8.x doesn't trim newlines with native function
+- **D018**: Used LSP.Cache for all stdlib caching operations with flat module name keys per CONTEXT.md decision — stdlib cache uses module name as key, not file path
+- **D019**: Cache check happens before resolution — returns cached data immediately if available for performance
+- **D020**: Line number suffix stripped from Program.defined() paths before file operations — Pitfall 2 from RESEARCH.md, Program.defined() returns paths like "file.pike:42"
+- **D021**: AutoDoc token types use numeric constants — Pike's DocParser uses integers not named constants (Pitfall 3 from RESEARCH.md)
 
 ### Pending Todos
 
@@ -95,7 +99,7 @@ None - all deferred tasks completed.
 ## Session Continuity
 
 Last session: 2026-01-19
-Stopped at: Completed Phase 03 Plan 01 Introspection and Resolution Handlers
+Stopped at: Completed Phase 03 Plan 02 Stdlib Resolution and Documentation Parsing
 Resume file: None
 
 ## Artifacts Created
@@ -132,10 +136,11 @@ Resume file: None
 - `.planning/phases/02-parser-module/02-03-SUMMARY.md` — Parser Test Suite summary
 - `.planning/phases/02-parser-module/02-VERIFICATION.md` — Verification report (7/7 must-haves)
 
-### Phase 3 Intelligence Module (In Progress - 1/3 plans complete)
+### Phase 3 Intelligence Module (In Progress - 2/3 plans complete)
 
 **Code:**
-- `pike-scripts/LSP.pmod/Intelligence.pike` — Stateless intelligence class with handle_introspect and handle_resolve handlers (365 lines)
+- `pike-scripts/LSP.pmod/Intelligence.pike` — Stateless intelligence class with handle_introspect, handle_resolve, handle_resolve_stdlib, and documentation parsing (1320 lines)
 
 **Documentation:**
 - `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-01-SUMMARY.md` — Introspection and resolution handlers summary
+- `.planning/phases/03-intelligence-module**---extract-introspection-and-resolution-handlers/03-02-SUMMARY.md` — Stdlib resolution and documentation parsing summary
