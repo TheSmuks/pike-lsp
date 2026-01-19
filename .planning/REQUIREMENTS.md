@@ -53,25 +53,25 @@ Requirements for the refactoring milestone. Each maps to roadmap phases.
 
 ### Analysis Module
 
-- [ ] **ANL-01**: Extract handle_find_occurrences function to Analysis.pike class
-- [ ] **ANL-02**: Extract handle_analyze_uninitialized function to Analysis.pike class
-- [ ] **ANL-03**: Extract handle_get_completion_context function to Analysis.pike class
-- [ ] **ANL-04**: Analysis.pike uses Parser.Pike for tokenization
-- [ ] **ANL-05**: Analysis.pike uses Cache.pmod for compiled program caching
-- [ ] **ANL-06**: Analysis.pike imports from module.pmod (shared utilities)
-- [ ] **ANL-07**: Analysis.pike uses Compat.trim_whites() for string operations
-- [ ] **ANL-08**: Analysis.pike wraps handlers in catch blocks returning JSON-RPC errors
-- [ ] **ANL-09**: Integration tests for occurrences handler
-- [ ] **ANL-10**: Integration tests for completion context handler
+- [x] **ANL-01**: Extract handle_find_occurrences function to Analysis.pike class
+- [x] **ANL-02**: Extract handle_analyze_uninitialized function to Analysis.pike class
+- [x] **ANL-03**: Extract handle_get_completion_context function to Analysis.pike class
+- [x] **ANL-04**: Analysis.pike uses Parser.Pike for tokenization
+- [x] **ANL-05**: Analysis.pike uses Cache.pmod for compiled program caching
+- [x] **ANL-06**: Analysis.pike imports from module.pmod (shared utilities)
+- [x] **ANL-07**: Analysis.pike uses Compat.trim_whites() for string operations
+- [x] **ANL-08**: Analysis.pike wraps handlers in catch blocks returning JSON-RPC errors
+- [x] **ANL-09**: Integration tests for occurrences handler
+- [x] **ANL-10**: Integration tests for completion context handler
 
 ### Entry Point
 
-- [ ] **ENT-01**: Refactor analyzer.pike to route JSON-RPC to handler classes
-- [ ] **ENT-02**: analyzer.pike imports Parser.pike, Intelligence.pike, Analysis.pike
-- [ ] **ENT-03**: analyzer.pike creates handler instances on startup
-- [ ] **ENT-04**: analyzer.pike maintains backward compatibility with bridge protocol
-- [ ] **ENT-05**: Remove old handler functions from analyzer.pike after extraction
-- [ ] **ENT-06**: Integration tests for full JSON-RPC request/response cycle
+- [x] **ENT-01**: Refactor analyzer.pike to route JSON-RPC to handler classes
+- [x] **ENT-02**: analyzer.pike imports Parser.pike, Intelligence.pike, Analysis.pike
+- [x] **ENT-03**: analyzer.pike creates handler instances on startup
+- [x] **ENT-04**: analyzer.pike maintains backward compatibility with bridge protocol
+- [x] **ENT-05**: Remove old handler functions from analyzer.pike after extraction
+- [x] **ENT-06**: Integration tests for full JSON-RPC request/response cycle
 
 ### Version Compatibility
 
@@ -155,22 +155,22 @@ Deferred to future release. Tracked but not in current roadmap.
 | INT-09 | Phase 3 | Complete |
 | INT-10 | Phase 3 | Complete |
 | INT-11 | Phase 3 | Complete |
-| ANL-01 | Phase 4 | Pending |
-| ANL-02 | Phase 4 | Pending |
-| ANL-03 | Phase 4 | Pending |
-| ANL-04 | Phase 4 | Pending |
-| ANL-05 | Phase 4 | Pending |
-| ANL-06 | Phase 4 | Pending |
-| ANL-07 | Phase 4 | Pending |
-| ANL-08 | Phase 4 | Pending |
-| ANL-09 | Phase 4 | Pending |
-| ANL-10 | Phase 4 | Pending |
-| ENT-01 | Phase 4 | Pending |
-| ENT-02 | Phase 4 | Pending |
-| ENT-03 | Phase 4 | Pending |
-| ENT-04 | Phase 4 | Pending |
-| ENT-05 | Phase 4 | Pending |
-| ENT-06 | Phase 4 | Pending |
+| ANL-01 | Phase 4 | Complete |
+| ANL-02 | Phase 4 | Complete |
+| ANL-03 | Phase 4 | Complete |
+| ANL-04 | Phase 4 | Complete |
+| ANL-05 | Phase 4 | Complete |
+| ANL-06 | Phase 4 | Complete |
+| ANL-07 | Phase 4 | Complete |
+| ANL-08 | Phase 4 | Complete |
+| ANL-09 | Phase 4 | Complete |
+| ANL-10 | Phase 4 | Complete |
+| ENT-01 | Phase 4 | Complete |
+| ENT-02 | Phase 4 | Complete |
+| ENT-03 | Phase 4 | Complete |
+| ENT-04 | Phase 4 | Complete |
+| ENT-05 | Phase 4 | Complete |
+| ENT-06 | Phase 4 | Complete |
 | VER-01 | Phase 5 | Pending |
 | VER-02 | Phase 5 | Pending |
 | VER-03 | Phase 5 | Pending |
@@ -178,8 +178,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | VER-05 | Phase 1 | Complete |
 | VER-06 | Phase 5 | Pending |
 | QLT-01 | Phase 2 | Complete |
-| QLT-02 | Phase 4 | Pending |
-| QLT-03 | Phase 4 | Pending |
+| QLT-02 | Phase 4 | Complete |
+| QLT-03 | Phase 4 | Complete |
 | QLT-04 | Phase 1 | Complete |
 | QLT-05 | Phase 1 | Complete |
 | QLT-06 | Phase 5 | Pending |
@@ -188,6 +188,8 @@ Deferred to future release. Tracked but not in current roadmap.
 - v1 requirements: 52 total
 - Mapped to phases: 52
 - Unmapped: 0 ✓
+- Complete: 42/52 (81%)
+- Pending: 10/52 (19%)
 
 ---
 *Requirements defined: 2025-01-19*
