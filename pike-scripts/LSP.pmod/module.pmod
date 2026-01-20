@@ -81,3 +81,17 @@ void debug(string format, mixed... args) {
         werror(format, @args);
     }
 }
+
+//! Create a flat error dictionary for JSON-RPC error responses
+//! @param kind The error kind (e.g., "SYNTAX", "COMPILE", "RUNTIME")
+//! @param msg The error message
+//! @param line Optional line number where error occurred
+//! @returns A mapping with error, kind, msg, line fields
+mapping make_error(string kind, string msg, int|void line) {
+    return ([
+        "error": 1,
+        "kind": kind,
+        "msg": msg,
+        "line": line
+    ]);
+}
