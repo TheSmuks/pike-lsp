@@ -12,6 +12,27 @@
 // Import sibling modules for access to their exports
 constant Cache = LSP.Cache;
 
+//! Bootstrap modules used internally by the resolver.
+//! These modules cannot be resolved using the normal path because
+//! they are used during the resolution process itself, causing
+//! circular dependency if we try to resolve them.
+//!
+//! IMPORTANT: Stdio is used for reading source files during introspection.
+//! Using Stdio.read_file() triggers module resolution, causing infinite
+//! recursion when resolving Stdio itself. Use Stdio.FILE()->read() instead.
+constant BOOTSTRAP_MODULES = (<
+    "Stdio",     // Used for file I/O during source parsing
+    "String",    // May be used for string operations
+    "Array",     // Core type used throughout
+    "Mapping",   // Core type used throughout
+>);
+
+//! Track modules currently being resolved to prevent circular dependency.
+//! When a module is being resolved, it's added to this set. If the same
+//! module is requested again during resolution, we return early to prevent
+//! infinite recursion (30-second timeout).
+private mapping(string:int) resolving_modules = ([]);
+
 //! Intelligence class - Stateless introspection and resolution handlers
 //! Use: import LSP.Intelligence; object I = Intelligence(); I->handle_introspect(...);
 //! Create a new Intelligence instance
@@ -73,6 +94,8 @@ mapping handle_introspect(mapping params) {
         string code = params->code || "";
         string filename = params->filename || "input.pike";
 
+        werror("[DEBUG] handle_introspect called: filename=%s, code_length=%d\n", filename, sizeof(code));
+
         array diagnostics = ({});
         program compiled_prog;
 
@@ -93,19 +116,18 @@ mapping handle_introspect(mapping params) {
         // Attempt compilation
         // For LSP module files, use master()->resolv() to get the compiled program
         // with proper module context. For other files, use compile_string().
+        werror("[DEBUG] About to compile: filename=%s\n", filename);
         mixed compile_err = catch {
             if (is_lsp_module_file(filename)) {
+                werror("[DEBUG] File is LSP module file\n");
                 string module_name = path_to_module_name(filename);
                 if (sizeof(module_name) > 0) {
+                    werror("[DEBUG] Resolving module: %s\n", module_name);
                     // Resolve via module system - LSP namespace is available
                     mixed resolved = master()->resolv(module_name);
-                    if (resolved && resolved->Parser) {
-                        // For .pike files with a class, get the class
-                        // e.g., LSP.Parser -> Parser class
-                        string class_name = module_name[sizeof("LSP.")..];
-                        compiled_prog = resolved[class_name];
-                    } else if (resolved && programp(resolved)) {
-                        // For .pmod files that are directly programs
+                    if (resolved && programp(resolved)) {
+                        // For LSP.* modules, resolv returns the program directly
+                        // e.g., LSP.Parser -> Parser program
                         compiled_prog = resolved;
                     } else {
                         // Fallback: try to compile normally
@@ -138,13 +160,17 @@ mapping handle_introspect(mapping params) {
         }
 
         // Cache the compiled program using LSP.Cache
+        werror("[DEBUG] Compilation successful, about to introspect\n");
         Cache.put("program_cache", filename, compiled_prog);
 
         // Extract type information
+        werror("[DEBUG] About to call introspect_program\n");
         mapping result = introspect_program(compiled_prog);
+        werror("[DEBUG] introspect_program completed, symbols=%d\n", sizeof(result->symbols || ({})));
         result->success = 1;
         result->diagnostics = diagnostics;
 
+        werror("[DEBUG] handle_introspect returning success\n");
         return ([ "result": result ]);
     };
 
@@ -436,6 +462,47 @@ protected string get_module_path(mixed resolved) {
     return "";
 }
 
+//! Safely read a source file without triggering module resolution recursion.
+//!
+//! IMPORTANT: Must use Stdio.FILE()->read() NOT Stdio.read_file().
+//! Stdio.read_file() triggers module resolution via master()->resolv(),
+//! causing infinite recursion when resolving Stdio itself.
+//!
+//! @param path The file path to read
+//! @param max_bytes Maximum bytes to read (default 1MB)
+//! @returns File contents or empty string on error
+protected string read_source_file(string path, void|int max_bytes) {
+    // Early return for bootstrap module paths to avoid circular dependency
+    // Checking the path is safer than checking the module name at this level
+    if (sizeof(path) > 0) {
+        string normalized = replace(path, "\\", "/");
+        array parts = normalized / "/";
+        // Get the last component (filename without extension)
+        if (sizeof(parts) > 0) {
+            string filename = parts[-1];
+            // Remove .pike or .pmod extension
+            if (has_suffix(filename, ".pike")) {
+                filename = filename[..<5];
+            } else if (has_suffix(filename, ".pmod")) {
+                filename = filename[..<6];
+            }
+            // Check if this is a bootstrap module
+            if (BOOTSTRAP_MODULES[filename]) {
+                return "";  // Don't try to read bootstrap module files
+            }
+        }
+    }
+
+    int max_size = max_bytes || 1000000;
+    mixed err = catch {
+        object f = Stdio.FILE();
+        string data = f->read(path, max_size);
+        destruct(f);
+        return data || "";
+    };
+    return "";  // Return empty on any error
+}
+
 //! Resolve stdlib module and extract symbols with documentation
 //! Uses LSP.Cache for stdlib data caching with flat module name keys.
 //!
@@ -450,6 +517,12 @@ protected string get_module_path(mixed resolved) {
 //! Per CONTEXT.md decision:
 //! - Cache check happens before resolution (returns cached data if available)
 //! - Line number suffix is stripped from Program.defined() paths
+//!
+//! Bootstrap modules guard: For modules used internally by the resolver
+//! (Stdio, String, Array, Mapping), we use reflection-only introspection
+//! to avoid circular dependency. These modules are already loaded by Pike
+//! before our code runs, so master()->resolv() succeeds, but we must avoid
+//! using their methods (like Stdio.read_file()) during resolution.
 mapping handle_resolve_stdlib(mapping params) {
     mixed err = catch {
         string module_path = params->module || "";
@@ -458,9 +531,40 @@ mapping handle_resolve_stdlib(mapping params) {
             return ([ "result": ([ "found": 0, "error": "No module path" ]) ]);
         }
 
+        // Guard against bootstrap modules that cause circular dependency
+        // These modules are used internally by the resolver itself.
+        // Trying to resolve them triggers infinite recursion (30-second timeout).
+        if (BOOTSTRAP_MODULES[module_path]) {
+            return ([
+                "result": ([
+                    "found": 1,
+                    "bootstrap": 1,
+                    "module": module_path,
+                    "message": "Bootstrap module - cannot be introspected"
+                ])
+            ]);
+        }
+
+        // Circular dependency guard - check if we're already resolving this module
+        if (resolving_modules[module_path]) {
+            return ([
+                "result": ([
+                    "found": 1,
+                    "circular": 1,
+                    "module": module_path,
+                    "message": "Circular dependency detected - already resolving"
+                ])
+            ]);
+        }
+
+        // Mark this module as being resolved
+        resolving_modules[module_path] = 1;
+
         // Check cache first - flat module name key per CONTEXT.md decision
         mapping cached = Cache.get("stdlib_cache", module_path);
         if (cached) {
+            // Cleanup: remove from resolving set (cached, not actually resolved)
+            m_delete(resolving_modules, module_path);
             return ([ "result": cached ]);
         }
 
@@ -497,26 +601,25 @@ mapping handle_resolve_stdlib(mapping params) {
 
         // Parse source file to get all exported symbols (not just introspected ones)
         if (sizeof(source_path) > 0) {
-            string code;
-            mixed read_err = catch {
-                // Clean up path - remove line number suffix if present
-                // Pitfall 2 from RESEARCH.md: Program.defined() returns paths with line numbers
-                string clean_path = source_path;
-                if (has_value(clean_path, ":")) {
-                    array parts = clean_path / ":";
-                    // Check if last part is a number (line number)
-                    if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
-                        int is_line_num = 1;
-                        foreach(parts[-1] / "", string c) {
-                            if (c < "0" || c > "9") { is_line_num = 0; break; }
-                        }
-                        if (is_line_num) {
-                            clean_path = parts[..sizeof(parts)-2] * ":";
-                        }
+            // Clean up path - remove line number suffix if present
+            // Pitfall 2 from RESEARCH.md: Program.defined() returns paths with line numbers
+            string clean_path = source_path;
+            if (has_value(clean_path, ":")) {
+                array parts = clean_path / ":";
+                // Check if last part is a number (line number)
+                if (sizeof(parts) > 1 && sizeof(parts[-1]) > 0) {
+                    int is_line_num = 1;
+                    foreach(parts[-1] / "", string c) {
+                        if (c < "0" || c > "9") { is_line_num = 0; break; }
+                    }
+                    if (is_line_num) {
+                        clean_path = parts[..sizeof(parts)-2] * ":";
                     }
                 }
-                code = Stdio.read_file(clean_path);
-            };
+            }
+
+            // Use safe file reading helper that avoids circular dependency
+            string code = read_source_file(clean_path);
 
             if (code && sizeof(code) > 0) {
                 // Parse the file to get all symbols using Parser class
@@ -564,10 +667,17 @@ mapping handle_resolve_stdlib(mapping params) {
         // Cache using LSP.Cache (LRU eviction handled by Cache.pmod)
         Cache.put("stdlib_cache", module_path, result);
 
+        // Cleanup: remove from resolving set
+        m_delete(resolving_modules, module_path);
+
         return ([ "result": result ]);
     };
 
     if (err) {
+        // Cleanup: remove from resolving set on error
+        // Note: We can't access module_path here as it's in catch scope
+        // Clear all to avoid stale entries (safe fallback)
+        resolving_modules = ([]);
         return LSP.module.LSPError(-32000, describe_error(err))->to_response();
     }
 }
@@ -672,13 +782,10 @@ protected mapping parse_stdlib_documentation(string source_path) {
         }
     }
 
-    // Try to read the source file
-    string code;
-    mixed read_err = catch {
-        code = Stdio.read_file(clean_path);
-    };
+    // Use safe file reading helper that avoids circular dependency
+    string code = read_source_file(clean_path);
 
-    if (read_err || !code || sizeof(code) == 0) {
+    if (!code || sizeof(code) == 0) {
         return docs;
     }
 
