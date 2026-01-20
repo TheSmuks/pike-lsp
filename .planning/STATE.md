@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 3 of 5 (Bridge Extraction)
-Plan: 0 of 2 complete
-Status: Safety Net phase complete (pre-push hooks + smoke tests + CI), ready for Bridge Extraction
-Last activity: 2026-01-20 — Completed plan 02-03 (CI Pipeline)
+Plan: 1 of 2 complete
+Status: In progress - PikeProcess IPC wrapper created
+Last activity: 2026-01-20 — Completed plan 03-01 (PikeProcess Class)
 
-Progress: [████████░░] 40% (2/5 phases complete)
+Progress: [████████░░] 47% (7/15 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 5 min
-- Total execution time: 33 min
+- Total execution time: 35 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [████████░░] 40% (2/5 phases complete)
 |-------|-------|----------|----------|
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
-| 3. Bridge Extraction | 2 | 0 | - |
+| 3. Bridge Extraction | 2 | 1 | 2 min |
 | 4. Server Grouping | 3 | 0 | - |
 | 5. Pike Reorganization | 2 | 0 | - |
 
@@ -39,7 +39,7 @@ Progress: [████████░░] 40% (2/5 phases complete)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -58,6 +58,8 @@ Progress: [████████░░] 40% (2/5 phases complete)
 | 02-03-D02 | Smoke tests run after unit tests in CI | Fast feedback loop, keeps related tests grouped |
 | 02-03-D03 | VSCode E2E job waits for unit tests | Job dependency via needs: [test, pike-test] ensures E2E only runs if unit tests pass |
 | 02-03-D04 | xvfb-run wraps VSCode E2E tests | Provides X11 display for headless Linux CI environment |
+| 03-01-D01 | readline.createInterface() for stdout reading | Prevents JSON fragmentation and stdin bug by reading complete lines |
+| 03-01-D02 | PikeProcess is pure IPC wrapper, no business logic | Separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
 
 **Design Decisions (from v2 design document):**
 
@@ -94,7 +96,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 02-03 (CI Pipeline)
+Stopped at: Completed plan 03-01 (PikeProcess Class)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -115,7 +117,7 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 2 (Safety Net) complete** - all 3 plans done (pre-push hooks, smoke tests, CI pipeline)
-2. Run `/gsd:plan-phase 3` to create plans for Bridge Extraction
-3. Execute Phase 3 plans (extract introspection, extract resolution handlers)
-4. Continue through phases 4-5
+1. **Phase 3 (Bridge Extraction) in progress** - 1 of 2 plans complete
+2. Execute plan 03-02 (Introspection Extraction) - integrate PikeProcess into PikeBridge
+3. Continue with Phase 4 (Server Grouping)
+4. Complete Phase 5 (Pike Reorganization)
