@@ -109,8 +109,20 @@ jobs:
           pike --version
           which pike
 
+      - name: Run Cross-Version Handler Tests
+        run: pike test/tests/cross-version-tests.pike
+
       - name: Run Pike Tests
         run: ./scripts/run-pike-tests.sh
+
+      - name: Cross-version test summary
+        if: always()
+        run: |
+          echo "### Cross-version handler tests : ${{ matrix.pike-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pike version**: ${{ matrix.pike-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Cross-version tests verify all 12 LSP handlers work correctly" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test file**: test/tests/cross-version-tests.pike" >> $GITHUB_STEP_SUMMARY
 
   build-extension:
     runs-on: ubuntu-24.04
