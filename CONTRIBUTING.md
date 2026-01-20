@@ -12,7 +12,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 ### Prerequisites
 
-1. **Pike 8.0+** - The Pike programming language
+1. **Pike 8.1116 or later** - The Pike programming language (for local development)
 2. **Node.js 18+** - JavaScript runtime
 3. **pnpm** - Package manager (install with `npm install -g pnpm`)
 4. **VS Code** - For extension development and testing
@@ -33,6 +33,8 @@ pnpm build
 # Run tests to verify setup
 ./scripts/run-tests.sh
 ```
+
+> **Note:** For local development, Pike 8.1116 is recommended. CI automatically tests on multiple Pike versions (8.1116 as required, latest as best-effort).
 
 ## 📁 Project Structure
 
@@ -162,6 +164,13 @@ describe('Your Feature', () => {
 - Tests MUST pass before merging
 - Pike stdlib files MUST continue to parse (100% compatibility)
 
+### Version Testing
+
+- **Local development:** Use Pike 8.1116
+- **CI:** Tests on Pike 8.1116 (required) and latest (best-effort)
+- **When adding compat shims:** Test on both versions if possible
+- **Version-specific issues:** Add to Known Issues table in README.md
+
 ## 📝 Code Style
 
 ### TypeScript
@@ -186,6 +195,8 @@ async function parse(code: string, filename?: string): Promise<PikeParseResult>
 - Use Pike 8 features
 - Document functions with `//!` comments
 - Handle errors gracefully (no silent `catch {}`)
+- Use `LSP.Compat.pike_version()` for version detection instead of checking `__REAL_VERSION__` directly
+- For version-specific code, use `Compat.pmod` polyfills or `#if constant()` checks
 
 ```pike
 //! Parse the given code and return symbols.
@@ -228,12 +239,12 @@ export const MY_NEW_CONSTANT = 100;
 ### Bug Reports
 
 Include:
-1. Pike version (`pike --version`)
+1. **Pike version** (`pike --version`) - **Always include this with exact output**
 2. Node.js version (`node --version`)
 3. VS Code version
 4. Steps to reproduce
 5. Expected vs actual behavior
-6. Error messages or logs
+6. Error messages or logs (including any version-specific error messages)
 
 ### Feature Requests
 
