@@ -15,7 +15,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Lean Observability** - Error tracking and structured logging
-- [ ] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
+- [x] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
 - [ ] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
 - [ ] **Phase 4: Server Grouping** - Split server.ts by capability
 - [ ] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
@@ -60,7 +60,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 1 (errors and logging must exist for meaningful test output)
 
-**Status**: Planned
+**Status**: Complete ✓
 
 **Requirements**: SAF-01, SAF-02, SAF-03, SAF-04, SAF-05, SAF-06, SAF-07, SAF-08, SAF-09, SAF-10, SAF-11
 
@@ -77,10 +77,12 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - `packages/pike-lsp-server/src/tests/smoke.test.ts`
 - Extended `.github/workflows/test.yml` with Pike, smoke tests, and xvfb
 
-**Plans**: 3 plans in 2 waves
-- [ ] 02-01-PLAN.md — Pre-push hook with Husky v9 (validates build, Pike, smoke tests)
-- [ ] 02-02-PLAN.md — Smoke test suite (bridge lifecycle, parse, introspect, error handling)
-- [ ] 02-03-PLAN.md — CI pipeline extension (Pike installation, smoke tests, xvfb for E2E)
+**Plans**: 3 plans in 3 waves
+- [x] 02-01-PLAN.md — Pre-push hook with Husky v9 (validates build, Pike, smoke tests)
+- [x] 02-02-PLAN.md — Smoke test suite (bridge lifecycle, parse, introspect, error handling)
+- [x] 02-03-PLAN.md — CI pipeline extension (Pike installation, smoke tests, xvfb for E2E)
+
+**Completed**: 2026-01-20
 
 ---
 
@@ -178,17 +180,17 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
-| 2. Safety Net | 0/3 | Planned | - |
+| 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
 | 3. Bridge Extraction | 0/? | Planned | - |
 | 4. Server Grouping | 0/? | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Phase 1 complete, Phase 2 plans created, ready for execution
+**Project Status:** Phase 2 complete (Safety Net in place), ready for Phase 3
 
 **v2 Requirements:**
 - Total: 65
-- Complete: 10
-- Pending: 55
+- Complete: 21
+- Pending: 44
 
 ---
 *Roadmap created: 2026-01-20*

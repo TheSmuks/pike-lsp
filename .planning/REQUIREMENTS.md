@@ -28,17 +28,17 @@
 
 ### Safety Net (SAF)
 
-- [ ] **SAF-01**: Create `.husky/pre-push` hook that blocks broken pushes
-- [ ] **SAF-02**: Pre-push validates TypeScript builds (`pnpm -r build`)
-- [ ] **SAF-03**: Pre-push validates Pike compiles (`pike -e 'compile_file("pike-scripts/analyzer.pike")'`)
-- [ ] **SAF-04**: Pre-push runs smoke tests (`pnpm --filter pike-lsp-server test:smoke`)
-- [ ] **SAF-05**: Create smoke test suite with bridge lifecycle tests
-- [ ] **SAF-06**: Smoke test validates parse request returns array
-- [ ] **SAF-07**: Smoke test validates introspect request returns data
-- [ ] **SAF-08**: Smoke test validates invalid Pike returns error (not crash)
-- [ ] **SAF-09**: Create CI pipeline (`.github/workflows/ci.yml`)
-- [ ] **SAF-10**: CI runs on push to main and pull requests
-- [ ] **SAF-11**: CI installs Pike, runs build, tests, and VSCode E2E
+- [x] **SAF-01**: Create `.husky/pre-push` hook that blocks broken pushes
+- [x] **SAF-02**: Pre-push validates TypeScript builds (`pnpm -r build`)
+- [x] **SAF-03**: Pre-push validates Pike compiles (`pike -e 'compile_file("pike-scripts/analyzer.pike")'`)
+- [x] **SAF-04**: Pre-push runs smoke tests (`pnpm --filter pike-lsp-server test:smoke`)
+- [x] **SAF-05**: Create smoke test suite with bridge lifecycle tests
+- [x] **SAF-06**: Smoke test validates parse request returns array
+- [x] **SAF-07**: Smoke test validates introspect request returns data
+- [x] **SAF-08**: Smoke test validates invalid Pike returns error (not crash)
+- [x] **SAF-09**: Create CI pipeline (`.github/workflows/test.yml`)
+- [x] **SAF-10**: CI runs on push to main and pull requests
+- [x] **SAF-11**: CI installs Pike, runs build, tests, and VSCode E2E
 
 ### Bridge Extraction (BRG)
 
@@ -121,7 +121,7 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | OBS-01 to OBS-10 | Phase 1 | Complete ✓ |
-| SAF-01 to SAF-11 | Phase 2 | Pending |
+| SAF-01 to SAF-11 | Phase 2 | Complete ✓ |
 | BRG-01 to BRG-13 | Phase 3 | Pending |
 | SRV-01 to SRV-13 | Phase 4 | Pending |
 | PIK-01 to PIK-12 | Phase 5 | Pending |
@@ -131,7 +131,7 @@
 - v2 requirements: 65 total
 - Mapped to phases: 65
 - Unmapped: 0
-- Complete: 10 (15%)
+- Complete: 21 (32%)
 
 ---
 *Requirements defined: 2026-01-20*
