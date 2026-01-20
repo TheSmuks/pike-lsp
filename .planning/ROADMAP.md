@@ -17,6 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Intelligence Module** - Extract introspection and resolution handlers
 - [x] **Phase 4: Analysis & Entry Point** - Extract analysis handlers and refactor main entry point
 - [x] **Phase 5: Verification** - Cross-version testing and compatibility validation
+- [ ] **Phase 6: Big Refactor Check** - Validate refactored LSP functionality works end-to-end
 
 ## Phase Details
 
@@ -156,10 +157,52 @@ Plans:
 - [x] 05-04-PLAN.md — Create cross-version handler tests (Wave 2)
 - [x] 05-05-PLAN.md — Run complete test suite and create verification report (Wave 3)
 
+### Phase 6: Big Refactor Check
+
+**Goal**: Validate that the refactored LSP server provides actual end-to-end LSP functionality (completion, hover, go-to-definition) working correctly in real usage. Address verification gap where module structure was tested but actual LSP functionality was not.
+
+**Depends on**: Phase 5 (verification complete)
+
+**Status**: Planned
+
+**Success Criteria** (what must be TRUE):
+1. Each new .pike/.pmod file compiles standalone: `pike -e 'compile_file("path/to/file.pike")'`
+2. Module loads via resolver: `pike -e 'master()->resolv("LSP.ModuleName")'`
+3. LSP starts without errors
+4. Open Pike file in editor → no crash
+5. Completion works on stdlib (Array.)
+6. Completion works on user code
+7. Hover works
+8. Go to definition works
+9. All existing tests pass
+10. smoke-test.pike exists and passes before any PR merged
+11. CONTRIBUTING.md has mandatory pre-merge verification checklist
+
+**Plans**: 1 plan (1 autonomous, 1 wave)
+
+Plans:
+- [ ] 06-01-PLAN.md — Create smoke-test.pike and pre-merge verification checklist
+
+**Key Verification Gap to Address:**
+
+| Should have tested | Was tested in Phase 5 |
+|-------------------|----------------------|
+| Each file compiles standalone | No |
+| Module imports work | Partially |
+| LSP responds to requests | No |
+| Stdlib introspection works | No |
+| No regressions from working state | No |
+
+**Extraction Rules for Future Refactors:**
+1. Extract ONE module at a time
+2. After each extraction: compile, test modules, run full test suite, manual smoke test
+3. Only proceed if all pass
+4. Never extract multiple modules in one commit without verification
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -168,12 +211,13 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 3. Intelligence Module | 4/4 | Complete | 2026-01-19 |
 | 4. Analysis & Entry Point | 6/6 | Complete | 2026-01-19 |
 | 5. Verification | 5/5 | Complete | 2026-01-20 |
+| 6. Big Refactor Check | 0/1 | Planned | - |
 
-**Project Status:** ALL PHASES COMPLETE
+**Project Status:** Phase 6 planned - ready for execution
 
 **Summary:**
-- Total plans: 30 (26 refactoring + 4 phase planning)
+- Total plans: 31 (26 refactoring + 5 phase planning)
 - All 52 v1 requirements satisfied
 - 111 tests passing on Pike 8.0.1116
 - CI configured for cross-version validation (8.1116 required, latest best-effort)
-- Ready for production deployment
+- Phase 6 addresses verification gap from Phase 5
