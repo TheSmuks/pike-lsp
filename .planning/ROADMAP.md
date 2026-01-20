@@ -14,7 +14,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Integer phases (1, 2, 3, 4, 5): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Lean Observability** - Error tracking and structured logging
+- [x] **Phase 1: Lean Observability** - Error tracking and structured logging
 - [ ] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
 - [ ] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
 - [ ] **Phase 4: Server Grouping** - Split server.ts by capability
@@ -28,7 +28,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Nothing (first phase)
 
-**Status**: Planned
+**Status**: Complete ✓
 
 **Requirements**: OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08, OBS-09, OBS-10
 
@@ -46,9 +46,11 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Pike `make_error()` helper function
 
 **Plans**: 3 plans in 2 waves
-- [ ] 01-01-PLAN.md — TypeScript error classes (LSPError, BridgeError, PikeError)
-- [ ] 01-02-PLAN.md — Logger class with component namespacing and log levels
-- [ ] 01-03-PLAN.md — Pike make_error() helper and Bridge stderr integration
+- [x] 01-01-PLAN.md — TypeScript error classes (LSPError, BridgeError, PikeError)
+- [x] 01-02-PLAN.md — Logger class with component namespacing and log levels
+- [x] 01-03-PLAN.md — Pike make_error() helper and Bridge stderr integration
+
+**Completed**: 2026-01-20
 
 ---
 
@@ -172,18 +174,18 @@ Each phase produces working code. Can pause at any phase without breaking the co
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Lean Observability | 0/3 | Planned | - |
+| 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
 | 2. Safety Net | 0/? | Planned | - |
 | 3. Bridge Extraction | 0/? | Planned | - |
 | 4. Server Grouping | 0/? | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Ready to execute Phase 1
+**Project Status:** Phase 1 complete, ready to execute Phase 2
 
 **v2 Requirements:**
 - Total: 65
-- Complete: 0
-- Pending: 65
+- Complete: 10
+- Pending: 55
 
 ---
 *Roadmap created: 2026-01-20*
