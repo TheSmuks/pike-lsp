@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 3 of 5 (Bridge Extraction)
-Plan: 1 of 2 complete
-Status: In progress - PikeProcess IPC wrapper created
-Last activity: 2026-01-20 — Completed plan 03-01 (PikeProcess Class)
+Plan: 2 of 2 complete
+Status: Phase complete - PikeBridge refactored to use PikeProcess
+Last activity: 2026-01-20 — Completed plan 03-02 (Refactor PikeBridge)
 
-Progress: [████████░░] 47% (7/15 plans complete)
+Progress: [██████████] 53% (8/15 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 5 min
-- Total execution time: 35 min
+- Total execution time: 40 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [████████░░] 47% (7/15 plans complete)
 |-------|-------|----------|----------|
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
-| 3. Bridge Extraction | 2 | 1 | 2 min |
+| 3. Bridge Extraction | 2 | 2 | 3 min |
 | 4. Server Grouping | 3 | 0 | - |
 | 5. Pike Reorganization | 2 | 0 | - |
 
@@ -39,7 +39,7 @@ Progress: [████████░░] 47% (7/15 plans complete)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -60,6 +60,8 @@ Progress: [████████░░] 47% (7/15 plans complete)
 | 02-03-D04 | xvfb-run wraps VSCode E2E tests | Provides X11 display for headless Linux CI environment |
 | 03-01-D01 | readline.createInterface() for stdout reading | Prevents JSON fragmentation and stdin bug by reading complete lines |
 | 03-01-D02 | PikeProcess is pure IPC wrapper, no business logic | Separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
+| 03-02-D01 | MockPikeProcess class enables isolated unit testing | Tests can run without Pike installation by simulating process behavior |
+| 03-02-D02 | PikeBridge delegates all IPC to PikeProcess | Clean separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
 
 **Design Decisions (from v2 design document):**
 
@@ -89,14 +91,14 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 02-03):**
-- No blockers - Safety Net phase complete (pre-push hooks + smoke tests + CI)
+**Current (as of plan 03-02):**
+- No blockers - Bridge Extraction phase complete
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 03-01 (PikeProcess Class)
+Stopped at: Completed plan 03-02 (Refactor PikeBridge)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -117,7 +119,6 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 3 (Bridge Extraction) in progress** - 1 of 2 plans complete
-2. Execute plan 03-02 (Introspection Extraction) - integrate PikeProcess into PikeBridge
-3. Continue with Phase 4 (Server Grouping)
-4. Complete Phase 5 (Pike Reorganization)
+1. **Phase 3 (Bridge Extraction) complete** - 2 of 2 plans done
+2. Continue with Phase 4 (Server Grouping) - group handlers by capability
+3. Complete Phase 5 (Pike Reorganization)
