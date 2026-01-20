@@ -77,7 +77,10 @@ run_test "test/tests/analysis-tests.pike" "Analysis Tests"
 # Test 6: Response format tests
 run_test "test/tests/response-format-tests.pike" "Response Format Tests"
 
-# Test 7: E2E foundation tests (run again for complete coverage)
+# Test 7: Cross-version handler validation
+run_test "test/tests/cross-version-tests.pike" "Cross-Version Handler Tests"
+
+# Test 8: E2E foundation tests (run again for complete coverage)
 # Note: We already ran module loading tests at the start
 # This runs the full E2E suite
 # run_test "test/tests/e2e-foundation-tests.pike" "E2E Foundation Tests (Full)"
