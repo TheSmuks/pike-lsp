@@ -45,14 +45,14 @@ class Context {
 
     void create() {
         // Initialize module instances using master()->resolv pattern
-        // Caches are not stored here - handlers use LSP.Cache module directly
-        program ParserClass = master()->resolv("LSP.Parser")->Parser;
+        // LSP.Parser, LSP.Intelligence, LSP.Analysis are programs/classes
+        program ParserClass = master()->resolv("LSP.Parser");
         parser = ParserClass();
 
-        program IntelligenceClass = master()->resolv("LSP.Intelligence")->Intelligence;
+        program IntelligenceClass = master()->resolv("LSP.Intelligence");
         intelligence = IntelligenceClass();
 
-        program AnalysisClass = master()->resolv("LSP.Analysis")->Analysis;
+        program AnalysisClass = master()->resolv("LSP.Analysis");
         analysis = AnalysisClass();
 
         debug_mode = 0;
