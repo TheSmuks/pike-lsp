@@ -10,3 +10,9 @@ export { registerSymbolsHandlers } from './symbols.js';
 
 // Diagnostics feature - validation and document lifecycle
 export { registerDiagnosticsHandlers } from './diagnostics.js';
+
+// Navigation feature - go to definition, references, etc.
+export { registerNavigationHandlers } from './navigation.js';
+
+// Editing feature - completion, signature help, rename
+export { registerEditingHandlers } from './editing.js';
