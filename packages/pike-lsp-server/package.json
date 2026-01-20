@@ -5,6 +5,10 @@
     "type": "module",
     "main": "./dist/server.js",
     "types": "./dist/server.d.ts",
+    "exports": {
+        ".": "./dist/server.js",
+        "./core": "./dist/core/index.js"
+    },
     "bin": {
         "pike-lsp-server": "./dist/server.js"
     },
