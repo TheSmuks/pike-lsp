@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 4 of 5 (Server Grouping)
-Plan: 3 of 3 complete
-Status: Wave 2 complete - All feature handlers extracted
-Last activity: 2026-01-20 — Completed plan 04-04 (Symbols and Diagnostics Feature Handlers)
+Plan: 5 of 6 complete
+Status: Wave 3 complete - Server refactored to wiring-only
+Last activity: 2026-01-20 — Completed plan 04-05 (Hierarchy, Advanced Handlers, and Server Refactor)
 
-Progress: [█████████░░] 77% (11/13 plans complete, 3/3 in Phase 4)
+Progress: [█████████░░] 85% (12/14 plans complete, 5/6 in Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 5 min
-- Total execution time: 57 min
+- Total plans completed: 12
+- Average duration: 6 min
+- Total execution time: 65 min
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [█████████░░] 77% (11/13 plans complete, 3/3 in 
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
-| 4. Server Grouping | 3 | 3 | 4 min |
+| 4. Server Grouping | 5 | 5 | 6 min |
 | 5. Pike Reorganization | 2 | 0 | - |
 
 *Updated after each plan completion*
@@ -39,7 +39,7 @@ Progress: [█████████░░] 77% (11/13 plans complete, 3/3 in 
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03, 04-04):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03, 04-04, 04-05):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -74,6 +74,10 @@ Progress: [█████████░░] 77% (11/13 plans complete, 3/3 in 
 | 04-04-D01 | Use new Logger() instead of logger.child() | Logger class doesn't have child method, create new instance per feature |
 | 04-04-D02 | Import SymbolKind as value not type | Needed for enum member access in switch statement |
 | 04-04-D03 | Add analyzeUninitialized to BridgeManager | Exposes PikeBridge method for diagnostics feature handlers |
+| 04-05-D01 | Made BridgeManager.bridge public readonly for feature handler access | Avoids getter methods while maintaining encapsulation |
+| 04-05-D02 | Used Array.from() for DocumentCache iteration | DocumentCache is a Map subclass, needs explicit conversion for for/of loops |
+| 04-05-D03 | Added globalSettings and includePaths to Services interface | Advanced handlers need mutable access to config |
+| 04-05-D04 | Extracted defaultSettings to core/types.ts | Removes duplication with server.ts, provides single source of truth |
 
 **Design Decisions (from v2 design document):**
 
@@ -103,15 +107,15 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 04-01):**
-- No blockers - Phase 4 in progress
+**Current (as of plan 04-05):**
+- No blockers - Phase 4 nearly complete (5 of 6 plans done)
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
-- TODO: Implement Pike version detection in BridgeManager (marked in code)
+- TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 04-04 (Symbols and Diagnostics Feature Handlers)
+Stopped at: Completed plan 04-05 (Hierarchy, Advanced Handlers, and Server Refactor)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -132,6 +136,6 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 4 (Server Grouping)** - All 3 feature extraction plans complete
+1. **Phase 4 (Server Grouping)** - 5 of 6 plans complete, one remaining (04-06 health checkpoint)
 2. Phase 5 (Pike Reorganization) - 2 plans remaining
 3. Final milestone completion
