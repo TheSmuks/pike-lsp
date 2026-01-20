@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 3 of 5 (Bridge Extraction)
-Plan: 2 of 2 complete
-Status: Phase complete - PikeBridge refactored to use PikeProcess, verified PASSED (6/6 criteria)
-Last activity: 2026-01-20 — Phase 3 verified PASSED
+Phase: 4 of 5 (Server Grouping)
+Plan: 1 of 3 complete
+Status: In progress - Core infrastructure types and services created
+Last activity: 2026-01-20 — Completed plan 04-01 (Core Infrastructure)
 
-Progress: [███████░░░] 60% (3/5 phases complete)
+Progress: [████████░░░] 65% (9/13 plans complete, 1/3 in Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 5 min
-- Total execution time: 40 min
+- Total execution time: 43 min
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███████░░░] 60% (3/5 phases complete)
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
-| 4. Server Grouping | 3 | 0 | - |
+| 4. Server Grouping | 3 | 1 | 3 min |
 | 5. Pike Reorganization | 2 | 0 | - |
 
 *Updated after each plan completion*
@@ -39,7 +39,7 @@ Progress: [███████░░░] 60% (3/5 phases complete)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -62,6 +62,9 @@ Progress: [███████░░░] 60% (3/5 phases complete)
 | 03-01-D02 | PikeProcess is pure IPC wrapper, no business logic | Separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
 | 03-02-D01 | MockPikeProcess class enables isolated unit testing | Tests can run without Pike installation by simulating process behavior |
 | 03-02-D02 | PikeBridge delegates all IPC to PikeProcess | Clean separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
+| 04-01-D01 | Used type imports to avoid circular dependencies | import type prevents circular deps between services and core |
+| 04-01-D02 | DocumentCacheEntry type centralizes document state | Used by both cache and consumers, single source of truth |
+| 04-01-D03 | BridgeManager wraps PikeBridge via composition | Composition over inheritance for cleaner separation of concerns |
 
 **Design Decisions (from v2 design document):**
 
@@ -91,14 +94,15 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 03-02):**
-- No blockers - Bridge Extraction phase complete
+**Current (as of plan 04-01):**
+- No blockers - Phase 4 in progress
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
+- TODO: Implement Pike version detection in BridgeManager (marked in code)
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 03-02 (Refactor PikeBridge)
+Stopped at: Completed plan 04-01 (Core Infrastructure)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -119,6 +123,7 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 3 (Bridge Extraction) complete** - 2 of 2 plans done
-2. Continue with Phase 4 (Server Grouping) - group handlers by capability
-3. Complete Phase 5 (Pike Reorganization)
+1. **Phase 4 (Server Grouping) in progress** - 1 of 3 plans done
+2. Continue with plan 04-02 (Feature Handlers)
+3. Complete plan 04-03 (Server Refactor)
+4. Then Phase 5 (Pike Reorganization)
