@@ -48,6 +48,39 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 - [Node.js](https://nodejs.org/) 18 or higher
 - [VS Code](https://code.visualstudio.com/) 1.85+
 
+## 🔧 Compatibility
+
+### Supported Pike Versions
+
+| Version | Status | Notes |
+|---------|--------|-------|
+| Pike 8.1116 | ✅ Required | Primary target, must pass CI |
+| Pike 8.x latest | ⚠️ Best-effort | Forward compatibility check |
+| Pike 7.x | ❌ Not supported | Use Pike 8.1116 or later |
+
+### Version Testing
+
+This project uses a two-tier version support model:
+
+- **CI tests** on multiple Pike versions using a matrix strategy
+- **Required version** (8.1116) must pass to merge
+- **Latest version** failures don't block merge but are documented
+
+### Known Issues
+
+| Issue | Affected Versions | Workaround | Status |
+|-------|------------------|------------|--------|
+| None currently | - | - | - |
+
+### Version Detection
+
+The analyzer logs its detected Pike version at startup for debugging. This helps identify version-specific issues when reporting bugs.
+
+### Local Development
+
+- Contributors can develop on Pike 8.1116
+- CI handles the full version matrix automatically
+
 ## 🚀 Installation
 
 ### From VS Code Marketplace
