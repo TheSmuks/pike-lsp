@@ -965,6 +965,41 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             }
         }
 
+        // Detect local function definitions inside function bodies
+        // Pattern: type name ( ... ) { ... }
+        if (is_type_keyword(text)) {
+            int temp_idx = i + 1;
+            // Skip whitespace
+            while (temp_idx < end_idx && sizeof(LSP.Compat.trim_whites(tokens[temp_idx]->text)) == 0) temp_idx++;
+            // Check if next non-whitespace is an identifier (function name)
+            if (temp_idx < end_idx && is_identifier(tokens[temp_idx]->text)) {
+                temp_idx++;
+                // Skip whitespace
+                while (temp_idx < end_idx && sizeof(LSP.Compat.trim_whites(tokens[temp_idx]->text)) == 0) temp_idx++;
+                // Check if next is opening paren
+                if (temp_idx < end_idx && tokens[temp_idx]->text == "(") {
+                    // This looks like a function definition - find body
+                    int body_start = find_next_token(tokens, temp_idx, end_idx, "{");
+                    if (body_start >= 0) {
+                        int body_end = find_matching_brace(tokens, body_start, end_idx);
+                        if (body_end > body_start) {
+                            // Extract function parameters as initialized variables
+                            mapping(string:mapping) param_vars = extract_function_params(tokens, i, body_start);
+
+                            // Analyze local function body with parameters pre-initialized
+                            array(mapping) func_diags = analyze_function_body(
+                                tokens, lines, filename, body_start + 1, body_end, param_vars
+                            );
+                            diagnostics += func_diags;
+
+                            i = body_end + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+
         // Detect variable declarations
         if (is_type_keyword(text)) {
             // Try to parse variable declaration

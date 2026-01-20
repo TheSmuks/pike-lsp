@@ -7,6 +7,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #3415 | 4:54 PM | ✅ | Test CLAUDE.md updated with latest git staging context | ~172 |
+| #3369 | 4:36 PM | 🟣 | MockOutputChannel Unit Tests Created | ~127 |
 | #3349 | 4:25 PM | 🔄 | Extension test file updated to use MockOutputChannelImpl class name | ~214 |
 | #3347 | " | 🟣 | Test imports updated to use MockOutputChannelImpl | ~192 |
 | #3345 | " | 🔄 | MockOutputChannel test simplified to remove ViewColumn dependency | ~164 |
@@ -15,4 +17,14 @@
 | #3342 | " | 🟣 | MockOutputChannel updated to use ViewColumn type | ~196 |
 | #3341 | " | 🔄 | Test TypeScript configuration updated for monorepo structure | ~251 |
 | #3311 | 4:19 PM | 🟣 | MockOutputChannel class created for VSCode extension testing | ~312 |
+
+### Jan 20, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #4538 | 3:56 PM | ✅ | Removed lsp-smoke.test.ts from test tsconfig include | ~161 |
+| #4531 | 3:54 PM | 🟣 | Added lsp-smoke.test.ts to TypeScript test configuration | ~198 |
+| #4530 | " | 🔵 | Reviewed TypeScript test configuration | ~163 |
+| #4527 | 3:53 PM | 🟣 | Created LSP smoke test for extension startup verification | ~301 |
+| #4524 | 3:52 PM | 🔵 | Examined extension.test.ts to understand server path resolution and activation flow | ~241 |
 </claude-mem-context>

@@ -54,6 +54,15 @@ npx esbuild "$SERVER_ENTRY" \
 if [ -d "$PIKE_SCRIPTS_SRC" ]; then
     echo "  Copying pike-scripts from $PIKE_SCRIPTS_SRC"
     cp "$PIKE_SCRIPTS_SRC"/*.pike "$SERVER_DIR/pike-scripts/"
+
+    # Also copy LSP.pmod modules if they exist
+    if [ -d "$PIKE_SCRIPTS_SRC/LSP.pmod" ]; then
+        echo "  Copying LSP.pmod modules"
+        mkdir -p "$SERVER_DIR/pike-scripts/LSP.pmod"
+        # Copy both .pike and .pmod files
+        cp "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pike "$SERVER_DIR/pike-scripts/LSP.pmod/" 2>/dev/null || true
+        cp "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pmod "$SERVER_DIR/pike-scripts/LSP.pmod/" 2>/dev/null || true
+    fi
 else
     echo "ERROR: pike-scripts not found at $PIKE_SCRIPTS_SRC"
     exit 1

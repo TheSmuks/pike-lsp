@@ -1,5 +1,6 @@
 {
   "mode": "yolo",
   "depth": "comprehensive",
-  "parallel": true
+  "parallel": true,
+  "model_profile": "quality"
 }

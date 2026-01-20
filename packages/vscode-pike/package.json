@@ -122,7 +122,7 @@
         "package": "pnpm build && pnpm bundle-server && vsce package --no-dependencies",
         "typecheck": "tsc --noEmit",
         "vscode:prepublish": "pnpm build && pnpm bundle-server",
-        "test": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
+        "test": "npm run build:test && vscode-test",
         "test:unit": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
         "test:integration": "npm run build:test && node dist/test/extension.test.js"
     },
@@ -133,6 +133,7 @@
         "@types/mocha": "^10.0.10",
         "@types/node": "^20.10.0",
         "@types/vscode": "^1.85.0",
+        "@vscode/test-cli": "^0.0.12",
         "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^2.22.0",
         "esbuild": "^0.20.0",

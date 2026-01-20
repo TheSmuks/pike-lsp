@@ -13,6 +13,7 @@
     },
     "include": [
         "./mockOutputChannel.test.ts",
-        "./mockOutputChannel.ts"
+        "./mockOutputChannel.ts",
+        "./integration/**/*.ts"
     ]
 }

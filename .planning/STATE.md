@@ -10,25 +10,25 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 2 of 5 (Safety Net)
-Plan: 1 of 2 complete
-Status: Pre-push hooks operational, proceeding to smoke tests
-Last activity: 2026-01-20 — Completed plan 02-01 (Pre-push git hooks with Husky v9)
+Plan: 2 of 2 complete
+Status: Safety net operational (pre-push hooks + smoke tests), ready for CI pipeline
+Last activity: 2026-01-20 — Completed plan 02-02 (Smoke test suite)
 
-Progress: [███████░░░] 30% (1.5/5 phases complete)
+Progress: [███████░░░] 40% (2/5 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 7 min
-- Total execution time: 28 min
+- Total plans completed: 5
+- Average duration: 6 min
+- Total execution time: 31 min
 
 **By Phase:**
 
 | Phase | Plans | Complete | Avg/Plan |
 |-------|-------|----------|----------|
 | 1. Lean Observability | 3 | 3 | 8 min |
-| 2. Safety Net | 2 | 1 | 4 min |
+| 2. Safety Net | 2 | 2 | 4 min |
 | 3. Bridge Extraction | 2 | 0 | - |
 | 4. Server Grouping | 3 | 0 | - |
 | 5. Pike Reorganization | 2 | 0 | - |
@@ -39,7 +39,7 @@ Progress: [███████░░░] 30% (1.5/5 phases complete)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -52,6 +52,8 @@ Progress: [███████░░░] 30% (1.5/5 phases complete)
 | 01-03-D02 | Pike returns flat dicts, TypeScript adds layer tracking | Pike lacks stack context. make_error() returns {error, kind, msg, line} |
 | 02-01-D01 | Pre-push hook only, not pre-commit | "Green main, not green commits" philosophy - allow broken intermediate commits |
 | 02-01-D02 | Conditional smoke test validation | Hook works before smoke tests exist (plan 02-02 pending) |
+| 02-02-D01 | Smoke tests verify structure not content | Tests stay stable as implementation changes, focus on "does it crash" not "exact output" |
+| 02-02-D02 | Single bridge instance reused across tests | Faster than start/stop per test, 30 second timeout accommodates slow PikeBridge startup |
 
 **Design Decisions (from v2 design document):**
 
@@ -81,14 +83,14 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 02-01):**
-- No blockers - pre-push hooks operational, ready for smoke tests (plan 02-02)
+**Current (as of plan 02-02):**
+- No blockers - Safety net complete (pre-push hooks + smoke tests), ready for CI pipeline (plan 02-03)
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 02-01 (Pre-push git hooks with Husky v9)
+Stopped at: Completed plan 02-02 (Smoke test suite)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -109,7 +111,6 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 2 (Safety Net) in progress** - plan 02-01 complete, proceed to 02-02
-2. Execute plan 02-02 (Smoke tests) - pre-push hook will automatically validate them
-3. Execute plan 02-03 (CI pipeline)
-4. Continue through phases 3-5
+1. **Phase 2 (Safety Net) complete** - plans 02-01, 02-02 done, ready for 02-03
+2. Execute plan 02-03 (CI pipeline) - GitHub Actions workflow
+3. Continue through phases 3-5

@@ -5,7 +5,10 @@
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(grep:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npm view:*)",
+      "Bash(npx get-shit-done-cc:*)",
+      "Bash(curl:*)"
     ]
   }
 }

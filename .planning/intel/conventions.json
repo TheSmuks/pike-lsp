@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "updated": 1768944134815,
+  "naming": {},
+  "directories": {
+    "constants": {
+      "purpose": "Constants",
+      "files": 1
+    },
+    "utils": {
+      "purpose": "Utility functions",
+      "files": 3
+    },
+    "test": {
+      "purpose": "Test files",
+      "files": 1
+    },
+    "tests": {
+      "purpose": "Test files",
+      "files": 1
+    }
+  },
+  "suffixes": {}
+}

@@ -1,0 +1,284 @@
+{
+  "version": 1,
+  "updated": 1768944134815,
+  "files": {
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-analyzer/src/index.ts": {
+      "exports": [
+        "SymbolTable"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-analyzer/src/symbols.ts": {
+      "exports": [
+        "SymbolTable"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts": {
+      "exports": [
+        "PikeBridge",
+        "PikeBridgeOptions",
+        "BridgeHealthCheck"
+      ],
+      "imports": [
+        "child_process",
+        "events",
+        "path",
+        "readline",
+        "url",
+        "@pike-lsp/pike-bridge/types",
+        "@pike-lsp/pike-bridge/constants"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/constants.ts": {
+      "exports": [
+        "BRIDGE_TIMEOUT_DEFAULT",
+        "BATCH_PARSE_MAX_SIZE"
+      ],
+      "imports": [],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/index.ts": {
+      "exports": [],
+      "imports": [
+        "./types.js",
+        "./bridge.js",
+        "./constants.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/types.ts": {
+      "exports": [
+        "PikePosition",
+        "PikeType",
+        "PikeSymbol",
+        "PikeToken",
+        "PikeDiagnostic",
+        "PikeParseResult",
+        "IntrospectionResult",
+        "StdlibResolveResult",
+        "CompletionContext",
+        "PikeRequest",
+        "PikeResponse"
+      ],
+      "imports": [],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/constants/index.ts": {
+      "exports": [
+        "PARSER_MAX_ITERATIONS",
+        "BATCH_PARSE_MAX_SIZE",
+        "VALIDATION_DELAY_DEFAULT",
+        "MAX_CACHED_PROGRAMS",
+        "MAX_STDLIB_MODULES",
+        "BRIDGE_TIMEOUT_DEFAULT",
+        "MAX_DOCUMENT_CACHE_SIZE",
+        "MAX_FILE_SIZE",
+        "TYPE_DB_MAX_MEMORY_BYTES",
+        "DEFAULT_MAX_PROBLEMS",
+        "DIAGNOSTIC_DELAY_DEFAULT",
+        "LSP"
+      ],
+      "imports": [],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts": {
+      "exports": [],
+      "imports": [
+        "vscode-languageserver",
+        "vscode-languageserver/textdocument",
+        "@pike-lsp/pike-bridge",
+        "@pike-lsp/pike-bridge/types"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/stdlib-index.ts": {
+      "exports": [
+        "StdlibIndexManager",
+        "StdlibModuleInfo"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge",
+        "@pike-lsp/pike-bridge/types",
+        "./constants/index.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/test-server.ts": {
+      "exports": [],
+      "imports": [
+        "@pike-lsp/pike-bridge"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/type-database.ts": {
+      "exports": [
+        "TypeDatabase",
+        "CompiledProgramInfo",
+        "Position",
+        "SymbolLocation",
+        "InferenceContext"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge",
+        "@pike-lsp/pike-bridge/types",
+        "./constants/index.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/workspace-index.ts": {
+      "exports": [
+        "WorkspaceIndex",
+        "IndexedDocument",
+        "SymbolEntry",
+        "IndexErrorCallback"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge",
+        "vscode-languageserver",
+        "fs",
+        "path",
+        "./constants/index.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/utils/code-lens.ts": {
+      "exports": [
+        "buildCodeLensCommand"
+      ],
+      "imports": [
+        "vscode-languageserver"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/utils/regex-patterns.ts": {
+      "exports": [
+        "COMMENT_PATTERNS",
+        "INDENT_PATTERNS",
+        "IDENTIFIER_PATTERNS",
+        "PATH_PATTERNS",
+        "PatternHelpers"
+      ],
+      "imports": [],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/utils/validation.ts": {
+      "exports": [
+        "isPikePosition",
+        "isPikeDiagnostic",
+        "isPikeSymbol",
+        "isPikeParseResult",
+        "isTokenOccurrence",
+        "isFindOccurrencesResult",
+        "isBatchParseFileResult",
+        "isBatchParseResult",
+        "validatePikeResponse",
+        "safeArray"
+      ],
+      "imports": [
+        "@pike-lsp/pike-bridge"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts": {
+      "exports": [
+        "activate",
+        "deactivate",
+        "activateForTesting",
+        "ExtensionApi",
+        "addModulePathSetting"
+      ],
+      "imports": [
+        "path",
+        "fs",
+        "vscode",
+        "vscode-languageclient/node"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/test/mockOutputChannel.ts": {
+      "exports": [
+        "MockOutputChannel",
+        "MockOutputChannelImpl",
+        "createMockOutputChannel"
+      ],
+      "imports": [],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/test-e2e-server.js": {
+      "exports": [],
+      "imports": [
+        "child_process",
+        "path"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/test-batch-parse.mjs": {
+      "exports": [],
+      "imports": [
+        "./packages/pike-bridge/dist/index.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/test-parser.mjs": {
+      "exports": [],
+      "imports": [
+        "./packages/pike-bridge/dist/index.js"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/test-pgp-introspection.js": {
+      "exports": [],
+      "imports": [
+        "fs",
+        "path",
+        "child_process"
+      ],
+      "indexed": 1737360330000
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/core/errors.ts": {
+      "exports": [
+        "LSPError",
+        "BridgeError",
+        "PikeError",
+        "ErrorLayer"
+      ],
+      "imports": [],
+      "indexed": 1768939518257
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/core/logging.ts": {
+      "exports": [
+        "Logger"
+      ],
+      "imports": [],
+      "indexed": 1768939453075
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/core/index.ts": {
+      "exports": [
+        "LSPError",
+        "BridgeError",
+        "PikeError",
+        "Logger",
+        "LogLevel"
+      ],
+      "imports": [],
+      "indexed": 1768939582885
+    },
+    "/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/tests/smoke.test.ts": {
+      "exports": [],
+      "imports": [
+        "node:test",
+        "node:assert/strict",
+        "@pike-lsp/pike-bridge"
+      ],
+      "indexed": 1768944134815
+    }
+  }
+}

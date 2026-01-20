@@ -43,3 +43,30 @@ void test_mapping_init() {
 void test_params(string param) {
     write("%s\n", param);  // OK: param is initialized
 }
+
+// Local function with parameters - should NOT warn
+void test_local_function() {
+    // Local function inside another function
+    void helper(string file, string msg) {
+        write("%s: %s\n", file, msg);  // OK: file and msg are parameters
+    }
+
+    helper("test", "message");  // OK
+}
+
+// Local function using outer scope variables - should NOT warn
+void test_local_closure() {
+    array diagnostics = ({});
+
+    void capture_error(string file, int line, string msg) {
+        // file, line, msg are parameters - OK
+        // diagnostics is from outer scope - OK (closure)
+        diagnostics += ([
+            "message": msg,
+            "file": file,
+            "line": line
+        ]);
+    }
+
+    capture_error("file.pike", 1, "error");  // OK
+}

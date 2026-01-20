@@ -1,87 +1,89 @@
-# Pike LSP Analyzer Refactoring
+# Pike LSP - Project Overview
 
 ## What This Is
 
-Refactor the monolithic `analyzer.pike` (3,221 lines) into a modular Pike codebase following stdlib conventions. The LSP analyzer provides parsing, symbol extraction, and code intelligence for Pike language support in VSCode. Uses JSON-RPC over stdin/stdout for communication.
+A Language Server Protocol implementation for Pike, providing code intelligence (hover, completion, go-to-definition, diagnostics) in VSCode and other LSP-compatible editors.
 
-## Core Value
+## Current Milestone: v2 - LSP Modularization
 
-**Modularity without breaking functionality** - each handler independently testable and maintainable, supporting multiple Pike versions (7.6, 7.8, 8.0.x+) through graceful feature detection and polyfills.
+**Started:** 2026-01-20
+**Status:** Planning
+**Core Value:** Safety without rigidity - solve actual pain points without over-engineering
+
+### Goals
+
+1. **Debuggability** - Know where errors occur (bridge? parser? server?)
+2. **Testability** - Test components in isolation
+3. **Maintainability** - Navigate and modify without touching unrelated code
+4. **Reliability** - Guardrails prevent broken code from reaching main
+
+### What Changed from v1
+
+The v1 milestone focused on Pike-side modularization (splitting analyzer.pike into LSP.pmod modules). v2 focuses on TypeScript-side infrastructure:
+
+| Aspect | v1 (Pike Refactor) | v2 (LSP Modularization) |
+|--------|-------------------|------------------------|
+| Focus | Pike code organization | TypeScript infrastructure |
+| Error handling | Per-handler catch blocks | Cross-layer error chains |
+| Testing | Module unit tests | E2E smoke tests + CI |
+| Bridge | Unchanged | IPC extraction + policy split |
+| Server | Unchanged | Capability-based grouping |
+
+### Philosophy
+
+**Infrastructure-First with Pragmatic Implementation:**
+- Establish observability before major refactoring
+- Pre-push hooks (not pre-commit) for safety without friction
+- TypeScript error chains, Pike flat dicts (no over-engineering)
+- Group by capability (navigation, editing) not by verb (hover, definition)
+- 3-4 Pike files per .pmod, not 8 micro-modules
 
 ## Requirements
 
-### Validated
+See: `.planning/REQUIREMENTS.md` (65 v2 requirements)
 
-- ✓ JSON-RPC server with 12 LSP methods — existing
-- ✓ Pike source parsing with Parser.Pike — existing
-- ✓ Symbol extraction and introspection — existing
-- ✓ Stdlib module resolution — existing
-- ✓ Token-based analysis (occurrences, completion) — existing
+## Roadmap
 
-### Active
+See: `.planning/ROADMAP.md` (5 phases)
 
-- [ ] Modularize analyzer.pike into LSP.pmod/ directory structure
-- [ ] Create LSP.pmod/module.pmod with shared utilities and constants
-- [ ] Create LSP.pmod/Compat.pmod for version compatibility layer
-- [ ] Extract Parser.pike (parse, tokenize, compile, batch_parse handlers)
-- [ ] Extract Intelligence.pike (introspect, resolve, stdlib, inherited handlers)
-- [ ] Extract Analysis.pike (occurrences, uninitialized, completion handlers)
-- [ ] Extract Cache.pmod (program cache, stdlib cache, LRU utilities)
-- [ ] Add version detection for Pike 7.6, 7.8, 8.0.x, and newer
-- [ ] Add feature detection and polyfills for missing functions
-- [ ] Ensure error isolation (handler failures don't crash entire server)
-- [ ] Write tests for individual modules
+1. **Phase 1: Lean Observability** - Error tracking and structured logging
+2. **Phase 2: Safety Net** - Pre-push hooks, smoke tests, CI
+3. **Phase 3: Bridge Extraction** - Isolate IPC from business logic
+4. **Phase 4: Server Grouping** - Split server.ts by capability
+5. **Phase 5: Pike Reorganization** - Split Pike files using .pmod
 
-### Out of Scope
+## Architecture
 
-- Changing JSON-RPC protocol — keep compatibility with existing bridge
-- Rewriting algorithm logic — focus on organization, not new features
-- Performance optimization beyond what modularization naturally provides
+```
+VSCode Extension (vscode-pike)
+    |
+    v
+TypeScript LSP Server (pike-lsp-server)
+    |                    \
+    v                     \--> features/  (navigation.ts, editing.ts, ...)
+PikeBridge (pike-bridge)       services/  (bridge-manager.ts, ...)
+    |                          core/      (errors.ts, logging.ts)
+    v
+Pike Analyzer (pike-scripts/analyzer.pike)
+    |
+    v
+LSP Modules (LSP.pmod/)
+    |-- Intelligence.pmod/  (Introspection, Resolution, TypeAnalysis)
+    |-- Analysis.pmod/      (Diagnostics, Completions, Variables)
+    |-- Parser.pike
+    |-- Cache.pmod
+    \-- Compat.pmod
+```
 
-## Context
+## Previous Milestones
 
-**Current state:**
-- Single 3,221-line `analyzer.pike` file
-- All 12 handler functions in one place
-- Shared utilities (caches, debug logging, trim functions) mixed with handlers
-- Hard to test individual components
-- Error in one handler can affect others
+### v1: Pike LSP Analyzer Refactoring (Complete)
 
-**Target Pike versions:**
-- Pike 7.6 (older stdlib, fewer features)
-- Pike 7.8 (intermediate version)
-- Pike 8.0.x (current, has String.trim_whites, Parser.Pike enhancements)
-- Future 8.x versions (forward compatibility)
+**Completed:** 2026-01-20
+**Duration:** ~4 hours (30 plans)
+**Outcome:** Split 3,221-line analyzer.pike into modular LSP.pmod structure
 
-**Existing patterns to follow:**
-- Pike stdlib uses `.pmod/` directories for namespaced modules
-- `module.pmod` contains shared constants, enums, helper functions
-- `#if constant(...)` for feature detection
-- `#pike __REAL_VERSION__` for version-specific code
-- Protected functions for internal implementation
-
-**Technical constraints:**
-- Must maintain JSON-RPC protocol compatibility with TypeScript bridge
-- Graceful degradation when features unavailable
-- No breaking changes to existing VSCode extension
-
-## Constraints
-
-- **Pike versions**: Must support 7.6, 7.8, 8.0.x, and forward-compatible with newer versions
-- **Protocol**: JSON-RPC over stdin/stdout cannot change
-- **Compatibility**: Existing VSCode extension must work without modification
-- **File locations**: pike-scripts/ directory, bundled into extension
-- **Testing**: Should enable module-level testing without full server
-
-## Key Decisions
-
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Use LSP.pmod/ directory structure | Follows Pike stdlib conventions; clean namespace separation | — Pending |
-| Create Compat.pmod for version handling | Centralized feature detection and polyfills; easier maintenance | — Pending |
-| Keep main analyzer.pike as entry point | Minimal changes to bridge; JSON-RPC routing stays in familiar place | — Pending |
-| Four module files (Parser, Intelligence, Analysis, Cache) | Balanced granularity - not too many files, logical grouping | — Pending |
-| Use #if constant() for feature detection | Pike stdlib pattern; works at compile time | — Pending |
+Archived at: `.planning/milestones/v1-pike-refactoring/`
 
 ---
-*Last updated: 2025-01-19 after initialization*
+*Last updated: 2026-01-20*
