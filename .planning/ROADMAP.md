@@ -128,21 +128,31 @@ Plans:
 
 ### Phase 5: Verification
 
-**Goal**: Validate the refactored codebase runs correctly on all target Pike versions (7.6, 7.8, 8.0.x) with comprehensive cross-version testing.
+**Goal**: Validate the refactored codebase runs correctly on target Pike versions with comprehensive cross-version testing and CI automation.
 
 **Depends on**: Phase 4 (all modules extracted and entry point refactored)
 
 **Requirements**: VER-01, VER-02, VER-03, VER-06, QLT-06
 
-**Success Criteria** (what must be TRUE):
-1. All handlers execute successfully on Pike 7.6 with Compat polyfills
-2. All handlers execute successfully on Pike 7.8 with Compat polyfills
-3. All handlers execute successfully on Pike 8.0.x using native implementations where available
-4. Version detection logged at startup for debugging
-5. Cross-version tests verify all 12 LSP methods on each target version
-6. Module loading tested and verified on all three target versions
+**Note on Version Support:**
+Original ROADMAP mentioned Pike 7.6, 7.8, and 8.0.x. CONTEXT.md updated this to Pike 8.1116 (required) and latest stable (best-effort) based on practical availability on Ubuntu 24.04 CI. Older Pike versions (7.6/7.8) are not available in modern Linux distributions.
 
-**Plans**: TBD
+**Success Criteria** (what must be TRUE):
+1. All handlers execute successfully on Pike 8.1116 (current stable target)
+2. Latest Pike version tested with continue-on-error (best-effort forward compatibility)
+3. Compat.pmod provides unified API across versions
+4. Version detection logged at startup for debugging
+5. Cross-version tests verify all 12 LSP methods on target versions
+6. Module loading tested and verified via CI
+
+**Plans**: 5 plans (5 autonomous, 3 waves)
+
+Plans:
+- [ ] 05-01-PLAN.md — Create module loading smoke tests (Wave 1)
+- [ ] 05-02-PLAN.md — Extend CI with Pike version matrix and test runner (Wave 1)
+- [ ] 05-03-PLAN.md — Add compatibility documentation to README and CONTRIBUTING (Wave 2)
+- [ ] 05-04-PLAN.md — Create cross-version handler tests (Wave 2)
+- [ ] 05-05-PLAN.md — Run complete test suite and create verification report (Wave 3)
 
 ## Progress
 
@@ -155,4 +165,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Parser Module | 3/3 | Complete | 2026-01-19 |
 | 3. Intelligence Module | 4/4 | Complete | 2026-01-19 |
 | 4. Analysis & Entry Point | 6/6 | Complete | 2026-01-19 |
-| 5. Verification | 0/TBD | Not started | - |
+| 5. Verification | 0/5 | Not started | - |
