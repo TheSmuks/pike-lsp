@@ -9,7 +9,7 @@
         "build": "tsc",
         "clean": "rm -rf dist",
         "watch": "tsc --watch",
-        "test": "pnpm build && node --test dist/bridge.test.js",
+        "test": "pnpm build && node --test dist/process.test.js dist/bridge.test.js",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {},
