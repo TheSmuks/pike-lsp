@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 4 of 5 (Server Grouping)
-Plan: 1 of 3 complete
-Status: In progress - Core infrastructure types and services created
-Last activity: 2026-01-20 — Completed plan 04-01 (Core Infrastructure)
+Plan: 2 of 3 complete
+Status: In progress - Feature extraction progressing
+Last activity: 2026-01-20 — Completed plan 04-02 (Navigation Feature Handlers)
 
-Progress: [████████░░░] 65% (9/13 plans complete, 1/3 in Phase 4)
+Progress: [█████████░░] 69% (10/13 plans complete, 2/3 in Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 5 min
-- Total execution time: 43 min
+- Total execution time: 48 min
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [████████░░░] 65% (9/13 plans complete, 1/3 in P
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
-| 4. Server Grouping | 3 | 1 | 3 min |
+| 4. Server Grouping | 3 | 2 | 4 min |
 | 5. Pike Reorganization | 2 | 0 | - |
 
 *Updated after each plan completion*
@@ -39,7 +39,7 @@ Progress: [████████░░░] 65% (9/13 plans complete, 1/3 in P
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -65,6 +65,9 @@ Progress: [████████░░░] 65% (9/13 plans complete, 1/3 in P
 | 04-01-D01 | Used type imports to avoid circular dependencies | import type prevents circular deps between services and core |
 | 04-01-D02 | DocumentCacheEntry type centralizes document state | Used by both cache and consumers, single source of truth |
 | 04-01-D03 | BridgeManager wraps PikeBridge via composition | Composition over inheritance for cleaner separation of concerns |
+| 04-02-D01 | Navigation handlers receive Services bundle + TextDocuments | Clean dependency injection without accessing global documents |
+| 04-02-D02 | Helper functions kept in navigation.ts module | Module cohesion - related functions co-located with their handlers |
+| 04-02-D03 | Used Array.from() for DocumentCache.entries() iteration | Avoids downlevelIteration compilation issues with ES5 target |
 
 **Design Decisions (from v2 design document):**
 
@@ -102,7 +105,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 04-01 (Core Infrastructure)
+Stopped at: Completed plan 04-02 (Navigation Feature Handlers)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -123,7 +126,6 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 4 (Server Grouping) in progress** - 1 of 3 plans done
-2. Continue with plan 04-02 (Feature Handlers)
-3. Complete plan 04-03 (Server Refactor)
-4. Then Phase 5 (Pike Reorganization)
+1. **Phase 4 (Server Grouping) in progress** - 2 of 3 plans done
+2. Continue with plan 04-03 (Server Refactor)
+3. Then Phase 5 (Pike Reorganization)
