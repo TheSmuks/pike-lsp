@@ -9,26 +9,26 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 2 of 5 (Safety Net)
-Plan: 2 of 2 complete
-Status: Safety net operational (pre-push hooks + smoke tests), ready for CI pipeline
-Last activity: 2026-01-20 — Completed plan 02-02 (Smoke test suite)
+Phase: 3 of 5 (Bridge Extraction)
+Plan: 0 of 2 complete
+Status: Safety Net phase complete (pre-push hooks + smoke tests + CI), ready for Bridge Extraction
+Last activity: 2026-01-20 — Completed plan 02-03 (CI Pipeline)
 
-Progress: [███████░░░] 40% (2/5 phases complete)
+Progress: [████████░░] 40% (2/5 phases complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 6 min
-- Total execution time: 31 min
+- Total plans completed: 6
+- Average duration: 5 min
+- Total execution time: 33 min
 
 **By Phase:**
 
 | Phase | Plans | Complete | Avg/Plan |
 |-------|-------|----------|----------|
 | 1. Lean Observability | 3 | 3 | 8 min |
-| 2. Safety Net | 2 | 2 | 4 min |
+| 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 0 | - |
 | 4. Server Grouping | 3 | 0 | - |
 | 5. Pike Reorganization | 2 | 0 | - |
@@ -39,7 +39,7 @@ Progress: [███████░░░] 40% (2/5 phases complete)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -54,6 +54,10 @@ Progress: [███████░░░] 40% (2/5 phases complete)
 | 02-01-D02 | Conditional smoke test validation | Hook works before smoke tests exist (plan 02-02 pending) |
 | 02-02-D01 | Smoke tests verify structure not content | Tests stay stable as implementation changes, focus on "does it crash" not "exact output" |
 | 02-02-D02 | Single bridge instance reused across tests | Faster than start/stop per test, 30 second timeout accommodates slow PikeBridge startup |
+| 02-03-D01 | Pike 8.0 from apt for main CI test job | Reliable, matches production environment |
+| 02-03-D02 | Smoke tests run after unit tests in CI | Fast feedback loop, keeps related tests grouped |
+| 02-03-D03 | VSCode E2E job waits for unit tests | Job dependency via needs: [test, pike-test] ensures E2E only runs if unit tests pass |
+| 02-03-D04 | xvfb-run wraps VSCode E2E tests | Provides X11 display for headless Linux CI environment |
 
 **Design Decisions (from v2 design document):**
 
@@ -83,14 +87,14 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 02-02):**
-- No blockers - Safety net complete (pre-push hooks + smoke tests), ready for CI pipeline (plan 02-03)
+**Current (as of plan 02-03):**
+- No blockers - Safety Net phase complete (pre-push hooks + smoke tests + CI)
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 02-02 (Smoke test suite)
+Stopped at: Completed plan 02-03 (CI Pipeline)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -111,6 +115,7 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 2 (Safety Net) complete** - plans 02-01, 02-02 done, ready for 02-03
-2. Execute plan 02-03 (CI pipeline) - GitHub Actions workflow
-3. Continue through phases 3-5
+1. **Phase 2 (Safety Net) complete** - all 3 plans done (pre-push hooks, smoke tests, CI pipeline)
+2. Run `/gsd:plan-phase 3` to create plans for Bridge Extraction
+3. Execute Phase 3 plans (extract introspection, extract resolution handlers)
+4. Continue through phases 4-5
