@@ -12,9 +12,7 @@
         "test": "pnpm build && node --test dist/bridge.test.js",
         "typecheck": "tsc --noEmit"
     },
-    "dependencies": {
-        "@pike-lsp/pike-lsp-server": "workspace:*"
-    },
+    "dependencies": {},
     "devDependencies": {
         "@types/node": "^20.10.0",
         "typescript": "^5.3.0"

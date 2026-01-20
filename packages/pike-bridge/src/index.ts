@@ -9,6 +9,10 @@ export * from './types.js';
 export * from './bridge.js';
 export * from './constants.js';
 
-// Re-export PikeError for consumers who need to catch Pike subprocess errors
-export { PikeError } from '@pike-lsp/pike-lsp-server/core';
+// Export error types for consumers who need to catch Pike subprocess errors
+export { PikeError, LSPError } from './errors.js';
+export type { ErrorLayer } from './errors.js';
+
+// Export Logger for consumers who need logging
+export { Logger, LogLevel } from './logging.js';
 
