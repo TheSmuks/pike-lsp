@@ -32,6 +32,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Install Pike
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pike8.0
+
+      - name: Verify Pike installation
+        run: |
+          pike --version
+          which pike
+
       - name: Build all packages
         run: pnpm build
 
@@ -40,6 +50,9 @@ jobs:
 
       - name: Run LSP Server tests
         run: pnpm --filter @pike-lsp/pike-lsp-server test
+
+      - name: Run LSP smoke tests
+        run: pnpm --filter @pike-lsp/pike-lsp-server test:smoke
 
       - name: Run integration tests
         run: pnpm --filter @pike-lsp/pike-lsp-server test:integration
@@ -168,3 +181,39 @@ jobs:
           path: packages/vscode-pike/vscode-pike-*.vsix
           retention-days: 30
           if-no-files-found: error
+
+  vscode-e2e:
+    runs-on: ubuntu-24.04
+    needs: [test, pike-test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: pnpm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb pike8.0
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Build VSCode extension tests
+        run: pnpm --filter vscode-pike build:test
+
+      - name: Run VSCode E2E tests
+        run: xvfb-run --auto-servernum pnpm --filter vscode-pike test
