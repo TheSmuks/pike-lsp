@@ -469,8 +469,8 @@ connection.onInitialized(async () => {
     connection.console.log('Pike LSP Server initialized');
     connection.client.register(DidChangeConfigurationNotification.type, undefined);
 
-    // Register health check command
-    connection.workspace.onExecuteCommand(async (params) => {
+    // Register health check command handler
+    connection.onExecuteCommand(async (params) => {
         if (params.command === 'pike.lsp.showDiagnostics') {
             const health = await bridgeManager?.getHealth();
 
