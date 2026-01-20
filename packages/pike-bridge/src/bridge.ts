@@ -177,10 +177,10 @@ export class PikeBridge extends EventEmitter {
                         const isSuppressed = suppressedPatterns.some(p => p.test(message));
 
                         if (!isSuppressed) {
-                            this.debugLog(`STDERR: ${message}`);
+                            this.logger.debug('Pike stderr', { raw: message });
                             this.emit('stderr', message);
                         } else {
-                            this.debugLog(`STDERR (suppressed): ${message}`);
+                            this.logger.trace('Pike stderr (suppressed)', { raw: message });
                         }
                     }
                 });
