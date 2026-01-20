@@ -19,6 +19,7 @@ import type {
     PikeResponse,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
+import { Logger } from '@pike-lsp/pike-lsp-server/core';
 
 /**
  * Configuration options for the PikeBridge.
@@ -83,6 +84,7 @@ export class PikeBridge extends EventEmitter {
     private readline: readline.Interface | null = null;
     private readonly options: Required<PikeBridgeOptions>;
     private started = false;
+    private readonly logger = new Logger('PikeBridge');
     private debugLog: (message: string) => void;
 
     constructor(options: PikeBridgeOptions = {}) {
