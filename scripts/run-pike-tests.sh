@@ -58,29 +58,33 @@ run_test() {
     echo ""
 }
 
-# Test 1: Module loading tests (FAIL FAST)
+# Test 1: End-to-End Smoke Test (FAIL FAST)
+# Validates file compilation, module loading, LSP server startup, and handler responses
+run_test "test/tests/smoke-test.pike" "End-to-End Smoke Test"
+
+# Test 2: Module loading tests
 # E2E foundation tests include module loading tests
 run_test "test/tests/e2e-foundation-tests.pike" "Module Loading Tests (E2E)"
 
-# Test 2: Foundation tests
+# Test 3: Foundation tests
 run_test "test/tests/foundation-tests.pike" "Foundation Unit Tests"
 
-# Test 3: Parser tests
+# Test 4: Parser tests
 run_test "test/tests/parser-tests.pike" "Parser Tests"
 
-# Test 4: Intelligence tests
+# Test 5: Intelligence tests
 run_test "test/tests/intelligence-tests.pike" "Intelligence Tests"
 
-# Test 5: Analysis tests
+# Test 6: Analysis tests
 run_test "test/tests/analysis-tests.pike" "Analysis Tests"
 
-# Test 6: Response format tests
+# Test 7: Response format tests
 run_test "test/tests/response-format-tests.pike" "Response Format Tests"
 
-# Test 7: Cross-version handler validation
+# Test 8: Cross-version handler validation
 run_test "test/tests/cross-version-tests.pike" "Cross-Version Handler Tests"
 
-# Test 8: E2E foundation tests (run again for complete coverage)
+# Test 9: E2E foundation tests (run again for complete coverage)
 # Note: We already ran module loading tests at the start
 # This runs the full E2E suite
 # run_test "test/tests/e2e-foundation-tests.pike" "E2E Foundation Tests (Full)"

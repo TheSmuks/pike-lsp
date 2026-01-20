@@ -171,6 +171,62 @@ describe('Your Feature', () => {
 - **When adding compat shims:** Test on both versions if possible
 - **Version-specific issues:** Add to Known Issues table in README.md
 
+## 🔍 Pre-Merge Verification Checklist
+
+Before submitting any pull request, complete these steps.
+
+### Required (ALL PRs)
+
+- [ ] **Run smoke test**: `pike test/tests/smoke-test.pike`
+  - Verify all 7 Pike files compile standalone
+  - Verify all 6 LSP modules load successfully
+  - Verify LSP server starts without errors
+  - Verify all 11 LSP handlers return valid JSON-RPC responses
+
+- [ ] **Run full test suite**: `./scripts/run-pike-tests.sh`
+  - All 111+ tests must pass
+  - CI must pass on Pike 8.1116 (required)
+
+- [ ] **If changing Pike scripts**: Rebundle extension
+  - Run: `pnpm build` (calls bundle-server.sh)
+  - Verify extension bundle includes updated pike-scripts
+
+### Required for LSP Feature Changes
+
+**CRITICAL**: Phase 5 had 111 passing tests but actual LSP functionality was never verified. To prevent this gap, manual LSP feature testing is REQUIRED for any PR that affects LSP behavior.
+
+- [ ] **Manual extension test**: `cd packages/vscode-pike && pnpm package && code --install-extension pike-language-server-*.vsix --force`
+
+Then in VS Code with a Pike test file:
+  - [ ] Open Pike file -> no crash (SC-04)
+  - [ ] Type `Array.` -> completion shows stdlib methods (SC-05)
+  - [ ] Type user-defined symbol name -> completion works (SC-06)
+  - [ ] Hover over symbol -> type information shown (SC-07)
+  - [ ] Ctrl+click symbol -> navigates to definition (SC-08)
+
+All five checks MUST pass before merging.
+
+### Required for Pike Script Changes
+
+- [ ] **Standalone compilation test**: `pike -e 'write("%d", programp(compile_file("your-file.pike")));'`
+  - Must return 1 (valid program)
+
+- [ ] **Module loading test**: After adding module path, verify `master()->resolv("LSP.YourModule")` returns non-null
+
+- [ ] **Handler test**: Verify handler returns mapping with "result" field
+
+### Common Failure Patterns
+
+| Symptom | Likely Cause | Fix |
+|---------|--------------|-----|
+| compile_file() fails | Syntax error or missing import | Check Pike syntax, verify imports |
+| master()->resolv() fails | Module path not set or wrong name | Call add_module_path() first, check module name |
+| Handler returns error | Missing dependency or exception | Check handler logic, verify cache/parser available |
+| Tests pass but extension fails | Bundle not rebuilt | Run `pnpm build` to rebundle |
+| LSP features don't work | Handler logic broken | Verify handler returns correct JSON-RPC structure |
+
+> **Why this matters**: Phase 5 had 111 passing tests but actual LSP functionality (completion, hover, go-to-definition) was never verified. This checklist prevents that gap by requiring end-to-end verification before merges.
+
 ## 📝 Code Style
 
 ### TypeScript
