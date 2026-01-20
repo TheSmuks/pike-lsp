@@ -75,9 +75,12 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 **Deliverables:**
 - `.husky/pre-push`
 - `packages/pike-lsp-server/src/tests/smoke.test.ts`
-- `.github/workflows/ci.yml`
+- Extended `.github/workflows/test.yml` with Pike, smoke tests, and xvfb
 
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
+- [ ] 02-01-PLAN.md — Pre-push hook with Husky v9 (validates build, Pike, smoke tests)
+- [ ] 02-02-PLAN.md — Smoke test suite (bridge lifecycle, parse, introspect, error handling)
+- [ ] 02-03-PLAN.md — CI pipeline extension (Pike installation, smoke tests, xvfb for E2E)
 
 ---
 
@@ -95,7 +98,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 1. `PikeProcess` class exists in `packages/pike-bridge/src/process.ts`
 2. PikeProcess handles spawn, readline, events (message, stderr, exit, error)
 3. PikeProcess can be tested in isolation (pure IPC mechanics)
-4. `PikeBridge` refactored to use PikeProcess internally
+4. `PikeBridge` refactored to use `PikeProcess` internally
 5. PikeBridge handles request/response correlation, timeouts, error wrapping
 6. PikeBridge can be tested with mock PikeProcess (policy logic only)
 
@@ -175,12 +178,12 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
-| 2. Safety Net | 0/? | Planned | - |
+| 2. Safety Net | 0/3 | Planned | - |
 | 3. Bridge Extraction | 0/? | Planned | - |
 | 4. Server Grouping | 0/? | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Phase 1 complete, ready to execute Phase 2
+**Project Status:** Phase 1 complete, Phase 2 plans created, ready for execution
 
 **v2 Requirements:**
 - Total: 65
@@ -189,4 +192,5 @@ Each phase produces working code. Can pause at any phase without breaking the co
 
 ---
 *Roadmap created: 2026-01-20*
+*Last updated: 2026-01-20*
 *Source: LSP Modularization Design v2 (Middle Ground)*
