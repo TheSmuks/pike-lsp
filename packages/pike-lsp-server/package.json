@@ -13,6 +13,7 @@
         "clean": "rm -rf dist",
         "watch": "tsc --watch",
         "test": "pnpm build && node --test dist/workspace-index.test.js",
+        "test:smoke": "pnpm build && node --test dist/tests/smoke.test.js",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
