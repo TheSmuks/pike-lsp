@@ -145,6 +145,14 @@ export class BridgeManager {
     }
 
     /**
+     * Analyze uninitialized variable usage.
+     */
+    async analyzeUninitialized(text: string, filename: string) {
+        if (!this.bridge) throw new Error('Bridge not available');
+        return this.bridge.analyzeUninitialized(text, filename);
+    }
+
+    /**
      * Register event handler on the underlying bridge.
      */
     on(event: string, handler: (...args: any[]) => void): void {
