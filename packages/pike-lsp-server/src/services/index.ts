@@ -11,6 +11,7 @@ import type { BridgeManager } from './bridge-manager.js';
 import type { TypeDatabase } from '../type-database.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
+import type { PikeSettings } from '../core/types.js';
 
 /**
  * Services interface bundles all service dependencies.
@@ -31,6 +32,10 @@ export interface Services {
     workspaceIndex: WorkspaceIndex;
     /** Stdlib index manager for standard library symbols */
     stdlibIndex: StdlibIndexManager | null;
+    /** Global LSP settings (mutable, updated by configuration changes) */
+    globalSettings: PikeSettings;
+    /** Include paths for module resolution (mutable, updated by configuration changes) */
+    includePaths: string[];
 }
 
 // Re-export for convenience
