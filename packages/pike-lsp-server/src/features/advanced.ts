@@ -25,11 +25,9 @@ import {
     CodeAction,
     CodeActionKind,
     TextEdit,
-    Range,
     Position,
     DocumentLink,
     CodeLens,
-    SymbolKind,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
@@ -37,11 +35,11 @@ import * as path from 'path';
 import * as fsSync from 'fs';
 
 import type { Services } from '../services/index.js';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { INDENT_PATTERNS, PatternHelpers } from '../utils/regex-patterns.js';
 import { buildCodeLensCommand } from '../utils/code-lens.js';
 import { Logger } from '../core/logging.js';
 import type { PikeSettings } from '../core/types.js';
+import type { DocumentCache } from '../services/document-cache.js';
 
 // Semantic tokens legend (shared with server.ts, will be refactored later)
 const tokenTypes = [
@@ -70,7 +68,7 @@ export function registerAdvancedHandlers(
     connection: Connection,
     services: Services,
     documents: TextDocuments<TextDocument>,
-    globalSettings: PikeSettings,
+    _globalSettings: PikeSettings,
     includePaths: string[]
 ): void {
     const { documentCache } = services;
@@ -628,7 +626,7 @@ export function registerAdvancedHandlers(
             const links: DocumentLink[] = [];
             const text = document.getText();
             const lines = text.split('\n');
-            const documentDir = getDocumentDirectory(params.textDocument.uri);
+            const documentDir = _getDocumentDirectory(params.textDocument.uri);
 
             const inheritRegex = /inherit\s+([A-Z][\w.]*)/g;
             const includeRegex = /#include\s+"([^"]+)"/g;
@@ -773,7 +771,8 @@ export function registerAdvancedHandlers(
                 refCount = positions?.length ?? 0;
             }
 
-            for (const [uri, cache] of documentCache) {
+            const entries = Array.from(documentCache.entries());
+            for (const [uri, cache] of entries) {
                 if (uri !== data.uri && cache.symbolPositions) {
                     const positions = cache.symbolPositions.get(data.symbolName);
                     if (positions) {
@@ -894,11 +893,12 @@ function formatPikeCode(text: string, indent: string, startLine: number = 0): Te
  */
 function resolveModulePath(
     modulePath: string,
-    documentDir: string,
-    documentCache: Map<string, unknown>
+    _documentDir: string,
+    documentCache: DocumentCache
 ): { target: string; tooltip: string } | null {
-    const workspaceUris = Array.from(documentCache.keys());
-    for (const uri of workspaceUris) {
+    // Iterate through document cache entries
+    const entries = Array.from(documentCache.keys());
+    for (const uri of entries) {
         if (uri.includes(modulePath) || uri.endsWith(modulePath + '.pike') || uri.endsWith(modulePath + '.pmod')) {
             return {
                 target: uri,
@@ -948,7 +948,7 @@ function resolveIncludePath(
 /**
  * Get the directory path from a file URI
  */
-function getDocumentDirectory(uri: string): string {
+function _getDocumentDirectory(uri: string): string {
     const filePath = uri.replace(/^file:\/\/\/?/, '');
     const lastSlash = filePath.lastIndexOf('/');
     return lastSlash >= 0 ? filePath.substring(0, lastSlash) : filePath;

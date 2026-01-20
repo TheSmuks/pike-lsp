@@ -37,7 +37,7 @@ export class BridgeManager {
     private readonly MAX_ERRORS = 5;
 
     constructor(
-        private bridge: PikeBridge | null,
+        public readonly bridge: PikeBridge | null,
         private logger: Logger
     ) {
         this.startTime = Date.now();

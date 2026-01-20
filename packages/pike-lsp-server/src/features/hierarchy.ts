@@ -18,6 +18,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
+import * as fs from 'fs';
 
 import type { Services } from '../services/index.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -162,7 +163,8 @@ export function registerHierarchyHandlers(
             };
 
             // Search all open/cached documents
-            for (const [docUri, cached] of documentCache) {
+            const entries = Array.from(documentCache.entries());
+            for (const [docUri, cached] of entries) {
                 const doc = documents.get(docUri);
                 if (!doc) continue;
                 searchDocument(docUri, doc.getText(), cached.symbols);
@@ -175,7 +177,6 @@ export function registerHierarchyHandlers(
 
                 try {
                     const filePath = decodeURIComponent(wsUri.replace(/^file:\/\//, ''));
-                    const fs = await import('fs');
                     const fileContent = fs.readFileSync(filePath, 'utf-8');
                     const wsSymbols = workspaceIndex.getDocumentSymbols(wsUri);
                     searchDocument(wsUri, fileContent, wsSymbols);
@@ -403,7 +404,8 @@ export function registerHierarchyHandlers(
             const className = params.item.name;
 
             // Search all documents for classes that inherit from this class
-            for (const [docUri, cached] of documentCache) {
+            const entries = Array.from(documentCache.entries());
+            for (const [docUri, cached] of entries) {
                 for (const symbol of cached.symbols) {
                     if (symbol.kind !== 'inherit') continue;
 

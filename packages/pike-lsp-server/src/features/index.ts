@@ -16,3 +16,12 @@ export { registerNavigationHandlers } from './navigation.js';
 
 // Editing feature - completion, signature help, rename
 export { registerEditingHandlers } from './editing.js';
+
+// Hierarchy feature - call and type hierarchy
+export { registerHierarchyHandlers } from './hierarchy.js';
+
+// Advanced feature - formatting, semantic tokens, etc.
+export { registerAdvancedHandlers } from './advanced.js';
+
+// Export Services type for convenience
+export type { Services } from '../services/index.js';
