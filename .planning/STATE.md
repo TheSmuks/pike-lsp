@@ -39,7 +39,7 @@ Progress: [█████████░░] 69% (10/13 plans complete, 2/3 in 
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -68,6 +68,9 @@ Progress: [█████████░░] 69% (10/13 plans complete, 2/3 in 
 | 04-02-D01 | Navigation handlers receive Services bundle + TextDocuments | Clean dependency injection without accessing global documents |
 | 04-02-D02 | Helper functions kept in navigation.ts module | Module cohesion - related functions co-located with their handlers |
 | 04-02-D03 | Used Array.from() for DocumentCache.entries() iteration | Avoids downlevelIteration compilation issues with ES5 target |
+| 04-03-D01 | TextDocuments passed as parameter not in Services | TextDocuments is LSP protocol managed, keeps Services focused on server state |
+| 04-03-D02 | Helper functions kept in editing.ts module | Functions like buildCompletionItem are feature-specific, no sharing required |
+| 04-03-D03 | Direct logger usage without child() method | Logger class doesn't have child() method, using logger.debug/info directly |
 
 **Design Decisions (from v2 design document):**
 
@@ -105,7 +108,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 04-02 (Navigation Feature Handlers)
+Stopped at: Completed plan 04-03 (Editing Feature Handlers)
 Resume file: None
 
 ## Previous Milestone Summary
