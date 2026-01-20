@@ -137,12 +137,18 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Deliverables:**
 - `packages/pike-lsp-server/src/core/` (3 files)
-- `packages/pike-lsp-server/src/features/` (4 files)
+- `packages/pike-lsp-server/src/features/` (6 files)
 - `packages/pike-lsp-server/src/services/` (2+ files)
 - Refactored `server.ts`
 - Health check command in VSCode extension
 
-**Plans**: TBD
+**Plans**: 6 plans in 4 waves
+- [ ] 04-01-PLAN.md — Core infrastructure (types.ts, document-cache.ts, bridge-manager.ts, services/index.ts)
+- [ ] 04-02-PLAN.md — Navigation feature handlers (hover, definition, references, highlight, declaration, typeDefinition, implementation)
+- [ ] 04-03-PLAN.md — Editing feature handlers (completion, signatureHelp, prepareRename, renameRequest)
+- [ ] 04-04-PLAN.md — Symbols and diagnostics features (documentSymbol, workspaceSymbol, document lifecycle, validation)
+- [ ] 04-05-PLAN.md — Advanced features and server refactor (hierarchy, semantic tokens, code actions, formatting, links, code lens)
+- [ ] 04-06-PLAN.md — Health check command (HLT-01 through HLT-06)
 
 ---
 
@@ -186,7 +192,7 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
-| 4. Server Grouping | 0/? | Planned | - |
+| 4. Server Grouping | 0/6 | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
 **Project Status:** Phase 3 complete (Bridge Extraction done), ready for Phase 4
