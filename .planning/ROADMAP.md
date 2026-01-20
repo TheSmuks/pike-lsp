@@ -16,7 +16,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 - [x] **Phase 1: Lean Observability** - Error tracking and structured logging
 - [x] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
-- [ ] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
+- [x] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
 - [ ] **Phase 4: Server Grouping** - Split server.ts by capability
 - [ ] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
 
@@ -92,7 +92,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 1 (BridgeError class needed for error wrapping)
 
-**Status**: Planned
+**Status**: Complete ✓
 
 **Requirements**: BRG-01, BRG-02, BRG-03, BRG-04, BRG-05, BRG-06, BRG-07, BRG-08, BRG-09, BRG-10, BRG-11, BRG-12, BRG-13
 
@@ -110,8 +110,10 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Unit tests for both
 
 **Plans**: 2 plans in 2 waves
-- [ ] 03-01-PLAN.md — Create PikeProcess class (spawn, readline, EventEmitter)
-- [ ] 03-02-PLAN.md — Refactor PikeBridge to use PikeProcess + unit tests
+- [x] 03-01-PLAN.md — Create PikeProcess class (spawn, readline, EventEmitter)
+- [x] 03-02-PLAN.md — Refactor PikeBridge to use PikeProcess + unit tests
+
+**Completed**: 2026-01-20
 
 ---
 
@@ -183,16 +185,16 @@ Each phase produces working code. Can pause at any phase without breaking the co
 |-------|----------------|--------|-----------|
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
-| 3. Bridge Extraction | 0/2 | Planned | - |
+| 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
 | 4. Server Grouping | 0/? | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Phase 2 complete (Safety Net in place), ready for Phase 3
+**Project Status:** Phase 3 complete (Bridge Extraction done), ready for Phase 4
 
 **v2 Requirements:**
 - Total: 65
-- Complete: 21
-- Pending: 44
+- Complete: 34
+- Pending: 31
 
 ---
 *Roadmap created: 2026-01-20*
