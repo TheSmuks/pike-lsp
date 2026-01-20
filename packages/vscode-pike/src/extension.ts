@@ -255,6 +255,38 @@ async function restartClient(showMessage: boolean): Promise<void> {
         if (showMessage) {
             window.showInformationMessage('Pike Language Server started');
         }
+
+        // Register health check command after client is ready
+        // Note: This is registered globally, so we need to track it separately
+        const showDiagnosticsDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
+            if (!client) {
+                window.showErrorMessage('Pike LSP client not available');
+                return;
+            }
+
+            try {
+                const result = await client.sendRequest('workspace/executeCommand', {
+                    command: 'pike.lsp.showDiagnostics',
+                });
+
+                const healthOutput = result as string ?? 'No health data available';
+                outputChannel.appendLine(healthOutput);
+                outputChannel.show();
+
+                // Also show as info message with summary
+                const lines = healthOutput.split('\n');
+                const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
+                if (summaryLine) {
+                    window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
+                }
+            } catch (err) {
+                window.showErrorMessage(`Failed to get diagnostics: ${err}`);
+            }
+        });
+
+        // Store disposable for cleanup - we'll use a WeakMap or track separately
+        // For now, we register it and it will be cleaned up on extension deactivate
+        (client as any).__diagnosticsDisposable = showDiagnosticsDisposable;
     } catch (err) {
         console.error('Failed to start Pike Language Client:', err);
         window.showErrorMessage(`Failed to start Pike language server: ${err}`);
@@ -287,6 +319,11 @@ export async function deactivate(): Promise<void> {
         return;
     }
     try {
+        // Clean up diagnostics command disposable if registered
+        const diagDisposable = (client as any).__diagnosticsDisposable;
+        if (diagDisposable) {
+            diagDisposable.dispose();
+        }
         await client.stop();
         console.log('Pike Language Extension deactivated');
     } catch (err) {
