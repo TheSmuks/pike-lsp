@@ -19,7 +19,7 @@ import type {
     PikeResponse,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
-import { Logger } from '@pike-lsp/pike-lsp-server/core';
+import { Logger, PikeError } from '@pike-lsp/pike-lsp-server/core';
 
 /**
  * Configuration options for the PikeBridge.
@@ -195,7 +195,7 @@ export class PikeBridge extends EventEmitter {
                     // Reject all pending requests
                     for (const [_id, pending] of this.pendingRequests) {
                         clearTimeout(pending.timeout);
-                        const error = new Error(`Pike process exited with code ${code}`);
+                        const error = new PikeError(`Pike process exited with code ${code}`);
                         this.debugLog(`Rejecting pending request: ${error.message}`);
                         pending.reject(error);
                     }
@@ -304,7 +304,7 @@ export class PikeBridge extends EventEmitter {
 
             const timeout = setTimeout(() => {
                 this.pendingRequests.delete(id);
-                reject(new Error(`Request ${id} timed out after ${this.options.timeout}ms`));
+                reject(new PikeError(`Request ${id} timed out after ${this.options.timeout}ms`));
             }, this.options.timeout);
 
             this.pendingRequests.set(id, {
@@ -343,7 +343,11 @@ export class PikeBridge extends EventEmitter {
                 this.pendingRequests.delete(response.id);
 
                 if (response.error) {
-                    pending.reject(new Error(response.error.message));
+                    const error = new PikeError(
+                        response.error.message || 'Pike request failed',
+                        new Error(response.error.message)
+                    );
+                    pending.reject(error);
                 } else {
                     pending.resolve(response.result);
                 }
