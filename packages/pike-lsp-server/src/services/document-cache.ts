@@ -5,8 +5,6 @@
  * Extracted from server.ts to enable modular feature handlers.
  */
 
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { Diagnostic, Position } from 'vscode-languageserver/node';
 import type { DocumentCacheEntry } from '../core/types.js';
 
 /**

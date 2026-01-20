@@ -51,6 +51,7 @@ export class BridgeManager {
         this.bridge?.on('stderr', (msg: string) => {
             if (msg.toLowerCase().includes('error')) {
                 this.errorLog.push(msg);
+                this.logger.debug('Bridge error logged', { message: msg });
                 if (this.errorLog.length > this.MAX_ERRORS) {
                     this.errorLog.shift();
                 }

@@ -6,7 +6,7 @@
  */
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { Diagnostic, Position } from 'vscode-languageserver/node';
+import type { Diagnostic, Position } from 'vscode-languageserver/node.js';
 
 /**
  * LSP server configuration settings.
