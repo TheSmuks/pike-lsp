@@ -29,17 +29,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: pnpm
 
-      - name: Install Pike
-        run: |
-          # Add Pike repository and install
-          sudo apt-get update
-          sudo apt-get install -y pike8.0
-
-      - name: Verify Pike installation
-        run: |
-          pike --version
-          which pike
-
       - name: Install dependencies
         run: pnpm install
 
@@ -55,10 +44,80 @@ jobs:
       - name: Run integration tests
         run: pnpm --filter @pike-lsp/pike-lsp-server test:integration
 
+  pike-test:
+    runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        pike-version: ["8.1116", "latest"]
+      fail-fast: false
+
+    continue-on-error: ${{ matrix.pike-version == 'latest' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Pike ${{ matrix.pike-version }}
+        run: |
+          set -x
+          if [ "${{ matrix.pike-version }}" = "8.1116" ]; then
+            # Install Pike 8.1116 from official repository
+            # Try downloading from Pike's build server if available
+            PIKE_VERSION="8.1116"
+            PIKE_URL="https://pike.lysator.liu.se/builds/pike-${PIKE_VERSION}.tar.gz"
+
+            # Try apt repository first (may not have 8.1116)
+            sudo apt-get update
+
+            # Check if pike8.1116 is available via apt
+            if apt-cache show pike${PIKE_VERSION} >/dev/null 2>&1; then
+              sudo apt-get install -y pike${PIKE_VERSION}
+            else
+              # Build from source
+              sudo apt-get install -y build-essential libgmp-dev bison flex make
+              cd /tmp
+              wget "$PIKE_URL" -O pike.tar.gz || {
+                echo "Pike ${PIKE_VERSION} not found at ${PIKE_URL}"
+                echo "Falling back to pike8.0 from apt"
+                sudo apt-get install -y pike8.0
+              }
+              if [ -f pike.tar.gz ]; then
+                tar -xzf pike.tar.gz
+                cd "pike-${PIKE_VERSION}"
+                make
+                sudo make install
+              fi
+            fi
+          else
+            # Install latest Pike from repository
+            sudo apt-get update
+            # Try to get latest from pike的开发 PPA or build from latest
+            sudo apt-get install -y pike8.0 || {
+              # If pike8.0 fails, try to build latest from git
+              sudo apt-get install -y build-essential libgmp-dev bison flex make git
+              cd /tmp
+              git clone https://github.com/pike-lang/pike.git
+              cd pike
+              make
+              sudo make install
+            }
+          fi
+
+      - name: Verify Pike installation
+        run: |
+          pike --version
+          which pike
+
+      - name: Run Pike Tests
+        run: ./scripts/run-pike-tests.sh
+
   build-extension:
     runs-on: ubuntu-24.04
-    needs: test
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: [test, pike-test]
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
       - name: Checkout code
