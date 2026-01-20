@@ -11,13 +11,15 @@ import type {
     Diagnostic,
     DiagnosticSeverity,
     DidChangeConfigurationParams,
+    Position,
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
-import type { PikeSettings, DocumentCacheEntry, Position } from '../core/types.js';
+import type { PikeSettings } from '../core/types.js';
 import { PatternHelpers } from '../utils/regex-patterns.js';
 import { TypeDatabase, CompiledProgramInfo } from '../type-database.js';
+import { Logger } from '../core/logging.js';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/index.js';
 
 /**
@@ -33,7 +35,7 @@ export function registerDiagnosticsHandlers(
     documents: TextDocuments<TextDocument>
 ): void {
     const { bridge, logger, documentCache, typeDatabase, workspaceIndex } = services;
-    const log = logger.child('diagnostics');
+    const log = new Logger('diagnostics');
 
     // Validation timers for debouncing
     const validationTimers = new Map<string, ReturnType<typeof setTimeout>>();

@@ -8,12 +8,13 @@
 import type { Connection } from 'vscode-languageserver/node.js';
 import type {
     DocumentSymbol,
+    SymbolKind,
     SymbolInformation,
     WorkspaceSymbolParams,
 } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
-import type { DocumentCacheEntry } from '../core/types.js';
+import { Logger } from '../core/logging.js';
 import { LSP } from '../constants/index.js';
 
 /**
@@ -27,35 +28,35 @@ export function registerSymbolsHandlers(
     services: Services
 ): void {
     const { logger, documentCache, workspaceIndex } = services;
-    const log = logger.child('symbols');
+    const log = new Logger('symbols');
 
     /**
      * Convert Pike symbol kind to LSP SymbolKind
      */
-    function convertSymbolKind(kind: string): number {
+    function convertSymbolKind(kind: string): SymbolKind {
         switch (kind) {
             case 'class':
-                return 5; // SymbolKind.Class
+                return SymbolKind.Class;
             case 'method':
-                return 6; // SymbolKind.Method
+                return SymbolKind.Method;
             case 'variable':
-                return 13; // SymbolKind.Variable
+                return SymbolKind.Variable;
             case 'constant':
-                return 14; // SymbolKind.Constant
+                return SymbolKind.Constant;
             case 'typedef':
-                return 26; // SymbolKind.TypeParameter
+                return SymbolKind.TypeParameter;
             case 'enum':
-                return 10; // SymbolKind.Enum
+                return SymbolKind.Enum;
             case 'enum_constant':
-                return 23; // SymbolKind.EnumMember
+                return SymbolKind.EnumMember;
             case 'inherit':
-                return 5; // SymbolKind.Class
+                return SymbolKind.Class;
             case 'import':
-                return 9; // SymbolKind.Module
+                return SymbolKind.Module;
             case 'module':
-                return 9; // SymbolKind.Module
+                return SymbolKind.Module;
             default:
-                return 13; // SymbolKind.Variable
+                return SymbolKind.Variable;
         }
     }
 
@@ -154,7 +155,8 @@ export function registerSymbolsHandlers(
                 const allSymbols: SymbolInformation[] = [];
                 const queryLower = query?.toLowerCase() ?? '';
 
-                for (const [uri, cached] of documentCache) {
+                // Use Array.from to iterate over the Map
+                for (const [uri, cached] of Array.from(documentCache.entries())) {
                     for (const symbol of cached.symbols) {
                         // Skip symbols with null names
                         if (!symbol.name) continue;
