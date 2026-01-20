@@ -1,8 +1,12 @@
-# Roadmap: Pike LSP Analyzer Refactoring
+# Roadmap: LSP Modularization v2
 
 ## Overview
 
-Transform the monolithic 3,221-line `analyzer.pike` into a modular Pike codebase following stdlib conventions. The journey begins by establishing shared infrastructure (module.pmod, Compat.pmod, Cache.pmod), then extracts handler modules bottom-up to avoid circular dependencies, and concludes with comprehensive cross-version verification.
+Transform the Pike LSP from a working but hard-to-debug system into a modular, observable, and testable codebase. This milestone focuses on **infrastructure-first** improvements: establish observability and safety nets before major refactoring.
+
+**Philosophy:** Safety without rigidity - solve actual pain points without over-engineering.
+
+**Source:** [Design Document v2](../docs/plans/2026-01-20-lsp-modularization-design-v2.md)
 
 ## Phases
 
@@ -10,214 +14,177 @@ Transform the monolithic 3,221-line `analyzer.pike` into a modular Pike codebase
 - Integer phases (1, 2, 3, 4, 5): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [x] **Phase 1: Foundation** - Establish shared infrastructure and version compatibility layer
-- [x] **Phase 2: Parser Module** - Extract parsing, tokenization, and compilation handlers
-- [x] **Phase 3: Intelligence Module** - Extract introspection and resolution handlers
-- [x] **Phase 4: Analysis & Entry Point** - Extract analysis handlers and refactor main entry point
-- [x] **Phase 5: Verification** - Cross-version testing and compatibility validation
-- [ ] **Phase 6: Big Refactor Check** - Validate refactored LSP functionality works end-to-end
+- [ ] **Phase 1: Lean Observability** - Error tracking and structured logging
+- [ ] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
+- [ ] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
+- [ ] **Phase 4: Server Grouping** - Split server.ts by capability
+- [ ] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
 
 ## Phase Details
 
-### Phase 1: Foundation
+### Phase 1: Lean Observability
 
-**Goal**: Establish LSP.pmod directory structure with shared utilities, version compatibility layer, and cache infrastructure that all subsequent modules depend on.
+**Goal**: See what's happening without complex cross-language infrastructure. TypeScript maintains error chains to track path; Pike returns flat, simple error dict.
 
 **Depends on**: Nothing (first phase)
 
-**Completed**: 2026-01-19
+**Status**: Planned
 
-**Requirements**: FND-01, FND-02, FND-03, FND-04, FND-05, FND-06, FND-07, FND-08, FND-09, FND-10, FND-11, FND-12, FND-13, VER-04, VER-05, QLT-04, QLT-05
-
-**Success Criteria** (what must be TRUE):
-1. LSP.pmod directory exists with module.pmod, Compat.pmod, and Cache.pmod files loadable by Pike interpreter
-2. Compat.pmod detects Pike version and provides trim_whites() polyfill that works on 7.6, 7.8, and 8.0.x
-3. Cache.pmod provides get/put/clear interface for program_cache and stdlib_cache with LRU eviction
-4. Debug logging can be enabled/disabled at runtime through module.pmod utilities
-5. Unit tests pass for Compat.pmod feature detection and Cache.pmod LRU operations
-
-**Plans**: 6 plans (6 autonomous)
-
-Plans:
-- [x] 01-01-PLAN.md — Create LSP.pmod directory and module.pmod with shared utilities
-- [x] 01-02-PLAN.md — Create Compat.pmod with version detection and polyfills
-- [x] 01-03-PLAN.md — Create Cache.pmod with LRU caching infrastructure
-- [x] 01-04-PLAN.md — Write unit tests for Compat.pmod and Cache.pmod
-- [x] 01-05-PLAN.md — Write E2E test infrastructure and module.pmod tests (Wave 3)
-- [x] 01-06-PLAN.md — Write E2E tests for Compat.pmod and Cache.pmod (Wave 3)
-
-### Phase 2: Parser Module
-
-**Goal**: Extract parsing, tokenization, compilation, and batch_parse handlers into Parser.pike class using shared infrastructure.
-
-**Depends on**: Phase 1 (module.pmod, Compat.pmod, Cache.pmod must exist)
-
-**Completed**: 2026-01-19
-
-**Requirements**: PRS-01, PRS-02, PRS-03, PRS-04, PRS-05, PRS-06, PRS-07, PRS-08, PRS-09, PRS-10, PRS-11, QLT-01
+**Requirements**: OBS-01, OBS-02, OBS-03, OBS-04, OBS-05, OBS-06, OBS-07, OBS-08, OBS-09, OBS-10
 
 **Success Criteria** (what must be TRUE):
-1. Parser.pike class exists with parse_request, tokenize_request, compile_request, and batch_parse_request methods
-2. Parser.pike uses LSP.Compat.trim_whites() for string operations
-3. Parser.pike uses LSP.MAX_* constants from module.pmod
-4. Handler errors return JSON-RPC error responses instead of crashing the server
-5. Integration tests pass for parse, tokenize, and compile handlers
-6. analyzer.pike delegates to Parser.pike for all parsing operations
+1. LSPError, BridgeError, PikeError classes exist with layer tracking
+2. Error.chain property returns full path: "Hover failed -> Bridge timeout -> Pike error"
+3. Logger class exists with OFF, ERROR, WARN, INFO, DEBUG, TRACE levels
+4. Logger.setLevel() controls global filtering
+5. Pike make_error() helper returns flat dicts: `{ error: 1, kind, msg, line }`
+6. Bridge captures Pike stderr and logs via TypeScript Logger
 
-**Plans**: 3 plans (3 autonomous, 3 waves)
+**Deliverables:**
+- `packages/pike-lsp-server/src/core/errors.ts`
+- `packages/pike-lsp-server/src/core/logging.ts`
+- Pike `make_error()` helper function
 
-Plans:
-- [x] 02-01-PLAN.md — Create Parser.pike with parse_request and protected helpers (Wave 1)
-- [x] 02-02-PLAN.md — Add tokenize, compile, and batch_parse methods (Wave 2)
-- [x] 02-03-PLAN.md — Write Parser unit and integration tests (Wave 3)
+**Plans**: 3 plans in 2 waves
+- [ ] 01-01-PLAN.md — TypeScript error classes (LSPError, BridgeError, PikeError)
+- [ ] 01-02-PLAN.md — Logger class with component namespacing and log levels
+- [ ] 01-03-PLAN.md — Pike make_error() helper and Bridge stderr integration
 
-### Phase 3: Intelligence Module
+---
 
-**Goal**: Extract introspection, resolution, and stdlib query handlers into Intelligence.pike class.
+### Phase 2: Safety Net
 
-**Depends on**: Phase 1 (module.pmod, Cache.pmod, Compat.pmod)
+**Goal**: Catch regressions on push/PR without slowing local development. No pre-commit hooks - allow broken intermediate commits on feature branches.
 
-**Completed**: 2026-01-19
-
-**Requirements**: INT-01, INT-02, INT-03, INT-04, INT-05, INT-06, INT-07, INT-08, INT-09, INT-10, INT-11
-
-**Success Criteria** (what must be TRUE):
-1. Intelligence.pike class exists with handle_introspect, handle_resolve, handle_resolve_stdlib, and handle_get_inherited methods
-2. Intelligence.pike uses Tools.AutoDoc for documentation parsing and Cache.pmod for stdlib data caching
-3. Intelligence handlers use Compat.trim_whites() for string operations
-4. Handler errors return JSON-RPC error responses instead of crashing the server
-5. Integration tests pass for introspect and resolve handlers
-
-**Plans**: 4 plans (3 autonomous, 1 checkpoint, 4 waves)
-
-Plans:
-- [x] 03-01-PLAN.md — Create Intelligence.pike with handle_introspect and handle_resolve (Wave 1)
-- [x] 03-02-PLAN.md — Add handle_resolve_stdlib with stdlib caching and documentation parsing (Wave 2)
-- [x] 03-03-PLAN.md — Add handle_get_inherited for inheritance traversal (Wave 3)
-- [x] 03-04-PLAN.md — Write integration tests and update analyzer.pike delegation (Wave 4)
-
-### Phase 4: Analysis & Entry Point
-
-**Goal**: Extract analysis handlers (occurrences, uninitialized, completion) into Analysis.pike and refactor analyzer.pike as JSON-RPC routing entry point.
-
-**Depends on**: Phase 1 (module.pmod, Cache.pmod, Compat.pmod), Phase 2 (Parser.pike for tokenization)
-
-**Completed**: 2026-01-19
-
-**Requirements**: ANL-01, ANL-02, ANL-03, ANL-04, ANL-05, ANL-06, ANL-07, ANL-08, ANL-09, ANL-10, ENT-01, ENT-02, ENT-03, ENT-04, ENT-05, ENT-06, QLT-02, QLT-03
-
-**Success Criteria** (what must be TRUE):
-1. Analysis.pike class exists with handle_find_occurrences, handle_analyze_uninitialized, and handle_get_completion_context methods
-2. Analysis.pike uses Parser.Pike for tokenization and Cache.pmod for compiled program caching
-3. analyzer.pike routes JSON-RPC requests to Parser.pike, Intelligence.pike, and Analysis.pike instances
-4. Old handler functions removed from analyzer.pike after extraction
-5. VSCode extension communicates successfully without modification (JSON-RPC responses unchanged)
-6. Integration tests pass for occurrences, completion context, and full request/response cycle
-7. All modules load independently without circular dependencies
-
-**Plans**: 6 plans (6 autonomous, 3 waves)
-
-Plans:
-- [x] 04-01-PLAN.md — Create Analysis.pike with handle_find_occurrences (Wave 1)
-- [x] 04-02-PLAN.md — Add handle_get_completion_context to Analysis.pike (Wave 2)
-- [x] 04-03-PLAN.md — Add handle_analyze_uninitialized with scope analysis (Wave 2)
-- [x] 04-04-PLAN.md — Create dispatch table router with Context class (Wave 3)
-- [x] 04-05-PLAN.md — Remove old handler functions from analyzer.pike (Wave 3)
-- [x] 04-06-PLAN.md — Write integration tests and response format verification (Wave 3)
-
-### Phase 5: Verification
-
-**Goal**: Validate the refactored codebase runs correctly on target Pike versions with comprehensive cross-version testing and CI automation.
-
-**Depends on**: Phase 4 (all modules extracted and entry point refactored)
-
-**Completed**: 2026-01-20
-
-**Requirements**: VER-01, VER-02, VER-03, VER-06, QLT-06
-
-**Note on Version Support:**
-Original ROADMAP mentioned Pike 7.6, 7.8, and 8.0.x. CONTEXT.md updated this to Pike 8.1116 (required) and latest stable (best-effort) based on practical availability on Ubuntu 24.04 CI. Older Pike versions (7.6/7.8) are not available in modern Linux distributions.
-
-**Success Criteria** (what must be TRUE):
-1. All handlers execute successfully on Pike 8.1116 (current stable target)
-2. Latest Pike version tested with continue-on-error (best-effort forward compatibility)
-3. Compat.pmod provides unified API across versions
-4. Version detection logged at startup for debugging
-5. Cross-version tests verify all 12 LSP methods on target versions
-6. Module loading tested and verified via CI
-
-**Plans**: 5 plans (5 autonomous, 3 waves)
-
-Plans:
-- [x] 05-01-PLAN.md — Create module loading smoke tests (Wave 1)
-- [x] 05-02-PLAN.md — Extend CI with Pike version matrix and test runner (Wave 1)
-- [x] 05-03-PLAN.md — Add compatibility documentation to README and CONTRIBUTING (Wave 2)
-- [x] 05-04-PLAN.md — Create cross-version handler tests (Wave 2)
-- [x] 05-05-PLAN.md — Run complete test suite and create verification report (Wave 3)
-
-### Phase 6: Big Refactor Check
-
-**Goal**: Validate that the refactored LSP server provides actual end-to-end LSP functionality (completion, hover, go-to-definition) working correctly in real usage. Address verification gap where module structure was tested but actual LSP functionality was not.
-
-**Depends on**: Phase 5 (verification complete)
+**Depends on**: Phase 1 (errors and logging must exist for meaningful test output)
 
 **Status**: Planned
 
+**Requirements**: SAF-01, SAF-02, SAF-03, SAF-04, SAF-05, SAF-06, SAF-07, SAF-08, SAF-09, SAF-10, SAF-11
+
 **Success Criteria** (what must be TRUE):
-1. Each new .pike/.pmod file compiles standalone: `pike -e 'compile_file("path/to/file.pike")'`
-2. Module loads via resolver: `pike -e 'master()->resolv("LSP.ModuleName")'`
-3. LSP starts without errors
-4. Open Pike file in editor → no crash
-5. Completion works on stdlib (Array.)
-6. Completion works on user code
-7. Hover works
-8. Go to definition works
-9. All existing tests pass
-10. smoke-test.pike exists and passes before any PR merged
-11. CONTRIBUTING.md has mandatory pre-merge verification checklist
+1. `.husky/pre-push` hook exists and runs on git push
+2. Pre-push validates: TypeScript builds, Pike compiles, smoke tests pass
+3. Smoke test suite verifies bridge lifecycle (start/stop without crash)
+4. Smoke tests cover: parse returns array, introspect returns data, invalid Pike returns error
+5. CI pipeline runs on push to main and PRs
+6. CI includes VSCode E2E tests with xvfb
 
-**Plans**: 1 plan (1 autonomous, 1 wave)
+**Deliverables:**
+- `.husky/pre-push`
+- `packages/pike-lsp-server/src/tests/smoke.test.ts`
+- `.github/workflows/ci.yml`
 
-Plans:
-- [ ] 06-01-PLAN.md — Create smoke-test.pike and pre-merge verification checklist
+**Plans**: TBD
 
-**Key Verification Gap to Address:**
+---
 
-| Should have tested | Was tested in Phase 5 |
-|-------------------|----------------------|
-| Each file compiles standalone | No |
-| Module imports work | Partially |
-| LSP responds to requests | No |
-| Stdlib introspection works | No |
-| No regressions from working state | No |
+### Phase 3: Bridge Extraction
 
-**Extraction Rules for Future Refactors:**
-1. Extract ONE module at a time
-2. After each extraction: compile, test modules, run full test suite, manual smoke test
-3. Only proceed if all pass
-4. Never extract multiple modules in one commit without verification
+**Goal**: Isolate IPC mechanics from business logic. The stdin bug would be caught here - pure IPC can be tested independently.
+
+**Depends on**: Phase 1 (BridgeError class needed for error wrapping)
+
+**Status**: Planned
+
+**Requirements**: BRG-01, BRG-02, BRG-03, BRG-04, BRG-05, BRG-06, BRG-07, BRG-08, BRG-09, BRG-10, BRG-11, BRG-12, BRG-13
+
+**Success Criteria** (what must be TRUE):
+1. `PikeProcess` class exists in `packages/pike-bridge/src/process.ts`
+2. PikeProcess handles spawn, readline, events (message, stderr, exit, error)
+3. PikeProcess can be tested in isolation (pure IPC mechanics)
+4. `PikeBridge` refactored to use PikeProcess internally
+5. PikeBridge handles request/response correlation, timeouts, error wrapping
+6. PikeBridge can be tested with mock PikeProcess (policy logic only)
+
+**Deliverables:**
+- `packages/pike-bridge/src/process.ts` (~200 lines)
+- Refactored `packages/pike-bridge/src/bridge.ts` (~300 lines)
+- Unit tests for both
+
+**Plans**: TBD
+
+---
+
+### Phase 4: Server Grouping
+
+**Goal**: Split `server.ts` (4,715 lines) by capability, not by verb. Group related handlers: navigation (hover, definition), editing (completion, rename), etc.
+
+**Depends on**: Phase 1 (core/errors.ts, core/logging.ts), Phase 3 (bridge-manager depends on refactored bridge)
+
+**Status**: Planned
+
+**Requirements**: SRV-01, SRV-02, SRV-03, SRV-04, SRV-05, SRV-06, SRV-07, SRV-08, SRV-09, SRV-10, SRV-11, SRV-12, SRV-13, HLT-01, HLT-02, HLT-03, HLT-04, HLT-05, HLT-06
+
+**Success Criteria** (what must be TRUE):
+1. `core/` directory exists with errors.ts, logging.ts, types.ts
+2. `features/` directory exists with navigation.ts, editing.ts, symbols.ts, diagnostics.ts
+3. `services/` directory exists with bridge-manager.ts, document-cache.ts
+4. server.ts reduced to ~150 lines (wiring only)
+5. Feature files use `registerXHandlers(connection, services)` pattern
+6. Health check command shows server uptime, bridge status, Pike version, recent errors
+
+**Deliverables:**
+- `packages/pike-lsp-server/src/core/` (3 files)
+- `packages/pike-lsp-server/src/features/` (4 files)
+- `packages/pike-lsp-server/src/services/` (2+ files)
+- Refactored `server.ts`
+- Health check command in VSCode extension
+
+**Plans**: TBD
+
+---
+
+### Phase 5: Pike Reorganization
+
+**Goal**: Split large Pike files using `.pmod` idiom, but keep it to 3-4 files max per module. Avoid micro-modules that hurt grep-ability.
+
+**Depends on**: Phase 4 (server-side must be stable before Pike changes)
+
+**Status**: Planned
+
+**Requirements**: PIK-01, PIK-02, PIK-03, PIK-04, PIK-05, PIK-06, PIK-07, PIK-08, PIK-09, PIK-10, PIK-11, PIK-12
+
+**Success Criteria** (what must be TRUE):
+1. `Intelligence.pmod/` directory with module.pmod + 3 .pike files
+2. `Analysis.pmod/` directory with module.pmod + 3 .pike files
+3. Intelligence.pike reduced from 1,660 to ~400-500 lines per file
+4. Related logic stays together (StdlibResolver with Resolution, Occurrences with Variables)
+5. All classes use `create(object ctx)` constructor pattern
+6. All classes wrap handlers in catch with make_error() returns
+7. Integration tests verify module loading via master()->resolv()
+
+**Deliverables:**
+- `pike-scripts/LSP.pmod/Intelligence.pmod/` (4 files)
+- `pike-scripts/LSP.pmod/Analysis.pmod/` (4 files)
+- Integration tests
+
+**Plans**: TBD
+
+---
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+
+Each phase produces working code. Can pause at any phase without breaking the codebase.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 6/6 | Complete | 2026-01-19 |
-| 2. Parser Module | 3/3 | Complete | 2026-01-19 |
-| 3. Intelligence Module | 4/4 | Complete | 2026-01-19 |
-| 4. Analysis & Entry Point | 6/6 | Complete | 2026-01-19 |
-| 5. Verification | 5/5 | Complete | 2026-01-20 |
-| 6. Big Refactor Check | 0/1 | Planned | - |
+| 1. Lean Observability | 0/3 | Planned | - |
+| 2. Safety Net | 0/? | Planned | - |
+| 3. Bridge Extraction | 0/? | Planned | - |
+| 4. Server Grouping | 0/? | Planned | - |
+| 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Phase 6 planned - ready for execution
+**Project Status:** Ready to execute Phase 1
 
-**Summary:**
-- Total plans: 31 (26 refactoring + 5 phase planning)
-- All 52 v1 requirements satisfied
-- 111 tests passing on Pike 8.0.1116
-- CI configured for cross-version validation (8.1116 required, latest best-effort)
-- Phase 6 addresses verification gap from Phase 5
+**v2 Requirements:**
+- Total: 65
+- Complete: 0
+- Pending: 65
+
+---
+*Roadmap created: 2026-01-20*
+*Source: LSP Modularization Design v2 (Middle Ground)*
