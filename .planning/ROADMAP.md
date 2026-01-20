@@ -109,7 +109,9 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Refactored `packages/pike-bridge/src/bridge.ts` (~300 lines)
 - Unit tests for both
 
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
+- [ ] 03-01-PLAN.md — Create PikeProcess class (spawn, readline, EventEmitter)
+- [ ] 03-02-PLAN.md — Refactor PikeBridge to use PikeProcess + unit tests
 
 ---
 
@@ -181,7 +183,7 @@ Each phase produces working code. Can pause at any phase without breaking the co
 |-------|----------------|--------|-----------|
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
-| 3. Bridge Extraction | 0/? | Planned | - |
+| 3. Bridge Extraction | 0/2 | Planned | - |
 | 4. Server Grouping | 0/? | Planned | - |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
