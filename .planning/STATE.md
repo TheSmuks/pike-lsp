@@ -10,24 +10,24 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 1 of 5 (Lean Observability) - IN PROGRESS
-Plan: 02 of 3
-Status: Completed Logger class implementation
-Last activity: 2026-01-20 — Completed plan 01-02 (Logger Class)
+Plan: 03 of 3
+Status: Completed plan 01-03 (Safe error reporting with Logger + PikeError)
+Last activity: 2026-01-20 — Completed plan 01-03 (Safe error reporting)
 
-Progress: [██░░░░░░░░] 20% (2/5 phases in progress)
+Progress: [█████░░░░░] 60% (3/5 plans in Phase 1 complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 3 min
-- Total execution time: 6 min
+- Total plans completed: 3
+- Average duration: 8 min
+- Total execution time: 24 min
 
 **By Phase:**
 
 | Phase | Plans | Complete | Avg/Plan |
 |-------|-------|----------|----------|
-| 1. Lean Observability | 3 | 2 | 3 min |
+| 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 2 | 0 | - |
 | 3. Bridge Extraction | 2 | 0 | - |
 | 4. Server Grouping | 3 | 0 | - |
@@ -39,7 +39,7 @@ Progress: [██░░░░░░░░] 20% (2/5 phases in progress)
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -48,6 +48,8 @@ Progress: [██░░░░░░░░] 20% (2/5 phases in progress)
 | 01-02-D01 | All logs to console.error (stderr) | LSP servers emit diagnostics to stderr, not stdout |
 | 01-02-D02 | Numeric log levels for comparison | Enables efficient level-based filtering without string comparisons |
 | 01-02-D03 | No transports/formatters in Logger | Keep logging minimal per lean observability principle |
+| 01-03-D01 | Duplicated errors.ts and logging.ts in pike-bridge | Avoid circular dependency (bridge <-> server). TODO: Extract to shared @pike-lsp/core |
+| 01-03-D02 | Pike returns flat dicts, TypeScript adds layer tracking | Pike lacks stack context. make_error() returns {error, kind, msg, line} |
 
 **Design Decisions (from v2 design document):**
 
@@ -77,13 +79,14 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 01-01):**
-- No blockers - error classes ready for use in logging module
+**Current (as of plan 01-03):**
+- No blockers - error reporting contract established between Pike and TypeScript
+- TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 
 ## Session Continuity
 
 Last session: 2026-01-20
-Stopped at: Completed plan 01-02 (Logger Class)
+Stopped at: Completed plan 01-03 (Safe error reporting with Logger + PikeError)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -104,6 +107,6 @@ Resume file: None
 
 ## Next Steps
 
-1. Execute plan 01-03 (Safe error reporting with Logger + LSPError)
-2. Complete remaining Phase 1 plans
-3. Continue through phases 2-5
+1. Phase 1 (Lean Observability) is now complete - all 3 plans done
+2. Proceed to Phase 2 (Safety Net) - add try/catch handlers with PikeError wrapping
+3. Continue through phases 3-5
