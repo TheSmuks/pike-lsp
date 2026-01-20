@@ -64,6 +64,11 @@
             {
                 "command": "pike-module-path.add",
                 "title": "Add to Pike Module Path"
+            },
+            {
+                "command": "pike.lsp.showDiagnostics",
+                "title": "Pike LSP: Show Diagnostics",
+                "category": "Pike"
             }
         ],
         "menus": {
