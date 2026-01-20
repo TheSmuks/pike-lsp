@@ -112,6 +112,11 @@ int main(int argc, array(string) argv) {
     // Add module path for LSP.pmod access
     master()->add_module_path("pike-scripts");
 
+    // Log Pike version for debugging
+    array(int) version = master()->resolv("LSP.Compat")->pike_version();
+    werror("Pike LSP Analyzer running on Pike %d.%d.%d\n",
+           version[0], version[1], version[2]);
+
     // Initialize HANDLERS dispatch table after module path is set
     // Per CONTEXT.md Router Design Pattern
     HANDLERS = ([
