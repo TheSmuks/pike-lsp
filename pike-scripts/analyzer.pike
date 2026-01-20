@@ -110,7 +110,10 @@ protected mapping(string:mixed) handle_request(mapping(string:mixed) request, Co
 
 int main(int argc, array(string) argv) {
     // Add module path for LSP.pmod access
-    master()->add_module_path("pike-scripts");
+    // Use __FILE__ to get the directory containing this script, so it works
+    // regardless of the current working directory (e.g., when bundled in extension)
+    string script_dir = dirname(__FILE__);
+    master()->add_module_path(script_dir);
 
     // Log Pike version for debugging
     array(int) version = master()->resolv("LSP.Compat")->pike_version();
@@ -167,21 +170,29 @@ int main(int argc, array(string) argv) {
     // Create Context instance (service container with all modules)
     Context ctx = Context();
 
-    // JSON-RPC I/O loop: read request from stdin, write response to stdout
-    string request_data = Stdio.stdin->read();
-    if (sizeof(request_data) > 0) {
-        mapping request = Standards.JSON.decode(request_data);
-        mapping response = handle_request(request, ctx);
+    // Interactive JSON-RPC mode: read requests from stdin, write responses to stdout
+    // CRITICAL: Must use line-by-line reading (gets) NOT read() which waits for EOF
+    string line;
+    while ((line = Stdio.stdin.gets())) {
+        if (sizeof(String.trim_all_whites(line)) == 0) continue;
 
-        // Add JSON-RPC envelope if not present
-        if (!response->jsonrpc) {
+        mixed err = catch {
+            mapping request = Standards.JSON.decode(line);
+            mapping response = handle_request(request, ctx);
             response->jsonrpc = "2.0";
-        }
-        if (request->id && !response->id) {
             response->id = request->id;
-        }
+            write("%s\n", Standards.JSON.encode(response));
+        };
 
-        write("%s", Standards.JSON.encode(response));
+        if (err) {
+            write("%s\n", Standards.JSON.encode(([
+                "jsonrpc": "2.0",
+                "error": ([
+                    "code": -32700,
+                    "message": "Parse error: " + describe_error(err)
+                ])
+            ])));
+        }
     }
 
     return 0;
