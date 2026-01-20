@@ -7,6 +7,7 @@
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Diagnostic, Position } from 'vscode-languageserver/node.js';
+import { DEFAULT_MAX_PROBLEMS, DIAGNOSTIC_DELAY_DEFAULT } from '../constants/index.js';
 
 /**
  * LSP server configuration settings.
@@ -40,3 +41,14 @@ export interface DocumentCacheEntry {
     /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
     symbolPositions: Map<string, Position[]>;
 }
+
+/**
+ * Default Pike settings.
+ *
+ * Provides sensible defaults for the LSP server configuration.
+ */
+export const defaultSettings: PikeSettings = {
+    pikePath: 'pike',
+    maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
+    diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
+};

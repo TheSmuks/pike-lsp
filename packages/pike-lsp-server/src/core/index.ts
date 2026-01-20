@@ -9,3 +9,4 @@ export { LSPError, BridgeError, PikeError } from './errors.js';
 export type { ErrorLayer } from './errors.js';
 export { Logger, LogLevel } from './logging.js';
 export type { PikeSettings, DocumentCacheEntry } from './types.js';
+export { defaultSettings } from './types.js';
