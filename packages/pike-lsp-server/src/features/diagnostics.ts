@@ -34,7 +34,7 @@ export function registerDiagnosticsHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { bridge, logger, documentCache, typeDatabase, workspaceIndex } = services;
+    const { bridge, documentCache, typeDatabase, workspaceIndex } = services;
     const log = new Logger('diagnostics');
 
     // Validation timers for debouncing

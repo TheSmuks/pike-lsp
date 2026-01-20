@@ -6,7 +6,7 @@
  */
 
 import type { Connection } from 'vscode-languageserver/node.js';
-import type {
+import {
     DocumentSymbol,
     SymbolKind,
     SymbolInformation,
@@ -27,7 +27,7 @@ export function registerSymbolsHandlers(
     connection: Connection,
     services: Services
 ): void {
-    const { logger, documentCache, workspaceIndex } = services;
+    const { documentCache, workspaceIndex } = services;
     const log = new Logger('symbols');
 
     /**
