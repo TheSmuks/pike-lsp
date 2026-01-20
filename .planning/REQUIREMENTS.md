@@ -42,19 +42,19 @@
 
 ### Bridge Extraction (BRG)
 
-- [ ] **BRG-01**: Create `PikeProcess` class in `packages/pike-bridge/src/process.ts`
-- [ ] **BRG-02**: PikeProcess handles spawn with stdin/stdout/stderr pipes
-- [ ] **BRG-03**: PikeProcess uses readline interface for line-by-line stdout reading
-- [ ] **BRG-04**: PikeProcess emits events: `message`, `stderr`, `exit`, `error`
-- [ ] **BRG-05**: PikeProcess.send() writes JSON + newline to stdin
-- [ ] **BRG-06**: PikeProcess.kill() cleans up readline and child process
-- [ ] **BRG-07**: PikeProcess.isAlive() returns process health status
-- [ ] **BRG-08**: Refactor `PikeBridge` to use `PikeProcess` internally
-- [ ] **BRG-09**: PikeBridge handles request/response correlation with pending map
-- [ ] **BRG-10**: PikeBridge implements timeout policy for requests (30s default)
-- [ ] **BRG-11**: PikeBridge wraps Pike errors in `PikeError` class
-- [ ] **BRG-12**: Unit tests for PikeProcess IPC mechanics
-- [ ] **BRG-13**: Unit tests for PikeBridge policy logic (with mock process)
+- [x] **BRG-01**: Create `PikeProcess` class in `packages/pike-bridge/src/process.ts`
+- [x] **BRG-02**: PikeProcess handles spawn with stdin/stdout/stderr pipes
+- [x] **BRG-03**: PikeProcess uses readline interface for line-by-line stdout reading
+- [x] **BRG-04**: PikeProcess emits events: `message`, `stderr`, `exit`, `error`
+- [x] **BRG-05**: PikeProcess.send() writes JSON + newline to stdin
+- [x] **BRG-06**: PikeProcess.kill() cleans up readline and child process
+- [x] **BRG-07**: PikeProcess.isAlive() returns process health status
+- [x] **BRG-08**: Refactor `PikeBridge` to use `PikeProcess` internally
+- [x] **BRG-09**: PikeBridge handles request/response correlation with pending map
+- [x] **BRG-10**: PikeBridge implements timeout policy for requests (30s default)
+- [x] **BRG-11**: PikeBridge wraps Pike errors in `PikeError` class
+- [x] **BRG-12**: Unit tests for PikeProcess IPC mechanics
+- [x] **BRG-13**: Unit tests for PikeBridge policy logic (with mock process)
 
 ### Server Grouping (SRV)
 
@@ -122,7 +122,7 @@
 |-------------|-------|--------|
 | OBS-01 to OBS-10 | Phase 1 | Complete ✓ |
 | SAF-01 to SAF-11 | Phase 2 | Complete ✓ |
-| BRG-01 to BRG-13 | Phase 3 | Pending |
+| BRG-01 to BRG-13 | Phase 3 | Complete ✓ |
 | SRV-01 to SRV-13 | Phase 4 | Pending |
 | PIK-01 to PIK-12 | Phase 5 | Pending |
 | HLT-01 to HLT-06 | Phase 4 | Pending |
@@ -131,7 +131,7 @@
 - v2 requirements: 65 total
 - Mapped to phases: 65
 - Unmapped: 0
-- Complete: 21 (32%)
+- Complete: 34 (52%)
 
 ---
 *Requirements defined: 2026-01-20*
