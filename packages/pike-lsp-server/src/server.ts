@@ -458,6 +458,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             documentRangeFormattingProvider: true,
             documentLinkProvider: { resolveProvider: true },
             codeLensProvider: { resolveProvider: true },
+            executeCommandProvider: {
+                commands: ['pike.lsp.showDiagnostics'],
+            },
         },
     };
 });
@@ -465,6 +468,50 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 connection.onInitialized(async () => {
     connection.console.log('Pike LSP Server initialized');
     connection.client.register(DidChangeConfigurationNotification.type, undefined);
+
+    // Register health check command
+    connection.workspace.onExecuteCommand(async (params) => {
+        if (params.command === 'pike.lsp.showDiagnostics') {
+            const health = await bridgeManager?.getHealth();
+
+            // Format health status as readable output
+            const lines: string[] = [];
+            lines.push('=== Pike LSP Server Health ===');
+            lines.push('');
+
+            if (health) {
+                const uptime = Math.floor(health.serverUptime / 1000);
+                const uptimeStr = uptime > 60
+                    ? `${Math.floor(uptime / 60)}m ${uptime % 60}s`
+                    : `${uptime}s`;
+
+                lines.push(`Server Uptime: ${uptimeStr}`);
+                lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
+                lines.push(`Pike PID: ${health.pikePid ?? 'N/A'}`);
+                lines.push(`Pike Version: ${health.pikeVersion ?? 'Unknown'}`);
+
+                if (health.recentErrors.length > 0) {
+                    lines.push('');
+                    lines.push('Recent Errors:');
+                    for (const err of health.recentErrors) {
+                        lines.push(`  - ${err}`);
+                    }
+                } else {
+                    lines.push('');
+                    lines.push('No recent errors');
+                }
+            } else {
+                lines.push('Health status unavailable');
+            }
+
+            lines.push('');
+            lines.push('============================');
+
+            return lines.join('\n');
+        }
+
+        return null;
+    });
 
     if (bridgeManager?.bridge && !bridgeManager.bridge.isRunning()) {
         try {
