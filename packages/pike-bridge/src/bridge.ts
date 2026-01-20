@@ -5,11 +5,11 @@
  * tokenization, and symbol extraction using Pike's native utilities.
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
-import * as readline from 'readline';
 import { fileURLToPath } from 'url';
+import { PikeProcess } from './process.js';
 import type {
     PikeParseResult,
     PikeToken,
@@ -78,11 +78,10 @@ interface PendingRequest {
  * ```
  */
 export class PikeBridge extends EventEmitter {
-    private process: ChildProcess | null = null;
+    private process: PikeProcess | null = null;
     private requestId = 0;
     private pendingRequests = new Map<number, PendingRequest>();
     private inflightRequests = new Map<string, Promise<unknown>>();
-    private readline: readline.Interface | null = null;
     private readonly options: Required<PikeBridgeOptions>;
     private started = false;
     private readonly logger = new Logger('PikeBridge');
@@ -137,77 +136,66 @@ export class PikeBridge extends EventEmitter {
 
         this.debugLog(`Starting Pike subprocess: ${this.options.pikePath} ${this.options.analyzerPath}`);
         this.emit('stderr', 'Env: ' + JSON.stringify(this.options.env));
-        
+
+        const pikeProc = new PikeProcess();
+
         return new Promise((resolve, reject) => {
-            try {
-                this.process = spawn(this.options.pikePath, [this.options.analyzerPath], {
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    env: {...process.env, ...this.options.env}
-                });
+            // Set up event handlers before spawning
+            pikeProc.once('error', (err) => {
+                this.debugLog(`Process error event: ${err.message}`);
+                this.started = false;
+                reject(new Error(`Failed to start Pike subprocess: ${err.message}`));
+            });
 
-                this.debugLog(`Pike subprocess spawned with PID: ${this.process.pid}`);
+            // Forward stderr events
+            pikeProc.on('stderr', (data) => {
+                const message = data.trim();
+                if (message) {
+                    // Filter out false positive warnings from Pike's native parser
+                    // These occur when parsing Pike's own stdlib which contains mixed C/Pike code
+                    const suppressedPatterns = [
+                        /^Illegal comment/,
+                        /^Missing ['"]>?['"]\)/,
+                    ];
+                    const isSuppressed = suppressedPatterns.some(p => p.test(message));
 
-                if (!this.process.stdout || !this.process.stdin) {
-                    const error = 'Failed to create Pike subprocess pipes';
-                    this.debugLog(`ERROR: ${error}`);
-                    reject(new Error(error));
-                    return;
+                    if (!isSuppressed) {
+                        this.logger.debug('Pike stderr', { raw: message });
+                        this.emit('stderr', message);
+                    } else {
+                        this.logger.trace('Pike stderr (suppressed)', { raw: message });
+                    }
                 }
+            });
 
-                // Set up readline interface for reading responses
-                this.readline = readline.createInterface({
-                    input: this.process.stdout,
-                    crlfDelay: Infinity,
-                });
+            // Handle message events (JSON-RPC responses)
+            pikeProc.on('message', (line) => {
+                this.debugLog(`Received line: ${line.substring(0, 100)}...`);
+                this.handleResponse(line);
+            });
 
-                this.readline.on('line', (line) => {
-                    this.debugLog(`Received line: ${line.substring(0, 100)}...`);
-                    this.handleResponse(line);
-                });
+            // Handle exit events - reject pending requests
+            pikeProc.on('exit', (code) => {
+                this.debugLog(`Process closed with code: ${code}`);
+                this.started = false;
+                this.process = null;
+                this.emit('close', code);
 
-                this.process.stderr?.on('data', (data: Buffer) => {
-                    // Log Pike warnings/errors but don't fail
-                    const message = data.toString().trim();
-                    if (message) {
-                        // Filter out false positive warnings from Pike's native parser
-                        // These occur when parsing Pike's own stdlib which contains mixed C/Pike code
-                        const suppressedPatterns = [
-                            /^Illegal comment/,
-                            /^Missing ['"]>?['"]\)/,
-                        ];
-                        const isSuppressed = suppressedPatterns.some(p => p.test(message));
+                // Reject all pending requests
+                for (const [_id, pending] of this.pendingRequests) {
+                    clearTimeout(pending.timeout);
+                    const error = new PikeError(`Pike process exited with code ${code}`);
+                    this.debugLog(`Rejecting pending request: ${error.message}`);
+                    pending.reject(error);
+                }
+                this.pendingRequests.clear();
+            });
 
-                        if (!isSuppressed) {
-                            this.logger.debug('Pike stderr', { raw: message });
-                            this.emit('stderr', message);
-                        } else {
-                            this.logger.trace('Pike stderr (suppressed)', { raw: message });
-                        }
-                    }
-                });
-
-                this.process.on('close', (code) => {
-                    this.debugLog(`Process closed with code: ${code}`);
-                    this.started = false;
-                    this.process = null;
-                    this.readline = null;
-                    this.emit('close', code);
-
-                    // Reject all pending requests
-                    for (const [_id, pending] of this.pendingRequests) {
-                        clearTimeout(pending.timeout);
-                        const error = new PikeError(`Pike process exited with code ${code}`);
-                        this.debugLog(`Rejecting pending request: ${error.message}`);
-                        pending.reject(error);
-                    }
-                    this.pendingRequests.clear();
-                });
-
-                this.process.on('error', (err) => {
-                    this.debugLog(`Process error event: ${err.message}`);
-                    this.started = false;
-                    reject(new Error(`Failed to start Pike subprocess: ${err.message}`));
-                });
+            // Spawn the process
+            try {
+                pikeProc.spawn(this.options.analyzerPath, this.options.pikePath, this.options.env);
+                this.debugLog(`Pike subprocess spawned with PID: ${pikeProc.pid}`);
+                this.process = pikeProc;
 
                 // Give the process a moment to start
                 setTimeout(() => {
@@ -235,32 +223,17 @@ export class PikeBridge extends EventEmitter {
      */
     async stop(): Promise<void> {
         if (this.process) {
-            const proc = this.process;
             this.debugLog('Stopping Pike subprocess...');
+            const proc = this.process;
 
-            // Close stdin to signal end of input
-            proc.stdin?.end();
+            // Graceful shutdown via PikeProcess
+            proc.kill();
 
-            // Send SIGTERM for graceful shutdown
-            proc.kill('SIGTERM');
+            // Wait a moment for cleanup
+            await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Wait for process to terminate gracefully, or force kill after timeout
-            const terminated = await new Promise<boolean>((resolve) => {
-                const timeout = setTimeout(() => {
-                    this.debugLog('Process did not terminate gracefully, sending SIGKILL');
-                    proc.kill('SIGKILL');
-                    resolve(false);
-                }, 2000); // 2 second grace period
-
-                proc.once('close', () => {
-                    clearTimeout(timeout);
-                    resolve(true);
-                });
-            });
-
-            this.debugLog(`Pike subprocess ${terminated ? 'terminated gracefully' : 'was killed forcefully'}`);
+            this.debugLog('Pike subprocess stopped');
             this.process = null;
-            this.readline = null;
             this.started = false;
         }
         this.emit('stopped');
@@ -272,7 +245,7 @@ export class PikeBridge extends EventEmitter {
      * @returns `true` if the subprocess is started and connected.
      */
     isRunning(): boolean {
-        return this.started && this.process !== null;
+        return this.started && this.process !== null && this.process.isAlive();
     }
 
     /**
@@ -295,7 +268,7 @@ export class PikeBridge extends EventEmitter {
             return existing as Promise<T>;
         }
 
-        if (!this.process?.stdin || !this.started) {
+        if (!this.process || !this.process.isAlive() || !this.started) {
             await this.start();
         }
 
@@ -317,7 +290,7 @@ export class PikeBridge extends EventEmitter {
             const request: PikeRequest = { id, method: method as PikeRequest['method'], params };
             const json = JSON.stringify(request);
 
-            this.process?.stdin?.write(json + '\n');
+            this.process?.send(json);
         });
 
         // Track as inflight
