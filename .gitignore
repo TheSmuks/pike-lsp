@@ -48,3 +48,6 @@ repomix-output.*
 tmp/
 temp/
 *.tmp
+
+# Husky shell script cache
+.husky/_

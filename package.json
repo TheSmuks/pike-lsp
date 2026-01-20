@@ -1,30 +1,32 @@
 {
-    "name": "pike-lsp",
-    "version": "1.0.0",
-    "private": true,
-    "description": "Pike Language Server Protocol implementation and VSCode extension",
-    "author": "Pike LSP Team",
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/pike-lsp/pike-lsp"
-    },
-    "scripts": {
-        "build": "pnpm -r run build",
-        "clean": "pnpm -r run clean",
-        "test": "pnpm -r run test",
-        "test:all": "./scripts/run-tests.sh",
-        "lint": "pnpm -r run lint",
-        "typecheck": "pnpm -r run typecheck",
-        "watch": "pnpm -r --parallel run watch"
-    },
-    "devDependencies": {
-        "@types/node": "^20.10.0",
-        "typescript": "^5.3.0"
-    },
-    "engines": {
-        "node": ">=18.0.0",
-        "pnpm": ">=8.0.0"
-    },
-    "packageManager": "pnpm@8.15.0"
+  "name": "pike-lsp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pike Language Server Protocol implementation and VSCode extension",
+  "author": "Pike LSP Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pike-lsp/pike-lsp"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "clean": "pnpm -r run clean",
+    "test": "pnpm -r run test",
+    "test:all": "./scripts/run-tests.sh",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "watch": "pnpm -r --parallel run watch",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "husky": "^9.1.7",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
 }
