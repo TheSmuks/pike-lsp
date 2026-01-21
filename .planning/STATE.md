@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Safety without rigidity - solve actual pain points without over-engineering
-**Current focus:** v2 Milestone - LSP Modularization
+**Current focus:** v2 Milestone - Gap Closure (Phase 7)
 
 ## Current Position
 
-Phase: 6 of 6 (Automated LSP Feature Verification) - PHASE COMPLETE
-Plan: 2 of 2 complete
-Status: Phase 6 complete - v2 milestone achieved with comprehensive automated verification
-Last activity: 2026-01-21 — Completed plan 06-02 (CI Integration for LSP Feature Tests)
+Phase: 7 of 7 (Gap Closure)
+Plan: 1 of 2 (fix document lifecycle handler duplication)
+Status: PLAN BLOCKED - Root cause differs from plan assumption
+Last activity: 2026-01-21 — Plan 07-01 investigation revealed deeper issue
 
-Progress: [████████████] 100% (27/27 v2 plans complete, v2 milestone achieved)
+Progress: [████████████░░] 96% (27/28 v2 plans complete)
 
 ## Performance Metrics
 
@@ -182,8 +182,16 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 06-02):**
-- No blockers - v2 milestone complete
+**Current (as of plan 07-01):**
+- **CRITICAL BLOCKER:** Plan 07-01 cannot proceed as written. Root cause investigation revealed:
+  1. Duplicate handlers already removed (not in current codebase)
+  2. Actual issue: vscode-languageclient LanguageClient not sending textDocument/didOpen notifications
+  3. E2E tests fail (5 of 7) because document cache never populates
+  4. Requires architectural decision on how to fix LanguageClient document sync
+
+**See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-INCOMPLETE.md` for full investigation details
+
+**TODOs from previous phases:**
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
@@ -191,8 +199,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 06-02 (CI Integration for LSP Feature Tests) - v2 milestone complete
-Resume file: None
+Stopped at: Plan 07-01 investigation complete - identified deeper issue with LanguageClient document sync
+Resume file: `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-INCOMPLETE.md`
 
 ## Previous Milestone Summary
 
