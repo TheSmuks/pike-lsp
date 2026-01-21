@@ -19,7 +19,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - [x] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
 - [x] **Phase 4: Server Grouping** - Split server.ts by capability
 - [x] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
-- [ ] **Phase 6: Automated LSP Feature Verification** - E2E tests for symbols, hover, definition, completion
+- [x] **Phase 6: Automated LSP Feature Verification** - E2E tests for symbols, hover, definition, completion
 
 ## Phase Details
 
@@ -199,7 +199,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 5 (Pike modules must be stable)
 
-**Status**: Pending
+**Status**: Complete ✓
 
 **Requirements**: LSP-E2E-01, LSP-E2E-02, LSP-E2E-03, LSP-E2E-04, LSP-E2E-05, LSP-E2E-06
 
@@ -218,10 +218,10 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Updated `.claude/CLAUDE.md` verification section
 
 **Plans**: 2 plans in 2 waves
-- [ ] 06-01-PLAN.md — Create LSP feature integration tests (symbols, hover, definition, completion)
-- [ ] 06-02-PLAN.md — Add E2E feature tests to CI pipeline and pre-push hooks
+- [x] 06-01-PLAN.md — Create LSP feature integration tests (symbols, hover, definition, completion)
+- [x] 06-02-PLAN.md — Add E2E feature tests to CI pipeline and pre-push hooks
 
-**Completed**: Pending
+**Completed**: 2026-01-21
 
 ---
 
@@ -239,14 +239,14 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
 | 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
 | 5. Pike Reorganization | 6/6 | Complete ✓ | 2026-01-21 |
-| 6. Automated LSP Feature Verification | 0/2 | Pending | - |
+| 6. Automated LSP Feature Verification | 2/2 | Complete ✓ | 2026-01-21 |
 
-**Project Status:** v2 MILESTONE IN PROGRESS - 5/6 phases complete (25/27 plans)
+**Project Status:** v2 MILESTONE COMPLETE - All 6 phases complete (27/27 plans)
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
-- Complete: 65
-- Pending: 6 (LSP-E2E-01 through LSP-E2E-06)
+- Complete: 71
+- Pending: 0
 
 ---
 *Roadmap created: 2026-01-20*
