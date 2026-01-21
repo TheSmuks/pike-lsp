@@ -577,37 +577,6 @@ connection.onDidChangeConfiguration((change) => {
 });
 
 // ============================================================================
-// Document Lifecycle Handlers
-// ============================================================================
-
-documents.onDidOpen((event) => {
-    connection.console.log(`Document opened: ${event.document.uri}`);
-    validateDocument(event.document);
-});
-
-documents.onDidChangeContent((change) => {
-    validateDocumentDebounced(change.document);
-});
-
-documents.onDidSave((event) => {
-    validateDocument(event.document);
-});
-
-documents.onDidClose((event) => {
-    documentCache.delete(event.document.uri);
-    typeDatabase.removeProgram(event.document.uri);
-    workspaceIndex.removeDocument(event.document.uri);
-
-    const timer = validationTimers.get(event.document.uri);
-    if (timer) {
-        clearTimeout(timer);
-        validationTimers.delete(event.document.uri);
-    }
-
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
-});
-
-// ============================================================================
 // Register Feature Handlers (BEFORE documents.listen!)
 // ============================================================================
 
