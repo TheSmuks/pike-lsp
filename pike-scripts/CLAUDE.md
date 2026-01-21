@@ -36,7 +36,7 @@ Before committing changes to pike-scripts/, you MUST verify:
 ```bash
 # Test introspect works through the bridge
 node -e "
-import('/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/dist/index.js').then(async ({PikeBridge}) => {
+import('./packages/pike-bridge/dist/index.js').then(async ({PikeBridge}) => {
   const bridge = new PikeBridge();
   await bridge.start();
   const result = await bridge.introspect('class Foo { int x; }', '/tmp/test.pike');

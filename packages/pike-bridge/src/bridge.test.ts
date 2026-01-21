@@ -125,7 +125,7 @@ describe('PikeBridge', () => {
 
     it('should resolve local modules with currentFile context', async () => {
         const modulePath = '.SHA256';
-        const currentFile = '/home/user/project/RSA.pmod';
+        const currentFile = '/tmp/project/RSA.pmod';
 
         // This will fail if the file doesn't exist, but tests the API
         const result = await bridge.resolveModule(modulePath, currentFile);
