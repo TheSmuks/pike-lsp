@@ -1,5 +1,25 @@
 import { defineConfig } from '@vscode/test-cli';
 
+// Build launch args based on environment
+const buildLaunchArgs = () => {
+  const args = [
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-dev-shm-usage',
+    '--no-sandbox'
+  ];
+
+  // If running under Wayland, add Wayland-specific flags
+  if (process.env.WAYLAND_DISPLAY) {
+    args.push(
+      '--enable-features=UseOzonePlatform',
+      '--ozone-platform=wayland'
+    );
+  }
+
+  return args;
+};
+
 export default defineConfig([
   {
     label: 'Integration Tests',
@@ -9,6 +29,13 @@ export default defineConfig([
     mocha: {
       ui: 'tdd',
       timeout: 120000 // 120s timeout for LSP initialization with module path loading
-    }
+    },
+    // Enable test mode so Pike server output is logged to console
+    env: {
+      PIKE_LSP_TEST_MODE: 'true'
+    },
+    // Disable GPU and other UI features for headless testing
+    // Add Wayland flags if WAYLAND_DISPLAY is set
+    launchArgs: buildLaunchArgs()
   }
 ]);

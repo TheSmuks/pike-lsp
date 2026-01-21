@@ -2,5 +2,6 @@
   "mode": "yolo",
   "depth": "comprehensive",
   "parallel": true,
+  "commit_docs": true,
   "model_profile": "quality"
 }

@@ -9,19 +9,23 @@ status: active
 
 ## Purpose
 
-Barrel export file for the core utilities module, aggregating error classes and logging infrastructure used throughout the LSP server implementation.
+Central export module for the pike-lsp-server core layer, providing error handling utilities, logging infrastructure, and shared types.
 
 ## Exports
 
-- `LSPError` - Base error class for LSP-layer errors with layer tracking
-- `BridgeError` - Error class for Pike bridge communication failures
-- `PikeError` - Error class for Pike subprocess-level errors
-- `Logger` - Logging utility with level-based filtering
-- `LogLevel` - Enum defining log severity levels (DEBUG, INFO, WARN, ERROR)
+- **LSPError** - LSP protocol layer error class
+- **BridgeError** - Pike bridge communication error class
+- **PikeError** - Pike subprocess error class
+- **ErrorLayer** - Type discriminating error layers (lsp | bridge | pike)
+- **Logger** - Logging utility class
+- **LogLevel** - Log level enum (debug | info | warn | error)
+- **PikeSettings** - Configuration settings type
+- **DocumentCacheEntry** - Cached document metadata type
+- **defaultSettings** - Default PikeSettings instance
 
 ## Dependencies
 
-[[core/errors]], [[core/logging]]
+[[./errors]], [[./logging]], [[./types]]
 
 ## Used By
 
@@ -29,4 +33,4 @@ TBD
 
 ## Notes
 
-This is a re-export module only—no original implementations. Provides a single import point for all core utilities.
+Barrel export pattern consolidating core infrastructure exports for clean imports from other modules.

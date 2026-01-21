@@ -36,13 +36,49 @@ export interface ExtensionApi {
 const TEST_MODE = process.env.PIKE_LSP_TEST_MODE === 'true';
 
 /**
+ * Console-logging output channel wrapper for E2E tests
+ * Wraps a real OutputChannel but also logs everything to console
+ * so test runners can capture Pike server errors.
+ */
+function createTestOutputChannel(name: string): OutputChannel {
+    const realChannel = window.createOutputChannel(name);
+    return {
+        name: realChannel.name,
+        append: (value: string) => {
+            console.log(`[${name}] ${value}`);
+            realChannel.append(value);
+        },
+        appendLine: (value: string) => {
+            console.log(`[${name}] ${value}`);
+            realChannel.appendLine(value);
+        },
+        replace: (value: string) => {
+            console.log(`[${name}] (replace) ${value}`);
+            realChannel.replace(value);
+        },
+        clear: () => realChannel.clear(),
+        show: (column?: any, preserveFocus?: boolean) => realChannel.show(column, preserveFocus),
+        hide: () => realChannel.hide(),
+        dispose: () => realChannel.dispose(),
+    };
+}
+
+/**
  * Internal activation implementation
  */
 async function activateInternal(context: ExtensionContext, testOutputChannel?: OutputChannel): Promise<ExtensionApi> {
     console.log('Pike Language Extension is activating...');
 
-    // Use provided test output channel or create a real one
-    outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
+    // Use provided test output channel, or create one
+    // In test mode, wrap with console logging so tests can see Pike errors
+    if (testOutputChannel) {
+        outputChannel = testOutputChannel;
+    } else if (TEST_MODE) {
+        outputChannel = createTestOutputChannel('Pike Language Server');
+        console.log('[Pike LSP] Test mode enabled - all output will be logged to console');
+    } else {
+        outputChannel = window.createOutputChannel('Pike Language Server');
+    }
 
     let disposable = commands.registerCommand('pike-module-path.add', async (e) => {
         const rv = await addModulePathSetting(e.fsPath);

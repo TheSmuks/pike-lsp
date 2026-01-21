@@ -1,25 +1,14 @@
-# Codebase Intelligence
+# Codebase Intelligence Summary
 
-**Indexed entities:** 16
-**Last updated:** 2026-01-20
+Last updated: 2026-01-21T16:11:26.571Z
+Indexed files: 40
 
-## Dependency Hotspots
+## Key Directories
 
-Files with most dependents (change carefully):
-1. `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/types.ts` (6 dependents) [model]
-1. `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/constants/index.ts` (3 dependents) [config]
-1. `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts` (2 dependents) [service]
-1. `core/errors` (1 dependents)
-1. `core/logging` (1 dependents)
+- `constants/`: Constants (1 files)
+- `utils/`: Utility functions (3 files)
+- `test/`: Test files (2 files)
+- `tests/`: Test files (1 files)
+- `services/`: Service layer (3 files)
 
-## Module Types
-
-- **Util**: 5 files
-- **Service**: 4 files
-- **Test**: 2 files
-- **Config**: 2 files
-- **Module**: 1 files
-- **Model**: 1 files
-- **Component**: 1 files
-
-**Relationships tracked:** 15
+Total exports: 105

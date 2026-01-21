@@ -18,6 +18,8 @@ importers:
         specifier: ^5.3.0
         version: 5.9.3
 
+  packages/core: {}
+
   packages/pike-analyzer:
     dependencies:
       '@pike-lsp/pike-bridge':
@@ -32,6 +34,10 @@ importers:
         version: 5.9.3
 
   packages/pike-bridge:
+    dependencies:
+      '@pike-lsp/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^20.10.0
@@ -42,6 +48,9 @@ importers:
 
   packages/pike-lsp-server:
     dependencies:
+      '@pike-lsp/core':
+        specifier: workspace:*
+        version: link:../core
       '@pike-lsp/pike-analyzer':
         specifier: workspace:*
         version: link:../pike-analyzer

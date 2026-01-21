@@ -59,9 +59,21 @@ if [ -d "$PIKE_SCRIPTS_SRC" ]; then
     if [ -d "$PIKE_SCRIPTS_SRC/LSP.pmod" ]; then
         echo "  Copying LSP.pmod modules"
         mkdir -p "$SERVER_DIR/pike-scripts/LSP.pmod"
-        # Copy both .pike and .pmod files
+        # Copy .pike files
         cp "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pike "$SERVER_DIR/pike-scripts/LSP.pmod/" 2>/dev/null || true
-        cp "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pmod "$SERVER_DIR/pike-scripts/LSP.pmod/" 2>/dev/null || true
+        # Copy .pmod files (single files, not directories)
+        for f in "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pmod; do
+            if [ -f "$f" ]; then
+                cp "$f" "$SERVER_DIR/pike-scripts/LSP.pmod/"
+            fi
+        done
+        # Copy .pmod directories recursively (Intelligence.pmod/, Analysis.pmod/, etc.)
+        for d in "$PIKE_SCRIPTS_SRC/LSP.pmod"/*.pmod; do
+            if [ -d "$d" ]; then
+                echo "    Copying directory: $(basename "$d")"
+                cp -r "$d" "$SERVER_DIR/pike-scripts/LSP.pmod/"
+            fi
+        done
     fi
 else
     echo "ERROR: pike-scripts not found at $PIKE_SCRIPTS_SRC"
