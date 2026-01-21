@@ -1,6 +1,6 @@
 //! TypeAnalysis.pike - Type inheritance and AutoDoc parsing handlers
 //!
-//! This class provides handlers for type inheritance traversal and AutoDoc
+//! This file provides handlers for type inheritance traversal and AutoDoc
 //! documentation parsing using Pike's native Tools.AutoDoc.DocParser.
 //!
 //! Design pattern:
@@ -9,658 +9,653 @@
 //! - Uses LSP.Compat.trim_whites() for string operations
 //! - Uses helper functions from module.pmod (process_inline_markup) for markdown conversion
 
-//! TypeAnalysis class - Type inheritance and AutoDoc parsing
+private object context;
+
+//! Create a new TypeAnalysis instance
+//! @param ctx Optional context object (reserved for future use)
+void create(object ctx) {
+    context = ctx;
+}
+
+//! Get inherited members from a class
 //!
-//! Use: import LSP.Intelligence; object T = TypeAnalysis(ctx); T->handle_get_inherited(...);
-class TypeAnalysis {
-    private object context;
+//! Retrieves inherited members from parent classes using Program.inherit_list().
+//!
+//! @param params Mapping with "class" key (fully qualified class name)
+//! @returns Mapping with "result" containing inherited members
+//!
+//! Per CONTEXT.md decision:
+//! - Errors in class resolution return empty result (not crash)
+//! - Handles both object and program resolutions
+//!
+//! Note: Basic inheritance traversal (no cycle detection yet)
+//! - Current implementation handles typical shallow inheritance chains
+//! - Cycle detection can be added in future enhancement
+mapping handle_get_inherited(mapping params) {
+    mixed err = catch {
+        string class_name = params->class || "";
 
-    //! Create a new TypeAnalysis instance
-    //! @param ctx Optional context object (reserved for future use)
-    void create(object ctx) {
-        context = ctx;
-    }
+        if (sizeof(class_name) == 0) {
+            return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+        }
 
-    //! Get inherited members from a class
-    //!
-    //! Retrieves inherited members from parent classes using Program.inherit_list().
-    //!
-    //! @param params Mapping with "class" key (fully qualified class name)
-    //! @returns Mapping with "result" containing inherited members
-    //!
-    //! Per CONTEXT.md decision:
-    //! - Errors in class resolution return empty result (not crash)
-    //! - Handles both object and program resolutions
-    //!
-    //! Note: Basic inheritance traversal (no cycle detection yet)
-    //! - Current implementation handles typical shallow inheritance chains
-    //! - Cycle detection can be added in future enhancement
-    mapping handle_get_inherited(mapping params) {
-        mixed err = catch {
-            string class_name = params->class || "";
+        // Resolve class using master()->resolv()
+        mixed resolved;
+        mixed resolve_err = catch {
+            resolved = master()->resolv(class_name);
+        };
 
-            if (sizeof(class_name) == 0) {
-                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-            }
+        if (resolve_err || !resolved) {
+            // Per CONTEXT.md: resolution failure returns empty result, not error
+            return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+        }
 
-            // Resolve class using master()->resolv()
-            mixed resolved;
-            mixed resolve_err = catch {
-                resolved = master()->resolv(class_name);
+        // Handle both object and program
+        program prog;
+        if (objectp(resolved)) {
+            prog = object_program(resolved);
+        } else if (programp(resolved)) {
+            prog = resolved;
+        } else {
+            return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+        }
+
+        if (!prog) {
+            return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+        }
+
+        // Get inheritance list using Program.inherit_list()
+        array inherits = ({});
+        catch { inherits = Program.inherit_list(prog) || ({}); };
+
+        array all_members = ({});
+
+        // Introspect each parent program - call sibling Introspection class
+        foreach (inherits, program parent_prog) {
+            mapping parent_info = ([]);
+
+            // Try to use Introspection class
+            mixed intro_err = catch {
+                program IntroClass = master()->resolv("LSP.Intelligence.Introspection");
+                if (IntroClass) {
+                    object intro_instance = IntroClass(context);
+                    parent_info = intro_instance->introspect_program(parent_prog);
+                }
             };
 
-            if (resolve_err || !resolved) {
-                // Per CONTEXT.md: resolution failure returns empty result, not error
-                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
+            if (intro_err || sizeof(parent_info) == 0) {
+                // Fallback: basic introspection
+                parent_info = ([
+                    "symbols": ({}),
+                    "functions": ({}),
+                    "variables": ({}),
+                    "classes": ({}),
+                    "inherits": ({})
+                ]);
             }
 
-            // Handle both object and program
-            program prog;
-            if (objectp(resolved)) {
-                prog = object_program(resolved);
-            } else if (programp(resolved)) {
-                prog = resolved;
-            } else {
-                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-            }
+            all_members += parent_info->symbols || ({});
+        }
 
-            if (!prog) {
-                return ([ "result": ([ "found": 0, "members": ({}) ]) ]);
-            }
+        return ([
+            "result": ([
+                "found": 1,
+                "members": all_members,
+                "inherit_count": sizeof(inherits)
+            ])
+        ]);
+    };
 
-            // Get inheritance list using Program.inherit_list()
-            array inherits = ({});
-            catch { inherits = Program.inherit_list(prog) || ({}); };
+    if (err) {
+        return LSP.module.LSPError(-32000, describe_error(err))->to_response();
+    }
+}
 
-            array all_members = ({});
+//! Parse autodoc documentation string into structured format
+//!
+//! Uses Pike's native Tools.AutoDoc.DocParser.splitDocBlock for tokenization.
+//! Processes AutoDoc markup tags (@param, @returns, @throws, etc.) into
+//! structured documentation.
+//!
+//! @param doc The raw autodoc documentation string
+//! @returns Mapping with structured documentation fields
+//!
+//! Token type constants (Pitfall 3 from RESEARCH.md):
+//! 1 = METAKEYWORD, 3 = DELIMITERKEYWORD, 4 = BEGINGROUP,
+//! 6 = ENDGROUP, 7 = ENDCONTAINER, 8 = TEXTTOKEN, 9 = EOF
+mapping parse_autodoc(string doc) {
+    mixed err = catch {
+        return parse_autodoc_impl(doc);
+    };
 
-            // Introspect each parent program - call sibling Introspection class
-            foreach (inherits, program parent_prog) {
-                mapping parent_info = ([]);
+    // Fallback: return basic text on error
+    if (err) {
+        return ([ "text": doc ]);
+    }
+}
 
-                // Try to use Introspection class
-                mixed intro_err = catch {
-                    program IntroClass = master()->resolv("LSP.Intelligence.Introspection.Introspection");
-                    if (IntroClass) {
-                        object intro_instance = IntroClass(context);
-                        parent_info = intro_instance->introspect_program(parent_prog);
+//! Internal implementation of parse_autodoc
+protected mapping parse_autodoc_impl(string doc) {
+    // Get helper function from module.pmod
+    program module_program = master()->resolv("LSP.Intelligence.module");
+    function process_inline_markup = 0;
+    if (module_program) {
+        process_inline_markup = module_program->process_inline_markup;
+    }
+
+    mapping result = ([
+        "text": "",
+        "params": ([]),
+        "returns": "",
+        "throws": "",
+        "notes": ({}),
+        "bugs": ({}),
+        "deprecated": "",
+        "examples": ({}),
+        "seealso": ({}),
+        "members": ([]),
+        "items": ({}),
+        "arrays": ({}),
+        "multisets": ({}),
+        "mappings": ({})
+    ]);
+
+    // Try to use Pike's native DocParser
+    object src_pos = Tools.AutoDoc.SourcePosition("inline", 1);
+    mixed parsed = Tools.AutoDoc.DocParser.splitDocBlock(doc, src_pos);
+
+    if (arrayp(parsed) && sizeof(parsed) > 0) {
+        array tokens = parsed[0];
+
+        // Context tracking for proper text accumulation
+        string current_section = "text";  // Which section are we in
+        string current_param = "";         // Which parameter name (for @param)
+        string current_group = "";         // Current block group
+        array(string) text_buffer = ({});  // Buffer for accumulating text
+        array(mapping) group_stack = ({}); // Stack for nested groups
+        array(mapping) group_items = ({});  // Items being collected in current group
+        string group_owner = "";           // Which param/section owns the current group
+
+        // Process all tokens
+        foreach (tokens, object tok) {
+            int tok_type = tok->type;
+            string keyword = tok->keyword || "";
+            string arg = tok->arg || "";
+            string text = tok->text || "";
+
+            if (tok_type == 8) {
+                // TEXTTOKEN - Regular text content
+                string normalized = replace(text, "\n", " ");
+                // Collapse multiple spaces into single space
+                while (has_value(normalized, "  ")) {
+                    normalized = replace(normalized, "  ", " ");
+                }
+                string processed = process_inline_markup ?
+                    process_inline_markup(LSP.Compat.trim_whites(normalized)) :
+                    LSP.Compat.trim_whites(normalized);
+                if (sizeof(processed) > 0) {
+                    // If we're in elem/item mode within a group, save to last group item
+                    if ((current_section == "elem" || current_section == "item" || current_section == "value")
+                        && sizeof(current_group) > 0 && sizeof(group_items) > 0) {
+                        mapping last_item = group_items[-1];
+                        if (last_item->text && sizeof(last_item->text) > 0) {
+                            last_item->text += " " + processed;
+                        } else {
+                            last_item->text = processed;
+                        }
+                    } else {
+                        text_buffer += ({ processed });
                     }
-                };
-
-                if (intro_err || sizeof(parent_info) == 0) {
-                    // Fallback: basic introspection
-                    parent_info = ([
-                        "symbols": ({}),
-                        "functions": ({}),
-                        "variables": ({}),
-                        "classes": ({}),
-                        "inherits": ({})
-                    ]);
                 }
 
-                all_members += parent_info->symbols || ({});
-            }
+            } else if (tok_type == 3) {
+                // DELIMITERKEYWORD - Section delimiter (@param, @returns, etc.)
+                save_text_buffer(result, current_section, current_param, text_buffer);
+                text_buffer = ({});
 
-            return ([
-                "result": ([
-                    "found": 1,
-                    "members": all_members,
-                    "inherit_count": sizeof(inherits)
-                ])
-            ]);
-        };
+                string trimmed_arg = LSP.Compat.trim_whites(arg);
 
-        if (err) {
-            return LSP.module.LSPError(-32000, describe_error(err))->to_response();
-        }
-    }
-
-    //! Parse autodoc documentation string into structured format
-    //!
-    //! Uses Pike's native Tools.AutoDoc.DocParser.splitDocBlock for tokenization.
-    //! Processes AutoDoc markup tags (@param, @returns, @throws, etc.) into
-    //! structured documentation.
-    //!
-    //! @param doc The raw autodoc documentation string
-    //! @returns Mapping with structured documentation fields
-    //!
-    //! Token type constants (Pitfall 3 from RESEARCH.md):
-    //! 1 = METAKEYWORD, 3 = DELIMITERKEYWORD, 4 = BEGINGROUP,
-    //! 6 = ENDGROUP, 7 = ENDCONTAINER, 8 = TEXTTOKEN, 9 = EOF
-    mapping parse_autodoc(string doc) {
-        mixed err = catch {
-            return parse_autodoc_impl(doc);
-        };
-
-        // Fallback: return basic text on error
-        if (err) {
-            return ([ "text": doc ]);
-        }
-    }
-
-    //! Internal implementation of parse_autodoc
-    protected mapping parse_autodoc_impl(string doc) {
-        // Get helper function from module.pmod
-        program module_program = master()->resolv("LSP.Intelligence.module");
-        function process_inline_markup = 0;
-        if (module_program) {
-            process_inline_markup = module_program->process_inline_markup;
-        }
-
-        mapping result = ([
-            "text": "",
-            "params": ([]),
-            "returns": "",
-            "throws": "",
-            "notes": ({}),
-            "bugs": ({}),
-            "deprecated": "",
-            "examples": ({}),
-            "seealso": ({}),
-            "members": ([]),
-            "items": ({}),
-            "arrays": ({}),
-            "multisets": ({}),
-            "mappings": ({})
-        ]);
-
-        // Try to use Pike's native DocParser
-        object src_pos = Tools.AutoDoc.SourcePosition("inline", 1);
-        mixed parsed = Tools.AutoDoc.DocParser.splitDocBlock(doc, src_pos);
-
-        if (arrayp(parsed) && sizeof(parsed) > 0) {
-            array tokens = parsed[0];
-
-            // Context tracking for proper text accumulation
-            string current_section = "text";  // Which section are we in
-            string current_param = "";         // Which parameter name (for @param)
-            string current_group = "";         // Current block group
-            array(string) text_buffer = ({});  // Buffer for accumulating text
-            array(mapping) group_stack = ({}); // Stack for nested groups
-            array(mapping) group_items = ({});  // Items being collected in current group
-            string group_owner = "";           // Which param/section owns the current group
-
-            // Process all tokens
-            foreach (tokens, object tok) {
-                int tok_type = tok->type;
-                string keyword = tok->keyword || "";
-                string arg = tok->arg || "";
-                string text = tok->text || "";
-
-                if (tok_type == 8) {
-                    // TEXTTOKEN - Regular text content
-                    string normalized = replace(text, "\n", " ");
-                    // Collapse multiple spaces into single space
-                    while (has_value(normalized, "  ")) {
-                        normalized = replace(normalized, "  ", " ");
-                    }
-                    string processed = process_inline_markup ?
-                        process_inline_markup(LSP.Compat.trim_whites(normalized)) :
-                        LSP.Compat.trim_whites(normalized);
-                    if (sizeof(processed) > 0) {
-                        // If we're in elem/item mode within a group, save to last group item
-                        if ((current_section == "elem" || current_section == "item" || current_section == "value")
-                            && sizeof(current_group) > 0 && sizeof(group_items) > 0) {
-                            mapping last_item = group_items[-1];
-                            if (last_item->text && sizeof(last_item->text) > 0) {
-                                last_item->text += " " + processed;
-                            } else {
-                                last_item->text = processed;
+                switch (keyword) {
+                    case "param":
+                        // @param can have format: "paramname" or "paramname description"
+                        int space_pos = search(trimmed_arg, " ");
+                        if (space_pos >= 0) {
+                            current_param = trimmed_arg[..space_pos-1];
+                            string param_desc = LSP.Compat.trim_whites(trimmed_arg[space_pos+1..]);
+                            if (sizeof(param_desc) > 0) {
+                                string processed = process_inline_markup ?
+                                    process_inline_markup(param_desc) : param_desc;
+                                text_buffer = ({ processed });
                             }
                         } else {
-                            text_buffer += ({ processed });
+                            current_param = trimmed_arg;
                         }
-                    }
+                        current_section = "param";
+                        if (!result->params[current_param]) {
+                            result->params[current_param] = "";
+                        }
+                        break;
 
-                } else if (tok_type == 3) {
-                    // DELIMITERKEYWORD - Section delimiter (@param, @returns, etc.)
-                    save_text_buffer(result, current_section, current_param, text_buffer);
-                    text_buffer = ({});
+                    case "returns":
+                    case "return":
+                        current_section = "returns";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            text_buffer = ({ processed });
+                        }
+                        break;
 
-                    string trimmed_arg = LSP.Compat.trim_whites(arg);
+                    case "throws":
+                        current_section = "throws";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            text_buffer = ({ processed });
+                        }
+                        break;
 
-                    switch (keyword) {
-                        case "param":
-                            // @param can have format: "paramname" or "paramname description"
-                            int space_pos = search(trimmed_arg, " ");
-                            if (space_pos >= 0) {
-                                current_param = trimmed_arg[..space_pos-1];
-                                string param_desc = LSP.Compat.trim_whites(trimmed_arg[space_pos+1..]);
-                                if (sizeof(param_desc) > 0) {
+                    case "note":
+                        current_section = "note";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->notes += ({ processed });
+                        } else {
+                            result->notes += ({ "" });
+                        }
+                        break;
+
+                    case "bugs":
+                        current_section = "bugs";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->bugs += ({ processed });
+                        } else {
+                            result->bugs += ({ "" });
+                        }
+                        break;
+
+                    case "deprecated":
+                        current_section = "deprecated";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            text_buffer = ({ processed });
+                        }
+                        break;
+
+                    case "example":
+                        current_section = "example";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            result->examples += ({ trimmed_arg });
+                        } else {
+                            result->examples += ({ "" });
+                        }
+                        break;
+
+                    case "seealso":
+                        current_section = "seealso";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->seealso += ({ processed });
+                        }
+                        break;
+
+                    case "member":
+                        current_section = "member";
+                        string mtype = "", mname = "";
+                        if (sscanf(trimmed_arg, "%s %s", mtype, mname) == 2) {
+                            mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
+                            if (sizeof(mname) > 0) {
+                                current_param = mname;
+                                if (!result->members[mname]) {
                                     string processed = process_inline_markup ?
-                                        process_inline_markup(param_desc) : param_desc;
-                                    text_buffer = ({ processed });
-                                }
-                            } else {
-                                current_param = trimmed_arg;
-                            }
-                            current_section = "param";
-                            if (!result->params[current_param]) {
-                                result->params[current_param] = "";
-                            }
-                            break;
-
-                        case "returns":
-                        case "return":
-                            current_section = "returns";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                text_buffer = ({ processed });
-                            }
-                            break;
-
-                        case "throws":
-                            current_section = "throws";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                text_buffer = ({ processed });
-                            }
-                            break;
-
-                        case "note":
-                            current_section = "note";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                result->notes += ({ processed });
-                            } else {
-                                result->notes += ({ "" });
-                            }
-                            break;
-
-                        case "bugs":
-                            current_section = "bugs";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                result->bugs += ({ processed });
-                            } else {
-                                result->bugs += ({ "" });
-                            }
-                            break;
-
-                        case "deprecated":
-                            current_section = "deprecated";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                text_buffer = ({ processed });
-                            }
-                            break;
-
-                        case "example":
-                            current_section = "example";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                result->examples += ({ trimmed_arg });
-                            } else {
-                                result->examples += ({ "" });
-                            }
-                            break;
-
-                        case "seealso":
-                            current_section = "seealso";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                result->seealso += ({ processed });
-                            }
-                            break;
-
-                        case "member":
-                            current_section = "member";
-                            string mtype = "", mname = "";
-                            if (sscanf(trimmed_arg, "%s %s", mtype, mname) == 2) {
-                                mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
-                                if (sizeof(mname) > 0) {
-                                    current_param = mname;
-                                    if (!result->members[mname]) {
-                                        string processed = process_inline_markup ?
-                                            process_inline_markup(mtype) : mtype;
-                                        result->members[mname] = processed;
-                                    }
+                                        process_inline_markup(mtype) : mtype;
+                                    result->members[mname] = processed;
                                 }
                             }
-                            break;
-
-                        case "elem":
-                        case "value":
-                            current_section = "elem";
-                            if (sizeof(trimmed_arg) > 0) {
-                                current_param = trimmed_arg;
-                                if (sizeof(current_group) > 0) {
-                                    group_items += ({ ([ "label": current_param, "text": "" ]) });
-                                } else {
-                                    result->items += ({ ([ "label": current_param, "text": "" ]) });
-                                }
-                            }
-                            break;
-
-                        case "item":
-                            current_section = "item";
-                            if (sizeof(trimmed_arg) > 0) {
-                                current_param = trimmed_arg;
-                                if (sizeof(current_group) > 0) {
-                                    group_items += ({ ([ "label": current_param, "text": "" ]) });
-                                } else {
-                                    result->items += ({ ([ "label": current_param, "text": "" ]) });
-                                }
-                            }
-                            break;
-
-                        case "section":
-                            current_section = "note";
-                            current_param = "";
-                            if (sizeof(trimmed_arg) > 0) {
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(trimmed_arg) : trimmed_arg;
-                                result->notes += ({ processed });
-                            }
-                            break;
-
-                        default:
-                            current_section = "text";
-                            current_param = "";
-                            break;
-                    }
-
-                } else if (tok_type == 4) {
-                    // BEGINGROUP - Start of block (@mapping, @array, @dl, etc.)
-                    save_text_buffer(result, current_section, current_param, text_buffer);
-                    text_buffer = ({});
-
-                    // Push current context onto stack
-                    group_stack += ({ ([
-                        "section": current_section,
-                        "param": current_param,
-                        "group": current_group,
-                        "owner": group_owner,
-                        "items": group_items
-                    ]) });
-
-                    // Track which section/param owns this group
-                    if (current_section == "param" && sizeof(current_param) > 0) {
-                        group_owner = "param:" + current_param;
-                    } else if (current_section == "returns") {
-                        group_owner = "returns";
-                    } else if (current_section == "throws") {
-                        group_owner = "throws";
-                    } else if (current_section == "note") {
-                        group_owner = "note";
-                    } else {
-                        group_owner = "";
-                    }
-
-                    current_group = keyword;
-                    current_section = keyword;
-                    group_items = ({});
-
-                } else if (tok_type == 6) {
-                    // ENDGROUP - End of block
-                    save_text_buffer(result, current_section, current_param, text_buffer);
-                    text_buffer = ({});
-
-                    // Store the collected group in the appropriate location
-                    if (sizeof(group_items) > 0) {
-                        string group_text = format_group_as_text(current_group, group_items);
-
-                        if (has_prefix(group_owner, "param:")) {
-                            string param_name = group_owner[sizeof("param:")..];
-                            if (!result->params[param_name]) {
-                                result->params[param_name] = "";
-                            }
-                            if (sizeof(result->params[param_name]) > 0) {
-                                result->params[param_name] += "\n\n" + group_text;
-                            } else {
-                                result->params[param_name] = group_text;
-                            }
-                        } else if (group_owner == "returns") {
-                            if (sizeof(result->returns) > 0) {
-                                result->returns += "\n\n" + group_text;
-                            } else {
-                                result->returns = group_text;
-                            }
-                        } else if (group_owner == "throws") {
-                            if (sizeof(result->throws) > 0) {
-                                result->throws += "\n\n" + group_text;
-                            } else {
-                                result->throws = group_text;
-                            }
-                        } else if (group_owner == "note") {
-                            result->notes += ({ group_text });
                         }
-                    }
+                        break;
 
-                    // Pop context from stack
-                    if (sizeof(group_stack) > 0) {
-                        mapping context = group_stack[-1];
-                        group_stack = group_stack[..sizeof(group_stack)-2];
-                        current_section = context->section;
-                        current_param = context->param;
-                        current_group = context->group;
-                        group_owner = context->owner;
-                        group_items = context->items;
-                    } else {
+                    case "elem":
+                    case "value":
+                        current_section = "elem";
+                        if (sizeof(trimmed_arg) > 0) {
+                            current_param = trimmed_arg;
+                            if (sizeof(current_group) > 0) {
+                                group_items += ({ ([ "label": current_param, "text": "" ]) });
+                            } else {
+                                result->items += ({ ([ "label": current_param, "text": "" ]) });
+                            }
+                        }
+                        break;
+
+                    case "item":
+                        current_section = "item";
+                        if (sizeof(trimmed_arg) > 0) {
+                            current_param = trimmed_arg;
+                            if (sizeof(current_group) > 0) {
+                                group_items += ({ ([ "label": current_param, "text": "" ]) });
+                            } else {
+                                result->items += ({ ([ "label": current_param, "text": "" ]) });
+                            }
+                        }
+                        break;
+
+                    case "section":
+                        current_section = "note";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->notes += ({ processed });
+                        }
+                        break;
+
+                    default:
                         current_section = "text";
                         current_param = "";
-                        current_group = "";
-                        group_owner = "";
-                        group_items = ({});
+                        break;
+                }
+
+            } else if (tok_type == 4) {
+                // BEGINGROUP - Start of block (@mapping, @array, @dl, etc.)
+                save_text_buffer(result, current_section, current_param, text_buffer);
+                text_buffer = ({});
+
+                // Push current context onto stack
+                group_stack += ({ ([
+                    "section": current_section,
+                    "param": current_param,
+                    "group": current_group,
+                    "owner": group_owner,
+                    "items": group_items
+                ]) });
+
+                // Track which section/param owns this group
+                if (current_section == "param" && sizeof(current_param) > 0) {
+                    group_owner = "param:" + current_param;
+                } else if (current_section == "returns") {
+                    group_owner = "returns";
+                } else if (current_section == "throws") {
+                    group_owner = "throws";
+                } else if (current_section == "note") {
+                    group_owner = "note";
+                } else {
+                    group_owner = "";
+                }
+
+                current_group = keyword;
+                current_section = keyword;
+                group_items = ({});
+
+            } else if (tok_type == 6) {
+                // ENDGROUP - End of block
+                save_text_buffer(result, current_section, current_param, text_buffer);
+                text_buffer = ({});
+
+                // Store the collected group in the appropriate location
+                if (sizeof(group_items) > 0) {
+                    string group_text = format_group_as_text(current_group, group_items);
+
+                    if (has_prefix(group_owner, "param:")) {
+                        string param_name = group_owner[sizeof("param:")..];
+                        if (!result->params[param_name]) {
+                            result->params[param_name] = "";
+                        }
+                        if (sizeof(result->params[param_name]) > 0) {
+                            result->params[param_name] += "\n\n" + group_text;
+                        } else {
+                            result->params[param_name] = group_text;
+                        }
+                    } else if (group_owner == "returns") {
+                        if (sizeof(result->returns) > 0) {
+                            result->returns += "\n\n" + group_text;
+                        } else {
+                            result->returns = group_text;
+                        }
+                    } else if (group_owner == "throws") {
+                        if (sizeof(result->throws) > 0) {
+                            result->throws += "\n\n" + group_text;
+                        } else {
+                            result->throws = group_text;
+                        }
+                    } else if (group_owner == "note") {
+                        result->notes += ({ group_text });
                     }
                 }
-            }
 
-            // Save any remaining text in buffer
-            save_text_buffer(result, current_section, current_param, text_buffer);
-        }
-
-        // Clean up empty fields
-        if (sizeof(result->text) == 0) m_delete(result, "text");
-        if (sizeof(result->params) == 0) m_delete(result, "params");
-        if (sizeof(result->returns) == 0) m_delete(result, "returns");
-        if (sizeof(result->throws) == 0) m_delete(result, "throws");
-        if (sizeof(result->notes) == 0) m_delete(result, "notes");
-        if (sizeof(result->bugs) == 0) m_delete(result, "bugs");
-        if (sizeof(result->deprecated) == 0) m_delete(result, "deprecated");
-        if (sizeof(result->examples) == 0) m_delete(result, "examples");
-        if (sizeof(result->seealso) == 0) m_delete(result, "seealso");
-        if (sizeof(result->members) == 0) m_delete(result, "members");
-        if (sizeof(result->items) == 0) m_delete(result, "items");
-        if (sizeof(result->arrays) == 0) m_delete(result, "arrays");
-        if (sizeof(result->multisets) == 0) m_delete(result, "multisets");
-        if (sizeof(result->mappings) == 0) m_delete(result, "mappings");
-
-        return result;
-    }
-
-    //! Save accumulated text buffer to the appropriate result section
-    protected void save_text_buffer(mapping result, string section, string param, array(string) buffer) {
-        if (sizeof(buffer) == 0) return;
-
-        string text = buffer * " ";  // Join with spaces
-        text = LSP.Compat.trim_whites(text);
-        if (sizeof(text) == 0) return;
-
-        switch (section) {
-            case "text":
-                if (sizeof(result->text) > 0) {
-                    result->text += "\n\n" + text;
+                // Pop context from stack
+                if (sizeof(group_stack) > 0) {
+                    mapping context = group_stack[-1];
+                    group_stack = group_stack[..sizeof(group_stack)-2];
+                    current_section = context->section;
+                    current_param = context->param;
+                    current_group = context->group;
+                    group_owner = context->owner;
+                    group_items = context->items;
                 } else {
-                    result->text = text;
-                }
-                break;
-
-            case "param":
-                if (param && sizeof(param) > 0) {
-                    if (result->params[param] && sizeof(result->params[param]) > 0) {
-                        result->params[param] += " " + text;
-                    } else {
-                        result->params[param] = text;
-                    }
-                }
-                break;
-
-            case "returns":
-                if (sizeof(result->returns) > 0) {
-                    result->returns += " " + text;
-                } else {
-                    result->returns = text;
-                }
-                break;
-
-            case "throws":
-                if (sizeof(result->throws) > 0) {
-                    result->throws += " " + text;
-                } else {
-                    result->throws = text;
-                }
-                break;
-
-            case "deprecated":
-                if (sizeof(result->deprecated) > 0) {
-                    result->deprecated += " " + text;
-                } else {
-                    result->deprecated = text;
-                }
-                break;
-
-            case "note":
-                if (sizeof(result->notes) > 0) {
-                    if (sizeof(result->notes[-1]) > 0) {
-                        result->notes[-1] += " " + text;
-                    } else {
-                        result->notes[-1] = text;
-                    }
-                } else {
-                    result->notes += ({ text });
-                }
-                break;
-
-            case "bugs":
-                if (sizeof(result->bugs) > 0) {
-                    if (sizeof(result->bugs[-1]) > 0) {
-                        result->bugs[-1] += " " + text;
-                    } else {
-                        result->bugs[-1] = text;
-                    }
-                } else {
-                    result->bugs += ({ text });
-                }
-                break;
-
-            case "example":
-                if (sizeof(result->examples) > 0) {
-                    if (sizeof(result->examples[-1]) > 0) {
-                        result->examples[-1] += "\n" + text;
-                    } else {
-                        result->examples[-1] = text;
-                    }
-                } else {
-                    result->examples += ({ text });
-                }
-                break;
-
-            case "seealso":
-                if (sizeof(result->seealso) > 0) {
-                    result->seealso[-1] += " " + text;
-                } else {
-                    result->seealso += ({ text });
-                }
-                break;
-
-            case "member":
-                if (param && sizeof(param) > 0) {
-                    if (result->members[param] && sizeof(result->members[param]) > 0) {
-                        result->members[param] += " " + text;
-                    } else {
-                        result->members[param] = text;
-                    }
-                }
-                break;
-
-            case "elem":
-            case "item":
-            case "value":
-                if (sizeof(result->items) > 0) {
-                    mapping last_item = result->items[-1];
-                    if (last_item->text && sizeof(last_item->text) > 0) {
-                        last_item->text += " " + text;
-                    } else {
-                        last_item->text = text;
-                    }
-                }
-                break;
-        }
-    }
-
-    //! Format a group (array/mapping/multiset) as markdown-formatted text
-    protected string format_group_as_text(string group_type, array(mapping) items) {
-        if (sizeof(items) == 0) return "";
-
-        array(string) lines = ({});
-
-        if (group_type == "array") {
-            lines += ({ "**Array elements:**" });
-            foreach (items, mapping item) {
-                string label = item->label || "";
-                string desc = item->text || "";
-                if (sizeof(desc) > 0) {
-                    lines += ({ "  - `" + label + "` - " + desc });
-                } else {
-                    lines += ({ "  - `" + label + "`" });
-                }
-            }
-        } else if (group_type == "mapping") {
-            lines += ({ "**Mapping members:**" });
-            foreach (items, mapping item) {
-                string label = item->label || "";
-                string desc = item->text || "";
-                if (sizeof(desc) > 0) {
-                    lines += ({ "  - `" + label + "` - " + desc });
-                } else {
-                    lines += ({ "  - `" + label + "`" });
-                }
-            }
-        } else if (group_type == "multiset") {
-            lines += ({ "**Multiset values:**" });
-            foreach (items, mapping item) {
-                string label = item->label || "";
-                string desc = item->text || "";
-                if (sizeof(desc) > 0) {
-                    lines += ({ "  - `" + label + "` - " + desc });
-                } else {
-                    lines += ({ "  - `" + label + "`" });
-                }
-            }
-        } else if (group_type == "dl") {
-            foreach (items, mapping item) {
-                string label = item->label || "";
-                string desc = item->text || "";
-                lines += ({ "- **" + label + "**" });
-                if (sizeof(desc) > 0) {
-                    lines += ({ "  " + desc });
-                }
-            }
-        } else {
-            foreach (items, mapping item) {
-                string label = item->label || "";
-                string desc = item->text || "";
-                if (sizeof(desc) > 0) {
-                    lines += ({ "- " + label + ": " + desc });
-                } else {
-                    lines += ({ "- " + label });
+                    current_section = "text";
+                    current_param = "";
+                    current_group = "";
+                    group_owner = "";
+                    group_items = ({});
                 }
             }
         }
 
-        return lines * "\n";
+        // Save any remaining text in buffer
+        save_text_buffer(result, current_section, current_param, text_buffer);
     }
+
+    // Clean up empty fields
+    if (sizeof(result->text) == 0) m_delete(result, "text");
+    if (sizeof(result->params) == 0) m_delete(result, "params");
+    if (sizeof(result->returns) == 0) m_delete(result, "returns");
+    if (sizeof(result->throws) == 0) m_delete(result, "throws");
+    if (sizeof(result->notes) == 0) m_delete(result, "notes");
+    if (sizeof(result->bugs) == 0) m_delete(result, "bugs");
+    if (sizeof(result->deprecated) == 0) m_delete(result, "deprecated");
+    if (sizeof(result->examples) == 0) m_delete(result, "examples");
+    if (sizeof(result->seealso) == 0) m_delete(result, "seealso");
+    if (sizeof(result->members) == 0) m_delete(result, "members");
+    if (sizeof(result->items) == 0) m_delete(result, "items");
+    if (sizeof(result->arrays) == 0) m_delete(result, "arrays");
+    if (sizeof(result->multisets) == 0) m_delete(result, "multisets");
+    if (sizeof(result->mappings) == 0) m_delete(result, "mappings");
+
+    return result;
+}
+
+//! Save accumulated text buffer to the appropriate result section
+protected void save_text_buffer(mapping result, string section, string param, array(string) buffer) {
+    if (sizeof(buffer) == 0) return;
+
+    string text = buffer * " ";  // Join with spaces
+    text = LSP.Compat.trim_whites(text);
+    if (sizeof(text) == 0) return;
+
+    switch (section) {
+        case "text":
+            if (sizeof(result->text) > 0) {
+                result->text += "\n\n" + text;
+            } else {
+                result->text = text;
+            }
+            break;
+
+        case "param":
+            if (param && sizeof(param) > 0) {
+                if (result->params[param] && sizeof(result->params[param]) > 0) {
+                    result->params[param] += " " + text;
+                } else {
+                    result->params[param] = text;
+                }
+            }
+            break;
+
+        case "returns":
+            if (sizeof(result->returns) > 0) {
+                result->returns += " " + text;
+            } else {
+                result->returns = text;
+            }
+            break;
+
+        case "throws":
+            if (sizeof(result->throws) > 0) {
+                result->throws += " " + text;
+            } else {
+                result->throws = text;
+            }
+            break;
+
+        case "deprecated":
+            if (sizeof(result->deprecated) > 0) {
+                result->deprecated += " " + text;
+            } else {
+                result->deprecated = text;
+            }
+            break;
+
+        case "note":
+            if (sizeof(result->notes) > 0) {
+                if (sizeof(result->notes[-1]) > 0) {
+                    result->notes[-1] += " " + text;
+                } else {
+                    result->notes[-1] = text;
+                }
+            } else {
+                result->notes += ({ text });
+            }
+            break;
+
+        case "bugs":
+            if (sizeof(result->bugs) > 0) {
+                if (sizeof(result->bugs[-1]) > 0) {
+                    result->bugs[-1] += " " + text;
+                } else {
+                    result->bugs[-1] = text;
+                }
+            } else {
+                result->bugs += ({ text });
+            }
+            break;
+
+        case "example":
+            if (sizeof(result->examples) > 0) {
+                if (sizeof(result->examples[-1]) > 0) {
+                    result->examples[-1] += "\n" + text;
+                } else {
+                    result->examples[-1] = text;
+                }
+            } else {
+                result->examples += ({ text });
+            }
+            break;
+
+        case "seealso":
+            if (sizeof(result->seealso) > 0) {
+                result->seealso[-1] += " " + text;
+            } else {
+                result->seealso += ({ text });
+            }
+            break;
+
+        case "member":
+            if (param && sizeof(param) > 0) {
+                if (result->members[param] && sizeof(result->members[param]) > 0) {
+                    result->members[param] += " " + text;
+                } else {
+                    result->members[param] = text;
+                }
+            }
+            break;
+
+        case "elem":
+        case "item":
+        case "value":
+            if (sizeof(result->items) > 0) {
+                mapping last_item = result->items[-1];
+                if (last_item->text && sizeof(last_item->text) > 0) {
+                    last_item->text += " " + text;
+                } else {
+                    last_item->text = text;
+                }
+            }
+            break;
+    }
+}
+
+//! Format a group (array/mapping/multiset) as markdown-formatted text
+protected string format_group_as_text(string group_type, array(mapping) items) {
+    if (sizeof(items) == 0) return "";
+
+    array(string) lines = ({});
+
+    if (group_type == "array") {
+        lines += ({ "**Array elements:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - `" + label + "` - " + desc });
+            } else {
+                lines += ({ "  - `" + label + "`" });
+            }
+        }
+    } else if (group_type == "mapping") {
+        lines += ({ "**Mapping members:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - `" + label + "` - " + desc });
+            } else {
+                lines += ({ "  - `" + label + "`" });
+            }
+        }
+    } else if (group_type == "multiset") {
+        lines += ({ "**Multiset values:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - `" + label + "` - " + desc });
+            } else {
+                lines += ({ "  - `" + label + "`" });
+            }
+        }
+    } else if (group_type == "dl") {
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            lines += ({ "- **" + label + "**" });
+            if (sizeof(desc) > 0) {
+                lines += ({ "  " + desc });
+            }
+        }
+    } else {
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "- " + label + ": " + desc });
+            } else {
+                lines += ({ "- " + label });
+            }
+        }
+    }
+
+    return lines * "\n";
 }

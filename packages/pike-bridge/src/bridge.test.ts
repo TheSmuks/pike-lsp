@@ -93,10 +93,10 @@ describe('PikeBridge', () => {
     });
 
     it('should resolve stdlib modules', async () => {
-        const result = await bridge.resolveStdlib('Stdio');
+        const result = await bridge.resolveStdlib('Regexp');
 
         assert.ok(result, 'Should return a result');
-        assert.equal(result.found, 1, 'Should find Stdio module (1 = found)');
+        assert.equal(result.found, 1, 'Should find Regexp module (1 = found)');
         assert.ok(result.symbols, 'Should have symbols');
         assert.ok(Array.isArray(result.symbols), 'Symbols should be an array');
     });

@@ -515,7 +515,7 @@ class Analysis {
     //! Get or create the diagnostics handler
     protected object get_diagnostics_handler() {
         if (!diagnostics_handler) {
-            mixed diag_class = master()->resolv("LSP.Analysis.Diagnostics.Diagnostics");
+            mixed diag_class = master()->resolv("LSP.Analysis.Diagnostics");
             if (diag_class && programp(diag_class)) {
                 diagnostics_handler = diag_class(0);
             }
@@ -526,7 +526,7 @@ class Analysis {
     //! Get or create the completions handler
     protected object get_completions_handler() {
         if (!completions_handler) {
-            mixed comp_class = master()->resolv("LSP.Analysis.Completions.Completions");
+            mixed comp_class = master()->resolv("LSP.Analysis.Completions");
             if (comp_class && programp(comp_class)) {
                 completions_handler = comp_class(0);
             }
@@ -537,7 +537,7 @@ class Analysis {
     //! Get or create the variables handler
     protected object get_variables_handler() {
         if (!variables_handler) {
-            mixed var_class = master()->resolv("LSP.Analysis.Variables.Variables");
+            mixed var_class = master()->resolv("LSP.Analysis.Variables");
             if (var_class && programp(var_class)) {
                 variables_handler = var_class(0);
             }

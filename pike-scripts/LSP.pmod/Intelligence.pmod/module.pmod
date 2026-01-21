@@ -277,7 +277,7 @@ class Intelligence {
     //! Get or create the introspection handler
     protected object get_introspection_handler() {
         if (!introspection_handler) {
-            mixed intro_class = master()->resolv("LSP.Intelligence.Introspection.Introspection");
+            mixed intro_class = master()->resolv("LSP.Intelligence.Introspection");
             if (intro_class && programp(intro_class)) {
                 introspection_handler = intro_class(0);
             }
@@ -288,7 +288,7 @@ class Intelligence {
     //! Get or create the resolution handler
     protected object get_resolution_handler() {
         if (!resolution_handler) {
-            mixed res_class = master()->resolv("LSP.Intelligence.Resolution.Resolution");
+            mixed res_class = master()->resolv("LSP.Intelligence.Resolution");
             if (res_class && programp(res_class)) {
                 resolution_handler = res_class(0);
             }
@@ -299,7 +299,7 @@ class Intelligence {
     //! Get or create the type analysis handler
     protected object get_type_analysis_handler() {
         if (!type_analysis_handler) {
-            mixed type_class = master()->resolv("LSP.Intelligence.TypeAnalysis.TypeAnalysis");
+            mixed type_class = master()->resolv("LSP.Intelligence.TypeAnalysis");
             if (type_class && programp(type_class)) {
                 type_analysis_handler = type_class(0);
             }
