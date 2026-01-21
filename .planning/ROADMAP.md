@@ -167,18 +167,25 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 **Success Criteria** (what must be TRUE):
 1. `Intelligence.pmod/` directory with module.pmod + 3 .pike files
 2. `Analysis.pmod/` directory with module.pmod + 3 .pike files
-3. Intelligence.pike reduced from 1,660 to ~400-500 lines per file
-4. Related logic stays together (StdlibResolver with Resolution, Occurrences with Variables)
-5. All classes use `create(object ctx)` constructor pattern
-6. All classes wrap handlers in catch with make_error() returns
-7. Integration tests verify module loading via master()->resolv()
+3. Intelligence.pike reduced from 1,660 to ~100 lines (delegating class)
+4. Analysis.pike reduced from 1,191 to ~80 lines (delegating class)
+5. Related logic stays together (StdlibResolver with Resolution, Occurrences with Variables)
+6. All classes use `create(object ctx)` constructor pattern
+7. All classes wrap handlers in catch with make_error() returns
+8. Integration tests verify module loading via master()->resolv()
 
 **Deliverables:**
-- `pike-scripts/LSP.pmod/Intelligence.pmod/` (4 files)
-- `pike-scripts/LSP.pmod/Analysis.pmod/` (4 files)
-- Integration tests
+- `pike-scripts/LSP.pmod/Intelligence.pmod/` (4 files: module.pmod, Introspection.pike, Resolution.pike, TypeAnalysis.pike)
+- `pike-scripts/LSP.pmod/Analysis.pmod/` (4 files: module.pmod, Diagnostics.pike, Completions.pike, Variables.pike)
+- Updated integration tests
+- Backward-compatible delegating classes replacing original single files
 
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
+- [ ] 05-01-PLAN.md — Create Intelligence.pmod with module.pmod and Introspection class
+- [ ] 05-02-PLAN.md — Create Resolution.pike and TypeAnalysis.pike
+- [ ] 05-03-PLAN.md — Create Analysis.pmod with module.pmod and Diagnostics class
+- [ ] 05-04-PLAN.md — Create Completions.pike and Variables.pike
+- [ ] 05-05-PLAN.md — Replace original files, update tests, E2E verification
 
 ---
 
@@ -195,9 +202,9 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
 | 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
-| 5. Pike Reorganization | 0/? | Planned | - |
+| 5. Pike Reorganization | 0/5 | Planned | - |
 
-**Project Status:** Phase 4 complete (Server Grouping done), ready for Phase 5
+**Project Status:** Phase 4 complete (Server Grouping done), Phase 5 planned
 
 **v2 Requirements:**
 - Total: 65
@@ -206,5 +213,5 @@ Each phase produces working code. Can pause at any phase without breaking the co
 
 ---
 *Roadmap created: 2026-01-20*
-*Last updated: 2026-01-20*
+*Last updated: 2026-01-21*
 *Source: LSP Modularization Design v2 (Middle Ground)*
