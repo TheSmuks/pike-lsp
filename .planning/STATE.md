@@ -90,6 +90,15 @@ Progress: [████████████] 91% (22/24 v2 plans complete, P
 | 05-01-D02 | Keep shared helper functions in module.pmod, classes in separate .pike files | Pike's .pmod system merges module.pmod contents directly into module namespace |
 | 05-01-D03 | Use master()->resolv() for module resolution instead of constant exports | Avoids circular dependency at compile time; runtime resolution works correctly |
 
+**Implementation Decisions (from plan 05-02):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 05-02-D01 | Resolution class uses sibling Introspection for program introspection | Introspection class already has introspect_program implementation; use master()->resolv("LSP.Intelligence.Introspection.Introspection") to access |
+| 05-02-D02 | TypeAnalysis.parse_autodoc called by Resolution.parse_stdlib_documentation | AutoDoc parsing logic belongs in TypeAnalysis class; Resolution delegates for separation of concerns |
+| 05-02-D03 | Both classes access module.pmod helpers via master()->resolv | Pike's module system requires runtime resolution; functionp() check ensures function exists |
+| 05-02-D04 | BOOTSTRAP_MODULES constant guards against circular dependency | Modules used by the resolver (Stdio, String, Array, Mapping) return early during resolution to avoid timeout |
+
 **Implementation Decisions (from plan 05-03):**
 
 | ID | Decision | Rationale |
@@ -143,7 +152,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 05-04 (Analysis.pmod with Completions and Variables)
+Stopped at: Completed plan 05-02 (Intelligence.pmod with Resolution and TypeAnalysis)
 Resume file: None
 
 ## Previous Milestone Summary
