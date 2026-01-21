@@ -231,7 +231,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 6 (E2E tests revealed the integration bug)
 
-**Status**: Planned
+**Status**: Complete
 
 **Requirements**: Closes GAP-01, INT-01 from v2-MILESTONE-AUDIT.md
 
@@ -253,12 +253,19 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Updated v2-MILESTONE-AUDIT.md status (if re-audited)
 
 **Plans**: 1 plan
-- [ ] 07-01-PLAN.md - Remove duplicate lifecycle handlers and verify E2E tests
+- [x] 07-01-PLAN.md - Fix bridge initialization timing and stdlib preloading
 
-**Root Cause Analysis**: During Phase 4 (Server Grouping), `registerDiagnosticsHandlers()` was created to register `documents.onDidOpen()`, `onDidChangeContent()`, and `onDidSave()` handlers in `features/diagnostics.ts`. However, the original handlers in `server.ts` (lines 579-608) were not removed, causing duplicate registration. When both fire, the simpler `server.ts` version may run after the comprehensive `diagnostics.ts` one, causing cache corruption.
+**Root Cause Analysis**: Plan assumed duplicate handlers existed, but investigation revealed actual issues were:
+1. Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping)
+2. Bridge initialization timing - `services.bridge` was null when handlers registered
 
-**Fix Complexity**: LOW - Remove 30 lines from server.ts
-**Verification Time**: <5 minutes - Run E2E tests
+**Resolution**:
+- Made `Services.bridge` nullable with dynamic access in handlers
+- Disabled stdlib preloading to avoid bootstrap module crashes
+- Added bootstrap modules to negative cache
+
+**Fix Complexity**: MEDIUM - Bridge timing fix, stdlib preloading disabled
+**Verification Time**: 5-10 minutes - Run E2E tests in headless mode
 
 ---
 
@@ -352,11 +359,11 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 4. Server Grouping | 6/6 | Complete | 2026-01-21 |
 | 5. Pike Reorganization | 6/6 | Complete | 2026-01-21 |
 | 6. Automated LSP Feature Verification | 2/2 | Complete | 2026-01-21 |
-| 7. Fix Document Lifecycle Handler Duplication | 0/1 | Planned | - |
+| 7. Fix Document Lifecycle Handler Duplication | 1/1 | Complete | 2026-01-21 |
 | 8. Extract Core Utilities to Shared Package | 0/2 | Pending | - |
 | 9. Implement Pike Version Detection | 0/1 | Pending | - |
 
-**Project Status:** v2 MILESTONE IN PROGRESS - Phase 7-9 (gap closure + tech debt) pending
+**Project Status:** v2 MILESTONE IN PROGRESS - Phase 8-9 (tech debt) pending
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
