@@ -20,6 +20,9 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - [x] **Phase 4: Server Grouping** - Split server.ts by capability
 - [x] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
 - [x] **Phase 6: Automated LSP Feature Verification** - E2E tests for symbols, hover, definition, completion
+- [x] **Phase 7: Fix Document Lifecycle Handler Duplication** - Gap closure for integration bug
+- [x] **Phase 8: Extract Core Utilities to Shared Package** - Code deduplication with @pike-lsp/core
+- [ ] **Phase 9: Implement Pike Version Detection** - Robust version reporting via JSON-RPC
 
 ## Phase Details
 
@@ -255,17 +258,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 **Plans**: 1 plan
 - [x] 07-01-PLAN.md - Fix bridge initialization timing and stdlib preloading
 
-**Root Cause Analysis**: Plan assumed duplicate handlers existed, but investigation revealed actual issues were:
-1. Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping)
-2. Bridge initialization timing - `services.bridge` was null when handlers registered
-
-**Resolution**:
-- Made `Services.bridge` nullable with dynamic access in handlers
-- Disabled stdlib preloading to avoid bootstrap module crashes
-- Added bootstrap modules to negative cache
-
-**Fix Complexity**: MEDIUM - Bridge timing fix, stdlib preloading disabled
-**Verification Time**: 5-10 minutes - Run E2E tests in headless mode
+**Completed**: 2026-01-21
 
 ---
 
@@ -305,8 +298,6 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - [x] 08-02-PLAN.md — Migrate pike-bridge to use shared core package
 - [x] 08-03-PLAN.md — Migrate pike-lsp-server to use shared core package
 
-**Impact**: Code quality improvement, easier maintenance, no functional changes
-
 **Completed**: 2026-01-21
 
 ---
@@ -317,7 +308,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 7 (ensure critical functionality works first)
 
-**Status**: Pending
+**Status**: In Progress
 
 **Requirements**: Addresses Tech Debt #2 from v2-MILESTONE-AUDIT.md
 
@@ -335,15 +326,12 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Method to query Pike version via bridge (e.g., `pike --version` or JSON-RPC method)
 - Health check shows actual version instead of "Unknown"
 
-**Plans**: TBD (estimated 1 plan)
-- [ ] 09-01-PLAN.md - Implement Pike version detection in BridgeManager
+**Plans**: 3 plans in 3 waves
+- [ ] 09-01-PLAN.md - Analyzer support for get_version RPC
+- [ ] 09-02-PLAN.md - Bridge integration and version caching
+- [ ] 09-03-PLAN.md - E2E verification and health check display
 
 **Impact**: Better observability, health check completeness
-
-**Implementation Options**:
-1. Add `getVersion` JSON-RPC method to analyzer.pike
-2. Parse Pike version from stderr on startup
-3. Run `pike --version` as separate process (may be slower)
 
 ---
 
@@ -364,9 +352,9 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 6. Automated LSP Feature Verification | 2/2 | Complete | 2026-01-21 |
 | 7. Fix Document Lifecycle Handler Duplication | 1/1 | Complete | 2026-01-21 |
 | 8. Extract Core Utilities to Shared Package | 3/3 | Complete | 2026-01-21 |
-| 9. Implement Pike Version Detection | 0/1 | Pending | - |
+| 9. Implement Pike Version Detection | 0/3 | In Progress | - |
 
-**Project Status:** v2 MILESTONE IN PROGRESS - Phase 9 (pike version detection) pending
+**Project Status:** v2 MILESTONE IN PROGRESS - Phase 9 (pike version detection) in progress
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
