@@ -491,7 +491,7 @@ connection.onInitialized(async () => {
                 lines.push(`Server Uptime: ${uptimeStr}`);
                 lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
                 lines.push(`Pike PID: ${health.pikePid ?? 'N/A'}`);
-                lines.push(`Pike Version: ${health.pikeVersion?.display ?? health.pikeVersion?.version ?? 'Unknown'}`);
+                lines.push(`Pike Version: ${health.pikeVersion?.version ?? 'Unknown'} (${health.pikeVersion?.display ?? 'N/A'})`);
                 lines.push(`Pike Path: ${health.pikeVersion?.pikePath ?? 'Unknown'}`);
 
                 if (health.recentErrors.length > 0) {
