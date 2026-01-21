@@ -1,3 +1,13 @@
+# Requirements Archive: v2 LSP Modularization
+
+**Archived:** 2026-01-21
+**Status:** ✅ SHIPPED
+
+This is the archived requirements specification for v2.
+For current requirements, see `.planning/REQUIREMENTS.md` (created for next milestone).
+
+---
+
 # Requirements: LSP Modularization v2
 
 **Defined:** 2026-01-20
@@ -96,6 +106,15 @@
 - [x] **HLT-05**: Health status shows recent errors (last 5)
 - [x] **HLT-06**: BridgeManager implements getHealth() returning HealthStatus interface
 
+### E2E Verification (LSP-E2E)
+
+- [x] **LSP-E2E-01**: VSCode integration test calls `textDocument/documentSymbol` and verifies symbols array returned (not null)
+- [x] **LSP-E2E-02**: VSCode integration test calls `textDocument/hover` and verifies MarkupContent returned (not null)
+- [x] **LSP-E2E-03**: VSCode integration test calls `textDocument/definition` and verifies Location returned (not null)
+- [x] **LSP-E2E-04**: VSCode integration test calls `textDocument/completion` and verifies CompletionList returned (not null)
+- [x] **LSP-E2E-05**: E2E feature tests run in CI pipeline (vscode-e2e job) before allowing merge
+- [x] **LSP-E2E-06**: CLAUDE.md verification checklist updated to reference automated tests
+
 ## Out of Scope
 
 | Feature | Reason |
@@ -124,15 +143,23 @@
 | SAF-01 to SAF-11 | Phase 2 | Complete ✓ |
 | BRG-01 to BRG-13 | Phase 3 | Complete ✓ |
 | SRV-01 to SRV-13 | Phase 4 | Complete ✓ |
-| PIK-01 to PIK-12 | Phase 5 | Pending |
+| PIK-01 to PIK-12 | Phase 5 | Complete ✓ |
 | HLT-01 to HLT-06 | Phase 4 | Complete ✓ |
+| LSP-E2E-01 to LSP-E2E-06 | Phase 6 | Complete ✓ |
 
 **Coverage:**
-- v2 requirements: 65 total
-- Mapped to phases: 65
+- v2 requirements: 71 total
+- Mapped to phases: 71
 - Unmapped: 0
-- Complete: 53 (82%)
+- Complete: 71 (100%)
 
 ---
-*Requirements defined: 2026-01-20*
-*Source: LSP Modularization Design v2*
+
+## Milestone Summary
+
+**Shipped:** 71 of 71 v2 requirements
+**Adjusted:** None
+**Dropped:** None
+
+---
+*Archived: 2026-01-21 as part of v2 milestone completion*

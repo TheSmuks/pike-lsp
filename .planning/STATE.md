@@ -2,316 +2,37 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-01-20)
+See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Safety without rigidity - solve actual pain points without over-engineering
-**Current focus:** v2 Milestone - Tech Debt Cleanup (Phase 9)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 9 of 9 (Tech Debt Cleanup)
-Plan: 03 of 03
-Status: Phase complete
-Last activity: 2026-01-21 — Plan 09-03 completed: Pike version detection verified, E2E tests passing
+Phase: -
+Plan: -
+Status: Ready to plan
+Last activity: 2026-01-21 — v2 milestone complete
 
-Progress: [██████████████] 100% (33/33 v2 plans complete - v2 MILESTONE COMPLETE!)
-
-## Performance Metrics
-
-**Velocity:**
-- Total plans completed: 33
-- Average duration: 7 min
-- Total execution time: 215 min
-
-**By Phase:**
-
-| Phase | Plans | Complete | Avg/Plan |
-|-------|-------|----------|----------|
-| 1. Lean Observability | 3 | 3 | 8 min |
-| 2. Safety Net | 3 | 3 | 3 min |
-| 3. Bridge Extraction | 2 | 2 | 3 min |
-| 4. Server Grouping | 6 | 6 | 6 min |
-| 5. Pike Reorganization | 6 | 6 | 6 min |
-| 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
-| 7. Gap Closure | 1 | 1 | 45 min |
-| 8. Tech Debt Cleanup | 3 | 3 | 3 min |
-| 9. Pike Version Detection | 3 | 3 | 5 min |
-
-*Updated after each plan completion*
+Progress: [--------------------] 0%
 
 ## Accumulated Context
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03, 04-04, 04-05, 04-06):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 01-01-D01 | Use native Error.cause via { cause } option | Node.js 16.9.0+ support, cleaner than manual property assignment |
-| 01-01-D02 | Conditional cause assignment for exactOptionalPropertyTypes | Avoids TypeScript strict mode error when assigning undefined |
-| 01-02-D01 | All logs to console.error (stderr) | LSP servers emit diagnostics to stderr, not stdout |
-| 01-02-D02 | Numeric log levels for comparison | Enables efficient level-based filtering without string comparisons |
-| 01-02-D03 | No transports/formatters in Logger | Keep logging minimal per lean observability principle |
-| 01-03-D01 | Duplicated errors.ts and logging.ts in pike-bridge | Avoid circular dependency (bridge <-> server). TODO: Extract to shared @pike-lsp/core |
-| 01-03-D02 | Pike returns flat dicts, TypeScript adds layer tracking | Pike lacks stack context. make_error() returns {error, kind, msg, line} |
-| 02-01-D01 | Pre-push hook only, not pre-commit | "Green main, not green commits" philosophy - allow broken intermediate commits |
-| 02-01-D02 | Conditional smoke test validation | Hook works before smoke tests exist (plan 02-02 pending) |
-| 02-02-D01 | Smoke tests verify structure not content | Tests stay stable as implementation changes, focus on "does it crash" not "exact output" |
-| 02-02-D02 | Single bridge instance reused across tests | Faster than start/stop per test, 30 second timeout accommodates slow PikeBridge startup |
-| 02-03-D01 | Pike 8.0 from apt for main CI test job | Reliable, matches production environment |
-| 02-03-D02 | Smoke tests run after unit tests in CI | Fast feedback loop, keeps related tests grouped |
-| 02-03-D03 | VSCode E2E job waits for unit tests | Job dependency via needs: [test, pike-test] ensures E2E only runs if unit tests pass |
-| 02-03-D04 | xvfb-run wraps VSCode E2E tests | Provides X11 display for headless Linux CI environment |
-| 03-01-D01 | readline.createInterface() for stdout reading | Prevents JSON fragmentation and stdin bug by reading complete lines |
-| 03-01-D02 | PikeProcess is pure IPC wrapper, no business logic | Separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
-| 03-02-D01 | MockPikeProcess class enables isolated unit testing | Tests can run without Pike installation by simulating process behavior |
-| 03-02-D02 | PikeBridge delegates all IPC to PikeProcess | Clean separation: PikeProcess handles spawn/readline/events, PikeBridge handles correlation/timeouts/deduplication |
-| 04-01-D01 | Used type imports to avoid circular dependencies | import type prevents circular deps between services and core |
-| 04-01-D02 | DocumentCacheEntry type centralizes document state | Used by both cache and consumers, single source of truth |
-| 04-01-D03 | BridgeManager wraps PikeBridge via composition | Composition over inheritance for cleaner separation of concerns |
-| 04-02-D01 | Navigation handlers receive Services bundle + TextDocuments | Clean dependency injection without accessing global documents |
-| 04-02-D02 | Helper functions kept in navigation.ts module | Module cohesion - related functions co-located with their handlers |
-| 04-02-D03 | Used Array.from() for DocumentCache.entries() iteration | Avoids downlevelIteration compilation issues with ES5 target |
-| 04-03-D01 | TextDocuments passed as parameter not in Services | TextDocuments is LSP protocol managed, keeps Services focused on server state |
-| 04-03-D02 | Helper functions kept in editing.ts module | Functions like buildCompletionItem are feature-specific, no sharing required |
-| 04-03-D03 | Direct logger usage without child() method | Logger class doesn't have child() method, using logger.debug/info directly |
-| 04-04-D01 | Use new Logger() instead of logger.child() | Logger class doesn't have child method, create new instance per feature |
-| 04-04-D02 | Import SymbolKind as value not type | Needed for enum member access in switch statement |
-| 04-04-D03 | Add analyzeUninitialized to BridgeManager | Exposes PikeBridge method for diagnostics feature handlers |
-| 04-05-D01 | Made BridgeManager.bridge public readonly for feature handler access | Avoids getter methods while maintaining encapsulation |
-| 04-05-D02 | Used Array.from() for DocumentCache iteration | DocumentCache is a Map subclass, needs explicit conversion for for/of loops |
-| 04-05-D03 | Added globalSettings and includePaths to Services interface | Advanced handlers need mutable access to config |
-| 04-05-D04 | Extracted defaultSettings to core/types.ts | Removes duplication with server.ts, provides single source of truth |
-| 04-06-D01 | Use connection.workspace.onExecuteCommand for workspace commands | Workspace commands require workspace-level handler, not connection-level |
-| 04-06-D02 | Register command after client.start() in extension.ts | Ensures LanguageClient is available when command is invoked |
-| 04-06-D03 | Use dot notation (pike.lsp.showDiagnostics) consistently | Standard VSCode command format, must match across server.ts, extension.ts, package.json |
-
-**Implementation Decisions (from plans 08-01, 08-02, 08-03):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 08-01-D01 | Use .js extensions in barrel exports for ESM compatibility | TypeScript requires explicit extensions for ES modules |
-| 08-01-D02 | dist/ directory gitignored | Build artifacts are generated, not source code |
-| 08-02-D01 | Keep re-exports in pike-bridge/index.ts for consumer convenience | Consumers can import from bridge package without knowing about core |
-| 08-03-D01 | Keep PikeSettings and DocumentCacheEntry in pike-lsp-server | These types have dependencies on server-specific constants and PikeSymbol type |
-| 08-03-D02 | Re-export from @pike-lsp/core in pike-lsp-server/core/index.ts | Provides unified import interface for internal consumers |
-| 08-03-D03 | Add BridgeError to @pike-lsp/core package | Completes error class hierarchy (LSPError base, BridgeError, PikeError) |
-
-**Implementation Decisions (from plan 05-01):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-01-D01 | Use module.submodule.class pattern for accessing classes in nested .pmod directories | Pike creates submodules for .pike files inside .pmod directories; constant export creates circular dependency |
-| 05-01-D02 | Keep shared helper functions in module.pmod, classes in separate .pike files | Pike's .pmod system merges module.pmod contents directly into module namespace |
-| 05-01-D03 | Use master()->resolv() for module resolution instead of constant exports | Avoids circular dependency at compile time; runtime resolution works correctly |
-
-**Implementation Decisions (from plan 05-02):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-02-D01 | Resolution class uses sibling Introspection for program introspection | Introspection class already has introspect_program implementation; use master()->resolv("LSP.Intelligence.Introspection.Introspection") to access |
-| 05-02-D02 | TypeAnalysis.parse_autodoc called by Resolution.parse_stdlib_documentation | AutoDoc parsing logic belongs in TypeAnalysis class; Resolution delegates for separation of concerns |
-| 05-02-D03 | Both classes access module.pmod helpers via master()->resolv | Pike's module system requires runtime resolution; functionp() check ensures function exists |
-| 05-02-D04 | BOOTSTRAP_MODULES constant guards against circular dependency | Modules used by the resolver (Stdio, String, Array, Mapping) return early during resolution to avoid timeout |
-
-**Implementation Decisions (from plan 05-03):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-03-D01 | Use module.pmod for shared helpers in .pmod subdirectories | Pike's .pmod pattern allows module.pmod to export functions directly to the namespace |
-| 05-03-D02 | Access module.pmod functions via master()->resolv() in classes | Classes within the .pmod need a reference to module.pmod to access functions; use program module_program = master()->resolv("LSP.Analysis.module") |
-| 05-03-D03 | File and class with same name (Diagnostics.pike contains class Diagnostics) | Standard Pike pattern where file name matches primary class name; access via master()->resolv("LSP.Analysis.Diagnostics")->Diagnostics |
-
-**Implementation Decisions (from plan 05-04):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-04-D01 | Completions.pike contains handle_get_completion_context with token-based context analysis | Token-based analysis is more accurate than regex for determining completion context; scans backward from cursor to find access operators (->, ., ::) |
-| 05-04-D02 | Variables.pike contains handle_find_occurrences per v2 design (Occurrences not separate file) | Finding occurrences is fundamentally about tracking variable references; keeping Occurrences in Variables.pike maintains grep-ability and reduces micro-modules |
-| 05-04-D03 | Both classes use create(object ctx) constructor pattern matching Diagnostics class | Consistent pattern across all Analysis.pmod classes; context reserved for future use with LSP context |
-
-**Implementation Decisions (from plan 05-05):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-05-D01 | Updated analyzer.pike to use master()->resolv("LSP.Intelligence.Intelligence") pattern | With .pmod directories, resolv returns module not class; full qualified path required |
-| 05-05-D02 | Placed delegating classes in module.pmod files within .pmod directories | module.pmod contents merged into module namespace, making classes accessible as LSP.Module.ClassName |
-| 05-05-D03 | Removed original Intelligence.pike and Analysis.pike files | .pmod directories take precedence; remove redundant files to avoid confusion |
-
-**Implementation Decisions (from plan 05-06):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 05-06-D01 | Tests access delegating classes via module.pmod submodule (LSP.Intelligence.module.Intelligence) | .pmod directories merge module.pmod contents; class defined within that file |
-| 05-06-D02 | Parser.pike is a class module (file itself is the class) | Use programp(module) not module->Parser for single-file Pike modules |
-| 05-06-D03 | Module directory structure validated via indices() function | .pmod directories are special Pike module type, not traditional mappings |
-
-**Implementation Decisions (from plan 06-01):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 06-01-D01 | Use existing test.pike in test-workspace instead of creating dynamic files | Avoids URI scheme issues that prevent LSP from caching the document |
-| 06-01-D02 | Test file uses 30-60 second timeout to allow LSP server initialization | LSP server needs time to start Pike subprocess and analyze files |
-| 06-01-D03 | Tests use vscode.executeXProvider pattern for true E2E verification | No mocking - tests verify actual VSCode API returns valid data |
-
-**Implementation Decisions (from plan 06-02):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 06-02-D01 | Added explicit LSP feature test step to CI (runs after general E2E) | Makes feature tests visible in CI logs; test:features filter shows only feature tests |
-| 06-02-D02 | Pre-push hook uses test:features script | Faster than full test suite; catches LSP regressions before push |
-| 06-02-D03 | Debugging guide organized by symptom | Developers see failure message first; symptom-based lookup is faster |
-| 06-02-D04 | Updated CI badge URL to correct repository | Badge pointed to andjo/pike-lsp; current repo is smuks/OpenCode/pike-lsp |
-
-**Implementation Decisions (from plan 07-01):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 07-01-D01 | Disabled stdlib preloading instead of fixing introspection | Bootstrap modules (Stdio, String, Array, Mapping) crash Pike when introspected. Fixing requires deep changes to module loading. |
-| 07-01-D02 | Made Services.bridge nullable with dynamic access | Bridge initializes after handler registration. Destructuring captures null reference. Access dynamically in handlers. |
-| 07-01-D03 | Used negative cache for bootstrap modules | Prevents future attempts to introspect modules known to crash Pike subprocess |
-
-**Implementation Decisions (from plan 08-01):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 08-01-D01 | Use .js extensions in barrel exports for ESM compatibility | TypeScript requires explicit extensions for ES modules |
-| 08-01-D02 | dist/ directory gitignored in @pike-lsp/core | Build artifacts are generated, not source code |
-
-**Implementation Decisions (from plan 08-02):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 08-02-D01 | Keep re-exports in pike-bridge/index.ts for consumer convenience | Consumers can import from either package; pike-bridge maintains its public API |
-
-**Implementation Decisions (from plan 08-03):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 08-03-D01 | Keep PikeSettings and DocumentCacheEntry in pike-lsp-server | These types have dependencies on server-specific constants and PikeSymbol type from @pike-lsp/pike-bridge |
-| 08-03-D02 | Re-export pattern in core/index.ts | The pike-lsp-server/core/index.ts re-exports from @pike-lsp/core while also exporting server-specific types |
-
-**Implementation Decisions (from plans 09-01, 09-02, 09-03):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| 09-01-D01 | Use __REAL_VERSION__ constant for display value in get_version handler | Pike's version() is not callable; __REAL_VERSION__ is the pre-defined constant containing version as float |
-| 09-02-D01 | Use which.pike command to find Pike executable path | which.pike reliably locates the Pike binary regardless of installation method |
-| 09-02-D02 | Cache version info in BridgeManager instance variable | Version doesn't change during session; caching avoids repeated RPC calls |
-| 09-03-D01 | Health check shows both Pike version and absolute path | Helps users verify which Pike installation the LSP is using (useful when multiple Pike versions installed) |
-| 09-03-D02 | Commands registered only in extension.ts, not server.ts | Avoids registration conflicts; VSCode extension is the proper place for command registration |
-
-**Design Decisions (from v2 design document):**
-
-| ID | Decision | Rationale |
-|----|----------|-----------|
-| V2-D01 | TypeScript error chains, Pike flat dicts | Pike lacks stack context - pretending otherwise creates leaky abstractions |
-| V2-D02 | Group handlers by capability (4 files) not by verb (11 files) | Reduces cognitive load by keeping related logic collocated |
-| V2-D03 | Pre-push hooks, not pre-commit | Maintains defense in depth without strangling minute-by-minute workflow |
-| V2-D04 | Pike uses werror(), TypeScript wraps in Logger | Achieves unified log stream without over-engineering Pike logging library |
-| V2-D05 | 3-4 Pike files per .pmod, not 8 | Avoids micro-modules that hurt grep-ability |
-
-### Roadmap Evolution
-
-**2026-01-20**: v2 milestone initialized
-- Source: Design Document v2 (Middle Ground)
-- Previous milestone: v1 Pike Refactoring (archived)
-- Approach: Infrastructure-First with Pragmatic Implementation
-
-**2026-01-21**: v2 milestone COMPLETE
-- All 33 plans across 9 phases finished
-- E2E feature tests created and integrated into CI
-- Bridge initialization timing fixed
-- Stdlib preloading disabled to avoid crashes
-- Automated verification prevents LSP regressions
-- 7/7 E2E feature tests passing (100%)
-- Phase 8 complete: ~512 lines of duplicate code eliminated via @pike-lsp/core shared package
-- Tech Debt #1 (duplicate Logger/Error classes) RESOLVED
-- Phase 9 complete: Pike version detection from analyzer to VSCode health check
-
-### Pending Todos
-
-None yet.
+See `.planning/PROJECT.md` or archive files for decision history.
 
 ### Blockers/Concerns
 
-**From design document:**
-- Phase 3 (Bridge Extraction) is critical - the stdin bug would be caught here
-- Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
-- Phase 5 should wait until server-side is stable
-
-**Current (as of phase 08):**
-- **No blockers.** Phase 08 completed successfully:
-  - Created @pike-lsp/core shared package with Logger and Error classes
-  - Migrated pike-bridge to use @pike-lsp/core (234 lines of duplicate code removed)
-  - Migrated pike-lsp-server to use @pike-lsp/core (278 lines of duplicate code removed)
-  - BridgeError was added to @pike-lsp/core (was missing from 08-01, auto-fixed)
-  - All E2E tests passing (7/7)
-  - Phase 8 verification: 7/7 must-haves verified (passed)
-
-**See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-SUMMARY.md` for details
-
-**TODOs from previous phases:**
-- ~~TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication~~ (COMPLETED in 08-01)
-- ~~TODO: Update pike-bridge to import from @pike-lsp/core~~ (COMPLETED in 08-02)
-- ~~TODO: Update pike-lsp-server to import from @pike-lsp/core~~ (COMPLETED in 08-03)
-- ~~TODO: Pike version detection RPC method - BridgeManager.getHealth() returns null for now~~ (COMPLETED in 09-01 - get_version handler added to analyzer.pike)
-- ~~TODO: Update BridgeManager.getHealth() to call get_version RPC method~~ (COMPLETED in 09-02/09-03)
-- TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
-- TODO: Investigate alternative approach for safe stdlib preloading (07-01-D01) - bootstrap modules crash Pike when introspected
+None. Ready for v3 planning.
 
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 09-03 - v2 MILESTONE COMPLETE
-Resume file: None - All v2 plans finished
-
-## Previous Milestone Summary
-
-### v1: Pike LSP Analyzer Refactoring (Complete)
-
-**Completed:** 2026-01-20
-**Total Duration:** ~4 hours
-**Plans Completed:** 30 (26 refactoring + 4 phase planning)
-
-**Key Outcomes:**
-- Split 3,221-line analyzer.pike into modular LSP.pmod structure
-- 52 v1 requirements satisfied (51/52, 98%)
-- 111 tests passing on Pike 8.0.1116
-- CI configured for cross-version validation
-
-**Archived at:** `.planning/milestones/v1-pike-refactoring/`
-
-### v2: LSP Modularization (Complete)
-
-**Completed:** 2026-01-21
-**Total Duration:** ~154 min (2.6 hours)
-**Plans Completed:** 27 (all v2 plans)
-
-**Key Outcomes:**
-- Intelligence.pike: 1660 -> 84 lines (94% reduction)
-- Analysis.pike: 1191 -> 93 lines (92% reduction)
-- Modular .pmod structure with specialized handlers
-- Backward-compatible delegating classes
-- All LSP features working end-to-end
-- E2E feature tests with CI/pre-push integration
-
-**Archived at:** `.planning/milestones/v2-lsp-modularization/` (pending creation)
+Stopped at: v2 Milestone Completion
+Resume file: None
 
 ## Next Steps
 
-**v2 Milestone COMPLETE!** All 9 phases (33 plans) finished:
-- Intelligence.pike: 1660 -> 84 lines (95% reduction)
-- Analysis.pike: 1191 -> 93 lines (92% reduction)
-- Modular .pmod structure with specialized handlers
-- Backward-compatible delegating classes
-- All LSP features working end-to-end
-- Comprehensive module loading tests
-- E2E feature tests with CI/pre-push integration
-- Pike version detection with health check command
-
-**Future enhancements to consider:**
-- Move helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
-- Investigate alternative approach for safe stdlib preloading (bootstrap modules crash Pike when introspected)
-- Add test results to PR comments (future enhancement mentioned in 06-02)
-- Consider additional LSP features or performance optimizations
+**Start Next Milestone**
+Run `/gsd:new-milestone` to begin questioning, research, and requirements definition for v3.
