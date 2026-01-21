@@ -480,3 +480,109 @@ mapping(string:mapping) extract_function_params(array tokens, int start_idx, int
 
     return params;
 }
+
+//! ============================================================================
+//! ANALYSIS DELEGATING CLASS
+//! ============================================================================
+//! Backward-compatible delegating class for analyzer.pike compatibility.
+//!
+//! The original monolithic Analysis class (1191 lines) has been split into:
+//! - Diagnostics.pike: Uninitialized variable analysis (538 lines)
+//! - Completions.pike: Completion context analysis (183 lines)
+//! - Variables.pike: Find identifier occurrences (116 lines)
+//!
+//! This class forwards all handler calls to the appropriate specialized class.
+
+//! Analysis class - Backward-compatible delegating class
+//!
+//! Usage in analyzer.pike (with updated pattern):
+//!   program AnalysisClass = master()->resolv("LSP.Analysis.Analysis");
+//!   analysis = AnalysisClass();
+//!
+//! The class is exported via module.pmod, so it's accessible as:
+//!   master()->resolv("LSP.Analysis.Analysis")
+class Analysis {
+    //! Private handler instances (created on first use)
+    private object diagnostics_handler;
+    private object completions_handler;
+    private object variables_handler;
+
+    //! Create a new Analysis instance
+    void create() {
+        // Handlers are created lazily when first needed
+    }
+
+    //! Get or create the diagnostics handler
+    protected object get_diagnostics_handler() {
+        if (!diagnostics_handler) {
+            mixed diag_class = master()->resolv("LSP.Analysis.Diagnostics.Diagnostics");
+            if (diag_class && programp(diag_class)) {
+                diagnostics_handler = diag_class(0);
+            }
+        }
+        return diagnostics_handler;
+    }
+
+    //! Get or create the completions handler
+    protected object get_completions_handler() {
+        if (!completions_handler) {
+            mixed comp_class = master()->resolv("LSP.Analysis.Completions.Completions");
+            if (comp_class && programp(comp_class)) {
+                completions_handler = comp_class(0);
+            }
+        }
+        return completions_handler;
+    }
+
+    //! Get or create the variables handler
+    protected object get_variables_handler() {
+        if (!variables_handler) {
+            mixed var_class = master()->resolv("LSP.Analysis.Variables.Variables");
+            if (var_class && programp(var_class)) {
+                variables_handler = var_class(0);
+            }
+        }
+        return variables_handler;
+    }
+
+    //! Analyze code for potentially uninitialized variable usage
+    //! Delegates to Diagnostics class in Analysis.pmod/
+    //!
+    //! @param params Mapping with "code" and "filename" keys
+    //! @returns Mapping with "result" containing "diagnostics" array
+    mapping handle_analyze_uninitialized(mapping params) {
+        object handler = get_diagnostics_handler();
+        if (handler) {
+            return handler->handle_analyze_uninitialized(params);
+        }
+        // Graceful degradation - return empty diagnostics on error
+        return (["result": (["diagnostics": ({})])]);
+    }
+
+    //! Get completion context at a specific position using tokenization
+    //! Delegates to Completions class in Analysis.pmod/
+    //!
+    //! @param params Mapping with "code" (string), "line" (int, 1-based), "character" (int, 0-based)
+    //! @returns Mapping with "result" containing context, objectName, prefix, operator
+    mapping handle_get_completion_context(mapping params) {
+        object handler = get_completions_handler();
+        if (handler) {
+            return handler->handle_get_completion_context(params);
+        }
+        // Graceful degradation - return default "none" context on error
+        return (["result": (["context": "none", "objectName": "", "prefix": "", "operator": ""])]);
+    }
+
+    //! Find all identifier occurrences using tokenization
+    //! Delegates to Variables class in Analysis.pmod/
+    //!
+    //! @param params Mapping with "code" key containing Pike source code
+    //! @returns Mapping with "result" containing "occurrences" array
+    mapping handle_find_occurrences(mapping params) {
+        object handler = get_variables_handler();
+        if (handler) {
+            return handler->handle_find_occurrences(params);
+        }
+        return LSP.module.LSPError(-32000, "Variables handler not available")->to_response();
+    }
+}
