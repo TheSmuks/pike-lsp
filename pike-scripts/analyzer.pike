@@ -45,14 +45,18 @@ class Context {
 
     void create() {
         // Initialize module instances using master()->resolv pattern
-        // LSP.Parser, LSP.Intelligence, LSP.Analysis are programs/classes
+        // LSP.Parser is a simple program/class
         program ParserClass = master()->resolv("LSP.Parser");
         parser = ParserClass();
 
-        program IntelligenceClass = master()->resolv("LSP.Intelligence");
+        // LSP.Intelligence is now a .pmod directory; access the Intelligence class within it
+        // The delegating Intelligence class forwards to specialized handlers
+        program IntelligenceClass = master()->resolv("LSP.Intelligence.Intelligence");
         intelligence = IntelligenceClass();
 
-        program AnalysisClass = master()->resolv("LSP.Analysis");
+        // LSP.Analysis is now a .pmod directory; access the Analysis class within it
+        // The delegating Analysis class forwards to specialized handlers
+        program AnalysisClass = master()->resolv("LSP.Analysis.Analysis");
         analysis = AnalysisClass();
 
         debug_mode = 0;

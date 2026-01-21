@@ -11,11 +11,15 @@
 //! - replace_markup(): Helper for replacing markup tags
 //!
 //! Classes exported:
+//! - Intelligence: Backward-compatible delegating class (for analyzer.pike compatibility)
 //! - Introspection: Symbol extraction and introspection handlers
 //! - Resolution: Module name resolution and stdlib introspection
 //! - TypeAnalysis: Type inheritance traversal and AutoDoc parsing
-
-// Note: In Pike, when we have Intelligence.pmod/Introspection.pike with a class Introspection,
+//!
+//! Per 05-RESEARCH.md Q1 decision: The Intelligence class provides backward
+//! compatibility by delegating to specialized classes in this .pmod directory.
+//!
+//! Note: In Pike, when we have Intelligence.pmod/Introspection.pike with a class Introspection,
 // the path to access the class is LSP.Intelligence.Introspection.Introspection
 // (module.submodule.class).
 //
@@ -223,4 +227,123 @@ protected string replace_markup(string text, string open_tag, string close_tag,
     }
 
     return result;
+}
+
+//! ============================================================================
+//! INTELLIGENCE DELEGATING CLASS
+//! ============================================================================
+//! Backward-compatible delegating class for analyzer.pike compatibility.
+//!
+//! The original monolithic Intelligence class (1660 lines) has been split into:
+//! - Introspection.pike: Symbol extraction (414 lines)
+//! - Resolution.pike: Module resolution and stdlib introspection (564 lines)
+//! - TypeAnalysis.pike: Type inheritance and AutoDoc parsing (666 lines)
+//!
+//! This class forwards all handler calls to the appropriate specialized class.
+
+//! Bootstrap modules used internally by the resolver.
+constant BOOTSTRAP_MODULES = (<
+    "Stdio",     // Used for file I/O during source parsing
+    "String",    // May be used for string operations
+    "Array",     // Core type used throughout
+    "Mapping",   // Core type used throughout
+>);
+
+//! Track modules currently being resolved to prevent circular dependency.
+private mapping(string:int) resolving_modules = ([]);
+
+//! Track circular references detected during resolution
+private mapping(string:int) circular_refs = ([]);
+
+//! Intelligence class - Backward-compatible delegating class
+//!
+//! Usage in analyzer.pike (unchanged):
+//!   program IntelligenceClass = master()->resolv("LSP.Intelligence");
+//!   intelligence = IntelligenceClass();
+//!
+//! The class is exported via module.pmod, so it's accessible as:
+//!   master()->resolv("LSP.Intelligence.Intelligence")
+class Intelligence {
+    //! Private handler instances (created on first use)
+    private object introspection_handler;
+    private object resolution_handler;
+    private object type_analysis_handler;
+
+    //! Create a new Intelligence instance
+    void create() {
+        // Handlers are created lazily when first needed
+    }
+
+    //! Get or create the introspection handler
+    protected object get_introspection_handler() {
+        if (!introspection_handler) {
+            mixed intro_class = master()->resolv("LSP.Intelligence.Introspection.Introspection");
+            if (intro_class && programp(intro_class)) {
+                introspection_handler = intro_class(0);
+            }
+        }
+        return introspection_handler;
+    }
+
+    //! Get or create the resolution handler
+    protected object get_resolution_handler() {
+        if (!resolution_handler) {
+            mixed res_class = master()->resolv("LSP.Intelligence.Resolution.Resolution");
+            if (res_class && programp(res_class)) {
+                resolution_handler = res_class(0);
+            }
+        }
+        return resolution_handler;
+    }
+
+    //! Get or create the type analysis handler
+    protected object get_type_analysis_handler() {
+        if (!type_analysis_handler) {
+            mixed type_class = master()->resolv("LSP.Intelligence.TypeAnalysis.TypeAnalysis");
+            if (type_class && programp(type_class)) {
+                type_analysis_handler = type_class(0);
+            }
+        }
+        return type_analysis_handler;
+    }
+
+    //! Introspect Pike code by compiling it and extracting symbol information
+    //! Delegates to Introspection class in Intelligence.pmod/
+    mapping handle_introspect(mapping params) {
+        object handler = get_introspection_handler();
+        if (handler) {
+            return handler->handle_introspect(params);
+        }
+        return LSP.module.LSPError(-32000, "Introspection handler not available")->to_response();
+    }
+
+    //! Resolve module path to file system location
+    //! Delegates to Resolution class in Intelligence.pmod/
+    mapping handle_resolve(mapping params) {
+        object handler = get_resolution_handler();
+        if (handler) {
+            return handler->handle_resolve(params);
+        }
+        return LSP.module.LSPError(-32000, "Resolution handler not available")->to_response();
+    }
+
+    //! Resolve stdlib module and extract symbols with documentation
+    //! Delegates to Resolution class in Intelligence.pmod/
+    mapping handle_resolve_stdlib(mapping params) {
+        object handler = get_resolution_handler();
+        if (handler) {
+            return handler->handle_resolve_stdlib(params);
+        }
+        return LSP.module.LSPError(-32000, "Resolution handler not available")->to_response();
+    }
+
+    //! Get inherited members from a class
+    //! Delegates to TypeAnalysis class in Intelligence.pmod/
+    mapping handle_get_inherited(mapping params) {
+        object handler = get_type_analysis_handler();
+        if (handler) {
+            return handler->handle_get_inherited(params);
+        }
+        return LSP.module.LSPError(-32000, "TypeAnalysis handler not available")->to_response();
+    }
 }
