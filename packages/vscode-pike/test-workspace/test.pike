@@ -30,20 +30,12 @@ class TestClass {
     // Line 31: Class method
     void member_method() {
         // Line 33: Reference test_variable for go-to-definition
-        int local = test_variable;
+        int local_var = test_variable;
     }
 
     // Line 36: Another method with return type
     int get_value() {
         return member_variable;
-    }
-}
-
-// Line 41: Inheritance test
-class ChildClass : TestClass {
-    void child_method() {
-        // Uses inherited member
-        member_variable = 20;
     }
 }
 
@@ -89,4 +81,12 @@ TestClass create_instance() {
 // Line 84: Reference for function go-to-definition (references test_function at line 16)
 int call_function() {
     return test_function("test");  // Should jump to function definition
+}
+
+// Line 87: TestClass instance variable for hover test
+TestClass tc = TestClass();
+
+// Line 89: Main function for function hover signature test
+int main() {
+    return 0;
 }

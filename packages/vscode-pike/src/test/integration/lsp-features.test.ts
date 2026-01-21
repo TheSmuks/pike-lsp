@@ -11,21 +11,59 @@
  * - Completion (autocomplete suggestions)
  *
  * Key principle: Tests fail if LSP features return null/undefined (regression detection)
+ *
+ * Error capture: Pike subprocess errors are captured and displayed when tests fail.
  */
 
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 
+// Captured Pike server logs for debugging test failures
+let capturedLogs: string[] = [];
+
+/**
+ * Log capture utility - shows server logs when tests fail
+ */
+function logServerOutput(message: string) {
+    capturedLogs.push(message);
+    console.log(`[Pike Server] ${message}`);
+}
+
+/**
+ * Display captured logs on test failure
+ */
+function dumpServerLogs(context: string) {
+    console.log(`\n=== Pike Server Logs (${context}) ===`);
+    if (capturedLogs.length === 0) {
+        console.log('(No logs captured)');
+    } else {
+        capturedLogs.forEach(log => console.log(log));
+    }
+    console.log('=== End Server Logs ===\n');
+}
+
+/**
+ * Enhanced assertion that dumps logs on failure
+ */
+function assertWithLogs(condition: unknown, message: string): asserts condition {
+    if (!condition) {
+        dumpServerLogs(`Assertion failed: ${message}`);
+        assert.ok(condition, message);
+    }
+}
+
 suite('LSP Feature E2E Tests', () => {
     let workspaceFolder: vscode.WorkspaceFolder;
     let fixtureUri: vscode.Uri;
     let document: vscode.TextDocument;
+    let outputChannelDisposable: vscode.Disposable | undefined;
 
     suiteSetup(async function() {
         this.timeout(60000); // Allow more time for LSP initialization
+        capturedLogs = []; // Reset logs for this test run
 
         // Ensure workspace folder exists
-        workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
         assert.ok(workspaceFolder, 'Workspace folder should exist');
 
         // Explicitly activate the extension before running tests
@@ -37,28 +75,73 @@ suite('LSP Feature E2E Tests', () => {
             console.log('Extension activated for LSP feature tests');
         }
 
+        // Set up output channel monitoring for Pike server logs
+        // The LSP client sends Pike output to the "Pike Language Server" output channel
+        try {
+            // Register a diagnostic listener to capture Pike stderr messages
+            const diagnosticListener = vscode.languages.onDidChangeDiagnostics(e => {
+                for (const uri of e.uris) {
+                    const diagnostics = vscode.languages.getDiagnostics(uri);
+                    diagnostics.forEach(d => {
+                        logServerOutput(`Diagnostic: ${d.severity} - ${d.message} at line ${d.range.start.line}`);
+                    });
+                }
+            });
+            outputChannelDisposable = diagnosticListener;
+
+            logServerOutput('Test setup: Diagnostic listener registered');
+        } catch (e) {
+            console.log('Could not set up output channel monitoring:', e);
+        }
+
         // Wait a bit for the LSP server to fully start after activation
+        logServerOutput('Waiting for LSP server to start...');
         await new Promise(resolve => setTimeout(resolve, 5000));
 
         // Use the existing test.pike file in test-workspace instead of creating dynamically
         // This avoids URI scheme issues that prevent LSP from caching the document
         fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+        logServerOutput(`Opening test fixture: ${fixtureUri.fsPath}`);
+
         document = await vscode.workspace.openTextDocument(fixtureUri);
 
         // Show the document in an editor to ensure LSP synchronization
         await vscode.window.showTextDocument(document);
+        logServerOutput('Document opened and shown in editor');
 
         // Wait for LSP to fully initialize and analyze the file
         // This is critical - LSP features won't work if server isn't ready
+        logServerOutput('Waiting for LSP to analyze document...');
         await new Promise(resolve => setTimeout(resolve, 15000));
+
+        // Check for diagnostics on the file (could indicate Pike errors)
+        const diagnostics = vscode.languages.getDiagnostics(fixtureUri);
+        if (diagnostics.length > 0) {
+            logServerOutput(`Found ${diagnostics.length} diagnostics on test file:`);
+            diagnostics.forEach(d => {
+                logServerOutput(`  Line ${d.range.start.line}: ${d.message}`);
+            });
+        } else {
+            logServerOutput('No diagnostics on test file (normal for valid Pike code)');
+        }
+
+        logServerOutput('Test setup complete');
     });
 
     suiteTeardown(async () => {
+        // Dispose diagnostic listener
+        if (outputChannelDisposable) {
+            outputChannelDisposable.dispose();
+        }
+
         // Close document if open
         if (document) {
             await vscode.window.showTextDocument(document);
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
         }
+
+        // Always dump logs at the end of the suite for debugging
+        dumpServerLogs('Suite teardown');
     });
 
     /**
@@ -70,14 +153,23 @@ suite('LSP Feature E2E Tests', () => {
     test('Document symbols returns valid symbol tree', async function() {
         this.timeout(30000);
 
+        logServerOutput('Starting document symbols test...');
+
         // Execute document symbol provider via VSCode command
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
             'vscode.executeDocumentSymbolProvider',
             fixtureUri
         );
 
+        // Log result for debugging
+        logServerOutput(`Document symbols result: ${symbols ? `${symbols.length} symbols` : 'null'}`);
+        if (!symbols) {
+            logServerOutput('WARNING: Document symbols returned null - Pike analyzer may have crashed');
+            dumpServerLogs('Document symbols test - null result');
+        }
+
         // Verify response is not null (regression detection)
-        assert.ok(symbols, 'Should return symbols (not null) - LSP feature may be broken');
+        assertWithLogs(symbols, 'Should return symbols (not null) - LSP feature may be broken');
 
         // Verify response is an array
         assert.ok(Array.isArray(symbols), 'Should return symbols array');
@@ -173,7 +265,8 @@ suite('LSP Feature E2E Tests', () => {
         const text = document.getText();
 
         // Find position of TestClass reference (line 11: TestClass tc = TestClass();)
-        const referenceMatch = text.match(/TestClass\s+\(\)/);
+        // Note: Pike syntax doesn't allow whitespace between class name and parentheses
+        const referenceMatch = text.match(/TestClass\s*\(\)/);
         assert.ok(referenceMatch, 'Should find TestClass() constructor call in test.pike');
 
         // Calculate position to be on the class name
