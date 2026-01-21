@@ -18,6 +18,22 @@ export interface PikePosition {
 }
 
 /**
+ * Pike version information from get_version RPC
+ */
+export interface PikeVersionInfo {
+    /** Major version number (e.g., 8) */
+    major: number;
+    /** Minor version number (e.g., 0) */
+    minor: number;
+    /** Build number (e.g., 1116) */
+    build: number;
+    /** Full version string (e.g., "8.0.1116") */
+    version: string;
+    /** Display version as float (e.g., 8.01116) */
+    display: number;
+}
+
+/**
  * Pike type representation
  * Matches Tools.AutoDoc.PikeObjects Type classes
  */

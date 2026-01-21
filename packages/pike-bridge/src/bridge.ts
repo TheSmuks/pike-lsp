@@ -17,6 +17,7 @@ import type {
     PikeDiagnostic,
     PikeRequest,
     PikeResponse,
+    PikeVersionInfo,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
 import { Logger } from '@pike-lsp/core';
@@ -656,6 +657,32 @@ export class PikeBridge extends EventEmitter {
                 resolve(false);
             });
         });
+    }
+
+    /**
+     * Get the Pike version via RPC.
+     *
+     * Queries the running Pike subprocess for its version information.
+     * Returns structured version data including major, minor, build, and display values.
+     *
+     * @returns Version information object or `null` if the bridge is not running or method is not available.
+     * @example
+     * ```ts
+     * const version = await bridge.getVersionInfo();
+     * console.log(version); // { major: 8, minor: 0, build: 1116, version: "8.0.1116", display: 8.01116 }
+     * ```
+     */
+    async getVersionInfo(): Promise<PikeVersionInfo | null> {
+        this.debugLog('Getting Pike version via RPC...');
+        try {
+            const result = await this.sendRequest<PikeVersionInfo>('get_version', {});
+            return result;
+        } catch (err) {
+            // Method not found or bridge not running
+            const message = err instanceof Error ? err.message : String(err);
+            this.debugLog(`getVersionInfo failed: ${message}`);
+            return null;
+        }
     }
 
     /**
