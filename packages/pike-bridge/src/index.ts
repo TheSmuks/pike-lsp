@@ -11,9 +11,9 @@ export * from './constants.js';
 export * from './process.js';
 
 // Export error types for consumers who need to catch Pike subprocess errors
-export { PikeError, LSPError } from './errors.js';
-export type { ErrorLayer } from './errors.js';
+export { PikeError, LSPError } from '@pike-lsp/core';
+export type { ErrorLayer } from '@pike-lsp/core';
 
 // Export Logger for consumers who need logging
-export { Logger, LogLevel } from './logging.js';
+export { Logger, LogLevel } from '@pike-lsp/core';
 

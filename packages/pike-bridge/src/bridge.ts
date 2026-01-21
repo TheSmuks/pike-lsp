@@ -19,8 +19,8 @@ import type {
     PikeResponse,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
-import { Logger } from './logging.js';
-import { PikeError } from './errors.js';
+import { Logger } from '@pike-lsp/core';
+import { PikeError } from '@pike-lsp/core';
 
 /**
  * Configuration options for the PikeBridge.
