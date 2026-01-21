@@ -171,7 +171,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 4. Analysis.pike reduced from 1,191 to ~80 lines (delegating class)
 5. Related logic stays together (StdlibResolver with Resolution, Occurrences with Variables)
 6. All classes use `create(object ctx)` constructor pattern
-7. All classes wrap handlers in catch with make_error() returns
+7. All classes wrap handlers in catch with LSPError returns
 8. Integration tests verify module loading via master()->resolv()
 
 **Deliverables:**
@@ -180,12 +180,13 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Updated integration tests
 - Backward-compatible delegating classes replacing original single files
 
-**Plans**: 5 plans in 4 waves
+**Plans**: 6 plans in 4 waves
 - [ ] 05-01-PLAN.md — Create Intelligence.pmod with module.pmod and Introspection class
 - [ ] 05-02-PLAN.md — Create Resolution.pike and TypeAnalysis.pike
 - [ ] 05-03-PLAN.md — Create Analysis.pmod with module.pmod and Diagnostics class
 - [ ] 05-04-PLAN.md — Create Completions.pike and Variables.pike
-- [ ] 05-05-PLAN.md — Replace original files, update tests, E2E verification
+- [ ] 05-05-PLAN.md — Replace original files with delegating classes, verify context works
+- [ ] 05-06-PLAN.md — Update tests, E2E smoke test verification
 
 ---
 
@@ -202,7 +203,7 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
 | 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
-| 5. Pike Reorganization | 0/5 | Planned | - |
+| 5. Pike Reorganization | 0/6 | Planned | - |
 
 **Project Status:** Phase 4 complete (Server Grouping done), Phase 5 planned
 
