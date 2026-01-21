@@ -49,5 +49,9 @@ tmp/
 temp/
 *.tmp
 
+# VS Code Test
+.vscode-test/
+packages/vscode-pike/.vscode-test/
+
 # Husky shell script cache
 .husky/_

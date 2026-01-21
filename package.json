@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pike-lsp/pike-lsp"
+    "url": "https://github.com/TheSmuks/pike-lsp.git"
   },
   "scripts": {
     "build": "pnpm -r run build",

@@ -1,6 +1,6 @@
 # Pike LSP - Language Server for Pike
 
-[![CI Tests](https://github.com/smuks/OpenCode/pike-lsp/workflows/Test/badge.svg)](https://github.com/smuks/OpenCode/pike-lsp/actions/workflows/test.yml)
+[![CI Tests](https://github.com/TheSmuks/pike-lsp/workflows/Test/badge.svg)](https://github.com/TheSmuks/pike-lsp/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85+-blue.svg)](https://code.visualstudio.com/)
 
@@ -41,6 +41,7 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 - 🔄 Batch parsing for fast workspace indexing
 - 💾 Smart caching for stdlib modules
 - ✅ 100% Pike 8 stdlib compatibility
+- 🛠️ Modular architecture (TypeScript + Pike 8.1116)
 
 ## 📋 Requirements
 
@@ -66,15 +67,9 @@ This project uses a two-tier version support model:
 - **Required version** (8.1116) must pass to merge
 - **Latest version** failures don't block merge but are documented
 
-### Known Issues
-
-| Issue | Affected Versions | Workaround | Status |
-|-------|------------------|------------|--------|
-| None currently | - | - | - |
-
 ### Version Detection
 
-The analyzer logs its detected Pike version at startup for debugging. This helps identify version-specific issues when reporting bugs.
+The analyzer detects and reports the Pike version it is running on. This information is available in the VS Code "Pike Language Server" output channel and via the "Pike: Show Health" command.
 
 ### Local Development
 
@@ -97,7 +92,7 @@ code --install-extension vscode-pike-1.0.0.vsix
 ### Build from Source
 ```bash
 # Clone the repository
-git clone https://github.com/pike-lsp/pike-lsp.git
+git clone https://github.com/TheSmuks/pike-lsp.git
 cd pike-lsp
 
 # Install dependencies (requires pnpm)
@@ -132,7 +127,7 @@ Add these settings to your VS Code `settings.json`:
 {
     // Path to Pike executable (default: "pike")
     "pike.pikePath": "/usr/local/bin/pike",
-    
+
     // LSP trace level for debugging
     "pike.trace.server": "off"  // "off" | "messages" | "verbose"
 }
@@ -143,12 +138,13 @@ Add these settings to your VS Code `settings.json`:
 ```
 pike-lsp/
 ├── packages/
+│   ├── core/                # Shared utilities (errors, logging)
 │   ├── pike-bridge/         # TypeScript ↔ Pike IPC layer
-│   ├── pike-analyzer/       # Semantic analysis utilities
 │   ├── pike-lsp-server/     # LSP server implementation
 │   └── vscode-pike/         # VS Code extension
 ├── pike-scripts/
-│   └── analyzer.pike        # Pike parsing backend
+│   ├── analyzer.pike        # Pike parsing entry point
+│   └── LSP.pmod/            # Pike modular analyzer logic
 ├── scripts/
 │   ├── run-tests.sh         # Automated test runner
 │   └── test-extension.sh    # Extension testing
@@ -165,15 +161,11 @@ pike-lsp/
 pnpm --filter @pike-lsp/pike-bridge test
 pnpm --filter @pike-lsp/pike-lsp-server test
 
-# Run integration tests
-cd packages/pike-lsp-server
-node --test dist/tests/integration-tests.js
+# Run smoke tests
+pnpm --filter @pike-lsp/pike-lsp-server test:smoke
 
-# Run performance benchmarks
-node --test dist/tests/performance-tests.js
-
-# Validate against Pike stdlib
-node dist/tests/pike-source-tests.js --verbose
+# Run VSCode E2E tests (requires display or xvfb)
+cd packages/vscode-pike && pnpm run test:e2e
 ```
 
 ### Pike Stdlib Source Paths
@@ -186,9 +178,9 @@ PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scr
 ```
 
 ### Test Coverage
-- **2,977 lines** of test code across 10 test suites
-- **100%** Pike 8 stdlib files parse successfully
-- Automated CI via GitHub Actions
+- **Automated CI** via GitHub Actions
+- **E2E Feature Tests** verify symbols, hover, definition, and completion
+- **Smoke Tests** verify bridge stability and basic parsing
 
 ## 🛠️ Development
 
@@ -237,7 +229,7 @@ While Pike LSP provides comprehensive IDE support, there are some known limitati
 |------------|-------------|--------|
 | **Preprocessor Directives** | `#if`, `#else`, `#endif` conditional blocks are partially skipped during parsing | Symbols in platform-specific code may not be indexed |
 | **Nested Classes** | Nested class definitions are not fully parsed | Go-to-definition may not work for deeply nested class members |
-| **Type Inference** | Advanced type inference (Phase 3 features) is limited | Some type information may be incomplete in complex generic scenarios |
+| **Type Inference** | Advanced type inference is limited | Some type information may be incomplete in complex generic scenarios |
 | **Dynamic Modules** | Runtime-loaded modules cannot be analyzed | Completion won't show symbols from dynamically loaded code |
 
 ## Troubleshooting
@@ -277,13 +269,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) - LSP framework
 - [Pike](https://pike.lysator.liu.se/) - The Pike programming language
 - [Tools.AutoDoc](https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/Tools/AutoDoc.html) - Pike's documentation parser
-
-## 📊 Stats
-
-| Metric | Value |
-|--------|-------|
-| LSP Features | 23+ |
-| Test Lines | 2,977 |
-| Test Suites | 10 |
-| Pike Stdlib Compatibility | 100% |
-| Parse Speed | ~15ms/1000 lines |
