@@ -94,6 +94,7 @@ jobs:
                 echo "Pike ${PIKE_VERSION} not found at ${PIKE_URL}"
                 echo "Falling back to pike8.0 from apt"
                 sudo apt-get install -y pike8.0
+                rm -f pike.tar.gz
               }
               if [ -f pike.tar.gz ]; then
                 tar -xzf pike.tar.gz
