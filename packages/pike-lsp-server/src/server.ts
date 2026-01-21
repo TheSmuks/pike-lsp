@@ -202,7 +202,7 @@ async function validateDocument(document: TextDocument): Promise<void> {
     const bridge = bridgeManager.bridge;
     if (!bridge.isRunning()) {
         try {
-            await bridge.start();
+            await bridgeManager.start();
             connection.console.log('[VALIDATE] Bridge started successfully');
         } catch (err) {
             connection.console.error(`[VALIDATE] Failed to start bridge: ${err}`);
@@ -411,7 +411,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         } else {
             stdlibIndex = new StdlibIndexManager(bridge);
             bridge.on('stderr', (msg: string) => connection.console.log(`[Pike] ${msg}`));
-            await bridge.start();
+            await bridgeManager.start();
             connection.console.log('Pike bridge started');
         }
     } catch (err) {
@@ -461,9 +461,6 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             documentRangeFormattingProvider: true,
             documentLinkProvider: { resolveProvider: true },
             codeLensProvider: { resolveProvider: true },
-            executeCommandProvider: {
-                commands: ['pike.lsp.showDiagnostics'],
-            },
         },
     };
 });

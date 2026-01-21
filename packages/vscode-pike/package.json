@@ -67,8 +67,8 @@
             },
             {
                 "command": "pike.lsp.showDiagnostics",
-                "title": "Pike LSP: Show Diagnostics",
-                "category": "Pike"
+                "title": "Show Diagnostics",
+                "category": "Pike LSP"
             }
         ],
         "menus": {

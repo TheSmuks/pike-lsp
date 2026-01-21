@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 9 of 9 (Tech Debt Cleanup)
-Plan: 01 of 03
-Status: In progress - Plan 09-01 completed
-Last activity: 2026-01-21 — Plan 09-01 completed: get_version RPC handler added to analyzer.pike
+Plan: 03 of 03
+Status: Phase complete
+Last activity: 2026-01-21 — Plan 09-03 completed: Pike version detection verified, E2E tests passing
 
-Progress: [████████████░] 97% (32/33 v2 plans complete, 2 plans remaining in Phase 9)
+Progress: [██████████████] 100% (33/33 v2 plans complete - v2 MILESTONE COMPLETE!)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32
+- Total plans completed: 33
 - Average duration: 7 min
-- Total execution time: 210 min
+- Total execution time: 215 min
 
 **By Phase:**
 
@@ -35,7 +35,7 @@ Progress: [████████████░] 97% (32/33 v2 plans complete
 | 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
 | 7. Gap Closure | 1 | 1 | 45 min |
 | 8. Tech Debt Cleanup | 3 | 3 | 3 min |
-| 9. Pike Version Detection | 1 | 1 | 2 min |
+| 9. Pike Version Detection | 3 | 3 | 5 min |
 
 *Updated after each plan completion*
 
@@ -191,11 +191,15 @@ Progress: [████████████░] 97% (32/33 v2 plans complete
 | 08-03-D01 | Keep PikeSettings and DocumentCacheEntry in pike-lsp-server | These types have dependencies on server-specific constants and PikeSymbol type from @pike-lsp/pike-bridge |
 | 08-03-D02 | Re-export pattern in core/index.ts | The pike-lsp-server/core/index.ts re-exports from @pike-lsp/core while also exporting server-specific types |
 
-**Implementation Decisions (from plan 09-01):**
+**Implementation Decisions (from plans 09-01, 09-02, 09-03):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
 | 09-01-D01 | Use __REAL_VERSION__ constant for display value in get_version handler | Pike's version() is not callable; __REAL_VERSION__ is the pre-defined constant containing version as float |
+| 09-02-D01 | Use which.pike command to find Pike executable path | which.pike reliably locates the Pike binary regardless of installation method |
+| 09-02-D02 | Cache version info in BridgeManager instance variable | Version doesn't change during session; caching avoids repeated RPC calls |
+| 09-03-D01 | Health check shows both Pike version and absolute path | Helps users verify which Pike installation the LSP is using (useful when multiple Pike versions installed) |
+| 09-03-D02 | Commands registered only in extension.ts, not server.ts | Avoids registration conflicts; VSCode extension is the proper place for command registration |
 
 **Design Decisions (from v2 design document):**
 
@@ -214,8 +218,8 @@ Progress: [████████████░] 97% (32/33 v2 plans complete
 - Previous milestone: v1 Pike Refactoring (archived)
 - Approach: Infrastructure-First with Pragmatic Implementation
 
-**2026-01-21**: v2 milestone nearly complete
-- All 31 plans across 8 phases finished
+**2026-01-21**: v2 milestone COMPLETE
+- All 33 plans across 9 phases finished
 - E2E feature tests created and integrated into CI
 - Bridge initialization timing fixed
 - Stdlib preloading disabled to avoid crashes
@@ -223,6 +227,7 @@ Progress: [████████████░] 97% (32/33 v2 plans complete
 - 7/7 E2E feature tests passing (100%)
 - Phase 8 complete: ~512 lines of duplicate code eliminated via @pike-lsp/core shared package
 - Tech Debt #1 (duplicate Logger/Error classes) RESOLVED
+- Phase 9 complete: Pike version detection from analyzer to VSCode health check
 
 ### Pending Todos
 
@@ -251,15 +256,15 @@ None yet.
 - ~~TODO: Update pike-bridge to import from @pike-lsp/core~~ (COMPLETED in 08-02)
 - ~~TODO: Update pike-lsp-server to import from @pike-lsp/core~~ (COMPLETED in 08-03)
 - ~~TODO: Pike version detection RPC method - BridgeManager.getHealth() returns null for now~~ (COMPLETED in 09-01 - get_version handler added to analyzer.pike)
-- TODO: Update BridgeManager.getHealth() to call get_version RPC method (remaining work in Phase 9)
+- ~~TODO: Update BridgeManager.getHealth() to call get_version RPC method~~ (COMPLETED in 09-02/09-03)
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Investigate alternative approach for safe stdlib preloading (07-01-D01) - bootstrap modules crash Pike when introspected
 
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 09-01 - get_version RPC handler added to analyzer.pike
-Resume file: None - 2 plans remaining in Phase 9
+Stopped at: Completed plan 09-03 - v2 MILESTONE COMPLETE
+Resume file: None - All v2 plans finished
 
 ## Previous Milestone Summary
 
@@ -295,7 +300,7 @@ Resume file: None - 2 plans remaining in Phase 9
 
 ## Next Steps
 
-**v2 Milestone COMPLETE!** All 6 phases (27 plans) finished:
+**v2 Milestone COMPLETE!** All 9 phases (33 plans) finished:
 - Intelligence.pike: 1660 -> 84 lines (95% reduction)
 - Analysis.pike: 1191 -> 93 lines (92% reduction)
 - Modular .pmod structure with specialized handlers
@@ -303,9 +308,10 @@ Resume file: None - 2 plans remaining in Phase 9
 - All LSP features working end-to-end
 - Comprehensive module loading tests
 - E2E feature tests with CI/pre-push integration
+- Pike version detection with health check command
 
 **Future enhancements to consider:**
-- Extract errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - Move helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
-- Pike version detection in BridgeManager.getHealth()
+- Investigate alternative approach for safe stdlib preloading (bootstrap modules crash Pike when introspected)
 - Add test results to PR comments (future enhancement mentioned in 06-02)
+- Consider additional LSP features or performance optimizations

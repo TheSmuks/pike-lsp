@@ -91,6 +91,35 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
 
     context.subscriptions.push(disposable);
 
+    // Register diagnostics command immediately (works even before client starts)
+    diagnosticsCommandDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
+        if (!client) {
+            window.showWarningMessage('Pike LSP is not active. Open a .pike file to start the server.');
+            return;
+        }
+
+        try {
+            const result = await client.sendRequest('workspace/executeCommand', {
+                command: 'pike.lsp.showDiagnostics',
+            });
+
+            const healthOutput = result as string ?? 'No health data available';
+            outputChannel.appendLine(healthOutput);
+            outputChannel.show();
+
+            // Also show as info message with summary
+            const lines = healthOutput.split('\n');
+            const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
+            if (summaryLine) {
+                window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
+            }
+        } catch (err) {
+            window.showErrorMessage(`Failed to get diagnostics: ${err}`);
+        }
+    });
+
+    context.subscriptions.push(diagnosticsCommandDisposable);
+
     const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (arg) => {
         let uri: string | undefined;
         let position: { line: number; character: number } | undefined;
@@ -249,12 +278,6 @@ async function restartClient(showMessage: boolean): Promise<void> {
         return;
     }
 
-    // Dispose the old diagnostics command before creating a new client
-    if (diagnosticsCommandDisposable) {
-        diagnosticsCommandDisposable.dispose();
-        diagnosticsCommandDisposable = undefined;
-    }
-
     if (client) {
         try {
             await client.stop();
@@ -297,43 +320,6 @@ async function restartClient(showMessage: boolean): Promise<void> {
         console.log('Pike Language Extension activated successfully!');
         if (showMessage) {
             window.showInformationMessage('Pike Language Server started');
-        }
-
-        // Register health check command after client is ready
-        // Use module-level disposable to track registration across restarts
-        // Wrap in try-catch to handle case where command is already registered (e.g., in tests)
-        try {
-            if (!diagnosticsCommandDisposable) {
-                diagnosticsCommandDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
-                    if (!client) {
-                        window.showErrorMessage('Pike LSP client not available');
-                        return;
-                    }
-
-                    try {
-                        const result = await client.sendRequest('workspace/executeCommand', {
-                            command: 'pike.lsp.showDiagnostics',
-                        });
-
-                        const healthOutput = result as string ?? 'No health data available';
-                        outputChannel.appendLine(healthOutput);
-                        outputChannel.show();
-
-                        // Also show as info message with summary
-                        const lines = healthOutput.split('\n');
-                        const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
-                        if (summaryLine) {
-                            window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
-                        }
-                    } catch (err) {
-                        window.showErrorMessage(`Failed to get diagnostics: ${err}`);
-                    }
-                });
-            }
-        } catch (commandErr) {
-            // Command may already be registered in test scenarios
-            // This is not a fatal error - the client is still functional
-            console.log('Diagnostics command already registered, skipping:', commandErr);
         }
     } catch (err) {
         console.error('Failed to start Pike Language Client:', err);

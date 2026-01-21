@@ -86,7 +86,15 @@ export class BridgeManager {
                 // The bridge stores options internally, we need to get the pikePath
                 const diagnostics = this.bridge.getDiagnostics();
                 const pikePath = diagnostics.options.pikePath;
-                const resolvedPath = fs.realpathSync(pikePath === 'pike' ? pikePath : path.resolve(pikePath));
+                let resolvedPath: string;
+
+                if (pikePath === 'pike') {
+                    // Use 'pike' as the path since we can't resolve it without which/command
+                    resolvedPath = 'pike';
+                } else {
+                    // Resolve absolute path for custom Pike paths
+                    resolvedPath = fs.realpathSync(pikePath);
+                }
 
                 this.cachedVersion = {
                     ...versionInfo,
