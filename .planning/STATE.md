@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 5 of 5 (Pike Reorganization) - PHASE COMPLETE
-Plan: 6 of 6 complete
-Status: Phase 5 complete - v2 milestone achieved with 94% line reduction and full E2E verification
-Last activity: 2026-01-21 — Completed plan 05-06 (Module loading tests and E2E verification)
+Phase: 6 of 6 (Automated LSP Feature Verification) - PHASE COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 6 complete - v2 milestone achieved with comprehensive automated verification
+Last activity: 2026-01-21 — Completed plan 06-02 (CI Integration for LSP Feature Tests)
 
-Progress: [████████████] 100% (25/25 v2 plans complete, v2 milestone achieved)
+Progress: [████████████] 100% (27/27 v2 plans complete, v2 milestone achieved)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25
+- Total plans completed: 27
 - Average duration: 6 min
-- Total execution time: 145 min
+- Total execution time: 154 min
 
 **By Phase:**
 
@@ -32,6 +32,7 @@ Progress: [████████████] 100% (25/25 v2 plans complete, 
 | 3. Bridge Extraction | 2 | 2 | 3 min |
 | 4. Server Grouping | 6 | 6 | 6 min |
 | 5. Pike Reorganization | 6 | 6 | 6 min |
+| 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
 
 *Updated after each plan completion*
 
@@ -131,6 +132,23 @@ Progress: [████████████] 100% (25/25 v2 plans complete, 
 | 05-06-D02 | Parser.pike is a class module (file itself is the class) | Use programp(module) not module->Parser for single-file Pike modules |
 | 05-06-D03 | Module directory structure validated via indices() function | .pmod directories are special Pike module type, not traditional mappings |
 
+**Implementation Decisions (from plan 06-01):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 06-01-D01 | Use existing test.pike in test-workspace instead of creating dynamic files | Avoids URI scheme issues that prevent LSP from caching the document |
+| 06-01-D02 | Test file uses 30-60 second timeout to allow LSP server initialization | LSP server needs time to start Pike subprocess and analyze files |
+| 06-01-D03 | Tests use vscode.executeXProvider pattern for true E2E verification | No mocking - tests verify actual VSCode API returns valid data |
+
+**Implementation Decisions (from plan 06-02):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 06-02-D01 | Added explicit LSP feature test step to CI (runs after general E2E) | Makes feature tests visible in CI logs; test:features filter shows only feature tests |
+| 06-02-D02 | Pre-push hook uses test:features script | Faster than full test suite; catches LSP regressions before push |
+| 06-02-D03 | Debugging guide organized by symptom | Developers see failure message first; symptom-based lookup is faster |
+| 06-02-D04 | Updated CI badge URL to correct repository | Badge pointed to andjo/pike-lsp; current repo is smuks/OpenCode/pike-lsp |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -148,6 +166,11 @@ Progress: [████████████] 100% (25/25 v2 plans complete, 
 - Previous milestone: v1 Pike Refactoring (archived)
 - Approach: Infrastructure-First with Pragmatic Implementation
 
+**2026-01-21**: v2 milestone completed
+- All 27 plans across 6 phases finished
+- E2E feature tests created and integrated into CI
+- Automated verification prevents LSP regressions
+
 ### Pending Todos
 
 None yet.
@@ -159,8 +182,8 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 04-06):**
-- No blockers - Phase 4 complete, ready for Phase 5
+**Current (as of plan 06-02):**
+- No blockers - v2 milestone complete
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
@@ -168,7 +191,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 05-06 (Module loading tests and E2E verification) - Phase 5 and v2 milestone complete
+Stopped at: Completed plan 06-02 (CI Integration for LSP Feature Tests) - v2 milestone complete
 Resume file: None
 
 ## Previous Milestone Summary
@@ -190,29 +213,32 @@ Resume file: None
 ### v2: LSP Modularization (Complete)
 
 **Completed:** 2026-01-21
-**Total Duration:** ~140 min (2.3 hours)
-**Plans Completed:** 24 (all v2 plans)
+**Total Duration:** ~154 min (2.6 hours)
+**Plans Completed:** 27 (all v2 plans)
 
 **Key Outcomes:**
 - Intelligence.pike: 1660 -> 84 lines (94% reduction)
-- Analysis.pike: 1191 -> 85 lines (93% reduction)
+- Analysis.pike: 1191 -> 93 lines (92% reduction)
 - Modular .pmod structure with specialized handlers
 - Backward-compatible delegating classes
 - All LSP features working end-to-end
+- E2E feature tests with CI/pre-push integration
 
 **Archived at:** `.planning/milestones/v2-lsp-modularization/` (pending creation)
 
 ## Next Steps
 
-**v2 Milestone COMPLETE!** All 5 phases (25 plans) finished:
+**v2 Milestone COMPLETE!** All 6 phases (27 plans) finished:
 - Intelligence.pike: 1660 -> 84 lines (95% reduction)
 - Analysis.pike: 1191 -> 93 lines (92% reduction)
 - Modular .pmod structure with specialized handlers
 - Backward-compatible delegating classes
 - All LSP features working end-to-end
 - Comprehensive module loading tests
+- E2E feature tests with CI/pre-push integration
 
 **Future enhancements to consider:**
 - Extract errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - Move helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - Pike version detection in BridgeManager.getHealth()
+- Add test results to PR comments (future enhancement mentioned in 06-02)
