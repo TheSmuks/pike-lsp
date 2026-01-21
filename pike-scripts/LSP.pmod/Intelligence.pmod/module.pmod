@@ -9,6 +9,17 @@
 //! - extract_symbol_name(): Extract function name from definition line
 //! - process_inline_markup(): Convert AutoDoc inline tags to markdown
 //! - replace_markup(): Helper for replacing markup tags
+//!
+//! Classes exported:
+//! - Introspection: Symbol extraction and introspection handlers
+
+// Note: In Pike, when we have Intelligence.pmod/Introspection.pike with a class Introspection,
+// the path to access the class is LSP.Intelligence.Introspection.Introspection
+// (module.submodule.class).
+//
+// The constant export approach creates a circular dependency at compile time.
+// Users should access the class via master()->resolv("LSP.Intelligence.Introspection.Introspection")
+// or via the submodule directly.
 
 //! Extract autodoc comments from source code
 //! Returns mapping of declaration line -> documentation text
