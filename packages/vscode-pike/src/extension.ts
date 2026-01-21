@@ -21,6 +21,7 @@ import {
 let client: LanguageClient | undefined;
 let serverOptions: ServerOptions | null = null;
 let outputChannel: OutputChannel;
+let diagnosticsCommandDisposable: ReturnType<typeof commands.registerCommand> | undefined;
 
 /**
  * Extension API exported for testing
@@ -212,6 +213,12 @@ async function restartClient(showMessage: boolean): Promise<void> {
         return;
     }
 
+    // Dispose the old diagnostics command before creating a new client
+    if (diagnosticsCommandDisposable) {
+        diagnosticsCommandDisposable.dispose();
+        diagnosticsCommandDisposable = undefined;
+    }
+
     if (client) {
         try {
             await client.stop();
@@ -257,36 +264,41 @@ async function restartClient(showMessage: boolean): Promise<void> {
         }
 
         // Register health check command after client is ready
-        // Note: This is registered globally, so we need to track it separately
-        const showDiagnosticsDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
-            if (!client) {
-                window.showErrorMessage('Pike LSP client not available');
-                return;
-            }
+        // Use module-level disposable to track registration across restarts
+        // Wrap in try-catch to handle case where command is already registered (e.g., in tests)
+        try {
+            if (!diagnosticsCommandDisposable) {
+                diagnosticsCommandDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
+                    if (!client) {
+                        window.showErrorMessage('Pike LSP client not available');
+                        return;
+                    }
 
-            try {
-                const result = await client.sendRequest('workspace/executeCommand', {
-                    command: 'pike.lsp.showDiagnostics',
+                    try {
+                        const result = await client.sendRequest('workspace/executeCommand', {
+                            command: 'pike.lsp.showDiagnostics',
+                        });
+
+                        const healthOutput = result as string ?? 'No health data available';
+                        outputChannel.appendLine(healthOutput);
+                        outputChannel.show();
+
+                        // Also show as info message with summary
+                        const lines = healthOutput.split('\n');
+                        const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
+                        if (summaryLine) {
+                            window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
+                        }
+                    } catch (err) {
+                        window.showErrorMessage(`Failed to get diagnostics: ${err}`);
+                    }
                 });
-
-                const healthOutput = result as string ?? 'No health data available';
-                outputChannel.appendLine(healthOutput);
-                outputChannel.show();
-
-                // Also show as info message with summary
-                const lines = healthOutput.split('\n');
-                const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
-                if (summaryLine) {
-                    window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
-                }
-            } catch (err) {
-                window.showErrorMessage(`Failed to get diagnostics: ${err}`);
             }
-        });
-
-        // Store disposable for cleanup - we'll use a WeakMap or track separately
-        // For now, we register it and it will be cleaned up on extension deactivate
-        (client as any).__diagnosticsDisposable = showDiagnosticsDisposable;
+        } catch (commandErr) {
+            // Command may already be registered in test scenarios
+            // This is not a fatal error - the client is still functional
+            console.log('Diagnostics command already registered, skipping:', commandErr);
+        }
     } catch (err) {
         console.error('Failed to start Pike Language Client:', err);
         window.showErrorMessage(`Failed to start Pike language server: ${err}`);
@@ -315,15 +327,16 @@ export async function addModulePathSetting(modulePath): Promise<boolean> {
 }
 
 export async function deactivate(): Promise<void> {
+    // Clean up diagnostics command disposable if registered
+    if (diagnosticsCommandDisposable) {
+        diagnosticsCommandDisposable.dispose();
+        diagnosticsCommandDisposable = undefined;
+    }
+
     if (!client) {
         return;
     }
     try {
-        // Clean up diagnostics command disposable if registered
-        const diagDisposable = (client as any).__diagnosticsDisposable;
-        if (diagDisposable) {
-            diagDisposable.dispose();
-        }
         await client.stop();
         console.log('Pike Language Extension deactivated');
     } catch (err) {

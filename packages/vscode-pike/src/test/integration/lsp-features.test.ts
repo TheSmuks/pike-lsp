@@ -17,8 +17,103 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
 
-// Test fixture file path - must match the actual fixture location
-const FIXTURE_RELATIVE_PATH = 'src/test/fixtures/test-lsp-features.pike';
+// Test fixture file name
+const FIXTURE_FILE_NAME = 'test-lsp-features.pike';
+
+// Test fixture content - stable test data with known constructs
+const FIXTURE_CONTENT = `//! Test fixture file for LSP feature E2E tests
+//!
+//! This file contains known Pike constructs at predictable positions
+//! for testing LSP features: symbols, hover, go-to-definition, completion
+//!
+//! Line 7:  Variable declaration for hover/definition tests
+int test_variable = 42;
+
+// Line 10: String variable for type testing
+string test_string = "hello";
+
+// Line 13: Array variable for completion tests
+array test_array = ({});
+
+// Line 16: Function with parameters for hover/symbol tests
+int test_function(string arg) {
+    return sizeof(arg);
+}
+
+// Line 21: Function with multiple parameters
+string multi_param(int x, string s, array a) {
+    return sprintf("%d:%s", x, s);
+}
+
+// Line 26: Class definition for symbol/hierarchy tests
+class TestClass {
+    // Line 28: Class member variable
+    int member_variable = 10;
+
+    // Line 31: Class method
+    void member_method() {
+        // Line 33: Reference test_variable for go-to-definition
+        int local = test_variable;
+    }
+
+    // Line 36: Another method with return type
+    int get_value() {
+        return member_variable;
+    }
+}
+
+// Line 41: Inheritance test
+class ChildClass : TestClass {
+    void child_method() {
+        // Uses inherited member
+        member_variable = 20;
+    }
+}
+
+// Line 48: Standalone function using stdlib
+void use_stdlib() {
+    // Line 50: Position for stdlib completion test
+    // Test completion: Array.
+    array a = ({});
+    // Test completion: String.
+    string s = "";
+    // Test completion: Mapping.
+    mapping m = ([]);
+}
+
+// Line 56: Lambda/function pointer for testing
+function lambda_func = lambda() { return 1; };
+
+// Line 59: Constant for testing
+constant TEST_CONSTANT = 100;
+
+// Line 62: Enum-like pattern
+enum TestEnum {
+    VALUE_ONE,
+    VALUE_TWO,
+    VALUE_THREE
+}
+
+// Line 69: Modifier testing
+final int final_var = 5;
+private int private_var = 10;
+protected int protected_var = 15;
+
+// Line 74: Reference for go-to-definition test (references test_variable at line 7)
+int use_variable() {
+    return test_variable;  // This should jump to definition at line 7
+}
+
+// Line 79: Reference for class go-to-definition (references TestClass at line 26)
+TestClass create_instance() {
+    return TestClass();  // Should jump to class definition
+}
+
+// Line 84: Reference for function go-to-definition (references test_function at line 16)
+int call_function() {
+    return test_function("test");  // Should jump to function definition
+}
+`;
 
 suite('LSP Feature E2E Tests', () => {
     let workspaceFolder: vscode.WorkspaceFolder;
@@ -26,28 +121,38 @@ suite('LSP Feature E2E Tests', () => {
     let document: vscode.TextDocument;
 
     suiteSetup(async function() {
-        this.timeout(45000); // Allow time for LSP initialization
+        this.timeout(60000); // Allow more time for LSP initialization
 
         // Ensure workspace folder exists
         workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         assert.ok(workspaceFolder, 'Workspace folder should exist');
 
-        // Get path to fixture file - from workspace root
-        fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, FIXTURE_RELATIVE_PATH);
+        // Explicitly activate the extension before running tests
+        const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+        assert.ok(extension, 'Extension should be found');
 
-        // Verify fixture file exists
-        try {
-            await vscode.workspace.fs.stat(fixtureUri);
-        } catch {
-            assert.fail(`Test fixture file not found at ${FIXTURE_RELATIVE_PATH}`);
+        if (!extension.isActive) {
+            await extension.activate();
+            console.log('Extension activated for LSP feature tests');
         }
+
+        // Wait a bit for the LSP server to fully start after activation
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
+        // Create test fixture file in workspace root
+        fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, FIXTURE_FILE_NAME);
+        const encoder = new TextEncoder();
+        await vscode.workspace.fs.writeFile(fixtureUri, encoder.encode(FIXTURE_CONTENT));
 
         // Open the fixture to trigger LSP analysis
         document = await vscode.workspace.openTextDocument(fixtureUri);
 
+        // Show the document in an editor to ensure LSP synchronization
+        await vscode.window.showTextDocument(document);
+
         // Wait for LSP to fully initialize and analyze the file
         // This is critical - LSP features won't work if server isn't ready
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 15000));
     });
 
     suiteTeardown(async () => {
@@ -55,6 +160,13 @@ suite('LSP Feature E2E Tests', () => {
         if (document) {
             await vscode.window.showTextDocument(document);
             await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+        }
+
+        // Clean up test fixture file
+        try {
+            await vscode.workspace.fs.delete(fixtureUri);
+        } catch {
+            // Ignore cleanup errors
         }
     });
 

@@ -11,7 +11,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 ## Phases
 
 **Phase Numbering:**
-- Integer phases (1, 2, 3, 4, 5): Planned milestone work
+- Integer phases (1, 2, 3, 4, 5, 6): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Lean Observability** - Error tracking and structured logging
@@ -19,6 +19,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - [x] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
 - [x] **Phase 4: Server Grouping** - Split server.ts by capability
 - [x] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
+- [ ] **Phase 6: Automated LSP Feature Verification** - E2E tests for symbols, hover, definition, completion
 
 ## Phase Details
 
@@ -192,10 +193,42 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 ---
 
+### Phase 6: Automated LSP Feature Verification
+
+**Goal**: Verify LSP features (symbols, hover, definition, completion) return valid data end-to-end in VSCode integration tests. Current tests only verify extension activation and file opening, but don't check if features work. This phase closes the verification gap identified in CLAUDE.md: "Previous agents broke the LSP by not testing with the actual VSCode extension."
+
+**Depends on**: Phase 5 (Pike modules must be stable)
+
+**Status**: Pending
+
+**Requirements**: LSP-E2E-01, LSP-E2E-02, LSP-E2E-03, LSP-E2E-04, LSP-E2E-05, LSP-E2E-06
+
+**Success Criteria** (what must be TRUE):
+1. VSCode integration test calls `textDocument/documentSymbol` and verifies symbols array returned (not null)
+2. VSCode integration test calls `textDocument/hover` and verifies MarkupContent returned (not null)
+3. VSCode integration test calls `textDocument/definition` and verifies Location returned (not null)
+4. VSCode integration test calls `textDocument/completion` and verifies CompletionList returned (not null)
+5. E2E feature tests run in CI pipeline (vscode-e2e job) before allowing merge
+6. CLAUDE.md verification checklist updated to reference automated tests
+
+**Deliverables:**
+- `packages/vscode-pike/src/test/integration/lsp-features.test.ts` (new file with 4+ tests)
+- Updated `.github/workflows/test.yml` with E2E feature gate checks
+- Updated `.husky/pre-push` to include E2E feature verification
+- Updated `.claude/CLAUDE.md` verification section
+
+**Plans**: 2 plans in 2 waves
+- [ ] 06-01-PLAN.md — Create LSP feature integration tests (symbols, hover, definition, completion)
+- [ ] 06-02-PLAN.md — Add E2E feature tests to CI pipeline and pre-push hooks
+
+**Completed**: Pending
+
+---
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
 
 Each phase produces working code. Can pause at any phase without breaking the codebase.
 
@@ -206,13 +239,14 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
 | 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
 | 5. Pike Reorganization | 6/6 | Complete ✓ | 2026-01-21 |
+| 6. Automated LSP Feature Verification | 0/2 | Pending | - |
 
-**Project Status:** v2 MILESTONE COMPLETE - All 5 phases finished (25/25 plans)
+**Project Status:** v2 MILESTONE IN PROGRESS - 5/6 phases complete (25/27 plans)
 
 **v2 Requirements:**
-- Total: 65
+- Total: 71 (65 original + 6 LSP-E2E)
 - Complete: 65
-- Pending: 0
+- Pending: 6 (LSP-E2E-01 through LSP-E2E-06)
 
 ---
 *Roadmap created: 2026-01-20*

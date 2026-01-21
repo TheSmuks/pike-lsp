@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": 1768944134815,
+  "updated": 1768995172619,
   "naming": {},
   "directories": {
     "constants": {
@@ -13,11 +13,15 @@
     },
     "test": {
       "purpose": "Test files",
-      "files": 1
+      "files": 2
     },
     "tests": {
       "purpose": "Test files",
       "files": 1
+    },
+    "services": {
+      "purpose": "Service layer",
+      "files": 3
     }
   },
   "suffixes": {}
