@@ -275,12 +275,12 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 7 (ensure critical functionality works before refactoring)
 
-**Status**: Pending
+**Status**: In Progress
 
 **Requirements**: Addresses Tech Debt #1 from v2-MILESTONE-AUDIT.md
 
 **Success Criteria** (what must be TRUE):
-1. `@pike-lsp/core` package created in `packages/pike-lsp-core/`
+1. `@pike-lsp/core` package created in `packages/core/`
 2. Logger class extracted to `@pike-lsp/core/src/logging.ts`
 3. Error classes (LSPError, BridgeError, PikeError) extracted to `@pike-lsp/core/src/errors.ts`
 4. `pike-lsp-server` imports from `@pike-lsp/core` instead of local files
@@ -292,7 +292,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - **Tech Debt #1**: Duplicate Logger and Error classes in pike-bridge vs pike-lsp-server
 
 **Deliverables:**
-- New package: `packages/pike-lsp-core/` with package.json, tsconfig.json
+- New package: `packages/core/` with package.json, tsconfig.json
 - Extracted: `@pike-lsp/core/src/logging.ts` (Logger class)
 - Extracted: `@pike-lsp/core/src/errors.ts` (LSPError, BridgeError, PikeError)
 - Updated imports in `pike-lsp-server/src/` (8 files)
@@ -300,9 +300,10 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Removed: `pike-lsp-server/src/core/logging.ts` and `errors.ts` (duplicates)
 - Removed: `pike-bridge/src/logging.ts` and `errors.ts` (duplicates)
 
-**Plans**: TBD (estimated 1-2 plans)
-- [ ] 08-01-PLAN.md - Create @pike-lsp/core package and extract Logger/Error classes
-- [ ] 08-02-PLAN.md - Update imports and remove duplicate files (if needed)
+**Plans**: 3 plans
+- [ ] 08-01-PLAN.md — Create shared core package with Logger and Error classes
+- [ ] 08-02-PLAN.md — Migrate pike-bridge to use shared core package
+- [ ] 08-03-PLAN.md — Migrate pike-lsp-server to use shared core package
 
 **Impact**: Code quality improvement, easier maintenance, no functional changes
 
@@ -360,7 +361,7 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 5. Pike Reorganization | 6/6 | Complete | 2026-01-21 |
 | 6. Automated LSP Feature Verification | 2/2 | Complete | 2026-01-21 |
 | 7. Fix Document Lifecycle Handler Duplication | 1/1 | Complete | 2026-01-21 |
-| 8. Extract Core Utilities to Shared Package | 0/2 | Pending | - |
+| 8. Extract Core Utilities to Shared Package | 0/3 | In Progress | - |
 | 9. Implement Pike Version Detection | 0/1 | Pending | - |
 
 **Project Status:** v2 MILESTONE IN PROGRESS - Phase 8-9 (tech debt) pending
