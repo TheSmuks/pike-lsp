@@ -217,3 +217,19 @@ jobs:
 
       - name: Run VSCode E2E tests
         run: xvfb-run --auto-servernum pnpm --filter vscode-pike test
+
+      - name: Run VSCode LSP Feature Tests
+        run: xvfb-run --auto-servernum pnpm --filter vscode-pike run test:features
+
+      - name: LSP Feature Test Summary
+        if: always()
+        run: |
+          echo "### LSP Feature Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The LSP feature tests verify:" >> $GITHUB_STEP_SUMMARY
+          echo "- Document symbols (outline view)" >> $GITHUB_STEP_SUMMARY
+          echo "- Hover (type information)" >> $GITHUB_STEP_SUMMARY
+          echo "- Go-to-definition (navigation)" >> $GITHUB_STEP_SUMMARY
+          echo "- Completion (autocomplete)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the 'Run VSCode LSP Feature Tests' step above for results." >> $GITHUB_STEP_SUMMARY
