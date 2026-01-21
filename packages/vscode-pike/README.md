@@ -32,6 +32,25 @@ All settings are optional. Add any you need to your VS Code `settings.json`:
 2. The Pike Language Server starts automatically.
 3. Use standard VS Code actions like `F12` (go to definition) and `F2` (rename).
 
+## Testing
+
+### E2E Feature Tests
+
+Verify LSP features work end-to-end:
+
+```bash
+cd packages/vscode-pike
+pnpm run test:features
+```
+
+Tests verify:
+- Document symbols (outline view)
+- Hover (type information)
+- Go-to-definition (navigation)
+- Completion (autocomplete)
+
+**Note:** Requires `xvfb` on Linux (pre-installed in CI).
+
 ## Troubleshooting
 - If Pike is not on `PATH`, set `pike.pikePath`.
 - Check the Output panel and select **Pike Language Server** for logs.
