@@ -92,12 +92,15 @@ export class PikeBridge extends EventEmitter {
         super();
 
         // Default analyzer path relative to this file (ESM-compatible)
+        // When built, dist/ is 3 levels from root, src/ is 4 levels
+        // We resolve from the package root instead
         const resolvedFilename =
             typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
         const resolvedDirname = path.dirname(resolvedFilename);
+        // Navigate to the package root (packages/pike-bridge)
+        // From dist/ or src/, go up to package root, then to project root, then pike-scripts
         const defaultAnalyzerPath = path.resolve(
             resolvedDirname,
-            '..',
             '..',
             '..',
             'pike-scripts',
