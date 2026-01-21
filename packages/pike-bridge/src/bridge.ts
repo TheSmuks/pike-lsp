@@ -98,9 +98,10 @@ export class PikeBridge extends EventEmitter {
             typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
         const resolvedDirname = path.dirname(resolvedFilename);
         // Navigate to the package root (packages/pike-bridge)
-        // From dist/ or src/, go up to package root, then to project root, then pike-scripts
+        // From dist/ or src/, go up to package root, then to packages/, then to project root
         const defaultAnalyzerPath = path.resolve(
             resolvedDirname,
+            '..',
             '..',
             '..',
             'pike-scripts',
