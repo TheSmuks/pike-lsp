@@ -74,18 +74,18 @@
 
 ### Pike Reorganization (PIK)
 
-- [ ] **PIK-01**: Create `Intelligence.pmod/module.pmod` with shared helpers (type traversal, inheritance utils)
-- [ ] **PIK-02**: Create `Intelligence.pmod/Introspection.pike` (symbol extraction, docstrings)
-- [ ] **PIK-03**: Create `Intelligence.pmod/Resolution.pike` (name resolution, go-to-definition, StdlibResolver)
-- [ ] **PIK-04**: Create `Intelligence.pmod/TypeAnalysis.pike` (type inference, inheritance chains)
-- [ ] **PIK-05**: Create `Analysis.pmod/module.pmod` with shared helpers (scope tracking, position utils)
-- [ ] **PIK-06**: Create `Analysis.pmod/Diagnostics.pike` (error/warning generation)
-- [ ] **PIK-07**: Create `Analysis.pmod/Completions.pike` (completion context, suggestions)
-- [ ] **PIK-08**: Create `Analysis.pmod/Variables.pike` (uninitialized detection, scope tracking, Occurrences)
-- [ ] **PIK-09**: Each .pike class has `create(object ctx)` constructor
-- [ ] **PIK-10**: Each .pike class wraps handlers in catch blocks with make_error()
-- [ ] **PIK-11**: Intelligence.pike reduced from 1660 to ~400-500 lines per file
-- [ ] **PIK-12**: Integration tests verify module loading via master()->resolv()
+- [x] **PIK-01**: Create `Intelligence.pmod/module.pmod` with shared helpers (type traversal, inheritance utils)
+- [x] **PIK-02**: Create `Intelligence.pmod/Introspection.pike` (symbol extraction, docstrings)
+- [x] **PIK-03**: Create `Intelligence.pmod/Resolution.pike` (name resolution, go-to-definition, StdlibResolver)
+- [x] **PIK-04**: Create `Intelligence.pmod/TypeAnalysis.pike` (type inference, inheritance chains)
+- [x] **PIK-05**: Create `Analysis.pmod/module.pmod` with shared helpers (scope tracking, position utils)
+- [x] **PIK-06**: Create `Analysis.pmod/Diagnostics.pike` (error/warning generation)
+- [x] **PIK-07**: Create `Analysis.pmod/Completions.pike` (completion context, suggestions)
+- [x] **PIK-08**: Create `Analysis.pmod/Variables.pike` (uninitialized detection, scope tracking, Occurrences)
+- [x] **PIK-09**: Each .pike class has `create(object ctx)` constructor
+- [x] **PIK-10**: Each .pike class wraps handlers in catch blocks with make_error()
+- [x] **PIK-11**: Intelligence.pike reduced from 1660 to ~400-500 lines per file
+- [x] **PIK-12**: Integration tests verify module loading via master()->resolv()
 
 ### Health Check (HLT)
 
