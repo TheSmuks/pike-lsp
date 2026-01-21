@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 5 of 5 (Pike Reorganization)
-Plan: 4 of ? complete
-Status: Phase 5 in progress - Analysis.pmod complete with Completions and Variables
-Last activity: 2026-01-21 — Completed plan 05-04 (Analysis.pmod with Completions and Variables)
+Plan: 5 of 5 complete
+Status: Phase 5 complete - Pike reorganization finished with delegating classes
+Last activity: 2026-01-21 — Completed plan 05-05 (Delegating Intelligence and Analysis classes)
 
-Progress: [████████████] 91% (22/24 v2 plans complete, Phase 5 in progress)
+Progress: [████████████] 100% (24/24 v2 plans complete, v2 milestone achieved)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
+- Total plans completed: 24
 - Average duration: 6 min
-- Total execution time: 134 min
+- Total execution time: 140 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [████████████] 91% (22/24 v2 plans complete, P
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
 | 4. Server Grouping | 6 | 6 | 6 min |
-| 5. Pike Reorganization | 4 | 4 | 6 min |
+| 5. Pike Reorganization | 5 | 5 | 6 min |
 
 *Updated after each plan completion*
 
@@ -115,6 +115,14 @@ Progress: [████████████] 91% (22/24 v2 plans complete, P
 | 05-04-D02 | Variables.pike contains handle_find_occurrences per v2 design (Occurrences not separate file) | Finding occurrences is fundamentally about tracking variable references; keeping Occurrences in Variables.pike maintains grep-ability and reduces micro-modules |
 | 05-04-D03 | Both classes use create(object ctx) constructor pattern matching Diagnostics class | Consistent pattern across all Analysis.pmod classes; context reserved for future use with LSP context |
 
+**Implementation Decisions (from plan 05-05):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 05-05-D01 | Updated analyzer.pike to use master()->resolv("LSP.Intelligence.Intelligence") pattern | With .pmod directories, resolv returns module not class; full qualified path required |
+| 05-05-D02 | Placed delegating classes in module.pmod files within .pmod directories | module.pmod contents merged into module namespace, making classes accessible as LSP.Module.ClassName |
+| 05-05-D03 | Removed original Intelligence.pike and Analysis.pike files | .pmod directories take precedence; remove redundant files to avoid confusion |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -152,7 +160,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 05-02 (Intelligence.pmod with Resolution and TypeAnalysis)
+Stopped at: Completed plan 05-05 (Delegating Intelligence and Analysis classes)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -171,7 +179,22 @@ Resume file: None
 
 **Archived at:** `.planning/milestones/v1-pike-refactoring/`
 
+### v2: LSP Modularization (Complete)
+
+**Completed:** 2026-01-21
+**Total Duration:** ~140 min (2.3 hours)
+**Plans Completed:** 24 (all v2 plans)
+
+**Key Outcomes:**
+- Intelligence.pike: 1660 -> 84 lines (94% reduction)
+- Analysis.pike: 1191 -> 85 lines (93% reduction)
+- Modular .pmod structure with specialized handlers
+- Backward-compatible delegating classes
+- All LSP features working end-to-end
+
+**Archived at:** `.planning/milestones/v2-lsp-modularization/` (pending creation)
+
 ## Next Steps
 
-1. **Phase 5 (Pike Reorganization)** - Split large Pike files using .pmod idiom
-2. Final milestone completion
+1. **v2 Milestone completion** - Create milestone summary
+2. Consider future enhancements based on accumulated TODOs
