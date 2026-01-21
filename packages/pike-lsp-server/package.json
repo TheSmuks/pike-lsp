@@ -17,6 +17,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "@pike-lsp/core": "workspace:*",
         "@pike-lsp/pike-bridge": "workspace:*",
         "@pike-lsp/pike-analyzer": "workspace:*",
         "vscode-languageserver": "^9.0.1",
