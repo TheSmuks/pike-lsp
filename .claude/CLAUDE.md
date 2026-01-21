@@ -53,6 +53,37 @@ echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","f
   | timeout 5 pike pike-scripts/analyzer.pike 2>&1
 ```
 
+### Debugging E2E Test Failures
+
+**Symptom:** "Should return symbols (not null)" fails
+**Cause:** Document symbols not returned by LSP
+**Debug:**
+1. Check Pike analyzer compiles: `pike -e 'compile_file("pike-scripts/analyzer.pike");'`
+2. Check Bridge works: `cd packages/pike-bridge && pnpm test`
+3. Check LSP server logs: Look for "Error" in extension output
+4. Manual test: Open .pike file in VSCode, check Outline view
+
+**Symptom:** Test times out
+**Cause:** LSP server not starting
+**Debug:**
+1. Check extension activates: VSCode "Output" -> "Pike Language Server"
+2. Increase timeout in test (current: 30-60s)
+3. Check Pike process: `ps aux | grep pike`
+
+**Symptom:** "Should return hover info" fails
+**Cause:** Hover handler returning null/empty
+**Debug:**
+1. Verify Pike analysis returns type information
+2. Check LSP server hover handler for errors
+3. Test with simple code: `int x;` hover on `int`
+
+**Symptom:** "Should go to definition" fails
+**Cause:** Definition handler not resolving symbols
+**Debug:**
+1. Check symbol is indexed (run document symbols first)
+2. Verify Pike returns location with line/column
+3. Test with local function: `void foo() {}` then F12 on `foo`
+
 ## Architecture Overview
 
 ```
