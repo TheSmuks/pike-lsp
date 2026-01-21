@@ -130,7 +130,7 @@
         "test": "npm run build:test && vscode-test",
         "test:unit": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
         "test:integration": "npm run build:test && node dist/test/extension.test.js",
-        "test:features": "npm run build:test && vscode-test --grep 'LSP Feature E2E'",
+        "test:features": "npm run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
         "test:headless": "bash scripts/test-headless.sh",
         "test:features:headless": "bash scripts/test-headless.sh --grep 'LSP Feature E2E'"
     },

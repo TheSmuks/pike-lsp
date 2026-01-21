@@ -47,6 +47,9 @@ case "$(uname -s)" in
                 # Give Weston a moment to start
                 sleep 2
 
+                # Set Electron args to disable GPU for headless operation (Weston doesn't provide GPU accel)
+                export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
+
                 # 3. Run tests
                 echo "Running tests on $WAYLAND_DISPLAY..."
                 set +e  # Don't exit on test failure, we need to cleanup
