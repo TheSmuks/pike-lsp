@@ -276,11 +276,12 @@ suite('LSP Feature E2E Tests', () => {
         assert.ok(firstItem.kind !== undefined, 'Completion item should have kind (CompletionItemKind)');
 
         // Verify label is non-empty
-        assert.ok(firstItem.label.length > 0, 'Completion label should not be empty');
+        const labelText = typeof firstItem.label === 'string' ? firstItem.label : firstItem.label.label;
+        assert.ok(labelText.length > 0, 'Completion label should not be empty');
 
         // For stdlib completion, we might see methods like cast, flatten, sum, etc.
         // or keywords, or local symbols
-        const labels = completions.items.map(i => i.label);
+        const labels = completions.items.map(i => typeof i.label === 'string' ? i.label : i.label.label);
         assert.ok(labels.length > 0, 'Should extract completion labels');
     });
 
@@ -397,7 +398,7 @@ suite('LSP Feature E2E Tests', () => {
             assert.ok(completions.items, 'Should have items for partial word');
 
             // Should suggest test_variable among completions
-            const labels = completions.items.map(i => i.label);
+            const labels = completions.items.map(i => typeof i.label === 'string' ? i.label : i.label.label);
             const hasTestVariable = labels.some(l =>
                 l.includes('test_variable') ||
                 l.includes('test_var')
