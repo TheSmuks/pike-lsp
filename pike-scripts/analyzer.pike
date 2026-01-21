@@ -169,6 +169,18 @@ int main(int argc, array(string) argv) {
                 ])
             ]);
         },
+        "get_version": lambda(mapping params, object ctx) {
+            array(int) ver = master()->resolv("LSP.Compat")->pike_version();
+            return ([
+                "result": ([
+                    "version": sprintf("%d.%d.%d", ver[0], ver[1], ver[2]),
+                    "major": ver[0],
+                    "minor": ver[1],
+                    "build": ver[2],
+                    "display": __REAL_VERSION__
+                ])
+            ]);
+        },
     ]);
 
     // Create Context instance (service container with all modules)
