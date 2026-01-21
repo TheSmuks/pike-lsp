@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-20)
 
 **Core value:** Safety without rigidity - solve actual pain points without over-engineering
-**Current focus:** v2 Milestone - Tech Debt Cleanup (Phase 8-9)
+**Current focus:** v2 Milestone - Tech Debt Cleanup (Phase 9)
 
 ## Current Position
 
-Phase: 8 of 9 (Tech Debt Cleanup)
-Plan: 08-03 (Complete)
-Status: Phase 8 Complete - All core utilities extracted to shared package
-Last activity: 2026-01-21 — Migrated pike-lsp-server to @pike-lsp/core
+Phase: 9 of 9 (Tech Debt Cleanup)
+Plan: Not started
+Status: Phase 8 Complete - Ready to begin Phase 9
+Last activity: 2026-01-21 — Phase 08 completed with verification passed
 
-Progress: [████████████░] 97% (31/32 v2 plans complete, 1 plan remaining)
+Progress: [████████████░] 97% (31/32 v2 plans complete, 1 plan remaining in Phase 9)
 
 ## Performance Metrics
 
@@ -84,6 +84,17 @@ Progress: [████████████░] 97% (31/32 v2 plans complete
 | 04-06-D01 | Use connection.workspace.onExecuteCommand for workspace commands | Workspace commands require workspace-level handler, not connection-level |
 | 04-06-D02 | Register command after client.start() in extension.ts | Ensures LanguageClient is available when command is invoked |
 | 04-06-D03 | Use dot notation (pike.lsp.showDiagnostics) consistently | Standard VSCode command format, must match across server.ts, extension.ts, package.json |
+
+**Implementation Decisions (from plans 08-01, 08-02, 08-03):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 08-01-D01 | Use .js extensions in barrel exports for ESM compatibility | TypeScript requires explicit extensions for ES modules |
+| 08-01-D02 | dist/ directory gitignored | Build artifacts are generated, not source code |
+| 08-02-D01 | Keep re-exports in pike-bridge/index.ts for consumer convenience | Consumers can import from bridge package without knowing about core |
+| 08-03-D01 | Keep PikeSettings and DocumentCacheEntry in pike-lsp-server | These types have dependencies on server-specific constants and PikeSymbol type |
+| 08-03-D02 | Re-export from @pike-lsp/core in pike-lsp-server/core/index.ts | Provides unified import interface for internal consumers |
+| 08-03-D03 | Add BridgeError to @pike-lsp/core package | Completes error class hierarchy (LSPError base, BridgeError, PikeError) |
 
 **Implementation Decisions (from plan 05-01):**
 
@@ -204,6 +215,7 @@ Progress: [████████████░] 97% (31/32 v2 plans complete
 - Automated verification prevents LSP regressions
 - 7/7 E2E feature tests passing (100%)
 - Phase 8 complete: ~512 lines of duplicate code eliminated via @pike-lsp/core shared package
+- Tech Debt #1 (duplicate Logger/Error classes) RESOLVED
 
 ### Pending Todos
 
@@ -216,13 +228,14 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 07-01):**
-- **No blockers.** Plan 07-01 completed with deviations:
-  - Root cause was different from plan assumption (bridge initialization timing, not duplicate handlers)
-  - Fixed bridge initialization timing by making Services.bridge nullable
-  - Disabled stdlib preloading to avoid Pike subprocess crashes on bootstrap modules
-  - E2E tests improved from 7/12 to 9/12 passing
-  - Remaining 3 failures are test fixture issues, not LSP server problems
+**Current (as of phase 08):**
+- **No blockers.** Phase 08 completed successfully:
+  - Created @pike-lsp/core shared package with Logger and Error classes
+  - Migrated pike-bridge to use @pike-lsp/core (234 lines of duplicate code removed)
+  - Migrated pike-lsp-server to use @pike-lsp/core (278 lines of duplicate code removed)
+  - BridgeError was added to @pike-lsp/core (was missing from 08-01, auto-fixed)
+  - All E2E tests passing (7/7)
+  - Phase 8 verification: 7/7 must-haves verified (passed)
 
 **See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-SUMMARY.md` for details
 

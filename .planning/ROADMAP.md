@@ -275,7 +275,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 7 (ensure critical functionality works before refactoring)
 
-**Status**: In Progress
+**Status**: Complete
 
 **Requirements**: Addresses Tech Debt #1 from v2-MILESTONE-AUDIT.md
 
@@ -301,11 +301,13 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Removed: `pike-bridge/src/logging.ts` and `errors.ts` (duplicates)
 
 **Plans**: 3 plans
-- [ ] 08-01-PLAN.md — Create shared core package with Logger and Error classes
-- [ ] 08-02-PLAN.md — Migrate pike-bridge to use shared core package
-- [ ] 08-03-PLAN.md — Migrate pike-lsp-server to use shared core package
+- [x] 08-01-PLAN.md — Create shared core package with Logger and Error classes
+- [x] 08-02-PLAN.md — Migrate pike-bridge to use shared core package
+- [x] 08-03-PLAN.md — Migrate pike-lsp-server to use shared core package
 
 **Impact**: Code quality improvement, easier maintenance, no functional changes
+
+**Completed**: 2026-01-21
 
 ---
 
@@ -361,10 +363,10 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 5. Pike Reorganization | 6/6 | Complete | 2026-01-21 |
 | 6. Automated LSP Feature Verification | 2/2 | Complete | 2026-01-21 |
 | 7. Fix Document Lifecycle Handler Duplication | 1/1 | Complete | 2026-01-21 |
-| 8. Extract Core Utilities to Shared Package | 0/3 | In Progress | - |
+| 8. Extract Core Utilities to Shared Package | 3/3 | Complete | 2026-01-21 |
 | 9. Implement Pike Version Detection | 0/1 | Pending | - |
 
-**Project Status:** v2 MILESTONE IN PROGRESS - Phase 8-9 (tech debt) pending
+**Project Status:** v2 MILESTONE IN PROGRESS - Phase 9 (pike version detection) pending
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
