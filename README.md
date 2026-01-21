@@ -3,16 +3,20 @@
 [![CI Tests](https://github.com/TheSmuks/pike-lsp/workflows/Test/badge.svg)](https://github.com/TheSmuks/pike-lsp/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85+-blue.svg)](https://code.visualstudio.com/)
-
-> **Disclaimer:** This project was 100% coded by AI agents. The maintainer(s) provide this software "as is" without warranty of any kind. Use at your own risk. The maintainer(s) are not responsible for any damages, data loss, or other issues arising from the use of this software. See the [LICENSE](LICENSE) file for full terms.
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
+[![Pike](https://img.shields.io/badge/Pike-8.0+-orange.svg)](https://pike.lysator.liu.se/)
+[![Status](https://img.shields.io/badge/Status-Alpha-yellow.svg)](https://github.com/TheSmuks/pike-lsp/releases)
 
 A comprehensive Language Server Protocol (LSP) implementation for the [Pike programming language](https://pike.lysator.liu.se/), providing modern IDE features for VS Code and other LSP-compatible editors.
 
+> **Note:** This project is in alpha. While functional for everyday use, some features may be incomplete or subject to change. This software is provided "as is" without warranty. See [LICENSE](LICENSE) for details.
+
 ![Pike LSP Demo](images/demo.gif)
 
-## ✨ Features
+## Features
 
-### Core Features
+### Core Language Features
+
 | Feature | Description |
 |---------|-------------|
 | **Syntax Highlighting** | Full semantic token-based highlighting |
@@ -24,6 +28,7 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 | **Signature Help** | Parameter hints while typing |
 
 ### Advanced Features
+
 | Feature | Description |
 |---------|-------------|
 | **Rename Symbol** | Safely rename across files (F2) |
@@ -37,46 +42,47 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 | **Formatting** | Document and range formatting |
 
 ### Performance
-- 🚀 Parses 1000+ line files in ~15ms
-- 🔄 Batch parsing for fast workspace indexing
-- 💾 Smart caching for stdlib modules
-- ✅ 100% Pike 8 stdlib compatibility
-- 🛠️ Modular architecture (TypeScript + Pike 8.1116)
 
-## 📋 Requirements
+- Parses 1000+ line files in ~15ms
+- Batch parsing for fast workspace indexing
+- Smart caching for stdlib modules
+- 100% Pike 8 stdlib compatibility
+- Modular architecture (TypeScript + Pike 8.1116)
+
+## Requirements
 
 - [Pike](https://pike.lysator.liu.se/) 8.0 or higher
 - [Node.js](https://nodejs.org/) 18 or higher
 - [VS Code](https://code.visualstudio.com/) 1.85+
 
-## 🔧 Compatibility
+## Compatibility
 
 ### Supported Pike Versions
 
 | Version | Status | Notes |
 |---------|--------|-------|
-| Pike 8.1116 | ✅ Required | Primary target, must pass CI |
-| Pike 8.x latest | ⚠️ Best-effort | Forward compatibility check |
-| Pike 7.x | ❌ Not supported | Use Pike 8.1116 or later |
+| Pike 8.1116 | Required | Primary development target |
+| Pike 8.x latest | Best-effort | Forward compatibility tested in CI |
+| Pike 7.x | Not supported | Use Pike 8.1116 or later |
 
 ### Version Testing
 
 This project uses a two-tier version support model:
 
-- **CI tests** on multiple Pike versions using a matrix strategy
+- **CI tests** run on multiple Pike versions using a matrix strategy
 - **Required version** (8.1116) must pass to merge
 - **Latest version** failures don't block merge but are documented
 
 ### Version Detection
 
-The analyzer detects and reports the Pike version it is running on. This information is available in the VS Code "Pike Language Server" output channel and via the "Pike: Show Health" command.
+The analyzer detects and reports the Pike version at runtime. This information is available in the VS Code "Pike Language Server" output channel and via the "Pike: Show Health" command.
 
 ### Local Development
 
 - Contributors can develop on Pike 8.1116
 - CI handles the full version matrix automatically
 
-## 🚀 Installation
+## Installation
 
 ### From VS Code Marketplace
 1. Open VS Code
@@ -107,7 +113,7 @@ cd packages/vscode-pike
 pnpm package
 ```
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
@@ -119,7 +125,7 @@ pnpm package
 | Go to Symbol | `Ctrl+Shift+O` |
 | Workspace Symbol | `Ctrl+T` |
 
-## ⚙️ Configuration
+## Configuration
 
 Add these settings to your VS Code `settings.json`:
 
@@ -133,7 +139,7 @@ Add these settings to your VS Code `settings.json`:
 }
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 pike-lsp/
@@ -151,7 +157,7 @@ pike-lsp/
 └── test/                    # Test fixtures
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -169,6 +175,7 @@ cd packages/vscode-pike && pnpm run test:e2e
 ```
 
 ### Pike Stdlib Source Paths
+
 The stdlib parsing tests default to `../Pike` relative to this repo. Override as needed:
 
 ```bash
@@ -178,13 +185,15 @@ PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scr
 ```
 
 ### Test Coverage
-- **Automated CI** via GitHub Actions
-- **E2E Feature Tests** verify symbols, hover, definition, and completion
-- **Smoke Tests** verify bridge stability and basic parsing
 
-## 🛠️ Development
+- Automated CI via GitHub Actions
+- E2E feature tests verify symbols, hover, definition, and completion
+- Smoke tests verify bridge stability and basic parsing
+
+## Development
 
 ### Prerequisites
+
 ```bash
 # Install pnpm globally
 npm install -g pnpm
@@ -198,18 +207,21 @@ brew install pike
 ```
 
 ### Building
+
 ```bash
 pnpm install
 pnpm build
 ```
 
 ### Testing the Extension
+
 ```bash
 # Launch VS Code with extension loaded
 ./scripts/test-extension.sh
 ```
 
 ### Creating a Release
+
 ```bash
 # 1. Update version in packages/vscode-pike/package.json
 # 2. Update CHANGELOG.md
@@ -248,9 +260,9 @@ Ensure Pike 8.0+ is installed and in your PATH, or configure `pike.pikePath` in 
 - Workspace indexing runs in the background and shouldn't block editing
 - Initial indexing of large projects may take a few seconds
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -260,11 +272,11 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 6. Push (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) - LSP framework
 - [Pike](https://pike.lysator.liu.se/) - The Pike programming language
