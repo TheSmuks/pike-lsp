@@ -225,10 +225,47 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 ---
 
+### Phase 7: Fix Document Lifecycle Handler Duplication
+
+**Goal**: Remove duplicate document lifecycle handlers from server.ts that were inadvertently left during Phase 4 refactoring. These duplicate handlers cause race conditions that corrupt the document cache, breaking LSP features (symbols, hover, go-to-definition).
+
+**Depends on**: Phase 6 (E2E tests revealed the integration bug)
+
+**Status**: Pending
+
+**Requirements**: Closes GAP-01, INT-01 from v2-MILESTONE-AUDIT.md
+
+**Success Criteria** (what must be TRUE):
+1. Lines 583-608 removed from `packages/pike-lsp-server/src/server.ts`
+2. Only `diagnostics.ts` handlers remain (comprehensive version with error handling)
+3. All 7 E2E tests pass (symbols, hover, definition, completion)
+4. Document cache populates reliably on file open
+5. No duplicate handler registration warnings in logs
+
+**Gap Closure**:
+- **GAP-01**: Duplicate document lifecycle handlers in server.ts and diagnostics.ts
+- **INT-01**: Document cache not populated reliably (Phase 04 → Phase 06)
+- **E2E Flow breaks**: Document symbols, Hover, Go-to-definition (5 of 7 tests failing)
+
+**Deliverables:**
+- Modified `packages/pike-lsp-server/src/server.ts` (remove lines 583-608)
+- All E2E tests passing (7/7)
+- Updated v2-MILESTONE-AUDIT.md status (if re-audited)
+
+**Plans**: TBD (estimated 1 plan)
+- [ ] 07-01-PLAN.md — Remove duplicate lifecycle handlers and verify E2E tests
+
+**Root Cause Analysis**: During Phase 4 (Server Grouping), `registerDiagnosticsHandlers()` was created to register `documents.onDidOpen()`, `onDidChangeContent()`, and `onDidSave()` handlers in `features/diagnostics.ts`. However, the original handlers in `server.ts` (lines 583-608) were not removed, causing duplicate registration. When both fire, the simpler `server.ts` version may run after the comprehensive `diagnostics.ts` one, causing cache corruption.
+
+**Fix Complexity**: LOW - Remove 26 lines from server.ts
+**Verification Time**: <5 minutes - Run E2E tests
+
+---
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 Each phase produces working code. Can pause at any phase without breaking the codebase.
 
@@ -240,8 +277,9 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
 | 5. Pike Reorganization | 6/6 | Complete ✓ | 2026-01-21 |
 | 6. Automated LSP Feature Verification | 2/2 | Complete ✓ | 2026-01-21 |
+| 7. Fix Document Lifecycle Handler Duplication | 0/1 | Pending | - |
 
-**Project Status:** v2 MILESTONE COMPLETE - All 6 phases complete (27/27 plans)
+**Project Status:** v2 MILESTONE IN PROGRESS - Phase 7 (gap closure) pending
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
