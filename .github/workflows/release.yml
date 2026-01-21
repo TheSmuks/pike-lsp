@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -27,10 +28,45 @@ jobs:
           node-version: 20.x
           cache: pnpm
 
+      - name: Extract version from tag (Push)
+        if: github.event_name == 'push'
+        id: version_push
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract version from package.json (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        id: version_manual
+        working-directory: packages/vscode-pike
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set Release Version
+        id: version
+        run: |
+          if [ "${{ steps.version_push.outputs.version }}" != "" ]; then
+            echo "version=${{ steps.version_push.outputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ steps.version_manual.outputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify Version Match
+        if: github.event_name == 'push'
+        working-directory: packages/vscode-pike
+        env:
+          TAG_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match package.json version ($PACKAGE_VERSION)"
+            exit 1
+          fi
+
       - name: Install Pike
         run: |
+          # Install Pike 8.0 as a baseline (similar to test.yml)
           sudo apt-get update
-          sudo apt-get install -y pike8.0
+          sudo apt-get install -y pike8.0 libgmp-dev
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -40,6 +76,7 @@ jobs:
 
       - name: Run tests
         run: |
+          # Run core tests
           pnpm --filter @pike-lsp/pike-bridge test
           pnpm --filter @pike-lsp/pike-lsp-server test
 
@@ -47,22 +84,21 @@ jobs:
         working-directory: packages/vscode-pike
         run: pnpm package
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: packages/vscode-pike/vscode-pike-*.vsix
           generate_release_notes: true
-          name: Release ${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload VSIX to artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vscode-pike-extension
+          name: vscode-pike-extension-${{ steps.version.outputs.version }}
           path: packages/vscode-pike/vscode-pike-*.vsix
           retention-days: 90
