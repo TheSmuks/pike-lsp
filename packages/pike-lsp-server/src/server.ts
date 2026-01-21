@@ -358,7 +358,7 @@ function convertDiagnostic(pikeDiag: PikeDiagnostic, document: TextDocument): Di
 
 function createServices(): features.Services {
     return {
-        bridge: bridgeManager!,
+        bridge: bridgeManager, // Will be null initially, updated after onInitialize
         logger,
         documentCache,
         typeDatabase,
@@ -400,6 +400,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
     const bridge = new PikeBridge(bridgeOptions);
     bridgeManager = new BridgeManager(bridge, logger);
+
+    // Update services.bridge now that bridgeManager is initialized
+    (services as features.Services).bridge = bridgeManager;
 
     try {
         const available = await bridge.checkPike();
@@ -521,19 +524,11 @@ connection.onInitialized(async () => {
         }
     }
 
-    // Pre-warm stdlib cache
-    if (stdlibIndex && bridgeManager?.bridge) {
-        const index = stdlibIndex;
-        setImmediate(async () => {
-            try {
-                await index.preloadCommon();
-                const stats = index.getStats();
-                connection.console.log(`Stdlib cache pre-warmed: ${stats.moduleCount} modules loaded`);
-            } catch {
-                // Continue
-            }
-        });
-    }
+    // NOTE: Stdlib preloading disabled due to Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping).
+    // These modules are used internally by the resolver and cannot be safely introspected.
+    // Modules will be loaded lazily on-demand instead.
+    // TODO: Investigate alternative approach for safe stdlib preloading
+    connection.console.log('Stdlib preloading skipped - modules will load on-demand');
 
     // Index workspace
     const workspaceFolders = await connection.workspace.getWorkspaceFolders();

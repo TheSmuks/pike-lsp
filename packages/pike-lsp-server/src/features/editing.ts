@@ -41,12 +41,15 @@ export function registerEditingHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { bridge, logger, documentCache, stdlibIndex, workspaceIndex } = services;
+    // NOTE: We access services.bridge dynamically instead of destructuring,
+    // because bridge is null when handlers are registered and only initialized later in onInitialize.
+    const { logger, documentCache, stdlibIndex, workspaceIndex } = services;
 
     /**
      * Code completion handler
      */
     connection.onCompletion(async (params): Promise<CompletionItem[]> => {
+        const bridge = services.bridge;
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
         const cached = documentCache.get(uri);
@@ -331,6 +334,7 @@ export function registerEditingHandlers(
      * Signature help handler - show function parameters
      */
     connection.onSignatureHelp(async (params): Promise<SignatureHelp | null> => {
+        const bridge = services.bridge;
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
         const cached = documentCache.get(uri);

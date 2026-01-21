@@ -34,7 +34,9 @@ export function registerDiagnosticsHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { bridge, documentCache, typeDatabase, workspaceIndex } = services;
+    // NOTE: We access services.bridge dynamically instead of destructuring,
+    // because bridge is null when handlers are registered and only initialized later in onInitialize.
+    const { documentCache, typeDatabase, workspaceIndex } = services;
     const log = new Logger('diagnostics');
 
     // Validation timers for debouncing
@@ -135,10 +137,10 @@ export function registerDiagnosticsHandlers(
         }
 
         // Try Pike-based tokenization first (PERF-001)
-        const bridgeManager = bridge;
-        if (bridgeManager?.isRunning()) {
+        const bridge = services.bridge;
+        if (bridge?.isRunning()) {
             try {
-                const result = await bridgeManager.findOccurrences(text);
+                const result = await bridge.findOccurrences(text);
 
                 // Group occurrences by symbol name
                 for (const occ of result.occurrences) {
@@ -304,16 +306,16 @@ export function registerDiagnosticsHandlers(
         const uri = document.uri;
         connection.console.log(`[VALIDATE] Starting validation for: ${uri}`);
 
-        const bridgeManager = bridge;
-        if (!bridgeManager) {
+        const bridge = services.bridge;
+        if (!bridge) {
             log.warn('Bridge not available');
             return;
         }
 
-        if (!bridgeManager.isRunning()) {
+        if (!bridge.isRunning()) {
             connection.console.warn('[VALIDATE] Bridge not running, attempting to start...');
             try {
-                await bridgeManager.start();
+                await bridge.start();
                 connection.console.log('[VALIDATE] Bridge started successfully');
             } catch (err) {
                 connection.console.error(`[VALIDATE] Failed to start bridge: ${err}`);
@@ -332,11 +334,11 @@ export function registerDiagnosticsHandlers(
         try {
             connection.console.log(`[VALIDATE] Calling bridge.introspect for: ${filename}`);
             // Use introspection for compilation + type extraction
-            const introspectResult = await bridgeManager.introspect(text, filename);
+            const introspectResult = await bridge.introspect(text, filename);
             connection.console.log(`[VALIDATE] Introspection result - success: ${introspectResult.success}, symbols: ${introspectResult.symbols.length}`);
 
             // Always parse to get position info (needed for LSP features)
-            const parseResult = await bridgeManager.parse(text, filename);
+            const parseResult = await bridge.parse(text, filename);
             connection.console.log(`[VALIDATE] Parse result - symbols: ${parseResult.symbols.length}, diagnostics: ${parseResult.diagnostics.length}`);
 
             // Convert Pike diagnostics to LSP diagnostics
@@ -482,7 +484,7 @@ export function registerDiagnosticsHandlers(
 
             // Analyze for uninitialized variable usage
             try {
-                const uninitResult = await bridgeManager.analyzeUninitialized(text, filename);
+                const uninitResult = await bridge.analyzeUninitialized(text, filename);
                 if (uninitResult.diagnostics && uninitResult.diagnostics.length > 0) {
                     connection.console.log(`[VALIDATE] Found ${uninitResult.diagnostics.length} uninitialized variable warnings`);
                     for (const uninitDiag of uninitResult.diagnostics) {

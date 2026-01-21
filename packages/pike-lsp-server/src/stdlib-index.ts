@@ -77,10 +77,28 @@ export class StdlibIndexManager {
         negativeHits: 0,
     };
 
+    /**
+     * Bootstrap modules that cannot be introspected.
+     * These modules are used internally by the Pike resolver and cause
+     * "Parent lost, cannot clone program" errors when introspected.
+     * Adding them to the negative cache prevents any attempt to load them.
+     */
+    private readonly BOOTSTRAP_MODULES = new Set([
+        'Stdio',    // Used for file I/O during source parsing
+        'String',   // May be used for string operations
+        'Array',    // Core type used throughout
+        'Mapping',  // Core type used throughout
+    ]);
+
     constructor(bridge: PikeBridge, options?: { maxCacheSize?: number; maxMemoryMB?: number }) {
         this.bridge = bridge;
         this.maxCacheSize = options?.maxCacheSize ?? MAX_STDLIB_MODULES;
         this.maxMemoryMB = options?.maxMemoryMB ?? 20;
+
+        // Pre-populate negative cache with bootstrap modules that crash Pike when introspected
+        for (const module of this.BOOTSTRAP_MODULES) {
+            this.negativeCache.add(module);
+        }
     }
 
     /**

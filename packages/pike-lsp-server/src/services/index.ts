@@ -20,8 +20,8 @@ import type { PikeSettings } from '../core/types.js';
  * server services without needing to know their initialization.
  */
 export interface Services {
-    /** Bridge manager for Pike subprocess communication */
-    bridge: BridgeManager;
+    /** Bridge manager for Pike subprocess communication (null until initialized) */
+    bridge: BridgeManager | null;
     /** Logger for diagnostic output */
     logger: Logger;
     /** Document cache for parsed document state */
