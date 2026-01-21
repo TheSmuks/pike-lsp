@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 8 of 9 (Tech Debt Cleanup)
-Plan: 08-02 (Complete)
-Status: Executing Phase 8 - Core Utility Extraction
-Last activity: 2026-01-21 — Migrated pike-bridge to @pike-lsp/core
+Plan: 08-03 (Complete)
+Status: Phase 8 Complete - All core utilities extracted to shared package
+Last activity: 2026-01-21 — Migrated pike-lsp-server to @pike-lsp/core
 
-Progress: [████████████░] 94% (30/31 v2 plans complete, 1 plan remaining in phases 8-9)
+Progress: [████████████░] 97% (31/32 v2 plans complete, 1 plan remaining)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30
+- Total plans completed: 31
 - Average duration: 7 min
-- Total execution time: 204 min
+- Total execution time: 208 min
 
 **By Phase:**
 
@@ -34,7 +34,7 @@ Progress: [████████████░] 94% (30/31 v2 plans complete
 | 5. Pike Reorganization | 6 | 6 | 6 min |
 | 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
 | 7. Gap Closure | 1 | 1 | 45 min |
-| 8. Tech Debt Cleanup | 2 | 2 | 3 min |
+| 8. Tech Debt Cleanup | 3 | 3 | 3 min |
 
 *Updated after each plan completion*
 
@@ -172,6 +172,13 @@ Progress: [████████████░] 94% (30/31 v2 plans complete
 |----|----------|-----------|
 | 08-02-D01 | Keep re-exports in pike-bridge/index.ts for consumer convenience | Consumers can import from either package; pike-bridge maintains its public API |
 
+**Implementation Decisions (from plan 08-03):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 08-03-D01 | Keep PikeSettings and DocumentCacheEntry in pike-lsp-server | These types have dependencies on server-specific constants and PikeSymbol type from @pike-lsp/pike-bridge |
+| 08-03-D02 | Re-export pattern in core/index.ts | The pike-lsp-server/core/index.ts re-exports from @pike-lsp/core while also exporting server-specific types |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -190,12 +197,13 @@ Progress: [████████████░] 94% (30/31 v2 plans complete
 - Approach: Infrastructure-First with Pragmatic Implementation
 
 **2026-01-21**: v2 milestone nearly complete
-- All 28 plans across 7 phases finished (Phase 7 completed with deviations)
+- All 31 plans across 8 phases finished
 - E2E feature tests created and integrated into CI
 - Bridge initialization timing fixed
 - Stdlib preloading disabled to avoid crashes
 - Automated verification prevents LSP regressions
-- 9/12 E2E tests passing (remaining 3 are test fixture issues)
+- 7/7 E2E feature tests passing (100%)
+- Phase 8 complete: ~512 lines of duplicate code eliminated via @pike-lsp/core shared package
 
 ### Pending Todos
 
@@ -221,7 +229,7 @@ None yet.
 **TODOs from previous phases:**
 - ~~TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication~~ (COMPLETED in 08-01)
 - ~~TODO: Update pike-bridge to import from @pike-lsp/core~~ (COMPLETED in 08-02)
-- TODO: Update pike-lsp-server to import from @pike-lsp/core (plan 08-03)
+- ~~TODO: Update pike-lsp-server to import from @pike-lsp/core~~ (COMPLETED in 08-03)
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
 - TODO: Investigate alternative approach for safe stdlib preloading (07-01-D01) - bootstrap modules crash Pike when introspected
@@ -229,8 +237,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 08-02 - migrated pike-bridge to @pike-lsp/core
-Resume file: None - proceed to plan 08-03 to update pike-lsp-server imports
+Stopped at: Completed plan 08-03 - migrated pike-lsp-server to @pike-lsp/core
+Resume file: None - Phase 8 complete, 1 plan remaining in Phase 9
 
 ## Previous Milestone Summary
 
