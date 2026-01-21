@@ -34,4 +34,19 @@ else
   echo "[Pre-push] Smoke tests not yet available (plan 02-02 pending)..."
 fi
 
+# 4. VSCode E2E feature tests
+if [ -f "packages/vscode-pike/src/test/integration/lsp-features.test.ts" ]; then
+  echo "[Pre-push] Running VSCode E2E feature tests..."
+  cd packages/vscode-pike
+  pnpm run test:features || {
+    echo "FAILED: VSCode E2E feature tests failed. Push aborted."
+    echo "LSP features (symbols, hover, definition, completion) are broken."
+    echo "Fix failing tests or use 'git push --no-verify' to bypass."
+    exit 1
+  }
+  cd ../..
+else
+  echo "[Pre-push] E2E feature tests not yet available (phase 06-01 pending)..."
+fi
+
 echo "[Pre-push] All validations passed!"
