@@ -1,18 +1,18 @@
 # Contributing to Pike LSP
 
-Thank you for your interest in contributing to Pike LSP! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Pike LSP. This document provides guidelines and instructions for contributors.
 
-> **Note:** This project was 100% coded by AI agents. Contributions are welcome, but please be aware that the original codebase was AI-generated. The maintainer(s) are not responsible for any issues arising from the use of this software. All contributions will be reviewed but contributors assume responsibility for their own code.
+> **Note:** This project is in active development. Contributions are welcome, and all submissions will be reviewed. Contributors are responsible for ensuring their code meets the project's quality standards.
 
-## 📋 Code of Conduct
+## Code of Conduct
 
 Please be respectful and constructive in all interactions. We welcome contributors of all experience levels.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-1. **Pike 8.1116 or later** - The Pike programming language (for local development)
+1. **Pike 8.1116 or later** - The Pike programming language
 2. **Node.js 18+** - JavaScript runtime
 3. **pnpm** - Package manager (install with `npm install -g pnpm`)
 4. **VS Code** - For extension development and testing
@@ -21,7 +21,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 ```bash
 # Clone the repository
-git clone https://github.com/pike-lsp/pike-lsp.git
+git clone https://github.com/TheSmuks/pike-lsp.git
 cd pike-lsp
 
 # Install dependencies
@@ -36,7 +36,7 @@ pnpm build
 
 > **Note:** For local development, Pike 8.1116 is recommended. CI automatically tests on multiple Pike versions (8.1116 as required, latest as best-effort).
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 pike-lsp/
@@ -51,7 +51,7 @@ pike-lsp/
 └── test/                    # Test fixtures
 ```
 
-## 🔧 Development Workflow
+## Development Workflow
 
 ### 1. Create a Branch
 
@@ -81,6 +81,7 @@ node --test dist/tests/lsp-tests.js
 ```
 
 #### Pike Stdlib Source Paths
+
 The stdlib parsing tests look for a Pike source checkout at `../Pike` by default. Override with:
 
 ```bash
@@ -115,7 +116,7 @@ Commit message prefixes:
 4. Wait for CI to pass
 5. Request review
 
-## 🧪 Testing Guidelines
+## Testing Guidelines
 
 ### Test Structure
 
@@ -160,9 +161,9 @@ describe('Your Feature', () => {
 
 ### Test Requirements
 
-- All new features MUST have tests
-- Tests MUST pass before merging
-- Pike stdlib files MUST continue to parse (100% compatibility)
+- All new features must have tests
+- Tests must pass before merging
+- Pike stdlib files must continue to parse (100% compatibility)
 
 ### Version Testing
 
@@ -171,20 +172,20 @@ describe('Your Feature', () => {
 - **When adding compat shims:** Test on both versions if possible
 - **Version-specific issues:** Add to Known Issues table in README.md
 
-## 🔍 Pre-Merge Verification Checklist
+## Pre-Merge Verification Checklist
 
 Before submitting any pull request, complete these steps.
 
-### Required (ALL PRs)
+### Required (All PRs)
 
 - [ ] **Run smoke test**: `pike test/tests/smoke-test.pike`
-  - Verify all 7 Pike files compile standalone
-  - Verify all 6 LSP modules load successfully
+  - Verify all Pike files compile standalone
+  - Verify all LSP modules load successfully
   - Verify LSP server starts without errors
-  - Verify all 11 LSP handlers return valid JSON-RPC responses
+  - Verify all LSP handlers return valid JSON-RPC responses
 
 - [ ] **Run full test suite**: `./scripts/run-pike-tests.sh`
-  - All 111+ tests must pass
+  - All tests must pass
   - CI must pass on Pike 8.1116 (required)
 
 - [ ] **If changing Pike scripts**: Rebundle extension
@@ -193,18 +194,18 @@ Before submitting any pull request, complete these steps.
 
 ### Required for LSP Feature Changes
 
-**CRITICAL**: Phase 5 had 111 passing tests but actual LSP functionality was never verified. To prevent this gap, manual LSP feature testing is REQUIRED for any PR that affects LSP behavior.
+For any PR that affects LSP behavior, manual testing is required:
 
 - [ ] **Manual extension test**: `cd packages/vscode-pike && pnpm package && code --install-extension pike-language-server-*.vsix --force`
 
 Then in VS Code with a Pike test file:
-  - [ ] Open Pike file -> no crash (SC-04)
-  - [ ] Type `Array.` -> completion shows stdlib methods (SC-05)
-  - [ ] Type user-defined symbol name -> completion works (SC-06)
-  - [ ] Hover over symbol -> type information shown (SC-07)
-  - [ ] Ctrl+click symbol -> navigates to definition (SC-08)
+  - [ ] Open Pike file -> no crash
+  - [ ] Type `Array.` -> completion shows stdlib methods
+  - [ ] Type user-defined symbol name -> completion works
+  - [ ] Hover over symbol -> type information shown
+  - [ ] Ctrl+click symbol -> navigates to definition
 
-All five checks MUST pass before merging.
+All checks must pass before merging.
 
 ### Required for Pike Script Changes
 
@@ -225,9 +226,7 @@ All five checks MUST pass before merging.
 | Tests pass but extension fails | Bundle not rebuilt | Run `pnpm build` to rebundle |
 | LSP features don't work | Handler logic broken | Verify handler returns correct JSON-RPC structure |
 
-> **Why this matters**: Phase 5 had 111 passing tests but actual LSP functionality (completion, hover, go-to-definition) was never verified. This checklist prevents that gap by requiring end-to-end verification before merges.
-
-## 📝 Code Style
+## Code Style
 
 ### TypeScript
 
@@ -261,7 +260,7 @@ async function parse(code: string, filename?: string): Promise<PikeParseResult>
 protected mapping handle_parse(mapping params)
 ```
 
-## 🏗️ Architecture Guidelines
+## Architecture Guidelines
 
 ### Adding New LSP Features
 
@@ -290,17 +289,17 @@ Add new constants to `constants/index.ts`:
 export const MY_NEW_CONSTANT = 100;
 ```
 
-## 🐛 Reporting Issues
+## Reporting Issues
 
 ### Bug Reports
 
 Include:
-1. **Pike version** (`pike --version`) - **Always include this with exact output**
+1. **Pike version** (`pike --version`) - always include exact output
 2. Node.js version (`node --version`)
 3. VS Code version
 4. Steps to reproduce
 5. Expected vs actual behavior
-6. Error messages or logs (including any version-specific error messages)
+6. Error messages or logs
 
 ### Feature Requests
 
@@ -309,7 +308,7 @@ Describe:
 2. Your proposed solution
 3. Alternatives you've considered
 
-## 📦 Release Process
+## Release Process
 
 1. Update version in `packages/vscode-pike/package.json`
 2. Update `CHANGELOG.md`
@@ -320,9 +319,9 @@ Describe:
 7. Push with tags: `git push origin main --tags`
 8. Create GitHub release with .vsix file
 
-## ❓ Questions?
+## Questions
 
 - Open a GitHub issue
 - Check existing issues and PRs
 
-Thank you for contributing! 🎉
+Thank you for contributing.
