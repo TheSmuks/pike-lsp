@@ -6,8 +6,18 @@
  * with the Pike subprocess.
  */
 
-import type { PikeBridge } from '@pike-lsp/pike-bridge';
+import type { PikeBridge, PikeVersionInfo } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Pike version information with path details.
+ */
+export interface PikeVersionInfoWithPath extends PikeVersionInfo {
+    /** Absolute path to the Pike executable */
+    pikePath: string;
+}
 
 /**
  * Health status of the bridge and server.
@@ -19,8 +29,8 @@ export interface HealthStatus {
     bridgeConnected: boolean;
     /** Pike subprocess PID (if running) */
     pikePid: number | null;
-    /** Pike version (detected via introspection) */
-    pikeVersion: string | null;
+    /** Pike version information with path (detected via RPC) */
+    pikeVersion: PikeVersionInfoWithPath | null;
     /** Recent error messages from stderr */
     recentErrors: string[];
 }
@@ -28,13 +38,14 @@ export interface HealthStatus {
 /**
  * Bridge manager wraps PikeBridge with health monitoring.
  *
- * Tracks server uptime, recent errors, and provides pass-through
+ * Tracks server uptime, recent errors, Pike version info, and provides pass-through
  * methods for all PikeBridge functionality.
  */
 export class BridgeManager {
     private startTime: number;
     private errorLog: string[] = [];
     private readonly MAX_ERRORS = 5;
+    private cachedVersion: PikeVersionInfoWithPath | null = null;
 
     constructor(
         public readonly bridge: PikeBridge | null,
@@ -60,25 +71,38 @@ export class BridgeManager {
     }
 
     /**
-     * Get health status of the bridge and server.
-     * @returns Health status information
-     */
-    async getHealth(): Promise<HealthStatus> {
-        return {
-            serverUptime: Date.now() - this.startTime,
-            bridgeConnected: this.bridge?.isRunning() ?? false,
-            pikePid: (this.bridge as any)?.process?.pid ?? null,
-            // TODO: Implement via introspection - call Pike and query version
-            pikeVersion: null,
-            recentErrors: [...this.errorLog],
-        };
-    }
-
-    /**
-     * Start the bridge subprocess.
+     * Start the bridge subprocess and cache version information.
      */
     async start(): Promise<void> {
-        if (this.bridge) await this.bridge.start();
+        if (!this.bridge) return;
+
+        await this.bridge.start();
+
+        // Fetch and cache version information via RPC
+        try {
+            const versionInfo = await this.bridge.getVersionInfo();
+            if (versionInfo) {
+                // Get the absolute path to the Pike executable
+                // The bridge stores options internally, we need to get the pikePath
+                const diagnostics = this.bridge.getDiagnostics();
+                const pikePath = diagnostics.options.pikePath;
+                const resolvedPath = fs.realpathSync(pikePath === 'pike' ? pikePath : path.resolve(pikePath));
+
+                this.cachedVersion = {
+                    ...versionInfo,
+                    pikePath: resolvedPath,
+                };
+                this.logger.info('Pike version detected', {
+                    version: versionInfo.version,
+                    path: resolvedPath,
+                });
+            } else {
+                this.logger.warn('Failed to get Pike version info via RPC');
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.logger.warn('Failed to get Pike version info', { error: message });
+        }
     }
 
     /**
@@ -86,6 +110,8 @@ export class BridgeManager {
      */
     async stop(): Promise<void> {
         if (this.bridge) await this.bridge.stop();
+        // Clear cached version on stop
+        this.cachedVersion = null;
     }
 
     /**
@@ -94,6 +120,20 @@ export class BridgeManager {
      */
     isRunning(): boolean {
         return this.bridge?.isRunning() ?? false;
+    }
+
+    /**
+     * Get health status of the bridge and server.
+     * @returns Health status information
+     */
+    async getHealth(): Promise<HealthStatus> {
+        return {
+            serverUptime: Date.now() - this.startTime,
+            bridgeConnected: this.bridge?.isRunning() ?? false,
+            pikePid: (this.bridge as any)?.process?.pid ?? null,
+            pikeVersion: this.cachedVersion,
+            recentErrors: [...this.errorLog],
+        };
     }
 
     /**
