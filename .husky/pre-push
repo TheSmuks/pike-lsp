@@ -49,4 +49,18 @@ else
   echo "[Pre-push] E2E feature tests not yet available (phase 06-01 pending)..."
 fi
 
+# 5. Secret detection (optional)
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "[Pre-push] Scanning for secrets with gitleaks..."
+  # Scan unpushed commits (assuming origin/main is upstream)
+  gitleaks detect --source . --log-opts="origin/main..HEAD" --verbose --redact || {
+    echo "FAILED: Gitleaks detected potential secrets."
+    echo "Review output. If false positive, add to .gitleaksignore."
+    exit 1
+  }
+else
+  echo "[Pre-push] gitleaks not found, skipping secret scan."
+  echo "Tip: Install gitleaks for local detection: https://github.com/gitleaks/gitleaks"
+fi
+
 echo "[Pre-push] All validations passed!"
