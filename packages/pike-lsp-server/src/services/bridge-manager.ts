@@ -9,7 +9,6 @@
 import type { PikeBridge, PikeVersionInfo } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
 import * as fs from 'fs';
-import * as path from 'path';
 
 /**
  * Pike version information with path details.
