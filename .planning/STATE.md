@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 8 of 9 (Tech Debt Cleanup)
-Plan: 08-01 (Complete)
+Plan: 08-02 (Complete)
 Status: Executing Phase 8 - Core Utility Extraction
-Last activity: 2026-01-21 — Created @pike-lsp/core shared package
+Last activity: 2026-01-21 — Migrated pike-bridge to @pike-lsp/core
 
-Progress: [████████████░] 93% (29/31 v2 plans complete, 2 plans remaining in phases 8-9)
+Progress: [████████████░] 94% (30/31 v2 plans complete, 1 plan remaining in phases 8-9)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29
+- Total plans completed: 30
 - Average duration: 7 min
-- Total execution time: 201 min
+- Total execution time: 204 min
 
 **By Phase:**
 
@@ -34,7 +34,7 @@ Progress: [████████████░] 93% (29/31 v2 plans complete
 | 5. Pike Reorganization | 6 | 6 | 6 min |
 | 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
 | 7. Gap Closure | 1 | 1 | 45 min |
-| 8. Tech Debt Cleanup | 1 | 1 | 2 min |
+| 8. Tech Debt Cleanup | 2 | 2 | 3 min |
 
 *Updated after each plan completion*
 
@@ -166,6 +166,12 @@ Progress: [████████████░] 93% (29/31 v2 plans complete
 | 08-01-D01 | Use .js extensions in barrel exports for ESM compatibility | TypeScript requires explicit extensions for ES modules |
 | 08-01-D02 | dist/ directory gitignored in @pike-lsp/core | Build artifacts are generated, not source code |
 
+**Implementation Decisions (from plan 08-02):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 08-02-D01 | Keep re-exports in pike-bridge/index.ts for consumer convenience | Consumers can import from either package; pike-bridge maintains its public API |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -214,7 +220,7 @@ None yet.
 
 **TODOs from previous phases:**
 - ~~TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication~~ (COMPLETED in 08-01)
-- TODO: Update pike-bridge to import from @pike-lsp/core (plan 08-02)
+- ~~TODO: Update pike-bridge to import from @pike-lsp/core~~ (COMPLETED in 08-02)
 - TODO: Update pike-lsp-server to import from @pike-lsp/core (plan 08-03)
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
@@ -223,8 +229,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 08-01 - created @pike-lsp/core shared package
-Resume file: None - proceed to plan 08-02 to update pike-bridge imports
+Stopped at: Completed plan 08-02 - migrated pike-bridge to @pike-lsp/core
+Resume file: None - proceed to plan 08-03 to update pike-lsp-server imports
 
 ## Previous Milestone Summary
 
