@@ -13,6 +13,7 @@ int test_count = 0;
 int pass_count = 0;
 int fail_count = 0;
 array(string) failure_messages = ({});
+string project_root;
 
 //! Setup module path for LSP.pmod imports
 void setup_module_path() {
@@ -27,6 +28,7 @@ void setup_module_path() {
         if (parent == base_path) break;  // Reached root
         base_path = parent;
     }
+    project_root = base_path;
     string pike_scripts_path = combine_path(base_path, "pike-scripts");
     master()->add_module_path(pike_scripts_path);
 }
@@ -631,7 +633,7 @@ void test_error_recovery_unclosed_brace() {
 
 //! Test integration with simple class fixture
 void test_integration_simple_class() {
-    string fixture_path = "/home/smuks/OpenCode/pike-lsp/test/fixtures/parser/simple-class.pike";
+    string fixture_path = combine_path(project_root, "test/fixtures/parser/simple-class.pike");
     string code = Stdio.read_file(fixture_path);
 
     if (!code) {
@@ -660,7 +662,7 @@ void test_integration_simple_class() {
 
 //! Test integration with function with vars fixture
 void test_integration_function_with_vars() {
-    string fixture_path = "/home/smuks/OpenCode/pike-lsp/test/fixtures/parser/function-with-vars.pike";
+    string fixture_path = combine_path(project_root, "test/fixtures/parser/function-with-vars.pike");
     string code = Stdio.read_file(fixture_path);
 
     if (!code) {
@@ -687,7 +689,7 @@ void test_integration_function_with_vars() {
 
 //! Test integration with malformed syntax fixture
 void test_integration_malformed_file() {
-    string fixture_path = "/home/smuks/OpenCode/pike-lsp/test/fixtures/parser/malformed-syntax.pike";
+    string fixture_path = combine_path(project_root, "test/fixtures/parser/malformed-syntax.pike");
     string code = Stdio.read_file(fixture_path);
 
     if (!code) {
@@ -716,7 +718,7 @@ void test_integration_malformed_file() {
 
 //! Test integration with stdlib sample fixture
 void test_integration_stdlib_sample() {
-    string fixture_path = "/home/smuks/OpenCode/pike-lsp/test/fixtures/parser/stdlib-sample.pike";
+    string fixture_path = combine_path(project_root, "test/fixtures/parser/stdlib-sample.pike");
     string code = Stdio.read_file(fixture_path);
 
     if (!code) {
