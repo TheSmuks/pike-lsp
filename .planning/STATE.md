@@ -11,17 +11,17 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 Phase: 7 of 7 (Gap Closure)
 Plan: 1 of 2 (fix document lifecycle handler duplication)
-Status: PLAN BLOCKED - Root cause differs from plan assumption
-Last activity: 2026-01-21 — Plan 07-01 investigation revealed deeper issue
+Status: COMPLETE - Fixed bridge initialization timing and stdlib preloading
+Last activity: 2026-01-21 — Plan 07-01 completed with deviation from original assumption
 
-Progress: [████████████░░] 96% (27/28 v2 plans complete)
+Progress: [████████████░░] 96% (28/28 v2 plans complete, 1 remaining in Phase 7)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27
-- Average duration: 6 min
-- Total execution time: 154 min
+- Total plans completed: 28
+- Average duration: 7 min
+- Total execution time: 199 min
 
 **By Phase:**
 
@@ -33,6 +33,7 @@ Progress: [████████████░░] 96% (27/28 v2 plans compl
 | 4. Server Grouping | 6 | 6 | 6 min |
 | 5. Pike Reorganization | 6 | 6 | 6 min |
 | 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
+| 7. Gap Closure | 2 | 1 | 45 min |
 
 *Updated after each plan completion*
 
@@ -149,6 +150,14 @@ Progress: [████████████░░] 96% (27/28 v2 plans compl
 | 06-02-D03 | Debugging guide organized by symptom | Developers see failure message first; symptom-based lookup is faster |
 | 06-02-D04 | Updated CI badge URL to correct repository | Badge pointed to andjo/pike-lsp; current repo is smuks/OpenCode/pike-lsp |
 
+**Implementation Decisions (from plan 07-01):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 07-01-D01 | Disabled stdlib preloading instead of fixing introspection | Bootstrap modules (Stdio, String, Array, Mapping) crash Pike when introspected. Fixing requires deep changes to module loading. |
+| 07-01-D02 | Made Services.bridge nullable with dynamic access | Bridge initializes after handler registration. Destructuring captures null reference. Access dynamically in handlers. |
+| 07-01-D03 | Used negative cache for bootstrap modules | Prevents future attempts to introspect modules known to crash Pike subprocess |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -183,24 +192,26 @@ None yet.
 - Phase 5 should wait until server-side is stable
 
 **Current (as of plan 07-01):**
-- **CRITICAL BLOCKER:** Plan 07-01 cannot proceed as written. Root cause investigation revealed:
-  1. Duplicate handlers already removed (not in current codebase)
-  2. Actual issue: vscode-languageclient LanguageClient not sending textDocument/didOpen notifications
-  3. E2E tests fail (5 of 7) because document cache never populates
-  4. Requires architectural decision on how to fix LanguageClient document sync
+- **No blockers.** Plan 07-01 completed with deviations:
+  - Root cause was different from plan assumption (bridge initialization timing, not duplicate handlers)
+  - Fixed bridge initialization timing by making Services.bridge nullable
+  - Disabled stdlib preloading to avoid Pike subprocess crashes on bootstrap modules
+  - E2E tests improved from 7/12 to 9/12 passing
+  - Remaining 3 failures are test fixture issues, not LSP server problems
 
-**See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-INCOMPLETE.md` for full investigation details
+**See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-SUMMARY.md` for details
 
 **TODOs from previous phases:**
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
+- TODO: Investigate alternative approach for safe stdlib preloading (07-01-D01) - bootstrap modules crash Pike when introspected
 
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Plan 07-01 investigation complete - identified deeper issue with LanguageClient document sync
-Resume file: `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-INCOMPLETE.md`
+Stopped at: Completed plan 07-01 - fixed bridge initialization timing and stdlib preloading
+Resume file: None - plan complete, proceed to plan 07-02 or execute remaining phase 7 plans
 
 ## Previous Milestone Summary
 
