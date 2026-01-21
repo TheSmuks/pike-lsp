@@ -262,10 +262,85 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 ---
 
+### Phase 8: Extract Core Utilities to Shared Package
+
+**Goal**: Eliminate code duplication by extracting Logger and Error classes to a shared `@pike-lsp/core` package. Currently, these ~400 lines are duplicated between `pike-lsp-server` and `pike-bridge` to avoid circular dependencies.
+
+**Depends on**: Phase 7 (ensure critical functionality works before refactoring)
+
+**Status**: Pending
+
+**Requirements**: Addresses Tech Debt #1 from v2-MILESTONE-AUDIT.md
+
+**Success Criteria** (what must be TRUE):
+1. `@pike-lsp/core` package created in `packages/pike-lsp-core/`
+2. Logger class extracted to `@pike-lsp/core/src/logging.ts`
+3. Error classes (LSPError, BridgeError, PikeError) extracted to `@pike-lsp/core/src/errors.ts`
+4. `pike-lsp-server` imports from `@pike-lsp/core` instead of local files
+5. `pike-bridge` imports from `@pike-lsp/core` instead of local files
+6. All existing tests pass (no behavior changes)
+7. ~400 lines of duplicate code removed
+
+**Tech Debt Closure**:
+- **Tech Debt #1**: Duplicate Logger and Error classes in pike-bridge vs pike-lsp-server
+
+**Deliverables:**
+- New package: `packages/pike-lsp-core/` with package.json, tsconfig.json
+- Extracted: `@pike-lsp/core/src/logging.ts` (Logger class)
+- Extracted: `@pike-lsp/core/src/errors.ts` (LSPError, BridgeError, PikeError)
+- Updated imports in `pike-lsp-server/src/` (8 files)
+- Updated imports in `pike-bridge/src/` (2 files)
+- Removed: `pike-lsp-server/src/core/logging.ts` and `errors.ts` (duplicates)
+- Removed: `pike-bridge/src/logging.ts` and `errors.ts` (duplicates)
+
+**Plans**: TBD (estimated 1-2 plans)
+- [ ] 08-01-PLAN.md — Create @pike-lsp/core package and extract Logger/Error classes
+- [ ] 08-02-PLAN.md — Update imports and remove duplicate files (if needed)
+
+**Impact**: Code quality improvement, easier maintenance, no functional changes
+
+---
+
+### Phase 9: Implement Pike Version Detection
+
+**Goal**: Complete the Pike version detection feature in BridgeManager so health checks show actual Pike version instead of "Unknown".
+
+**Depends on**: Phase 7 (ensure critical functionality works first)
+
+**Status**: Pending
+
+**Requirements**: Addresses Tech Debt #2 from v2-MILESTONE-AUDIT.md
+
+**Success Criteria** (what must be TRUE):
+1. BridgeManager.getHealth() returns actual Pike version string (not null)
+2. Health check command shows Pike version (e.g., "Pike 8.0.1116")
+3. Version detection handles Pike subprocess communication errors gracefully
+4. Falls back to "Unknown" if version detection fails (don't crash)
+
+**Tech Debt Closure**:
+- **Tech Debt #2**: Pike version detection incomplete (bridge-manager.ts:72 returns null)
+
+**Deliverables:**
+- Updated: `packages/pike-lsp-server/src/services/bridge-manager.ts` (implement version detection)
+- Method to query Pike version via bridge (e.g., `pike --version` or JSON-RPC method)
+- Health check shows actual version instead of "Unknown"
+
+**Plans**: TBD (estimated 1 plan)
+- [ ] 09-01-PLAN.md — Implement Pike version detection in BridgeManager
+
+**Impact**: Better observability, health check completeness
+
+**Implementation Options**:
+1. Add `getVersion` JSON-RPC method to analyzer.pike
+2. Parse Pike version from stderr on startup
+3. Run `pike --version` as separate process (may be slower)
+
+---
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 Each phase produces working code. Can pause at any phase without breaking the codebase.
 
@@ -278,8 +353,10 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 5. Pike Reorganization | 6/6 | Complete ✓ | 2026-01-21 |
 | 6. Automated LSP Feature Verification | 2/2 | Complete ✓ | 2026-01-21 |
 | 7. Fix Document Lifecycle Handler Duplication | 0/1 | Pending | - |
+| 8. Extract Core Utilities to Shared Package | 0/2 | Pending | - |
+| 9. Implement Pike Version Detection | 0/1 | Pending | - |
 
-**Project Status:** v2 MILESTONE IN PROGRESS - Phase 7 (gap closure) pending
+**Project Status:** v2 MILESTONE IN PROGRESS - Phase 7-9 (gap closure + tech debt) pending
 
 **v2 Requirements:**
 - Total: 71 (65 original + 6 LSP-E2E)
