@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 
 ## Current Position
 
-Phase: 4 of 5 (Server Grouping)
-Plan: 5 of 6 complete
-Status: Wave 3 complete - Server refactored to wiring-only
-Last activity: 2026-01-20 — Completed plan 04-05 (Hierarchy, Advanced Handlers, and Server Refactor)
+Phase: 5 of 5 (Pike Reorganization)
+Plan: 0 of ? complete
+Status: Phase 4 complete - Server grouped by capability
+Last activity: 2026-01-21 — Completed plan 04-06 (Health Check Command)
 
-Progress: [█████████░░] 85% (12/14 plans complete, 5/6 in Phase 4)
+Progress: [████████████] 80% (18/18 v2 plans complete, Phase 4 done, Phase 5 pending)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
+- Total plans completed: 18
 - Average duration: 6 min
-- Total execution time: 65 min
+- Total execution time: 105 min
 
 **By Phase:**
 
@@ -30,8 +30,8 @@ Progress: [█████████░░] 85% (12/14 plans complete, 5/6 in 
 | 1. Lean Observability | 3 | 3 | 8 min |
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
-| 4. Server Grouping | 5 | 5 | 6 min |
-| 5. Pike Reorganization | 2 | 0 | - |
+| 4. Server Grouping | 6 | 6 | 6 min |
+| 5. Pike Reorganization | ? | 0 | - |
 
 *Updated after each plan completion*
 
@@ -39,7 +39,7 @@ Progress: [█████████░░] 85% (12/14 plans complete, 5/6 in 
 
 ### Decisions
 
-**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03, 04-04, 04-05):**
+**Implementation Decisions (from plans 01-01, 01-02, 01-03, 02-01, 02-02, 02-03, 03-01, 03-02, 04-01, 04-02, 04-03, 04-04, 04-05, 04-06):**
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
@@ -78,6 +78,9 @@ Progress: [█████████░░] 85% (12/14 plans complete, 5/6 in 
 | 04-05-D02 | Used Array.from() for DocumentCache iteration | DocumentCache is a Map subclass, needs explicit conversion for for/of loops |
 | 04-05-D03 | Added globalSettings and includePaths to Services interface | Advanced handlers need mutable access to config |
 | 04-05-D04 | Extracted defaultSettings to core/types.ts | Removes duplication with server.ts, provides single source of truth |
+| 04-06-D01 | Use connection.workspace.onExecuteCommand for workspace commands | Workspace commands require workspace-level handler, not connection-level |
+| 04-06-D02 | Register command after client.start() in extension.ts | Ensures LanguageClient is available when command is invoked |
+| 04-06-D03 | Use dot notation (pike.lsp.showDiagnostics) consistently | Standard VSCode command format, must match across server.ts, extension.ts, package.json |
 
 **Design Decisions (from v2 design document):**
 
@@ -107,15 +110,16 @@ None yet.
 - Phase 4 depends on Phase 1 (errors.ts, logging.ts) and Phase 3 (refactored bridge)
 - Phase 5 should wait until server-side is stable
 
-**Current (as of plan 04-05):**
-- No blockers - Phase 4 nearly complete (5 of 6 plans done)
+**Current (as of plan 04-06):**
+- No blockers - Phase 4 complete, ready for Phase 5
 - TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
+- TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
 
 ## Session Continuity
 
-Last session: 2026-01-20
-Stopped at: Completed plan 04-05 (Hierarchy, Advanced Handlers, and Server Refactor)
+Last session: 2026-01-21
+Stopped at: Completed plan 04-06 (Health Check Command)
 Resume file: None
 
 ## Previous Milestone Summary
@@ -136,6 +140,5 @@ Resume file: None
 
 ## Next Steps
 
-1. **Phase 4 (Server Grouping)** - 5 of 6 plans complete, one remaining (04-06 health checkpoint)
-2. Phase 5 (Pike Reorganization) - 2 plans remaining
-3. Final milestone completion
+1. **Phase 5 (Pike Reorganization)** - Split large Pike files using .pmod idiom
+2. Final milestone completion

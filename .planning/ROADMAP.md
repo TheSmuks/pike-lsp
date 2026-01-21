@@ -17,7 +17,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - [x] **Phase 1: Lean Observability** - Error tracking and structured logging
 - [x] **Phase 2: Safety Net** - Pre-push hooks, smoke tests, and CI pipeline
 - [x] **Phase 3: Bridge Extraction** - Isolate IPC mechanics from business logic
-- [ ] **Phase 4: Server Grouping** - Split server.ts by capability
+- [x] **Phase 4: Server Grouping** - Split server.ts by capability
 - [ ] **Phase 5: Pike Reorganization** - Split large Pike files using .pmod idiom
 
 ## Phase Details
@@ -123,7 +123,7 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 
 **Depends on**: Phase 1 (core/errors.ts, core/logging.ts), Phase 3 (bridge-manager depends on refactored bridge)
 
-**Status**: Planned
+**Status**: Complete ✓
 
 **Requirements**: SRV-01, SRV-02, SRV-03, SRV-04, SRV-05, SRV-06, SRV-07, SRV-08, SRV-09, SRV-10, SRV-11, SRV-12, SRV-13, HLT-01, HLT-02, HLT-03, HLT-04, HLT-05, HLT-06
 
@@ -143,12 +143,14 @@ Transform the Pike LSP from a working but hard-to-debug system into a modular, o
 - Health check command in VSCode extension
 
 **Plans**: 6 plans in 4 waves
-- [ ] 04-01-PLAN.md — Core infrastructure (types.ts, document-cache.ts, bridge-manager.ts, services/index.ts)
-- [ ] 04-02-PLAN.md — Navigation feature handlers (hover, definition, references, highlight, declaration, typeDefinition, implementation)
-- [ ] 04-03-PLAN.md — Editing feature handlers (completion, signatureHelp, prepareRename, renameRequest)
-- [ ] 04-04-PLAN.md — Symbols and diagnostics features (documentSymbol, workspaceSymbol, document lifecycle, validation)
-- [ ] 04-05-PLAN.md — Advanced features and server refactor (hierarchy, semantic tokens, code actions, formatting, links, code lens)
-- [ ] 04-06-PLAN.md — Health check command (HLT-01 through HLT-06)
+- [x] 04-01-PLAN.md — Core infrastructure (types.ts, document-cache.ts, bridge-manager.ts, services/index.ts)
+- [x] 04-02-PLAN.md — Navigation feature handlers (hover, definition, references, highlight, declaration, typeDefinition, implementation)
+- [x] 04-03-PLAN.md — Editing feature handlers (completion, signatureHelp, prepareRename, renameRequest)
+- [x] 04-04-PLAN.md — Symbols and diagnostics features (documentSymbol, workspaceSymbol, document lifecycle, validation)
+- [x] 04-05-PLAN.md — Advanced features and server refactor (hierarchy, semantic tokens, code actions, formatting, links, code lens)
+- [x] 04-06-PLAN.md — Health check command (HLT-01 through HLT-06)
+
+**Completed**: 2026-01-21
 
 ---
 
@@ -192,15 +194,15 @@ Each phase produces working code. Can pause at any phase without breaking the co
 | 1. Lean Observability | 3/3 | Complete ✓ | 2026-01-20 |
 | 2. Safety Net | 3/3 | Complete ✓ | 2026-01-20 |
 | 3. Bridge Extraction | 2/2 | Complete ✓ | 2026-01-20 |
-| 4. Server Grouping | 0/6 | Planned | - |
+| 4. Server Grouping | 6/6 | Complete ✓ | 2026-01-21 |
 | 5. Pike Reorganization | 0/? | Planned | - |
 
-**Project Status:** Phase 3 complete (Bridge Extraction done), ready for Phase 4
+**Project Status:** Phase 4 complete (Server Grouping done), ready for Phase 5
 
 **v2 Requirements:**
 - Total: 65
-- Complete: 34
-- Pending: 31
+- Complete: 53
+- Pending: 12
 
 ---
 *Roadmap created: 2026-01-20*

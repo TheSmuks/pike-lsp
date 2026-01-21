@@ -58,19 +58,19 @@
 
 ### Server Grouping (SRV)
 
-- [ ] **SRV-01**: Create `packages/pike-lsp-server/src/core/errors.ts` with LSPError types
-- [ ] **SRV-02**: Create `packages/pike-lsp-server/src/core/logging.ts` with Logger
-- [ ] **SRV-03**: Create `packages/pike-lsp-server/src/core/types.ts` with shared types
-- [ ] **SRV-04**: Create `packages/pike-lsp-server/src/features/navigation.ts` (hover, definition, references, highlight)
-- [ ] **SRV-05**: Create `packages/pike-lsp-server/src/features/editing.ts` (completion, rename)
-- [ ] **SRV-06**: Create `packages/pike-lsp-server/src/features/symbols.ts` (documentSymbol, workspaceSymbol)
-- [ ] **SRV-07**: Create `packages/pike-lsp-server/src/features/diagnostics.ts` (publishDiagnostics)
-- [ ] **SRV-08**: Create `packages/pike-lsp-server/src/services/bridge-manager.ts` (bridge lifecycle, health)
-- [ ] **SRV-09**: Create `packages/pike-lsp-server/src/services/document-cache.ts` (parsed document cache)
-- [ ] **SRV-10**: Refactor `server.ts` to wiring-only (~150 lines)
-- [ ] **SRV-11**: Feature files use `registerXHandlers(connection, services)` pattern
-- [ ] **SRV-12**: Each feature handler has try/catch with logger.error fallback
-- [ ] **SRV-13**: Services interface bundles bridge, logger, documentCache
+- [x] **SRV-01**: Create `packages/pike-lsp-server/src/core/errors.ts` with LSPError types
+- [x] **SRV-02**: Create `packages/pike-lsp-server/src/core/logging.ts` with Logger
+- [x] **SRV-03**: Create `packages/pike-lsp-server/src/core/types.ts` with shared types
+- [x] **SRV-04**: Create `packages/pike-lsp-server/src/features/navigation.ts` (hover, definition, references, highlight)
+- [x] **SRV-05**: Create `packages/pike-lsp-server/src/features/editing.ts` (completion, rename)
+- [x] **SRV-06**: Create `packages/pike-lsp-server/src/features/symbols.ts` (documentSymbol, workspaceSymbol)
+- [x] **SRV-07**: Create `packages/pike-lsp-server/src/features/diagnostics.ts` (publishDiagnostics)
+- [x] **SRV-08**: Create `packages/pike-lsp-server/src/services/bridge-manager.ts` (bridge lifecycle, health)
+- [x] **SRV-09**: Create `packages/pike-lsp-server/src/services/document-cache.ts` (parsed document cache)
+- [x] **SRV-10**: Refactor `server.ts` to wiring-only (~150 lines)
+- [x] **SRV-11**: Feature files use `registerXHandlers(connection, services)` pattern
+- [x] **SRV-12**: Each feature handler has try/catch with logger.error fallback
+- [x] **SRV-13**: Services interface bundles bridge, logger, documentCache
 
 ### Pike Reorganization (PIK)
 
@@ -89,12 +89,12 @@
 
 ### Health Check (HLT)
 
-- [ ] **HLT-01**: Implement `Pike LSP: Show Diagnostics` VSCode command
-- [ ] **HLT-02**: Health status shows server uptime
-- [ ] **HLT-03**: Health status shows bridge connection and Pike PID
-- [ ] **HLT-04**: Health status shows Pike version
-- [ ] **HLT-05**: Health status shows recent errors (last 5)
-- [ ] **HLT-06**: BridgeManager implements getHealth() returning HealthStatus interface
+- [x] **HLT-01**: Implement `Pike LSP: Show Diagnostics` VSCode command
+- [x] **HLT-02**: Health status shows server uptime
+- [x] **HLT-03**: Health status shows bridge connection and Pike PID
+- [x] **HLT-04**: Health status shows Pike version
+- [x] **HLT-05**: Health status shows recent errors (last 5)
+- [x] **HLT-06**: BridgeManager implements getHealth() returning HealthStatus interface
 
 ## Out of Scope
 
@@ -123,15 +123,15 @@
 | OBS-01 to OBS-10 | Phase 1 | Complete ✓ |
 | SAF-01 to SAF-11 | Phase 2 | Complete ✓ |
 | BRG-01 to BRG-13 | Phase 3 | Complete ✓ |
-| SRV-01 to SRV-13 | Phase 4 | Pending |
+| SRV-01 to SRV-13 | Phase 4 | Complete ✓ |
 | PIK-01 to PIK-12 | Phase 5 | Pending |
-| HLT-01 to HLT-06 | Phase 4 | Pending |
+| HLT-01 to HLT-06 | Phase 4 | Complete ✓ |
 
 **Coverage:**
 - v2 requirements: 65 total
 - Mapped to phases: 65
 - Unmapped: 0
-- Complete: 34 (52%)
+- Complete: 53 (82%)
 
 ---
 *Requirements defined: 2026-01-20*
