@@ -12,6 +12,8 @@
 //!
 //! Classes exported:
 //! - Introspection: Symbol extraction and introspection handlers
+//! - Resolution: Module name resolution and stdlib introspection
+//! - TypeAnalysis: Type inheritance traversal and AutoDoc parsing
 
 // Note: In Pike, when we have Intelligence.pmod/Introspection.pike with a class Introspection,
 // the path to access the class is LSP.Intelligence.Introspection.Introspection
