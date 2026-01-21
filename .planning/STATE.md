@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 5 of 5 (Pike Reorganization)
-Plan: 1 of ? complete
-Status: Phase 5 in progress - Intelligence.pmod directory structure created
-Last activity: 2026-01-21 — Completed plan 05-01 (Intelligence.pmod Directory Structure)
+Plan: 3 of ? complete
+Status: Phase 5 in progress - Analysis.pmod directory structure created
+Last activity: 2026-01-21 — Completed plan 05-03 (Analysis.pmod with Diagnostics)
 
-Progress: [████████████] 84% (19/22 v2 plans complete, Phase 5 in progress)
+Progress: [████████████] 86% (21/22 v2 plans complete, Phase 5 in progress)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
+- Total plans completed: 21
 - Average duration: 6 min
-- Total execution time: 112 min
+- Total execution time: 130 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [████████████] 84% (19/22 v2 plans complete, P
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
 | 4. Server Grouping | 6 | 6 | 6 min |
-| 5. Pike Reorganization | 4 | 1 | 7 min |
+| 5. Pike Reorganization | 4 | 3 | 7 min |
 
 *Updated after each plan completion*
 
@@ -90,6 +90,14 @@ Progress: [████████████] 84% (19/22 v2 plans complete, P
 | 05-01-D02 | Keep shared helper functions in module.pmod, classes in separate .pike files | Pike's .pmod system merges module.pmod contents directly into module namespace |
 | 05-01-D03 | Use master()->resolv() for module resolution instead of constant exports | Avoids circular dependency at compile time; runtime resolution works correctly |
 
+**Implementation Decisions (from plan 05-03):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 05-03-D01 | Use module.pmod for shared helpers in .pmod subdirectories | Pike's .pmod pattern allows module.pmod to export functions directly to the namespace |
+| 05-03-D02 | Access module.pmod functions via master()->resolv() in classes | Classes within the .pmod need a reference to module.pmod to access functions; use program module_program = master()->resolv("LSP.Analysis.module") |
+| 05-03-D03 | File and class with same name (Diagnostics.pike contains class Diagnostics) | Standard Pike pattern where file name matches primary class name; access via master()->resolv("LSP.Analysis.Diagnostics")->Diagnostics |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -127,7 +135,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 05-01 (Intelligence.pmod Directory Structure)
+Stopped at: Completed plan 05-03 (Analysis.pmod with Diagnostics)
 Resume file: None
 
 ## Previous Milestone Summary
