@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 5 of 5 (Pike Reorganization)
-Plan: 3 of ? complete
-Status: Phase 5 in progress - Analysis.pmod directory structure created
-Last activity: 2026-01-21 — Completed plan 05-03 (Analysis.pmod with Diagnostics)
+Plan: 4 of ? complete
+Status: Phase 5 in progress - Analysis.pmod complete with Completions and Variables
+Last activity: 2026-01-21 — Completed plan 05-04 (Analysis.pmod with Completions and Variables)
 
-Progress: [████████████] 86% (21/22 v2 plans complete, Phase 5 in progress)
+Progress: [████████████] 91% (22/24 v2 plans complete, Phase 5 in progress)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21
+- Total plans completed: 22
 - Average duration: 6 min
-- Total execution time: 130 min
+- Total execution time: 134 min
 
 **By Phase:**
 
@@ -31,7 +31,7 @@ Progress: [████████████] 86% (21/22 v2 plans complete, P
 | 2. Safety Net | 3 | 3 | 3 min |
 | 3. Bridge Extraction | 2 | 2 | 3 min |
 | 4. Server Grouping | 6 | 6 | 6 min |
-| 5. Pike Reorganization | 4 | 3 | 7 min |
+| 5. Pike Reorganization | 4 | 4 | 6 min |
 
 *Updated after each plan completion*
 
@@ -98,6 +98,14 @@ Progress: [████████████] 86% (21/22 v2 plans complete, P
 | 05-03-D02 | Access module.pmod functions via master()->resolv() in classes | Classes within the .pmod need a reference to module.pmod to access functions; use program module_program = master()->resolv("LSP.Analysis.module") |
 | 05-03-D03 | File and class with same name (Diagnostics.pike contains class Diagnostics) | Standard Pike pattern where file name matches primary class name; access via master()->resolv("LSP.Analysis.Diagnostics")->Diagnostics |
 
+**Implementation Decisions (from plan 05-04):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 05-04-D01 | Completions.pike contains handle_get_completion_context with token-based context analysis | Token-based analysis is more accurate than regex for determining completion context; scans backward from cursor to find access operators (->, ., ::) |
+| 05-04-D02 | Variables.pike contains handle_find_occurrences per v2 design (Occurrences not separate file) | Finding occurrences is fundamentally about tracking variable references; keeping Occurrences in Variables.pike maintains grep-ability and reduces micro-modules |
+| 05-04-D03 | Both classes use create(object ctx) constructor pattern matching Diagnostics class | Consistent pattern across all Analysis.pmod classes; context reserved for future use with LSP context |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -135,7 +143,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 05-03 (Analysis.pmod with Diagnostics)
+Stopped at: Completed plan 05-04 (Analysis.pmod with Completions and Variables)
 Resume file: None
 
 ## Previous Milestone Summary
