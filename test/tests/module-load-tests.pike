@@ -71,6 +71,8 @@ int main() {
     // Module loading tests
     run_test(test_module_loading, "Module loading");
     run_test(test_critical_exports, "Critical exports");
+    run_test(test_modular_intelligence_structure, "Modular Intelligence structure");
+    run_test(test_modular_analysis_structure, "Modular Analysis structure");
 
     write("\n");
     write("Results: %d run, %d passed, %d failed\n", tests_run, tests_passed, tests_failed);
@@ -216,12 +218,10 @@ void test_critical_exports() {
         mixed module = master()->resolv("LSP.Parser");
         if (!module) error("LSP.Parser not loaded\n");
 
-        // Check Parser class (using programp for cross-version compatibility)
-        if (!module->Parser) {
-            error("LSP.Parser.Parser not found\n");
-        }
-        if (!programp(module->Parser)) {
-            error("LSP.Parser.Parser is not a class\n");
+        // Parser.pike is a class module - the file itself is the class
+        // Check that it's a program (class)
+        if (!programp(module)) {
+            error("LSP.Parser is not a class (program)\n");
         }
     }
 
@@ -230,12 +230,17 @@ void test_critical_exports() {
         mixed module = master()->resolv("LSP.Intelligence");
         if (!module) error("LSP.Intelligence not loaded\n");
 
+        // The delegating Intelligence class is in module.pmod
+        // Access via LSP.Intelligence.module->Intelligence
+        mixed modmod = master()->resolv("LSP.Intelligence.module");
+        if (!modmod) error("LSP.Intelligence.module not found\n");
+
         // Check Intelligence class (using programp for cross-version compatibility)
-        if (!module->Intelligence) {
-            error("LSP.Intelligence.Intelligence not found\n");
+        if (!modmod->Intelligence) {
+            error("LSP.Intelligence.module.Intelligence not found\n");
         }
-        if (!programp(module->Intelligence)) {
-            error("LSP.Intelligence.Intelligence is not a class\n");
+        if (!programp(modmod->Intelligence)) {
+            error("LSP.Intelligence.module.Intelligence is not a class\n");
         }
     }
 
@@ -244,12 +249,160 @@ void test_critical_exports() {
         mixed module = master()->resolv("LSP.Analysis");
         if (!module) error("LSP.Analysis not loaded\n");
 
+        // The delegating Analysis class is in module.pmod
+        // Access via LSP.Analysis.module->Analysis
+        mixed modmod = master()->resolv("LSP.Analysis.module");
+        if (!modmod) error("LSP.Analysis.module not found\n");
+
         // Check Analysis class (using programp for cross-version compatibility)
-        if (!module->Analysis) {
-            error("LSP.Analysis.Analysis not found\n");
+        if (!modmod->Analysis) {
+            error("LSP.Analysis.module.Analysis not found\n");
         }
-        if (!programp(module->Analysis)) {
-            error("LSP.Analysis.Analysis is not a class\n");
+        if (!programp(modmod->Analysis)) {
+            error("LSP.Analysis.module.Analysis is not a class\n");
         }
+    }
+
+    // Test LSP.Intelligence.Intelligence specialized classes
+    {
+        mixed module = master()->resolv("LSP.Intelligence");
+        if (!module) error("LSP.Intelligence not loaded\n");
+
+        // Intelligence.pmod is a module directory - check it has indices
+        // (module indices are available via indices() function)
+        array idx = indices(module);
+        if (sizeof(idx) == 0) {
+            error("LSP.Intelligence module has no exports\n");
+        }
+    }
+
+    // Test LSP.Intelligence specialized classes exist via resolv
+    {
+        array(string) intelligence_classes = ({
+            "LSP.Intelligence.Introspection.Introspection",
+            "LSP.Intelligence.Resolution.Resolution",
+            "LSP.Intelligence.TypeAnalysis.TypeAnalysis",
+        });
+
+        foreach (intelligence_classes, string class_path) {
+            mixed cls = master()->resolv(class_path);
+            if (!cls) {
+                error("Class %s not found\n", class_path);
+            }
+            if (!programp(cls)) {
+                error("Class %s is not a program\n", class_path);
+            }
+        }
+    }
+
+    // Test LSP.Analysis specialized classes exist via resolv
+    {
+        array(string) analysis_classes = ({
+            "LSP.Analysis.Diagnostics.Diagnostics",
+            "LSP.Analysis.Completions.Completions",
+            "LSP.Analysis.Variables.Variables",
+        });
+
+        foreach (analysis_classes, string class_path) {
+            mixed cls = master()->resolv(class_path);
+            if (!cls) {
+                error("Class %s not found\n", class_path);
+            }
+            if (!programp(cls)) {
+                error("Class %s is not a program\n", class_path);
+            }
+        }
+    }
+}
+
+//! Test: Verify modular Intelligence structure loads correctly
+void test_modular_intelligence_structure() {
+    // Verify LSP.Intelligence module loads
+    mixed mod = master()->resolv("LSP.Intelligence");
+    if (!mod) {
+        error("LSP.Intelligence module not found\n");
+    }
+
+    // Check that the module has indices (is a valid module)
+    array idx = indices(mod);
+    if (sizeof(idx) == 0) {
+        error("LSP.Intelligence module has no exports\n");
+    }
+
+    // Verify specialized classes exist in Intelligence.pmod
+    array(string) classes = ({
+        "Introspection", "Resolution", "TypeAnalysis"
+    });
+
+    foreach (classes, string cls_name) {
+        // Access via submodule pattern: LSP.Intelligence.ClassName.ClassName
+        string full_path = "LSP.Intelligence." + cls_name + "." + cls_name;
+        mixed cls = master()->resolv(full_path);
+        if (!cls) {
+            error("LSP.Intelligence.%s not found at path %s\n", cls_name, full_path);
+        }
+        if (!programp(cls)) {
+            error("LSP.Intelligence.%s is not a class\n", cls_name);
+        }
+    }
+
+    // Verify backward-compatible delegating Intelligence class exists
+    // The class is in module.pmod, so access via module submodule
+    mixed modmod = master()->resolv("LSP.Intelligence.module");
+    if (!modmod) {
+        error("LSP.Intelligence.module not found\n");
+    }
+    mixed delegating = modmod->Intelligence;
+    if (!delegating) {
+        error("LSP.Intelligence.module.Intelligence delegating class not found\n");
+    }
+    if (!programp(delegating)) {
+        error("LSP.Intelligence.module.Intelligence is not a class\n");
+    }
+}
+
+//! Test: Verify modular Analysis structure loads correctly
+void test_modular_analysis_structure() {
+    // Verify LSP.Analysis module loads
+    mixed mod = master()->resolv("LSP.Analysis");
+    if (!mod) {
+        error("LSP.Analysis module not found\n");
+    }
+
+    // Check that the module has indices (is a valid module)
+    array idx = indices(mod);
+    if (sizeof(idx) == 0) {
+        error("LSP.Analysis module has no exports\n");
+    }
+
+    // Verify specialized classes exist in Analysis.pmod
+    array(string) classes = ({
+        "Diagnostics", "Completions", "Variables"
+    });
+
+    foreach (classes, string cls_name) {
+        // Access via submodule pattern: LSP.Analysis.ClassName.ClassName
+        string full_path = "LSP.Analysis." + cls_name + "." + cls_name;
+        mixed cls = master()->resolv(full_path);
+        if (!cls) {
+            error("LSP.Analysis.%s not found at path %s\n", cls_name, full_path);
+        }
+        if (!programp(cls)) {
+            error("LSP.Analysis.%s is not a class\n", cls_name);
+        }
+    }
+
+    // Verify backward-compatible delegating Analysis class exists
+    // The class is in module.pmod, so access via module submodule
+    mixed modmod = master()->resolv("LSP.Analysis.module");
+    if (!modmod) {
+        error("LSP.Analysis.module not found\n");
+    }
+    mixed delegating = modmod->Analysis;
+    if (!delegating) {
+        error("LSP.Analysis.module.Analysis delegating class not found\n");
+    }
+    if (!programp(delegating)) {
+        error("LSP.Analysis.module.Analysis is not a class\n");
     }
 }
