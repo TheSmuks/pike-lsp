@@ -1,0 +1,30 @@
+{
+  "name": "@pike-lsp/core",
+  "version": "1.0.0",
+  "description": "Shared utilities for Pike LSP packages",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "pike",
+    "lsp",
+    "utilities"
+  ],
+  "author": "",
+  "license": "MIT"
+}
