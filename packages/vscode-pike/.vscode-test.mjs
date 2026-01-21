@@ -4,17 +4,18 @@ import { defineConfig } from '@vscode/test-cli';
 const buildLaunchArgs = () => {
   const args = [
     '--disable-gpu',
-    '--disable-software-rasterizer',
     '--disable-dev-shm-usage',
     '--no-sandbox'
   ];
 
   // If running under Wayland, add Wayland-specific flags
   if (process.env.WAYLAND_DISPLAY) {
-    args.push(
-      '--enable-features=UseOzonePlatform',
-      '--ozone-platform=wayland'
-    );
+     // Electron/Chromium auto-detects Wayland in newer versions,
+     // or these flags might be causing warnings if passed incorrectly.
+     // Removing explicit enable-features to reduce warnings as requested.
+     // args.push(
+     //   '--ozone-platform=wayland'
+     // );
   }
 
   return args;
