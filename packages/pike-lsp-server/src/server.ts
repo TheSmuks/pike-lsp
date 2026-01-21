@@ -29,7 +29,7 @@ import { StdlibIndexManager } from './stdlib-index.js';
 import { PatternHelpers } from './utils/regex-patterns.js';
 import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
-import { Logger } from './core/logging.js';
+import { Logger } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
 import * as features from './features/index.js';
 

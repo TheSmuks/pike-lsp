@@ -14,7 +14,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
-import { Logger } from '../core/logging.js';
+import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
 
 /**

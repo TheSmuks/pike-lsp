@@ -37,7 +37,7 @@ import * as fsSync from 'fs';
 import type { Services } from '../services/index.js';
 import { INDENT_PATTERNS, PatternHelpers } from '../utils/regex-patterns.js';
 import { buildCodeLensCommand } from '../utils/code-lens.js';
-import { Logger } from '../core/logging.js';
+import { Logger } from '@pike-lsp/core';
 import type { PikeSettings } from '../core/types.js';
 import type { DocumentCache } from '../services/document-cache.js';
 

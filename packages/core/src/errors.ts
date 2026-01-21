@@ -117,3 +117,33 @@ export class PikeError extends LSPError {
     this.name = 'PikeError';
   }
 }
+
+/**
+ * Error that occurs in the bridge layer.
+ *
+ * Bridge errors typically involve:
+ * - Communication timeouts with the Pike subprocess
+ * - JSON parsing/serialization failures
+ * - stdin/stdout communication issues
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await this.bridge.sendMessage(message);
+ * } catch (cause) {
+ *   throw new BridgeError('bridge timeout waiting for pike response', cause);
+ * }
+ * ```
+ */
+export class BridgeError extends LSPError {
+  /**
+   * Create a new BridgeError.
+   *
+   * @param message - Human-readable error message
+   * @param cause - The underlying error that caused this error
+   */
+  constructor(message: string, cause?: Error) {
+    super(message, 'bridge', cause);
+    this.name = 'BridgeError';
+  }
+}

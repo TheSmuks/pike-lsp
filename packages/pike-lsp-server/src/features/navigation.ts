@@ -30,7 +30,7 @@ import type {
     PikeSymbol,
     PikeFunctionType,
 } from '@pike-lsp/pike-bridge';
-import { Logger } from '../core/logging.js';
+import { Logger } from '@pike-lsp/core';
 
 /**
  * Register all navigation handlers with the LSP connection.

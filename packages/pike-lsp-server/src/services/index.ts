@@ -5,7 +5,7 @@
  * will receive for accessing all server dependencies.
  */
 
-import type { Logger } from '../core/logging.js';
+import type { Logger } from '@pike-lsp/core';
 import type { DocumentCache } from './document-cache.js';
 import type { BridgeManager } from './bridge-manager.js';
 import type { TypeDatabase } from '../type-database.js';

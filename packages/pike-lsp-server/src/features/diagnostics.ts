@@ -19,7 +19,7 @@ import type { Services } from '../services/index.js';
 import type { PikeSettings } from '../core/types.js';
 import { PatternHelpers } from '../utils/regex-patterns.js';
 import { TypeDatabase, CompiledProgramInfo } from '../type-database.js';
-import { Logger } from '../core/logging.js';
+import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/index.js';
 
 /**

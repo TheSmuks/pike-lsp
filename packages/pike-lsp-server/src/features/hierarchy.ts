@@ -23,7 +23,7 @@ import * as fs from 'fs';
 import type { Services } from '../services/index.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { PatternHelpers } from '../utils/regex-patterns.js';
-import { Logger } from '../core/logging.js';
+import { Logger } from '@pike-lsp/core';
 
 /**
  * Register all hierarchy handlers with the LSP connection.

@@ -7,7 +7,7 @@
  */
 
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
-import type { Logger } from '../core/logging.js';
+import type { Logger } from '@pike-lsp/core';
 
 /**
  * Health status of the bridge and server.
