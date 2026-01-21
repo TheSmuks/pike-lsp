@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-20)
 ## Current Position
 
 Phase: 8 of 9 (Tech Debt Cleanup)
-Plan: Not started
-Status: Phase 7 Complete - Ready to begin Phase 8
-Last activity: 2026-01-21 — Phase 07 completed with verification passed
+Plan: 08-01 (Complete)
+Status: Executing Phase 8 - Core Utility Extraction
+Last activity: 2026-01-21 — Created @pike-lsp/core shared package
 
-Progress: [████████████░░] 100% (28/28 v2 plans complete in phases 1-7, 3 plans remaining in phases 8-9)
+Progress: [████████████░] 93% (29/31 v2 plans complete, 2 plans remaining in phases 8-9)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
+- Total plans completed: 29
 - Average duration: 7 min
-- Total execution time: 199 min
+- Total execution time: 201 min
 
 **By Phase:**
 
@@ -34,6 +34,7 @@ Progress: [████████████░░] 100% (28/28 v2 plans comp
 | 5. Pike Reorganization | 6 | 6 | 6 min |
 | 6. Automated LSP Feature Verification | 2 | 2 | 5 min |
 | 7. Gap Closure | 1 | 1 | 45 min |
+| 8. Tech Debt Cleanup | 1 | 1 | 2 min |
 
 *Updated after each plan completion*
 
@@ -158,6 +159,13 @@ Progress: [████████████░░] 100% (28/28 v2 plans comp
 | 07-01-D02 | Made Services.bridge nullable with dynamic access | Bridge initializes after handler registration. Destructuring captures null reference. Access dynamically in handlers. |
 | 07-01-D03 | Used negative cache for bootstrap modules | Prevents future attempts to introspect modules known to crash Pike subprocess |
 
+**Implementation Decisions (from plan 08-01):**
+
+| ID | Decision | Rationale |
+|----|----------|-----------|
+| 08-01-D01 | Use .js extensions in barrel exports for ESM compatibility | TypeScript requires explicit extensions for ES modules |
+| 08-01-D02 | dist/ directory gitignored in @pike-lsp/core | Build artifacts are generated, not source code |
+
 **Design Decisions (from v2 design document):**
 
 | ID | Decision | Rationale |
@@ -205,7 +213,9 @@ None yet.
 **See:** `.planning/phases/07-fix-document-lifecycle-handler-duplication/07-01-SUMMARY.md` for details
 
 **TODOs from previous phases:**
-- TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication
+- ~~TODO: Consider extracting errors.ts and logging.ts to shared @pike-lsp/core package to eliminate duplication~~ (COMPLETED in 08-01)
+- TODO: Update pike-bridge to import from @pike-lsp/core (plan 08-02)
+- TODO: Update pike-lsp-server to import from @pike-lsp/core (plan 08-03)
 - TODO: Consider moving helper functions (flattenSymbols, buildSymbolPositionIndex) to utility modules
 - TODO: Pike version detection in BridgeManager.getHealth() - returns null for now (documented limitation)
 - TODO: Investigate alternative approach for safe stdlib preloading (07-01-D01) - bootstrap modules crash Pike when introspected
@@ -213,8 +223,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-21
-Stopped at: Completed plan 07-01 - fixed bridge initialization timing and stdlib preloading
-Resume file: None - plan complete, proceed to plan 07-02 or execute remaining phase 7 plans
+Stopped at: Completed plan 08-01 - created @pike-lsp/core shared package
+Resume file: None - proceed to plan 08-02 to update pike-bridge imports
 
 ## Previous Milestone Summary
 
