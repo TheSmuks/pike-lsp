@@ -23,7 +23,7 @@ case "$(uname -s)" in
             # CI: Pure headless mode - no display server needed
             # VSCode Electron can run with GPU fully disabled
             echo "Running tests in CI headless mode..."
-            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-software-rasterizer --disable-dev-shm-usage --no-sandbox --single-process"
+            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox --single-process"
             npx vscode-test "$@"
         else
             # Local development: Try Weston first, then Xvfb
