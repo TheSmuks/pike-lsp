@@ -9,7 +9,25 @@ Previous agents broke the LSP by:
 2. Not checking Pike bridge communication works
 3. Not looking at debug/error output from Pike subprocess
 
-### Verification Checklist
+### Automated Verification (Run These First)
+
+**VSCode E2E Feature Tests** (REQUIRED):
+```bash
+# Tests LSP features end-to-end: symbols, hover, definition, completion
+cd packages/vscode-pike && pnpm run test:features
+```
+
+These tests verify:
+- Document symbols populate outline (not null)
+- Hover shows type information (not empty)
+- Go-to-definition navigates (not null)
+- Completion returns suggestions (not empty)
+
+**If E2E tests pass, LSP features work.** If they fail, debug before committing.
+
+**Note:** Pre-push hook runs these automatically, but run manually for faster feedback.
+
+### Manual Verification (Additional Checks)
 
 Before ANY commit affecting pike-scripts/ or packages/:
 
