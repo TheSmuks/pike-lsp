@@ -745,11 +745,17 @@ function buildHoverContent(symbol: PikeSymbol): string | null {
             parts.push('');
         }
 
-        // See also references
+        // See also references (with Pike docs links for stdlib)
         if (doc.seealso && doc.seealso.length > 0) {
             const refs = doc.seealso.map(s => {
-                if (s.startsWith('`')) return s;
-                return `\`${s}\``;
+                // Clean up the reference (remove backticks if present)
+                const cleaned = s.replace(/`/g, '').trim();
+                // Convert Pike path separators to URL format
+                // e.g., "Stdio.FILE" -> "Stdio/FILE"
+                const urlPath = cleaned.replace(/\./g, '/').replace(/->/g, '/');
+                // Create a link to Pike documentation
+                const docsUrl = `https://pike.lysator.liu.se/generated/manual/modref/ex/${urlPath}.html`;
+                return `[\`${cleaned}\`](${docsUrl})`;
             }).join(', ');
             parts.push(`**See also:** ${refs}`);
         }
