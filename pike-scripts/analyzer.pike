@@ -129,6 +129,27 @@ protected mapping(string:mixed) handle_request(mapping(string:mixed) request, Co
 mapping startup_phases = ([]);
 object startup_timer = System.Timer();
 
+// PERF-012: Lazy Context creation - Context will be created on first request
+Context ctx = 0;
+int ctx_initialized = 0;
+
+//! get_context - Lazy initialization of Context service container
+//! Creates Context only on first request, deferring Parser/Intelligence/Analysis
+//! module loading until needed for startup optimization
+Context get_context() {
+    if (!ctx_initialized) {
+        object timer = System.Timer();
+        ctx = Context();
+        ctx_initialized = 1;
+        // Record timing if startup_phases exists
+        if (startup_phases) {
+            startup_phases->context_lazy = timer->peek() * 1000.0;
+            startup_phases->total_with_first_request = startup_timer->peek() * 1000.0;
+        }
+    }
+    return ctx;
+}
+
 int main(int argc, array(string) argv) {
     // Add module path for LSP.pmod access
     // Use __FILE__ to get the directory containing this script, so it works
@@ -140,9 +161,8 @@ int main(int argc, array(string) argv) {
     startup_phases->path_setup = startup_timer->peek() * 1000.0;
 
     // Log Pike version for debugging
-    array(int) version = master()->resolv("LSP.Compat")->pike_version();
-    werror("Pike LSP Analyzer running on Pike %d.%d.%d\n",
-           version[0], version[1], version[2]);
+    // PERF-012: Use __REAL_VERSION__ directly instead of loading LSP.Compat module (~10-30ms saved)
+    werror("Pike LSP Analyzer running on Pike %s\n", __REAL_VERSION__);
 
     // PERF-011: Record version phase time
     startup_phases->version = startup_timer->peek() * 1000.0;
@@ -205,9 +225,13 @@ int main(int argc, array(string) argv) {
             ]);
         },
         "get_startup_metrics": lambda(mapping params, object ctx) {
+            // PERF-012: Include context_created flag to indicate lazy state
+            mapping result = startup_phases + ([
+                "context_created": ctx_initialized
+            ]);
             return ([
                 "result": ([
-                    "startup": startup_phases
+                    "startup": result
                 ])
             ]);
         },
@@ -216,13 +240,10 @@ int main(int argc, array(string) argv) {
     // PERF-011: Record handlers phase time
     startup_phases->handlers = startup_timer->peek() * 1000.0;
 
-    // Create Context instance (service container with all modules)
-    Context ctx = Context();
+    // PERF-012: Server is ready to accept requests (Context not created yet)
+    startup_phases->ready = startup_timer->peek() * 1000.0;
 
-    // PERF-011: Record context phase time
-    startup_phases->context = startup_timer->peek() * 1000.0;
-
-    // PERF-011: Record total startup time
+    // PERF-011: Record total startup time (excludes Context which is lazy)
     startup_phases->total = startup_timer->peek() * 1000.0;
 
     // Interactive JSON-RPC mode: read requests from stdin, write responses to stdout
@@ -233,7 +254,9 @@ int main(int argc, array(string) argv) {
 
         mixed err = catch {
             mapping request = Standards.JSON.decode(line);
-            mapping response = handle_request(request, ctx);
+            // PERF-012: Lazy Context initialization on first request
+            Context current_ctx = get_context();
+            mapping response = handle_request(request, current_ctx);
             response->jsonrpc = "2.0";
             response->id = request->id;
             write("%s\n", Standards.JSON.encode(response));
