@@ -147,45 +147,54 @@ export function registerSymbolsHandlers(
         log.debug('Workspace symbol request', { query });
 
         try {
-            // Search the workspace index
-            const results = workspaceIndex.searchSymbols(query, LSP.MAX_WORKSPACE_SYMBOLS);
+            const allSymbols: SymbolInformation[] = [];
+            const queryLower = query?.toLowerCase() ?? '';
 
-            // If workspace index is empty, search open documents
-            if (results.length === 0) {
-                const allSymbols: SymbolInformation[] = [];
-                const queryLower = query?.toLowerCase() ?? '';
+            // Search the workspace index first
+            const indexedResults = workspaceIndex.searchSymbols(query, LSP.MAX_WORKSPACE_SYMBOLS);
+            allSymbols.push(...indexedResults);
 
-                // Use Array.from to iterate over the Map
-                for (const [uri, cached] of Array.from(documentCache.entries())) {
-                    for (const symbol of cached.symbols) {
-                        // Skip symbols with null names
-                        if (!symbol.name) continue;
+            // Also search open documents (documentCache) to include files that
+            // may not be in the workspace index yet
+            for (const [uri, cached] of Array.from(documentCache.entries())) {
+                // Skip URIs already in results to avoid duplicates
+                const alreadyIncluded = allSymbols.some(s => s.location.uri === uri);
 
-                        if (!query || symbol.name.toLowerCase().includes(queryLower)) {
-                            const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
-                            allSymbols.push({
-                                name: symbol.name,
-                                kind: convertSymbolKind(symbol.kind),
-                                location: {
-                                    uri,
-                                    range: {
-                                        start: { line, character: 0 },
-                                        end: { line, character: symbol.name.length },
-                                    },
+                for (const symbol of cached.symbols) {
+                    // Skip symbols with null names
+                    if (!symbol.name) continue;
+
+                    // Skip if we already have symbols from this URI via workspace index
+                    if (alreadyIncluded) continue;
+
+                    if (!query || symbol.name.toLowerCase().includes(queryLower)) {
+                        const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+                        allSymbols.push({
+                            name: symbol.name,
+                            kind: convertSymbolKind(symbol.kind),
+                            location: {
+                                uri,
+                                range: {
+                                    start: { line, character: 0 },
+                                    end: { line, character: symbol.name.length },
                                 },
-                            });
+                            },
+                        });
 
-                            if (allSymbols.length >= LSP.MAX_WORKSPACE_SYMBOLS) {
-                                return allSymbols;
-                            }
+                        if (allSymbols.length >= LSP.MAX_WORKSPACE_SYMBOLS) {
+                            log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
+                            return allSymbols;
                         }
                     }
                 }
-
-                return allSymbols;
             }
 
-            return results;
+            log.debug('Workspace symbol search complete', {
+                query,
+                indexedCount: indexedResults.length,
+                totalCount: allSymbols.length
+            });
+            return allSymbols;
         } catch (err) {
             log.error('Workspace symbol failed', {
                 error: err instanceof Error ? err.message : String(err)
