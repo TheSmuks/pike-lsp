@@ -35,7 +35,7 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Pike Instrumentation & Mitata Setup
+- [x] 10-01-PLAN.md — Pike Instrumentation & Mitata Setup (Completed 2026-01-22)
 - [ ] 10-02-PLAN.md — LSP Core Benchmarks & Fixtures
 - [ ] 10-03-PLAN.md — CI Regression Tracking
 - [ ] 10-01: TBD
