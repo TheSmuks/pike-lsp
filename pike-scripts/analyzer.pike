@@ -133,6 +133,10 @@ object startup_timer = System.Timer();
 Context ctx = 0;
 int ctx_initialized = 0;
 
+// PERF-012: Track first LSP.Compat load for timing analysis
+int compat_loaded = 0;
+float compat_load_time = 0.0;
+
 //! get_context - Lazy initialization of Context service container
 //! Creates Context only on first request, deferring Parser/Intelligence/Analysis
 //! module loading until needed for startup optimization
@@ -213,7 +217,16 @@ int main(int argc, array(string) argv) {
             ]);
         },
         "get_version": lambda(mapping params, object ctx) {
+            // PERF-012: Track first LSP.Compat load timing
+            object timer = System.Timer();
             array(int) ver = master()->resolv("LSP.Compat")->pike_version();
+            if (!compat_loaded) {
+                compat_loaded = 1;
+                compat_load_time = timer->peek() * 1000.0;
+                if (startup_phases) {
+                    startup_phases->first_compat_load = compat_load_time;
+                }
+            }
             return ([
                 "result": ([
                     "version": sprintf("%d.%d.%d", ver[0], ver[1], ver[2]),
