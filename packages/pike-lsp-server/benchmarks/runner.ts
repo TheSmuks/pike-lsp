@@ -1,4 +1,4 @@
-import { run, bench, group, summary } from 'mitata';
+import { run, bench, group } from 'mitata';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -96,8 +96,7 @@ async function runBenchmarks() {
   });
 
   const results = await run({
-    json: !!process.env.MITATA_JSON,
-    silent: !!process.env.MITATA_JSON,
+    format: process.env.MITATA_JSON ? 'json' : undefined,
     colors: !process.env.MITATA_JSON,
   });
 
