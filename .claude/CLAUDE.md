@@ -1,88 +1,99 @@
 # Pike LSP Project Guidelines
 
+## MANDATORY: Use Pike's Built-in Tooling First
+
+**Pike stdlib is the highest priority.** Before implementing any parsing, analysis, or utility code:
+
+1. **Search Pike's source code first** at `/usr/local/pike/8.0.1116/lib/`
+2. Check modules like `Parser.Pike`, `Tools.AutoDoc`, `Stdio`, `String`, etc.
+3. Only implement from scratch if Pike has no existing solution
+
+**Do NOT:**
+- Use regex to parse Pike code when `Parser.Pike.split()` / `Parser.Pike.tokenize()` exist
+- Reinvent string utilities when `String.*` or `Stdio.*` have them
+- Guess at Pike behavior - read the actual Pike source
+
+**Examples of Pike stdlib to use:**
+- `Parser.Pike.split(code)` + `Parser.Pike.tokenize()` for tokenization
+- `Tools.AutoDoc.DocParser` for parsing `//!` documentation
+- `String.trim_all_whites()` for whitespace handling (not `String.trim()` - unavailable in 8.0)
+- `master()->resolv()` for module resolution
+
+When in doubt, explore Pike's lib directory before writing new code.
+
+## MANDATORY: Release on Push
+
+When pushing to main, **create a release tag** if the version has changed:
+
+```bash
+# 1. Update version in package.json files (root + packages/vscode-pike)
+# 2. Commit version bump
+# 3. Tag and push
+git tag v$(node -p "require('./packages/vscode-pike/package.json').version")
+git push && git push --tags
+```
+
+This triggers the GitHub Actions release workflow (`.github/workflows/release.yml`) which:
+- Builds and tests the project
+- Creates a GitHub Release with VSIX artifact
+- The pre-push hook validates everything first
+
+**Do NOT push without tagging** if you've made releasable changes.
+
+## MANDATORY: Headless Testing by Default
+
+**All local tests MUST run headless.** Never rely on your display session.
+
+```bash
+# Default test command - runs headless automatically
+cd packages/vscode-pike && pnpm test:features
+
+# Explicit headless (same behavior, just explicit)
+cd packages/vscode-pike && pnpm test:headless
+```
+
+The test script auto-selects: Xvfb (Linux) → Weston fallback → native (macOS/Windows).
+
+**Only use `USE_CURRENT_DISPLAY=1`** for debugging test failures interactively:
+```bash
+USE_CURRENT_DISPLAY=1 pnpm test:features  # Uses your display - for debugging only
+```
+
 ## MANDATORY: E2E Verification Before Commits
 
 **DO NOT commit changes without verifying LSP functionality works end-to-end.**
 
-Previous agents broke the LSP by:
-1. Not testing with the actual VSCode extension
-2. Not checking Pike bridge communication works
-3. Not looking at debug/error output from Pike subprocess
+### Quick Validation (Run This)
 
-### Automated Verification (Run These First)
-
-**VSCode E2E Feature Tests** (REQUIRED):
 ```bash
-# Tests LSP features end-to-end: symbols, hover, definition, completion
-cd packages/vscode-pike && pnpm run test:features
+# Single command - validates everything headlessly
+cd packages/vscode-pike && pnpm test:features
 ```
 
-These tests verify:
-- Document symbols populate outline (not null)
-- Hover shows type information (not empty)
-- Go-to-definition navigates (not null)
-- Completion returns suggestions (not empty)
+Tests verify: document symbols, hover, go-to-definition, completion all return data.
 
-**If E2E tests pass, LSP features work.** If they fail, debug before committing.
+**Pre-push hook runs these automatically**, but run manually for faster feedback.
 
-**Note:** Pre-push hook runs these automatically, but run manually for faster feedback.
-
-### Manual Verification (Additional Checks)
-
-Before ANY commit affecting pike-scripts/ or packages/:
+### Additional Checks
 
 1. **Pike compiles**: `pike -e 'compile_file("pike-scripts/analyzer.pike");'`
 
-2. **Bridge works**: Test that PikeBridge can call methods and get responses
+2. **Bridge works**: `cd packages/pike-bridge && pnpm test`
+
+3. **Quick smoke test**:
    ```bash
-   cd packages/pike-bridge && pnpm test
+   echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","filename":"test.pike"}}' \
+     | timeout 5 pike pike-scripts/analyzer.pike 2>&1
    ```
 
-3. **LSP features work**: Document symbols, hover, go-to-definition return data (not null)
-   - Open a .pike file in VSCode with the extension
-   - Verify hover shows type info
-   - Verify Outline view shows symbols
+### Debugging E2E Failures
 
-4. **Check stderr for errors**: Pike errors go to stderr, watch for them
-
-### Quick Smoke Test
-
-```bash
-# This MUST return JSON with symbols, not timeout or error
-echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","filename":"test.pike"}}' \
-  | timeout 5 pike pike-scripts/analyzer.pike 2>&1
-```
-
-### Debugging E2E Test Failures
-
-**Symptom:** "Should return symbols (not null)" fails
-**Cause:** Document symbols not returned by LSP
-**Debug:**
-1. Check Pike analyzer compiles: `pike -e 'compile_file("pike-scripts/analyzer.pike");'`
-2. Check Bridge works: `cd packages/pike-bridge && pnpm test`
-3. Check LSP server logs: Look for "Error" in extension output
-4. Manual test: Open .pike file in VSCode, check Outline view
-
-**Symptom:** Test times out
-**Cause:** LSP server not starting
-**Debug:**
-1. Check extension activates: VSCode "Output" -> "Pike Language Server"
-2. Increase timeout in test (current: 30-60s)
-3. Check Pike process: `ps aux | grep pike`
-
-**Symptom:** "Should return hover info" fails
-**Cause:** Hover handler returning null/empty
-**Debug:**
-1. Verify Pike analysis returns type information
-2. Check LSP server hover handler for errors
-3. Test with simple code: `int x;` hover on `int`
-
-**Symptom:** "Should go to definition" fails
-**Cause:** Definition handler not resolving symbols
-**Debug:**
-1. Check symbol is indexed (run document symbols first)
-2. Verify Pike returns location with line/column
-3. Test with local function: `void foo() {}` then F12 on `foo`
+| Symptom | Cause | Debug |
+|---------|-------|-------|
+| "symbols (not null)" fails | Document symbols not returned | Check Pike compiles, Bridge works, Outline view |
+| Test times out | LSP server not starting | Check extension activates, increase timeout |
+| "hover info" fails | Hover handler returning null | Check Pike analysis returns type info |
+| "go to definition" fails | Definition handler broken | Check symbol is indexed first |
 
 ## Architecture Overview
 

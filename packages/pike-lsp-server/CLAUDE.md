@@ -7,5 +7,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #3225 | 4:15 PM | 🔵 | Pike LSP server package configuration with workspace dependencies | ~261 |
+| #3242 | 4:15 PM | 🔵 | LSP server package uses Node.js native test runner | ~316 |
+| #3225 | " | 🔵 | Pike LSP server package configuration with workspace dependencies | ~261 |
+| #3202 | 4:14 PM | 🔵 | Comprehensive documentation mapping reveals CLAUDE.md files throughout project | ~301 |
+| #3198 | " | 🔵 | JSON configuration files mapped across project structure | ~243 |
 </claude-mem-context>
