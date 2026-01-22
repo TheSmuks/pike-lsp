@@ -355,69 +355,54 @@ export function registerNavigationHandlers(
                 return [];
             }
 
+            // Check if this word matches a known symbol
+            const matchingSymbol = cached.symbols.find(s => s.name === word);
+            if (!matchingSymbol) {
+                // Not a known symbol, return empty
+                log.debug('References: word not a known symbol', { word });
+                return [];
+            }
+
             const references: Location[] = [];
 
-            // Search for all occurrences of the word in the current document
-            const lines = text.split('\n');
-            for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                const line = lines[lineNum];
-                if (!line) continue;
-                let searchStart = 0;
-                let matchIndex: number;
-
-                // Find all occurrences on this line
-                while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
-                    // Check that it's a word boundary (not part of a larger identifier)
-                    const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                    const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                    if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+            // Use symbolPositions index if available (pre-computed positions)
+            if (cached.symbolPositions) {
+                const positions = cached.symbolPositions.get(word);
+                if (positions) {
+                    for (const pos of positions) {
                         references.push({
                             uri,
                             range: {
-                                start: { line: lineNum, character: matchIndex },
-                                end: { line: lineNum, character: matchIndex + word.length },
+                                start: pos,
+                                end: { line: pos.line, character: pos.character + word.length },
                             },
                         });
                     }
-                    searchStart = matchIndex + 1;
                 }
             }
 
-            // Also search in other open documents (for cross-file references)
-            for (const [otherUri] of Array.from(documentCache.entries())) {
+            // Search in other open documents
+            for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
                 if (otherUri === uri) continue;
 
-                const otherDoc = documents.get(otherUri);
-                if (!otherDoc) continue;
-
-                const otherText = otherDoc.getText();
-                const otherLines = otherText.split('\n');
-
-                for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
-                    const line = otherLines[lineNum];
-                    if (!line) continue;
-                    let searchStart = 0;
-                    let matchIndex: number;
-
-                    while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
-                        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                        const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                // Use symbolPositions if available
+                if (otherCached.symbolPositions) {
+                    const positions = otherCached.symbolPositions.get(word);
+                    if (positions) {
+                        for (const pos of positions) {
                             references.push({
                                 uri: otherUri,
                                 range: {
-                                    start: { line: lineNum, character: matchIndex },
-                                    end: { line: lineNum, character: matchIndex + word.length },
+                                    start: pos,
+                                    end: { line: pos.line, character: pos.character + word.length },
                                 },
                             });
                         }
-                        searchStart = matchIndex + 1;
                     }
                 }
             }
 
+            log.debug('References found', { word, count: references.length });
             return references;
         } catch (err) {
             log.error('References failed', { error: err instanceof Error ? err.message : String(err) });
@@ -425,6 +410,9 @@ export function registerNavigationHandlers(
         }
     });
 
+    /**
+     * Document highlight handler - highlight all occurrences of the symbol at cursor
+     */
     /**
      * Document highlight handler - highlight all occurrences of the symbol at cursor
      */
