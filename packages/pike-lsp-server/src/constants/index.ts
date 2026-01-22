@@ -54,9 +54,9 @@ export const TYPE_DB_MAX_MEMORY_BYTES = 50 * 1024 * 1024; // 50MB
 export const DEFAULT_MAX_PROBLEMS = 100;
 
 /**
- * Default diagnostic delay (ms) - note: lower than VALIDATION_DELAY_DEFAULT
+ * Default diagnostic delay (ms) - debounce validation to avoid triggering on every keystroke
  */
-export const DIAGNOSTIC_DELAY_DEFAULT = 200;
+export const DIAGNOSTIC_DELAY_DEFAULT = 500;
 
 /**
  * LSP-related limits
