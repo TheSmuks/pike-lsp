@@ -468,10 +468,14 @@ export interface PikeResponse {
     /** Request ID this responds to */
     id: number;
     /** Result on success */
-    result?: unknown;
+    result?: any;
     /** Error on failure */
     error?: {
         code: number;
         message: string;
+    };
+    /** Performance metadata (internal timing) */
+    _perf?: {
+        pike_total_ms: number;
     };
 }

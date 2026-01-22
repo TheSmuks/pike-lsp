@@ -328,7 +328,11 @@ export class PikeBridge extends EventEmitter {
                     );
                     pending.reject(error);
                 } else {
-                    pending.resolve(response.result);
+                    const result = response.result;
+                    if (typeof result === 'object' && result !== null && (response as any)._perf) {
+                        (result as any)._perf = (response as any)._perf;
+                    }
+                    pending.resolve(result);
                 }
             }
         } catch {
