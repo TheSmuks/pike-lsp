@@ -12,7 +12,7 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
 
 ## Phases
 
-- [ ] **Phase 10: Benchmarking Infrastructure** - Establish baseline metrics before optimization
+- [x] **Phase 10: Benchmarking Infrastructure** - Establish baseline metrics before optimization
 - [ ] **Phase 11: Startup Optimization** - Reduce Pike subprocess startup time
 - [ ] **Phase 12: Request Consolidation** - Combine multiple Pike calls into one
 - [ ] **Phase 13: Pike-Side Compilation Caching** - Cache compiled programs in Pike subprocess
@@ -36,9 +36,8 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
 
 Plans:
 - [x] 10-01-PLAN.md — Pike Instrumentation & Mitata Setup (Completed 2026-01-22)
-- [ ] 10-02-PLAN.md — LSP Core Benchmarks & Fixtures
-- [ ] 10-03-PLAN.md — CI Regression Tracking
-- [ ] 10-01: TBD
+- [x] 10-02-PLAN.md — LSP Core Benchmarks & Fixtures (Completed 2026-01-22)
+- [x] 10-03-PLAN.md — CI Regression Tracking (Completed 2026-01-22)
 
 ### Phase 11: Startup Optimization
 **Goal**: Reduce Pike subprocess startup time to under 500ms
@@ -48,10 +47,14 @@ Plans:
   1. Pike subprocess starts in under 500ms (measured by benchmark)
   2. Module instantiation only occurs when needed (lazy loading verified)
   3. Module path setup happens exactly once per session
-**Plans**: TBD
+**Plans**: 5 plans in 3 waves
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — Startup Timing Instrumentation (Wave 1)
+- [ ] 11-02-PLAN.md — Lazy Context Creation (Wave 2)
+- [ ] 11-03-PLAN.md — Remove LSP.Compat Startup Load (Wave 2)
+- [ ] 11-04-PLAN.md — Async Version Fetch (Wave 2)
+- [ ] 11-05-PLAN.md — Benchmark Verification (Wave 3)
 
 ### Phase 12: Request Consolidation
 **Goal**: Reduce Pike IPC calls from 3+ per validation to 1
@@ -143,7 +146,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 10. Benchmarking Infrastructure | 3/3 | Complete | 2026-01-22 |
-| 11. Startup Optimization | 0/TBD | Not started | - |
+| 11. Startup Optimization | 0/5 | Ready to execute | - |
 | 12. Request Consolidation | 0/TBD | Not started | - |
 | 13. Pike-Side Compilation Caching | 0/TBD | Not started | - |
 | 14. TypeScript-Side Caching | 0/TBD | Not started | - |
