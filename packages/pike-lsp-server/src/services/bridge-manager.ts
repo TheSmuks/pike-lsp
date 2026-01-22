@@ -32,6 +32,8 @@ export interface HealthStatus {
     pikeVersion: PikeVersionInfoWithPath | null;
     /** Recent error messages from stderr */
     recentErrors: string[];
+    /** PERF-011: Startup timing metrics in milliseconds */
+    startupMetrics?: { [key: string]: number } | null;
 }
 
 /**
@@ -45,6 +47,10 @@ export class BridgeManager {
     private errorLog: string[] = [];
     private readonly MAX_ERRORS = 5;
     private cachedVersion: PikeVersionInfoWithPath | null = null;
+    /** PERF-011: Bridge startup timing tracking */
+    private bridgeStartTime: number | null = null;
+    /** PERF-011: Startup metrics for health reporting */
+    private startupMetrics: { [key: string]: number } | null = null;
 
     constructor(
         public readonly bridge: PikeBridge | null,
@@ -71,15 +77,31 @@ export class BridgeManager {
 
     /**
      * Start the bridge subprocess and cache version information.
+     * PERF-011: Tracks startup timing for performance monitoring.
      */
     async start(): Promise<void> {
         if (!this.bridge) return;
 
+        // PERF-011: Record start time before bridge.start()
+        this.bridgeStartTime = performance.now();
         await this.bridge.start();
+        const bridgeReadyTime = performance.now();
 
         // Fetch and cache version information via RPC
         try {
             const versionInfo = await this.bridge.getVersionInfo();
+            const versionFetchTime = performance.now();
+
+            // PERF-011: Calculate and store startup metrics
+            this.startupMetrics = {
+                bridgeStart: this.bridgeStartTime,
+                bridgeReady: bridgeReadyTime,
+                bridgeStartDuration: bridgeReadyTime - this.bridgeStartTime,
+                versionFetch: versionFetchTime,
+                versionFetchDuration: versionFetchTime - bridgeReadyTime,
+                total: versionFetchTime - this.bridgeStartTime,
+            };
+
             if (versionInfo) {
                 // Get the absolute path to the Pike executable
                 // The bridge stores options internally, we need to get the pikePath
@@ -102,6 +124,7 @@ export class BridgeManager {
                 this.logger.info('Pike version detected', {
                     version: versionInfo.version,
                     path: resolvedPath,
+                    startupDuration: (this.startupMetrics?.['total']?.toFixed(2) ?? 'N/A') + 'ms',
                 });
             } else {
                 this.logger.warn('Failed to get Pike version info via RPC');
@@ -119,6 +142,9 @@ export class BridgeManager {
         if (this.bridge) await this.bridge.stop();
         // Clear cached version on stop
         this.cachedVersion = null;
+        // PERF-011: Clear startup metrics on stop
+        this.startupMetrics = null;
+        this.bridgeStartTime = null;
     }
 
     /**
@@ -131,6 +157,7 @@ export class BridgeManager {
 
     /**
      * Get health status of the bridge and server.
+     * PERF-011: Includes startup metrics if available.
      * @returns Health status information
      */
     async getHealth(): Promise<HealthStatus> {
@@ -140,6 +167,7 @@ export class BridgeManager {
             pikePid: (this.bridge as any)?.process?.pid ?? null,
             pikeVersion: this.cachedVersion,
             recentErrors: [...this.errorLog],
+            startupMetrics: this.startupMetrics,
         };
     }
 
