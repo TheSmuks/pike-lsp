@@ -18,6 +18,8 @@ import type {
     PikeRequest,
     PikeResponse,
     PikeVersionInfo,
+    AnalyzeResponse,
+    AnalysisOperation,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
 import { Logger } from '@pike-lsp/core';
@@ -474,6 +476,54 @@ export class PikeBridge extends EventEmitter {
         });
 
         return result;
+    }
+
+    /**
+     * Unified analyze - consolidate multiple Pike operations in one request.
+     *
+     * Performs compilation and tokenization once, then distributes results
+     * to all requested operation types. More efficient than calling parse(),
+     * introspect(), and analyzeUninitialized() separately.
+     *
+     * Supports partial success - each requested operation appears in either
+     * result or failures, never both. Use failures?.[operation] for O(1) lookup.
+     *
+     * @param code - Pike source code to analyze.
+     * @param filename - Optional filename for error messages.
+     * @param include - Which operations to perform (at least one required).
+     * @returns Analyze response with result/failures structure and performance timing.
+     * @example
+     * ```ts
+     * const response = await bridge.analyze(
+     *     'class Foo { int bar() { return 5; } }',
+     *     'example.pike',
+     *     ['parse', 'introspect', 'diagnostics']
+     * );
+     *
+     * // Check for specific operation success
+     * if (response.result?.introspect) {
+     *     console.log(response.result.introspect.symbols);
+     * }
+     *
+     * // Check for specific operation failure
+     * if (response.failures?.diagnostics) {
+     *     console.error(response.failures.diagnostics.message);
+     * }
+     *
+     * // Access performance timing
+     * console.log(`Compilation took ${response._perf?.compilation_ms}ms`);
+     * ```
+     */
+    async analyze(
+        code: string,
+        include: AnalysisOperation[],
+        filename?: string
+    ): Promise<AnalyzeResponse> {
+        return this.sendRequest<AnalyzeResponse>('analyze', {
+            code,
+            filename: filename ?? 'input.pike',
+            include,
+        });
     }
 
     /**
