@@ -18,11 +18,9 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
-import * as fs from 'fs';
 
 import type { Services } from '../services/index.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import { PatternHelpers } from '../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
 
 /**
@@ -37,7 +35,7 @@ export function registerHierarchyHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache, workspaceIndex } = services;
+    const { documentCache } = services;
     const log = new Logger('Hierarchy');
 
     /**
@@ -102,46 +100,75 @@ export function registerHierarchyHandlers(
 
     /**
      * Incoming calls - who calls this function?
+     * Uses symbolPositions from documentCache (built via Pike tokenization) for accuracy.
      */
     connection.languages.callHierarchy.onIncomingCalls((params) => {
         log.debug('Call hierarchy incoming calls', { item: params.item.name });
         try {
             const results: CallHierarchyIncomingCall[] = [];
             const targetName = params.item.name;
+            const targetUri = params.item.uri;
 
-            // Helper function to search for calls in a document
-            const searchDocument = (docUri: string, text: string, symbols: PikeSymbol[]) => {
+            // Track already-added callers to prevent duplicates
+            const addedCallers = new Set<string>();
+
+            // Helper function to search for calls in a cached document
+            const searchCachedDocument = (
+                docUri: string,
+                cached: { symbols: PikeSymbol[]; symbolPositions?: Map<string, { line: number; character: number }[]> },
+                text: string
+            ) => {
                 const lines = text.split('\n');
+                const symbols = cached.symbols;
 
-                // Find all methods in this document
+                // Get positions of target name from Pike tokenization (accurate, excludes comments)
+                const targetPositions = cached.symbolPositions?.get(targetName) ?? [];
+
+                // Filter to only positions that look like function calls (followed by '(')
+                const callPositions: { line: number; character: number }[] = [];
+                for (const pos of targetPositions) {
+                    const line = lines[pos.line];
+                    if (!line) continue;
+
+                    // Check if this is a function call: targetName followed by '('
+                    const afterName = line.substring(pos.character + targetName.length);
+                    if (/^\s*\(/.test(afterName)) {
+                        callPositions.push(pos);
+                    }
+                }
+
+                // For each method, find which calls are within its body
                 for (const symbol of symbols) {
                     if (symbol.kind !== 'method' || !symbol.position) continue;
 
+                    // Don't include self-references from the same method
+                    if (docUri === targetUri && symbol.name === targetName) continue;
+
                     const methodStartLine = (symbol.position.line ?? 1) - 1;
 
-                    // Search for calls to targetName in this method's body
+                    // Find method end by looking for the next method
                     const nextMethodLine = symbols
                         .filter(s => s.kind === 'method' && s.position && (s.position.line ?? 0) > (symbol.position?.line ?? 0))
                         .map(s => (s.position?.line ?? 0) - 1)
                         .sort((a, b) => a - b)[0] ?? lines.length;
 
+                    // Find call positions within this method's body
                     const ranges: Range[] = [];
-                    for (let lineNum = methodStartLine; lineNum < nextMethodLine && lineNum < lines.length; lineNum++) {
-                        const line = lines[lineNum];
-                        if (!line) continue;
-
-                        // Find function calls: targetName(
-                        const regex = PatternHelpers.functionCallPattern(targetName);
-                        let match;
-                        while ((match = regex.exec(line)) !== null) {
+                    for (const pos of callPositions) {
+                        if (pos.line >= methodStartLine && pos.line < nextMethodLine) {
                             ranges.push({
-                                start: { line: lineNum, character: match.index },
-                                end: { line: lineNum, character: match.index + targetName.length },
+                                start: { line: pos.line, character: pos.character },
+                                end: { line: pos.line, character: pos.character + targetName.length },
                             });
                         }
                     }
 
                     if (ranges.length > 0) {
+                        // Prevent duplicate entries for the same caller
+                        const callerId = `${docUri}:${symbol.name}:${methodStartLine}`;
+                        if (addedCallers.has(callerId)) continue;
+                        addedCallers.add(callerId);
+
                         results.push({
                             from: {
                                 name: symbol.name,
@@ -162,28 +189,16 @@ export function registerHierarchyHandlers(
                 }
             };
 
-            // Search all open/cached documents
+            // Search all open/cached documents (these have accurate symbolPositions)
             const entries = Array.from(documentCache.entries());
             for (const [docUri, cached] of entries) {
                 const doc = documents.get(docUri);
                 if (!doc) continue;
-                searchDocument(docUri, doc.getText(), cached.symbols);
+                searchCachedDocument(docUri, cached, doc.getText());
             }
 
-            // Also search workspace index for files not currently open
-            const workspaceUris = workspaceIndex.getAllDocumentUris();
-            for (const wsUri of workspaceUris) {
-                if (documentCache.has(wsUri)) continue; // Skip already searched
-
-                try {
-                    const filePath = decodeURIComponent(wsUri.replace(/^file:\/\//, ''));
-                    const fileContent = fs.readFileSync(filePath, 'utf-8');
-                    const wsSymbols = workspaceIndex.getDocumentSymbols(wsUri);
-                    searchDocument(wsUri, fileContent, wsSymbols);
-                } catch {
-                    // Skip files we can't read
-                }
-            }
+            // Note: For workspace files not in cache, we skip them as they don't have
+            // Pike-tokenized symbolPositions. Users should open files to get accurate results.
 
             return results;
         } catch (err) {
@@ -194,6 +209,7 @@ export function registerHierarchyHandlers(
 
     /**
      * Outgoing calls - what does this function call?
+     * Uses symbolPositions from documentCache (built via Pike tokenization) for accuracy.
      */
     connection.languages.callHierarchy.onOutgoingCalls((params) => {
         log.debug('Call hierarchy outgoing calls', { item: params.item.name });
@@ -201,6 +217,7 @@ export function registerHierarchyHandlers(
             const results: CallHierarchyOutgoingCall[] = [];
             const sourceUri = params.item.uri;
             const sourceLine = params.item.range.start.line;
+            const sourceMethodName = params.item.name;
 
             const cached = documentCache.get(sourceUri);
             const doc = documents.get(sourceUri);
@@ -224,28 +241,46 @@ export function registerHierarchyHandlers(
                 .map(s => (s.position?.line ?? 0) - 1)
                 .sort((a, b) => a - b)[0] ?? lines.length;
 
-            // Find all function calls in this method
+            // Pike keywords and control flow that look like function calls
+            const keywords = new Set([
+                'if', 'else', 'while', 'for', 'foreach', 'switch', 'case',
+                'return', 'break', 'continue', 'catch', 'throw', 'sizeof',
+                'typeof', 'arrayp', 'mappingp', 'stringp', 'intp', 'floatp',
+                'objectp', 'functionp', 'programp', 'callablep', 'multisetp'
+            ]);
+
+            // Find all function calls using Pike-tokenized symbolPositions
             const calledFunctions = new Map<string, Range[]>();
 
-            for (let lineNum = methodStartLine; lineNum < nextMethodLine && lineNum < lines.length; lineNum++) {
-                const line = lines[lineNum];
-                if (!line) continue;
+            // Iterate through all identifiers in symbolPositions
+            if (cached.symbolPositions) {
+                for (const [identName, positions] of cached.symbolPositions.entries()) {
+                    // Skip keywords and self-recursion
+                    if (keywords.has(identName)) continue;
+                    if (identName === sourceMethodName) continue;
 
-                // Match function calls: identifier(
-                const regex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g;
-                let match;
-                while ((match = regex.exec(line)) !== null) {
-                    const funcName = match[1];
-                    if (!funcName || funcName === sourceSymbol.name) continue; // Skip self-recursion tracking
+                    // Find positions within this method that are function calls
+                    const ranges: Range[] = [];
+                    for (const pos of positions) {
+                        // Check if within method body
+                        if (pos.line < methodStartLine || pos.line >= nextMethodLine) continue;
 
-                    const range: Range = {
-                        start: { line: lineNum, character: match.index },
-                        end: { line: lineNum, character: match.index + funcName.length },
-                    };
+                        // Check if this is a function call (followed by '(')
+                        const line = lines[pos.line];
+                        if (!line) continue;
 
-                    const existing = calledFunctions.get(funcName) ?? [];
-                    existing.push(range);
-                    calledFunctions.set(funcName, existing);
+                        const afterName = line.substring(pos.character + identName.length);
+                        if (/^\s*\(/.test(afterName)) {
+                            ranges.push({
+                                start: { line: pos.line, character: pos.character },
+                                end: { line: pos.line, character: pos.character + identName.length },
+                            });
+                        }
+                    }
+
+                    if (ranges.length > 0) {
+                        calledFunctions.set(identName, ranges);
+                    }
                 }
             }
 
@@ -446,3 +481,4 @@ export function registerHierarchyHandlers(
         }
     });
 }
+
