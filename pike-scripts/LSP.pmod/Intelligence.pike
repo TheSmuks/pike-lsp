@@ -269,7 +269,7 @@ protected object safe_instantiate(program prog) {
 //! IMPORTANT: Uses safe_instantiate() to prevent timeout crashes when
 //! introspecting modules with complex dependencies (e.g., Crypto.PGP
 //! which has #require directives that trigger module loading).
-protected mapping introspect_program(program prog) {
+public mapping introspect_program(program prog) {
     mapping result = ([
         "symbols": ({}),
         "functions": ({}),

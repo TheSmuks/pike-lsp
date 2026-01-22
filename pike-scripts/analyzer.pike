@@ -207,6 +207,9 @@ int main(int argc, array(string) argv) {
         "get_completion_context": lambda(mapping params, object ctx) {
             return ctx->analysis->handle_get_completion_context(params);
         },
+        "analyze": lambda(mapping params, object ctx) {
+            return ctx->analysis->handle_analyze(params);
+        },
         "set_debug": lambda(mapping params, object ctx) {
             ctx->debug_mode = params->enabled || 0;
             return ([

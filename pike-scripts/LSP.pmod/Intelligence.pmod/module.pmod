@@ -346,4 +346,20 @@ class Intelligence {
         }
         return LSP.module.LSPError(-32000, "TypeAnalysis handler not available")->to_response();
     }
+
+    //! Introspect a compiled program to extract symbols
+    //! Delegates to Introspection class in Intelligence.pmod/
+    //!
+    //! This is a public method for use by handle_analyze in Analysis.pike
+    //! for request consolidation (Phase 12).
+    //!
+    //! @param prog The compiled program to introspect
+    //! @returns Mapping containing symbols, functions, variables, classes, inherits
+    mapping introspect_program(program prog) {
+        object handler = get_introspection_handler();
+        if (handler) {
+            return handler->introspect_program(prog);
+        }
+        return LSP.module.LSPError(-32000, "Introspection handler not available")->to_response();
+    }
 }

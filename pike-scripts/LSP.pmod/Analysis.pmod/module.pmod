@@ -585,4 +585,231 @@ class Analysis {
         }
         return LSP.module.LSPError(-32000, "Variables handler not available")->to_response();
     }
+
+    //! Unified analyze handler that consolidates compilation, tokenization, and analysis
+    //!
+    //! This is the main entry point for Phase 12 Request Consolidation.
+    //! Performs shared operations (compilation, tokenization) once, then delegates
+    //! to appropriate handlers based on the requested include types.
+    //!
+    //! @param params Mapping with "code", "filename", and "include" keys
+    //!               - code: Pike source code to analyze
+    //!               - filename: Source filename (for diagnostics)
+    //!               - include: Array of result types to return ("parse", "introspect", "diagnostics", "tokenize")
+    //! @returns Mapping with "result" containing requested results and "failures" for any that failed
+    //!          Each requested type appears in EITHER result OR failures, never both
+    mapping handle_analyze(mapping params) {
+        string code = params->code || "";
+        string filename = params->filename || "input.pike";
+        array(string) include = params->include || ({});
+
+        // Valid include types
+        multiset(string) VALID_INCLUDE_TYPES = (<
+            "parse", "introspect", "diagnostics", "tokenize"
+        >);
+
+        // Validate include types
+        array(string) valid_include = ({});
+        foreach (include, string type) {
+            if (VALID_INCLUDE_TYPES[type]) {
+                valid_include += ({ type });
+            }
+        }
+
+        // If no valid include types, return empty result
+        if (sizeof(valid_include) == 0) {
+            return ([
+                "result": ([]),
+                "failures": ([])
+            ]);
+        }
+
+        // Shared data structures
+        array tokens = ({});
+        program compiled_prog = 0;
+        array(string) split_tokens = ({});
+        mapping(string:mixed) result = ([]);
+        mapping(string:mixed) failures = ([]);
+
+        // Performance tracking
+        float compilation_ms = 0.0;
+        float tokenization_ms = 0.0;
+
+        // Step 1: Tokenization (shared by parse, diagnostics, tokenize)
+        int needs_tokenization = has_value(valid_include, "parse") ||
+                                 has_value(valid_include, "diagnostics") ||
+                                 has_value(valid_include, "tokenize");
+
+        if (needs_tokenization) {
+            object tokenize_timer = System.Timer();
+            mixed tok_err = catch {
+                split_tokens = Parser.Pike.split(code);
+                tokens = Parser.Pike.tokenize(split_tokens);
+            };
+            tokenization_ms = tokenize_timer->peek() * 1000.0;
+
+            if (tok_err) {
+                string error_msg = describe_error(tok_err);
+                // Tokenization failed - all dependent types fail
+                if (has_value(valid_include, "tokenize")) {
+                    failures->tokenize = ([
+                        "message": error_msg,
+                        "kind": "ParseError"
+                    ]);
+                }
+                if (has_value(valid_include, "parse")) {
+                    failures->parse = ([
+                        "message": error_msg,
+                        "kind": "ParseError"
+                    ]);
+                }
+                if (has_value(valid_include, "diagnostics")) {
+                    failures->diagnostics = ([
+                        "message": error_msg,
+                        "kind": "ParseError"
+                    ]);
+                }
+            } else {
+                // Tokenization succeeded - store tokenize result if requested
+                if (has_value(valid_include, "tokenize")) {
+                    array tokenize_result = ({});
+                    foreach (tokens, mixed t) {
+                        tokenize_result += ({
+                            ([
+                                "text": t->text,
+                                "line": t->line,
+                                "file": t->file || filename
+                            ])
+                        });
+                    }
+                    result->tokenize = ([ "tokens": tokenize_result ]);
+                }
+            }
+        }
+
+        // Step 2: Compilation (only for introspect)
+        if (has_value(valid_include, "introspect")) {
+            object compile_timer = System.Timer();
+            mixed compile_err = catch {
+                // Use compile_string for compilation
+                compiled_prog = compile_string(code, filename);
+            };
+            compilation_ms = compile_timer->peek() * 1000.0;
+
+            if (compile_err || !compiled_prog) {
+                failures->introspect = ([
+                    "message": describe_error(compile_err || "Compilation failed"),
+                    "kind": "CompilationError"
+                ]);
+            }
+        }
+
+        // Step 3: Process each requested result type using shared data
+
+        // Parse - uses shared tokens (re-tokenizes internally via Parser)
+        if (has_value(valid_include, "parse") && !failures->parse) {
+            mixed parse_err = catch {
+                // Delegate to Parser.pike parse_request logic
+                program ParserClass = master()->resolv("LSP.Parser");
+                object parser = ParserClass();
+                mapping parse_params = ([
+                    "code": code,
+                    "filename": filename,
+                    "line": 1
+                ]);
+                mapping parse_response = parser->parse_request(parse_params);
+
+                if (parse_response && parse_response->result) {
+                    result->parse = parse_response->result;
+                } else {
+                    failures->parse = ([
+                        "message": "Parse returned no result",
+                        "kind": "InternalError"
+                    ]);
+                }
+            };
+
+            if (parse_err) {
+                failures->parse = ([
+                    "message": describe_error(parse_err),
+                    "kind": "ParseError"
+                ]);
+            }
+        }
+
+        // Introspect - uses shared compiled program
+        if (has_value(valid_include, "introspect") && !failures->introspect) {
+            mixed introspect_err = catch {
+                // Delegate to Intelligence.pike introspect_program
+                // Use the double-name pattern to get the Intelligence class from the module
+                program IntelligenceClass = master()->resolv("LSP.Intelligence.Intelligence");
+                object intelligence = IntelligenceClass();
+
+                // Use introspect_program directly since we already have the compiled program
+                mapping introspect_result = intelligence->introspect_program(compiled_prog);
+                introspect_result->success = 1;
+                introspect_result->diagnostics = ({});
+
+                result->introspect = introspect_result;
+            };
+
+            if (introspect_err) {
+                failures->introspect = ([
+                    "message": describe_error(introspect_err),
+                    "kind": "ResolutionError"
+                ]);
+            }
+        }
+
+        // Diagnostics - uses shared tokens (via Diagnostics handler)
+        if (has_value(valid_include, "diagnostics") && !failures->diagnostics) {
+            mixed diag_err = catch {
+                // Use the Diagnostics handler
+                object diag_handler = get_diagnostics_handler();
+                if (diag_handler) {
+                    mapping diag_response = diag_handler->handle_analyze_uninitialized(([
+                        "code": code,
+                        "filename": filename
+                    ]));
+                    if (diag_response && diag_response->result) {
+                        result->diagnostics = diag_response->result;
+                    } else {
+                        failures->diagnostics = ([
+                            "message": "Diagnostics returned no result",
+                            "kind": "InternalError"
+                        ]);
+                    }
+                } else {
+                    failures->diagnostics = ([
+                        "message": "Diagnostics handler not available",
+                        "kind": "InternalError"
+                    ]);
+                }
+            };
+
+            if (diag_err) {
+                failures->diagnostics = ([
+                    "message": describe_error(diag_err),
+                    "kind": "InternalError"
+                ]);
+            }
+        }
+
+        // Add performance metadata if we have any timing data
+        if (compilation_ms > 0.0 || tokenization_ms > 0.0) {
+            mapping perf = ([]);
+            if (compilation_ms > 0.0) {
+                perf->compilation_ms = compilation_ms;
+            }
+            if (tokenization_ms > 0.0) {
+                perf->tokenization_ms = tokenization_ms;
+            }
+            result->_perf = perf;
+        }
+
+        return ([
+            "result": result,
+            "failures": failures
+        ]);
+    }
 }
