@@ -473,7 +473,7 @@ export type AnalysisOperation = 'parse' | 'introspect' | 'diagnostics' | 'tokeni
  * to all requested operation types. Supports partial success - each
  * operation type appears in either result or failures, never both.
  */
-export interface AnalyzeRequest {
+export interface AnalyzeRequest extends Record<string, unknown> {
     /** Pike source code to analyze */
     code: string;
     /** Optional filename for error messages */

@@ -530,6 +530,58 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             // This is a simplified approach - full implementation would track try/catch blocks
         }
 
+        // Handle sscanf - output arguments (3rd+) are initialized
+        // Pattern: sscanf(source, format, var1, var2, ...)
+        if (text == "sscanf") {
+            int paren_start = find_next_token_fn(tokens, i + 1, end_idx, "(");
+            if (paren_start >= 0) {
+                int paren_close = -1;
+                int paren_depth = 1;
+                int arg_count = 0;  // Count arguments (commas at depth 1)
+                int arg_start = paren_start + 1;
+
+                for (int j = paren_start + 1; j < end_idx && j < sizeof(tokens); j++) {
+                    string t = tokens[j]->text;
+                    if (t == "(") paren_depth++;
+                    else if (t == ")") {
+                        paren_depth--;
+                        if (paren_depth == 0) {
+                            paren_close = j;
+                            // Process final argument if arg_count >= 2
+                            if (arg_count >= 2) {
+                                // Scan from arg_start to j for tracked variables
+                                for (int k = arg_start; k < j; k++) {
+                                    string vt = tokens[k]->text;
+                                    if (is_identifier_fn(vt) && variables[vt]) {
+                                        variables[vt]->state = STATE_INITIALIZED;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    else if (paren_depth == 1 && t == ",") {
+                        // Process argument before comma if arg_count >= 2
+                        if (arg_count >= 2) {
+                            for (int k = arg_start; k < j; k++) {
+                                string vt = tokens[k]->text;
+                                if (is_identifier_fn(vt) && variables[vt]) {
+                                    variables[vt]->state = STATE_INITIALIZED;
+                                }
+                            }
+                        }
+                        arg_count++;
+                        arg_start = j + 1;  // Next arg starts after comma
+                    }
+                }
+
+                // Skip past the sscanf call
+                if (paren_close >= 0) {
+                    i = paren_close;
+                }
+            }
+        }
+
         i++;
     }
 

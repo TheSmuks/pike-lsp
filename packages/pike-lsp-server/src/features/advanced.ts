@@ -78,6 +78,10 @@ export function registerAdvancedHandlers(
     // Prevents regenerating lenses when switching tabs if document hasn't changed
     const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
 
+    // Resolved code lens cache: URI -> { version, commands: Map<symbolName, refCount> }
+    // Prevents re-resolving lenses on window focus changes
+    const resolvedLensCache = new Map<string, { version: number; refCounts: Map<string, number> }>();
+
     /**
      * Folding Range - provide collapsible regions
      */
@@ -777,9 +781,22 @@ export function registerAdvancedHandlers(
                 return lens;
             }
 
+            const currentCache = documentCache.get(data.uri);
+            const currentVersion = currentCache?.version ?? 0;
+
+            // Check resolved cache - prevents re-resolution on window focus changes
+            const cached = resolvedLensCache.get(data.uri);
+            if (cached && cached.version === currentVersion) {
+                const cachedRefCount = cached.refCounts.get(data.symbolName);
+                if (cachedRefCount !== undefined) {
+                    lens.command = buildCodeLensCommand(cachedRefCount, data.uri, data.position);
+                    return lens;
+                }
+            }
+
+            // Compute ref count
             let refCount = 0;
 
-            const currentCache = documentCache.get(data.uri);
             if (currentCache && currentCache.symbolPositions) {
                 const positions = currentCache.symbolPositions.get(data.symbolName);
                 refCount = positions?.length ?? 0;
@@ -794,6 +811,12 @@ export function registerAdvancedHandlers(
                     }
                 }
             }
+
+            // Update cache
+            if (!cached || cached.version !== currentVersion) {
+                resolvedLensCache.set(data.uri, { version: currentVersion, refCounts: new Map() });
+            }
+            resolvedLensCache.get(data.uri)!.refCounts.set(data.symbolName, refCount);
 
             lens.command = buildCodeLensCommand(refCount, data.uri, data.position);
 

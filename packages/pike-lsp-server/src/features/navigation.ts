@@ -327,13 +327,14 @@ export function registerNavigationHandlers(
      * References handler - find all references to a symbol (Find References / Show Usages)
      */
     connection.onReferences(async (params): Promise<Location[]> => {
-        log.debug('References request', { uri: params.textDocument.uri });
+        log.debug('References request', { uri: params.textDocument.uri, position: params.position });
         try {
             const uri = params.textDocument.uri;
             const cached = documentCache.get(uri);
             const document = documents.get(uri);
 
             if (!cached || !document) {
+                log.debug('References: no cached document');
                 return [];
             }
 
@@ -350,16 +351,42 @@ export function registerNavigationHandlers(
                 end++;
             }
 
-            const word = text.slice(start, end);
+            let word = text.slice(start, end);
             if (!word) {
+                log.debug('References: no word at position');
                 return [];
             }
 
+            log.debug('References: searching for word', { word, offset, start, end });
+
             // Check if this word matches a known symbol
-            const matchingSymbol = cached.symbols.find(s => s.name === word);
+            let matchingSymbol = cached.symbols.find(s => s.name === word);
+
+            // If word doesn't match a symbol, check if we're on a symbol's definition line
+            // This handles CodeLens clicks where position is at return type, not function name
+            if (!matchingSymbol) {
+                const line = params.position.line;
+                const symbolOnLine = cached.symbols.find(s => {
+                    if (!s.position) return false;
+                    // Pike uses 1-based lines, LSP uses 0-based
+                    const symbolLine = s.position.line - 1;
+                    return symbolLine === line && (s.kind === 'method' || s.kind === 'class');
+                });
+
+                if (symbolOnLine && symbolOnLine.name) {
+                    log.debug('References: found symbol on same line', {
+                        originalWord: word,
+                        symbolName: symbolOnLine.name,
+                        line
+                    });
+                    word = symbolOnLine.name;
+                    matchingSymbol = symbolOnLine;
+                }
+            }
+
             if (!matchingSymbol) {
                 // Not a known symbol, return empty
-                log.debug('References: word not a known symbol', { word });
+                log.debug('References: word not a known symbol', { word, symbolCount: cached.symbols.length });
                 return [];
             }
 
@@ -368,6 +395,7 @@ export function registerNavigationHandlers(
             // Use symbolPositions index if available (pre-computed positions)
             if (cached.symbolPositions) {
                 const positions = cached.symbolPositions.get(word);
+                log.debug('References: symbolPositions lookup', { word, found: !!positions, count: positions?.length ?? 0 });
                 if (positions) {
                     for (const pos of positions) {
                         references.push({
@@ -377,6 +405,35 @@ export function registerNavigationHandlers(
                                 end: { line: pos.line, character: pos.character + word.length },
                             },
                         });
+                    }
+                }
+            }
+
+            // Fallback: if symbolPositions didn't have results, do text-based search
+            if (references.length === 0) {
+                log.debug('References: falling back to text search');
+                const lines = text.split('\n');
+                for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                    const line = lines[lineNum];
+                    if (!line) continue;
+                    let searchStart = 0;
+                    let matchIndex: number;
+
+                    while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                        const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+
+                        // Check word boundaries
+                        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                            references.push({
+                                uri,
+                                range: {
+                                    start: { line: lineNum, character: matchIndex },
+                                    end: { line: lineNum, character: matchIndex + word.length },
+                                },
+                            });
+                        }
+                        searchStart = matchIndex + 1;
                     }
                 }
             }
@@ -397,6 +454,35 @@ export function registerNavigationHandlers(
                                     end: { line: pos.line, character: pos.character + word.length },
                                 },
                             });
+                        }
+                    }
+                } else {
+                    // Fallback text search for other documents without symbolPositions
+                    const otherDoc = documents.get(otherUri);
+                    if (otherDoc) {
+                        const otherText = otherDoc.getText();
+                        const otherLines = otherText.split('\n');
+                        for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
+                            const line = otherLines[lineNum];
+                            if (!line) continue;
+                            let searchStart = 0;
+                            let matchIndex: number;
+
+                            while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                                const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+
+                                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                                    references.push({
+                                        uri: otherUri,
+                                        range: {
+                                            start: { line: lineNum, character: matchIndex },
+                                            end: { line: lineNum, character: matchIndex + word.length },
+                                        },
+                                    });
+                                }
+                                searchStart = matchIndex + 1;
+                            }
                         }
                     }
                 }
