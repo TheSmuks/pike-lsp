@@ -74,6 +74,10 @@ export function registerAdvancedHandlers(
     const { documentCache } = services;
     const log = new Logger('Advanced');
 
+    // Code lens cache: URI -> { version, lenses }
+    // Prevents regenerating lenses when switching tabs if document hasn't changed
+    const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
+
     /**
      * Folding Range - provide collapsible regions
      */
@@ -719,6 +723,13 @@ export function registerAdvancedHandlers(
                 return [];
             }
 
+            // Check if we have cached lenses for this document version
+            const cached = codeLensCache.get(uri);
+            if (cached && cached.version === cache.version) {
+                log.debug('Code lens cache hit', { uri, version: cache.version });
+                return cached.lenses;
+            }
+
             const lenses: CodeLens[] = [];
 
             for (const symbol of cache.symbols) {
@@ -744,7 +755,10 @@ export function registerAdvancedHandlers(
                 }
             }
 
-            connection.console.log(`[CODE_LENS] Generated ${lenses.length} lenses`);
+            // Cache the lenses for this document version
+            codeLensCache.set(uri, { version: cache.version, lenses });
+
+            connection.console.log(`[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`);
             return lenses;
         } catch (err) {
             log.error('Code lens failed', { error: err instanceof Error ? err.message : String(err) });
