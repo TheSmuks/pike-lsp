@@ -106,46 +106,46 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BENCH-01 | TBD | Pending |
-| BENCH-02 | TBD | Pending |
-| BENCH-03 | TBD | Pending |
-| BENCH-04 | TBD | Pending |
-| BENCH-05 | TBD | Pending |
-| BENCH-06 | TBD | Pending |
-| CONS-01 | TBD | Pending |
-| CONS-02 | TBD | Pending |
-| CONS-03 | TBD | Pending |
-| CONS-04 | TBD | Pending |
-| CONS-05 | TBD | Pending |
-| CACHE-01 | TBD | Pending |
-| CACHE-02 | TBD | Pending |
-| CACHE-03 | TBD | Pending |
-| CACHE-04 | TBD | Pending |
-| CACHE-05 | TBD | Pending |
-| CACHE-06 | TBD | Pending |
-| CACHE-07 | TBD | Pending |
-| CACHE-08 | TBD | Pending |
-| CACHE-09 | TBD | Pending |
-| STDLIB-01 | TBD | Pending |
-| STDLIB-02 | TBD | Pending |
-| STDLIB-03 | TBD | Pending |
-| STDLIB-04 | TBD | Pending |
-| START-01 | TBD | Pending |
-| START-02 | TBD | Pending |
-| START-03 | TBD | Pending |
-| RESP-01 | TBD | Pending |
-| RESP-02 | TBD | Pending |
-| RESP-03 | TBD | Pending |
-| PIKE-01 | TBD | Pending |
-| PIKE-02 | TBD | Pending |
-| PIKE-03 | TBD | Pending |
-| PIKE-04 | TBD | Pending |
+| BENCH-01 | Phase 10 | Pending |
+| BENCH-02 | Phase 10 | Pending |
+| BENCH-03 | Phase 10 | Pending |
+| BENCH-04 | Phase 10 | Pending |
+| BENCH-05 | Phase 10 | Pending |
+| BENCH-06 | Phase 10 | Pending |
+| START-01 | Phase 11 | Pending |
+| START-02 | Phase 11 | Pending |
+| START-03 | Phase 11 | Pending |
+| CONS-01 | Phase 12 | Pending |
+| CONS-02 | Phase 12 | Pending |
+| CONS-03 | Phase 12 | Pending |
+| CONS-04 | Phase 12 | Pending |
+| CONS-05 | Phase 12 | Pending |
+| PIKE-01 | Phase 13 | Pending |
+| PIKE-02 | Phase 13 | Pending |
+| PIKE-03 | Phase 13 | Pending |
+| PIKE-04 | Phase 13 | Pending |
+| CACHE-01 | Phase 14 | Pending |
+| CACHE-02 | Phase 14 | Pending |
+| CACHE-03 | Phase 14 | Pending |
+| CACHE-04 | Phase 14 | Pending |
+| CACHE-05 | Phase 14 | Pending |
+| CACHE-06 | Phase 14 | Pending |
+| CACHE-07 | Phase 15 | Pending |
+| CACHE-08 | Phase 15 | Pending |
+| CACHE-09 | Phase 15 | Pending |
+| STDLIB-01 | Phase 16 | Pending |
+| STDLIB-02 | Phase 16 | Pending |
+| STDLIB-03 | Phase 16 | Pending |
+| STDLIB-04 | Phase 16 | Pending |
+| RESP-01 | Phase 17 | Pending |
+| RESP-02 | Phase 17 | Pending |
+| RESP-03 | Phase 17 | Pending |
 
 **Coverage:**
 - v3 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34 ⚠️
+- Mapped to phases: 34
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after initial definition*
+*Last updated: 2026-01-22 after roadmap creation*
