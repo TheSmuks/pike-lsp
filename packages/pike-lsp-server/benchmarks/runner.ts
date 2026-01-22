@@ -95,13 +95,26 @@ async function runBenchmarks() {
     });
   });
 
-  await run();
+  const results = await run({
+    json: !!process.env.MITATA_JSON,
+    silent: !!process.env.MITATA_JSON,
+    colors: !process.env.MITATA_JSON,
+  });
 
-  console.log('\n--- Pike Internal Latency (Averages) ---');
-  for (const [name, times] of Object.entries(pikeMetrics)) {
-    if (times.length > 0) {
-      const avg = times.reduce((a, b) => a + b, 0) / times.length;
-      console.log(`${name.padEnd(40)}: ${avg.toFixed(3)} ms`);
+  if (process.env.MITATA_JSON) {
+    // If MITATA_JSON is a string (path), write to it, otherwise stdout
+    if (process.env.MITATA_JSON !== '1') {
+      fs.writeFileSync(process.env.MITATA_JSON, JSON.stringify(results, null, 2));
+    } else {
+      process.stdout.write(JSON.stringify(results, null, 2));
+    }
+  } else {
+    console.log('\n--- Pike Internal Latency (Averages) ---');
+    for (const [name, times] of Object.entries(pikeMetrics)) {
+      if (times.length > 0) {
+        const avg = times.reduce((a, b) => a + b, 0) / times.length;
+        console.log(`${name.padEnd(40)}: ${avg.toFixed(3)} ms`);
+      }
     }
   }
 
