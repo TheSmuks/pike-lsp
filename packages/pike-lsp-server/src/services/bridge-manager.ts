@@ -34,6 +34,8 @@ export interface HealthStatus {
     recentErrors: string[];
     /** PERF-011: Startup timing metrics in milliseconds */
     startupMetrics?: { [key: string]: number } | null;
+    /** PERF-013: Whether version info fetch is currently in progress */
+    versionFetchPending?: boolean;
 }
 
 /**
@@ -51,6 +53,8 @@ export class BridgeManager {
     private bridgeStartTime: number | null = null;
     /** PERF-011: Startup metrics for health reporting */
     private startupMetrics: { [key: string]: number } | null = null;
+    /** PERF-013: Promise tracking for async version fetch */
+    private versionFetchPromise: Promise<void> | null = null;
 
     constructor(
         public readonly bridge: PikeBridge | null,
@@ -97,7 +101,9 @@ export class BridgeManager {
 
         // PERF-013: Fetch version info asynchronously (fire and forget)
         // This allows start() to return immediately after subprocess spawn
-        this.fetchVersionInfoAsync();
+        this.versionFetchPromise = this.fetchVersionInfoInternal().finally(() => {
+            this.versionFetchPromise = null;
+        });
     }
 
     /**
@@ -105,7 +111,7 @@ export class BridgeManager {
      * This method is called without await to allow start() to return immediately.
      * Version info is cached when the fetch completes.
      */
-    private async fetchVersionInfoAsync(): Promise<void> {
+    private async fetchVersionInfoInternal(): Promise<void> {
         if (!this.bridge) return;
 
         try {
@@ -164,6 +170,8 @@ export class BridgeManager {
         // PERF-011: Clear startup metrics on stop
         this.startupMetrics = null;
         this.bridgeStartTime = null;
+        // PERF-013: Clear version fetch promise on stop
+        this.versionFetchPromise = null;
     }
 
     /**
@@ -177,6 +185,7 @@ export class BridgeManager {
     /**
      * Get health status of the bridge and server.
      * PERF-011: Includes startup metrics if available.
+     * PERF-013: Reports whether version fetch is pending.
      * @returns Health status information
      */
     async getHealth(): Promise<HealthStatus> {
@@ -187,6 +196,7 @@ export class BridgeManager {
             pikeVersion: this.cachedVersion,
             recentErrors: [...this.errorLog],
             startupMetrics: this.startupMetrics,
+            versionFetchPending: this.versionFetchPromise !== null,
         };
     }
 
