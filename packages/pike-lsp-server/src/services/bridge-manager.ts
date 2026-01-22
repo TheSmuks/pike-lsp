@@ -6,7 +6,7 @@
  * with the Pike subprocess.
  */
 
-import type { PikeBridge, PikeVersionInfo } from '@pike-lsp/pike-bridge';
+import type { PikeBridge, PikeVersionInfo, AnalyzeResponse, AnalysisOperation } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
 import * as fs from 'fs';
 
@@ -206,6 +206,24 @@ export class BridgeManager {
     async introspect(code: string, filename: string) {
         if (!this.bridge) throw new Error('Bridge not available');
         return this.bridge.introspect(code, filename);
+    }
+
+    /**
+     * Unified analyze - consolidate multiple Pike operations in one request.
+     *
+     * Delegates to PikeBridge.analyze() which performs compilation and
+     * tokenization once, then distributes results to all requested operations.
+     * More efficient than calling parse(), introspect(), and analyzeUninitialized()
+     * separately.
+     *
+     * @param code - Pike source code to analyze.
+     * @param include - Which operations to perform (at least one required).
+     * @param filename - Optional filename for error messages.
+     * @returns Analyze response with result/failures structure and performance timing.
+     */
+    async analyze(code: string, include: AnalysisOperation[], filename?: string): Promise<AnalyzeResponse> {
+        if (!this.bridge) throw new Error('Bridge not available');
+        return this.bridge.analyze(code, include, filename);
     }
 
     /**
