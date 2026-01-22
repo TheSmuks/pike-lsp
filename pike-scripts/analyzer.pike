@@ -175,6 +175,30 @@ int main(int argc, array(string) argv) {
     // Per CONTEXT.md Router Design Pattern
     HANDLERS = ([
         "parse": lambda(mapping params, object ctx) {
+            // DEPRECATED: Use analyze with include: ["parse"]
+            werror("[DEPRECATED] parse method - use analyze with include: ['parse']\n");
+
+            // Call analyze with parse include
+            mapping analyze_params = params + (["include":({"parse"})]);
+            mapping response = ctx->analysis->handle_analyze(analyze_params);
+
+            // Extract parse result
+            if (response->result && response->result->parse) {
+                return (["result": response->result->parse]);
+            }
+
+            // Check for failures
+            if (response->failures && response->failures->parse) {
+                mapping failure = response->failures->parse;
+                return ([
+                    "error": ([
+                        "code": -32000,
+                        "message": failure->message || "Parse failed"
+                    ])
+                ]);
+            }
+
+            // Fallback: try original handler if analyze returned empty
             return ctx->parser->parse_request(params);
         },
         "tokenize": lambda(mapping params, object ctx) {
@@ -187,6 +211,30 @@ int main(int argc, array(string) argv) {
             return ctx->parser->batch_parse_request(params);
         },
         "introspect": lambda(mapping params, object ctx) {
+            // DEPRECATED: Use analyze with include: ["introspect"]
+            werror("[DEPRECATED] introspect method - use analyze with include: ['introspect']\n");
+
+            // Call analyze with introspect include
+            mapping analyze_params = params + (["include":({"introspect"})]);
+            mapping response = ctx->analysis->handle_analyze(analyze_params);
+
+            // Extract introspect result
+            if (response->result && response->result->introspect) {
+                return (["result": response->result->introspect]);
+            }
+
+            // Check for failures
+            if (response->failures && response->failures->introspect) {
+                mapping failure = response->failures->introspect;
+                return ([
+                    "error": ([
+                        "code": -32000,
+                        "message": failure->message || "Introspection failed"
+                    ])
+                ]);
+            }
+
+            // Fallback: try original handler if analyze returned empty
             return ctx->intelligence->handle_introspect(params);
         },
         "resolve": lambda(mapping params, object ctx) {
@@ -202,6 +250,30 @@ int main(int argc, array(string) argv) {
             return ctx->analysis->handle_find_occurrences(params);
         },
         "analyze_uninitialized": lambda(mapping params, object ctx) {
+            // DEPRECATED: Use analyze with include: ["diagnostics"]
+            werror("[DEPRECATED] analyze_uninitialized method - use analyze with include: ['diagnostics']\n");
+
+            // Call analyze with diagnostics include
+            mapping analyze_params = params + (["include":({"diagnostics"})]);
+            mapping response = ctx->analysis->handle_analyze(analyze_params);
+
+            // Extract diagnostics result
+            if (response->result && response->result->diagnostics) {
+                return (["result": response->result->diagnostics]);
+            }
+
+            // Check for failures
+            if (response->failures && response->failures->diagnostics) {
+                mapping failure = response->failures->diagnostics;
+                return ([
+                    "error": ([
+                        "code": -32000,
+                        "message": failure->message || "Diagnostics analysis failed"
+                    ])
+                ]);
+            }
+
+            // Fallback: try original handler if analyze returned empty
             return ctx->analysis->handle_analyze_uninitialized(params);
         },
         "get_completion_context": lambda(mapping params, object ctx) {
