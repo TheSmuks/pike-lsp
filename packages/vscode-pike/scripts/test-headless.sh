@@ -19,17 +19,18 @@ npm run build:test
 # Check platform
 case "$(uname -s)" in
     Linux*)
-        if is_ci; then
-            # CI: Pure headless mode - no display server needed
-            # VSCode Electron can run with GPU fully disabled
-            echo "Running tests in CI headless mode..."
-            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox --single-process"
-            npx vscode-test "$@"
-        else
-            # Local development: Try Weston first, then Xvfb
-            # Allow forcing Xvfb with USE_XVFB=1
-            if [ -z "$USE_XVFB" ] && command -v weston &> /dev/null; then
-                echo "Running tests headlessly with Weston (Wayland)..."
+        # 1. If we already have a display (e.g. xvfb-run or local X11), just use it
+        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+            echo "Display detected (DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY). Running tests..."
+            # In CI or headless environments, we still want these flags
+            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
+            ./node_modules/.bin/vscode-test "$@"
+            exit $?
+        fi
+
+        # 2. Try to set up a headless display server
+        if [ -z "$USE_XVFB" ] && command -v weston &> /dev/null; then
+            echo "Running tests headlessly with Weston (Wayland)..."
 
                 # 1. Set up XDG_RUNTIME_DIR
                 # Wayland requires this directory to store its socket
@@ -54,7 +55,7 @@ case "$(uname -s)" in
                 # 3. Run tests
                 echo "Running tests on $WAYLAND_DISPLAY..."
                 set +e  # Don't exit on test failure, we need to cleanup
-                npx vscode-test "$@"
+                ./node_modules/.bin/vscode-test "$@"
                 TEST_EXIT_CODE=$?
 
                 # 4. Cleanup
@@ -72,7 +73,7 @@ case "$(uname -s)" in
                 # Force X11 backend (important for Wayland systems)
                 export GDK_BACKEND=x11
                 export QT_QPA_PLATFORM=xcb
-                xvfb-run -a --server-args="-screen 0 1920x1080x24" npx vscode-test "$@"
+                xvfb-run -a --server-args="-screen 0 1920x1080x24" ./node_modules/.bin/vscode-test "$@"
             else
                 echo "ERROR: No headless display server found. Install one of:"
                 echo "  Weston (Recommended for Wayland):"
@@ -85,7 +86,6 @@ case "$(uname -s)" in
                 echo "    Arch:          sudo pacman -S xorg-server-xvfb"
                 exit 1
             fi
-        fi
         ;;
     Darwin*)
         # macOS has native display support
