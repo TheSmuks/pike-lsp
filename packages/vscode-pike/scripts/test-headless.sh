@@ -27,7 +27,8 @@ case "$(uname -s)" in
             npx vscode-test "$@"
         else
             # Local development: Try Weston first, then Xvfb
-            if command -v weston &> /dev/null; then
+            # Allow forcing Xvfb with USE_XVFB=1
+            if [ -z "$USE_XVFB" ] && command -v weston &> /dev/null; then
                 echo "Running tests headlessly with Weston (Wayland)..."
 
                 # 1. Set up XDG_RUNTIME_DIR
