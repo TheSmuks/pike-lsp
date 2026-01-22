@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-01-22)
 ## Current Position
 
 Phase: 11 of 17 (Startup Optimization)
-Plan: 01 of 3
+Plan: 04 of 3
 Status: In progress
-Last activity: 2026-01-22 — Completed 11-01: Startup timing instrumentation
+Last activity: 2026-01-22 — Completed 11-04: Async version fetch
 
-Progress: [███▏----------------] 19%
+Progress: [████▎---------------] 22%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: ~7m 30s
-- Total execution time: 0.50 hours
+- Total plans completed: 5
+- Average duration: ~6m 30s
+- Total execution time: 0.54 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 10    | 3     | 3     | 8m 30s   |
-| 11    | 1     | 3     | 5m       |
+| 11    | 2     | 3     | 4m 30s   |
 
 **Recent Trend:**
-- Last 5 plans: 10-01, 10-02, 10-03, 11-01
-- Trend: Startup instrumentation complete, ready for optimization
+- Last 5 plans: 10-01, 10-02, 10-03, 11-01, 11-04
+- Trend: Async version fetch complete, perceived startup improved
 
 *Updated after each plan completion*
 
@@ -50,6 +50,7 @@ Recent decisions affecting current work:
 - (10-02): Propagate _perf metadata through PikeBridge to enable E2E vs Internal breakdown.
 - (10-03): Performance regression gate set at 20% threshold in CI.
 - (11-01): Instrument before optimizing - startup timing baseline established. Context initialization (~18ms) dominates Pike startup, indicating primary optimization target.
+- (11-04): Async version fetch - fire-and-forget pattern reduces perceived startup time. start() returns immediately after subprocess spawn; version info cached asynchronously.
 
 ### Performance Investigation Findings (2026-01-22)
 
@@ -65,16 +66,21 @@ Key bottlenecks identified:
 - Context initialization (Parser, Intelligence, Analysis modules) accounts for ~99% of Pike startup time
 - TypeScript bridge start ~200ms (subprocess spawn overhead)
 
+**NEW from 11-04:**
+- Version fetch now async - start() returns immediately after subprocess spawn
+- Health status reports versionFetchPending state
+- Perceived startup time reduced by ~100-200ms (version fetch duration)
+
 ### Pending Todos
 
 None yet.
 
 ### Blockers/Concerns
 
-None. Ready for Phase 11-02 (Module loading optimization).
+None. Ready for next plan in Phase 11 (Startup Optimization).
 
 ## Session Continuity
 
 Last session: 2026-01-22
-Stopped at: Completed 11-01 (Startup timing instrumentation)
+Stopped at: Completed 11-04 (Async version fetch)
 Resume file: None
