@@ -200,7 +200,8 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
             if (
                 event.affectsConfiguration('pike.pikeModulePath') ||
                 event.affectsConfiguration('pike.pikeIncludePath') ||
-                event.affectsConfiguration('pike.pikePath')
+                event.affectsConfiguration('pike.pikePath') ||
+                event.affectsConfiguration('pike.diagnosticDelay')
             ) {
                 await restartClient(false);
             }
@@ -288,6 +289,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
 
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
+    const diagnosticDelay = config.get<number>('diagnosticDelay', 500);
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
 
@@ -300,6 +302,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
         },
         initializationOptions: {
             pikePath,
+            diagnosticDelay,
             env: {
                 'PIKE_MODULE_PATH': expandedPaths.join(":"),
                 'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),

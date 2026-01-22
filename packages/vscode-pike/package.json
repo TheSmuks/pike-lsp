@@ -113,6 +113,13 @@
                     ],
                     "default": "off",
                     "description": "Traces the communication between VS Code and the Pike language server"
+                },
+                "pike.diagnosticDelay": {
+                    "type": "number",
+                    "default": 500,
+                    "minimum": 100,
+                    "maximum": 5000,
+                    "description": "Delay in milliseconds before running diagnostics after a document change"
                 }
             }
         }

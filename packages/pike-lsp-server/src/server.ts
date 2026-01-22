@@ -383,11 +383,23 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         connection.console.warn('Could not find analyzer.pike script');
     }
 
-    const initOptions = params.initializationOptions as { pikePath?: string; env?: NodeJS.ProcessEnv } | undefined;
+    const initOptions = params.initializationOptions as {
+        pikePath?: string;
+        diagnosticDelay?: number;
+        env?: NodeJS.ProcessEnv
+    } | undefined;
     const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv } = {
         pikePath: initOptions?.pikePath ?? 'pike',
         env: initOptions?.env ?? {},
     };
+
+    // Update global settings with initialization options
+    if (initOptions?.diagnosticDelay !== undefined) {
+        globalSettings = {
+            ...globalSettings,
+            diagnosticDelay: initOptions.diagnosticDelay,
+        };
+    }
 
     includePaths = (initOptions?.env?.['PIKE_INCLUDE_PATH'] ?? '')
         .split(':')
@@ -412,7 +424,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             stdlibIndex = new StdlibIndexManager(bridge);
             bridge.on('stderr', (msg: string) => connection.console.log(`[Pike] ${msg}`));
             await bridgeManager.start();
-            connection.console.log('Pike bridge started');
+            connection.console.log(`Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`);
         }
     } catch (err) {
         connection.console.error(`Failed to start Pike bridge: ${err}`);
