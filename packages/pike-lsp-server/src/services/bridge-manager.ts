@@ -78,6 +78,7 @@ export class BridgeManager {
     /**
      * Start the bridge subprocess and cache version information.
      * PERF-011: Tracks startup timing for performance monitoring.
+     * PERF-013: Fetches version info asynchronously to reduce perceived startup time.
      */
     async start(): Promise<void> {
         if (!this.bridge) return;
@@ -87,19 +88,37 @@ export class BridgeManager {
         await this.bridge.start();
         const bridgeReadyTime = performance.now();
 
-        // Fetch and cache version information via RPC
+        // PERF-013: Record bridge_ready timing before async version fetch
+        this.startupMetrics = {
+            bridgeStart: this.bridgeStartTime,
+            bridgeReady: bridgeReadyTime,
+            bridgeStartDuration: bridgeReadyTime - this.bridgeStartTime,
+        };
+
+        // PERF-013: Fetch version info asynchronously (fire and forget)
+        // This allows start() to return immediately after subprocess spawn
+        this.fetchVersionInfoAsync();
+    }
+
+    /**
+     * PERF-013: Fetch version information asynchronously after bridge starts.
+     * This method is called without await to allow start() to return immediately.
+     * Version info is cached when the fetch completes.
+     */
+    private async fetchVersionInfoAsync(): Promise<void> {
+        if (!this.bridge) return;
+
         try {
+            const versionFetchStartTime = performance.now();
             const versionInfo = await this.bridge.getVersionInfo();
             const versionFetchTime = performance.now();
 
-            // PERF-011: Calculate and store startup metrics
+            // PERF-013: Update startup metrics with version fetch timing
             this.startupMetrics = {
-                bridgeStart: this.bridgeStartTime,
-                bridgeReady: bridgeReadyTime,
-                bridgeStartDuration: bridgeReadyTime - this.bridgeStartTime,
+                ...this.startupMetrics!,
                 versionFetch: versionFetchTime,
-                versionFetchDuration: versionFetchTime - bridgeReadyTime,
-                total: versionFetchTime - this.bridgeStartTime,
+                versionFetchDuration: versionFetchTime - versionFetchStartTime,
+                total: versionFetchTime - this.bridgeStartTime!,
             };
 
             if (versionInfo) {
@@ -121,17 +140,17 @@ export class BridgeManager {
                     ...versionInfo,
                     pikePath: resolvedPath,
                 };
-                this.logger.info('Pike version detected', {
+                this.logger.info('Pike version detected (async)', {
                     version: versionInfo.version,
                     path: resolvedPath,
                     startupDuration: (this.startupMetrics?.['total']?.toFixed(2) ?? 'N/A') + 'ms',
                 });
             } else {
-                this.logger.warn('Failed to get Pike version info via RPC');
+                this.logger.warn('Failed to get Pike version info via RPC (async)');
             }
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            this.logger.warn('Failed to get Pike version info', { error: message });
+            this.logger.warn('Failed to get Pike version info (async)', { error: message });
         }
     }
 
