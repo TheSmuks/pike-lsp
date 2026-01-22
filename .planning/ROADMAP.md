@@ -32,9 +32,12 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
   2. CI automatically runs benchmarks and fails if regression exceeds threshold
   3. Benchmark report shows before/after comparison when changes are made
   4. Cold start time is measured and reported
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
+- [ ] 10-01-PLAN.md — Pike Instrumentation & Mitata Setup
+- [ ] 10-02-PLAN.md — LSP Core Benchmarks & Fixtures
+- [ ] 10-03-PLAN.md — CI Regression Tracking
 - [ ] 10-01: TBD
 
 ### Phase 11: Startup Optimization
@@ -139,7 +142,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 10. Benchmarking Infrastructure | 0/TBD | Not started | - |
+| 10. Benchmarking Infrastructure | 0/3 | Not started | - |
 | 11. Startup Optimization | 0/TBD | Not started | - |
 | 12. Request Consolidation | 0/TBD | Not started | - |
 | 13. Pike-Side Compilation Caching | 0/TBD | Not started | - |
