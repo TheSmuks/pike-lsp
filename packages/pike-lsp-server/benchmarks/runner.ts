@@ -19,6 +19,26 @@ async function runBenchmarks() {
       await bridge.stop();
     });
 
+    // PERF-011: Startup benchmark with detailed metrics
+    bench('PikeBridge.start() with detailed metrics [Cold Start]', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      // Fetch startup metrics if available
+      try {
+        const metrics = await (bridge as any).sendRequest('get_startup_metrics', {});
+        // Metrics will be available in result.startup
+        const startup = metrics?.startup;
+        if (startup && !process.env.MITATA_JSON) {
+          console.error('  Pike startup phases:', JSON.stringify(startup));
+        }
+      } catch (e) {
+        // Handler may not be available in older versions
+      }
+
+      await bridge.stop();
+    });
+
     bench('Cold Start + First Request (getVersionInfo)', async () => {
       const bridge = new PikeBridge();
       await bridge.start();
@@ -54,6 +74,15 @@ async function runBenchmarks() {
         }
     }
   };
+
+  // PERF-011: Fetch startup metrics once for reporting
+  let startupPhases: Record<string, number> | null = null;
+  try {
+    const startupResult = await (bridge as any).sendRequest('get_startup_metrics', {});
+    startupPhases = startupResult?.startup || null;
+  } catch (e) {
+    // Handler may not be available
+  }
 
   group('Validation Pipeline (Warm)', () => {
     const runValidation = async (code: string, filename: string, benchName: string) => {
@@ -113,6 +142,19 @@ async function runBenchmarks() {
       if (times.length > 0) {
         const avg = times.reduce((a, b) => a + b, 0) / times.length;
         console.log(`${name.padEnd(40)}: ${avg.toFixed(3)} ms`);
+      }
+    }
+
+    // PERF-011: Report startup phase breakdown
+    if (startupPhases) {
+      console.log('\n--- Pike Startup Phases (ms) ---');
+      const phaseOrder = ['path_setup', 'version', 'handlers', 'context', 'total'];
+      for (const phase of phaseOrder) {
+        if (startupPhases[phase] !== undefined) {
+          const value = startupPhases[phase];
+          const displayPhase = phase.padEnd(12);
+          console.log(`${displayPhase}: ${value.toFixed(3)} ms`);
+        }
       }
     }
   }
