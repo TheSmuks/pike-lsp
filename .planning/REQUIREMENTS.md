@@ -106,12 +106,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BENCH-01 | Phase 10 | Pending |
-| BENCH-02 | Phase 10 | Pending |
-| BENCH-03 | Phase 10 | Pending |
-| BENCH-04 | Phase 10 | Pending |
-| BENCH-05 | Phase 10 | Pending |
-| BENCH-06 | Phase 10 | Pending |
+| BENCH-01 | Phase 10 | Complete |
+| BENCH-02 | Phase 10 | Complete |
+| BENCH-03 | Phase 10 | Complete |
+| BENCH-04 | Phase 10 | Complete |
+| BENCH-05 | Phase 10 | Complete |
+| BENCH-06 | Phase 10 | Complete |
 | START-01 | Phase 11 | Pending |
 | START-02 | Phase 11 | Pending |
 | START-03 | Phase 11 | Pending |
