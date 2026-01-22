@@ -162,7 +162,7 @@ int main(int argc, array(string) argv) {
 
     // Log Pike version for debugging
     // PERF-012: Use __REAL_VERSION__ directly instead of loading LSP.Compat module (~10-30ms saved)
-    werror("Pike LSP Analyzer running on Pike %s\n", __REAL_VERSION__);
+    werror("Pike LSP Analyzer running on Pike %s\n", (string)__REAL_VERSION__);
 
     // PERF-011: Record version phase time
     startup_phases->version = startup_timer->peek() * 1000.0;
