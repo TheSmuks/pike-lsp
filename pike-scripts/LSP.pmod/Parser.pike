@@ -495,6 +495,122 @@ protected string get_symbol_kind(object symbol) {
     return "unknown";
 }
 
+//! Parse autodoc documentation string into structured format
+//! Extracts @param, @returns, @throws, @note, @seealso, @deprecated tags
+//! @param doc Raw autodoc string (with //! prefixes stripped)
+//! @returns Mapping with text, params, returns, throws, notes, seealso, deprecated
+protected mapping simple_parse_autodoc(string doc) {
+    if (!doc || sizeof(doc) == 0) return ([]);
+
+    mapping result = ([
+        "text": "",
+        "params": ([]),
+        "returns": "",
+        "throws": "",
+        "notes": ({}),
+        "seealso": ({}),
+        "deprecated": ""
+    ]);
+
+    array(string) lines = doc / "\n";
+    string current_section = "text";
+    string current_param = "";
+    array(string) text_buffer = ({});
+
+    foreach(lines, string line) {
+        string trimmed = LSP.Compat.trim_whites(line);
+
+        // Check for @tags
+        if (has_prefix(trimmed, "@param ")) {
+            // Save previous buffer
+            if (sizeof(text_buffer) > 0) {
+                if (current_section == "text") {
+                    result->text = text_buffer * " ";
+                } else if (current_section == "param" && sizeof(current_param) > 0) {
+                    result->params[current_param] = text_buffer * " ";
+                } else if (current_section == "returns") {
+                    result->returns = text_buffer * " ";
+                } else if (current_section == "throws") {
+                    result->throws = text_buffer * " ";
+                }
+                text_buffer = ({});
+            }
+
+            // Parse @param name description
+            string rest = trimmed[7..];
+            int space_pos = search(rest, " ");
+            if (space_pos >= 0) {
+                current_param = rest[..space_pos-1];
+                text_buffer = ({ LSP.Compat.trim_whites(rest[space_pos+1..]) });
+            } else {
+                current_param = rest;
+            }
+            current_section = "param";
+            result->params[current_param] = "";
+
+        } else if (has_prefix(trimmed, "@returns ") || has_prefix(trimmed, "@return ")) {
+            if (sizeof(text_buffer) > 0) {
+                if (current_section == "text") result->text = text_buffer * " ";
+                else if (current_section == "param" && sizeof(current_param) > 0) {
+                    result->params[current_param] = text_buffer * " ";
+                }
+                text_buffer = ({});
+            }
+            int at_len = has_prefix(trimmed, "@returns ") ? 9 : 8;
+            text_buffer = ({ LSP.Compat.trim_whites(trimmed[at_len..]) });
+            current_section = "returns";
+
+        } else if (has_prefix(trimmed, "@throws ")) {
+            if (sizeof(text_buffer) > 0) {
+                if (current_section == "text") result->text = text_buffer * " ";
+                else if (current_section == "param" && sizeof(current_param) > 0) {
+                    result->params[current_param] = text_buffer * " ";
+                } else if (current_section == "returns") {
+                    result->returns = text_buffer * " ";
+                }
+                text_buffer = ({});
+            }
+            text_buffer = ({ LSP.Compat.trim_whites(trimmed[8..]) });
+            current_section = "throws";
+
+        } else if (has_prefix(trimmed, "@note ") || has_prefix(trimmed, "@note")) {
+            if (sizeof(text_buffer) > 0) {
+                if (current_section == "text") result->text = text_buffer * " ";
+                else if (current_section == "param" && sizeof(current_param) > 0) {
+                    result->params[current_param] = text_buffer * " ";
+                } else if (current_section == "returns") result->returns = text_buffer * " ";
+                else if (current_section == "throws") result->throws = text_buffer * " ";
+                text_buffer = ({});
+            }
+            string note_text = sizeof(trimmed) > 6 ? LSP.Compat.trim_whites(trimmed[6..]) : "";
+            result->notes += ({ note_text });
+            current_section = "note";
+
+        } else if (has_prefix(trimmed, "@seealso ")) {
+            string ref = LSP.Compat.trim_whites(trimmed[9..]);
+            if (sizeof(ref) > 0) result->seealso += ({ ref });
+
+        } else if (has_prefix(trimmed, "@deprecated ") || has_prefix(trimmed, "@deprecated")) {
+            result->deprecated = sizeof(trimmed) > 12 ? LSP.Compat.trim_whites(trimmed[12..]) : "Deprecated";
+
+        } else if (sizeof(trimmed) > 0) {
+            // Regular text line
+            text_buffer += ({ trimmed });
+        }
+    }
+
+    // Finalize last section
+    if (sizeof(text_buffer) > 0) {
+        if (current_section == "text") result->text = text_buffer * " ";
+        else if (current_section == "param" && sizeof(current_param) > 0) {
+            result->params[current_param] = text_buffer * " ";
+        } else if (current_section == "returns") result->returns = text_buffer * " ";
+        else if (current_section == "throws") result->throws = text_buffer * " ";
+    }
+
+    return result;
+}
+
 protected mapping symbol_to_json(object symbol, string|void documentation) {
     string kind = get_symbol_kind(symbol);
 
@@ -505,7 +621,8 @@ protected mapping symbol_to_json(object symbol, string|void documentation) {
     ]);
 
     if (documentation && sizeof(documentation) > 0) {
-        result->documentation = documentation;
+        // Parse autodoc into structured format for TypeScript consumption
+        result->documentation = simple_parse_autodoc(documentation);
     }
 
     catch {
