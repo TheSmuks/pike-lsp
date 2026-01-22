@@ -19,8 +19,8 @@ npm run build:test
 # Check platform
 case "$(uname -s)" in
     Linux*)
-        # 1. If we already have a display (e.g. xvfb-run or local X11), just use it
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
+        # 1. If we already have a display (e.g. xvfb-run or local X11), use it IF we are in CI or user explicitly requested it
+        if ([ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]) && { is_ci || [ -n "$USE_CURRENT_DISPLAY" ]; }; then
             echo "Display detected (DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY). Running tests..."
             # In CI or headless environments, we still want these flags
             export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
