@@ -931,13 +931,18 @@ function resolveIncludePath(
     documentDir: string,
     includePaths: string[]
 ): { target: string; tooltip: string } | null {
+    // Handle absolute paths
     if (filePath.startsWith('/')) {
-        return {
-            target: `file://${filePath}`,
-            tooltip: filePath
-        };
+        if (fsSync.existsSync(filePath)) {
+            return {
+                target: `file://${filePath}`,
+                tooltip: filePath
+            };
+        }
+        return null;
     }
 
+    // Try document directory first, then include paths
     const candidates = [
         path.resolve(documentDir, filePath),
         ...includePaths.map((includePath) => path.resolve(includePath, filePath))
@@ -947,23 +952,21 @@ function resolveIncludePath(
         if (fsSync.existsSync(candidate)) {
             return {
                 target: `file://${candidate}`,
-                tooltip: filePath
+                tooltip: `${filePath} → ${candidate}`
             };
         }
     }
 
-    const resolvedPath = path.resolve(documentDir, filePath);
-    return {
-        target: `file://${resolvedPath}`,
-        tooltip: filePath
-    };
+    // File not found - don't return a broken link
+    return null;
 }
 
 /**
  * Get the directory path from a file URI
  */
 function _getDocumentDirectory(uri: string): string {
-    const filePath = uri.replace(/^file:\/\/\/?/, '');
+    // Decode URI-encoded characters (e.g., %20 -> space)
+    const filePath = decodeURIComponent(uri.replace(/^file:\/\/\/?/, ''));
     const lastSlash = filePath.lastIndexOf('/');
     return lastSlash >= 0 ? filePath.substring(0, lastSlash) : filePath;
 }
