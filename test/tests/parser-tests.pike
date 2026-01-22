@@ -319,8 +319,8 @@ void test_autodoc_extraction() {
     array symbols = result->result->symbols;
     mapping method = find_symbol(symbols, "test_func", "method");
 
-    if (method && method->documentation && sizeof(method->documentation) > 0) {
-        if (has_value(method->documentation, "test function")) {
+    if (method && method->documentation && mappingp(method->documentation)) {
+        if (method->documentation->text && has_value(method->documentation->text, "test function")) {
             return;  // Success
         }
     }
