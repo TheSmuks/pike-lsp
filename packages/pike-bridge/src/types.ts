@@ -456,9 +456,98 @@ export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'analyze';
     /** Request parameters */
     params: Record<string, unknown>;
+}
+
+/**
+ * Analysis operation types for unified analyze request.
+ */
+export type AnalysisOperation = 'parse' | 'introspect' | 'diagnostics' | 'tokenize';
+
+/**
+ * Unified analyze request - consolidates multiple Pike operations.
+ *
+ * Performs compilation and tokenization once, then distributes results
+ * to all requested operation types. Supports partial success - each
+ * operation type appears in either result or failures, never both.
+ */
+export interface AnalyzeRequest {
+    /** Pike source code to analyze */
+    code: string;
+    /** Optional filename for error messages */
+    filename?: string;
+    /** Which operations to perform - at least one required */
+    include: AnalysisOperation[];
+}
+
+/**
+ * Failure information for a single analyze operation.
+ */
+export interface AnalyzeFailure {
+    /** Error message describing the failure */
+    message: string;
+    /** Failure kind - error type category */
+    kind: string;
+}
+
+/**
+ * Successful results for each analyze operation type.
+ */
+export interface AnalyzeResults {
+    /** Parse result - symbols and diagnostics from parsing */
+    parse?: PikeParseResult;
+    /** Introspect result - type information from compilation */
+    introspect?: IntrospectionResult;
+    /** Diagnostics result - uninitialized variable analysis */
+    diagnostics?: AnalyzeUninitializedResult;
+    /** Tokenize result - lexical tokens from code */
+    tokenize?: { tokens: PikeToken[] };
+}
+
+/**
+ * Failure information for each analyze operation type.
+ *
+ * Uses O(1) lookup pattern - check failures.parse directly,
+ * no iteration required.
+ */
+export interface AnalyzeFailures {
+    /** Parse failure information */
+    parse?: AnalyzeFailure;
+    /** Introspect failure information */
+    introspect?: AnalyzeFailure;
+    /** Diagnostics failure information */
+    diagnostics?: AnalyzeFailure;
+    /** Tokenize failure information */
+    tokenize?: AnalyzeFailure;
+}
+
+/**
+ * Performance timing metadata for analyze operation.
+ */
+export interface AnalyzePerformance {
+    /** Total Pike processing time in milliseconds */
+    pike_total_ms: number;
+    /** Time spent compiling code (if introspection requested) */
+    compilation_ms?: number;
+    /** Time spent tokenizing code (if tokenization requested) */
+    tokenization_ms?: number;
+}
+
+/**
+ * Unified analyze response - partial success structure.
+ *
+ * Each requested operation appears in either result or failures,
+ * never both. Use failures?.[operation] for O(1) lookup.
+ */
+export interface AnalyzeResponse {
+    /** Successful results for each operation type */
+    result?: AnalyzeResults;
+    /** Failure information for operations that failed */
+    failures?: AnalyzeFailures;
+    /** Performance timing metadata */
+    _perf?: AnalyzePerformance;
 }
 
 /**
