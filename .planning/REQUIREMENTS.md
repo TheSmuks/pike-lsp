@@ -51,9 +51,9 @@ Requirements for performance optimization milestone. Each maps to roadmap phases
 
 ### Startup Optimization
 
-- [ ] **START-01**: Pike subprocess starts in <500ms (currently ~1000ms)
-- [ ] **START-02**: Module instantiation is lazy (only create what's needed)
-- [ ] **START-03**: Module path setup happens once (not on every request)
+- [x] **START-01**: Pike subprocess starts in <500ms (currently ~1000ms)
+- [x] **START-02**: Module instantiation is lazy (only create what's needed)
+- [x] **START-03**: Module path setup happens once (not on every request)
 
 ### Pike-Side Compilation Caching
 
@@ -112,9 +112,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BENCH-04 | Phase 10 | Complete |
 | BENCH-05 | Phase 10 | Complete |
 | BENCH-06 | Phase 10 | Complete |
-| START-01 | Phase 11 | Pending |
-| START-02 | Phase 11 | Pending |
-| START-03 | Phase 11 | Pending |
+| START-01 | Phase 11 | Complete |
+| START-02 | Phase 11 | Complete |
+| START-03 | Phase 11 | Complete |
 | CONS-01 | Phase 12 | Pending |
 | CONS-02 | Phase 12 | Pending |
 | CONS-03 | Phase 12 | Pending |
