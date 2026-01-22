@@ -65,10 +65,14 @@ Plans:
   2. Validation pipeline makes exactly one Pike call per document change
   3. Existing JSON-RPC methods (introspect, parse, etc.) still work for backward compatibility
   4. Benchmark shows measurable latency reduction
-**Plans**: TBD
+**Plans**: 5 plans in 3 waves
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Unified Analyze Method in Pike (Wave 1)
+- [ ] 12-02-PLAN.md — TypeScript Bridge Integration (Wave 1)
+- [ ] 12-03-PLAN.md — Backward Compatibility Wrappers (Wave 2)
+- [ ] 12-04-PLAN.md — Validation Pipeline Rewrite (Wave 2)
+- [ ] 12-05-PLAN.md — Benchmark Verification (Wave 3)
 
 ### Phase 13: Pike-Side Compilation Caching
 **Goal**: Avoid recompiling unchanged code in Pike subprocess
@@ -147,7 +151,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 10. Benchmarking Infrastructure | 3/3 | Complete | 2026-01-22 |
 | 11. Startup Optimization | 5/5 | Complete | 2026-01-22 |
-| 12. Request Consolidation | 0/TBD | Not started | - |
+| 12. Request Consolidation | 0/5 | Ready to execute | - |
 | 13. Pike-Side Compilation Caching | 0/TBD | Not started | - |
 | 14. TypeScript-Side Caching | 0/TBD | Not started | - |
 | 15. Cross-File Caching | 0/TBD | Not started | - |
