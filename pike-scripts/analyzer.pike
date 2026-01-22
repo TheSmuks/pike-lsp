@@ -125,6 +125,10 @@ protected mapping(string:mixed) handle_request(mapping(string:mixed) request, Co
     return dispatch(method, params, ctx);
 }
 
+// PERF-011: Startup phase timing tracking
+mapping startup_phases = ([]);
+object startup_timer = System.Timer();
+
 int main(int argc, array(string) argv) {
     // Add module path for LSP.pmod access
     // Use __FILE__ to get the directory containing this script, so it works
@@ -132,10 +136,16 @@ int main(int argc, array(string) argv) {
     string script_dir = dirname(__FILE__);
     master()->add_module_path(script_dir);
 
+    // PERF-011: Record path_setup phase time
+    startup_phases->path_setup = startup_timer->peek() * 1000.0;
+
     // Log Pike version for debugging
     array(int) version = master()->resolv("LSP.Compat")->pike_version();
     werror("Pike LSP Analyzer running on Pike %d.%d.%d\n",
            version[0], version[1], version[2]);
+
+    // PERF-011: Record version phase time
+    startup_phases->version = startup_timer->peek() * 1000.0;
 
     // Initialize HANDLERS dispatch table after module path is set
     // Per CONTEXT.md Router Design Pattern
@@ -194,10 +204,26 @@ int main(int argc, array(string) argv) {
                 ])
             ]);
         },
+        "get_startup_metrics": lambda(mapping params, object ctx) {
+            return ([
+                "result": ([
+                    "startup": startup_phases
+                ])
+            ]);
+        },
     ]);
+
+    // PERF-011: Record handlers phase time
+    startup_phases->handlers = startup_timer->peek() * 1000.0;
 
     // Create Context instance (service container with all modules)
     Context ctx = Context();
+
+    // PERF-011: Record context phase time
+    startup_phases->context = startup_timer->peek() * 1000.0;
+
+    // PERF-011: Record total startup time
+    startup_phases->total = startup_timer->peek() * 1000.0;
 
     // Interactive JSON-RPC mode: read requests from stdin, write responses to stdout
     // CRITICAL: Must use line-by-line reading (gets) NOT read() which waits for EOF
