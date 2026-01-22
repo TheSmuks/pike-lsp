@@ -79,29 +79,42 @@ mapping HANDLERS;
 //! Dispatch function - routes method calls to appropriate handlers
 //! Per CONTEXT.md: Single dispatch() function handles routing and error normalization
 protected mapping dispatch(string method, mapping params, Context ctx) {
+    object timer = System.Timer();
+
     // Get handler from dispatch table
     function handler = HANDLERS[method];
 
     if (!handler) {
-        return ([
+        mapping resp = ([
             "error": ([
                 "code": -32601,
                 "message": "Method not found: " + method
             ])
         ]);
+        resp->_perf = ([ "pike_total_ms": timer->peek() * 1000.0 ]);
+        return resp;
     }
 
     // Call handler with error normalization - Context passed through
+    mapping result;
     mixed err = catch {
-        return handler(params, ctx);
+        result = handler(params, ctx);
     };
 
-    return ([
-        "error": ([
-            "code": -32000,
-            "message": describe_error(err)
-        ])
-    ]);
+    if (err) {
+        result = ([
+            "error": ([
+                "code": -32000,
+                "message": describe_error(err)
+            ])
+        ]);
+    }
+
+    if (result) {
+        result->_perf = ([ "pike_total_ms": timer->peek() * 1000.0 ]);
+    }
+
+    return result;
 }
 
 //! handle_request - entry point for JSON-RPC requests
