@@ -257,6 +257,41 @@ async function runBenchmarks() {
     });
   });
 
+  // PERF-17-03: Responsiveness benchmarks
+  // Measures user-perceived latency during typing and validation
+  group('Responsiveness (Warm)', async () => {
+    // Benchmark: First keystroke response (user perception)
+    bench('First diagnostic after document change', async () => {
+      const start = Date.now();
+      await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', 1);
+      return Date.now() - start;
+    });
+
+    // Benchmark: Validation with debounce delay (simulates post-typing validation)
+    bench('Validation with 250ms debounce (default)', async () => {
+      // Simulate waiting for debounce delay + validation
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const response = await bridge.analyze(
+        mediumPike,
+        ['introspect'],
+        'medium.pike',
+        2
+      );
+      return response;
+    });
+
+    // Benchmark: Rapid edit coalescing (multiple edits before debounce fires)
+    bench('Rapid edit simulation (debounce coalescing)', async () => {
+      // Simulate 5 rapid edits - only last one should trigger validation
+      const results = [];
+      for (let i = 0; i < 5; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // 50ms between edits (faster than debounce)
+        results.push(await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', i + 1));
+      }
+      return results;
+    });
+  });
+
   group('Intelligence Operations (Warm)', () => {
     bench('Hover: resolveStdlib("Stdio.File")', async () => {
       const res = await bridge.resolveStdlib('Stdio.File');
