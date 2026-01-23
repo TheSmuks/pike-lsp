@@ -362,6 +362,28 @@ int main(int argc, array(string) argv) {
                 "max_files": 500
             ])]);
         },
+        "invalidate_cache": lambda(mapping params, object ctx) {
+            // PERF-15-01: Invalidate cache entries for testing
+            mixed CacheClass = master()->resolv("LSP.CompilationCache");
+            if (CacheClass && programp(CacheClass)) {
+                string path = params->path || "";
+                int transitive = params->transitive || 0;
+
+                // Resolve path relative to project root if not absolute
+                if (sizeof(path) > 0 && path[0] != '/') {
+                    path = combine_path(getcwd(), path);
+                }
+
+                if (transitive) {
+                    CacheClass->invalidate(path, 1);  // Transitive invalidation
+                } else {
+                    CacheClass->invalidate(path, 0);  // Direct invalidation
+                }
+
+                return (["result": (["status": "invalidated", "path": path])]);
+            }
+            return (["error": (["code": -32601, "message": "Cache not available"])]);
+        },
     ]);
 
     // PERF-011: Record handlers phase time
