@@ -184,6 +184,33 @@ async function runBenchmarks() {
     });
   });
 
+  // PERF-15-01: Cross-file cache verification
+  group('Cross-File Cache Verification', async () => {
+    const utilsCode = fs.readFileSync(
+      path.join(__dirname, 'fixtures/cross-file/lib/utils.pike'),
+      'utf8'
+    );
+    const mainCode = fs.readFileSync(
+      path.join(__dirname, 'fixtures/cross-file/main.pike'),
+      'utf8'
+    );
+
+    // First compile utils.pike directly to establish baseline
+    await bridge.analyze(utilsCode, ['introspect'], 'lib/utils.pike', 1);
+
+    // Benchmark: Compile main.pike (should inherit utils.pike from cache)
+    bench('Cross-file: compile main with inherited utils', async () => {
+      const response = await bridge.analyze(mainCode, ['introspect'], 'main.pike', 1);
+      return response;
+    });
+
+    // Benchmark: Verify cache hit on recompile
+    bench('Cross-file: recompile main (cache hit)', async () => {
+      const response = await bridge.analyze(mainCode, ['introspect'], 'main.pike', 1);
+      return response;
+    });
+  });
+
   group('Intelligence Operations (Warm)', () => {
     bench('Hover: resolveStdlib("Stdio.File")', async () => {
       const res = await bridge.resolveStdlib('Stdio.File');
@@ -251,6 +278,19 @@ async function runBenchmarks() {
       }
     } catch (e) {
       // Handler may not be available yet
+    }
+
+    // PERF-15-01: Cross-file cache verification output
+    if (!process.env.MITATA_JSON) {
+      console.log('\n=== Cross-File Cache Verification ===');
+      try {
+        const cacheStats = await (bridge as any).sendRequest('get_cache_stats', {});
+        console.log(`Files in cache: ${cacheStats.size || 0}`);
+        console.log('Verification: Check if both main.pike and lib/utils.pike are cached');
+        console.log('Expected: 2+ files (main.pike + lib/utils.pike) for cross-file caching');
+      } catch (e) {
+        console.log('Cache stats not available:', e);
+      }
     }
   }
 
