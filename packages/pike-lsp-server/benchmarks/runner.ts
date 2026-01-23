@@ -107,6 +107,37 @@ async function runBenchmarks() {
     });
   });
 
+  group('Request Consolidation (Warm)', async () => {
+    // PERF-12-05: Benchmark legacy approach (3 separate calls) vs consolidated (1 call)
+    const code = mediumPike;
+    const filename = 'medium.pike';
+
+    // Legacy: 3 separate IPC calls (the old validation approach)
+    bench('Validation Legacy (3 calls: introspect + parse + analyzeUninitialized)', async () => {
+      const results: any = {};
+      results.introspect = await bridge.introspect(code, filename);
+      results.parse = await bridge.parse(code, filename);
+      results.analyze = await bridge.analyzeUninitialized(code, filename);
+      trackPikeTime('Validation Legacy', results);
+      return results;
+    });
+
+    // Consolidated: Single analyze() call with all include types
+    bench('Validation Consolidated (1 call: analyze with all includes)', async () => {
+      const response = await bridge.analyze(
+        code,
+        ['parse', 'introspect', 'diagnostics'],
+        filename
+      );
+      trackPikeTime('Validation Consolidated', response.result);
+      return response;
+    });
+
+    // Warm-up iteration to ensure JIT optimization before benchmarks run
+    await bridge.introspect(code, filename);
+    await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
+  });
+
   group('Intelligence Operations (Warm)', () => {
     bench('Hover: resolveStdlib("Stdio.File")', async () => {
       const res = await bridge.resolveStdlib('Stdio.File');
