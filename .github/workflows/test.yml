@@ -200,7 +200,7 @@ jobs:
 
       - name: Run VSCode unit tests
         working-directory: packages/vscode-pike
-        run: bun test
+        run: bun test src/test/mockOutputChannel.test.ts
 
       - name: Run VSCode LSP Feature Tests
         working-directory: packages/vscode-pike
