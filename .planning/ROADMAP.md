@@ -18,7 +18,7 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
 - [x] **Phase 13: Pike-Side Compilation Caching** - Cache compiled programs in Pike subprocess
 - [x] **Phase 14: TypeScript-Side Caching** - Dedupe analyze() calls at LSP layer
 - [x] **Phase 15: Cross-File Caching** - Cache imported/inherited files with dependency tracking
-- [ ] **Phase 16: Stdlib Performance** - Fix stdlib loading without crashes
+- [x] **Phase 16: Stdlib Performance** - Fix stdlib loading without crashes
 - [ ] **Phase 17: Responsiveness Tuning** - Optimize debouncing and measure final improvements
 
 ## Phase Details
@@ -150,16 +150,18 @@ Plans:
   2. User can configure diagnostic delay via settings
   3. Rapid typing does not cause CPU thrashing (debouncing works)
   4. Final benchmark shows measurable improvement over Phase 10 baseline
-**Plans**: TBD
+**Plans**: 3 plans in 1 wave
 
 Plans:
-- [ ] 17-01: TBD
+- [ ] 17-01-PLAN.md — Update diagnostic delay default to 250ms and adjust bounds
+- [ ] 17-02-PLAN.md — Create E2E typing simulation test for debouncing verification
+- [ ] 17-03-PLAN.md — Add responsiveness benchmarks and final performance report
 
 ## Progress
 
 **Execution Order:** Phases 10 through 17 in sequence.
 
-**Phase 16 Status:** Complete. 3 plans executed in 3 waves.
+**Phase 17 Status:** Planned. 3 plans ready in 1 wave.
 
 ## Requirements Coverage
 
@@ -172,8 +174,11 @@ Plans:
 | CACHE-01 through CACHE-06 | 14 | ✅ Complete |
 | CACHE-07 through CACHE-09 | 15 | ✅ Complete |
 | STDLIB-01 through STDLIB-04 | 16 | ✅ Complete |
-| RESP-01 through RESP-03 | 17 | ⏸ Not Started |
+| RESP-01 through RESP-03 | 17 | ⏸ Planned |
+| RESP-01 | 17-01 | ⏸ Planned |
+| RESP-02 | 17-01 | ⏸ Planned |
+| RESP-03 | 17-02 | ⏸ Planned |
 
 ---
 *Roadmap defined: 2026-01-22*
-*Phase 16 planned: 2026-01-23*
+*Phase 17 planned: 2026-01-23*
