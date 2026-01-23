@@ -1,0 +1,6 @@
+# Benchmark outputs
+benchmark-results.json
+benchmark-output.txt
+
+# Test scripts
+test-*.mjs
