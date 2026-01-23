@@ -17,6 +17,7 @@ import {
     ServerOptions,
     TransportKind,
 } from 'vscode-languageclient/node';
+import { DEFAULT_DIAGNOSTIC_DELAY, DEBUG_PORT } from './constants.js';
 
 let client: LanguageClient | undefined;
 let serverOptions: ServerOptions | null = null;
@@ -188,7 +189,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
             module: serverModule,
             transport: TransportKind.ipc,
             options: {
-                execArgv: ['--nolazy', '--inspect=6009'],
+                execArgv: ['--nolazy', `--inspect=${DEBUG_PORT}`],
             },
         },
     };
@@ -296,7 +297,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
 
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
-    const diagnosticDelay = config.get<number>('diagnosticDelay', 500);
+    const diagnosticDelay = config.get<number>('diagnosticDelay', DEFAULT_DIAGNOSTIC_DELAY);
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
 

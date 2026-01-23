@@ -21,3 +21,21 @@ export const BRIDGE_TIMEOUT_DEFAULT = 30000;
  * This value balances IPC overhead reduction with memory constraints.
  */
 export const BATCH_PARSE_MAX_SIZE = 50;
+
+// Process Management Constants
+
+/**
+ * Delay in milliseconds to wait after spawning the Pike process before marking it as started.
+ *
+ * @remarks
+ * This gives the process time to initialize and begin processing JSON-RPC requests.
+ */
+export const PROCESS_STARTUP_DELAY = 100;
+
+/**
+ * Delay in milliseconds to wait after stopping the Pike process for graceful shutdown.
+ *
+ * @remarks
+ * This allows the process to clean up resources before termination.
+ */
+export const GRACEFUL_SHUTDOWN_DELAY = 100;

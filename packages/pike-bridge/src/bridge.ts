@@ -21,7 +21,7 @@ import type {
     AnalyzeResponse,
     AnalysisOperation,
 } from './types.js';
-import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE } from './constants.js';
+import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE, PROCESS_STARTUP_DELAY, GRACEFUL_SHUTDOWN_DELAY } from './constants.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeError } from '@pike-lsp/core';
 
@@ -211,7 +211,7 @@ export class PikeBridge extends EventEmitter {
                     this.debugLog('Pike subprocess started successfully');
                     this.emit('started');
                     resolve();
-                }, 100);
+                }, PROCESS_STARTUP_DELAY);
             } catch (err) {
                 const message = err instanceof Error ? err.message : String(err);
                 this.debugLog(`Exception during start: ${message}`);
@@ -238,7 +238,7 @@ export class PikeBridge extends EventEmitter {
             proc.kill();
 
             // Wait a moment for cleanup
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, GRACEFUL_SHUTDOWN_DELAY));
 
             this.debugLog('Pike subprocess stopped');
             this.process = null;

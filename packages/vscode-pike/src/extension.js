@@ -50,6 +50,7 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const vscode_1 = require("vscode");
 const node_1 = require("vscode-languageclient/node");
+const constants_js_1 = require("./constants.js");
 let client;
 let serverOptions = null;
 let outputChannel;
@@ -192,7 +193,7 @@ async function activateInternal(context, testOutputChannel) {
             module: serverModule,
             transport: node_1.TransportKind.ipc,
             options: {
-                execArgv: ['--nolazy', '--inspect=6009'],
+                execArgv: ['--nolazy', `--inspect=${constants_js_1.DEBUG_PORT}`],
             },
         },
     };
@@ -285,7 +286,7 @@ async function restartClient(showMessage) {
     }
     const config = vscode_1.workspace.getConfiguration('pike');
     const pikePath = config.get('pikePath', 'pike');
-    const diagnosticDelay = config.get('diagnosticDelay', 500);
+    const diagnosticDelay = config.get('diagnosticDelay', constants_js_1.DEFAULT_DIAGNOSTIC_DELAY);
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
     const clientOptions = {
