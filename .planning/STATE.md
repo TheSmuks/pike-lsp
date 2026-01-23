@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-22)
 ## Current Position
 
 Phase: 16 of 17 (Stdlib Performance)
-Plan: 1 of 1
-Status: Plan 16-01 complete
-Last activity: 2026-01-23 — Completed 16-01: Stdlib Introspection via Direct Object Reflection
+Plan: 2 of 3
+Status: Plan 16-02 complete
+Last activity: 2026-01-23 — Completed 16-02: Remove Bootstrap Module Blacklist from StdlibIndexManager
 
-Progress: [███████████████████░░░] 71%
+Progress: [███████████████████░░░] 76%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34
-- Average duration: ~12m 5s
-- Total execution time: 6.83 hours
+- Total plans completed: 35
+- Average duration: ~11m 50s
+- Total execution time: ~7 hours
 
 **By Phase:**
 
@@ -33,13 +33,13 @@ Progress: [███████████████████░░░] 7
 | 13    | 4     | 4        | 6m 50s   |
 | 14    | 1*    | 1        | ~15m     |
 | 15    | 1     | 1        | ~15m     |
-| 16    | 1     | 1        | ~3m      |
+| 16    | 2     | 2        | ~5m      |
 
 *Phase 14: 1 of 2 plans executed; 14-02 skipped as unnecessary
 
 **Recent Trend:**
-- Last 5 plans: 13-04, 14-01, 15-01, 16-01
-- Trend: Phase 16-01 complete - Bootstrap module introspection fixed via direct object reflection
+- Last 5 plans: 13-04, 14-01, 15-01, 16-01, 16-02
+- Trend: Phase 16-02 complete - TypeScript-side bootstrap blacklist removed, stdlib modules load successfully
 
 *Updated after each plan completion*
 
@@ -73,6 +73,7 @@ Recent decisions affecting current work:
 - (14-01): TypeScript-side deduping NOT needed - Logging confirmed no duplicate analyze() calls occur. Debounce (500ms) correctly coalesces rapid edits. PikeBridge inflight deduping handles edge cases. RequestDeduper implementation skipped to avoid unnecessary complexity.
 - (15-01): Cross-file dependency tracking fixed - DependencyTrackingCompiler wired into handle_analyze compilation flow, passing dependencies to ResultClass constructor. Fixed critical cache bug: programp() returns false for .pmod modules, added mappingp() || objectp() checks. Benchmarks confirm 2 files cached, cache hit working.
 - (16-01): Bootstrap module introspection fixed - master()->resolv() returns Stdio/String/Array/Mapping as singleton objects. Added introspect_object() method using direct indices()/values() reflection. Removed bootstrap guard that blocked these modules. Verified: Stdio (80 symbols), String (34), Array (42), Mapping (3).
+- (16-02): TypeScript-side bootstrap blacklist removed - BOOTSTRAP_MODULES Set deleted from StdlibIndexManager. Pre-population loop removed. Negative cache preserved for actual missing modules. Verified: all 4 bootstrap modules load with symbols.
 
 ### Performance Investigation Findings (2026-01-22)
 
@@ -100,10 +101,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None. Phase 16-01 complete - Bootstrap module introspection working, ready for batch stdlib preloading.
+None. Phase 16-02 complete - Both Pike-side and TypeScript-side bootstrap restrictions removed. Ready for 16-03 batch stdlib preloading.
 
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 16-01 (Stdlib Introspection via Direct Object Reflection)
+Stopped at: Completed 16-02 (Remove Bootstrap Module Blacklist from StdlibIndexManager)
 Resume file: None
