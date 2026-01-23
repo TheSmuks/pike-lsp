@@ -370,10 +370,8 @@ int main(int argc, array(string) argv) {
                 string path = params->path || "";
                 int transitive = params->transitive || 0;
 
-                // Resolve path relative to project root if not absolute
-                if (sizeof(path) > 0 && path[0] != '/') {
-                    path = combine_path(getcwd(), path);
-                }
+                // Note: Don't resolve to absolute path - cache stores filenames as-is
+                // The invalidate method uses exact path matching with compilation_cache keys
 
                 if (transitive) {
                     CacheClass->invalidate(path, 1);  // Transitive invalidation
