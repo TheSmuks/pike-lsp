@@ -116,9 +116,9 @@
                 },
                 "pike.diagnosticDelay": {
                     "type": "number",
-                    "default": 500,
-                    "minimum": 100,
-                    "maximum": 5000,
+                    "default": 250,
+                    "minimum": 50,
+                    "maximum": 2000,
                     "description": "Delay in milliseconds before running diagnostics after a document change"
                 }
             }
