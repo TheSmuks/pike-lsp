@@ -151,20 +151,6 @@ mapping handle_resolve_stdlib(mapping params) {
             return ([ "result": ([ "found": 0, "error": "No module path" ]) ]);
         }
 
-        // Guard against bootstrap modules that cause circular dependency
-        // These modules are used internally by the resolver itself.
-        // Trying to resolve them triggers infinite recursion (30-second timeout).
-        if (BOOTSTRAP_MODULES[module_path]) {
-            return ([
-                "result": ([
-                    "found": 1,
-                    "bootstrap": 1,
-                    "module": module_path,
-                    "message": "Bootstrap module - cannot be introspected"
-                ])
-            ]);
-        }
-
         // Circular dependency guard - check if we're already resolving this module
         if (resolving_modules[module_path]) {
             return ([
@@ -204,14 +190,10 @@ mapping handle_resolve_stdlib(mapping params) {
         }
 
         // Get program for introspection
-        program prog;
-        if (objectp(resolved)) {
-            prog = object_program(resolved);
-        } else if (programp(resolved)) {
-            prog = resolved;
-        } else {
-            return ([ "result": ([ "found": 0, "error": "Not a program" ]) ]);
-        }
+        // For bootstrap modules (Stdio, String, Array, Mapping), master()->resolv()
+        // returns the singleton object directly. These cannot be re-instantiated
+        // via prog() as it causes "Parent lost, cannot clone program" errors.
+        // Instead, we introspect the object directly using indices()/values().
 
         // Use native module path resolution (reuses shared helper)
         string source_path = get_module_path(resolved);
@@ -222,7 +204,24 @@ mapping handle_resolve_stdlib(mapping params) {
             program IntroClass = master()->resolv("LSP.Intelligence.Introspection");
             if (IntroClass) {
                 object intro_instance = IntroClass(context);
-                introspection = intro_instance->introspect_program(prog);
+
+                // If resolved is already an object (singleton), introspect directly
+                // This avoids "Parent lost" errors for bootstrap modules
+                if (objectp(resolved)) {
+                    introspection = intro_instance->introspect_object(resolved);
+                } else if (programp(resolved)) {
+                    // For programs, use the standard introspection
+                    introspection = intro_instance->introspect_program(resolved);
+                } else {
+                    // Unknown type - return empty introspection
+                    introspection = ([
+                        "symbols": ({}),
+                        "functions": ({}),
+                        "variables": ({}),
+                        "classes": ({}),
+                        "inherits": ({})
+                    ]);
+                }
             }
         };
         if (intro_err) {
