@@ -48,6 +48,18 @@ constant MAX_CACHED_FILES = 500;
 //! - Value: CompilationResult object
 private mapping(string:mapping(string:CompilationResult)) compilation_cache = ([]);
 
+//! Forward dependency edges: what each file imports/inherits
+//! dependencies[path] = ({dep1, dep2, ...})
+private mapping(string:array(string)) dependencies = ([]);
+
+//! Reverse dependency edges: what imports/inherits each file
+//! dependents[dep] = (<dependent1, dependent2, ...>)
+private mapping(string:multiset(string)) dependents = ([]);
+
+//! Project root for filtering local dependencies
+//! Only track local dependencies - stdlib/external modules don't change during session
+private string project_root = getcwd();
+
 //! Statistics tracking
 private mapping(string:int) stats = ([
     "hits": 0,
@@ -116,6 +128,19 @@ void reset_stats() {
         "misses": 0,
         "evictions": 0
     ]);
+}
+
+// =========================================================================
+// Dependency Graph Helpers
+// =========================================================================
+
+//! Check if a file is within the project root
+//! Only track local dependencies - stdlib/external modules don't change during session
+//! @param path The file path to check
+//! @returns 1 (true) if path is within project root, 0 (false) otherwise
+protected int is_local_file(string path) {
+    string normalized = combine_path(project_root, path);
+    return has_prefix(normalized, project_root);
 }
 
 // =========================================================================
@@ -202,14 +227,15 @@ void invalidate_all() {
 //!   Optional LSP version number for open documents
 //! @returns
 //!   Cache key string, or 0 (zero) if file doesn't exist (closed files only)
-string make_cache_key(string path, void|int lsp_version) {
+string make_cache_key(string path, int|void lsp_version) {
     // If LSP version provided (open document), use it directly
-    if (lsp_version != undefined) {
+    // Check using zero_type() to detect if argument was passed
+    if (!zero_type(lsp_version)) {
         return sprintf("LSP:%d", lsp_version);
     }
 
     // Closed file: stat filesystem
-    mapping st = file_stat(path);
+    object st = file_stat(path);
     if (!st) {
         return 0;  // File deleted
     }
