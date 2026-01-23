@@ -40,6 +40,7 @@ class Context {
     mixed parser;
     mixed intelligence;
     mixed analysis;
+    mixed compilation_cache;  // CompilationCache instance for caching compiled programs
     int debug_mode;
     mapping client_capabilities;
 
@@ -58,6 +59,14 @@ class Context {
         // The delegating Analysis class forwards to specialized handlers
         program AnalysisClass = master()->resolv("LSP.Analysis.Analysis");
         analysis = AnalysisClass();
+
+        // Initialize CompilationCache for Pike-side compilation caching
+        mixed CacheClass = master()->resolv("LSP.CompilationCache");
+        if (CacheClass && programp(CacheClass)) {
+            compilation_cache = CacheClass();
+        } else {
+            compilation_cache = 0;
+        }
 
         debug_mode = 0;
         client_capabilities = ([]);
@@ -152,6 +161,20 @@ Context get_context() {
         }
     }
     return ctx;
+}
+
+//! get_compilation_cache - Get the CompilationCache instance
+//! Initializes the cache if not already present in the Context
+//! @param ctx The Context object
+//! @returns The CompilationCache instance or 0 if unavailable
+protected object get_compilation_cache(Context ctx) {
+    if (!ctx->compilation_cache) {
+        mixed CacheClass = master()->resolv("LSP.CompilationCache");
+        if (CacheClass && programp(CacheClass)) {
+            ctx->compilation_cache = CacheClass();
+        }
+    }
+    return ctx->compilation_cache;
 }
 
 int main(int argc, array(string) argv) {
