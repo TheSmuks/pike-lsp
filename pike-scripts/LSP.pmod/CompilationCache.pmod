@@ -117,3 +117,69 @@ void reset_stats() {
         "evictions": 0
     ]);
 }
+
+// =========================================================================
+// Cache Operations
+// =========================================================================
+
+//! Get a cached compilation result
+//!
+//! @param path
+//!   The file path for the compilation
+//! @param version_key
+//!   The version key (from make_cache_key or manually generated)
+//! @returns
+//!   The cached CompilationResult, or 0 (zero) if not found (cache miss)
+CompilationResult get(string path, string version_key) {
+    if (compilation_cache[path] && compilation_cache[path][version_key]) {
+        stats->hits++;
+        return compilation_cache[path][version_key];
+    }
+    stats->misses++;
+    return 0;  // Cache miss
+}
+
+//! Put a compilation result in cache with nuclear eviction
+//!
+//! If the cache is at capacity and the path is not already present,
+//! the entire cache is cleared (nuclear eviction).
+//!
+//! @param path
+//!   The file path for the compilation
+//! @param version_key
+//!   The version key for this specific version of the file
+//! @param result
+//!   The CompilationResult to cache
+void put(string path, string version_key, CompilationResult result) {
+    // Check size limit - nuclear eviction if at capacity
+    // Only evict if this is a new file (not already in cache)
+    if (sizeof(compilation_cache) >= MAX_CACHED_FILES && !compilation_cache[path]) {
+        compilation_cache = ([]);  // Nuclear eviction
+        stats->evictions++;
+    }
+
+    if (!compilation_cache[path]) {
+        compilation_cache[path] = ([]);
+    }
+    compilation_cache[path][version_key] = result;
+}
+
+//! Invalidate all cached versions of a file
+//!
+//! O(1) invalidation - removes all version entries for the given path.
+//!
+//! @param path
+//!   The file path to invalidate
+void invalidate(string path) {
+    if (compilation_cache[path]) {
+        m_delete(compilation_cache, path);
+    }
+}
+
+//! Invalidate all cached files
+//!
+//! Clears the entire cache. Useful for testing or when the project
+//! state has changed significantly.
+void invalidate_all() {
+    compilation_cache = ([]);
+}
