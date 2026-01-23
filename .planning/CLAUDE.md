@@ -8,7 +8,6 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #3748 | 8:16 PM | ✅ | Phase 02 Roadmap Updated with Three Plan Structure | ~362 |
-| #3747 | 8:15 PM | 🔵 | Phase 02 Plan 03 Created for Parser Test Suite Using TDD | ~430 |
 | #3732 | 8:10 PM | 🔵 | Planning Directory Structure Identified | ~205 |
 
 ### Jan 20, 2026
