@@ -83,10 +83,13 @@ Plans:
   2. Modified file triggers recompilation (cache invalidation works)
   3. Inherited/imported programs are reused from cache
   4. Cache persists within session but clears on VSCode restart
-**Plans**: TBD
+**Plans**: 4 plans in 4 waves
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — CompilationCache module with nested cache structure
+- [ ] 13-02-PLAN.md — Dependency tracking via compiler hooks
+- [ ] 13-03-PLAN.md — Cache integration into handle_analyze flow
+- [ ] 13-04-PLAN.md — Benchmark validation of cache speedup
 
 ### Phase 14: TypeScript-Side Caching
 **Goal**: Cache symbol positions and compilation results in LSP server
@@ -152,7 +155,7 @@ Plans:
 | 10. Benchmarking Infrastructure | 3/3 | Complete | 2026-01-22 |
 | 11. Startup Optimization | 5/5 | Complete | 2026-01-22 |
 | 12. Request Consolidation | 5/5 | Complete | 2026-01-23 |
-| 13. Pike-Side Compilation Caching | 0/TBD | Not started | - |
+| 13. Pike-Side Compilation Caching | 0/4 | Not started | - |
 | 14. TypeScript-Side Caching | 0/TBD | Not started | - |
 | 15. Cross-File Caching | 0/TBD | Not started | - |
 | 16. Stdlib Performance | 0/TBD | Not started | - |
