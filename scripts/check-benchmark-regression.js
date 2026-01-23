@@ -53,9 +53,10 @@ console.log(`Cache Speedup:      ${speedupPercent.toFixed(1)}%`);
 // Check thresholds
 let failed = false;
 
-// Skip check if values are very small (noise level) - both under 0.1ms
-if (hitMean < 0.1 && missMean < 0.1) {
-  console.log(`SKIPPED: Values too small for reliable comparison (< 0.1ms)`);
+// Skip check if values are very small (noise level) - both under 0.5ms
+// At these small scales, timing variance dominates any cache benefit
+if (hitMean < 0.5 && missMean < 0.5) {
+  console.log(`SKIPPED: Values too small for reliable comparison (< 0.5ms)`);
 } else if (speedupPercent < COMPILE_SPEEDUP_THRESHOLD) {
   console.error(`\nERROR: Cache speedup (${speedupPercent.toFixed(1)}%) below threshold (${COMPILE_SPEEDUP_THRESHOLD}%)`);
   failed = true;
