@@ -132,10 +132,12 @@ Plans:
   2. Hover on common stdlib types (Stdio, String, Array) shows documentation
   3. First hover on stdlib type responds in under 500ms
   4. Alternative preload via .pmd parsing is available if introspection fails
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 16-01: TBD
+- [ ] 16-01-PLAN.md — Direct object introspection in Pike (Resolution.pike + Introspection.pike)
+- [ ] 16-02-PLAN.md — Remove bootstrap restrictions in TypeScript (StdlibIndexManager)
+- [ ] 16-03-PLAN.md — Add stdlib benchmarks and E2E hover tests
 
 ### Phase 17: Responsiveness Tuning
 **Goal**: Optimize debouncing and validate overall performance improvement
@@ -155,7 +157,7 @@ Plans:
 
 **Execution Order:** Phases 10 through 17 in sequence.
 
-**Phase 15 Status:** Complete. 1 plan executed.
+**Phase 16 Status:** Ready to execute. 3 plans in 3 waves.
 
 ## Requirements Coverage
 
@@ -172,4 +174,4 @@ Plans:
 
 ---
 *Roadmap defined: 2026-01-22*
-*Phase 15 planned: 2026-01-23*
+*Phase 16 planned: 2026-01-23*
