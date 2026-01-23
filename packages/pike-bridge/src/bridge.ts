@@ -320,45 +320,75 @@ export class PikeBridge extends EventEmitter {
             const response: PikeResponse = JSON.parse(line);
             const pending = this.pendingRequests.get(response.id);
 
-            if (pending) {
-                clearTimeout(pending.timeout);
-                this.pendingRequests.delete(response.id);
-
-                if (response.error) {
-                    const error = new PikeError(
-                        response.error.message || 'Pike request failed',
-                        new Error(response.error.message)
-                    );
-                    pending.reject(error);
-                } else {
-                    // For analyze requests, return the full response structure with failures
-                    const isAnalyzeResponse = 'failures' in response && typeof (response as any).failures === 'object';
-
-                    if (isAnalyzeResponse) {
-                        // Return full response structure for analyze requests
-                        const fullResponse = {
-                            result: response.result,
-                            failures: (response as any).failures || {},
-                            _perf: (response as any)._perf || {},
-                        };
-                        // Copy _perf into result as well for backward compatibility
-                        if (typeof fullResponse.result === 'object' && fullResponse.result !== null && (response as any)._perf) {
-                            (fullResponse.result as any)._perf = (response as any)._perf;
-                        }
-                        pending.resolve(fullResponse);
-                    } else {
-                        // For other requests, just return the result with _perf attached
-                        const result = response.result;
-                        if (typeof result === 'object' && result !== null && (response as any)._perf) {
-                            (result as any)._perf = (response as any)._perf;
-                        }
-                        pending.resolve(result);
-                    }
-                }
+            if (!pending) {
+                return; // No pending request for this response
             }
+
+            clearTimeout(pending.timeout);
+            this.pendingRequests.delete(response.id);
+
+            if (response.error) {
+                this.rejectPendingRequest(pending, response.error.message);
+                return;
+            }
+
+            const result = this.buildResponseResult(response);
+            pending.resolve(result);
         } catch {
             // Ignore non-JSON lines (might be Pike debug output)
             this.emit('stderr', line);
+        }
+    }
+
+    /**
+     * Build the result object from a Pike response, attaching _perf metadata.
+     */
+    private buildResponseResult(response: PikeResponse): unknown {
+        const perf = (response as any)._perf || {};
+        const result = response.result;
+
+        if (this.isAnalyzeResponse(response)) {
+            // Return full response structure for analyze requests
+            const fullResponse = {
+                result,
+                failures: (response as any).failures || {},
+                _perf: perf,
+            };
+            // Copy _perf into result as well for backward compatibility
+            this.attachPerformanceMetadata(fullResponse.result, perf);
+            return fullResponse;
+        }
+
+        // For other requests, return the result with _perf attached
+        this.attachPerformanceMetadata(result, perf);
+        return result;
+    }
+
+    /**
+     * Check if response is an analyze response (contains failures object).
+     */
+    private isAnalyzeResponse(response: PikeResponse): boolean {
+        return 'failures' in response && typeof (response as any).failures === 'object';
+    }
+
+    /**
+     * Reject a pending request with a PikeError.
+     */
+    private rejectPendingRequest(pending: PendingRequest, message: string): void {
+        const error = new PikeError(
+            message || 'Pike request failed',
+            new Error(message)
+        );
+        pending.reject(error);
+    }
+
+    /**
+     * Attach performance metadata to a result object if applicable.
+     * Used to attach _perf data for timing and debugging information.
+     */
+    private attachPerformanceMetadata(result: unknown, perf: Record<string, unknown>): void {
+        if (typeof result === 'object' && result !== null && Object.keys(perf).length > 0) {
+            (result as Record<string, unknown>)['_perf'] = perf;
         }
     }
 

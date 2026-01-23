@@ -12,16 +12,16 @@ export { registerSymbolsHandlers } from './symbols.js';
 export { registerDiagnosticsHandlers } from './diagnostics.js';
 
 // Navigation feature - go to definition, references, etc.
-export { registerNavigationHandlers } from './navigation.js';
+export { registerNavigationHandlers } from './navigation/index.js';
 
 // Editing feature - completion, signature help, rename
-export { registerEditingHandlers } from './editing.js';
+export { registerEditingHandlers } from './editing/index.js';
 
 // Hierarchy feature - call and type hierarchy
 export { registerHierarchyHandlers } from './hierarchy.js';
 
 // Advanced feature - formatting, semantic tokens, etc.
-export { registerAdvancedHandlers } from './advanced.js';
+export { registerAdvancedHandlers } from './advanced/index.js';
 
 // Export Services type for convenience
 export type { Services } from '../services/index.js';

@@ -5,7 +5,7 @@
 
 import { test, describe } from 'node:test';
 import * as assert from 'node:assert';
-import { PikeBridge } from '@pike-lsp/pike-bridge/dist/bridge.js';
+import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 interface PikeSymbol {
     name: string;

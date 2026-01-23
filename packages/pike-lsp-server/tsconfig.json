@@ -3,7 +3,12 @@
     "compilerOptions": {
         "outDir": "./dist",
         "noImplicitAny": false,
-        "composite": true
+        "composite": true,
+        "paths": {
+            "@pike-lsp/core": ["../core/src"],
+            "@pike-lsp/pike-bridge": ["../pike-bridge/src"],
+            "@pike-lsp/pike-bridge/dist/*": ["../pike-bridge/dist/*"]
+        }
     },
     "include": [
         "src/**/*"

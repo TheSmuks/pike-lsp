@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ES2022",
+        "moduleResolution": "Bundler",
+        "lib": ["ES2022"],
+        "strict": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "types": [],
+        "outDir": "../../dist/test",
+        "rootDir": "."
+    },
+    "include": [
+        "./bun-test.d.ts",
+        "./mockOutputChannel.test.ts"
+    ]
+}

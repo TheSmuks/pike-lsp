@@ -5,8 +5,8 @@
 
 import { test, describe } from 'node:test';
 import * as assert from 'node:assert';
-import { PikeBridge } from '@pike-lsp/pike-bridge/dist/bridge.js';
-import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge/dist/types.js';
+import { PikeBridge } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
 
 // ============= PHASE 1: Pike Integration Layer =============
 describe('Phase 1: Pike Integration Layer', async () => {
