@@ -216,6 +216,9 @@ export class BridgeManager {
      * More efficient than calling parse(), introspect(), and analyzeUninitialized()
      * separately.
      *
+     * LOG-14-01: Logs all analyze() calls with timing and cache hit information
+     * to verify whether duplicate analyze calls occur during document changes.
+     *
      * @param code - Pike source code to analyze.
      * @param include - Which operations to perform (at least one required).
      * @param filename - Optional filename for error messages.
@@ -224,7 +227,46 @@ export class BridgeManager {
      */
     async analyze(code: string, include: AnalysisOperation[], filename?: string, documentVersion?: number): Promise<AnalyzeResponse> {
         if (!this.bridge) throw new Error('Bridge not available');
-        return this.bridge.analyze(code, include, filename, documentVersion);
+
+        // LOG-14-01: Track analyze call entry with full parameters
+        const startTime = performance.now();
+        const inflightBefore = (this.bridge as any).inflightRequests?.size ?? 0;
+        this.logger.debug('[ANALYZE_START]', {
+            uri: filename ?? 'unknown',
+            version: documentVersion ?? 'none',
+            include: include.join(','),
+            codeLength: code.length,
+            inflightPending: inflightBefore,
+        });
+
+        try {
+            const result = await this.bridge.analyze(code, include, filename, documentVersion);
+
+            // LOG-14-01: Track analyze call completion with timing
+            const duration = performance.now() - startTime;
+            const inflightAfter = (this.bridge as any).inflightRequests?.size ?? 0;
+            const cacheHit = result._perf?.cache_hit ?? false;
+
+            this.logger.debug('[ANALYZE_DONE]', {
+                uri: filename ?? 'unknown',
+                version: documentVersion ?? 'none',
+                cacheHit,
+                duration: `${duration.toFixed(2)}ms`,
+                inflightPending: inflightAfter,
+            });
+
+            return result;
+        } catch (err) {
+            // LOG-14-01: Track analyze call failures
+            const duration = performance.now() - startTime;
+            this.logger.error('[ANALYZE_ERROR]', {
+                uri: filename ?? 'unknown',
+                version: documentVersion ?? 'none',
+                duration: `${duration.toFixed(2)}ms`,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+        }
     }
 
     /**
