@@ -9,45 +9,45 @@ Requirements for performance optimization milestone. Each maps to roadmap phases
 
 ### Benchmarking
 
-- [ ] **BENCH-01**: Benchmark measures document validation latency (time from change to diagnostics)
-- [ ] **BENCH-02**: Benchmark measures hover response latency (time from hover to tooltip)
-- [ ] **BENCH-03**: Benchmark measures completion response latency
-- [ ] **BENCH-04**: Benchmark measures cold start time (extension activation to first response)
-- [ ] **BENCH-05**: Benchmark runs automatically in CI to track regressions
-- [ ] **BENCH-06**: Benchmark produces before/after comparison report
+- [x] **BENCH-01**: Benchmark measures document validation latency (time from change to diagnostics)
+- [x] **BENCH-02**: Benchmark measures hover response latency (time from hover to tooltip)
+- [x] **BENCH-03**: Benchmark measures completion response latency
+- [x] **BENCH-04**: Benchmark measures cold start time (extension activation to first response)
+- [x] **BENCH-05**: Benchmark runs automatically in CI to track regressions
+- [x] **BENCH-06**: Benchmark produces before/after comparison report
 
 ### Request Consolidation
 
-- [ ] **CONS-01**: Pike analyzer exposes unified `analyze` method combining introspect/parse/diagnostics
-- [ ] **CONS-02**: Unified analyze returns parse tree, symbols, and diagnostics in single response
-- [ ] **CONS-03**: LSP server uses single Pike call per document validation (not 3+)
-- [ ] **CONS-04**: JSON-RPC interface remains backward compatible for existing methods
-- [ ] **CONS-05**: Validation pipeline updated to use consolidated response
+- [x] **CONS-01**: Pike analyzer exposes unified `analyze` method combining introspect/parse/diagnostics
+- [x] **CONS-02**: Unified analyze returns parse tree, symbols, and diagnostics in single response
+- [x] **CONS-03**: LSP server uses single Pike call per document validation (not 3+)
+- [x] **CONS-04**: JSON-RPC interface remains backward compatible for existing methods
+- [x] **CONS-05**: Validation pipeline updated to use consolidated response
 
 ### Caching - Symbol Positions
 
-- [ ] **CACHE-01**: Symbol positions cached per document (avoid recalculation on each validation)
-- [ ] **CACHE-02**: Symbol position cache invalidated on document change
-- [ ] **CACHE-03**: Position lookup uses cached data instead of IPC call + regex fallback
+- [x] **CACHE-01**: Symbol positions cached per document (avoid recalculation on each validation)
+- [x] **CACHE-02**: Symbol position cache invalidated on document change
+- [x] **CACHE-03**: Position lookup uses cached data instead of IPC call + regex fallback
 
 ### Caching - Compilation Results
 
-- [ ] **CACHE-04**: Compilation results reused across introspect/parse/analyze for same document
-- [ ] **CACHE-05**: Cache keyed by document content hash (not URI alone)
-- [ ] **CACHE-06**: Cache has configurable memory limit with LRU eviction
+- [x] **CACHE-04**: Compilation results reused across introspect/parse/analyze for same document
+- [x] **CACHE-05**: Cache keyed by document content hash (not URI alone)
+- [x] **CACHE-06**: Cache has configurable memory limit with LRU eviction
 
 ### Caching - Cross-File
 
-- [ ] **CACHE-07**: Imported/inherited files cached to avoid re-compilation
-- [ ] **CACHE-08**: Cross-file cache invalidated when dependency file changes
-- [ ] **CACHE-09**: Dependency graph tracks which files import which
+- [x] **CACHE-07**: Imported/inherited files cached to avoid re-compilation
+- [x] **CACHE-08**: Cross-file cache invalidated when dependency file changes
+- [x] **CACHE-09**: Dependency graph tracks which files import which
 
 ### Stdlib Performance
 
-- [ ] **STDLIB-01**: Stdlib types load without triggering "Parent lost" crashes
-- [ ] **STDLIB-02**: Common stdlib modules (Stdio, String, Array) available for hover/completion
-- [ ] **STDLIB-03**: First hover on stdlib type responds in <500ms (not 1+ seconds)
-- [ ] **STDLIB-04**: Alternative preload strategy uses .pmd parsing instead of introspection
+- [x] **STDLIB-01**: Stdlib types load without triggering "Parent lost" crashes
+- [x] **STDLIB-02**: Common stdlib modules (Stdio, String, Array) available for hover/completion
+- [x] **STDLIB-03**: First hover on stdlib type responds in <500ms (not 1+ seconds)
+- [x] **STDLIB-04**: Alternative preload strategy uses .pmd parsing instead of introspection
 
 ### Startup Optimization
 
@@ -59,16 +59,16 @@ Requirements for performance optimization milestone. Each maps to roadmap phases
 
 (In-memory only - subprocess dies with VSCode, no persistence across restarts)
 
-- [ ] **PIKE-01**: Pike subprocess caches compiled programs between requests (within session)
-- [ ] **PIKE-02**: Cache keyed by file path + content hash (avoid recompiling unchanged code)
-- [ ] **PIKE-03**: Cache invalidated when file content changes
-- [ ] **PIKE-04**: Inherited/imported programs reused from cache
+- [x] **PIKE-01**: Pike subprocess caches compiled programs between requests (within session)
+- [x] **PIKE-02**: Cache keyed by file path + content hash (avoid recompiling unchanged code)
+- [x] **PIKE-03**: Cache invalidated when file content changes
+- [x] **PIKE-04**: Inherited/imported programs reused from cache
 
 ### Responsiveness
 
-- [ ] **RESP-01**: Default diagnostic delay optimized for typing speed (measure optimal value)
-- [ ] **RESP-02**: Diagnostic delay configurable via settings
-- [ ] **RESP-03**: Debouncing prevents CPU thrashing during rapid typing
+- [x] **RESP-01**: Default diagnostic delay optimized for typing speed (measure optimal value)
+- [x] **RESP-02**: Diagnostic delay configurable via settings
+- [x] **RESP-03**: Debouncing prevents CPU thrashing during rapid typing
 
 ## Future Requirements
 
@@ -115,37 +115,39 @@ Which phases cover which requirements. Updated during roadmap creation.
 | START-01 | Phase 11 | Complete |
 | START-02 | Phase 11 | Complete |
 | START-03 | Phase 11 | Complete |
-| CONS-01 | Phase 12 | Pending |
-| CONS-02 | Phase 12 | Pending |
-| CONS-03 | Phase 12 | Pending |
-| CONS-04 | Phase 12 | Pending |
-| CONS-05 | Phase 12 | Pending |
-| PIKE-01 | Phase 13 | Pending |
-| PIKE-02 | Phase 13 | Pending |
-| PIKE-03 | Phase 13 | Pending |
-| PIKE-04 | Phase 13 | Pending |
-| CACHE-01 | Phase 14 | Pending |
-| CACHE-02 | Phase 14 | Pending |
-| CACHE-03 | Phase 14 | Pending |
-| CACHE-04 | Phase 14 | Pending |
-| CACHE-05 | Phase 14 | Pending |
-| CACHE-06 | Phase 14 | Pending |
-| CACHE-07 | Phase 15 | Pending |
-| CACHE-08 | Phase 15 | Pending |
-| CACHE-09 | Phase 15 | Pending |
-| STDLIB-01 | Phase 16 | Pending |
-| STDLIB-02 | Phase 16 | Pending |
-| STDLIB-03 | Phase 16 | Pending |
-| STDLIB-04 | Phase 16 | Pending |
-| RESP-01 | Phase 17 | Pending |
-| RESP-02 | Phase 17 | Pending |
-| RESP-03 | Phase 17 | Pending |
+| CONS-01 | Phase 12 | Complete |
+| CONS-02 | Phase 12 | Complete |
+| CONS-03 | Phase 12 | Complete |
+| CONS-04 | Phase 12 | Complete |
+| CONS-05 | Phase 12 | Complete |
+| PIKE-01 | Phase 13 | Complete |
+| PIKE-02 | Phase 13 | Complete |
+| PIKE-03 | Phase 13 | Complete |
+| PIKE-04 | Phase 13 | Complete |
+| CACHE-01 | Phase 14 | Complete |
+| CACHE-02 | Phase 14 | Complete |
+| CACHE-03 | Phase 14 | Complete |
+| CACHE-04 | Phase 14 | Complete |
+| CACHE-05 | Phase 14 | Complete |
+| CACHE-06 | Phase 14 | Complete |
+| CACHE-07 | Phase 15 | Complete |
+| CACHE-08 | Phase 15 | Complete |
+| CACHE-09 | Phase 15 | Complete |
+| STDLIB-01 | Phase 16 | Complete |
+| STDLIB-02 | Phase 16 | Complete |
+| STDLIB-03 | Phase 16 | Complete |
+| STDLIB-04 | Phase 16 | Complete |
+| RESP-01 | Phase 17 | Complete |
+| RESP-02 | Phase 17 | Complete |
+| RESP-03 | Phase 17 | Complete |
 
 **Coverage:**
 - v3 requirements: 34 total
-- Mapped to phases: 34
-- Unmapped: 0
+- Complete: 34
+- Pending: 0
+
+**All v3 requirements satisfied.** Milestone complete.
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after roadmap creation*
+*Last updated: 2026-01-23 after v3.0 completion*
