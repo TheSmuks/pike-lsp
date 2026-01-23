@@ -1,3 +1,13 @@
+# Requirements Archive: v3.0 Performance Optimization
+
+**Archived:** 2026-01-23
+**Status:** ✅ SHIPPED
+
+This is the archived requirements specification for v3.0 Performance Optimization.
+For current requirements, see `.planning/REQUIREMENTS.md` (created for next milestone).
+
+---
+
 # Requirements: Pike LSP v3.0 Performance Optimization
 
 **Defined:** 2026-01-22
@@ -76,18 +86,18 @@ Deferred to later milestone. Tracked but not in v3 roadmap.
 
 ### Advanced Caching
 
-- **CACHE-F01**: Persistent cache across server restarts (file-based or embedded DB)
-- **CACHE-F02**: Cache statistics/telemetry for tuning
+- [ ] **CACHE-F01**: Persistent cache across server restarts (file-based or embedded DB)
+- [ ] **CACHE-F02**: Cache statistics/telemetry for tuning
 
 ### Advanced Startup
 
-- **START-F01**: Pre-warm Pike subprocess before first request
-- **START-F02**: Parallel workspace indexing
+- [ ] **START-F01**: Pre-warm Pike subprocess before first request
+- [ ] **START-F02**: Parallel workspace indexing
 
 ### Advanced Responsiveness
 
-- **RESP-F01**: Adaptive debouncing based on file size
-- **RESP-F02**: Adaptive debouncing based on typing patterns
+- [ ] **RESP-F01**: Adaptive debouncing based on file size
+- [ ] **RESP-F02**: Adaptive debouncing based on typing patterns
 
 ## Out of Scope
 
@@ -141,13 +151,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RESP-02 | Phase 17 | Complete |
 | RESP-03 | Phase 17 | Complete |
 
-**Coverage:**
-- v3 requirements: 34 total
-- Complete: 34
-- Pending: 0
+## Milestone Summary
 
-**All v3 requirements satisfied.** Milestone complete.
+**Shipped:** 34 of 34 v3 requirements (100%)
+**Adjusted:** Phase 14-02 skipped - existing deduping sufficient
+**Dropped:** None
 
 ---
-*Requirements defined: 2026-01-22*
-*Last updated: 2026-01-23 after v3.0 completion*
+
+*Archived: 2026-01-23 as part of v3.0 milestone completion*
