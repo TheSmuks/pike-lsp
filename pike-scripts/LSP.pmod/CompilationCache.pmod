@@ -183,3 +183,38 @@ void invalidate(string path) {
 void invalidate_all() {
     compilation_cache = ([]);
 }
+
+// =========================================================================
+// Cache Key Generation
+// =========================================================================
+
+//! Generate cache key for a file
+//!
+//! Uses dual-path strategy:
+//! - If lsp_version provided (open document): Uses "LSP:N" format
+//! - If no lsp_version (closed file): Stats filesystem for mtime:size
+//!
+//! The \0 separator avoids escaping issues with colons in paths (Windows).
+//!
+//! @param path
+//!   The file path (not used directly for key, but kept for consistency)
+//! @param lsp_version
+//!   Optional LSP version number for open documents
+//! @returns
+//!   Cache key string, or 0 (zero) if file doesn't exist (closed files only)
+string make_cache_key(string path, void|int lsp_version) {
+    // If LSP version provided (open document), use it directly
+    if (lsp_version != undefined) {
+        return sprintf("LSP:%d", lsp_version);
+    }
+
+    // Closed file: stat filesystem
+    mapping st = file_stat(path);
+    if (!st) {
+        return 0;  // File deleted
+    }
+
+    // Use mtime\0size format per CONTEXT.md decision
+    // \0 separator avoids issues with colons in Windows paths
+    return sprintf("FS:%d\0%d", st->mtime, st->size);
+}
