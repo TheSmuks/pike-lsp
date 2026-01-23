@@ -143,6 +143,41 @@ protected int is_local_file(string path) {
     return has_prefix(normalized, project_root);
 }
 
+//! Update dependency graph for a file
+//!
+//! Removes old edges before adding new ones to prevent stale accumulation
+//! (preventing the "stale edge accumulation" anti-pattern).
+//!
+//! @param path The file being compiled
+//! @param new_deps Array of dependencies discovered during compilation
+void update_dependency_graph(string path, array(string) new_deps) {
+    // Remove old edges (incremental update)
+    if (dependencies[path]) {
+        foreach (dependencies[path], string old_dep) {
+            if (dependents[old_dep]) {
+                dependents[old_dep][path] = 0;
+            }
+        }
+    }
+
+    // Filter to local dependencies only
+    array(string) local_deps = ({});
+    foreach (new_deps, string dep) {
+        if (is_local_file(dep)) {
+            local_deps += ({dep});
+        }
+    }
+
+    // Add new edges
+    dependencies[path] = local_deps;
+    foreach (local_deps, string dep) {
+        if (!dependents[dep]) {
+            dependents[dep] = (<>);
+        }
+        dependents[dep][path] = 1;
+    }
+}
+
 // =========================================================================
 // DependencyTrackingCompiler Class
 // =========================================================================
