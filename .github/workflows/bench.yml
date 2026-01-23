@@ -38,12 +38,18 @@ jobs:
           CACHE_HIT_THRESHOLD: 80  # Expect >80% hit rate for repeated requests
           COMPILE_SPEEDUP_THRESHOLD: 50  # Expect >50% speedup for cache hits
 
+      - name: Prepare for benchmark storage
+        run: |
+          # Stash benchmark results so git switch doesn't fail
+          cp benchmark-results.json /tmp/benchmark-results.json
+          git stash --include-untracked || true
+
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Pike LSP Performance
           tool: 'customSmallerIsBetter'
-          output-file-path: benchmark-results.json
+          output-file-path: /tmp/benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           alert-threshold: '120%'
@@ -51,5 +57,3 @@ jobs:
           fail-on-alert: true
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: benchmarks
-          # Clean checkout to avoid conflicts with local benchmark-results.json
-          skip-fetch-gh-pages: true
