@@ -178,6 +178,53 @@ void update_dependency_graph(string path, array(string) new_deps) {
     }
 }
 
+//! Invalidate all files that transitively depend on the changed file
+//!
+//! Uses BFS traversal through reverse dependency graph to find and invalidate
+//! all files that directly or indirectly depend on the changed file.
+//!
+//! Guard clause: only runs if file exists in dependency index, preventing
+//! unnecessary work when a file with no dependents changes.
+//!
+//! @param changed_path The file that changed
+void invalidate_transitive(string changed_path) {
+    // Guard clause: only run if file exists in dependency index
+    if (!dependents[changed_path] && !dependencies[changed_path]) {
+        return;
+    }
+
+    array(string) queue = ({changed_path});
+    multiset(string) visited = (<changed_path>);
+
+    while (sizeof(queue) > 0) {
+        string path = queue[0];
+        queue = queue[1..];
+
+        // Remove from cache
+        m_delete(compilation_cache, path);
+
+        // Remove from dependency graphs
+        if (dependencies[path]) {
+            foreach (dependencies[path], string dep) {
+                if (dependents[dep]) {
+                    dependents[dep][path] = 0;
+                }
+            }
+            m_delete(dependencies, path);
+        }
+
+        // Add all dependents to queue
+        if (dependents[path]) {
+            foreach (indices(dependents[path]), string dependent) {
+                if (!visited[dependent]) {
+                    visited[dependent] = 1;
+                    queue += ({dependent});
+                }
+            }
+        }
+    }
+}
+
 // =========================================================================
 // DependencyTrackingCompiler Class
 // =========================================================================
