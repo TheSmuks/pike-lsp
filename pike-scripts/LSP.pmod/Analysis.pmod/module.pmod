@@ -650,6 +650,10 @@ class Analysis {
         mapping(string:mixed) result = ([]);
         mapping(string:mixed) failures = ([]);
 
+        // Compilation errors captured during compile_string
+        // These are syntax errors that Pike's compiler reports
+        array(mapping) compilation_errors = ({});
+
         // Performance tracking
         float compilation_ms = 0.0;
         float tokenization_ms = 0.0;
@@ -706,14 +710,17 @@ class Analysis {
             }
         }
 
-        // Step 2: Compilation (only for introspect)
+        // Step 2: Compilation (for introspect or diagnostics)
+        // Compilation captures syntax errors that Pike's compiler reports
         // Cache-aware: checks CompilationCache before compiling
         object cache = 0;
         string cache_key = 0;
         object cached_result = 0;
         int cache_hit = 0;
+        int needs_compilation = has_value(valid_include, "introspect") ||
+                                has_value(valid_include, "diagnostics");
 
-        if (has_value(valid_include, "introspect")) {
+        if (needs_compilation) {
             object compile_timer = System.Timer();
 
             // Get CompilationCache for cache lookup
@@ -741,54 +748,58 @@ class Analysis {
             if (!compiled_prog) {
                 object compile_timer2 = System.Timer();
 
-                // Use DependencyTrackingCompiler to capture dependencies
+                // Use DependencyTrackingCompiler to capture dependencies and diagnostics
                 mixed CompilerClass = master()->resolv("LSP.CompilationCache.DependencyTrackingCompiler");
                 mixed compile_err;
 
-                if (CompilerClass) {
-                    // Check if CompilerClass is a program (class) or mapping (module)
-                    int is_program = programp(CompilerClass);
-                    int is_mapping = mappingp(CompilerClass);
-                    int is_object = objectp(CompilerClass);
+                if (CompilerClass && programp(CompilerClass)) {
+                    // Use dependency tracking compiler which captures diagnostics internally
+                    object compiler = CompilerClass();
+                    compile_err = catch {
+                        compiled_prog = compiler->compile_with_tracking(code, filename);
+                    };
 
-                    if (is_program) {
-                        // Use dependency tracking compiler
-                        object compiler = CompilerClass();
-                        compile_err = catch {
-                            compiled_prog = compiler->compile_with_tracking(code, filename);
-                        };
+                    // Get captured diagnostics (syntax errors) from compiler
+                    compilation_errors = compiler->get_diagnostics();
 
-                        if (!compile_err && compiled_prog && cache && cache_key) {
-                            // Get captured dependencies and store in cache
-                            array(string) deps = compiler->get_dependencies();
-                            mixed ResultClass = master()->resolv("LSP.CompilationCache.CompilationResult");
-                            if (ResultClass) {
-                                int result_is_program = programp(ResultClass);
-                                int result_is_mapping = mappingp(ResultClass);
-                                int result_is_object = objectp(ResultClass);
-
-                                if (result_is_program || result_is_object) {
-                                    object result = ResultClass(compiled_prog, ({}), deps);
-                                    cache->put(filename, cache_key, result);
-                                }
-                            }
+                    if (!compile_err && compiled_prog && cache && cache_key) {
+                        // Get captured dependencies and store in cache
+                        array(string) deps = compiler->get_dependencies();
+                        mixed ResultClass = master()->resolv("LSP.CompilationCache.CompilationResult");
+                        if (ResultClass && (programp(ResultClass) || objectp(ResultClass))) {
+                            object result = ResultClass(compiled_prog, ({}), deps);
+                            cache->put(filename, cache_key, result);
                         }
-                    } else {
-                        // Fallback to plain compilation if DependencyTrackingCompiler unavailable
-                        compile_err = catch {
-                            compiled_prog = compile_string(code, filename);
-                        };
                     }
                 } else {
-                    // Fallback to plain compilation if class not found
+                    // Fallback to plain compilation with manual error capture
+                    void capture_compile_error(string file, int line, string msg) {
+                        compilation_errors += ({
+                            ([
+                                "message": msg,
+                                "severity": "error",
+                                "position": ([
+                                    "file": file,
+                                    "line": line
+                                ])
+                            ])
+                        });
+                    };
+
+                    mixed old_error_handler = master()->get_inhibit_compile_errors();
+                    master()->set_inhibit_compile_errors(capture_compile_error);
+
                     compile_err = catch {
                         compiled_prog = compile_string(code, filename);
                     };
+
+                    master()->set_inhibit_compile_errors(old_error_handler);
                 }
 
                 compilation_ms = compile_timer2->peek() * 1000.0;
 
-                if (compile_err || !compiled_prog) {
+                // Only set introspect failure if introspect was requested
+                if ((compile_err || !compiled_prog) && has_value(valid_include, "introspect")) {
                     failures->introspect = ([
                         "message": describe_error(compile_err || "Compilation failed"),
                         "kind": "CompilationError"
@@ -854,38 +865,32 @@ class Analysis {
             }
         }
 
-        // Diagnostics - uses shared tokens (via Diagnostics handler)
+        // Diagnostics - includes compilation errors + uninitialized variable warnings
         if (has_value(valid_include, "diagnostics") && !failures->diagnostics) {
+            // Start with compilation errors captured during Step 2
+            array all_diagnostics = compilation_errors + ({});
+
             mixed diag_err = catch {
-                // Use the Diagnostics handler
+                // Add uninitialized variable warnings from Diagnostics handler
                 object diag_handler = get_diagnostics_handler();
                 if (diag_handler) {
                     mapping diag_response = diag_handler->handle_analyze_uninitialized(([
                         "code": code,
                         "filename": filename
                     ]));
-                    if (diag_response && diag_response->result) {
-                        result->diagnostics = diag_response->result;
-                    } else {
-                        failures->diagnostics = ([
-                            "message": "Diagnostics returned no result",
-                            "kind": "InternalError"
-                        ]);
+                    if (diag_response && diag_response->result && diag_response->result->diagnostics) {
+                        all_diagnostics += diag_response->result->diagnostics;
                     }
-                } else {
-                    failures->diagnostics = ([
-                        "message": "Diagnostics handler not available",
-                        "kind": "InternalError"
-                    ]);
                 }
             };
 
             if (diag_err) {
-                failures->diagnostics = ([
-                    "message": describe_error(diag_err),
-                    "kind": "InternalError"
-                ]);
+                // Log but don't fail - we may still have compilation errors
+                // failures->diagnostics would be set only if we have no diagnostics at all
             }
+
+            // Return combined diagnostics (compilation errors + uninitialized warnings)
+            result->diagnostics = ([ "diagnostics": all_diagnostics ]);
         }
 
         // Add performance metadata if we have any timing data

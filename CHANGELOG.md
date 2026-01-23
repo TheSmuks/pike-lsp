@@ -82,4 +82,19 @@ A full-featured Language Server Protocol implementation for Pike.
 ---
 
 [1.0.0]: https://github.com/pike-lsp/pike-lsp/releases/tag/v1.0.0
+[0.1.0-alpha.5]: https://github.com/pike-lsp/pike-lsp/releases/tag/v0.1.0-alpha.5
 [0.1.0]: https://github.com/pike-lsp/pike-lsp/releases/tag/v0.1.0
+
+---
+
+## [0.1.0-alpha.5] - 2026-01-23
+
+### Fixed
+- **Server crash on syntax errors** - LSP server no longer crashes when opening files with compilation errors
+- **Diagnostics error handling** - Improved graceful degradation when introspection fails
+- **Duplicate validation code** - Removed ~270 lines of duplicate validation logic from server.ts
+- **CI benchmark workflow** - Fixed Mitata output transformation and regression checks
+
+### Added
+- **Comprehensive test coverage** - 3 new tests for syntax error handling and partial failure scenarios
+- **Diagnostics from Pike compiler** - Syntax errors now captured and displayed via red squiggles

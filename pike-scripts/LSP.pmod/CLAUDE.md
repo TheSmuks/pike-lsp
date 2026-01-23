@@ -7,12 +7,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #4564 | 4:21 PM | 🔴 | Fixed syntax error in Intelligence.pike debug statement | ~187 |
-
-### Jan 23, 2026
-
-| ID | Time | T | Title | Read |
-|----|------|---|-------|------|
-| #4881 | 11:52 AM | 🟣 | CompilationCache.pmod module created with nested cache structure | ~330 |
-| #4873 | 11:47 AM | 🔵 | Plan 13-01: Create in-memory compilation cache for Pike programs | ~302 |
+| #4334 | 1:53 PM | 🔵 | False positive locations identified in Parser.pike | ~239 |
 </claude-mem-context>

@@ -15,18 +15,15 @@ import {
     TextDocumentSyncKind,
     TextDocuments,
     DidChangeConfigurationNotification,
-    Diagnostic,
-    DiagnosticSeverity,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { PikeBridge, PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
+import { PikeBridge } from '@pike-lsp/pike-bridge';
 import { WorkspaceIndex } from './workspace-index.js';
-import { TypeDatabase, CompiledProgramInfo } from './type-database.js';
+import { TypeDatabase } from './type-database.js';
 import { StdlibIndexManager } from './stdlib-index.js';
-import { PatternHelpers } from './utils/regex-patterns.js';
 import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
@@ -68,9 +65,6 @@ let bridgeManager: BridgeManager | null = null;
 let globalSettings: PikeSettings = defaultSettings;
 let includePaths: string[] = [];
 
-// Validation timers
-const validationTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
 // ============================================================================
 // Helper: Find analyzer.pike script
 // ============================================================================
@@ -95,262 +89,8 @@ function findAnalyzerPath(): string | undefined {
     return undefined;
 }
 
-// ============================================================================
-// Helper: Symbol position indexing
-// ============================================================================
-
-async function buildSymbolPositionIndex(
-    text: string,
-    symbols: PikeSymbol[]
-): Promise<Map<string, import('vscode-languageserver/node.js').Position[]>> {
-    const index = new Map<string, import('vscode-languageserver/node.js').Position[]>();
-    type LSPPosition = import('vscode-languageserver/node.js').Position;
-
-    const symbolNames = new Set<string>();
-    for (const symbol of symbols) {
-        if (symbol.name) {
-            symbolNames.add(symbol.name);
-        }
-    }
-
-    // Try Pike-based tokenization first
-    if (bridgeManager?.bridge?.isRunning()) {
-        try {
-            const result = await bridgeManager.bridge.findOccurrences(text);
-            for (const occ of result.occurrences) {
-                if (symbolNames.has(occ.text)) {
-                    const pos: LSPPosition = {
-                        line: occ.line - 1,
-                        character: occ.character,
-                    };
-                    if (!index.has(occ.text)) {
-                        index.set(occ.text, []);
-                    }
-                    index.get(occ.text)!.push(pos);
-                }
-            }
-            if (index.size === symbolNames.size) {
-                return index;
-            }
-        } catch {
-            // Fall through to regex
-        }
-    }
-
-    // Fallback regex-based search
-    const lines = text.split('\n');
-    for (const symbol of symbols) {
-        if (!symbol.name) continue;
-        const positions: LSPPosition[] = [];
-
-        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-            const line = lines[lineNum];
-            if (!line) continue;
-
-            let searchStart = 0;
-            let matchIndex: number;
-            while ((matchIndex = line.indexOf(symbol.name, searchStart)) !== -1) {
-                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                const afterChar = matchIndex + symbol.name.length < line.length ?
-                    line[matchIndex + symbol.name.length] : ' ';
-                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                    const trimmed = line.trimStart();
-                    if (!PatternHelpers.isCommentLine(trimmed) &&
-                        line.indexOf('//', matchIndex) < 0) {
-                        positions.push({ line: lineNum, character: matchIndex });
-                    }
-                }
-                searchStart = matchIndex + 1;
-            }
-        }
-        if (positions.length > 0) {
-            index.set(symbol.name, positions);
-        }
-    }
-
-    return index;
-}
-
-// ============================================================================
-// Helper: Document validation
-// ============================================================================
-
-function validateDocumentDebounced(document: TextDocument): void {
-    const uri = document.uri;
-    const existingTimer = validationTimers.get(uri);
-    if (existingTimer) {
-        clearTimeout(existingTimer);
-    }
-
-    const timer = setTimeout(() => {
-        validationTimers.delete(uri);
-        validateDocument(document);
-    }, globalSettings.diagnosticDelay);
-
-    validationTimers.set(uri, timer);
-}
-
-async function validateDocument(document: TextDocument): Promise<void> {
-    const uri = document.uri;
-    connection.console.log(`[VALIDATE] Starting validation for: ${uri}`);
-
-    if (!bridgeManager?.bridge) {
-        connection.console.warn('[VALIDATE] Bridge not available');
-        return;
-    }
-
-    const bridge = bridgeManager.bridge;
-    if (!bridge.isRunning()) {
-        try {
-            await bridgeManager.start();
-            connection.console.log('[VALIDATE] Bridge started successfully');
-        } catch (err) {
-            connection.console.error(`[VALIDATE] Failed to start bridge: ${err}`);
-            return;
-        }
-    }
-
-    const text = document.getText();
-    const version = document.version;
-    const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
-
-    try {
-        const introspectResult = await bridge.introspect(text, filename);
-        const parseResult = await bridge.parse(text, filename);
-
-        const diagnostics: Diagnostic[] = [];
-
-        // Convert Pike diagnostics to LSP diagnostics
-        const skipPatterns = [
-            /Index .* not present in module/i,
-            /Indexed module was:/i,
-            /Illegal program identifier/i,
-            /Not a valid program specifier/i,
-            /Failed to evaluate constant expression/i,
-        ];
-
-        for (const pikeDiag of introspectResult.diagnostics) {
-            if (diagnostics.length >= globalSettings.maxNumberOfProblems) break;
-            if (skipPatterns.some(p => p.test(pikeDiag.message))) continue;
-            diagnostics.push(convertDiagnostic(pikeDiag, document));
-        }
-
-        // Update document cache
-        const flatSymbols = flattenSymbols(parseResult.symbols);
-        const enrichedSymbols = flatSymbols.map(parsedSym => {
-            const introspected = introspectResult.symbols.find(s => s.name === parsedSym.name);
-            return introspected ? { ...parsedSym, type: introspected.type, modifiers: introspected.modifiers } : parsedSym;
-        });
-
-        documentCache.set(uri, {
-            version,
-            symbols: enrichedSymbols,
-            diagnostics,
-            symbolPositions: await buildSymbolPositionIndex(text, enrichedSymbols),
-        });
-
-        // Update type database
-        if (introspectResult.success && introspectResult.symbols.length > 0) {
-            const symbolMap = new Map(introspectResult.symbols.map(s => [s.name, s]));
-            const functionMap = new Map(introspectResult.functions.map(s => [s.name, s]));
-            const variableMap = new Map(introspectResult.variables.map(s => [s.name, s]));
-            const classMap = new Map(introspectResult.classes.map(s => [s.name, s]));
-            const sizeBytes = TypeDatabase.estimateProgramSize(symbolMap, introspectResult.inherits);
-
-            const programInfo: CompiledProgramInfo = {
-                uri,
-                version,
-                symbols: symbolMap,
-                functions: functionMap,
-                variables: variableMap,
-                classes: classMap,
-                inherits: introspectResult.inherits,
-                imports: new Set(),
-                compiledAt: Date.now(),
-                sizeBytes,
-            };
-            typeDatabase.setProgram(programInfo);
-        }
-
-        // Analyze uninitialized variables
-        try {
-            const uninitResult = await bridge.analyzeUninitialized(text, filename);
-            if (uninitResult.diagnostics) {
-                for (const uninitDiag of uninitResult.diagnostics) {
-                    if (diagnostics.length >= globalSettings.maxNumberOfProblems) break;
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Warning,
-                        range: {
-                            start: { line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1), character: 0 },
-                            end: { line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1), character: 10 },
-                        },
-                        message: uninitDiag.message,
-                        source: 'pike-uninitialized',
-                    });
-                }
-            }
-        } catch {
-            // Continue on failure
-        }
-
-        connection.sendDiagnostics({ uri, diagnostics });
-        connection.console.log(`[VALIDATE] Complete for ${uri}`);
-    } catch (err) {
-        connection.console.error(`[VALIDATE] Failed for ${uri}: ${err}`);
-    }
-}
-
-function flattenSymbols(symbols: PikeSymbol[], parentName = ''): PikeSymbol[] {
-    const flat: PikeSymbol[] = [];
-    for (const sym of symbols) {
-        flat.push(sym);
-        if (sym.children && sym.children.length > 0) {
-            const qualifiedPrefix = parentName ? `${parentName}.${sym.name}` : sym.name;
-            for (const child of sym.children) {
-                // Spread child without qualifiedName (not in PikeSymbol type)
-                const { ...childCopy } = child;
-                flat.push(childCopy);
-                if (child.children) {
-                    flat.push(...flattenSymbols(child.children, qualifiedPrefix));
-                }
-            }
-        }
-    }
-    return flat;
-}
-
-function convertDiagnostic(pikeDiag: PikeDiagnostic, document: TextDocument): Diagnostic {
-    const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
-    const text = document.getText();
-    const lines = text.split('\n');
-    const lineText = lines[line] ?? '';
-    let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
-    let endChar = lineText.length;
-
-    if (!pikeDiag.position.column) {
-        const trimmedStart = lineText.search(/\S/);
-        if (trimmedStart >= 0) startChar = trimmedStart;
-    }
-
-    const trimmedLine = lineText.trim();
-    if (PatternHelpers.isCommentLine(trimmedLine)) {
-        endChar = Math.min(startChar + 10, lineText.length);
-    }
-
-    if (endChar <= startChar) {
-        endChar = Math.min(startChar + Math.max(1, lineText.trim().length), lineText.length);
-    }
-
-    const severity = pikeDiag.severity === 'warning' ? DiagnosticSeverity.Warning :
-        pikeDiag.severity === 'info' ? DiagnosticSeverity.Information : DiagnosticSeverity.Error;
-
-    return {
-        severity,
-        range: { start: { line, character: startChar }, end: { line, character: endChar } },
-        message: pikeDiag.message,
-        source: 'pike',
-    };
-}
+// NOTE: Document validation is handled by features/diagnostics.ts
+// The registerDiagnosticsHandlers function sets up all document event handlers
 
 // ============================================================================
 // Services Bundle Factory
@@ -561,15 +301,8 @@ connection.onInitialized(async () => {
         });
     }
 
-    // Validate open documents
-    const openDocs = documents.all();
-    if (openDocs.length > 0) {
-        connection.console.log(`Validating ${openDocs.length} already-open documents...`);
-        for (const doc of openDocs) {
-            await validateDocument(doc);
-        }
-        connection.console.log('Initial validation complete');
-    }
+    // NOTE: Open documents will be validated by diagnostics.ts onDidOpen handlers
+    // which are triggered when documents.listen(connection) starts
 });
 
 connection.onDidChangeConfiguration((change) => {
@@ -578,7 +311,7 @@ connection.onDidChangeConfiguration((change) => {
         ...defaultSettings,
         ...(settings?.pike ?? {}),
     };
-    documents.all().forEach(validateDocumentDebounced);
+    // NOTE: Document revalidation is handled by diagnostics.ts onDidChangeConfiguration
 });
 
 // ============================================================================

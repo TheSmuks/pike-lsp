@@ -240,6 +240,7 @@ void invalidate_transitive(string changed_path) {
 //! implementation uses post-compilation analysis via Parser.Pike.
 class DependencyTrackingCompiler {
     private array(string) _dependencies = ({});
+    private array(mapping) _diagnostics = ({});
     private string _current_file;
 
     //! Get captured dependencies after compilation
@@ -248,11 +249,18 @@ class DependencyTrackingCompiler {
         return _dependencies;
     }
 
+    //! Get captured compilation diagnostics (syntax errors)
+    //! @returns Array of diagnostic mappings with message, severity, position
+    array(mapping) get_diagnostics() {
+        return _diagnostics;
+    }
+
     //! Set the file being compiled (for context in hooks)
     //! @param path The file path being compiled
     void set_current_file(string path) {
         _current_file = path;
         _dependencies = ({});
+        _diagnostics = ({});
     }
 
     //! Extract dependencies from Pike code using simple regex-based parsing
@@ -323,16 +331,15 @@ class DependencyTrackingCompiler {
     //! Compile with dependency tracking
     //! @param code The source code to compile
     //! @param filename The filename for compilation (for error messages)
-    //! @returns The compiled program
-    //! @throws On compilation errors
+    //! @returns The compiled program, or 0 on compilation failure
+    //! @note Call get_diagnostics() after to retrieve any captured errors
     program compile_with_tracking(string code, string filename) {
         // Set current file for hook context
         set_current_file(filename);
 
-        // Capture compilation errors
-        array(mapping) diagnostics = ({});
+        // Capture compilation errors into instance variable
         void compile_error_handler(string file, int line, string msg) {
-            diagnostics += ({([
+            _diagnostics += ({([
                 "message": msg,
                 "severity": "error",
                 "position": (["file": file, "line": line])
@@ -349,7 +356,12 @@ class DependencyTrackingCompiler {
 
         master()->set_inhibit_compile_errors(old_handler);
 
-        if (err) throw(err);
+        // Don't throw on error - caller should check get_diagnostics() and return value
+        if (err) {
+            // Still extract dependencies even on error (useful for partial analysis)
+            _dependencies = extract_dependencies(code, filename);
+            return 0;
+        }
 
         // Extract dependencies post-compilation using Parser.Pike
         _dependencies = extract_dependencies(code, filename);

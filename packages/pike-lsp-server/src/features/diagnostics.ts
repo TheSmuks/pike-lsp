@@ -300,7 +300,12 @@ export function registerDiagnosticsHandlers(
             validationTimers.delete(uri);
             // LOG-14-01: Track debounce timer execution
             connection.console.log(`[DEBOUNCE] uri=${uri}, version=${version}, executing validateDocument`);
-            void validateDocument(document);
+            validateDocument(document).catch(err => {
+                log.error('Debounced validation failed', {
+                    uri,
+                    error: err instanceof Error ? err.message : String(err)
+                });
+            });
         }, globalSettings.diagnosticDelay);
 
         validationTimers.set(uri, timer);
@@ -516,28 +521,32 @@ export function registerDiagnosticsHandlers(
                 connection.console.log(`[VALIDATE] No parse result available - features will not work`);
             }
 
-            // Process uninitialized variable diagnostics from unified analyze
+            // Process diagnostics from unified analyze (includes syntax errors + uninitialized warnings)
             if (diagnosticsData.diagnostics && diagnosticsData.diagnostics.length > 0) {
-                connection.console.log(`[VALIDATE] Found ${diagnosticsData.diagnostics.length} uninitialized variable warnings`);
-                for (const uninitDiag of diagnosticsData.diagnostics) {
+                connection.console.log(`[VALIDATE] Found ${diagnosticsData.diagnostics.length} diagnostics from analyze`);
+                for (const diag of diagnosticsData.diagnostics) {
                     if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
                         break;
                     }
-                    // Convert uninitialized variable diagnostic to LSP diagnostic
+                    // Determine severity: 'error' = 1 (Error), 'warning' = 2 (Warning), default = Error
+                    const severity = diag.severity === 'warning' ? 2 : 1;
+                    // Determine source based on diagnostic type
+                    const source = diag.variable ? 'pike-uninitialized' : 'pike';
+
                     diagnostics.push({
-                        severity: 2, // DiagnosticSeverity.Warning
+                        severity,
                         range: {
                             start: {
-                                line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
-                                character: Math.max(0, uninitDiag.position?.character ?? 0),
+                                line: Math.max(0, (diag.position?.line ?? 1) - 1),
+                                character: Math.max(0, diag.position?.character ?? 0),
                             },
                             end: {
-                                line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
-                                character: Math.max(0, uninitDiag.position?.character ?? 0) + (uninitDiag.variable?.length ?? 1),
+                                line: Math.max(0, (diag.position?.line ?? 1) - 1),
+                                character: Math.max(0, diag.position?.character ?? 0) + (diag.variable?.length ?? 10),
                             },
                         },
-                        message: uninitDiag.message,
-                        source: 'pike-uninitialized',
+                        message: diag.message,
+                        source,
                     });
                 }
             }
@@ -577,35 +586,27 @@ export function registerDiagnosticsHandlers(
     // Handle document open - validate immediately without debouncing
     documents.onDidOpen((event) => {
         connection.console.log(`Document opened: ${event.document.uri}`);
-        try {
-            void validateDocument(event.document);
-        } catch (err) {
+        validateDocument(event.document).catch(err => {
             log.error('Document open validation failed', {
+                uri: event.document.uri,
                 error: err instanceof Error ? err.message : String(err)
             });
-        }
+        });
     });
 
-    // Handle document changes
+    // Handle document changes - debounced validation (errors caught in setTimeout handler)
     documents.onDidChangeContent((change) => {
-        try {
-            validateDocumentDebounced(change.document);
-        } catch (err) {
-            log.error('Document change validation failed', {
-                error: err instanceof Error ? err.message : String(err)
-            });
-        }
+        validateDocumentDebounced(change.document);
     });
 
-    // Handle document save
+    // Handle document save - validate immediately without debouncing
     documents.onDidSave((event) => {
-        try {
-            void validateDocument(event.document);
-        } catch (err) {
+        validateDocument(event.document).catch(err => {
             log.error('Document save validation failed', {
+                uri: event.document.uri,
                 error: err instanceof Error ? err.message : String(err)
             });
-        }
+        });
     });
 
     // Handle document close
