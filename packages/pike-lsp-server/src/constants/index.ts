@@ -56,7 +56,7 @@ export const DEFAULT_MAX_PROBLEMS = 100;
 /**
  * Default diagnostic delay (ms) - debounce validation to avoid triggering on every keystroke
  */
-export const DIAGNOSTIC_DELAY_DEFAULT = 500;
+export const DIAGNOSTIC_DELAY_DEFAULT = 250;
 
 /**
  * LSP-related limits
