@@ -406,3 +406,145 @@ mapping introspect_program(program prog) {
 
     return result;
 }
+
+//! Introspect a singleton object directly without instantiation
+//!
+//! This method is used for stdlib modules that are already loaded as
+//! singleton objects by Pike (e.g., Stdio, String, Array, Mapping).
+//! These cannot be re-instantiated via prog() as that causes
+//! "Parent lost, cannot clone program" errors.
+//!
+//! Instead of instantiation, we call indices() and values() directly
+//! on the object to extract its symbols.
+//!
+//! @param obj The object to introspect (already instantiated)
+//! @returns Mapping containing symbols, functions, variables, classes, inherits
+mapping introspect_object(object obj) {
+    mapping result = ([
+        "symbols": ({}),
+        "functions": ({}),
+        "variables": ({}),
+        "classes": ({}),
+        "inherits": ({})
+    ]);
+
+    if (!obj) {
+        return result;
+    }
+
+    // Get symbols directly from the object - no instantiation needed
+    array(string) symbol_names = ({});
+    array symbol_values = ({});
+    catch { symbol_names = indices(obj); };
+    catch { symbol_values = values(obj); };
+
+    // Extract each symbol
+    for (int i = 0; i < sizeof(symbol_names); i++) {
+        string name = symbol_names[i];
+        mixed value = i < sizeof(symbol_values) ? symbol_values[i] : 0;
+
+        string kind = "variable";
+        mapping type_info = ([ "kind": "mixed" ]);
+
+        if (functionp(value)) {
+            kind = "function";
+            type_info = ([ "kind": "function" ]);
+
+            // Try to extract function signature from _typeof()
+            mixed type_val;
+            catch { type_val = _typeof(value); };
+            if (type_val) {
+                string type_str = sprintf("%O", type_val);
+                // Parse: function(type1, type2, ... : returnType)
+                int paren_start = search(type_str, "(");
+                int colon_pos = search(type_str, " : ");
+                if (paren_start >= 0 && colon_pos > paren_start) {
+                    string args_str = type_str[paren_start+1..colon_pos-1];
+                    string ret_str = type_str[colon_pos+3..<1];
+
+                    // Parse arguments (split by comma, but respect nested parens)
+                    array(string) arg_types = ({});
+                    string current = "";
+                    int depth = 0;
+                    foreach (args_str / "", string c) {
+                        if (c == "(" || c == "<") depth++;
+                        else if (c == ")" || c == ">") depth--;
+                        else if (c == "," && depth == 0) {
+                            arg_types += ({ LSP.Compat.trim_whites(current) });
+                            current = "";
+                            continue;
+                        }
+                        current += c;
+                    }
+                    if (sizeof(LSP.Compat.trim_whites(current)) > 0) {
+                        arg_types += ({ LSP.Compat.trim_whites(current) });
+                    }
+
+                    // Build arguments array with placeholder names
+                    array(mapping) arguments = ({});
+                    for (int j = 0; j < sizeof(arg_types); j++) {
+                        string arg_type = arg_types[j];
+                        // Skip "void" only arguments (optional params start with "void |")
+                        if (arg_type == "void") continue;
+                        arguments += ({
+                            ([ "name": "arg" + (j + 1), "type": arg_type ])
+                        });
+                    }
+
+                    type_info->arguments = arguments;
+                    type_info->returnType = ret_str;
+                    type_info->signature = type_str;
+                }
+            }
+        } else if (intp(value)) {
+            type_info = ([ "kind": "int" ]);
+        } else if (stringp(value)) {
+            type_info = ([ "kind": "string" ]);
+        } else if (floatp(value)) {
+            type_info = ([ "kind": "float" ]);
+        } else if (arrayp(value)) {
+            type_info = ([ "kind": "array" ]);
+        } else if (mappingp(value)) {
+            type_info = ([ "kind": "mapping" ]);
+        } else if (multisetp(value)) {
+            type_info = ([ "kind": "multiset" ]);
+        } else if (objectp(value)) {
+            type_info = ([ "kind": "object" ]);
+        } else if (programp(value)) {
+            kind = "class";
+            type_info = ([ "kind": "program" ]);
+        }
+
+        mapping symbol = ([
+            "name": name,
+            "type": type_info,
+            "kind": kind,
+            "modifiers": ({})
+        ]);
+
+        result->symbols += ({ symbol });
+
+        if (kind == "function") {
+            result->functions += ({ symbol });
+        } else if (kind == "variable") {
+            result->variables += ({ symbol });
+        } else if (kind == "class") {
+            result->classes += ({ symbol });
+        }
+    }
+
+    // Get inheritance from the object's program
+    program prog = object_program(obj);
+    if (prog) {
+        array inherit_list = ({});
+        catch { inherit_list = Program.inherit_list(prog) || ({}); };
+
+        foreach (inherit_list, program parent_prog) {
+            string parent_path = "";
+            catch { parent_path = Program.defined(parent_prog) || ""; };
+            result->inherits += ({ ([ "path": parent_path ]) });
+        }
+    }
+
+    return result;
+}
