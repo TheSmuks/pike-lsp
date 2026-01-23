@@ -280,9 +280,14 @@ export function registerDiagnosticsHandlers(
 
     /**
      * Validate document with debouncing
+     * LOG-14-01: Logs didChange events and debounce execution
      */
     function validateDocumentDebounced(document: TextDocument): void {
         const uri = document.uri;
+        const version = document.version;
+
+        // LOG-14-01: Track didChange event triggering debounce
+        connection.console.log(`[DID_CHANGE] uri=${uri}, version=${version}, delay=${globalSettings.diagnosticDelay}ms`);
 
         // Clear existing timer
         const existingTimer = validationTimers.get(uri);
@@ -293,6 +298,8 @@ export function registerDiagnosticsHandlers(
         // Set new timer
         const timer = setTimeout(() => {
             validationTimers.delete(uri);
+            // LOG-14-01: Track debounce timer execution
+            connection.console.log(`[DEBOUNCE] uri=${uri}, version=${version}, executing validateDocument`);
             void validateDocument(document);
         }, globalSettings.diagnosticDelay);
 
@@ -301,10 +308,14 @@ export function registerDiagnosticsHandlers(
 
     /**
      * Validate document and send diagnostics
+     * LOG-14-01: Logs validation start with version tracking
      */
     async function validateDocument(document: TextDocument): Promise<void> {
         const uri = document.uri;
-        connection.console.log(`[VALIDATE] Starting validation for: ${uri}`);
+        const version = document.version;
+
+        // LOG-14-01: Track validation start before bridge operations
+        connection.console.log(`[VALIDATE_START] uri=${uri}, version=${version}`);
 
         const bridge = services.bridge;
         if (!bridge) {
@@ -324,7 +335,6 @@ export function registerDiagnosticsHandlers(
         }
 
         const text = document.getText();
-        const version = document.version;
 
         connection.console.log(`[VALIDATE] Document version: ${version}, length: ${text.length} chars`);
 
