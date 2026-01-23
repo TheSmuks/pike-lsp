@@ -82,18 +82,18 @@ class CompilationResult {
     //! Diagnostics from compilation (errors, warnings)
     array(mapping) diagnostics;
 
-    //! Files this compilation depends on (will be populated in 13-02)
+    //! Files this compilation depends on (imported and inherited modules)
     array(string) dependencies;
 
     //! Create a new CompilationResult
     //!
     //! @param prog The compiled program
     //! @param diags Compilation diagnostics
-    //! @param deps List of dependency file paths
-    void create(program prog, array(mapping) diags, array(string) deps) {
+    //! @param deps List of dependency file paths (defaults to empty array)
+    void create(program prog, array(mapping) diags, array(string)|void deps) {
         compiled_program = prog;
         diagnostics = diags;
-        dependencies = deps;
+        dependencies = deps || ({});
     }
 }
 
@@ -384,6 +384,9 @@ CompilationResult get(string path, string version_key) {
 //! If the cache is at capacity and the path is not already present,
 //! the entire cache is cleared (nuclear eviction).
 //!
+//! Also updates the dependency graph with any dependencies found during
+//! compilation.
+//!
 //! @param path
 //!   The file path for the compilation
 //! @param version_key
@@ -398,6 +401,11 @@ void put(string path, string version_key, CompilationResult result) {
         stats->evictions++;
     }
 
+    // Update dependency graph with new dependencies
+    if (result->dependencies && sizeof(result->dependencies) > 0) {
+        update_dependency_graph(path, result->dependencies);
+    }
+
     if (!compilation_cache[path]) {
         compilation_cache[path] = ([]);
     }
@@ -407,12 +415,20 @@ void put(string path, string version_key, CompilationResult result) {
 //! Invalidate all cached versions of a file
 //!
 //! O(1) invalidation - removes all version entries for the given path.
+//! Supports transitive invalidation to also invalidate all files that
+//! depend on this one.
 //!
 //! @param path
 //!   The file path to invalidate
-void invalidate(string path) {
-    if (compilation_cache[path]) {
-        m_delete(compilation_cache, path);
+//! @param transitive
+//!   If true (1), also invalidate all files that transitively depend on this file
+void invalidate(string path, void|int transitive) {
+    if (transitive) {
+        invalidate_transitive(path);
+    } else {
+        if (compilation_cache[path]) {
+            m_delete(compilation_cache, path);
+        }
     }
 }
 
