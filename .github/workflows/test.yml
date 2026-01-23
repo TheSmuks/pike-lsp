@@ -49,7 +49,7 @@ jobs:
         run: cd packages/pike-lsp-server && bun test ./dist/src/tests/smoke.test.js
 
       - name: Run integration tests
-        run: cd packages/pike-lsp-server && bun test ./dist/src/tests/integration.test.js
+        run: cd packages/pike-lsp-server && bun test ./dist/src/tests/integration-tests.js
 
   pike-test:
     runs-on: ubuntu-24.04
