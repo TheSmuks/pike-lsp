@@ -586,6 +586,21 @@ class Analysis {
         return LSP.module.LSPError(-32000, "Variables handler not available")->to_response();
     }
 
+    //! Get CompilationCache from module-level singleton
+    //!
+    //! LSP.CompilationCache uses module-level state (not per-instance), so we
+    //! resolve the class and use it directly. This allows caching to work
+    //! without needing a Context reference in handle_analyze.
+    //!
+    //! @returns The CompilationCache class or 0 if unavailable
+    protected object get_compilation_cache() {
+        mixed CacheClass = master()->resolv("LSP.CompilationCache");
+        if (CacheClass && programp(CacheClass)) {
+            return CacheClass;
+        }
+        return 0;
+    }
+
     //! Unified analyze handler that consolidates compilation, tokenization, and analysis
     //!
     //! This is the main entry point for Phase 12 Request Consolidation.
@@ -596,12 +611,14 @@ class Analysis {
     //!               - code: Pike source code to analyze
     //!               - filename: Source filename (for diagnostics)
     //!               - include: Array of result types to return ("parse", "introspect", "diagnostics", "tokenize")
+    //!               - version: Optional LSP document version for open document caching
     //! @returns Mapping with "result" containing requested results and "failures" for any that failed
     //!          Each requested type appears in EITHER result OR failures, never both
     mapping handle_analyze(mapping params) {
         string code = params->code || "";
         string filename = params->filename || "input.pike";
         array(string) include = params->include || ({});
+        int|string lsp_version = params->version;  // LSP version for open docs cache key
 
         // Valid include types
         multiset(string) VALID_INCLUDE_TYPES = (<
@@ -688,19 +705,58 @@ class Analysis {
         }
 
         // Step 2: Compilation (only for introspect)
+        // Cache-aware: checks CompilationCache before compiling
+        object cache = 0;
+        string cache_key = 0;
+        object cached_result = 0;
+        int cache_hit = 0;
+
         if (has_value(valid_include, "introspect")) {
             object compile_timer = System.Timer();
-            mixed compile_err = catch {
-                // Use compile_string for compilation
-                compiled_prog = compile_string(code, filename);
-            };
-            compilation_ms = compile_timer->peek() * 1000.0;
 
-            if (compile_err || !compiled_prog) {
-                failures->introspect = ([
-                    "message": describe_error(compile_err || "Compilation failed"),
-                    "kind": "CompilationError"
-                ]);
+            // Get CompilationCache for cache lookup
+            cache = get_compilation_cache();
+
+            // Generate cache key (uses LSP version if provided, otherwise stats file)
+            if (cache) {
+                cache_key = cache->make_cache_key(filename, lsp_version);
+            }
+
+            // Check cache first
+            if (cache && cache_key) {
+                cached_result = cache->get(filename, cache_key);
+                if (cached_result && cached_result->compiled_program) {
+                    compiled_prog = cached_result->compiled_program;
+                    cache_hit = 1;
+                    // Cache hit - compilation_ms is 0 for cached compile
+                    compilation_ms = 0.0;
+                }
+            }
+
+            // Cache miss - compile normally
+            if (!compiled_prog) {
+                object compile_timer2 = System.Timer();
+                mixed compile_err = catch {
+                    // Use compile_string for compilation
+                    compiled_prog = compile_string(code, filename);
+                };
+                compilation_ms = compile_timer2->peek() * 1000.0;
+
+                if (compile_err || !compiled_prog) {
+                    failures->introspect = ([
+                        "message": describe_error(compile_err || "Compilation failed"),
+                        "kind": "CompilationError"
+                    ]);
+                } else if (cache && cache_key) {
+                    // Store successful compilation in cache
+                    // Create CompilationResult with empty dependencies for now
+                    // (DependencyTrackingCompiler integration can be added later)
+                    mixed ResultClass = master()->resolv("LSP.CompilationCache.CompilationResult");
+                    if (ResultClass && programp(ResultClass)) {
+                        object result = ResultClass(compiled_prog, ({}), ({}));
+                        cache->put(filename, cache_key, result);
+                    }
+                }
             }
         }
 
@@ -796,13 +852,18 @@ class Analysis {
         }
 
         // Add performance metadata if we have any timing data
-        if (compilation_ms > 0.0 || tokenization_ms > 0.0) {
+        if (compilation_ms > 0.0 || tokenization_ms > 0.0 || cache_hit) {
             mapping perf = ([]);
             if (compilation_ms > 0.0) {
                 perf->compilation_ms = compilation_ms;
             }
             if (tokenization_ms > 0.0) {
                 perf->tokenization_ms = tokenization_ms;
+            }
+            // Add cache metadata
+            if (cache_key) {
+                perf->cache_key = cache_key;
+                perf->cache_hit = cache_hit;
             }
             result->_perf = perf;
         }
