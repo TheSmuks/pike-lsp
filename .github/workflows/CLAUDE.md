@@ -7,5 +7,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #3197 | 4:14 PM | 🔵 | GitHub workflow files discovered for CI/CD | ~146 |
+| #3307 | 4:19 PM | 🔵 | GitHub test workflow runs Pike Bridge, LSP Server, integration tests and builds VSIX | ~293 |
+| #3237 | 4:15 PM | 🔵 | Release workflow automates VSIX packaging on version tags | ~298 |
+| #3233 | " | 🔵 | CI workflow tests pike-bridge and pike-lsp-server but not vscode-pike extension | ~255 |
 </claude-mem-context>

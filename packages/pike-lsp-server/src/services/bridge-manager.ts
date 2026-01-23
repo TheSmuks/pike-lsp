@@ -219,11 +219,12 @@ export class BridgeManager {
      * @param code - Pike source code to analyze.
      * @param include - Which operations to perform (at least one required).
      * @param filename - Optional filename for error messages.
+     * @param documentVersion - Optional LSP document version for cache key.
      * @returns Analyze response with result/failures structure and performance timing.
      */
-    async analyze(code: string, include: AnalysisOperation[], filename?: string): Promise<AnalyzeResponse> {
+    async analyze(code: string, include: AnalysisOperation[], filename?: string, documentVersion?: number): Promise<AnalyzeResponse> {
         if (!this.bridge) throw new Error('Bridge not available');
-        return this.bridge.analyze(code, include, filename);
+        return this.bridge.analyze(code, include, filename, documentVersion);
     }
 
     /**

@@ -344,8 +344,8 @@ export function registerDiagnosticsHandlers(
             connection.console.log(`[VALIDATE] Analyze completed - parse: ${hasParse}, introspect: ${hasIntrospect}, diagnostics: ${hasDiagnostics}`);
 
             // Log cache hit/miss for debugging
-            if (analyzeResult.result?._perf) {
-                const cacheHit = analyzeResult.result._perf.cache_hit;
+            if (analyzeResult._perf) {
+                const cacheHit = analyzeResult._perf.cache_hit;
                 connection.console.log(`[VALIDATE] Cache ${cacheHit ? 'HIT' : 'MISS'} for ${uri}`);
             }
 

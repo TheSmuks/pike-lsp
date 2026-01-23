@@ -533,6 +533,10 @@ export interface AnalyzePerformance {
     compilation_ms?: number;
     /** Time spent tokenizing code (if tokenization requested) */
     tokenization_ms?: number;
+    /** Cache key used for this request */
+    cache_key?: string;
+    /** Whether the compilation cache was hit */
+    cache_hit?: boolean;
 }
 
 /**

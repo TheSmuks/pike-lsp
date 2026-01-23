@@ -29,5 +29,8 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #4533 | 3:55 PM | 🔵 | Examined stdlib-index.ts loadModule function calling bridge.resolveStdlib | ~317 |
+| #4532 | " | 🔵 | Found error source in stdlib-index.ts at line 224 | ~263 |
+| #4419 | 2:16 PM | 🔵 | StdlibIndexManager loads modules via bridge.resolveStdlib() which calls Pike bridge | ~282 |
 | #4403 | 2:07 PM | ✅ | Pike LSP Extension Rebundled with Latest Modules | ~313 |
 </claude-mem-context>
