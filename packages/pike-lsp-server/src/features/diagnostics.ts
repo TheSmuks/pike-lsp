@@ -334,13 +334,20 @@ export function registerDiagnosticsHandlers(
         try {
             connection.console.log(`[VALIDATE] Calling unified analyze for: ${filename}`);
             // Single unified analyze call - replaces 3 separate calls (introspect, parse, analyzeUninitialized)
-            const analyzeResult = await bridge.analyze(text, ['parse', 'introspect', 'diagnostics'], filename);
+            // Pass document version for cache key (open docs use LSP version, no stat overhead)
+            const analyzeResult = await bridge.analyze(text, ['parse', 'introspect', 'diagnostics'], filename, version);
 
             // Log completion status
             const hasParse = !!analyzeResult.result?.parse;
             const hasIntrospect = !!analyzeResult.result?.introspect;
             const hasDiagnostics = !!analyzeResult.result?.diagnostics;
             connection.console.log(`[VALIDATE] Analyze completed - parse: ${hasParse}, introspect: ${hasIntrospect}, diagnostics: ${hasDiagnostics}`);
+
+            // Log cache hit/miss for debugging
+            if (analyzeResult.result?._perf) {
+                const cacheHit = analyzeResult.result._perf.cache_hit;
+                connection.console.log(`[VALIDATE] Cache ${cacheHit ? 'HIT' : 'MISS'} for ${uri}`);
+            }
 
             // Log any partial failures
             if (analyzeResult.failures && Object.keys(analyzeResult.failures).length > 0) {
