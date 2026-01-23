@@ -509,6 +509,8 @@ export class PikeBridge extends EventEmitter {
      * @param code - Pike source code to analyze.
      * @param filename - Optional filename for error messages.
      * @param include - Which operations to perform (at least one required).
+     * @param documentVersion - Optional LSP document version (for cache invalidation).
+     *                          If provided, cache uses LSP version instead of file stat.
      * @returns Analyze response with result/failures structure and performance timing.
      * @example
      * ```ts
@@ -535,12 +537,14 @@ export class PikeBridge extends EventEmitter {
     async analyze(
         code: string,
         include: AnalysisOperation[],
-        filename?: string
+        filename?: string,
+        documentVersion?: number
     ): Promise<AnalyzeResponse> {
         return this.sendRequest<AnalyzeResponse>('analyze', {
             code,
             filename: filename ?? 'input.pike',
             include,
+            version: documentVersion,  // Pass LSP version for cache key
         });
     }
 
