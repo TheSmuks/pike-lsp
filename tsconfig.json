@@ -5,9 +5,6 @@
             "path": "./packages/pike-bridge"
         },
         {
-            "path": "./packages/pike-analyzer"
-        },
-        {
             "path": "./packages/pike-lsp-server"
         },
         {
