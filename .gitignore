@@ -57,3 +57,4 @@ packages/vscode-pike/.vscode-test/
 
 # Husky shell script cache
 .husky/_
+benchmark-results-mitata.json
