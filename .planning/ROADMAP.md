@@ -17,7 +17,7 @@ This milestone delivers measurable performance improvements to Pike LSP by estab
 - [x] **Phase 12: Request Consolidation** - Combine multiple Pike calls into one
 - [x] **Phase 13: Pike-Side Compilation Caching** - Cache compiled programs in Pike subprocess
 - [x] **Phase 14: TypeScript-Side Caching** - Dedupe analyze() calls at LSP layer
-- [ ] **Phase 15: Cross-File Caching** - Cache imported/inherited files with dependency tracking
+- [x] **Phase 15: Cross-File Caching** - Cache imported/inherited files with dependency tracking
 - [ ] **Phase 16: Stdlib Performance** - Fix stdlib loading without crashes
 - [ ] **Phase 17: Responsiveness Tuning** - Optimize debouncing and measure final improvements
 
@@ -119,7 +119,9 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 15-01-PLAN.md — Cross-file cache verification and fix (Ready to execute)
+- [x] 15-01-PLAN.md — Cross-file cache verification and fix (Completed 2026-01-23)
+
+**Outcome**: Dependencies are now tracked during compilation. Fixed critical cache type check bug (programp failed for .pmod modules). Benchmarks confirm 2 files cached correctly.
 
 ### Phase 16: Stdlib Performance
 **Goal**: Make stdlib types available without crashes or long delays
@@ -153,7 +155,7 @@ Plans:
 
 **Execution Order:** Phases 10 through 17 in sequence.
 
-**Phase 15 Status:** Planning complete. 1 plan ready for execution.
+**Phase 15 Status:** Complete. 1 plan executed.
 
 ## Requirements Coverage
 
@@ -164,7 +166,7 @@ Plans:
 | CONS-01 through CONS-05 | 12 | ✅ Complete |
 | PIKE-01 through PIKE-04 | 13 | ✅ Complete |
 | CACHE-01 through CACHE-06 | 14 | ✅ Complete |
-| CACHE-07 through CACHE-09 | 15 | 🔄 Planning |
+| CACHE-07 through CACHE-09 | 15 | ✅ Complete |
 | STDLIB-01 through STDLIB-04 | 16 | ⏸ Not Started |
 | RESP-01 through RESP-03 | 17 | ⏸ Not Started |
 

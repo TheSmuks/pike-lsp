@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-22)
 
 **Core value:** Safety without rigidity - solve actual pain points without over-engineering
-**Current focus:** v3.0 Performance Optimization - Phase 15 (Cross-File Caching)
+**Current focus:** v3.0 Performance Optimization - Phase 15 complete
 
 ## Current Position
 
 Phase: 15 of 17 (Cross-File Caching)
 Plan: 1 of 1
-Status: Planning complete, ready to execute
-Last activity: 2026-01-23 — Completed 14-01: Request Logging Analysis
+Status: Phase complete, ready for Phase 16
+Last activity: 2026-01-23 — Completed 15-01: Cross-File Cache Verification and Fix
 
-Progress: [█████████████████░░░░░] 65%
+Progress: [███████████████████░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
-- Average duration: ~12m 31s
-- Total execution time: 5.85 hours
+- Total plans completed: 33
+- Average duration: ~12m 20s
+- Total execution time: 6.75 hours
 
 **By Phase:**
 
@@ -32,12 +32,13 @@ Progress: [█████████████████░░░░░] 6
 | 12    | 5     | 5        | 27m      |
 | 13    | 4     | 4        | 6m 50s   |
 | 14    | 1*    | 1        | ~15m     |
+| 15    | 1     | 1        | ~15m     |
 
 *Phase 14: 1 of 2 plans executed; 14-02 skipped as unnecessary
 
 **Recent Trend:**
-- Last 5 plans: 13-01, 13-02, 13-03, 13-04, 14-01
-- Trend: Phase 14 complete - Logging confirmed no duplicate analyze() calls; existing deduping sufficient
+- Last 5 plans: 13-04, 14-01, 15-01
+- Trend: Phase 15 complete - Dependency tracking wired into compilation flow, cache type check fixed
 
 *Updated after each plan completion*
 
@@ -69,6 +70,7 @@ Recent decisions affecting current work:
 - (13-03): Cache integration complete - handle_analyze checks cache before compiling, Context includes CompilationCache instance, bridge.analyze() accepts documentVersion parameter, diagnostics passes document version for open doc caching. Cache metadata (cache_hit, cache_key) exposed in _perf for debugging.
 - (13-04): Cache benchmark validation - Compilation Cache benchmark group added, demonstrates 61% speedup (cache hit: 313us, cache miss: 805us). CI regression gate enforces 80% hit rate and 50% speedup thresholds. get_cache_stats RPC handler returns cache statistics.
 - (14-01): TypeScript-side deduping NOT needed - Logging confirmed no duplicate analyze() calls occur. Debounce (500ms) correctly coalesces rapid edits. PikeBridge inflight deduping handles edge cases. RequestDeduper implementation skipped to avoid unnecessary complexity.
+- (15-01): Cross-file dependency tracking fixed - DependencyTrackingCompiler wired into handle_analyze compilation flow, passing dependencies to ResultClass constructor. Fixed critical cache bug: programp() returns false for .pmod modules, added mappingp() || objectp() checks. Benchmarks confirm 2 files cached, cache hit working.
 
 ### Performance Investigation Findings (2026-01-22)
 
@@ -96,10 +98,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None. Phase 14 complete - Logging confirmed existing deduping is sufficient; no TypeScript-side deduping needed.
+None. Phase 15 complete - Cross-file dependency tracking working, cache storing 2 files correctly.
 
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 14-01 (Request Logging Analysis)
+Stopped at: Completed 15-01 (Cross-File Cache Verification and Fix)
 Resume file: None
