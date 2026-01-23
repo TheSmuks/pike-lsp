@@ -2,8 +2,8 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "outDir": "./dist",
-        "rootDir": "./src",
-        "noImplicitAny": false
+        "noImplicitAny": false,
+        "composite": true
     },
     "include": [
         "src/**/*"
@@ -13,6 +13,9 @@
         "dist"
     ],
     "references": [
+        {
+            "path": "../core"
+        },
         {
             "path": "../pike-bridge"
         }

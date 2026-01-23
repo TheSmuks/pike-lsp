@@ -2,6 +2,9 @@
     "files": [],
     "references": [
         {
+            "path": "./packages/core"
+        },
+        {
             "path": "./packages/pike-bridge"
         },
         {

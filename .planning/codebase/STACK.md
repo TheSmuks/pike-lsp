@@ -1,85 +1,85 @@
 # Technology Stack
 
-**Analysis Date:** 2026-01-19
+**Analysis Date:** 2026-01-23
 
 ## Languages
 
 **Primary:**
-- TypeScript 5.3.0 - All packages and server implementation (`packages/*/src/**/*.ts`)
+- TypeScript 5.3.0 - All TypeScript packages (bridge, LSP server, VSCode extension, core)
+- Pike 8.0+ - Pike language analyzer subprocess (`pike-scripts/analyzer.pike`, `LSP.pmod/*`)
 
 **Secondary:**
-- Pike 8.0+ - Backend analyzer script (`pike-scripts/analyzer.pike`, `pike-scripts/type-introspector.pike`)
+- Bash - Git hooks, CI/CD scripts, build scripts
+- JSON - Configuration files, TextMate grammar
+- YAML - GitHub Actions workflows
 
 ## Runtime
 
 **Environment:**
-- Node.js >=18.0.0 - JavaScript runtime for LSP server and extension
-- Pike 8.0+ - Required system dependency for parsing Pike source code
+- Node.js >=18.0.0 (CI uses Node 20.x)
+- Pike 8.0+ ( Pike 8.0.1116 tested, Pike 8.1116 target)
 
 **Package Manager:**
-- pnpm >=8.0.0 (8.15.0 specified)
-- Lockfile: `pnpm-lock.yaml` (present)
-- Workspace: `pnpm-workspace.yaml` with monorepo pattern `packages/*`
+- pnpm >=8.0.0 (8.15.0 specified in root `package.json`)
+- Lockfile: pnpm-lock.yaml (present, committed)
 
 ## Frameworks
 
 **Core:**
-- vscode-languageserver 9.0.1 - LSP server protocol implementation
-- vscode-languageserver-textdocument 1.0.11 - Text document handling for LSP
-- vscode-languageclient 9.0.1 - VSCode extension client for LSP communication
+- vscode-languageserver 9.0.1 - LSP protocol implementation in `packages/pike-lsp-server`
+- vscode-languageclient 9.0.1 - VSCode extension client in `packages/vscode-pike`
+- vscode-languageserver-textdocument 1.0.11 - Text document handling
+- @vscode/test-electron 2.5.2 - VSCode extension E2E testing
+- @vscode/vsce 2.22.0 - VSIX packaging
 
 **Testing:**
-- Node.js built-in test runner (`node --test`) - Native Node.js test framework
-- No external test framework dependency (uses `node:test` and `node:assert/strict`)
+- Node.js native test runner (`node --test`) - Bridge and LSP server tests
+- Mocha 11.7.5 - VSCode extension unit tests
+- @vscode/test-cli 0.0.12 - VSCode test runner
 
 **Build/Dev:**
-- TypeScript 5.3.0 - Type checking and compilation
-- esbuild 0.20.0 - Bundling for VSCode extension
-- @vscode/vsce 2.22.0 - VSIX packaging for VSCode extension
-- @types/node 20.10.0 - Node.js type definitions
-- @types/vscode 1.85.0 - VSCode API type definitions
+- esbuild 0.20.0 - Extension bundling (`packages/vscode-pike`)
+- TypeScript 5.3.0 - All TypeScript packages
+- mitata 1.0.34 - Benchmarking framework
+- tsx 4.21.0 - TypeScript execution for benchmarks
+- husky 9.1.7 - Git hooks
 
 ## Key Dependencies
 
 **Critical:**
-- @pike-lsp/pike-bridge (workspace:*) - TypeScript <-> Pike subprocess communication layer
-- @pike-lsp/pike-analyzer (workspace:*) - Semantic analysis utilities using pike-bridge
-- @pike-lsp/pike-lsp-server (workspace:*) - LSP server implementation
+- @pike-lsp/core - Shared utilities (logging, errors)
+- @pike-lsp/pike-bridge - TypeScript <-> Pike subprocess IPC
+- @pike-lsp/pike-lsp-server - LSP server implementation
+- workspace:* protocol - Monorepo workspace dependencies
 
 **Infrastructure:**
-- child_process (Node.js built-in) - Spawning Pike subprocess via `spawn()`
-- readline (Node.js built-in) - JSON-RPC communication over stdin/stdout
-- events (Node.js built-in) - EventEmitter for bridge lifecycle events
-- fs/fs/promises (Node.js built-in) - File system operations for workspace indexing
+- Pike stdlib modules (Parser.Pike, Tools.AutoDoc, String, Stdio) - Used by `pike-scripts/analyzer.pike`
 
 ## Configuration
 
 **Environment:**
-- `PIKE_MODULE_PATH` - Colon-separated paths for Pike module resolution
-- `PIKE_INCLUDE_PATH` - Colon-separated paths for Pike include resolution
-- `pikePath` - VSCode setting for path to Pike executable (default: "pike")
-- `pikeModulePath` - VSCode array setting for module paths
-- `pikeIncludePath` - VSCode array setting for include paths
-- `pike.trace.server` - LSP communication tracing ("off" | "messages" | "verbose")
+- TypeScript project references - Root `tsconfig.json` references all packages
+- Composite builds - TypeScript builds in dependency order
+- Strict mode enabled - All compiler strict options
 
 **Build:**
-- `tsconfig.base.json` - Shared TypeScript configuration with strict mode enabled
-- `tsconfig.json` - Project references for monorepo packages
-- `packages/*/tsconfig.json` - Per-package TypeScript configuration
-- `esbuild` bundle config in `packages/vscode-pike/package.json`
+- esbuild for VSCode extension bundle
+- TypeScript compiler (tsc) for all packages
+- pnpm workspace with `packages/*` pattern
 
-## Platform Requirements
+**Platform Requirements:**
 
 **Development:**
-- Node.js 18+ (tested on 20.x)
-- pnpm 8+ (8.15.0 specified)
-- Pike 8.0+ (installed via `sudo apt-get install pike8.0` on Ubuntu)
+- Node.js 18+ / 20.x
+- pnpm 8+
+- Pike 8.0+ (for running analyzer)
+- Linux/Unix-like environment (Pike installation)
 
 **Production:**
-- VSCode 1.85+ (extension requirement)
-- Pike 8.0+ system dependency (must be available in PATH)
-- Node.js 18+ runtime
+- VSCode 1.85.0+
+- Node.js 18+ (extension runtime)
+- Pike 8.0+ (user's system for language analysis)
 
 ---
 
-*Stack analysis: 2026-01-19*
+*Stack analysis: 2026-01-23*

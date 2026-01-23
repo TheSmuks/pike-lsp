@@ -1,69 +1,76 @@
 # Testing Patterns
 
-**Analysis Date:** 2025-01-19
+**Analysis Date:** 2026-01-23
 
 ## Test Framework
 
 **Runner:**
-- Node.js built-in test runner (`node:test`)
+- **Node.js native test runner** (`node:test`)
 - Config: Built into Node.js 18+
+- Package scripts: `"test": "pnpm build && node --test dist/*.test.js"`
 
 **Assertion Library:**
-- `node:assert/strict` (strict assertion mode)
+- Node.js built-in `assert` module
+- Strict assertions: `import assert from 'node:assert/strict'`
+- Pattern: `assert.equal()`, `assert.ok()`, `assert.match()`, `assert.deepEqual()`
+
+**VSCode Extension Testing:**
+- Mocha + `@vscode/test-electron` for E2E tests
+- Config: `packages/vscode-pike/src/test/tsconfig.test.json`
 
 **Run Commands:**
 ```bash
-# Run all tests
+# Run all tests (root)
 pnpm test
 
-# Run package-specific tests
+# Run package tests
 cd packages/pike-bridge && pnpm test
 cd packages/pike-lsp-server && pnpm test
 
-# Run specific test file (after build)
-node --test dist/workspace-index.test.js
-node --test dist/bridge.test.js
+# E2E feature tests (headless required)
+cd packages/vscode-pike && pnpm test:features
 
-# Full test suite with Pike stdlib validation
-./scripts/run-tests.sh
-```
+# Unit tests only
+cd packages/vscode-pike && pnpm test:unit
 
-**Test Scripts in package.json:**
-```json
-{
-  "test": "pnpm build && node --test dist/workspace-index.test.js"
-}
+# Type checking
+pnpm typecheck
 ```
 
 ## Test File Organization
 
 **Location:**
-- Co-located with source code in same directory
-- Unit tests: `*.test.ts` next to implementation
-- Integration tests: `tests/` subdirectory
+- **Co-located**: Test files next to source files
+- Pattern: `src/module.ts` → `src/module.test.ts`
+- Integration tests: `src/test/integration/*.test.ts`
 
 **Naming:**
-- Unit tests: `<module>.test.ts` (e.g., `workspace-index.test.ts`, `bridge.test.ts`)
-- Test suites: `<feature>-tests.ts` (e.g., `lsp-tests.ts`, `performance-tests.ts`)
+- Source: `module.ts`
+- Test: `module.test.ts`
+- Integration tests: `integration/test-name.test.ts`
 
 **Structure:**
 ```
 packages/
-  pike-bridge/
-    src/
-      bridge.ts
-      bridge.test.ts          # Unit tests for bridge
-  pike-lsp-server/
-    src/
-      workspace-index.ts
-      workspace-index.test.ts # Unit tests for index
-      tests/
-        lsp-tests.ts          # Core LSP functionality
-        integration-tests.ts  # End-to-end workflows
-        lsp-protocol-tests.ts # Hover, completion, definition
-        performance-tests.ts  # Speed and memory benchmarks
-        pike-source-tests.ts  # Pike stdlib validation
-        stdlib-tests.ts       # Stdlib module tests
+├── pike-bridge/
+│   └── src/
+│       ├── bridge.ts
+│       ├── bridge.test.ts          # Unit tests
+│       ├── process.ts
+│       └── process.test.ts         # Unit tests
+├── pike-lsp-server/
+│   └── src/
+│       ├── workspace-index.ts
+│       ├── workspace-index.test.ts # Unit tests
+│       └── tests/
+│           └── smoke.test.ts       # Smoke tests
+└── vscode-pike/
+    └── src/
+        ├── test/
+        │   ├── integration/
+        │   │   └── lsp-features.test.ts  # E2E tests
+        │   ├── extension.test.ts
+        │   └── mockOutputChannel.test.ts
 ```
 
 ## Test Structure
@@ -72,91 +79,126 @@ packages/
 ```typescript
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { PikeBridge } from '@pike-lsp/pike-bridge';
 
-describe('FeatureName', () => {
+describe('PikeBridge', () => {
     let bridge: PikeBridge;
 
+    // Setup: Runs once before all tests
     before(async () => {
         bridge = new PikeBridge();
         await bridge.start();
     });
 
+    // Teardown: Runs once after all tests
     after(async () => {
         if (bridge) {
             await bridge.stop();
         }
     });
 
-    it('should do something specific', async () => {
-        const result = await bridge.parse('int x = 5;', 'test.pike');
-        assert.ok(result.symbols.length > 0, 'Should extract symbols');
+    it('should start and be running', () => {
+        assert.equal(bridge.isRunning(), true);
+    });
+
+    // Nested describe for related tests
+    describe('analyzeUninitialized', () => {
+        it('should detect uninitialized string variable', async () => {
+            // Test code...
+        });
     });
 });
 ```
 
 **Patterns:**
-- `before` - Set up test fixtures (start bridge, create instances)
-- `after` - Tear down (stop bridge, cleanup)
-- `describe` - Group related tests
-- `it` - Individual test case
-- `it.skip` - Skip test temporarily (used for TODO features)
-- Nested `describe` for subgrouping
+- **Setup**: Use `before` for one-time initialization (bridge startup, fixture loading)
+- **Teardown**: Use `after` for cleanup (bridge shutdown, file cleanup)
+- **Test timeout**: E2E tests use `this.timeout(60000)` for 60s limit
+- **Assertion messages**: Descriptive messages for all assertions
+- **Skip tests**: Use `it.skip()` for incomplete tests with TODO comments
 
-**Assertions:**
+**E2E Test Pattern (VSCode):**
 ```typescript
-// Boolean checks
-assert.ok(condition, 'Failure message');
-assert.ok(result.symbols.length > 0, 'Should have symbols');
+suite('LSP Feature E2E Tests', () => {
+    let document: vscode.TextDocument;
 
-// Equality
-assert.equal(actual, expected, 'Message');
-assert.strictEqual(result.found, 1, 'Should find module');
+    suiteSetup(async function() {
+        this.timeout(60000);
+        // Activate extension, open document
+        const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+        await extension.activate();
+        // Wait for LSP initialization
+        await new Promise(resolve => setTimeout(resolve, 15000));
+    });
 
-// Deep equality
-assert.deepEqual(result1, result2, 'Results should be identical');
+    suiteTeardown(async () => {
+        // Cleanup
+    });
 
-// Type checks
-assert.ok(Array.isArray(result.tokens), 'Tokens should be an array');
-
-// String matching
-assert.match(version, /\d+\.\d+/, 'Version should match X.Y pattern');
+    test('Document symbols returns valid symbol tree', async function() {
+        this.timeout(30000);
+        // Test implementation
+    });
+});
 ```
 
 ## Mocking
 
-**Framework:** No external mocking library. Use test doubles/stubs manually.
+**Framework:**
+- No external mocking library (no Sinon, Nock, etc.)
+- Manual mocks created for testing
+- Mock implementations in test files
 
 **Patterns:**
+
+**Mock Output Channel:**
 ```typescript
-// Stub error callback
-const errorMessages: string[] = [];
-index.setErrorCallback((message, uri) => {
-    errorMessages.push(message);
-});
+export class MockOutputChannel implements vscode.OutputChannel {
+    private logs: string[] = [];
 
-// Mock/suppress stderr logging
-bridge.on('stderr', () => {});
-
-// Conditional Pike availability check
-before(async () => {
-    bridge = new PikeBridge();
-    const available = await bridge.checkPike();
-    if (!available) {
-        throw new Error('Pike executable not found. Tests require Pike.');
+    append(value: string) {
+        this.logs.push(value);
     }
-    await bridge.start();
-});
+
+    appendLine(value: string) {
+        this.logs.push(value);
+    }
+
+    getLogs(): string[] {
+        return this.logs;
+    }
+
+    // Other required methods...
+}
+```
+
+**Test Helper Pattern:**
+```typescript
+// Log capture utility for E2E tests
+let capturedLogs: string[] = [];
+
+function logServerOutput(message: string) {
+    capturedLogs.push(message);
+    console.log(`[Pike Server] ${message}`);
+}
+
+function assertWithLogs(condition: unknown, message: string): asserts condition {
+    if (!condition) {
+        dumpServerLogs(`Assertion failed: ${message}`);
+        assert.ok(condition, message);
+    }
+}
 ```
 
 **What to Mock:**
-- External dependencies (filesystem, network)
-- Logging output (capture instead of printing)
-- Error callbacks (capture errors for assertions)
+- VSCode APIs: `OutputChannel`, `ExtensionContext`
+- External process communication: `PikeProcess` (via PikeBridge)
+- File system: For testing file operations
+- LSP client: `LanguageClient` in extension tests
 
 **What NOT to Mock:**
-- Pike bridge integration (test against real Pike subprocess)
-- LSP protocol handlers (integration tests use real handlers)
+- Business logic: Test real implementations
+- Pike subprocess integration: Integration tests should use real Pike
+- Data structures: Test with real data
 
 ## Fixtures and Factories
 
@@ -168,222 +210,223 @@ const code = `
     string hello() {
         return "world";
     }
-    class MyClass {
-        int value;
-    }
 `;
 
-// Generated test code
-function generatePikeCode(lines: number, moduleName: string): string {
-    const declarations: string[] = [];
-    for (let i = 0; i < lines; i++) {
-        declarations.push(`int var${i} = ${i};`);
-    }
-    return declarations.join('\n');
-}
+// Pike fixture file
+const fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
 ```
 
 **Location:**
-- Inline in test files for simple cases
-- Helper functions in test files for generated data
-- No separate fixtures directory
+- Integration fixtures: `packages/vscode-pike/test/test-workspace/`
+- Fixture file: `test-workspace/test.pike` with predefined Pike code
+- Mock implementations: `packages/vscode-pike/src/test/mockOutputChannel.ts`
+
+**E2E Test Fixture:**
+```typescript
+// Use existing test.pike file instead of dynamic creation
+fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+document = await vscode.workspace.openTextDocument(fixtureUri);
+await vscode.window.showTextDocument(document);
+```
 
 ## Coverage
 
-**Requirements:** None enforced (no coverage tool configured)
+**Requirements:**
+- No enforced coverage target (no `c8`, `nyc`, or Istanbul configuration detected)
+- Manual testing guides in CLAUDE.md documents
 
 **View Coverage:**
-```bash
-# No coverage command - coverage tracking not configured
-```
+- No coverage reporting configured
+- Use manual verification of LSP features
+
+**Test-Driven Development:**
+- Tests written before features (e.g., workspace-index.test.ts predates full implementation)
+- Regression tests: E2E tests verify features don't return null
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Single class/function in isolation
-- Location: `<module>.test.ts` files
-- Examples: `bridge.test.ts`, `workspace-index.test.ts`
-- Focus: Public API behavior, edge cases
-
-```typescript
-describe('WorkspaceIndex', () => {
-    it('should create an empty index', () => {
-        const index = new WorkspaceIndex();
-        const stats = index.getStats();
-        assert.equal(stats.documents, 0);
-    });
-});
-```
+- **Scope**: Single class or function in isolation
+- **Location**: Co-located with source files
+- **Framework**: `node:test` for backend code
+- **Example**: `bridge.test.ts` tests `PikeBridge` class methods
+- **Pattern**: Test public API, mock external dependencies
 
 **Integration Tests:**
-- Scope: Multiple components working together
-- Location: `tests/integration-tests.ts`, `tests/lsp-tests.ts`
-- Real Pike subprocess communication
-- Real LSP protocol interactions
+- **Scope**: Multiple components working together
+- **Location**: `src/test/integration/`
+- **Framework**: Mocha + `@vscode/test-electron` for VSCode
+- **Example**: `lsp-features.test.ts` tests full LSP flow from VSCode → Server → Bridge → Pike
+- **Pattern**: Real Pike subprocess, real LSP server
 
-```typescript
-describe('LSP Integration', () => {
-    it('should handle document lifecycle', async () => {
-        // Open document -> Change -> Close
-    });
-});
-```
+**E2E Tests:**
+- **Framework**: `@vscode/test-electron` with Mocha
+- **Scope**: Full VSCode extension in real VSCode instance
+- **Location**: `packages/vscode-pike/src/test/integration/`
+- **Key principle**: Tests fail if LSP features return null/undefined (regression detection)
+- **Headless requirement**: Must run headlessly (Xvfb on Linux)
 
-**Performance Tests:**
-- Scope: Speed and memory characteristics
-- Location: `tests/performance-tests.ts`
-- Measures parsing speed, symbol extraction rate
-- Tracks symbols per second
-
-```typescript
-describe('Performance Tests', () => {
-    it('should parse 500-line file efficiently', async () => {
-        const code = generatePikeCode(500, 'LargeModule');
-        const start = performance.now();
-        const result = await bridge.parse(code, 'large.pike');
-        const duration = performance.now() - start;
-        console.log(`Parsed ${duration.toFixed(2)}ms`);
-    });
-});
-```
-
-**Stdlib Validation Tests:**
-- Scope: Parse ALL Pike 8 stdlib files
-- Location: `tests/pike-source-tests.ts`
-- Requirement: 100% of Pike stdlib must parse
-- Tests against actual Pike source checkout
-
-```typescript
-// PIKE_SCANNER_INSTRUCTIONS.xml requirement
-// "100% of Pike 8 stdlib files must parse without errors"
-
-describe('Pike Stdlib Validation', () => {
-    it('should parse all stdlib files', async () => {
-        const files = findPikeFiles(PIKE_STDLIB);
-        for (const file of files) {
-            const result = await bridge.parse(code, file);
-            assert.ok(result, `${file} should parse`);
-        }
-    });
-});
-```
+**Smoke Tests:**
+- **Location**: `packages/pike-lsp-server/src/tests/smoke.test.ts`
+- **Purpose**: Quick validation that basic functionality works
+- **Pattern**: Simple API calls with basic assertions
 
 ## Common Patterns
 
 **Async Testing:**
 ```typescript
-it('should async operation', async () => {
-    const result = await bridge.parse('int x = 5;');
+it('should parse Pike code', async () => {
+    const result = await bridge.parse('int x = 42;');
     assert.ok(result.symbols);
+    assert.ok(result.symbols.length > 0);
 });
 ```
 
 **Error Testing:**
 ```typescript
 it('should detect syntax errors', async () => {
-    const result = await bridge.compile('int x = ;', 'test.pike');
+    const code = 'int x = ;';  // Syntax error
+    const result = await bridge.compile(code);
     assert.ok(result.diagnostics.length > 0);
-    assert.equal(result.diagnostics[0].severity, 'error');
 });
 ```
 
-**Setup with Skip Conditions:**
+**Timeout Handling:**
+```typescript
+test('Document symbols returns valid symbol tree', async function() {
+    this.timeout(30000);  // 30 second timeout
+    // Test code that may take longer
+});
+```
+
+**Concurrent Testing:**
+```typescript
+it('should deduplicate concurrent identical requests', async () => {
+    const [result1, result2, result3] = await Promise.all([
+        bridge.parse(code),
+        bridge.parse(code),
+        bridge.parse(code)
+    ]);
+    assert.deepEqual(result1, result2);
+});
+```
+
+**Skipped Tests:**
+```typescript
+it.skip('should detect conditional initialization', async () => {
+    // TODO: Implement branch-aware control flow analysis
+});
+```
+
+## Headless Testing
+
+**Mandatory Requirement:**
+All VSCode E2E tests MUST run headlessly.
+
+```bash
+# Run headless (default)
+cd packages/vscode-pike && pnpm test:features
+
+# Use current display (for debugging only)
+USE_CURRENT_DISPLAY=1 pnpm test:features
+```
+
+**Headless Script:**
+- `scripts/test-headless.sh` handles Xvfb (Linux) → Weston → native fallback
+- Tests auto-select appropriate display server
+- Only use `USE_CURRENT_DISPLAY=1` for interactive debugging
+
+**Why Headless:**
+- CI/CD environments have no display
+- Tests must run automated without GUI
+- Prevents tests from failing due to display issues
+
+## Test Data Management
+
+**Bridge Lifecycle:**
 ```typescript
 before(async () => {
     bridge = new PikeBridge();
-    const available = await bridge.checkPike();
-    if (!available) {
-        throw new SkipTestError('Pike not available');
-    }
     await bridge.start();
 });
-```
 
-**Multiple Variants:**
-```typescript
-describe('analyzeUninitialized', () => {
-    it('should detect uninitialized string', async () => { /* ... */ });
-    it('should not warn for initialized variables', async () => { /* ... */ });
-    it('should not warn for int (auto-initialized)', async () => { /* ... */ });
-    it('should detect uninitialized mapping', async () => { /* ... */ });
+after(async () => {
+    if (bridge) {
+        await bridge.stop();
+    }
 });
 ```
 
-**Performance Measurement:**
+**Document Cleanup:**
 ```typescript
-function measurePerformance<T>(
-    operation: string,
-    fn: () => Promise<T>,
-    symbolCount: number
-): Promise<T> {
-    const start = performance.now();
-    return fn().then(result => {
-        const duration = performance.now() - start;
-        const symbolsPerSecond = symbolCount / (duration / 1000);
-        console.log(`[PERF] ${operation}: ${duration.toFixed(2)}ms (${symbolsPerSecond.toFixed(0)} symbols/sec)`);
-        return result;
+suiteTeardown(async () => {
+    if (document) {
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    }
+});
+```
+
+**Log Capture:**
+```typescript
+let capturedLogs: string[] = [];
+
+suiteSetup(() => {
+    capturedLogs = [];  // Reset logs
+});
+
+suiteTeardown(() => {
+    dumpServerLogs('Suite teardown');  // Always dump logs
+});
+```
+
+## Pike Script Testing
+
+**Direct Testing:**
+```bash
+# Verify Pike script compiles
+pike -e 'compile_file("pike-scripts/analyzer.pike");'
+
+# Direct analyzer test via JSON-RPC
+echo '{"jsonrpc":"2.0","id":1,"method":"parse","params":{"code":"int x;"}}' \
+  | pike pike-scripts/analyzer.pike
+```
+
+**Bridge Communication Test:**
+```bash
+# Test introspect works through the bridge
+node -e "
+import('./packages/pike-bridge/dist/index.js').then(async ({PikeBridge}) => {
+  const bridge = new PikeBridge();
+  await bridge.start();
+  const result = await bridge.introspect('class Foo { int x; }');
+  console.log('Introspect:', result.success ? 'OK' : 'FAILED');
+  await bridge.stop();
+});
+"
+```
+
+## Debugging Tests
+
+**Log Dumping Pattern:**
+```typescript
+function dumpServerLogs(context: string) {
+    console.log(`\n=== Pike Server Logs (${context}) ===`);
+    capturedLogs.forEach(log => console.log(log));
+    console.log('=== End Server Logs ===\n');
+}
+```
+
+**Diagnostic Logging:**
+```typescript
+// Capture and display diagnostics
+const diagnostics = vscode.languages.getDiagnostics(fixtureUri);
+if (diagnostics.length > 0) {
+    diagnostics.forEach(d => {
+        logServerOutput(`Line ${d.range.start.line}: ${d.message}`);
     });
 }
 ```
 
-**Environment-Specific Tests:**
-```typescript
-// Override with env vars
-const PIKE_SOURCE_ROOT = process.env['PIKE_SOURCE_ROOT'] ?? '/default/path';
-const PIKE_STDLIB = process.env['PIKE_STDLIB'] ?? `${PIKE_SOURCE_ROOT}/lib/modules`;
-```
-
-## Test Requirements
-
-**Per CONTRIBUTING.md:**
-- All new features MUST have tests
-- Tests MUST pass before merging
-- Pike stdlib files MUST continue to parse (100% compatibility)
-
-**Stdlib Testing:**
-- Requires Pike source checkout at `../Pike` or `PIKE_SOURCE_ROOT`
-- Tests all `.pike` and `.pmod` files recursively
-- Validates symbol extraction, not just parsing success
-- Categorizes results by module (Stdio, Parser, etc.)
-
-## Skipping Tests
-
-**Pattern:**
-```typescript
-it.skip('should detect conditional initialization (TODO: branch analysis)', async () => {
-    // TODO: Implement branch-aware control flow analysis
-    const code = `/* test code */`;
-    // Test implementation when feature is ready
-});
-```
-
-**Use cases:**
-- Feature not yet implemented
-- Known bug to be fixed later
-- Expensive test (for occasional runs)
-
-## Test Execution Order
-
-**Full suite:**
-```bash
-./scripts/run-tests.sh
-```
-
-**Sequence:**
-1. Build all packages
-2. Test Pike Bridge (`packages/pike-bridge`)
-3. Test LSP Server Components (`packages/pike-lsp-server`)
-4. Test Pike Source Parsing (`pike-source-tests.ts`)
-
-**Individual tests:**
-```bash
-# After building
-cd packages/pike-lsp-server
-node --test dist/tests/lsp-tests.js
-node --test dist/tests/performance-tests.js
-node --test dist/tests/pike-source-tests.js
-```
-
 ---
 
-*Testing analysis: 2025-01-19*
+*Testing analysis: 2026-01-23*

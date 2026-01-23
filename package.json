@@ -9,14 +9,18 @@
     "type": "git",
     "url": "https://github.com/TheSmuks/pike-lsp.git"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "pnpm -r run build",
-    "clean": "pnpm -r run clean",
-    "test": "pnpm -r run test",
+    "build": "bun run build:tsc",
+    "build:tsc": "bunx tsc --build",
+    "build:packages": "bun run --filter '*' build",
+    "clean": "bun run --filter '*' clean",
+    "test": "bun run test:packages",
+    "test:packages": "bun run --filter '*' test",
     "test:all": "./scripts/run-tests.sh",
-    "lint": "pnpm -r run lint",
-    "typecheck": "pnpm -r run typecheck",
-    "watch": "pnpm -r --parallel run watch",
+    "typecheck": "bunx tsc --build --dry",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -25,8 +29,9 @@
     "typescript": "^5.3.0"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@8.15.0"
+  "trustedDependencies": [
+    "esbuild"
+  ]
 }

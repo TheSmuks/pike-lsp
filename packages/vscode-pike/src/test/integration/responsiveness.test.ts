@@ -14,6 +14,8 @@
  * - LSP features still work after rapid typing (debounce didn't block)
  */
 
+// @ts-nocheck - Integration tests use mocha types at runtime
+
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 

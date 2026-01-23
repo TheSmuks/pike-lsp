@@ -125,19 +125,19 @@
         }
     },
     "scripts": {
-        "build": "npm run build:extension && npm run build:test",
+        "build": "bun run build:extension && bun run build:test",
         "build:extension": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
-        "build:test": "tsc -p src/test/tsconfig.test.json",
+        "build:test": "tsc -p src/test/tsconfig.test.json && tsc -p src/test/tsconfig.bun-test.json",
         "clean": "rm -rf dist server",
         "watch": "tsc --watch",
         "bundle-server": "bash scripts/bundle-server.sh",
-        "package": "pnpm build && pnpm bundle-server && vsce package --no-dependencies",
+        "package": "bun run build && bun run bundle-server && vsce package --no-dependencies",
         "typecheck": "tsc --noEmit",
-        "vscode:prepublish": "pnpm build && pnpm bundle-server",
-        "test": "npm run build:test && vscode-test",
-        "test:unit": "npm run build:test && mocha dist/test/mockOutputChannel.test.js",
-        "test:integration": "npm run build:test && node dist/test/extension.test.js",
-        "test:features": "npm run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
+        "vscode:prepublish": "bun run build && bun run bundle-server",
+        "test": "bun run build:test && vscode-test",
+        "test:unit": "bun run build:test && bun test dist/test/mockOutputChannel.test.js",
+        "test:integration": "bun run build:test && node dist/test/extension.test.js",
+        "test:features": "bun run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
         "test:headless": "bash scripts/test-headless.sh",
         "test:features:headless": "bash scripts/test-headless.sh --grep 'LSP Feature E2E'"
     },
@@ -153,7 +153,6 @@
         "@vscode/vsce": "^2.22.0",
         "esbuild": "^0.20.0",
         "glob": "^13.0.0",
-        "mocha": "^11.7.5",
         "typescript": "^5.3.0"
     }
 }

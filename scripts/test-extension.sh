@@ -54,7 +54,7 @@ fi
 echo ""
 echo "Building project..."
 cd "$PROJECT_ROOT"
-pnpm run build > /dev/null 2>&1 || {
+bun run build > /dev/null 2>&1 || {
     echo "Build failed! Running with existing build..."
 }
 echo "✓ Build ready"

@@ -32,7 +32,7 @@ fi
 # Ensure pike-bridge dist is up to date (esbuild resolves package main)
 if [ -d "$BRIDGE_DIR" ]; then
     echo "  Building pike-bridge..."
-    (cd "$BRIDGE_DIR" && pnpm build)
+    (cd "$BRIDGE_DIR" && bun run build)
 else
     echo "ERROR: pike-bridge not found at $BRIDGE_DIR"
     exit 1

@@ -5,6 +5,8 @@
  * and the LSP server starts up properly.
  */
 
+// @ts-nocheck - Extension tests use mocha types at runtime
+
 import * as path from 'path';
 import * as fs from 'fs';
 import assert from 'assert';

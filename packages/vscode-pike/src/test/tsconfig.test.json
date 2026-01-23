@@ -5,15 +5,18 @@
         "moduleResolution": "Node",
         "lib": ["ES2022"],
         "strict": false,
+        "strictNullChecks": false,
+        "noImplicitAny": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": ["mocha", "node"],
+        "types": ["node", "@types/vscode", "mocha"],
         "outDir": "../../dist/test",
         "rootDir": "."
     },
     "include": [
-        "./mockOutputChannel.test.ts",
         "./mockOutputChannel.ts",
+        "./extension.test.ts",
+        "./lsp-smoke.test.ts",
         "./integration/**/*.ts"
     ]
 }

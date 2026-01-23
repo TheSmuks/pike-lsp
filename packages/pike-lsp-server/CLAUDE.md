@@ -16,6 +16,14 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #5728 | 10:43 PM | 🔵 | Read pike-lsp-server TypeScript configuration | ~189 |
+| #5692 | 10:24 PM | 🔵 | LSP server package configured for bun test framework | ~189 |
+| #5658 | 9:54 PM | 🔄 | Updated pike-lsp-server workspace dependencies to use bun protocol | ~109 |
+| #5652 | 9:53 PM | 🔴 | Fixed pike-lsp-server TypeScript project configuration | ~131 |
+| #5635 | 9:46 PM | 🔄 | LSP server package removed tsx and mitata dependencies | ~188 |
+| #5626 | 9:44 PM | 🔵 | Comprehensive monorepo analysis completed | ~256 |
+| #5621 | " | 🔵 | Language server TypeScript configuration with project references | ~157 |
+| #5614 | 9:43 PM | 🔵 | Pike LSP server package analysis | ~190 |
 | #5451 | 8:20 PM | 🔴 | Large Benchmark File Excluded from Git Tracking | ~236 |
 | #5450 | " | 🔴 | Gitignore Updated to Exclude Benchmark Artifacts | ~285 |
 | #5448 | " | ✅ | Benchmark Results Added to Gitignore | ~185 |

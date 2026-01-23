@@ -33,7 +33,7 @@ export interface ExtensionApi {
 }
 
 // Test mode flag - can be set via environment variable
-const TEST_MODE = process.env.PIKE_LSP_TEST_MODE === 'true';
+const TEST_MODE = process.env['PIKE_LSP_TEST_MODE'] === 'true';
 
 /**
  * Console-logging output channel wrapper for E2E tests
@@ -240,16 +240,20 @@ export async function activateForTesting(context: ExtensionContext, mockOutputCh
 
 function getExpandedModulePaths(): string[] {
     const config = workspace.getConfiguration('pike');
-    const pikeModulePath = config.get<string[]>('pikeModulePath', 'pike');
+    const pikeModulePath = config.get<string[] | string>('pikeModulePath', 'pike');
     let expandedPaths: string[] = [];
 
     if (workspace.workspaceFolders !== undefined) {
-        let f = workspace.workspaceFolders[0].uri.fsPath;
-        for (const p of pikeModulePath) {
-            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        const folder = workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
+            const paths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+            for (const p of paths) {
+                expandedPaths.push(p.replace("${workspaceFolder}", f));
+            }
         }
     } else {
-        expandedPaths = pikeModulePath;
+        expandedPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
     }
 
     console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
@@ -262,9 +266,12 @@ function getExpandedIncludePaths(): string[] {
     let expandedPaths: string[] = [];
 
     if (workspace.workspaceFolders !== undefined) {
-        const f = workspace.workspaceFolders[0].uri.fsPath;
-        for (const p of pikeIncludePath) {
-            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        const folder = workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
+            for (const p of pikeIncludePath) {
+                expandedPaths.push(p.replace("${workspaceFolder}", f));
+            }
         }
     } else {
         expandedPaths = pikeIncludePath;
@@ -330,20 +337,22 @@ async function restartClient(showMessage: boolean): Promise<void> {
     }
 }
 
-export async function addModulePathSetting(modulePath): Promise<boolean> {
+export async function addModulePathSetting(modulePath: string): Promise<boolean> {
     // Get Pike path from configuration
     const config = workspace.getConfiguration('pike');
-    const pikeModulePath = config.get<string[]>('pikeModulePath', 'pike');
-    let updatedPath: string[] = [];
+    const pikeModulePath = config.get<string[] | string>('pikeModulePath', 'pike');
 
     if (workspace.workspaceFolders !== undefined) {
-        let f = workspace.workspaceFolders[0].uri.fsPath;
+        const folder = workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
             modulePath = modulePath.replace(f, "${workspaceFolder}");
-     }
+        }
+    }
 
-    if (!pikeModulePath.includes(modulePath)) {
-        updatedPath = pikeModulePath.slice();
-        updatedPath.push(modulePath);
+    const existingPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+    if (!existingPaths.includes(modulePath)) {
+        const updatedPath = [...existingPaths, modulePath];
         await config.update('pikeModulePath', updatedPath, ConfigurationTarget.Workspace);
         return true;
     }
