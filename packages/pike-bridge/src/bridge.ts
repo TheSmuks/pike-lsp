@@ -330,11 +330,29 @@ export class PikeBridge extends EventEmitter {
                     );
                     pending.reject(error);
                 } else {
-                    const result = response.result;
-                    if (typeof result === 'object' && result !== null && (response as any)._perf) {
-                        (result as any)._perf = (response as any)._perf;
+                    // For analyze requests, return the full response structure with failures
+                    const isAnalyzeResponse = 'failures' in response && typeof (response as any).failures === 'object';
+
+                    if (isAnalyzeResponse) {
+                        // Return full response structure for analyze requests
+                        const fullResponse = {
+                            result: response.result,
+                            failures: (response as any).failures || {},
+                            _perf: (response as any)._perf || {},
+                        };
+                        // Copy _perf into result as well for backward compatibility
+                        if (typeof fullResponse.result === 'object' && fullResponse.result !== null && (response as any)._perf) {
+                            (fullResponse.result as any)._perf = (response as any)._perf;
+                        }
+                        pending.resolve(fullResponse);
+                    } else {
+                        // For other requests, just return the result with _perf attached
+                        const result = response.result;
+                        if (typeof result === 'object' && result !== null && (response as any)._perf) {
+                            (result as any)._perf = (response as any)._perf;
+                        }
+                        pending.resolve(result);
                     }
-                    pending.resolve(result);
                 }
             }
         } catch {
