@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import * as fs from 'fs';
 import { PikeProcess } from './process.js';
 import type {
     PikeParseResult,
@@ -94,22 +95,31 @@ export class PikeBridge extends EventEmitter {
         super();
 
         // Default analyzer path relative to this file (ESM-compatible)
-        // When built, dist/src is 4 levels from project root
-        // We need to go up from: packages/pike-bridge/dist/src → project root
+        // Find the project root by searching upward for pike-scripts directory
         const resolvedFilename =
             typeof __filename === 'string' ? __filename : fileURLToPath(import.meta.url);
         const resolvedDirname = path.dirname(resolvedFilename);
-        // Navigate to the project root
-        // From packages/pike-bridge/dist/src, go up 4 levels to project root
-        const defaultAnalyzerPath = path.resolve(
-            resolvedDirname,
-            '..',
-            '..',
-            '..',
-            '..',
-            'pike-scripts',
-            'analyzer.pike'
-        );
+
+        // Search upward for the pike-scripts directory (handles both workspace and package layouts)
+        let searchPath = resolvedDirname;
+        let defaultAnalyzerPath = path.resolve('pike-scripts', 'analyzer.pike'); // fallback
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        while (attempts < maxAttempts) {
+            const candidate = path.resolve(searchPath, 'pike-scripts', 'analyzer.pike');
+            if (fs.existsSync(candidate)) {
+                defaultAnalyzerPath = candidate;
+                break;
+            }
+            const parent = path.resolve(searchPath, '..');
+            if (parent === searchPath) {
+                // Reached filesystem root
+                break;
+            }
+            searchPath = parent;
+            attempts++;
+        }
 
         const debug = options.debug ?? false;
         this.debugLog = debug
