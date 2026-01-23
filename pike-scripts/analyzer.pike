@@ -346,6 +346,22 @@ int main(int argc, array(string) argv) {
                 ])
             ]);
         },
+        "get_cache_stats": lambda(mapping params, object ctx) {
+            // PERF-13-04: Return compilation cache statistics
+            mixed CacheClass = master()->resolv("LSP.CompilationCache");
+            if (CacheClass && programp(CacheClass)) {
+                // LSP.CompilationCache uses module-level state
+                return (["result": CacheClass->get_stats()]);
+            }
+            // Fallback if cache not available
+            return (["result": ([
+                "hits": 0,
+                "misses": 0,
+                "evictions": 0,
+                "size": 0,
+                "max_files": 500
+            ])]);
+        },
     ]);
 
     // PERF-011: Record handlers phase time
