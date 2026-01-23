@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-22)
 
 **Core value:** Safety without rigidity - solve actual pain points without over-engineering
-**Current focus:** v3.0 Performance Optimization - Phase 16 in progress
+**Current focus:** v3.0 Performance Optimization - Phase 16 complete, ready for Phase 17
 
 ## Current Position
 
 Phase: 16 of 17 (Stdlib Performance)
-Plan: 2 of 3
-Status: Plan 16-02 complete
-Last activity: 2026-01-23 — Completed 16-02: Remove Bootstrap Module Blacklist from StdlibIndexManager
+Plan: 3 of 3
+Status: Phase 16 complete
+Last activity: 2026-01-23 — Completed 16-03: Stdlib Benchmarks and E2E Hover Tests
 
 Progress: [███████████████████░░░] 76%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35
-- Average duration: ~11m 50s
-- Total execution time: ~7 hours
+- Total plans completed: 38
+- Average duration: ~11m 30s
+- Total execution time: ~7.25 hours
 
 **By Phase:**
 
@@ -33,13 +33,13 @@ Progress: [███████████████████░░░] 7
 | 13    | 4     | 4        | 6m 50s   |
 | 14    | 1*    | 1        | ~15m     |
 | 15    | 1     | 1        | ~15m     |
-| 16    | 2     | 2        | ~5m      |
+| 16    | 3     | 3        | ~6m      |
 
 *Phase 14: 1 of 2 plans executed; 14-02 skipped as unnecessary
 
 **Recent Trend:**
-- Last 5 plans: 13-04, 14-01, 15-01, 16-01, 16-02
-- Trend: Phase 16-02 complete - TypeScript-side bootstrap blacklist removed, stdlib modules load successfully
+- Last 5 plans: 13-04, 14-01, 15-01, 16-01, 16-02, 16-03
+- Trend: Phase 16 complete - Stdlib introspection working for all bootstrap modules, performance verified (< 500ms)
 
 *Updated after each plan completion*
 
@@ -74,6 +74,7 @@ Recent decisions affecting current work:
 - (15-01): Cross-file dependency tracking fixed - DependencyTrackingCompiler wired into handle_analyze compilation flow, passing dependencies to ResultClass constructor. Fixed critical cache bug: programp() returns false for .pmod modules, added mappingp() || objectp() checks. Benchmarks confirm 2 files cached, cache hit working.
 - (16-01): Bootstrap module introspection fixed - master()->resolv() returns Stdio/String/Array/Mapping as singleton objects. Added introspect_object() method using direct indices()/values() reflection. Removed bootstrap guard that blocked these modules. Verified: Stdio (80 symbols), String (34), Array (42), Mapping (3).
 - (16-02): TypeScript-side bootstrap blacklist removed - BOOTSTRAP_MODULES Set deleted from StdlibIndexManager. Pre-population loop removed. Negative cache preserved for actual missing modules. Verified: all 4 bootstrap modules load with symbols.
+- (16-03): Stdlib performance benchmarks and E2E tests - Added "Stdlib Performance (Warm)" benchmark group with 6 benches measuring introspection latency. Created 7 E2E hover tests. Verified all modules respond in < 500ms (best: Mapping 24µs, worst: Stdio.File 337µs). First hover latency: 0.41ms. STDLIB-03 satisfied.
 
 ### Performance Investigation Findings (2026-01-22)
 
@@ -101,10 +102,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None. Phase 16-02 complete - Both Pike-side and TypeScript-side bootstrap restrictions removed. Ready for 16-03 batch stdlib preloading.
+None. Phase 16 complete - Stdlib introspection working for all modules including bootstrap types. Performance verified: < 500ms for all modules.
 
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 16-02 (Remove Bootstrap Module Blacklist from StdlibIndexManager)
+Stopped at: Completed 16-03 (Stdlib Benchmarks and E2E Hover Tests)
 Resume file: None
