@@ -211,6 +211,52 @@ async function runBenchmarks() {
     });
   });
 
+  // STDLIB-03: Stdlib performance benchmarks
+  // Measures latency for introspecting stdlib modules - target: < 500ms
+  group('Stdlib Performance (Warm)', async () => {
+    // Warm up: First call to populate cache
+    await bridge.resolveStdlib('Stdio');
+
+    // Benchmark: Warm resolve (cached) for common modules
+    bench('resolveStdlib("Stdio") - warm', async () => {
+      const res = await bridge.resolveStdlib('Stdio');
+      trackPikeTime('Stdlib: Stdio (warm)', res);
+      return res;
+    });
+
+    bench('resolveStdlib("String")', async () => {
+      const res = await bridge.resolveStdlib('String');
+      trackPikeTime('Stdlib: String', res);
+      return res;
+    });
+
+    bench('resolveStdlib("Array")', async () => {
+      const res = await bridge.resolveStdlib('Array');
+      trackPikeTime('Stdlib: Array', res);
+      return res;
+    });
+
+    bench('resolveStdlib("Mapping")', async () => {
+      const res = await bridge.resolveStdlib('Mapping');
+      trackPikeTime('Stdlib: Mapping', res);
+      return res;
+    });
+
+    // Benchmark: Nested module resolution
+    bench('resolveStdlib("Stdio.File") - nested', async () => {
+      const res = await bridge.resolveStdlib('Stdio.File');
+      trackPikeTime('Stdlib: Stdio.File', res);
+      return res;
+    });
+
+    // Benchmark: Another nested module for variety
+    bench('resolveStdlib("String.SplitIterator") - nested', async () => {
+      const res = await bridge.resolveStdlib('String.SplitIterator');
+      trackPikeTime('Stdlib: String.SplitIterator', res);
+      return res;
+    });
+  });
+
   group('Intelligence Operations (Warm)', () => {
     bench('Hover: resolveStdlib("Stdio.File")', async () => {
       const res = await bridge.resolveStdlib('Stdio.File');
