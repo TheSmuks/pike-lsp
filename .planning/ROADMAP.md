@@ -116,10 +116,10 @@ Plans:
   1. Imported/inherited files are cached across document validations
   2. Changing a dependency file invalidates dependent files' caches
   3. Dependency graph accurately tracks import relationships
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 15-01: TBD
+- [ ] 15-01-PLAN.md — Cross-file cache verification and fix (Ready to execute)
 
 ### Phase 16: Stdlib Performance
 **Goal**: Make stdlib types available without crashes or long delays
@@ -153,17 +153,21 @@ Plans:
 
 **Execution Order:** Phases 10 through 17 in sequence.
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 10. Benchmarking Infrastructure | 3/3 | Complete | 2026-01-22 |
-| 11. Startup Optimization | 5/5 | Complete | 2026-01-22 |
-| 12. Request Consolidation | 5/5 | Complete | 2026-01-23 |
-| 13. Pike-Side Compilation Caching | 4/4 | Complete | 2026-01-23 |
-| 14. TypeScript-Side Caching | 1/2* | Complete | 2026-01-23 |
-| 15. Cross-File Caching | 0/TBD | Not started | - |
-| 16. Stdlib Performance | 0/TBD | Not started | - |
-| 17. Responsiveness Tuning | 0/TBD | Not started | - |
+**Phase 15 Status:** Planning complete. 1 plan ready for execution.
+
+## Requirements Coverage
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| BENCH-01 through BENCH-06 | 10 | ✅ Complete |
+| START-01 through START-03 | 11 | ✅ Complete |
+| CONS-01 through CONS-05 | 12 | ✅ Complete |
+| PIKE-01 through PIKE-04 | 13 | ✅ Complete |
+| CACHE-01 through CACHE-06 | 14 | ✅ Complete |
+| CACHE-07 through CACHE-09 | 15 | 🔄 Planning |
+| STDLIB-01 through STDLIB-04 | 16 | ⏸ Not Started |
+| RESP-01 through RESP-03 | 17 | ⏸ Not Started |
 
 ---
-*Roadmap created: 2026-01-22*
-*Milestone: v3.0 Performance Optimization*
+*Roadmap defined: 2026-01-22*
+*Phase 15 planned: 2026-01-23*
