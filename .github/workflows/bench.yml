@@ -34,6 +34,7 @@ jobs:
 
       - name: Run benchmarks
         run: bash scripts/benchmark-ci.sh
+        timeout-minutes: 10
 
       - name: Check benchmark regression
         run: |
