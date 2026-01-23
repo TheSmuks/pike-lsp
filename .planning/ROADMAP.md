@@ -135,9 +135,11 @@ Plans:
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 16-01-PLAN.md — Direct object introspection in Pike (Resolution.pike + Introspection.pike)
-- [ ] 16-02-PLAN.md — Remove bootstrap restrictions in TypeScript (StdlibIndexManager)
-- [ ] 16-03-PLAN.md — Add stdlib benchmarks and E2E hover tests
+- [x] 16-01-PLAN.md — Direct object introspection in Pike (Resolution.pike + Introspection.pike) (Completed 2026-01-23)
+- [x] 16-02-PLAN.md — Remove bootstrap restrictions in TypeScript (StdlibIndexManager) (Completed 2026-01-23)
+- [x] 16-03-PLAN.md — Add stdlib benchmarks and E2E hover tests (Completed 2026-01-23)
+
+**Outcome**: Stdlib introspection fixed using direct object introspection via indices()/values(). Bootstrap modules (Stdio, String, Array, Mapping) now work. All modules respond in < 500ms (best: 24µs, first hover: 0.41ms).
 
 ### Phase 17: Responsiveness Tuning
 **Goal**: Optimize debouncing and validate overall performance improvement
@@ -157,7 +159,7 @@ Plans:
 
 **Execution Order:** Phases 10 through 17 in sequence.
 
-**Phase 16 Status:** Ready to execute. 3 plans in 3 waves.
+**Phase 16 Status:** Complete. 3 plans executed in 3 waves.
 
 ## Requirements Coverage
 
@@ -169,7 +171,7 @@ Plans:
 | PIKE-01 through PIKE-04 | 13 | ✅ Complete |
 | CACHE-01 through CACHE-06 | 14 | ✅ Complete |
 | CACHE-07 through CACHE-09 | 15 | ✅ Complete |
-| STDLIB-01 through STDLIB-04 | 16 | ⏸ Not Started |
+| STDLIB-01 through STDLIB-04 | 16 | ✅ Complete |
 | RESP-01 through RESP-03 | 17 | ⏸ Not Started |
 
 ---
