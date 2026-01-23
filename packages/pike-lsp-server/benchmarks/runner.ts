@@ -138,6 +138,52 @@ async function runBenchmarks() {
     await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
   });
 
+  // PERF-13-04: Compilation Cache benchmark group
+  // Measures the speedup from caching compiled programs
+  group('Compilation Cache (Warm)', async () => {
+    const cacheTestCode = fs.readFileSync(
+      path.join(__dirname, 'fixtures/cache-test.pike'),
+      'utf8'
+    );
+    const filename = 'cache-test.pike';
+
+    // Warm up: First request always compiles (cache miss)
+    await bridge.analyze(cacheTestCode, ['introspect'], filename, 1);
+
+    // Benchmark: Repeated request with same version (cache hit)
+    bench('Cache Hit: analyze with same document version', async () => {
+      const response = await bridge.analyze(
+        cacheTestCode,
+        ['introspect'],
+        filename,
+        1  // Same version = cache hit
+      );
+      return response;
+    });
+
+    // Benchmark: Different version triggers recompile (cache miss)
+    bench('Cache Miss: analyze with different version', async () => {
+      const response = await bridge.analyze(
+        cacheTestCode,
+        ['introspect'],
+        filename,
+        999  // Different version = cache miss
+      );
+      return response;
+    });
+
+    // Benchmark: Closed file (no version) - uses stat for cache key
+    bench('Closed File: analyze without version (stat-based key)', async () => {
+      const response = await bridge.analyze(
+        cacheTestCode,
+        ['introspect'],
+        filename,
+        undefined  // No version = stat-based key
+      );
+      return response;
+    });
+  });
+
   group('Intelligence Operations (Warm)', () => {
     bench('Hover: resolveStdlib("Stdio.File")', async () => {
       const res = await bridge.resolveStdlib('Stdio.File');
@@ -187,6 +233,24 @@ async function runBenchmarks() {
           console.log(`${displayPhase}: ${value.toFixed(3)} ms`);
         }
       }
+    }
+
+    // PERF-13-04: Report compilation cache statistics
+    try {
+      const cacheStats = await (bridge as any).sendRequest('get_cache_stats', {});
+      if (cacheStats && !process.env.MITATA_JSON) {
+        console.log('\n--- Compilation Cache Statistics ---');
+        console.log(`Hits:        ${cacheStats.hits || 0}`);
+        console.log(`Misses:      ${cacheStats.misses || 0}`);
+        console.log(`Evictions:   ${cacheStats.evictions || 0}`);
+        console.log(`Size:        ${cacheStats.size || 0} / ${cacheStats.max_files || 0} files`);
+        const hitRate = cacheStats.hits > 0
+          ? (cacheStats.hits / (cacheStats.hits + cacheStats.misses) * 100).toFixed(1)
+          : '0.0';
+        console.log(`Hit Rate:    ${hitRate}%`);
+      }
+    } catch (e) {
+      // Handler may not be available yet
     }
   }
 
