@@ -332,14 +332,31 @@ export function registerDiagnosticsHandlers(
         const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
 
         try {
-            connection.console.log(`[VALIDATE] Calling bridge.introspect for: ${filename}`);
-            // Use introspection for compilation + type extraction
-            const introspectResult = await bridge.introspect(text, filename);
-            connection.console.log(`[VALIDATE] Introspection result - success: ${introspectResult.success}, symbols: ${introspectResult.symbols.length}`);
+            connection.console.log(`[VALIDATE] Calling unified analyze for: ${filename}`);
+            // Single unified analyze call - replaces 3 separate calls (introspect, parse, analyzeUninitialized)
+            const analyzeResult = await bridge.analyze(text, ['parse', 'introspect', 'diagnostics'], filename);
 
-            // Always parse to get position info (needed for LSP features)
-            const parseResult = await bridge.parse(text, filename);
-            connection.console.log(`[VALIDATE] Parse result - symbols: ${parseResult.symbols.length}, diagnostics: ${parseResult.diagnostics.length}`);
+            // Log completion status
+            const hasParse = !!analyzeResult.result?.parse;
+            const hasIntrospect = !!analyzeResult.result?.introspect;
+            const hasDiagnostics = !!analyzeResult.result?.diagnostics;
+            connection.console.log(`[VALIDATE] Analyze completed - parse: ${hasParse}, introspect: ${hasIntrospect}, diagnostics: ${hasDiagnostics}`);
+
+            // Log any partial failures
+            if (analyzeResult.failures && Object.keys(analyzeResult.failures).length > 0) {
+                connection.console.log(`[VALIDATE] Partial failures: ${Object.keys(analyzeResult.failures).join(', ')}`);
+            }
+
+            // Extract results with fallback values for partial failures
+            const parseData = analyzeResult.failures?.parse
+                ? { symbols: [], diagnostics: [] }
+                : analyzeResult.result?.parse ?? { symbols: [], diagnostics: [] };
+            const introspectData = analyzeResult.failures?.introspect
+                ? { success: 0, symbols: [], functions: [], variables: [], classes: [], inherits: [], diagnostics: [] }
+                : analyzeResult.result?.introspect ?? { success: 0, symbols: [], functions: [], variables: [], classes: [], inherits: [], diagnostics: [] };
+            const diagnosticsData = analyzeResult.failures?.diagnostics
+                ? { diagnostics: [] }
+                : analyzeResult.result?.diagnostics ?? { diagnostics: [] };
 
             // Convert Pike diagnostics to LSP diagnostics
             const diagnostics: Diagnostic[] = [];
@@ -358,7 +375,7 @@ export function registerDiagnosticsHandlers(
             };
 
             // Process diagnostics from introspection
-            for (const pikeDiag of introspectResult.diagnostics) {
+            for (const pikeDiag of introspectData.diagnostics) {
                 if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
                     break;
                 }
@@ -370,15 +387,15 @@ export function registerDiagnosticsHandlers(
             }
 
             // Update type database with introspected symbols if compilation succeeded
-            if (introspectResult.success && introspectResult.symbols.length > 0) {
+            if (introspectData.success && introspectData.symbols.length > 0) {
                 // Convert introspected symbols to Maps
-                const symbolMap = new Map(introspectResult.symbols.map(s => [s.name, s]));
-                const functionMap = new Map(introspectResult.functions.map(s => [s.name, s]));
-                const variableMap = new Map(introspectResult.variables.map(s => [s.name, s]));
-                const classMap = new Map(introspectResult.classes.map(s => [s.name, s]));
+                const symbolMap = new Map(introspectData.symbols.map(s => [s.name, s]));
+                const functionMap = new Map(introspectData.functions.map(s => [s.name, s]));
+                const variableMap = new Map(introspectData.variables.map(s => [s.name, s]));
+                const classMap = new Map(introspectData.classes.map(s => [s.name, s]));
 
                 // Estimate size
-                const sizeBytes = TypeDatabase.estimateProgramSize(symbolMap, introspectResult.inherits);
+                const sizeBytes = TypeDatabase.estimateProgramSize(symbolMap, introspectData.inherits);
 
                 const programInfo: CompiledProgramInfo = {
                     uri,
@@ -387,7 +404,7 @@ export function registerDiagnosticsHandlers(
                     functions: functionMap,
                     variables: variableMap,
                     classes: classMap,
-                    inherits: introspectResult.inherits,
+                    inherits: introspectData.inherits,
                     imports: new Set(),
                     compiledAt: Date.now(),
                     sizeBytes,
@@ -399,19 +416,19 @@ export function registerDiagnosticsHandlers(
                 // Merge introspected symbols with parse symbols to get position info
                 const legacySymbols: PikeSymbol[] = [];
 
-                if (parseResult) {
+                if (parseData && parseData.symbols.length > 0) {
                     // Flatten nested symbols to include class members
                     // This ensures get_n, get_e, set_random etc. are indexed
-                    const flatParseSymbols = flattenSymbols(parseResult.symbols);
+                    const flatParseSymbols = flattenSymbols(parseData.symbols);
 
-                    connection.console.log(`[VALIDATE] Flattened ${parseResult.symbols.length} symbols to ${flatParseSymbols.length} total (including class members)`);
+                    connection.console.log(`[VALIDATE] Flattened ${parseData.symbols.length} symbols to ${flatParseSymbols.length} total (including class members)`);
 
                     // For each parsed symbol (including nested), enrich with type info from introspection
                     for (const parsedSym of flatParseSymbols) {
                         // Skip symbols with null names
                         if (!parsedSym.name) continue;
 
-                        const introspectedSym = introspectResult.symbols.find(s => s.name === parsedSym.name);
+                        const introspectedSym = introspectData.symbols.find(s => s.name === parsedSym.name);
                         if (introspectedSym) {
                             // Merge: position from parse, type from introspection
                             legacySymbols.push({
@@ -426,11 +443,11 @@ export function registerDiagnosticsHandlers(
                     }
 
                     // Add any introspected symbols not in parse results
-                    for (const introspectedSym of introspectResult.symbols) {
+                    for (const introspectedSym of introspectData.symbols) {
                         // Skip symbols with null names
                         if (!introspectedSym.name) continue;
 
-                        const inParse = parseResult.symbols.some(s => s.name === introspectedSym.name);
+                        const inParse = parseData.symbols.some(s => s.name === introspectedSym.name);
                         if (!inParse) {
                             legacySymbols.push({
                                 name: introspectedSym.name,
@@ -442,7 +459,7 @@ export function registerDiagnosticsHandlers(
                     }
                 } else {
                     // No parse results, use introspection only (no positions)
-                    for (const s of introspectResult.symbols) {
+                    for (const s of introspectData.symbols) {
                         // Skip symbols with null names
                         if (!s.name) continue;
 
@@ -461,57 +478,51 @@ export function registerDiagnosticsHandlers(
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, legacySymbols),
                 });
-            } else if (parseResult) {
+            } else if (parseData && parseData.symbols.length > 0) {
                 // Introspection failed, use parse results
-                connection.console.log(`[VALIDATE] Using parse result with ${parseResult.symbols.length} symbols`);
+                connection.console.log(`[VALIDATE] Using parse result with ${parseData.symbols.length} symbols`);
                 // Log first few symbol names for debugging
-                for (let i = 0; i < Math.min(5, parseResult.symbols.length); i++) {
-                    const sym = parseResult.symbols[i];
+                for (let i = 0; i < Math.min(5, parseData.symbols.length); i++) {
+                    const sym = parseData.symbols[i];
                     if (sym) {
                         connection.console.log(`[VALIDATE]   Symbol ${i}: name="${sym.name}", kind=${sym.kind}`);
                     }
                 }
                 documentCache.set(uri, {
                     version,
-                    symbols: parseResult.symbols,
+                    symbols: parseData.symbols,
                     diagnostics,
-                    symbolPositions: await buildSymbolPositionIndex(text, parseResult.symbols),
+                    symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols),
                 });
-                connection.console.log(`[VALIDATE] Cached document - symbols count: ${parseResult.symbols.length}`);
+                connection.console.log(`[VALIDATE] Cached document - symbols count: ${parseData.symbols.length}`);
             } else {
                 connection.console.log(`[VALIDATE] No parse result available - features will not work`);
             }
 
-            // Analyze for uninitialized variable usage
-            try {
-                const uninitResult = await bridge.analyzeUninitialized(text, filename);
-                if (uninitResult.diagnostics && uninitResult.diagnostics.length > 0) {
-                    connection.console.log(`[VALIDATE] Found ${uninitResult.diagnostics.length} uninitialized variable warnings`);
-                    for (const uninitDiag of uninitResult.diagnostics) {
-                        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
-                            break;
-                        }
-                        // Convert uninitialized variable diagnostic to LSP diagnostic
-                        diagnostics.push({
-                            severity: 2, // DiagnosticSeverity.Warning
-                            range: {
-                                start: {
-                                    line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
-                                    character: Math.max(0, uninitDiag.position?.character ?? 0),
-                                },
-                                end: {
-                                    line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
-                                    character: Math.max(0, (uninitDiag.position?.character ?? 0) + (uninitDiag.variable?.length ?? 1)),
-                                },
-                            },
-                            message: uninitDiag.message,
-                            source: 'pike-uninitialized',
-                        });
+            // Process uninitialized variable diagnostics from unified analyze
+            if (diagnosticsData.diagnostics && diagnosticsData.diagnostics.length > 0) {
+                connection.console.log(`[VALIDATE] Found ${diagnosticsData.diagnostics.length} uninitialized variable warnings`);
+                for (const uninitDiag of diagnosticsData.diagnostics) {
+                    if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+                        break;
                     }
+                    // Convert uninitialized variable diagnostic to LSP diagnostic
+                    diagnostics.push({
+                        severity: 2, // DiagnosticSeverity.Warning
+                        range: {
+                            start: {
+                                line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
+                                character: Math.max(0, uninitDiag.position?.character ?? 0),
+                            },
+                            end: {
+                                line: Math.max(0, (uninitDiag.position?.line ?? 1) - 1),
+                                character: Math.max(0, uninitDiag.position?.character ?? 0) + (uninitDiag.variable?.length ?? 1),
+                            },
+                        },
+                        message: uninitDiag.message,
+                        source: 'pike-uninitialized',
+                    });
                 }
-            } catch (err) {
-                connection.console.warn(`[VALIDATE] Uninitialized variable analysis failed: ${err}`);
-                // Don't fail validation if this analysis fails
             }
 
             // Send diagnostics
