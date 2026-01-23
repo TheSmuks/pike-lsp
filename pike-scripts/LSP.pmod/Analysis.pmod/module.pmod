@@ -737,13 +737,55 @@ class Analysis {
                 }
             }
 
-            // Cache miss - compile normally
+            // Cache miss - compile with dependency tracking
             if (!compiled_prog) {
                 object compile_timer2 = System.Timer();
-                mixed compile_err = catch {
-                    // Use compile_string for compilation
-                    compiled_prog = compile_string(code, filename);
-                };
+
+                // Use DependencyTrackingCompiler to capture dependencies
+                mixed CompilerClass = master()->resolv("LSP.CompilationCache.DependencyTrackingCompiler");
+                mixed compile_err;
+
+                if (CompilerClass) {
+                    // Check if CompilerClass is a program (class) or mapping (module)
+                    int is_program = programp(CompilerClass);
+                    int is_mapping = mappingp(CompilerClass);
+                    int is_object = objectp(CompilerClass);
+
+                    if (is_program) {
+                        // Use dependency tracking compiler
+                        object compiler = CompilerClass();
+                        compile_err = catch {
+                            compiled_prog = compiler->compile_with_tracking(code, filename);
+                        };
+
+                        if (!compile_err && compiled_prog && cache && cache_key) {
+                            // Get captured dependencies and store in cache
+                            array(string) deps = compiler->get_dependencies();
+                            mixed ResultClass = master()->resolv("LSP.CompilationCache.CompilationResult");
+                            if (ResultClass) {
+                                int result_is_program = programp(ResultClass);
+                                int result_is_mapping = mappingp(ResultClass);
+                                int result_is_object = objectp(ResultClass);
+
+                                if (result_is_program || result_is_object) {
+                                    object result = ResultClass(compiled_prog, ({}), deps);
+                                    cache->put(filename, cache_key, result);
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback to plain compilation if DependencyTrackingCompiler unavailable
+                        compile_err = catch {
+                            compiled_prog = compile_string(code, filename);
+                        };
+                    }
+                } else {
+                    // Fallback to plain compilation if class not found
+                    compile_err = catch {
+                        compiled_prog = compile_string(code, filename);
+                    };
+                }
+
                 compilation_ms = compile_timer2->peek() * 1000.0;
 
                 if (compile_err || !compiled_prog) {
@@ -751,19 +793,6 @@ class Analysis {
                         "message": describe_error(compile_err || "Compilation failed"),
                         "kind": "CompilationError"
                     ]);
-                } else if (cache && cache_key) {
-                    // Store successful compilation in cache
-                    // Create CompilationResult with empty dependencies for now
-                    // (DependencyTrackingCompiler integration can be added later)
-                    mixed ResultClass = master()->resolv("LSP.CompilationCache.CompilationResult");
-                    if (ResultClass && programp(ResultClass)) {
-                        object result = ResultClass(compiled_prog, ({}), ({}));
-                        cache->put(filename, cache_key, result);
-                    } else {
-                        // ResultClass not available - skip caching
-                    }
-                } else {
-                    // cache or cache_key not available - skip caching
                 }
             }
         }
