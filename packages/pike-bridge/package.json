@@ -7,13 +7,20 @@
         "url": "https://github.com/TheSmuks/pike-lsp.git"
     },
     "type": "module",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
+    "main": "./dist/src/index.js",
+    "types": "./dist/src/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/src/index.d.ts",
+            "default": "./dist/src/index.js"
+        },
+        "./dist/*": "./dist/*"
+    },
     "scripts": {
         "build": "tsc",
         "clean": "rm -rf dist",
         "watch": "tsc --watch",
-        "test": "bun build && bun test dist/process.test.js dist/bridge.test.js",
+        "test": "tsc && bun test dist/src/",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

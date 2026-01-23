@@ -7,7 +7,7 @@
         "strict": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": [],
+        "types": ["node"],
         "outDir": "../../dist/test",
         "rootDir": "."
     },

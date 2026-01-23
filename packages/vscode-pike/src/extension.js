@@ -53,15 +53,53 @@ const node_1 = require("vscode-languageclient/node");
 let client;
 let serverOptions = null;
 let outputChannel;
+let diagnosticsCommandDisposable;
 // Test mode flag - can be set via environment variable
-const TEST_MODE = process.env.PIKE_LSP_TEST_MODE === 'true';
+const TEST_MODE = process.env['PIKE_LSP_TEST_MODE'] === 'true';
+/**
+ * Console-logging output channel wrapper for E2E tests
+ * Wraps a real OutputChannel but also logs everything to console
+ * so test runners can capture Pike server errors.
+ */
+function createTestOutputChannel(name) {
+    const realChannel = vscode_1.window.createOutputChannel(name);
+    return {
+        name: realChannel.name,
+        append: (value) => {
+            console.log(`[${name}] ${value}`);
+            realChannel.append(value);
+        },
+        appendLine: (value) => {
+            console.log(`[${name}] ${value}`);
+            realChannel.appendLine(value);
+        },
+        replace: (value) => {
+            console.log(`[${name}] (replace) ${value}`);
+            realChannel.replace(value);
+        },
+        clear: () => realChannel.clear(),
+        show: (column, preserveFocus) => realChannel.show(column, preserveFocus),
+        hide: () => realChannel.hide(),
+        dispose: () => realChannel.dispose(),
+    };
+}
 /**
  * Internal activation implementation
  */
 async function activateInternal(context, testOutputChannel) {
     console.log('Pike Language Extension is activating...');
-    // Use provided test output channel or create a real one
-    outputChannel = testOutputChannel || vscode_1.window.createOutputChannel('Pike Language Server');
+    // Use provided test output channel, or create one
+    // In test mode, wrap with console logging so tests can see Pike errors
+    if (testOutputChannel) {
+        outputChannel = testOutputChannel;
+    }
+    else if (TEST_MODE) {
+        outputChannel = createTestOutputChannel('Pike Language Server');
+        console.log('[Pike LSP] Test mode enabled - all output will be logged to console');
+    }
+    else {
+        outputChannel = vscode_1.window.createOutputChannel('Pike Language Server');
+    }
     let disposable = vscode_1.commands.registerCommand('pike-module-path.add', async (e) => {
         const rv = await addModulePathSetting(e.fsPath);
         if (rv)
@@ -70,6 +108,31 @@ async function activateInternal(context, testOutputChannel) {
             vscode_1.window.showInformationMessage('Folder was already on the module path');
     });
     context.subscriptions.push(disposable);
+    // Register diagnostics command immediately (works even before client starts)
+    diagnosticsCommandDisposable = vscode_1.commands.registerCommand('pike.lsp.showDiagnostics', async () => {
+        if (!client) {
+            vscode_1.window.showWarningMessage('Pike LSP is not active. Open a .pike file to start the server.');
+            return;
+        }
+        try {
+            const result = await client.sendRequest('workspace/executeCommand', {
+                command: 'pike.lsp.showDiagnostics',
+            });
+            const healthOutput = result ?? 'No health data available';
+            outputChannel.appendLine(healthOutput);
+            outputChannel.show();
+            // Also show as info message with summary
+            const lines = healthOutput.split('\n');
+            const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
+            if (summaryLine) {
+                vscode_1.window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
+            }
+        }
+        catch (err) {
+            vscode_1.window.showErrorMessage(`Failed to get diagnostics: ${err}`);
+        }
+    });
+    context.subscriptions.push(diagnosticsCommandDisposable);
     const showReferencesDisposable = vscode_1.commands.registerCommand('pike.showReferences', async (arg) => {
         let uri;
         let position;
@@ -137,7 +200,8 @@ async function activateInternal(context, testOutputChannel) {
     context.subscriptions.push(vscode_1.workspace.onDidChangeConfiguration(async (event) => {
         if (event.affectsConfiguration('pike.pikeModulePath') ||
             event.affectsConfiguration('pike.pikeIncludePath') ||
-            event.affectsConfiguration('pike.pikePath')) {
+            event.affectsConfiguration('pike.pikePath') ||
+            event.affectsConfiguration('pike.diagnosticDelay')) {
             await restartClient(false);
         }
     }));
@@ -173,13 +237,17 @@ function getExpandedModulePaths() {
     const pikeModulePath = config.get('pikeModulePath', 'pike');
     let expandedPaths = [];
     if (vscode_1.workspace.workspaceFolders !== undefined) {
-        let f = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
-        for (const p of pikeModulePath) {
-            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        const folder = vscode_1.workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
+            const paths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+            for (const p of paths) {
+                expandedPaths.push(p.replace("${workspaceFolder}", f));
+            }
         }
     }
     else {
-        expandedPaths = pikeModulePath;
+        expandedPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
     }
     console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
     return expandedPaths;
@@ -189,9 +257,12 @@ function getExpandedIncludePaths() {
     const pikeIncludePath = config.get('pikeIncludePath', []);
     let expandedPaths = [];
     if (vscode_1.workspace.workspaceFolders !== undefined) {
-        const f = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
-        for (const p of pikeIncludePath) {
-            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        const folder = vscode_1.workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
+            for (const p of pikeIncludePath) {
+                expandedPaths.push(p.replace("${workspaceFolder}", f));
+            }
         }
     }
     else {
@@ -214,6 +285,7 @@ async function restartClient(showMessage) {
     }
     const config = vscode_1.workspace.getConfiguration('pike');
     const pikePath = config.get('pikePath', 'pike');
+    const diagnosticDelay = config.get('diagnosticDelay', 500);
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
     const clientOptions = {
@@ -225,6 +297,7 @@ async function restartClient(showMessage) {
         },
         initializationOptions: {
             pikePath,
+            diagnosticDelay,
             env: {
                 'PIKE_MODULE_PATH': expandedPaths.join(":"),
                 'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
@@ -249,20 +322,27 @@ async function addModulePathSetting(modulePath) {
     // Get Pike path from configuration
     const config = vscode_1.workspace.getConfiguration('pike');
     const pikeModulePath = config.get('pikeModulePath', 'pike');
-    let updatedPath = [];
     if (vscode_1.workspace.workspaceFolders !== undefined) {
-        let f = vscode_1.workspace.workspaceFolders[0].uri.fsPath;
-        modulePath = modulePath.replace(f, "${workspaceFolder}");
+        const folder = vscode_1.workspace.workspaceFolders[0];
+        if (folder) {
+            const f = folder.uri.fsPath;
+            modulePath = modulePath.replace(f, "${workspaceFolder}");
+        }
     }
-    if (!pikeModulePath.includes(modulePath)) {
-        updatedPath = pikeModulePath.slice();
-        updatedPath.push(modulePath);
+    const existingPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+    if (!existingPaths.includes(modulePath)) {
+        const updatedPath = [...existingPaths, modulePath];
         await config.update('pikeModulePath', updatedPath, vscode_1.ConfigurationTarget.Workspace);
         return true;
     }
     return false;
 }
 async function deactivate() {
+    // Clean up diagnostics command disposable if registered
+    if (diagnosticsCommandDisposable) {
+        diagnosticsCommandDisposable.dispose();
+        diagnosticsCommandDisposable = undefined;
+    }
     if (!client) {
         return;
     }

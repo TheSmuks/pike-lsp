@@ -21,7 +21,8 @@
     "test:packages": "bun run --filter '*' test",
     "test:all": "./scripts/run-tests.sh",
     "typecheck": "bunx tsc --build --dry",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "bash scripts/setup-workspace-links.sh"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

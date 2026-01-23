@@ -12,8 +12,8 @@
         "build": "tsc",
         "clean": "rm -rf dist",
         "watch": "tsc --watch",
-        "test": "bun build && bun test dist/workspace-index.test.js",
-        "test:smoke": "bun build && bun test dist/tests/smoke.test.js",
+        "test": "tsc && cd ../.. && bun test ./node_modules/@pike-lsp/pike-lsp-server/dist/src/",
+        "test:smoke": "tsc && cd ../.. && bun test ./node_modules/@pike-lsp/pike-lsp-server/dist/src/tests/",
         "typecheck": "tsc --noEmit",
         "benchmark": "bun benchmarks/runner.ts"
     },
