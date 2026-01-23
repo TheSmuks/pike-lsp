@@ -300,7 +300,7 @@ export function registerCompletionHandlers(
             if (cached) {
                 const symbol = cached.symbols.find(s => s.name === data.name);
                 if (symbol) {
-                    const { buildHoverContent } = require('../../utils/hover-builder.js');
+                    const { buildHoverContent } = require('../utils/hover-builder.js');
                     item.documentation = {
                         kind: require('vscode-languageserver/node.js').MarkupKind.Markdown,
                         value: buildHoverContent(symbol) ?? '',

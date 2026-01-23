@@ -10,8 +10,8 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "types": ["node", "@types/vscode", "mocha"],
-        "outDir": "../../dist/test",
-        "rootDir": "."
+        "outDir": "../../dist",
+        "rootDir": ".."
     },
     "include": [
         "./mockOutputChannel.ts",
