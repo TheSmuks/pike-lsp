@@ -198,11 +198,13 @@ jobs:
       - name: Build VSCode extension tests
         run: cd packages/vscode-pike && bun run build:test
 
-      - name: Run VSCode E2E tests
-        run: xvfb-run --auto-servernum cd packages/vscode-pike && bun test
+      - name: Run VSCode unit tests
+        working-directory: packages/vscode-pike
+        run: bun test
 
       - name: Run VSCode LSP Feature Tests
-        run: xvfb-run --auto-servernum cd packages/vscode-pike && bun run test:features
+        working-directory: packages/vscode-pike
+        run: xvfb-run --auto-servernum bun run test:features
 
       - name: LSP Feature Test Summary
         if: always()

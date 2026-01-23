@@ -1,0 +1,4 @@
+[test]
+# Only run unit tests with bun test
+# Integration tests require VSCode test runner (vscode-test)
+include = ["**/mockOutputChannel.test.ts"]
