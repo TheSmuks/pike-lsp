@@ -46,10 +46,10 @@ jobs:
           output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          # Show alert on PR if performance regresses by more than 20%
           alert-threshold: '120%'
           comment-on-alert: true
           fail-on-alert: true
-          # Store and render historical data on gh-pages
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: benchmarks
+          # Clean checkout to avoid conflicts with local benchmark-results.json
+          skip-fetch-gh-pages: true

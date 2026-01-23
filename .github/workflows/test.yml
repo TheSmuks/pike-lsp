@@ -195,6 +195,9 @@ jobs:
       - name: Build all packages
         run: bun run build
 
+      - name: Bundle LSP server
+        run: cd packages/vscode-pike && bun run bundle-server
+
       - name: Build VSCode extension tests
         run: cd packages/vscode-pike && bun run build:test
 
