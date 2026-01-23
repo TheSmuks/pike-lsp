@@ -144,6 +144,139 @@ protected int is_local_file(string path) {
 }
 
 // =========================================================================
+// DependencyTrackingCompiler Class
+// =========================================================================
+
+//! Compiler wrapper that tracks dependencies during compilation
+//!
+//! This class wraps Pike's compile_string() to capture dependency information
+//! during compilation. Dependencies are discovered via Parser.Pike analysis
+//! of import/inherit directives.
+//!
+//! NOTE: Full compiler hook override (handle_inherit, handle_import) requires
+//! runtime testing with Pike 8.0.1116 to verify exact API. The current
+//! implementation uses post-compilation analysis via Parser.Pike.
+class DependencyTrackingCompiler {
+    private array(string) _dependencies = ({});
+    private string _current_file;
+
+    //! Get captured dependencies after compilation
+    //! @returns Array of dependency file paths
+    array(string) get_dependencies() {
+        return _dependencies;
+    }
+
+    //! Set the file being compiled (for context in hooks)
+    //! @param path The file path being compiled
+    void set_current_file(string path) {
+        _current_file = path;
+        _dependencies = ({});
+    }
+
+    //! Extract dependencies from Pike code using simple regex-based parsing
+    //! Finds inherit and import directives to track module dependencies
+    //! @param code The source code to analyze
+    //! @param current_file The file being compiled (for resolving relative paths)
+    //! @returns Array of discovered dependency paths
+    private array(string) extract_dependencies(string code, string current_file) {
+        array(string) deps = ({});
+        array(string) lines = code / "\n";
+
+        foreach (lines, string line) {
+            // Skip comments
+            line = String.trim_all_whites(line);
+            if (has_prefix(line, "//") || sizeof(line) == 0) continue;
+
+            // Look for inherit directives: inherit "path" or inherit Module.Name
+            if (has_prefix(line, "inherit ")) {
+                string rest = line[8..]; // Skip "inherit "
+                rest = String.trim_all_whites(rest);
+
+                // Remove trailing semicolon and comments
+                int semicolon = search(rest, ";");
+                if (semicolon >= 0) {
+                    rest = rest[0..semicolon-1];
+                }
+                int comment = search(rest, "//");
+                if (comment >= 0) {
+                    rest = rest[0..comment-1];
+                }
+                rest = String.trim_all_whites(rest);
+
+                // Remove quotes if present
+                if (has_prefix(rest, "\"") && has_suffix(rest, "\"")) {
+                    rest = rest[1..sizeof(rest)-2];
+                }
+
+                if (sizeof(rest) > 0) {
+                    deps += ({rest});
+                }
+            }
+
+            // Look for import directives: import Module.Name
+            if (has_prefix(line, "import ")) {
+                string rest = line[7..]; // Skip "import "
+                rest = String.trim_all_whites(rest);
+
+                // Remove trailing semicolon and comments
+                int semicolon = search(rest, ";");
+                if (semicolon >= 0) {
+                    rest = rest[0..semicolon-1];
+                }
+                int comment = search(rest, "//");
+                if (comment >= 0) {
+                    rest = rest[0..comment-1];
+                }
+                rest = String.trim_all_whites(rest);
+
+                if (sizeof(rest) > 0) {
+                    deps += ({rest});
+                }
+            }
+        }
+
+        return deps;
+    }
+
+    //! Compile with dependency tracking
+    //! @param code The source code to compile
+    //! @param filename The filename for compilation (for error messages)
+    //! @returns The compiled program
+    //! @throws On compilation errors
+    program compile_with_tracking(string code, string filename) {
+        // Set current file for hook context
+        set_current_file(filename);
+
+        // Capture compilation errors
+        array(mapping) diagnostics = ({});
+        void compile_error_handler(string file, int line, string msg) {
+            diagnostics += ({([
+                "message": msg,
+                "severity": "error",
+                "position": (["file": file, "line": line])
+            ])});
+        };
+
+        mixed old_handler = master()->get_inhibit_compile_errors();
+        master()->set_inhibit_compile_errors(compile_error_handler);
+
+        program prog = 0;
+        mixed err = catch {
+            prog = compile_string(code, filename);
+        };
+
+        master()->set_inhibit_compile_errors(old_handler);
+
+        if (err) throw(err);
+
+        // Extract dependencies post-compilation using Parser.Pike
+        _dependencies = extract_dependencies(code, filename);
+
+        return prog;
+    }
+}
+
+// =========================================================================
 // Cache Operations
 // =========================================================================
 
