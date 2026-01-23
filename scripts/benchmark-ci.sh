@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Benchmark CI Runner - Simplified for CI
-# Runs benchmarks with minimal output and transforms Mitata format
+# Benchmark CI Runner - Uses mitata for benchmarking
+# Runs benchmarks with minimal output and transforms mitata format
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 cd "$PROJECT_ROOT/packages/pike-lsp-server"
@@ -12,7 +12,7 @@ echo "Running CI benchmarks..."
 # Run benchmarks with JSON output to file
 MITATA_JSON="$PROJECT_ROOT/benchmark-results-mitata.json" \
   MITATA_TIME=500 \
-  pnpm benchmark > /dev/null 2>&1
+  bun run benchmark > /dev/null 2>&1
 
 # Transform Mitata format to benchmark-action custom format
 # Mitata: { benchmarks: [{ alias, runs: [{ stats: { avg } }] }] }

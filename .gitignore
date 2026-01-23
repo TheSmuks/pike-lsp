@@ -1,6 +1,12 @@
 # Dependencies
 node_modules/
 
+# Package manager lockfiles
+bun.lockb
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
 # Build outputs
 dist/
 out/
@@ -31,6 +37,7 @@ credentials.json
 *.log
 npm-debug.log*
 pnpm-debug.log*
+bun-debug.log*
 
 # Test artifacts
 coverage/
@@ -58,3 +65,5 @@ packages/vscode-pike/.vscode-test/
 # Husky shell script cache
 .husky/_
 benchmark-results-mitata.json
+benchmark-results.json
+benchmark-output.txt

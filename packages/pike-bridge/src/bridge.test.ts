@@ -18,6 +18,11 @@ describe('PikeBridge', () => {
             throw new Error('Pike executable not found. Tests require Pike to be installed.');
         }
         await bridge.start();
+
+        // Wait for the process to be fully ready
+        // The start() method has a 100ms internal delay, but we add
+        // extra margin to ensure the subprocess is ready for requests
+        await new Promise(resolve => setTimeout(resolve, 200));
     });
 
     after(async () => {
@@ -26,7 +31,8 @@ describe('PikeBridge', () => {
         }
     });
 
-    it('should start and be running', () => {
+    it('should start and be running', async () => {
+        // The before hook waits 200ms after start(), so the process should be ready
         assert.equal(bridge.isRunning(), true, 'Bridge should be running after start()');
     });
 

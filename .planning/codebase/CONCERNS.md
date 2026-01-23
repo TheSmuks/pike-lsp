@@ -1,194 +1,221 @@
 # Codebase Concerns
 
-**Analysis Date:** 2025-01-19
+**Analysis Date:** 2025-01-23
 
 ## Tech Debt
 
-**Large analyzer script:**
-- Issue: `pike-scripts/analyzer.pike` is 3,221 lines, containing all parsing logic
-- Files: `pike-scripts/analyzer.pike`
-- Impact: Difficult to navigate, maintain, and test. Single file handles too many responsibilities.
-- Fix approach: Split into modules by concern (parsing, tokenization, introspection, stdlib resolution, caching).
+**Deprecated LSP Methods:**
+- Issue: Pike analyzer maintains deprecated method endpoints (`parse`, `introspect`, `analyze_uninitialized`) that route to the unified `analyze` method with warnings
+- Files: `pike-scripts/analyzer.pike` (lines 201-301)
+- Impact: Code clutter, potential confusion for API consumers, maintenance burden
+- Fix approach: Set deprecation timeline, add migration guide for consumers, remove deprecated methods after 2-3 release cycles
 
-**TypeScript `as any` type assertions:**
-- Issue: Multiple uses of `as any` bypass TypeScript type checking in `server.ts`
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts`
-- Impact: Loses type safety, could cause runtime errors. Lines 717, 731, 1808, 2155, 2683, 2721 use this pattern.
-- Fix approach: Define proper union types or type guards for symbol variants.
+**Branch-Aware Control Flow Analysis Missing:**
+- Issue: Uninitialized variable detection lacks branch-aware analysis (e.g., conditional initialization detection)
+- Files: `packages/pike-bridge/src/bridge.test.ts` (line 249, skipped test), `pike-scripts/LSP.pmod/Analysis.pmod/Diagnostics.pike`
+- Impact: False negatives for conditionally initialized variables, reduced diagnostic quality
+- Fix approach: Implement control flow graph analysis with path-sensitive variable initialization tracking
 
-**LRU queue O(n) operations:**
-- Issue: `touchModule()` in `stdlib-index.ts` uses `filter()` to remove from LRU queue, O(n) per operation
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/stdlib-index.ts`
-- Impact: Performance degrades with many cached modules. Each access triggers linear scan.
-- Fix approach: Use doubly-linked list or Map-based structure for O(1) LRU operations.
+**Stdlib Preloading Disabled:**
+- Issue: Stdlib module preloading crashes when introspecting bootstrap modules (Stdio, String, Array, Mapping)
+- Files: `packages/pike-lsp-server/src/server.ts` (lines 277-281)
+- Impact: Modules loaded lazily on-demand, causing potential latency for first-time stdlib symbol requests
+- Fix approach: Implement safe introspection pattern that excludes bootstrap modules or uses whitelist-based preloading
 
-**Rough memory estimation:**
-- Issue: Memory budgeting uses hardcoded estimates (1KB per symbol, 512 bytes per inheritance)
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/type-database.ts`
-- Impact: Actual memory usage may exceed budget, causing unexpected evictions or OOM.
-- Fix approach: Measure actual serialized size or use more accurate heuristics.
+**No Linting Configuration:**
+- Issue: Project lacks ESLint, Prettier, or Biome configuration for code style enforcement
+- Files: Project root, all packages
+- Impact: Inconsistent code style across contributors, manual code review burden, potential bugs from inconsistent patterns
+- Fix approach: Add ESLint + TypeScript ESLint with rules matching observed conventions, configure Prettier for formatting
 
 ## Known Bugs
 
-**Preprocessor conditional blocks skipped:**
-- Symptoms: Symbols inside `#if`/`#else` blocks may not be indexed
-- Files: `pike-scripts/analyzer.pike` (lines 107-129)
-- Trigger: Opening any file with conditional preprocessor directives
-- Workaround: Avoid complex preprocessor conditionals in code that needs indexing
-- Note: Documented in README as known limitation
+**Bootstrap Module Circular Resolution:**
+- Symptoms: 30-second timeout when resolving bootstrap modules (Stdio, String, Array, Mapping)
+- Files: `pike-scripts/LSP.pmod/Intelligence.pike` (lines 23-34, BOOTSTRAP_MODULES constant)
+- Trigger: Any introspection or resolution attempt on bootstrap modules
+- Workaround: Bootstrap modules hardcoded in exclusion set, skipped during resolution
+- Impact: Cannot provide type information for core Pike stdlib modules used internally by resolver
 
-**Nested class parsing incomplete:**
-- Symptoms: Go-to-definition may not work for deeply nested class members
-- Files: `pike-scripts/analyzer.pike`
-- Trigger: Classes defined within other classes
-- Workaround: Use flattened class structures where possible
-- Note: Documented in README as known limitation
-
-**Conditional initialization detection skipped:**
-- Symptoms: Dataflow analysis doesn't detect "maybe initialized" variables in if/else branches
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.test.ts` (line 248, `it.skip`)
-- Trigger: Variables initialized in only one branch of conditional
-- Workaround: Initialize variables before conditionals
-- Fix approach: Implement branch-aware control flow analysis (annotated as TODO in test)
+**Pike Subprocess Crash on Stdlib Introspection:**
+- Symptoms: Pike subprocess crashes when introspecting bootstrap modules during preloading
+- Files: `pike-scripts/analyzer.pike`, `packages/pike-lsp-server/src/server.ts`
+- Trigger: Attempting to compile/resolve bootstrap modules used by master()->resolv()
+- Workaround: Stdlib preloading disabled, modules loaded on-demand instead
+- Impact: Slower first-time stdlib completions, but server remains stable
 
 ## Security Considerations
 
-**Subprocess execution:**
-- Risk: Pike executable path from user settings is executed without validation
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts`, `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts`
-- Current mitigation: Uses `spawn()` which respects PATH, but no explicit path validation
-- Recommendations: Validate executable path exists and is within allowed directories
+**No Request Rate Limiting:**
+- Risk: Malicious client could send rapid requests causing resource exhaustion or DoS
+- Files: `packages/pike-bridge/src/bridge.ts`, `packages/pike-lsp-server/src/server.ts`
+- Current mitigation: Request timeout (30s default), inflight request deduplication
+- Recommendations: Add per-client rate limiting, circuit breaker pattern for repeated timeouts
 
-**Environment variable passthrough:**
-- Risk: User-provided environment variables passed to Pike subprocess
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts` (line 142)
-- Current mitigation: Spreads user-provided env with process.env
-- Recommendations: Whitelist allowed environment variable names
+**No Request Validation:**
+- Risk: Malformed or malicious requests could cause unexpected behavior
+- Files: `packages/pike-bridge/src/bridge.ts` (sendRequest method)
+- Current mitigation: Basic JSON-RPC parsing, timeout handling
+- Recommendations: Add input validation for all params, sanitize file paths, add max payload size limits
+
+**Subprocess Command Injection:**
+- Risk: Pike executable path or analyzer path could be manipulated if not properly validated
+- Files: `packages/pike-bridge/src/process.ts`, `packages/pike-bridge/src/bridge.ts`
+- Current mitigation: Path validation in PikeProcess.spawn()
+- Recommendations: Add explicit whitelist validation for executable paths, add unit tests for path sanitization
+
+**Unvalidated Environment Variables:**
+- Risk: Process environment variables passed to Pike subprocess without validation
+- Files: `packages/pike-bridge/src/process.ts` (spawn method), `packages/pike-bridge/src/types.ts` (PikeBridgeOptions env)
+- Current mitigation: None
+- Recommendations: Validate env var names and values, provide explicit allowlist
 
 ## Performance Bottlenecks
 
-**Infinite loop protection limits:**
-- Problem: Parser uses iteration limits (10,000 top-level, 500 block) to prevent infinite loops
-- Files: `pike-scripts/analyzer.pike` (lines 26-27, constants `MAX_TOP_LEVEL_ITERATIONS`, `MAX_BLOCK_ITERATIONS`)
-- Cause: Pike's parser may not terminate on malformed input
-- Improvement path: Better parser error handling, reduce reliance on iteration limits as safety net
+**Synchronous File I/O in Workspace Indexing:**
+- Problem: Workspace indexing uses file-by-file synchronous operations
+- Files: `packages/pike-lsp-server/src/workspace-index.ts` (indexDirectory method)
+- Cause: Sequential file processing without batching or parallelization
+- Improvement path: Implement batch indexing, parallel file reading with worker pool, add incremental indexing for changed files only
 
-**Symbol position lookup:**
-- Problem: Document cache uses `Map<string, Position[]>` for symbol positions (O(1) lookup by name, but linear scan for position queries)
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts` (line 102)
-- Cause: Need fast reverse lookup from positions to symbols
-- Improvement path: Consider interval tree or quadtree for position-based queries
+**No Pike-Side Result Caching:**
+- Problem: Compilation and introspection results not cached across requests in Pike subprocess
+- Files: `pike-scripts/analyzer.pike`, Pike LSP modules
+- Cause: Stateless design in Intelligence/Analysis modules, relies only on LSP.CompilationCache
+- Improvement path: Expand CompilationCache usage to all expensive operations (introspection, resolution), add cache warming for common stdlib modules
 
-**Batch request size limits:**
-- Problem: `BATCH_PARSE_MAX_SIZE = 50` balances IPC overhead with memory constraints
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/constants.ts`
-- Cause: Pike subprocess memory limits
-- Improvement path: Implement streaming batch processing or adaptive chunk sizing
+**O(n) Symbol Lookups:**
+- Problem: Linear search through symbol arrays for position-based lookups
+- Files: `packages/pike-lsp-server/src/features/symbols.ts`, `packages/pike-lsp-server/src/features/navigation.ts`
+- Cause: Array iteration without index structures
+- Improvement path: Build binary search index or Map for O(log n) position lookups, cache indexed structures per document
+
+**Large Build Artifacts:**
+- Problem: Bundled extension.js is 786KB, server.js is 249KB (unminified)
+- Files: `packages/vscode-pike/dist/extension.js`, `packages/vscode-pike/server/server.js`
+- Cause: No minification or tree-shaking in build process
+- Improvement path: Enable esbuild minification, add code splitting for LSP server, analyze bundle for unused dependencies
 
 ## Fragile Areas
 
-**Bridge subprocess lifecycle:**
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts`
-- Why fragile: JSON-RPC over stdin/stdout can fail silently; process may exit unexpectedly
-- Safe modification: Always check `isRunning()` before sending requests; handle process exit events
-- Test coverage: Good coverage in `bridge.test.ts`, but missing edge cases like stdin/stdout pipe closure
+**Bridge Process State Management:**
+- Files: `packages/pike-bridge/src/bridge.ts`, `packages/pike-bridge/src/process.ts`
+- Why fragile: Manual process lifecycle management, timeout-based startup detection (100ms hardcoded), race conditions between start() and isRunning()
+- Safe modification: Add explicit state machine with enums (STARTING, RUNNING, STOPPING, STOPPED), use child process events instead of setTimeout for startup detection, add integration tests for lifecycle edge cases
+- Test coverage: Unit tests cover happy path; missing tests for crash recovery, stale process, double-start scenarios
 
-**Analyzer script path resolution:**
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts` (lines 147-169), `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts` (lines 64-89)
-- Why fragile: Tries multiple possible paths; fails if none exist
-- Safe modification: Add explicit error messages for each attempted path
-- Test coverage: Lacks tests for bundling scenarios
+**JSON-RPC IPC Protocol:**
+- Files: `pike-scripts/analyzer.pike` (main loop line 400), `packages/pike-bridge/src/process.ts`
+- Why fragile: Line-based JSON parsing assumes no newlines in JSON, manual error recovery, no framing protocol
+- Safe modification: Add length-prefix framing or base64 encoding for payloads, add protocol version negotiation, implement request queuing with backpressure
+- Test coverage: Integration tests verify basic requests; missing tests for malformed JSON, partial messages, concurrent requests
 
-**Extension activation without server:**
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts` (lines 82-88)
-- Why fragile: Extension degrades gracefully but provides no recovery mechanism
-- Safe modification: Add retry logic or user-facing configuration wizard
-- Test coverage: No automated tests for extension activation failure scenarios
+**Memory Budget Enforcement:**
+- Files: `packages/pike-lsp-server/src/type-database.ts` (enforceMemoryBudget method, line 318)
+- Why fragile: Heuristic memory estimation (1KB per symbol), LRU eviction triggered after budget exceeded (not proactively), no per-cache limits
+- Safe modification: Replace heuristics with actual measurement using Buffer.byteLength(), add watermark-based pre-eviction, implement separate budgets per cache (programs, symbols, types)
+- Test coverage: Unit tests verify eviction logic; missing stress tests for memory pressure scenarios
 
-**Type inference cache invalidation:**
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/type-database.ts` (lines 299-313)
-- Why fragile: Cache invalidation uses string prefix matching on URI
-- Safe modification: Use structured cache keys with explicit URI field
-- Test coverage: No tests for cache invalidation edge cases
+**Pike Module Resolution:**
+- Files: `pike-scripts/LSP.pmod/Intelligence.pike` (handle_resolve_stdlib method), master()->resolv() calls
+- Why fragile: Relies on Pike's dynamic module loading which can fail, circular dependencies in bootstrap modules, platform-specific paths
+- Safe modification: Add fallback resolution paths, cache resolved modules per platform, implement module path allowlist
+- Test coverage: Tests cover stdlib resolution; missing tests for failure cases, missing modules, cross-platform differences
+
+**Error Handling in LSP Feature Handlers:**
+- Files: `packages/pike-lsp-server/src/features/*.ts` (editing.ts, navigation.ts, symbols.ts, hierarchy.ts)
+- Why fragile: Extensive try-catch blocks returning null on any error, no error classification, silent failures mask real issues
+- Safe modification: Distinguish between recoverable errors (return empty result) and fatal errors (propagate), add error logging with context, implement circuit breaker for repeated failures
+- Test coverage: Missing tests for error paths; focus only on happy paths
 
 ## Scaling Limits
 
-**Memory budget enforcement:**
-- Current capacity: `TYPE_DB_MAX_MEMORY_BYTES` (check constants/index.ts for value)
-- Limit: Oldest programs evicted when budget exceeded; may lose needed type info
-- Scaling path: Implement smarter cache policies (LFU for frequently-used types, size-aware eviction)
+**Single Pike Subprocess:**
+- Current capacity: One Pike subprocess handles all requests serially
+- Limit: CPU-bound during parsing/compilation, no parallelization, single point of failure
+- Scaling path: Implement worker pool with N subprocesses, add request queue with load balancing, consider fork-based parallelism for CPU-bound tasks
 
-**Stdlib module cache:**
-- Current capacity: 50 modules max, 20MB memory limit
-- Limit: Large codebases with many stdlib dependencies may exceed cache
-- Scaling path: Increase limits or implement external stdlib index pre-generation
+**In-Memory Caches:**
+- Current capacity: TypeDatabase limited to 50MB (TYPE_DB_MAX_MEMORY_BYTES), StdlibIndexManager 20MB, DocumentCache 500 files
+- Limit: All caches in-process memory, no persistent storage, full cache invalidation on server restart
+- Scaling path: Implement disk-backed cache (LMDB or SQLite), add cache persistence across restarts, implement sharding for multi-workpace scenarios
 
-**Workspace indexing:**
-- Current capacity: No explicit limit, indexes all `.pike`/`.pmod` files recursively
-- Limit: Very large workspaces may cause high memory usage during initial scan
-- Scaling path: Implement incremental indexing and file watching rather than full scans
+**Workspace Index Scanning:**
+- Current capacity: Scans entire workspace on startup, no incremental updates
+- Limit: Large workspaces (>10K files) cause startup delay, file system watching can miss changes, no throttling
+- Scaling path: Implement incremental indexing with file watching, add indexing throttling with progress reporting, support workspace-level excludes/filters
 
 ## Dependencies at Risk
 
-**Pike 8.0 requirement:**
-- Risk: Code specifically targets Pike 8.0; may break with Pike 8.1+
-- Impact: `Tools.AutoDoc.PikeParser` API changes could break parsing
-- Migration plan: Pin to Pike 8.0.x; add version detection and compatibility layer
+**Pike 8.0.x Dependency:**
+- Risk: Code uses Pike 8.0-specific APIs (String.trim_all_whites() not String.trim()), may break on Pike 8.1+
+- Impact: Extension will fail if user has newer Pike version
+- Migration plan: Version detection in analyzer.pike, polyfills for newer API differences, add CI testing matrix for multiple Pike versions (partial: test.yml has Pike 8.1116 and latest)
 
-**vscode-languageclient ^9.0.1:**
-- Risk: Extension tightly coupled to this library's API
-- Impact: Library major version changes would require extension rewrite
-- Migration plan: Follow vscode-languageserver-node deprecation notices
+**vscode-languageclient@9.0.1:**
+- Risk: pinned to specific major version, LSP protocol features may lag
+- Impact: Missing newer LSP capabilities (inline completion, semantic tokens refresh)
+- Migration plan: Quarterly version review, test upgrades against VS Code Insiders, monitor LSP spec changes
+
+**Node.js 18 Target:**
+- Risk: Build targets node18, extension may not work on older VS Code versions
+- Impact: Users on VS Code < 1.85 cannot use extension
+- Migration plan: Drop support for older VS Code versions (already at 1.85 minimum), document system requirements clearly
 
 ## Missing Critical Features
 
-**Extension test coverage:**
-- Problem: `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/` has no test file
-- Blocks: Confidence in extension behavior, regression prevention
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/package.json` lacks test dependencies
+**Incremental Document Analysis:**
+- Problem: Full document re-analysis on every change, no incremental parsing
+- Blocks: Real-time diagnostics for large files, responsive completion on rapid edits
+- Impact: High latency for documents >1000 lines, noticeable lag during typing
 
-**pike-analyzer tests:**
-- Problem: `/home/smuks/OpenCode/pike-lsp/packages/pike-analyzer/` has no test file
-- Blocks: Verification of semantic analysis logic
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-analyzer/`
+**Type Inference for Complex Expressions:**
+- Problem: Type inference limited to simple symbols, no expression-level types (e.g., result of function call, array element access)
+- Blocks: Accurate hover info for chained calls, completion for complex expressions
+- Impact: Type information often "unknown" for non-trivial code
 
-**No linting/formatting configuration:**
-- Problem: No `.eslintrc`, `.prettierrc`, or `biome.json` found
-- Blocks: Consistent code style, automatic formatting, pre-commit checks
-- Files: Project root and all packages
+**Cross-File Symbol Indexing:**
+- Problem: Global symbol index exists but not populated or used for cross-file references
+- Blocks: Go-to-definition across files, find all references workspace-wide
+- Impact: Navigation limited to current file, poor understanding of codebase relationships
+
+**Rename Symbol Support:**
+- Problem: No rename refactoring capability
+- Blocks: Basic IDE refactoring workflow
+- Impact: Manual rename required, error-prone for multi-file changes
 
 ## Test Coverage Gaps
 
-**Extension activation and configuration:**
-- What's not tested: Extension activation failure, missing Pike executable, config changes triggering restart
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts`
-- Risk: Users may encounter activation failures with poor error messages
-- Priority: High (user-facing)
+**Error Path Testing:**
+- What's not tested: Bridge process crashes, malformed JSON-RPC requests, timeout scenarios, Pike subprocess failures
+- Files: `packages/pike-bridge/src/*.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`
+- Risk: Production failures not caught in CI, poor error messages for users
+- Priority: High
 
-**Type inference and caching:**
-- What's not tested: TypeDatabase cache invalidation, cross-file type inference, memory budget enforcement
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/type-database.ts`
-- Risk: Type information may become stale, incorrect completions
-- Priority: Medium (core functionality)
+**Concurrent Request Handling:**
+- What's not tested: Multiple simultaneous requests, inflight request deduplication, race conditions in start/stop
+- Files: `packages/pike-bridge/src/bridge.ts`
+- Risk: Deadlocks or data races under load, state corruption
+- Priority: Medium
 
-**Stdlib lazy loading:**
-- What's not tested: StdlibIndexManager LRU eviction, negative cache, memory tracking
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/stdlib-index.ts`
-- Risk: Cache may not work correctly, memory leaks
-- Priority: Medium (performance)
+**Memory Limit Scenarios:**
+- What's not tested: Cache eviction under memory pressure, large workspace performance, symbol count limits
+- Files: `packages/pike-lsp-server/src/type-database.ts`, `packages/pike-lsp-server/src/stdlib-index.ts`
+- Risk: Server crashes or becomes unresponsive with large codebases
+- Priority: Medium
 
-**LSP protocol edge cases:**
-- What's not tested: Concurrent document changes, rapid open/close, malformed requests
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts`
-- Risk: Server may crash or hang on edge cases
-- Priority: Low (reported issues are minimal)
+**Platform-Specific Behavior:**
+- What's not tested: Windows file paths, case-sensitive filesystems, different Pike installations
+- Files: `packages/pike-bridge/src/process.ts`, `pike-scripts/LSP.pmod/*.pike`
+- Risk: Extension works on Linux but fails on Windows/macOS
+- Priority: High (Windows support)
 
-**Error recovery:**
-- What's not tested: Bridge crash recovery, Pike subprocess restart, state restoration after failure
-- Files: `/home/smuks/OpenCode/pike-lsp/packages/pike-bridge/src/bridge.ts`
-- Risk: Requires manual restart on bridge failure
-- Priority: Medium (reliability)
+**LSP Protocol Compliance:**
+- What's not tested: LSP specification edge cases, cancellation semantics, version negotiation
+- Files: `packages/pike-lsp-server/src/features/*.ts`
+- Risk: Non-compliant behavior causes issues with LSP clients
+- Priority: Low (current implementation works with VS Code)
 
 ---
 
-*Concerns audit: 2025-01-19*
+*Concerns audit: 2025-01-23*

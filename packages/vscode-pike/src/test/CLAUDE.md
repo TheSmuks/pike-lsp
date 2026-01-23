@@ -27,4 +27,16 @@
 | #4530 | " | 🔵 | Reviewed TypeScript test configuration | ~163 |
 | #4527 | 3:53 PM | 🟣 | Created LSP smoke test for extension startup verification | ~301 |
 | #4524 | 3:52 PM | 🔵 | Examined extension.test.ts to understand server path resolution and activation flow | ~241 |
+
+### Jan 23, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5747 | 10:46 PM | 🔴 | MockOutputChannel test migrated to bun:test successfully | ~227 |
+| #5671 | 10:17 PM | 🔵 | Verifying runtime and test runner functionality | ~249 |
+| #5661 | 10:09 PM | 🔵 | User asked about replacing mocha with bun tests | ~211 |
+| #5649 | 9:52 PM | 🔴 | Fixed TypeScript module configuration compatibility | ~141 |
+| #5646 | 9:51 PM | 🔴 | Updated test TypeScript configuration to remove mocha types | ~139 |
+| #5640 | 9:48 PM | 🔄 | MockOutputChannel test migrated to bun test framework | ~170 |
+| #5623 | 9:44 PM | 🔵 | VSCode extension test TypeScript configuration | ~158 |
 </claude-mem-context>

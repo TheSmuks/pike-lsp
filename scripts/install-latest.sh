@@ -11,16 +11,16 @@ cd "$PROJECT_ROOT"
 
 # 1. Build all packages
 echo "[1/4] Building all packages..."
-pnpm build
+bun run build
 
 # 2. Bundle server into extension
 echo "[2/4] Bundling server..."
 cd packages/vscode-pike
-pnpm bundle-server
+bun run bundle-server
 
 # 3. Package VSIX
 echo "[3/4] Packaging VSIX..."
-pnpm package
+bun run package
 
 # 4. Find and install the VSIX
 VSIX_FILE=$(ls -t vscode-pike-*.vsix 2>/dev/null | head -1)

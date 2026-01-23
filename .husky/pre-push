@@ -8,7 +8,7 @@ echo "[Pre-push] Running validations..."
 
 # 1. TypeScript builds
 echo "[Pre-push] Building all packages..."
-pnpm -r build || {
+bun run build || {
   echo "FAILED: TypeScript build failed. Push aborted."
   echo "Fix build errors or use 'git push --no-verify' to bypass (not recommended)."
   exit 1
@@ -25,7 +25,7 @@ pike -e 'compile_file("pike-scripts/analyzer.pike");' || {
 # 3. Smoke tests (if smoke test exists - plan 02-02 creates it)
 if [ -f "packages/pike-lsp-server/src/tests/smoke.test.ts" ]; then
   echo "[Pre-push] Running smoke tests..."
-  pnpm --filter @pike-lsp/pike-lsp-server test:smoke || {
+  cd packages/pike-lsp-server && bun test dist/tests/smoke.test.js && cd .. || {
     echo "FAILED: Smoke tests failed. Push aborted."
     echo "Fix failing tests or use 'git push --no-verify' to bypass."
     exit 1
@@ -38,7 +38,7 @@ fi
 if [ -f "packages/vscode-pike/src/test/integration/lsp-features.test.ts" ]; then
   echo "[Pre-push] Running VSCode E2E feature tests..."
   cd packages/vscode-pike
-  pnpm run test:features || {
+  bun run test:features || {
     echo "FAILED: VSCode E2E feature tests failed. Push aborted."
     echo "LSP features (symbols, hover, definition, completion) are broken."
     echo "Fix failing tests or use 'git push --no-verify' to bypass."

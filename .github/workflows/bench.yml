@@ -13,24 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
 
       - name: Install Pike
         run: |
           sudo apt-get update
           sudo apt-get install -y pike8.0-full
 
-      - name: Install pnpm
-        run: npm install -g pnpm
-
       - name: Install dependencies
-        run: pnpm install
+        run: bun install
 
       - name: Build packages
-        run: pnpm build
+        run: bun run build
 
       - name: Run benchmarks
         run: bash scripts/benchmark-ci.sh

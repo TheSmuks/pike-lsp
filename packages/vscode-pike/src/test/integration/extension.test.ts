@@ -5,6 +5,8 @@
  * the extension activates correctly and the LSP server starts.
  */
 
+// @ts-nocheck - Integration tests use mocha types at runtime
+
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 

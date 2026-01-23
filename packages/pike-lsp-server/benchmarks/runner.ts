@@ -107,6 +107,9 @@ async function runBenchmarks() {
     });
   });
 
+  await bridge.introspect(mediumPike, 'medium.pike');
+  await bridge.analyze(mediumPike, ['parse', 'introspect', 'diagnostics'], 'medium.pike');
+
   group('Request Consolidation (Warm)', async () => {
     // PERF-12-05: Benchmark legacy approach (3 separate calls) vs consolidated (1 call)
     const code = mediumPike;
@@ -145,17 +148,17 @@ async function runBenchmarks() {
       path.join(__dirname, 'fixtures/cache-test.pike'),
       'utf8'
     );
-    const filename = 'cache-test.pike';
+    const cacheTestFilename = 'cache-test.pike';
 
     // Warm up: First request always compiles (cache miss)
-    await bridge.analyze(cacheTestCode, ['introspect'], filename, 1);
+    await bridge.analyze(cacheTestCode, ['introspect'], cacheTestFilename, 1);
 
     // Benchmark: Repeated request with same version (cache hit)
     bench('Cache Hit: analyze with same document version', async () => {
       const response = await bridge.analyze(
         cacheTestCode,
         ['introspect'],
-        filename,
+        cacheTestFilename,
         1  // Same version = cache hit
       );
       return response;
@@ -166,7 +169,7 @@ async function runBenchmarks() {
       const response = await bridge.analyze(
         cacheTestCode,
         ['introspect'],
-        filename,
+        cacheTestFilename,
         999  // Different version = cache miss
       );
       return response;
@@ -177,7 +180,7 @@ async function runBenchmarks() {
       const response = await bridge.analyze(
         cacheTestCode,
         ['introspect'],
-        filename,
+        cacheTestFilename,
         undefined  // No version = stat-based key
       );
       return response;
@@ -213,10 +216,9 @@ async function runBenchmarks() {
 
   // STDLIB-03: Stdlib performance benchmarks
   // Measures latency for introspecting stdlib modules - target: < 500ms
-  group('Stdlib Performance (Warm)', async () => {
-    // Warm up: First call to populate cache
-    await bridge.resolveStdlib('Stdio');
+  await bridge.resolveStdlib('Stdio');
 
+  group('Stdlib Performance (Warm)', () => {
     // Benchmark: Warm resolve (cached) for common modules
     bench('resolveStdlib("Stdio") - warm', async () => {
       const res = await bridge.resolveStdlib('Stdio');
@@ -259,7 +261,7 @@ async function runBenchmarks() {
 
   // PERF-17-03: Responsiveness benchmarks
   // Measures user-perceived latency during typing and validation
-  group('Responsiveness (Warm)', async () => {
+  group('Responsiveness (Warm)', () => {
     // Benchmark: First keystroke response (user perception)
     bench('First diagnostic after document change', async () => {
       const start = Date.now();

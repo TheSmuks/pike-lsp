@@ -17,16 +17,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: pnpm
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
 
       - name: Extract version from tag (Push)
         if: github.event_name == 'push'
@@ -69,20 +61,20 @@ jobs:
           sudo apt-get install -y pike8.0 libgmp-dev
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build all packages
-        run: pnpm build
+        run: bun run build
 
       - name: Run tests
         run: |
           # Run core tests
-          pnpm --filter @pike-lsp/pike-bridge test
-          pnpm --filter @pike-lsp/pike-lsp-server test
+          cd packages/pike-bridge && bun test
+          cd ../pike-lsp-server && bun test
 
       - name: Build VSIX
         working-directory: packages/vscode-pike
-        run: pnpm package
+        run: bun run package
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

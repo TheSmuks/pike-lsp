@@ -1,147 +1,139 @@
 # Coding Conventions
 
-**Analysis Date:** 2025-01-19
+**Analysis Date:** 2026-01-23
 
 ## Naming Patterns
 
 **Files:**
-- TypeScript: `camelCase.ts` (e.g., `workspace-index.ts`, `code-lens.ts`)
-- Test files: `*.test.ts` (e.g., `bridge.test.ts`, `workspace-index.test.ts`)
-- Test suite files: `*-tests.ts` (e.g., `lsp-tests.ts`, `performance-tests.ts`)
-- Pike scripts: `lowercase.pike` (e.g., `analyzer.pike`, `type-introspector.pike`)
-- Constants files: `constants.ts` or `index.ts` in constants directory
-- Utility files: `utils/*.ts` (e.g., `utils/validation.ts`, `utils/regex-patterns.ts`)
+- TypeScript: `camelCase.ts` for source files, `camelCase.test.ts` for test files
+- Pike scripts: `camelCase.pike` for modules, `camelCase.pmod` for module directories
+- Test fixtures: Named descriptively (e.g., `test-workspace/`, `test.pike`)
+- Configuration: `kebab-case` for config files (e.g., `tsconfig.json`, `package.json`)
 
 **Functions:**
-- `camelCase` for all functions and methods
-- `async function` or `async methodName()` for async operations
-- `before`, `after`, `it`, `describe` for test hooks (node:test conventions)
+- TypeScript: `camelCase` for all functions and methods
+- Pike: `snake_case` for function names (e.g., `handle_find_occurrences`, `get_char_position`)
+- Test functions: `camelCase` with descriptive names (e.g., `shouldDetectSyntaxErrors`, `shouldDeduplicateConcurrentRequests`)
 
 **Variables:**
-- `camelCase` for local variables and parameters
-- `PascalCase` for class/interface names (types)
-- `SCREAMING_SNAKE_CASE` for constants (e.g., `MAX_CACHED_PROGRAMS`, `BATCH_PARSE_MAX_SIZE`)
-- Private class members: `private propertyName` (no underscore prefix in TypeScript)
+- TypeScript: `camelCase` for local variables and parameters
+- Constants: `UPPER_SNAKE_CASE` (e.g., `MAX_TOP_LEVEL_ITERATIONS`, `BATCH_PARSE_MAX_SIZE`)
+- Private class members: Prefixed with underscore or declared as private fields
+- Pike: `snake_case` for local variables
 
-**Types:**
-- `PascalCase` for interfaces and types (e.g., `PikeSymbol`, `PikeParseResult`, `IntrospectedSymbol`)
-- `Pike` prefix for types related to Pike language (e.g., `PikeType`, `PikePosition`)
-- `Result` suffix for operation results (e.g., `BatchParseResult`, `IntrospectionResult`)
-- `Info` suffix for metadata objects (e.g., `StdlibModuleInfo`, `CompiledProgramInfo`)
+**Types/Interfaces:**
+- TypeScript: `PascalCase` for interfaces and type definitions
+- Prefix generic types with descriptive names (e.g., `PikeBridgeOptions`, `ExtensionApi`)
+- Use descriptive union types where appropriate (e.g., `AnalysisOperation[]`)
 
 ## Code Style
 
 **Formatting:**
-- No external formatter configured (no Prettier, no ESLint)
-- TypeScript strict mode enabled
-- 4-space indentation in Pike scripts
-- Consistent spacing around operators
-- Use template literals for string interpolation
-
-**TypeScript Compiler Settings:**
-```json
-{
-  "strict": true,
-  "noImplicitAny": true,
-  "strictNullChecks": true,
-  "noUnusedLocals": true,
-  "noUnusedParameters": true,
-  "noImplicitReturns": true,
-  "noUncheckedIndexedAccess": true
-}
-```
+- No explicit formatter detected (no `.prettierrc`, `.eslintrc`, or `biome.json`)
+- Manual code formatting with consistent indentation
+- 4-space indentation for Pike scripts
+- 2-space or 4-space indentation for TypeScript (varies by file)
+- Trailing commas generally allowed in multi-line arrays/objects
 
 **Linting:**
-- No explicit linter (no .eslintrc, no biome.json)
-- Type checking via `tsc --noEmit` serves as primary validation
-- Run with `pnpm typecheck`
+- No ESLint configuration detected at project root
+- TypeScript compiler (`tsc`) used for type checking
+- Build scripts include `typecheck` target: `"typecheck": "tsc --noEmit"`
 
-## Import Organization
-
-**Order:**
-1. Node.js built-in imports (e.g., `import * as fs from 'fs'`)
-2. External package imports (e.g., `import { ... } from 'vscode-languageserver'`)
-3. Workspace package imports (e.g., `import { ... } from '@pike-lsp/pike-bridge'`)
-4. Relative imports (e.g., `import { ... } from './utils/validation.js'`)
+**Import Organization:**
+1. Node.js built-in modules (e.g., `import * as path from 'path'`)
+2. External dependencies (e.g., `import { EventEmitter } from 'events'`)
+3. Internal workspace dependencies (e.g., `import { PikeBridge } from '@pike-lsp/pike-bridge'`)
+4. Relative imports (e.g., `import { Logger } from '@pike-lsp/core'`)
 
 **Path Aliases:**
-- `@pike-lsp/pike-bridge` - Bridge package
-- `@pike-lsp/pike-analyzer` - Analyzer package
-- `@pike-lsp/pike-lsp-server` - LSP server package
-
-**Import Style:**
-- Use named imports: `import { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge'`
-- Use `import * as` for namespace imports: `import * as assert from 'node:assert/strict'`
-- Always include `.js` extension in relative imports (ESM requirement)
+- Workspace protocol used: `@pike-lsp/core`, `@pike-lsp/pike-bridge`
+- TypeScript `paths` configuration in `tsconfig.json` for module resolution
 
 ## Error Handling
 
 **Patterns:**
-- Use type guards for runtime validation (see `packages/pike-lsp-server/src/utils/validation.ts`)
-- Async errors propagate through Promise rejection
-- Use try-catch for subprocess operations
-- Errors from Pike subprocess returned as `{ error: { code, message } }` objects
+- **TypeScript**: Use `try/catch` blocks for async operations
+- Custom error types: `PikeError` class from `@pike-lsp/core` for Pike-specific errors
+- Error messages are descriptive and include context
+- Graceful degradation: Return `null` or empty results instead of throwing when appropriate
+- Log errors but don't crash: Use logger instances, console.error sparingly
 
-**Type Guard Pattern:**
-```typescript
-export function isPikeSymbol(obj: unknown): obj is PikeSymbol {
-    if (typeof obj !== 'object' || obj === null) {
-        return false;
-    }
-    const sym = obj as Record<string, unknown>;
-    if (typeof sym['name'] !== 'string' || typeof sym['kind'] !== 'string') {
-        return false;
-    }
-    return true;
+**Pike Error Handling:**
+```pike
+mixed err = catch {
+    result = handler(params, ctx);
+};
+if (err) {
+    result = ([
+        "error": ([
+            "code": -32000,
+            "message": describe_error(err)
+        ])
+    ]);
 }
 ```
 
-**Validation:**
+**TypeScript Error Handling:**
 ```typescript
-const result = validatePikeResponse(rawResult, isPikeParseResult, 'PikeParseResult');
-```
-
-**Subprocess Error Handling:**
-```typescript
-this.process.on('error', (err) => {
-    this.started = false;
-    reject(new Error(`Failed to start Pike subprocess: ${err.message}`));
-});
+try {
+    await bridge.start();
+} catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    this.debugLog(`Exception during start: ${message}`);
+    reject(new Error(`Failed to start Pike bridge: ${message}`));
+}
 ```
 
 ## Logging
 
-**Framework:** `console` for standalone scripts, `connection.console.log()` for LSP server
+**Framework:**
+- Custom `Logger` class from `@pike-lsp/core` package
+- LSP server uses `connection.console.log()` for server-side logging
+- Pike scripts use conditional debug logging: `debug()` function that only outputs when `debug_mode` is enabled
 
 **Patterns:**
-- Use `connection.console.log()` for LSP server logging to client
-- Use `connection.console.warn()` for warnings
-- Use `connection.console.error()` for errors
-- Use `console.error()` for debug output when debug mode enabled
-- Emit 'stderr' events for Pike subprocess output
+- Use appropriate log levels: `debug()`, `trace()`, `info()`, `warn()`, `error()`
+- Structured logging with objects: `logger.debug('Pike stderr', { raw: message })`
+- Conditional debug logging in Pike to avoid performance overhead
+- E2E tests capture server logs for debugging failures
 
-**Debug Logging:**
-```typescript
-private debugLog: (message: string) => void;
-
-constructor(options: PikeBridgeOptions = {}) {
-    const debug = options.debug ?? false;
-    this.debugLog = debug
-        ? (message: string) => console.error(`[PikeBridge DEBUG] ${message}`)
-        : () => {};
+**Pike Conditional Debug:**
+```pike
+int debug_mode = 0;  // Disabled by default
+void debug(string fmt, mixed... args) {
+    if (debug_mode) {
+        werror(fmt, @args);
+    }
 }
 ```
 
 ## Comments
 
 **When to Comment:**
-- Document all public APIs with JSDoc/TSDoc
-- Add reference tags for maintenance tracking (e.g., `// MAINT-004`)
-- Add performance tags for optimizations (e.g., `// PERF-001`)
-- Add quality tags for validation (e.g., `// QUAL-003`)
-- Document non-obvious algorithm logic
+- **File headers**: Module purpose and key responsibilities (e.g., `//! Analysis.pike - Stateless analysis class for Pike LSP`)
+- **Architecture invariants**: Critical design decisions (e.g., stdin reading pattern in analyzer.pike)
+- **Non-obvious code**: Complex algorithms, workarounds, performance optimizations
+- **TODO/FIXME**: Mark incomplete work or known issues
 
 **JSDoc/TSDoc:**
+- **Extensive JSDoc used** on all public class methods in `pike-bridge` package
+- Includes parameter descriptions with `@param`, return types with `@returns`
+- Usage examples in JSDoc comments (e.g., in `PikeBridge` class)
+- Pike uses `//!` for autodoc comments (Pike's documentation format)
+
+**Pike Autodoc Pattern:**
+```pike
+//! Find all identifier occurrences using tokenization
+//!
+//! @param params Mapping with "code" key containing Pike source code
+//! @returns Mapping with "result" containing "occurrences" array
+mapping handle_find_occurrences(mapping params) {
+    // ...
+}
+```
+
+**TypeScript JSDoc Pattern:**
 ```typescript
 /**
  * Parse Pike source code and extract symbols.
@@ -149,157 +141,118 @@ constructor(options: PikeBridgeOptions = {}) {
  * @param code - Pike source code to parse.
  * @param filename - Optional filename for error messages.
  * @returns Parse result containing symbols and diagnostics.
- * @example
- * ```ts
- * const result = await bridge.parse('int x = 5;', 'test.pike');
- * console.log(result.symbols);
- * ```
  */
 async parse(code: string, filename?: string): Promise<PikeParseResult>
 ```
 
-**Pike Documentation:**
-```pike
-//! Parse the given code and return symbols.
-//! @param code The Pike source code to parse.
-//! @returns A mapping with symbols and diagnostics.
-protected mapping handle_parse(mapping params)
-```
-
-**Maintenance Tags:**
-- `MAINT-001` through `MAINT-004` - Maintenance tracking for code organization
-- `PERF-001` through `PERF-005` - Performance optimizations
-- `QUAL-001` through `QUAL-003` - Quality/type safety measures
-
 ## Function Design
 
-**Size:** Keep functions focused. Most functions under 50 lines. Complex parsing logic in Pike scripts may be longer.
+**Size:**
+- Keep functions focused on single responsibility
+- Complex operations broken into smaller helper functions
+- Pike handlers are typically 50-100 lines for analysis operations
 
 **Parameters:**
-- Use options object for multiple parameters: `async parse(code: string, filename?: string): Promise<...>`
-- Use parameter objects for configuration: `constructor(options: PikeBridgeOptions = {})`
-- Default optional parameters with `??` operator
+- Use objects for multiple related parameters (e.g., `PikeBridgeOptions`)
+- Destructure objects in function parameters for clarity
+- Optional parameters marked with `?` in TypeScript
+- Default values provided where appropriate
 
 **Return Values:**
-- Always type return values for public APIs
-- Use result objects with `{ result, error }` pattern for operations that can fail
-- Return `Promise<T>` for async operations
-- Return `null` for "not found" cases (not `undefined`)
-
-**Example:**
-```typescript
-async resolveModule(modulePath: string, currentFile?: string): Promise<string | null> {
-    const result = await this.sendRequest<{
-        path: string | null;
-        exists: boolean;
-    }>('resolve', {
-        module: modulePath,
-        currentFile: currentFile || undefined,
-    });
-
-    return result.exists ? result.path : null;
-}
-```
+- TypeScript: Always type return values explicitly
+- Use union types for nullable returns: `string | null`
+- Pike: Return mappings for structured data
+- Error responses wrapped in standardized error structures
 
 ## Module Design
 
 **Exports:**
-- Use named exports for most items: `export class PikeBridge`, `export interface PikeSymbol`
-- Use default export only for main entry points: `export default`
-- Re-export types for convenience: `export * from './types.js'`
+- TypeScript: Use `export` keyword for public APIs
+- Barrel files (`index.ts`) used to re-export from subdirectories
+- Default exports avoided; prefer named exports
 
 **Barrel Files:**
-- `index.ts` files aggregate and re-export from their directory
-- Use `export * from` to expose all public APIs
-- Keep internal implementation in separate files
+- `packages/pike-bridge/src/index.ts`: Exports `PikeBridge`, types
+- `packages/pike-lsp-server/src/features/index.ts`: Re-exports all feature handlers
+- `packages/pike-lsp-server/src/services/index.ts`: Re-exports service classes
+- Pattern: `export * from './module.js'` in ESM
 
-**Workspace Package Structure:**
-```
-packages/
-  pike-bridge/         # Core IPC with Pike subprocess
-  pike-analyzer/       # Symbol table and analysis
-  pike-lsp-server/     # LSP protocol implementation
-  vscode-pike/         # VS Code extension
-```
-
-## Constants
-
-**Location:** `packages/pike-lsp-server/src/constants/index.ts`
-
-**Pattern:**
+**TypeScript Module Structure:**
 ```typescript
-export const BATCH_PARSE_MAX_SIZE = 50;
-export const BRIDGE_TIMEOUT_DEFAULT = 30000;
-export const LSP = {
-    MAX_COMPLETION_ITEMS: 100,
-    MAX_WORKSPACE_SYMBOLS: 1000,
-} as const;
+// Primary exports
+export { PikeBridge } from './bridge.js';
+export { PikeProcess } from './process.js';
+
+// Type exports
+export type {
+    PikeBridgeOptions,
+    PikeParseResult,
+    // ...
+} from './types.js';
 ```
 
-**Grouped Constants:**
-- Parser limits: `PARSER_MAX_ITERATIONS`
-- Cache sizes: `MAX_CACHED_PROGRAMS`, `MAX_STDLIB_MODULES`
-- Timeouts: `BRIDGE_TIMEOUT_DEFAULT`, `VALIDATION_DELAY_DEFAULT`
-- LSP limits: `LSP.MAX_*` constants
+## Pike-Specific Conventions
 
-**Pike Constants:**
-```pike
-constant MAX_TOP_LEVEL_ITERATIONS = 10000;
-constant MAX_BLOCK_ITERATIONS = 500;
-int max_cached_programs = 30;
-```
+**Module Loading:**
+- Use `master()->resolv()` for dynamic module resolution
+- Program instantiation: `program MyClass = master()->resolv("LSP.Parser"); object instance = MyClass();`
 
-## Code Organization Patterns
+**Constants:**
+- Use `constant` keyword for compile-time constants
+- Naming: `UPPER_SNAKE_CASE`
+- Organize related constants (e.g., `MAX_TOP_LEVEL_ITERATIONS`, `NEEDS_INIT_TYPES`)
 
-**Class Structure:**
-1. Private properties
-2. Constructor
-3. Public methods
-4. Private methods
-5. Event handlers
+**String Operations:**
+- **Critical**: Use `String.trim_all_whites()` not `String.trim()` (unavailable in Pike 8.0)
+- Use `LSP.Compat.trim_whites()` for compatibility wrapper
+- Never use regex when Pike stdlib has native utilities
 
-**File Organization:**
-- Put interfaces/types in `types.ts` or at top of file
-- Put constants in `constants.ts` or at top of class
-- Keep utility functions in `utils/` directory
-- Group related functionality in subdirectories
+**Pike Version Compatibility:**
+- Target Pike 8.0.x
+- Test with `pike --version`
+- Use `LSP.Compat.pmod` for version-specific compatibility shims
 
-**LSP Handler Pattern:**
+## Async/Await Patterns
+
+**TypeScript:**
+- Always use `async/await` for Promise handling
+- Error handling with `try/catch` around async operations
+- Run multiple async operations in parallel with `Promise.all()` when safe
+- Request deduplication for concurrent identical requests (see `PikeBridge.sendRequest()`)
+
+## Event Handling
+
+**EventEmitter Pattern:**
+- Extend `EventEmitter` for classes emitting events
+- Define event names as string literals or constants
+- Use strongly typed event signatures where possible
+- Clean up event listeners in cleanup/dispose methods
+
 ```typescript
-connection.onDidOpenTextDocument((params) => {
-    // Handle document open
-});
+export class PikeBridge extends EventEmitter {
+    private process: PikeProcess | null = null;
 
-connection.onDidChangeTextDocument((params) => {
-    // Handle document change
-});
-```
-
-## Pike Code Conventions
-
-**Style:**
-- Use `//!` for documentation comments (AutoDoc format)
-- Use `//` for regular comments
-- 4-space indentation
-- Use `protected` for internal methods
-- Use `constant` for compile-time constants
-- Use `mapping` for objects/dictionaries
-- Use `array` notation `({})` for arrays
-
-**Pattern:**
-```pike
-protected mapping handle_parse(mapping params) {
-    string code = params->code || "";
-    // ... implementation
-    return ([
-        "result": ([
-            "symbols": symbols,
-            "diagnostics": diagnostics
-        ])
-    ]);
+    async start(): Promise<void> {
+        // ...
+        pikeProc.on('stderr', (data) => {
+            this.emit('stderr', data);
+        });
+    }
 }
 ```
 
+## Configuration
+
+**Environment Variables:**
+- Use `process.env` for environment-specific values
+- Feature flags via environment variables (e.g., `PIKE_LSP_TEST_MODE`, `USE_CURRENT_DISPLAY`)
+- Default values provided for all configuration
+
+**Configuration Objects:**
+- Centralized configuration objects (e.g., `PikeSettings`, `PikeBridgeOptions`)
+- Default exports: `const defaultSettings: PikeSettings = { ... }`
+- Spread operator for merging: `{ ...defaultSettings, ...(settings?.pike ?? {}) }`
+
 ---
 
-*Convention analysis: 2025-01-19*
+*Convention analysis: 2026-01-23*

@@ -1,217 +1,174 @@
 # Codebase Structure
 
-**Analysis Date:** 2025-01-19
+**Analysis Date:** 2025-01-23
 
 ## Directory Layout
 
 ```
-pike-lsp/
-├── .agent/                  # Agent workflow definitions
-│   └── workflows/           # GSD agent workflow documentation
-├── .github/                 # GitHub Actions CI/CD
-│   └── workflows/           # Test automation workflows
-├── .planning/               # Planning documents (this directory)
-│   └── codebase/            # Architecture and structure docs
-├── docs/                    # Project documentation
-│   └── plans/               # Design documents and plans
-├── images/                  # Documentation images (demo.gif)
-├── packages/                # Monorepo packages (pnpm workspace)
-│   ├── pike-analyzer/       # Symbol table utilities
-│   ├── pike-bridge/         # TypeScript <-> Pike IPC layer
-│   ├── pike-lsp-server/     # LSP server implementation
-│   └── vscode-pike/         # VSCode extension
-├── pike-scripts/            # Pike native analysis scripts
-│   ├── analyzer.pike        # Main JSON-RPC analyzer (3,200+ lines)
-│   └── type-introspector.pike # Type introspection script
-├── scripts/                 # Build and test scripts
-├── test/                    # Test fixtures and suites
-│   ├── fixtures/            # Sample Pike files for testing
-│   └── suite/               # Integration test suites
-├── package.json             # Root package.json (workspace config)
-├── pnpm-workspace.yaml      # PNPM workspace definition
-├── tsconfig.json            # Root TypeScript config
-└── tsconfig.base.json       # Shared TypeScript config
+[project-root]/
+├── packages/                    # Monorepo packages
+│   ├── core/                    # Shared TypeScript utilities
+│   ├── pike-bridge/             # TypeScript <-> Pike IPC
+│   ├── pike-lsp-server/         # LSP server implementation
+│   └── vscode-pike/             # VSCode extension
+├── pike-scripts/                # Pike language implementation
+│   └── LSP.pmod/                # Pike modules
+├── scripts/                     # Build and test scripts
+├── test/                        # Integration test fixtures
+├── .github/workflows/           # CI/CD pipelines
+└── .planning/                   # GSD planning documents
 ```
 
 ## Directory Purposes
 
-**`packages/pike-bridge/`:**
-- Purpose: TypeScript-to-Pike subprocess communication
-- Contains: `PikeBridge` class, type definitions, constants
-- Key files:
-  - `src/bridge.ts` - Main bridge implementation (784 lines)
-  - `src/types.ts` - Complete type definitions for Pike-LSP communication
-  - `src/constants.ts` - Bridge configuration constants
-  - `src/index.ts` - Public API exports
-- Exports: `@pike-lsp/pike-bridge` package
+**packages/core:**
+- Purpose: Shared TypeScript utilities and error types
+- Contains: Logger, PikeError custom error class
+- Key files: `packages/core/src/logging.ts`, `packages/core/src/errors.ts`
 
-**`packages/pike-analyzer/`:**
-- Purpose: Symbol table and analysis utilities (currently minimal)
-- Contains: `SymbolTable` class for managing extracted symbols
-- Key files:
-  - `src/symbols.ts` - Symbol table implementation
-  - `src/index.ts` - Re-exports symbols
-- Exports: `@pike-lsp/pike-analyzer` package
-- Note: Currently light; most analysis happens in Pike scripts
+**packages/pike-bridge:**
+- Purpose: JSON-RPC client for communicating with Pike subprocess
+- Contains: PikeBridge class, PikeProcess wrapper, type definitions
+- Key files: `packages/pike-bridge/src/bridge.ts`, `packages/pike-bridge/src/process.ts`, `packages/pike-bridge/src/types.ts`
 
-**`packages/pike-lsp-server/`:**
-- Purpose: Language Server Protocol server
-- Contains: All LSP feature implementations
-- Key files:
-  - `src/server.ts` - Main LSP server (36,000+ tokens, primary entry point)
-  - `src/workspace-index.ts` - Workspace symbol indexing
-  - `src/type-database.ts` - Compiled program cache and type inference
-  - `src/stdlib-index.ts` - Lazy stdlib module loading
-  - `src/constants/` - Server-wide constants
-  - `src/utils/` - Helper utilities (regex patterns, validation, code lens)
-  - `src/tests/` - Node.js test suite (10 test files)
-- Exports: `@pike-lsp/pike-lsp-server` package
+**packages/pike-lsp-server:**
+- Purpose: LSP protocol implementation and feature handlers
+- Contains: Server entry point, feature modules, services, tests
+- Key files: `packages/pike-lsp-server/src/server.ts`, `packages/pike-lsp-server/src/features/*.ts`, `packages/pike-lsp-server/src/services/*.ts`
 
-**`packages/vscode-pike/`:**
-- Purpose: VSCode extension host
-- Contains: Extension activation, LSP client, syntax highlighting
-- Key files:
-  - `src/extension.ts` - Extension activation (244 lines)
-  - `package.json` - Extension manifest (commands, configurations)
-  - `syntaxes/pike.tmLanguage.json` - TextMate grammar
-  - `language-configuration.json` - Language configuration
-- Exports: VSIX package for VSCode Marketplace
+**packages/vscode-pike:**
+- Purpose: VSCode extension integration
+- Contains: Extension activation, LSP client configuration, test suites
+- Key files: `packages/vscode-pike/src/extension.ts`, `packages/vscode-pike/src/test/`
 
-**`pike-scripts/`:**
-- Purpose: Native Pike code for parsing and introspection
-- Contains: JSON-RPC servers running in Pike interpreter
-- Key files:
-  - `analyzer.pike` - Main analyzer (parse, tokenize, compile, resolve, etc.)
-  - `type-introspector.pike` - Type introspection and stdlib resolution
-- Note: These are standalone Pike scripts, not TypeScript
+**pike-scripts:**
+- Purpose: Pike language analyzer implementation
+- Contains: JSON-RPC server, Pike modules for parsing/introspection
+- Key files: `pike-scripts/analyzer.pike`, `pike-scripts/LSP.pmod/*.pike`, `pike-scripts/LSP.pmod/*.pmod`
 
-**`test/`:**
-- Purpose: Test fixtures and test infrastructure
-- Contains: Sample Pike files for testing parser behavior
-- Key files:
-  - `fixtures/test.pike` - Sample Pike code
-  - `suite/` - Additional test suites
-
-**`scripts/`:**
-- Purpose: Build automation and testing utilities
-- Key files:
-  - `run-tests.sh` - Run all package tests
-  - `test-extension.sh` - Launch VSCode with extension loaded
+**scripts:**
+- Purpose: Build automation and test utilities
+- Contains: Test runners, bundling scripts, CI helpers
+- Key files: `scripts/run-tests.sh`, `scripts/bundle-server.sh`, `scripts/test-headless.sh`
 
 ## Key File Locations
 
 **Entry Points:**
-- `packages/vscode-pike/src/extension.ts`: VSCode extension activation, creates LSP client
-- `packages/pike-lsp-server/src/server.ts`: LSP server, handles all protocol requests
-- `pike-scripts/analyzer.pike`: Pike subprocess, handles parsing/tokenization requests
+- `packages/vscode-pike/src/extension.ts`: VSCode extension activation
+- `packages/pike-lsp-server/src/server.ts`: LSP server main entry
+- `pike-scripts/analyzer.pike`: Pike subprocess entry point
 
 **Configuration:**
-- `package.json`: Root workspace config, pnpm scripts
-- `pnpm-workspace.yaml`: Monorepo workspace definition
-- `tsconfig.json` / `tsconfig.base.json`: TypeScript compilation settings
-- `packages/*/package.json`: Individual package configs
-- `packages/*/tsconfig.json`: Package-specific TypeScript settings
+- `package.json`: Root monorepo configuration (pnpm workspace)
+- `packages/*/package.json`: Individual package configurations
+- `tsconfig.json`, `tsconfig.base.json`: TypeScript compilation settings
+- `packages/vscode-pike/language-configuration.json`: Pike language rules
+- `.github/workflows/*.yml`: CI/CD pipeline definitions
 
 **Core Logic:**
-- `packages/pike-bridge/src/bridge.ts`: Subprocess lifecycle and IPC
-- `packages/pike-lsp-server/src/workspace-index.ts`: Symbol indexing
-- `packages/pike-lsp-server/src/type-database.ts`: Type information cache
-- `packages/pike-lsp-server/src/stdlib-index.ts`: Stdlib lazy loading
+- `packages/pike-bridge/src/bridge.ts`: JSON-RPC client implementation
+- `packages/pike-lsp-server/src/features/`: LSP capability handlers
+- `packages/pike-lsp-server/src/services/`: Shared services (cache, index, bridge manager)
+- `pike-scripts/LSP.pmod/Parser.pike`: Pike parsing and tokenization
+- `pike-scripts/LSP.pmod/Intelligence.pike`: Type introspection and resolution
+- `pike-scripts/LSP.pmod/Analysis.pike`: Diagnostics and code analysis
 
 **Testing:**
-- `packages/pike-bridge/src/bridge.test.ts`: Bridge tests
-- `packages/pike-lsp-server/src/tests/*.ts`: Server test suite (10 files)
-- `packages/pike-lsp-server/src/workspace-index.test.ts`: Index tests
-- `test/fixtures/test.pike`: Test data
-
-**Utilities:**
-- `packages/pike-lsp-server/src/constants/index.ts`: Server constants (timeouts, limits)
-- `packages/pike-lsp-server/src/utils/regex-patterns.ts`: Centralized regex patterns
-- `packages/pike-lsp-server/src/utils/validation.ts`: Type guards for Pike responses
-- `packages/pike-lsp-server/src/utils/code-lens.ts`: Code lens command builder
+- `packages/vscode-pike/src/test/integration/`: E2E LSP feature tests
+- `packages/pike-lsp-server/src/tests/`: Server unit and integration tests
+- `packages/pike-bridge/src/*.test.ts`: Bridge unit tests
+- `test/`: Shared test fixtures and sample Pike code
 
 ## Naming Conventions
 
 **Files:**
-- TypeScript source: `*.ts` (all packages use `.ts` extension)
-- Test files: `*.test.ts` (Node.js native test runner)
-- Pike source: `*.pike`
-- Pike modules: `*.pmod`
-- Config: `*.json` (package.json, tsconfig.json), `*.yaml` (pnpm-workspace.yaml)
-- Documentation: `*.md`
+- TypeScript: `camelCase.ts` (e.g., `bridge-manager.ts`, `document-cache.ts`)
+- Tests: `*.test.ts` or `*.test.js` (e.g., `bridge.test.ts`, `smoke.test.js`)
+- Pike: `PascalCase.pike` or `lowercase.pmod` (e.g., `Parser.pike`, `Cache.pmod`)
+- Config: `kebab-case.json` or `kebab-case.yml` (e.g., `package.json`, `release.yml`)
 
 **Directories:**
-- `src/`: Source code for each package
-- `dist/`: Compiled JavaScript output (gitignored)
-- `tests/` or `src/tests/`: Test files
-- `utils/`: Helper modules
-- `constants/`: Configuration constants
+- TypeScript: `kebab-case` (e.g., `pike-lsp-server`, `vscode-pike`)
+- Pike modules: `PascalCase.pmod` (e.g., `Intelligence.pmod`, `Analysis.pmod`)
 
-**Functions/Classes:**
-- Classes: `PascalCase` (e.g., `PikeBridge`, `WorkspaceIndex`, `TypeDatabase`)
-- Functions: `camelCase` (e.g., `indexDocument`, `findSymbol`, `validatePikeResponse`)
-- Constants: `UPPER_SNAKE_CASE` (e.g., `MAX_STDLIB_MODULES`, `BATCH_PARSE_MAX_SIZE`)
+**Functions/Methods:**
+- TypeScript: `camelCase` (e.g., `indexDocument`, `getCompletionContext`)
+- Pike: `snake_case` (e.g., `parse_request`, `resolve_module`)
 
-**TypeScript Modules:**
-- Imports use `.js` extension (ESM): `from './bridge.js'`
-- All packages are ESM modules (type: "module" in package.json)
+**Classes/Interfaces:**
+- TypeScript: `PascalCase` (e.g., `PikeBridge`, `WorkspaceIndex`, `Services`)
+- Pike: `PascalCase` (e.g., `class Context`, `class Parser`)
 
 ## Where to Add New Code
 
 **New LSP Feature:**
-- Primary code: `packages/pike-lsp-server/src/server.ts` (add handler in `onInitialize`)
-- Tests: `packages/pike-lsp-server/src/tests/` (create `lsp-*-tests.ts`)
+- Primary code: `packages/pike-lsp-server/src/features/[feature-name].ts`
+- Tests: `packages/pike-lsp-server/src/tests/[feature-name]-tests.ts`
+- Integration: Add to `packages/pike-lsp-server/src/features/index.ts`
 
-**New Bridge Method:**
-- Implementation: `packages/pike-bridge/src/bridge.ts` (add async method)
-- Type definitions: `packages/pike-bridge/src/types.ts` (add to `PikeRequest['method']` union)
-- Pike handler: `pike-scripts/analyzer.pike` (add `handle_*` function and case in `handle_request`)
+**New LSP Capability Handler:**
+- Implementation: `packages/pike-lsp-server/src/features/[category].ts`
+- Export: Add to `packages/pike-lsp-server/src/features/index.ts`
+- Register: Call `register[Category]Handlers()` in `server.ts`
 
-**New Utility:**
-- Shared helpers: `packages/pike-lsp-server/src/utils/` (create new file)
-- Constants: `packages/pike-lsp-server/src/constants/index.ts`
+**New Service:**
+- Implementation: `packages/pike-lsp-server/src/services/[service-name].ts`
+- Export: Add to `packages/pike-lsp-server/src/services/index.ts`
+- Inject: Add to `Services` interface in `services/index.ts`
+- Access: Pass via `services` parameter to feature handlers
+
+**New Pike Analysis Function:**
+- Implementation: `pike-scripts/LSP.pmod/[Module].pike` or `pike-scripts/LSP.pmod/[Module]/handler.pike`
+- Register: Add handler to `HANDLERS` mapping in `analyzer.pike`
+- Bridge method: Add to `packages/pike-bridge/src/types.ts` and `bridge.ts`
 
 **New VSCode Command:**
-- Registration: `packages/vscode-pike/src/extension.ts` (register in `activate()`)
-- Package.json: `packages/vscode-pike/package.json` (add to `contributes.commands`)
+- Handler: `packages/vscode-pike/src/extension.ts` (register in `activateInternal`)
+- Contribution: Add to `contributes.commands` in `packages/vscode-pike/package.json`
 
-**New Type:**
-- Bridge types: `packages/pike-bridge/src/types.ts`
-- Server types: Inline in `packages/pike-lsp-server/src/server.ts` or separate file
-
-**Tests:**
-- Bridge tests: `packages/pike-bridge/src/bridge.test.ts`
-- Server tests: `packages/pike-lsp-server/src/tests/lsp-*-tests.ts`
-- Unit tests: Co-locate with source as `*.test.ts`
+**Utilities:**
+- Shared helpers: `packages/core/src/[utility].ts`
+- Bridge utilities: `packages/pike-bridge/src/[utility].ts`
+- LSP utilities: `packages/pike-lsp-server/src/utils/[utility].ts`
 
 ## Special Directories
 
-**`dist/` (Generated, Not Committed):**
-- Purpose: Compiled JavaScript output from TypeScript
-- Created by: `tsc` during build
-- Patterns: Each package has `dist/` mirroring `src/` structure
-- Ignored by: `.gitignore`
+**dist/:**
+- Purpose: Compiled JavaScript output (not in version control)
+- Generated: Yes
+- Committed: No (gitignored)
 
-**`node_modules/` (Generated, Not Committed):**
-- Purpose: Installed dependencies
-- Created by: `pnpm install`
-- Ignored by: `.gitignore`
+**node_modules/:**
+- Purpose: npm package dependencies
+- Generated: Yes
+- Committed: No (gitignored)
 
-**`.github/workflows/` (Generated, Committed):**
-- Purpose: CI/CD automation
-- Files: GitHub Actions workflow YAML files
+**.vscode-test/:**
+- Purpose: Downloaded VSCode binaries for testing
+- Generated: Yes
+- Committed: No (gitignored)
+
+**packages/pike-lsp-server/pike-scripts:**
+- Purpose: Copy of `pike-scripts/` for server distribution
+- Generated: Yes (symlinked or copied during build)
+- Committed: Yes (for standalone server package)
+
+**packages/pike-lsp-server/packages:**
+- Purpose: Nested package structure (build artifact)
+- Generated: Yes
+- Committed: No (development artifact)
+
+**test-workspace/:**
+- Purpose: VSCode test fixture directory
+- Generated: Yes
+- Committed: Yes (test fixtures)
+
+**LSP.pmod/ (Pike modules):**
+- Purpose: Pike module namespace for LSP implementation
+- Generated: No (source code)
 - Committed: Yes
-
-**`packages/vscode-pike/server/` (Generated, Bundled):**
-- Purpose: Bundled LSP server for VSIX distribution
-- Created by: Build process copies from `pike-lsp-server/dist/`
-- Committed: No (generated during packaging)
-
-**`.planning/` (Documentation, Committed):**
-- Purpose: Architecture and planning documentation
-- Files: This directory (ARCHITECTURE.md, STRUCTURE.md)
-- Committed: Yes
+- Note: Uses `.pmod` extension for Pike modules
 
 ---
 
-*Structure analysis: 2025-01-19*
+*Structure analysis: 2025-01-23*

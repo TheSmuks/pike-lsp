@@ -17,26 +17,26 @@ echo ""
 # Build first
 echo "📦 Building project..."
 cd "$PROJECT_ROOT"
-pnpm run build
+bun run build
 echo "✓ Build completed"
 echo ""
 
 # Test 1: Pike Bridge
 echo "🔌 Testing Pike Bridge..."
 cd "$PROJECT_ROOT/packages/pike-bridge"
-node dist/test.js
+bun test dist/test.js
 echo ""
 
 # Test 2: LSP Server Components
 echo "🖥️  Testing LSP Server Components..."
 cd "$PROJECT_ROOT/packages/pike-lsp-server"
-node dist/test-server.js
+bun test dist/test-server.js
 echo ""
 
 # Test 3: Comprehensive Pike Source Parsing (REQUIRED)
 echo "📚 Testing Pike Source Parsing..."
 echo "   (Per PIKE_SCANNER_INSTRUCTIONS: 100% of Pike 8 files must parse)"
-node dist/tests/pike-source-tests.js 2>&1 || {
+bun test dist/tests/pike-source-tests.js 2>&1 || {
     echo "❌ Pike source parsing tests failed!"
     exit 1
 }

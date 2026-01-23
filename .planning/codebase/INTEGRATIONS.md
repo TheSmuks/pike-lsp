@@ -1,58 +1,49 @@
 # External Integrations
 
-**Analysis Date:** 2026-01-19
+**Analysis Date:** 2026-01-23
 
 ## APIs & External Services
 
-**Language Server Protocol:**
-- vscode-languageserver - LSP server implementation
-  - SDK/Client: `vscode-languageserver/node.js` from `vscode-languageserver` package
-  - Provides: createConnection, TextDocuments, LSP feature handlers
-  - Location: `/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/server.ts`
+**Version Control:**
+- GitHub - Repository hosting, releases, issue tracking
+  - Actions: `.github/workflows/test.yml`, `.github/workflows/release.yml`, `.github/workflows/bench.yml`, `.github/workflows/security.yml`
+  - Auth: GITHUB_TOKEN (automatically provided by Actions)
 
-**VSCode Extension API:**
-- vscode-languageclient - LSP client for VSCode
-  - SDK/Client: `vscode-languageclient/node` from `vscode-languageclient` package
-  - Auth: None (local extension)
-  - Provides: LanguageClient, LanguageClientOptions for extension communication
-  - Location: `/home/smuks/OpenCode/pike-lsp/packages/vscode-pike/src/extension.ts`
+**Package Registry:**
+- npm registry - pnpm dependency installation
+  - No auth required for public packages
+  - Workspace protocol used for internal packages
 
-**GitHub Actions:**
-- CI/CD pipeline for testing and releases
-  - Service: GitHub Actions (`.github/workflows/test.yml`, `.github/workflows/release.yml`)
-  - Actions used: actions/checkout@v4, pnpm/action-setup@v2, actions/setup-node@v4, softprops/action-gh-release@v1, actions/upload-artifact@v4
-  - Triggers: Push to main/master, pull requests, version tags
+**Benchmarking:**
+- benchmark-action/github-action-benchmark@v1 - Performance tracking
+  - Stores historical data on gh-pages branch
+  - Auto-pushes benchmark results
+  - Alerts on performance regression (>120% threshold)
 
 ## Data Storage
 
 **Databases:**
-- None (no external database)
+- None (Local filesystem only)
 
 **File Storage:**
-- Local filesystem only
-- Pike source files: `*.pike`, `*.pmod` extensions
-- Workspace indexing: Scans project directories via `fs` module
-- Stdlib indexing: Reads Pike installation at `/usr/local/pike/` or system path
+- Local filesystem - Pike module path, source files
+  - Configuration: `pike.pikeModulePath` (VSCode setting)
+  - Configuration: `pike.pikeIncludePath` (VSCode setting)
 
 **Caching:**
-- In-memory caching only
-- Document cache: `Map<string, DocumentCache>` in LSP server
-- Type database: `TypeDatabase` class with 50MB memory limit
-- Program cache: Pike-side `mapping(string:program)` with 30 program limit
-- Stdlib cache: Pike-side `mapping(string:mapping)` with 50 module limit
+- In-memory LRU caches - TypeScript side
+- In-memory singleton caches - Pike side (`LSP.Cache.pmod`)
+- No external cache services
 
 ## Authentication & Identity
 
 **Auth Provider:**
-- Custom (none required)
-- Implementation: Local VSCode extension with no external auth
+- None (Local development tool)
 
-**Environment Variables:**
-- `PIKE_MODULE_PATH` - Module search paths passed to Pike subprocess
-- `PIKE_INCLUDE_PATH` - Include search paths passed to Pike subprocess
-- `PIKE_SOURCE_ROOT` - Optional override for Pike stdlib source location
-- `PIKE_STDLIB` - Optional override for stdlib modules path
-- `PIKE_TOOLS` - Optional override for Pike tools/include path
+**Implementation:**
+- No authentication required
+- VSCode extension runs with user permissions
+- Pike subprocess inherits user environment
 
 ## Monitoring & Observability
 
@@ -60,68 +51,93 @@
 - None (no external error tracking service)
 
 **Logs:**
-- Console-based logging only
-- LSP server logs to `connection.console.log()`
-- Extension logs to VSCode Output panel ("Pike Language Server" channel)
-- Pike bridge stderr forwarding to VSCode client
-- Debug mode: `pike.trace.server` VSCode setting for LSP communication tracing
+- Console output - VSCode output channel
+- Connection.console - LSP server logging
+- Debug mode via `pike.trace.server` VSCode setting
+
+**Performance Monitoring:**
+- Benchmark CI workflow - Tracks parse time, cache hit rate
+- Mitata benchmark framework - Local benchmarking
+- GitHub Actions benchmark history - Performance trends
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- GitHub (source repository: https://github.com/pike-lsp/pike-lsp)
-- VSCode Marketplace (extension distribution)
+- GitHub - Source code, releases, issues
+- VSCode Marketplace - Extension distribution (via `vsce package`)
 
 **CI Pipeline:**
-- GitHub Actions
-- Test workflow: `.github/workflows/test.yml`
-  - Runs on: push to main/master, pull requests
-  - Platform: ubuntu-24.04
-  - Steps: Install Pike, build, test bridge, test server, integration tests
-- Release workflow: `.github/workflows/release.yml`
-  - Runs on: version tags (v*)
-  - Creates: GitHub releases with VSIX artifacts
+- GitHub Actions (ubuntu-24.04, ubuntu-latest)
+  - Test workflow: `.github/workflows/test.yml` - Push to main/master, PRs
+  - Release workflow: `.github/workflows/release.yml` - Tag push (`v*`)
+  - Benchmark workflow: `.github/workflows/bench.yml` - Push to main, PRs
+  - Security workflow: `.github/workflows/security.yml` - Push, PRs, weekly schedule
+
+**Testing Matrix:**
+- Node.js 20.x
+- Pike 8.0 (baseline), Pike 8.1116 (target), Pike latest (allow-fail)
+
+**Build Artifacts:**
+- VSIX files uploaded as GitHub Releases
+- VSIX artifacts retained 30-90 days
+- Benchmark data stored on gh-pages branch
 
 ## Environment Configuration
 
 **Required env vars:**
-- None strictly required (has sensible defaults)
-- `PIKE_MODULE_PATH` - Optional module path override
-- `PIKE_INCLUDE_PATH` - Optional include path override
+- `PIKE_LSP_TEST_MODE` - Extension test mode (optional, set to "true")
+- `PIKE_SOURCE_ROOT` - Pike source location for tests (optional, defaults to `/usr/local/pike/8.0.1116`)
+- `MITATA_JSON` - Benchmark output format (optional)
+- `PATH` - Must include `pike` executable
 
 **Secrets location:**
-- No secrets required for local development
-- GitHub Actions uses `GITHUB_TOKEN` (provided automatically)
-
-**VSCode Configuration:**
-- `pike.pikePath` - Path to Pike executable (default: "pike")
-- `pike.pikeModulePath` - Array of module paths
-- `pike.pikeIncludePath` - Array of include paths
-- `pike.trace.server` - LSP trace level
+- GitHub Secrets for CI (GITHUB_TOKEN auto-provided)
+- No local secrets required
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- None (server does not expose HTTP endpoints)
+- None (LSP server receives requests from VSCode via stdio)
 
 **Outgoing:**
-- None (no external HTTP calls)
+- None (No external API calls)
 
-## System Integration
+## LSP Protocol Integration
 
-**Pike Interpreter Integration:**
-- Spawns Pike subprocess via Node.js `child_process.spawn()`
-- Communication: JSON-RPC over stdin/stdout
-- Script location: `pike-scripts/analyzer.pike` (auto-detected)
-- Health check: `pike --version` command for availability verification
-- Methods: parse, tokenize, compile, resolve, introspect, resolve_stdlib, get_inherited, find_occurrences, batch_parse, set_debug, analyze_uninitialized, get_completion_context
+**Protocol:**
+- JSON-RPC over stdio
+- Server: `packages/pike-lsp-server/src/server.ts`
+- Client: `packages/vscode-pike/src/extension.ts`
 
-**VSCode Language Client Integration:**
-- Activation: `onLanguage:pike` event
-- Document sync: `workspace.createFileSystemWatcher('**/*.{pike,pmod}')`
-- Configuration change handling: `workspace.onDidChangeConfiguration()`
-- Commands registered: `pike-module-path.add`, `pike.showReferences`
+**LSP Capabilities Provided:**
+- Document symbols
+- Hover information
+- Go-to-definition
+- Find references
+- Code completion
+- Diagnostics (syntax errors)
+- Signature help
+- Semantic tokens
+- Call hierarchy
+- Workspace symbols
+
+## Pike Bridge Integration
+
+**Communication:**
+- JSON-RPC over stdin/stdout
+- TypeScript side: `packages/pike-bridge/src/bridge.ts`
+- Pike side: `pike-scripts/analyzer.pike`
+
+**Methods exposed:**
+- `parse` - Tokenization and parsing
+- `introspect` - Type introspection
+- `resolve` - Symbol resolution
+- `resolve_stdlib` - Stdlib module resolution
+- `get_inherited` - Inheritance information
+- `find_occurrences` - Find symbol references
+- `analyze_uninitialized` - Uninitialized variable detection
+- `get_completion_context` - Code completion context
 
 ---
 
-*Integration audit: 2026-01-19*
+*Integration audit: 2026-01-23*

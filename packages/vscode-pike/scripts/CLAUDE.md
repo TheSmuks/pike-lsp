@@ -13,4 +13,11 @@
 | #4399 | 2:00 PM | 🔴 | VSCode extension packaged with updated Analysis.pike | ~221 |
 | #4398 | 1:59 PM | 🟣 | Updated bundle-server.sh to copy LSP.pmod modules | ~190 |
 | #4397 | " | 🔵 | bundle-server.sh script copies pike-scripts from monorepo root | ~229 |
+
+### Jan 23, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #5641 | 9:49 PM | 🔄 | Shell scripts migrated from pnpm to bun | ~182 |
+| #5625 | 9:44 PM | 🔵 | Server bundle script uses pnpm commands | ~138 |
 </claude-mem-context>

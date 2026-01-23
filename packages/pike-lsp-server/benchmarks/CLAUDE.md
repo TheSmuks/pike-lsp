@@ -7,6 +7,10 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #5670 | 10:15 PM | 🔴 | Benchmarks now running successfully with mitata | ~237 |
+| #5668 | 10:14 PM | 🔴 | Reverted benchmark runner from bun back to mitata | ~212 |
+| #5664 | 10:11 PM | 🔴 | Benchmark runner fails with bun - group function not found | ~197 |
+| #5639 | 9:47 PM | 🔄 | Benchmark runner migrated from mitata to bun | ~205 |
 | #5483 | 8:35 PM | 🔵 | Benchmark Runner Outputs Comprehensive Performance Metrics in Non-JSON Mode | ~407 |
 | #5473 | 8:30 PM | 🔵 | Benchmark Runner Uses MITATA_JSON Environment Variable for Output Control | ~353 |
 | #5004 | 5:20 PM | 🔵 | Phase 15 research identifies dependency tracking gap | ~270 |

@@ -15,6 +15,8 @@
  * Error capture: Pike subprocess errors are captured and displayed when tests fail.
  */
 
+// @ts-nocheck - Integration tests use mocha types at runtime
+
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 
@@ -289,7 +291,7 @@ suite('LSP Feature E2E Tests', () => {
         let locationArray: vscode.Location[];
         if (Array.isArray(locations)) {
             // Check if it's LocationLink array (has targetUri) or Location array (has uri)
-            if (locations.length > 0 && 'targetUri' in locations[0]) {
+            if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
                 // Convert LocationLink to Location
                 locationArray = (locations as vscode.LocationLink[]).map(ll =>
                     new vscode.Location(ll.targetUri, ll.targetRange)
@@ -305,7 +307,7 @@ suite('LSP Feature E2E Tests', () => {
         assert.ok(locationArray.length > 0, 'Should have at least one definition location');
 
         // Verify first location has required structure
-        const firstLocation = locationArray[0];
+        const firstLocation = locationArray[0]!;
         assert.ok(firstLocation.uri, 'Location should have URI');
         assert.ok(firstLocation.range, 'Location should have range');
 
@@ -352,13 +354,13 @@ suite('LSP Feature E2E Tests', () => {
         assert.ok(completions.items.length > 0, 'Should have completion items');
 
         // Verify first item has required structure
-        const firstItem = completions.items[0];
+        const firstItem = completions.items[0]!;
         assert.ok(firstItem.label, 'Completion item should have label');
         assert.ok(firstItem.kind !== undefined, 'Completion item should have kind (CompletionItemKind)');
 
         // Verify label is non-empty
         const labelText = typeof firstItem.label === 'string' ? firstItem.label : firstItem.label.label;
-        assert.ok(labelText.length > 0, 'Completion label should not be empty');
+        assert.ok(labelText && labelText.length > 0, 'Completion label should not be empty');
 
         // For stdlib completion, we might see methods like cast, flatten, sum, etc.
         // or keywords, or local symbols
@@ -391,8 +393,10 @@ suite('LSP Feature E2E Tests', () => {
         assert.ok(hovers, 'Should return hover for function');
         assert.ok(hovers.length > 0, 'Should have hover result for function');
 
-        const content = hovers[0].contents[0];
-        const contentStr = typeof content === 'string' ? content : content.value;
+        const hover = hovers[0]!;
+        const contents = Array.isArray(hover.contents) ? hover.contents : [hover.contents];
+        const content = contents[0];
+        const contentStr = typeof content === 'string' ? content : content?.value || '';
 
         // Function hover should mention function, parameters, or return type
         assert.ok(
