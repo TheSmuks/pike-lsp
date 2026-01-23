@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+*.tsbuildinfo
+
+# Testing
+coverage
+.nyc_output
+
+# VSCode
+.vscode-test
+*.vsix
+
+# Config files
+.eslintrc.js
+.prettierrc
+
+# Planning docs
+.planning

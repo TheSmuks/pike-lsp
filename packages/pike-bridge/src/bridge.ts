@@ -85,7 +85,7 @@ export class PikeBridge extends EventEmitter {
     private process: PikeProcess | null = null;
     private requestId = 0;
     private pendingRequests = new Map<number, PendingRequest>();
-    private inflightRequests = new Map<string, Promise<unknown>>();
+    private requestCache = new Map<string, Promise<unknown>>();
     private readonly options: Required<PikeBridgeOptions>;
     private started = false;
     private readonly logger = new Logger('PikeBridge');
@@ -279,7 +279,7 @@ export class PikeBridge extends EventEmitter {
     private async sendRequest<T>(method: string, params: Record<string, unknown>): Promise<T> {
         // Check for inflight request with same method and params
         const requestKey = this.getRequestKey(method, params);
-        const existing = this.inflightRequests.get(requestKey);
+        const existing = this.requestCache.get(requestKey);
 
         if (existing) {
             // Reuse the existing inflight request
@@ -312,11 +312,11 @@ export class PikeBridge extends EventEmitter {
         });
 
         // Track as inflight
-        this.inflightRequests.set(requestKey, promise);
+        this.requestCache.set(requestKey, promise);
 
         // Remove from inflight when done (success or failure)
         promise.finally(() => {
-            this.inflightRequests.delete(requestKey);
+            this.requestCache.delete(requestKey);
         });
 
         return promise;

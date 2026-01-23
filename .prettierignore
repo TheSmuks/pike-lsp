@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+*.tsbuildinfo
+*.map
+
+# Logs
+*.log
+.logs
+
+# VSCode
+.vscode-test
+*.vsix
+
+# Testing
+coverage
+.nyc_output
+
+# Temporary files
+*.tmp
+.tmp
+.cache
+
+# Lock files (bun.lockb is binary)
+bun.lockb
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Planning docs (auto-generated)
+.planning/
+*.md
+!*.md
+!README.md

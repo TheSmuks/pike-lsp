@@ -239,47 +239,44 @@ export async function activateForTesting(context: ExtensionContext, mockOutputCh
     return activateInternal(context, mockOutputChannel);
 }
 
-function getExpandedModulePaths(): string[] {
+/**
+ * Generic helper to expand workspace paths for a given config key.
+ * Handles ${workspaceFolder} variable expansion and both string and string[] values.
+ */
+function getExpandedWorkspacePaths(
+    configKey: string,
+    defaultValue: string[] | string,
+    logLabel: string
+): string[] {
     const config = workspace.getConfiguration('pike');
-    const pikeModulePath = config.get<string[] | string>('pikeModulePath', 'pike');
+    const rawValue = config.get<string[] | string>(configKey, defaultValue);
+    const paths = Array.isArray(rawValue) ? rawValue : [rawValue];
     let expandedPaths: string[] = [];
 
     if (workspace.workspaceFolders !== undefined) {
         const folder = workspace.workspaceFolders[0];
         if (folder) {
-            const f = folder.uri.fsPath;
-            const paths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+            const folderPath = folder.uri.fsPath;
             for (const p of paths) {
-                expandedPaths.push(p.replace("${workspaceFolder}", f));
+                expandedPaths.push(p.replace("${workspaceFolder}", folderPath));
             }
+        } else {
+            expandedPaths = paths;
         }
     } else {
-        expandedPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
+        expandedPaths = paths;
     }
 
-    console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
+    console.log(`${logLabel}: ` + JSON.stringify(rawValue));
     return expandedPaths;
 }
 
+function getExpandedModulePaths(): string[] {
+    return getExpandedWorkspacePaths('pikeModulePath', 'pike', 'Pike module path');
+}
+
 function getExpandedIncludePaths(): string[] {
-    const config = workspace.getConfiguration('pike');
-    const pikeIncludePath = config.get<string[]>('pikeIncludePath', []);
-    let expandedPaths: string[] = [];
-
-    if (workspace.workspaceFolders !== undefined) {
-        const folder = workspace.workspaceFolders[0];
-        if (folder) {
-            const f = folder.uri.fsPath;
-            for (const p of pikeIncludePath) {
-                expandedPaths.push(p.replace("${workspaceFolder}", f));
-            }
-        }
-    } else {
-        expandedPaths = pikeIncludePath;
-    }
-
-    console.log('Pike include path: ' + JSON.stringify(pikeIncludePath));
-    return expandedPaths;
+    return getExpandedWorkspacePaths('pikeIncludePath', [], 'Pike include path');
 }
 
 async function restartClient(showMessage: boolean): Promise<void> {

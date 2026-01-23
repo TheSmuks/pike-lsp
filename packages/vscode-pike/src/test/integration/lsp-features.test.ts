@@ -56,7 +56,7 @@ function assertWithLogs(condition: unknown, message: string): asserts condition 
 
 suite('LSP Feature E2E Tests', () => {
     let workspaceFolder: vscode.WorkspaceFolder;
-    let fixtureUri: vscode.Uri;
+    let testDocumentUri: vscode.Uri;
     let document: vscode.TextDocument;
     let outputChannelDisposable: vscode.Disposable | undefined;
 
@@ -102,10 +102,10 @@ suite('LSP Feature E2E Tests', () => {
 
         // Use the existing test.pike file in test-workspace instead of creating dynamically
         // This avoids URI scheme issues that prevent LSP from caching the document
-        fixtureUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
-        logServerOutput(`Opening test fixture: ${fixtureUri.fsPath}`);
+        testDocumentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+        logServerOutput(`Opening test fixture: ${testDocumentUri.fsPath}`);
 
-        document = await vscode.workspace.openTextDocument(fixtureUri);
+        document = await vscode.workspace.openTextDocument(testDocumentUri);
 
         // Show the document in an editor to ensure LSP synchronization
         await vscode.window.showTextDocument(document);
@@ -117,7 +117,7 @@ suite('LSP Feature E2E Tests', () => {
         await new Promise(resolve => setTimeout(resolve, 15000));
 
         // Check for diagnostics on the file (could indicate Pike errors)
-        const diagnostics = vscode.languages.getDiagnostics(fixtureUri);
+        const diagnostics = vscode.languages.getDiagnostics(testDocumentUri);
         if (diagnostics.length > 0) {
             logServerOutput(`Found ${diagnostics.length} diagnostics on test file:`);
             diagnostics.forEach(d => {
@@ -160,7 +160,7 @@ suite('LSP Feature E2E Tests', () => {
         // Execute document symbol provider via VSCode command
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
             'vscode.executeDocumentSymbolProvider',
-            fixtureUri
+            testDocumentUri
         );
 
         // Log result for debugging
@@ -231,7 +231,7 @@ suite('LSP Feature E2E Tests', () => {
         // Execute hover provider via VSCode command
         const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
             'vscode.executeHoverProvider',
-            fixtureUri,
+            testDocumentUri,
             hoverPosition
         );
 
@@ -280,7 +280,7 @@ suite('LSP Feature E2E Tests', () => {
             vscode.Location | vscode.Location[] | vscode.LocationLink[]
         >(
             'vscode.executeDefinitionProvider',
-            fixtureUri,
+            testDocumentUri,
             referencePosition
         );
 
@@ -340,7 +340,7 @@ suite('LSP Feature E2E Tests', () => {
         // Execute completion provider via VSCode command
         const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
             'vscode.executeCompletionItemProvider',
-            fixtureUri,
+            testDocumentUri,
             completionPosition
         );
 
@@ -386,7 +386,7 @@ suite('LSP Feature E2E Tests', () => {
 
         const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
             'vscode.executeHoverProvider',
-            fixtureUri,
+            testDocumentUri,
             functionPosition
         );
 
@@ -415,7 +415,7 @@ suite('LSP Feature E2E Tests', () => {
 
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
             'vscode.executeDocumentSymbolProvider',
-            fixtureUri
+            testDocumentUri
         );
 
         assert.ok(symbols, 'Should return symbols');
@@ -474,7 +474,7 @@ suite('LSP Feature E2E Tests', () => {
 
             const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
                 'vscode.executeCompletionItemProvider',
-                fixtureUri,
+                testDocumentUri,
                 partialPosition
             );
 
