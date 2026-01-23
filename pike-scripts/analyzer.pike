@@ -349,7 +349,8 @@ int main(int argc, array(string) argv) {
         "get_cache_stats": lambda(mapping params, object ctx) {
             // PERF-13-04: Return compilation cache statistics
             mixed CacheClass = master()->resolv("LSP.CompilationCache");
-            if (CacheClass && programp(CacheClass)) {
+            // Note: CompilationCache is a module (object), not a class, so use objectp check
+            if (CacheClass && (mappingp(CacheClass) || programp(CacheClass) || objectp(CacheClass))) {
                 // LSP.CompilationCache uses module-level state
                 return (["result": CacheClass->get_stats()]);
             }
@@ -365,7 +366,7 @@ int main(int argc, array(string) argv) {
         "invalidate_cache": lambda(mapping params, object ctx) {
             // PERF-15-01: Invalidate cache entries for testing
             mixed CacheClass = master()->resolv("LSP.CompilationCache");
-            if (CacheClass && programp(CacheClass)) {
+            if (CacheClass && (mappingp(CacheClass) || programp(CacheClass) || objectp(CacheClass))) {
                 string path = params->path || "";
                 int transitive = params->transitive || 0;
 

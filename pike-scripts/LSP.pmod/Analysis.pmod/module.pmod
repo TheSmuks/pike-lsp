@@ -595,7 +595,9 @@ class Analysis {
     //! @returns The CompilationCache class or 0 if unavailable
     protected object get_compilation_cache() {
         mixed CacheClass = master()->resolv("LSP.CompilationCache");
-        if (CacheClass && programp(CacheClass)) {
+        // Note: CompilationCache is a module (file), not a class, so programp() returns false
+        // Use mappingp() to check if it's a module (which behaves like a mapping)
+        if (CacheClass && (mappingp(CacheClass) || programp(CacheClass) || objectp(CacheClass))) {
             return CacheClass;
         }
         return 0;
@@ -720,6 +722,8 @@ class Analysis {
             // Generate cache key (uses LSP version if provided, otherwise stats file)
             if (cache) {
                 cache_key = cache->make_cache_key(filename, lsp_version);
+            } else {
+                // cache not available - compile without caching
             }
 
             // Check cache first
@@ -755,7 +759,11 @@ class Analysis {
                     if (ResultClass && programp(ResultClass)) {
                         object result = ResultClass(compiled_prog, ({}), ({}));
                         cache->put(filename, cache_key, result);
+                    } else {
+                        // ResultClass not available - skip caching
                     }
+                } else {
+                    // cache or cache_key not available - skip caching
                 }
             }
         }
