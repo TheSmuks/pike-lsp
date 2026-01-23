@@ -32,6 +32,13 @@ jobs:
       - name: Run benchmarks
         run: bash scripts/benchmark-ci.sh
 
+      - name: Check benchmark regression
+        run: |
+          node scripts/check-benchmark-regression.js benchmark-results.json
+        env:
+          CACHE_HIT_THRESHOLD: 80  # Expect >80% hit rate for repeated requests
+          COMPILE_SPEEDUP_THRESHOLD: 50  # Expect >50% speedup for cache hits
+
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
