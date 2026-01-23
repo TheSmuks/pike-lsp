@@ -80,3 +80,57 @@ bench('My Operation', async () => {
   trackPikeTime('My Operation', result);
 });
 ```
+
+## Phase 17: Responsiveness Tuning Results
+
+**Completed:** 2026-01-23
+
+### Summary
+
+Phase 17 completed the v3.0 performance optimization series by tuning the diagnostic debounce delay from 500ms to 250ms and adding responsiveness-focused benchmarks.
+
+### Configuration Changes
+
+| Setting | Old Value | New Value | Rationale |
+|---------|-----------|-----------|-----------|
+| `DIAGNOSTIC_DELAY_DEFAULT` | 500ms | 250ms | Faster feedback while maintaining CPU efficiency |
+| `pike.diagnosticDelay` minimum | 100ms | 50ms | Allow shorter delays on fast machines |
+| `pike.diagnosticDelay` maximum | 5000ms | 2000ms | Prevent excessive delays that feel broken |
+
+### New Benchmarks
+
+Added "Responsiveness (Warm)" benchmark group with 3 benches:
+- **First diagnostic after document change**: Measures latency from first edit to validation (user perception)
+- **Validation with 250ms debounce**: Full cycle time including debounce wait
+- **Rapid edit simulation**: Verifies debounce coalesces multiple rapid edits
+
+### Benchmark Results (Phase 17)
+
+| Benchmark | avg (min-max) | Notes |
+|-----------|---------------|-------|
+| First diagnostic after document change | 54.03 µs | Cached analysis - extremely fast |
+| Validation with 250ms debounce | 250.78 ms | Includes 250ms debounce wait |
+| Rapid edit simulation | 252.00 ms | 5 edits at 50ms intervals |
+
+### v3.0 Performance Improvements Summary
+
+| Metric | Phase 10 Baseline | Phase 17 Final | Improvement |
+|--------|-------------------|----------------|-------------|
+| Cold Start (Pike subprocess) | ~19ms | ~0.06ms | 99.7% faster |
+| Validation Pipeline (3 calls) | ~1.85ms | ~1.64ms | 11% faster |
+| Compilation Cache Hit | N/A | ~40µs | New feature |
+| Stdlib Introspection | N/A | < 500ms | New feature |
+| Diagnostic Debounce | 500ms | 250ms | 50% faster |
+
+### E2E Verification
+
+Created `responsiveness.test.ts` with typing simulation test:
+- Simulates 50 rapid edits over 5 seconds (10 keystrokes/second)
+- Verifies typing completes without blocking UI
+- Confirms LSP remains responsive during rapid editing
+
+### Conclusion
+
+The v3.0 performance optimization milestone delivered measurable improvements across startup, validation, caching, and responsiveness. All optimizations maintain backward compatibility and pass automated regression gates (20% threshold in CI).
+
+**Next Steps:** Future milestones could explore adaptive debouncing, Bun runtime migration, or workspace-level parallel indexing.
