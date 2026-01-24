@@ -15,6 +15,22 @@ import { describe, it, before, after } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
+/**
+ * Flatten symbols tree - Pike returns nested children, but tests often need to search all symbols.
+ */
+function flattenSymbols(symbols: unknown[]): unknown[] {
+    const result: unknown[] = [];
+    for (const symbol of symbols) {
+        result.push(symbol);
+        const sym = symbol as Record<string, unknown>;
+        const children = sym['children'] as unknown[] | undefined;
+        if (children && children.length > 0) {
+            result.push(...flattenSymbols(children));
+        }
+    }
+    return result;
+}
+
 describe('References - Happy Path', () => {
     let bridge: PikeBridge;
 
@@ -220,7 +236,8 @@ int x = obj.value;
         const result = await bridge.parse(code, 'test.pike');
 
         // Assert
-        const value = result.symbols.find((s) => s['name'] === 'value');
+        const allSymbols = flattenSymbols(result.symbols);
+        const value = allSymbols.find((s) => (s as Record<string, unknown>)['name'] === 'value');
         assert.ok(value, 'Should find value member');
     });
 
@@ -240,7 +257,8 @@ void process(Container c) {
         const result = await bridge.parse(code, 'test.pike');
 
         // Assert
-        const data = result.symbols.find((s) => s['name'] === 'data');
+        const allSymbols = flattenSymbols(result.symbols);
+        const data = allSymbols.find((s) => (s as Record<string, unknown>)['name'] === 'data');
         assert.ok(data, 'Should find data member');
     });
 
@@ -457,9 +475,9 @@ class TestClass {
         const result = await bridge.parse(code, 'test.pike');
 
         // Assert
-        const allSymbols = result.symbols as unknown as Record<string, unknown>[];
-        const method1 = allSymbols.find((s) => s['name'] === 'method1');
-        const method2 = allSymbols.find((s) => s['name'] === 'method2');
+        const allSymbols = flattenSymbols(result.symbols);
+        const method1 = allSymbols.find((s) => (s as Record<string, unknown>)['name'] === 'method1');
+        const method2 = allSymbols.find((s) => (s as Record<string, unknown>)['name'] === 'method2');
 
         assert.ok(method1, 'Should find method1');
         assert.ok(method2, 'Should find method2');

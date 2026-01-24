@@ -49,12 +49,9 @@ describe('Autodoc Display - Happy Path', () => {
         const code = `
 //! Adds two numbers together
 //!
-//! @param a
-//!     First number to add
-//! @param b
-//!     Second number to add
-//! @returns
-//!     The sum of a and b
+//! @param a First number to add
+//! @param b Second number to add
+//! @returns The sum of a and b
 int add(int a, int b) {
     return a + b;
 }
@@ -84,10 +81,8 @@ int add(int a, int b) {
 class StringHelper {
     //! Trims whitespace from both ends
     //!
-    //! @param s
-    //!     The string to trim
-    //! @returns
-    //!     The trimmed string
+    //! @param s The string to trim
+    //! @returns The trimmed string
     string trim(string s) {
         return String.trim_all_whites(s);
     }
@@ -125,8 +120,7 @@ describe('Autodoc Display - Edge Cases', () => {
         const code = `
 //! Creates a new instance
 //!
-//! @returns
-//!     A new instance of this class
+//! @returns A new instance of this class
 this_program create() {
     return this;
 }
@@ -149,8 +143,7 @@ this_program create() {
         const code = `
 //! Protected internal method
 //!
-//! @param data
-//!     Internal data
+//! @param data Internal data
 protected void process_internal(mixed data) {
     // Internal processing
 }
@@ -173,8 +166,7 @@ protected void process_internal(mixed data) {
         const code = `
 //! Private helper method
 //!
-//! @param value
-//!     Value to validate
+//! @param value Value to validate
 private bool is_valid(int value) {
     return value > 0;
 }
@@ -195,10 +187,8 @@ private bool is_valid(int value) {
         const code = `
 //! Static utility method
 //!
-//! @param input
-//!     Input string
-//! @returns
-//!     Uppercase version
+//! @param input Input string
+//! @returns Uppercase version
 static string to_upper(string input) {
     return upper_case(input);
 }
@@ -219,12 +209,9 @@ static string to_upper(string input) {
         const code = `
 //! Processes data with complex types
 //!
-//! @param items
-//!     Array of mappings
-//! @param mode
-//!     Processing mode
-//! @returns
-//!     Processed data
+//! @param items Array of mappings
+//! @param mode Processing mode
+//! @returns Processed data
 array(mapping(string:int)) process_data(array(mapping(string:int)) items, string mode) {
     return items;
 }
@@ -247,10 +234,8 @@ array(mapping(string:int)) process_data(array(mapping(string:int)) items, string
         const code = `
 //! Returns either string or int
 //!
-//! @param type
-//!     Which type to return
-//! @returns
-//!     String or int value
+//! @param type Which type to return
+//! @returns String or int value
 string|int get_value(string type) {
     if (type == "string") return "hello";
     return 42;
