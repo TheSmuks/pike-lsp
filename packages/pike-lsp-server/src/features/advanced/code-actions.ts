@@ -14,6 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
+import { getGenerateGetterSetterActions } from './getters-setters.js';
 
 /**
  * Register code actions handler.
@@ -129,6 +130,10 @@ export function registerCodeActionsHandler(
                     }
                 }
             }
+
+            // Getter/Setter Generation
+            const getterSetterActions = getGenerateGetterSetterActions(document, uri, params.range, cached.symbols);
+            actions.push(...getterSetterActions);
 
             return actions;
         } catch (err) {

@@ -24,7 +24,7 @@ export function registerHoverHandler(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache } = services;
+    const { documentCache, stdlibIndex } = services;
     const log = new Logger('Navigation');
 
     /**
@@ -41,14 +41,40 @@ export function registerHoverHandler(
                 return null;
             }
 
-            // Find symbol at position
-            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+            // Get word at position
+            const word = getWordAtPosition(document, params.position);
+            if (!word) {
+                return null;
+            }
+
+            // 1. Try to find symbol in local document
+            let symbol = findSymbolInCollection(cached.symbols, word);
+            let parentScope: string | undefined;
+
+            // 2. If not found, try to find in stdlib
+            if (!symbol && stdlibIndex) {
+                // Check if it's a known module
+                const moduleInfo = await stdlibIndex.getModule(word);
+                if (moduleInfo) {
+                    // Create a synthetic symbol for the module
+                    symbol = {
+                        name: word,
+                        kind: 'module',
+                        // We don't have location info for stdlib modules in the editor
+                        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                        selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                        children: [],
+                        modifiers: []
+                    } as unknown as PikeSymbol;
+                }
+            }
+
             if (!symbol) {
                 return null;
             }
 
             // Build hover content
-            const content = buildHoverContent(symbol);
+            const content = buildHoverContent(symbol, parentScope);
             if (!content) {
                 return null;
             }
@@ -67,17 +93,12 @@ export function registerHoverHandler(
 }
 
 /**
- * Find symbol at given position in document.
+ * Get word at position in document.
  */
-function findSymbolAtPosition(
-    symbols: PikeSymbol[],
-    position: { line: number; character: number },
-    document: TextDocument
-): PikeSymbol | null {
+function getWordAtPosition(document: TextDocument, position: { line: number; character: number }): string | null {
     const text = document.getText();
     const offset = document.offsetAt(position);
 
-    // Find word boundaries
     let start = offset;
     let end = offset;
 
@@ -89,17 +110,21 @@ function findSymbolAtPosition(
     }
 
     const word = text.slice(start, end);
-    if (!word) {
-        return null;
-    }
+    return word || null;
+}
 
-    // Find symbol with matching name
-    // For now, simple name matching - could be enhanced with scope analysis
+/**
+ * Find symbol with matching name in collection.
+ */
+function findSymbolInCollection(symbols: PikeSymbol[], name: string): PikeSymbol | null {
     for (const symbol of symbols) {
-        if (symbol.name === word) {
+        if (symbol.name === name) {
             return symbol;
         }
+        if (symbol.children) {
+            const found = findSymbolInCollection(symbol.children, name);
+            if (found) return found;
+        }
     }
-
     return null;
 }

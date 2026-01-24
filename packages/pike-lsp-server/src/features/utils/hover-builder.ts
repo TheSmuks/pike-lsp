@@ -10,9 +10,25 @@ import { formatPikeType } from './pike-type-formatter.js';
 /**
  * Build markdown content for hover.
  */
-export function buildHoverContent(symbol: PikeSymbol): string | null {
+export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): string | null {
     const sym = symbol as unknown as Record<string, unknown>;
     const parts: string[] = [];
+
+    // Link to official documentation if likely a stdlib symbol
+    // We assume if parentScope is provided, or if it's a known top-level module, we link it.
+    // Also check if the symbol itself looks like a stdlib thing (has documentation, maybe no source location?)
+    // For now, rely on parentScope being passed by the caller (hover provider) when it resolves from stdlib.
+
+    let docsLink = '';
+    if (parentScope || (symbol.kind === 'module' && /^[A-Z]/.test(symbol.name))) {
+        const baseUrl = 'https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A';
+        let path = '';
+        if (parentScope) {
+            path += parentScope.replace(/\./g, '/') + '/';
+        }
+        path += symbol.name;
+        docsLink = `[Online Documentation](${baseUrl}/${path}.html)`;
+    }
 
     // Symbol kind badge
     const kindLabel = symbol.kind.charAt(0).toUpperCase() + symbol.kind.slice(1);
@@ -80,6 +96,10 @@ export function buildHoverContent(symbol: PikeSymbol): string | null {
         parts.push('```');
     } else {
         parts.push(`**${kindLabel}**: \`${symbol.name}\``);
+    }
+
+    if (docsLink) {
+        parts.push(`\n${docsLink}`);
     }
 
     // Add modifiers if present

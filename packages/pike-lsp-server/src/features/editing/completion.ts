@@ -14,6 +14,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
 import { buildCompletionItem } from './completion-helpers.js';
+import { getAutoDocCompletion } from './autodoc.js';
 
 /**
  * Register code completion handlers.
@@ -49,6 +50,12 @@ export function registerCompletionHandlers(
         const completions: CompletionItem[] = [];
         const text = document.getText();
         const offset = document.offsetAt(params.position);
+
+        // Check for AutoDoc trigger
+        const autoDocItems = getAutoDocCompletion(document, params.position);
+        if (autoDocItems.length > 0) {
+            return autoDocItems;
+        }
 
         // Get the text before cursor to determine context
         const lineStart = text.lastIndexOf('\n', offset - 1) + 1;

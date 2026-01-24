@@ -188,7 +188,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             implementationProvider: true,
             completionProvider: {
                 resolveProvider: true,
-                triggerCharacters: ['.', ':', '>', '-'],
+                triggerCharacters: ['.', ':', '>', '-', '!'],
             },
             signatureHelpProvider: {
                 triggerCharacters: ['(', ','],

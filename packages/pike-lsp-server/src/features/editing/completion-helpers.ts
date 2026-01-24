@@ -220,6 +220,44 @@ export function buildCompletionItem(
         detail,
     };
 
+    // Calculate relevance based on context
+    let priority = '5'; // Default
+    if (context === 'type') {
+        if (
+            kind === CompletionItemKind.Class ||
+            kind === CompletionItemKind.Module ||
+            kind === CompletionItemKind.Interface ||
+            kind === CompletionItemKind.Enum ||
+            kind === CompletionItemKind.Struct
+        ) {
+            priority = '0'; // High priority for types in type context
+        } else if (kind === CompletionItemKind.Constant) {
+            priority = '1'; // Constants can be types (typedefs)
+        } else {
+            priority = '9'; // Low priority for others (vars, funcs)
+        }
+    } else {
+        // Expression context
+        if (
+            kind === CompletionItemKind.Variable ||
+            kind === CompletionItemKind.Field ||
+            kind === CompletionItemKind.Property ||
+            kind === CompletionItemKind.Function ||
+            kind === CompletionItemKind.Method
+        ) {
+            priority = '0'; // High priority for values
+        } else if (kind === CompletionItemKind.Constant) {
+            priority = '1';
+        } else if (
+            kind === CompletionItemKind.Class ||
+            kind === CompletionItemKind.Module
+        ) {
+            priority = '2'; // Classes/Modules are useful for instantiation or static access
+        }
+    }
+
+    item.sortText = `${priority}_${name}`;
+
     // Add deprecated tag if applicable
     if ((symbolAny['deprecated'] as boolean) === true) {
         item.tags = [CompletionItemTag.Deprecated];

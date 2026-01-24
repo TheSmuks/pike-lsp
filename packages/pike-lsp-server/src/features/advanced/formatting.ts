@@ -87,10 +87,12 @@ export function registerFormattingHandlers(
 /**
  * Format Pike code with Pike-style indentation
  */
-function formatPikeCode(text: string, indent: string, startLine: number = 0): TextEdit[] {
+export function formatPikeCode(text: string, indent: string, startLine: number = 0): TextEdit[] {
     const lines = text.split('\n');
     const edits: TextEdit[] = [];
-    let indentLevel = 0;
+
+    // Stack of indentation levels. Start with 0.
+    const indentStack: number[] = [0];
     let pendingIndent = false;
     let inMultilineComment = false;
 
@@ -110,12 +112,14 @@ function formatPikeCode(text: string, indent: string, startLine: number = 0): Te
         if (trimmed.startsWith('/*')) {
             inMultilineComment = true;
         }
-        if (trimmed.endsWith('*/') || trimmed.includes('*/')) {
-            inMultilineComment = false;
-        }
 
+        const isCommentEnd = trimmed.endsWith('*/') || trimmed.includes('*/');
+
+        // Handle comments
         if (inMultilineComment || trimmed.startsWith('//') || trimmed.startsWith('*')) {
-            const expectedIndent = indent.repeat(indentLevel + (pendingIndent ? 1 : 0));
+            const currentBase = indentStack[indentStack.length - 1] ?? 0;
+            const commentIndentLevel = currentBase + (pendingIndent ? 1 : 0);
+            const expectedIndent = indent.repeat(commentIndentLevel);
             const currentIndent = originalLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
 
             if (currentIndent !== expectedIndent && !trimmed.startsWith('//!')) {
@@ -127,20 +131,29 @@ function formatPikeCode(text: string, indent: string, startLine: number = 0): Te
                     newText: expectedIndent
                 });
             }
+
+            if (isCommentEnd) {
+                inMultilineComment = false;
+            }
             continue;
         }
 
-        let extraIndent = 0;
+        // Calculate indentation for this line
+        let currentLevel = indentStack[indentStack.length - 1] ?? 0;
+
+        // If we have a pending indent from previous line (e.g. "if (x)"), apply it
+        const hadPendingIndent = pendingIndent;
         if (pendingIndent) {
-            extraIndent = 1;
+            currentLevel++;
             pendingIndent = false;
         }
 
+        // If line starts with closing brace, dedent visually
         if (trimmed.startsWith('}') || trimmed.startsWith(')')) {
-            indentLevel = Math.max(0, indentLevel - 1);
+             currentLevel = Math.max(0, currentLevel - 1);
         }
 
-        const expectedIndent = indent.repeat(indentLevel + extraIndent);
+        const expectedIndent = indent.repeat(currentLevel);
         const currentIndent = originalLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
 
         if (currentIndent !== expectedIndent) {
@@ -153,10 +166,22 @@ function formatPikeCode(text: string, indent: string, startLine: number = 0): Te
             });
         }
 
-        if (trimmed.endsWith('{')) {
-            indentLevel++;
-        } else if (trimmed.endsWith('(')) {
-            indentLevel++;
+        // Update Stack
+        let trackingLevel = indentStack[indentStack.length - 1] ?? 0;
+        if (hadPendingIndent) {
+            trackingLevel++;
+        }
+
+        const braceRegex = /[{}]/g;
+        let match: RegExpExecArray | null;
+        while ((match = braceRegex.exec(originalLine)) !== null) {
+            if (match[0] === '{') {
+                trackingLevel++;
+                indentStack.push(trackingLevel);
+            } else if (match[0] === '}') {
+                indentStack.pop();
+                trackingLevel = indentStack[indentStack.length - 1] ?? 0;
+            }
         }
 
         const isBracelessControl = controlKeywords.some(keyword => {
@@ -166,14 +191,6 @@ function formatPikeCode(text: string, indent: string, startLine: number = 0): Te
 
         if (isBracelessControl || (trimmed === 'else' || trimmed === '} else')) {
             pendingIndent = true;
-        }
-
-        const openBraces = (trimmed.match(INDENT_PATTERNS.OPEN_BRACE) ?? []).length;
-        const closeBraces = (trimmed.match(INDENT_PATTERNS.CLOSE_BRACE) ?? []).length;
-        const netBraces = openBraces - closeBraces;
-
-        if (netBraces < 0 && !trimmed.startsWith('}')) {
-            indentLevel = Math.max(0, indentLevel + netBraces);
         }
     }
 
