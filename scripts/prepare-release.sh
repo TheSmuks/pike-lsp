@@ -207,9 +207,8 @@ else
     temp=$(mktemp)
     jq ".version = \"$NEW_VERSION\"" package.json > "$temp" && mv "$temp" package.json
 
-    # Update extension package.json
-    temp=$(mktemp)
-    jq ".version = \"$NEW_VERSION\"" packages/vscode-pike/package.json > "$temp" && mv "$temp" packages/vscode-pike/package.json
+    # Sync version to ALL workspace packages
+    bash scripts/sync-versions.sh
 
     echo -e "${GREEN}✅ Versions updated${NC}"
 fi
@@ -233,7 +232,7 @@ fi
 # 3. Commit changes
 if [ $DRY_RUN -eq 0 ]; then
     echo -e "${BLUE}📤 Committing changes...${NC}"
-    git add package.json packages/vscode-pike/package.json CHANGELOG.md
+    git add package.json packages/*/package.json CHANGELOG.md
     git commit -m "chore(release): bump version to $NEW_VERSION"
     echo -e "${GREEN}✅ Committed${NC}"
 fi
