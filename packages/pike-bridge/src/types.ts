@@ -134,6 +134,10 @@ export interface PikeSymbol {
     type?: PikeType;
     /** Child symbols (for classes, modules, etc.) */
     children?: PikeSymbol[];
+    /** Whether the symbol is inherited */
+    inherited?: boolean;
+    /** Name of the class/module it is inherited from */
+    inheritedFrom?: string;
 }
 
 export type PikeSymbolKind =
@@ -337,6 +341,10 @@ export interface IntrospectedSymbol {
     modifiers: string[];
     /** Parsed autodoc documentation (if available) */
     documentation?: AutodocDocumentation;
+    /** Whether the symbol is inherited */
+    inherited?: boolean;
+    /** Name of the class/module it is inherited from */
+    inheritedFrom?: string;
 }
 
 /**

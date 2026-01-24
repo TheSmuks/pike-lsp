@@ -212,6 +212,16 @@ export function buildCompletionItem(
         detail = source;
     }
 
+    // Add inheritance info to detail
+    if (symbolAny['inherited']) {
+        const from = symbolAny['inheritedFrom'] as string | undefined;
+        if (from) {
+            detail += ` (Inherited from ${from})`;
+        } else {
+            detail += ` (Inherited)`;
+        }
+    }
+
     const kind = convertCompletionKind(symbol.kind);
 
     const item: CompletionItem = {

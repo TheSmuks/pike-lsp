@@ -95,41 +95,59 @@ export function registerSymbolsHandlers(
     function getSymbolDetail(symbol: PikeSymbol): string | undefined {
         // Type info is in various fields depending on symbol kind
         const sym = symbol as unknown as Record<string, unknown>;
+        let detail: string | undefined;
 
         if (sym['returnType']) {
             const returnType = sym['returnType'] as { name?: string };
             const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
             const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
-            return `${returnType.name ?? 'mixed'}(${args})`;
-        }
-
-        if (sym['type']) {
+            detail = `${returnType.name ?? 'mixed'}(${args})`;
+        } else if (sym['type']) {
             const type = sym['type'] as { name?: string };
-            return type.name;
+            detail = type.name;
         }
 
-        return undefined;
+        // Add inheritance info
+        if (sym['inherited']) {
+            const from = sym['inheritedFrom'] as string | undefined;
+            const inheritInfo = from ? `(from ${from})` : '(inherited)';
+            detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
+        }
+
+        return detail;
     }
 
     /**
      * Document symbols handler - provides outline view
      */
-    connection.onDocumentSymbol((params): DocumentSymbol[] | null => {
+    connection.onDocumentSymbol(async (params): Promise<DocumentSymbol[] | null> => {
         const uri = params.textDocument.uri;
 
         log.debug('Document symbol request', { uri });
 
         try {
-            const cached = documentCache.get(uri);
+            let cached = documentCache.get(uri);
+
+            if (!cached) {
+                // Wait for any pending validation
+                await documentCache.waitFor(uri);
+
+                // Race condition check: wait a tick
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                cached = documentCache.get(uri);
+            }
 
             if (!cached || !cached.symbols) {
                 return null;
             }
 
             // Filter out invalid symbols and convert
-            return cached.symbols
+            const converted = cached.symbols
                 .filter(s => s && s.name)
                 .map(convertSymbol);
+
+            return converted;
         } catch (err) {
             log.error('Document symbol failed', {
                 error: err instanceof Error ? err.message : String(err)
