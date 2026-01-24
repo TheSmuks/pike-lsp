@@ -1004,7 +1004,8 @@ protected string extract_symbol_name(string line) {
         "static", "public", "private", "protected", "final", "inline",
         "local", "optional", "variant", "nomask", "extern",
         "int", "float", "string", "array", "mapping", "multiset",
-        "object", "function", "program", "mixed", "void", "zero", "auto"
+        "object", "function", "program", "mixed", "void", "zero", "auto",
+        "this_program"
     >);
 
     for (int i = sizeof(tokens) - 1; i >= 0; i--) {
