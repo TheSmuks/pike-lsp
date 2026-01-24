@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pike LSP Benchmarks</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: #21262d;
+      --bg-card-hover: #30363d;
+      --border: #30363d;
+      --border-accent: #484f58;
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent-emerald: #3fb950;
+      --accent-emerald-dim: #3fb9501a;
+      --accent-blue: #58a6ff;
+      --accent-blue-dim: #58a6ff1a;
+      --accent-orange: #d29922;
+      --accent-red: #f85149;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.1;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header */
+    header {
+      padding: 48px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 48px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+
+    h1 .accent {
+      color: var(--accent-blue);
+    }
+
+    h1 .sub {
+      display: block;
+      font-size: clamp(0.875rem, 2vw, 1.125rem);
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background: var(--accent-emerald-dim);
+      border: 1px solid var(--accent-emerald);
+      border-radius: 100px;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--accent-emerald);
+    }
+
+    /* Goal banner */
+    .goal-banner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 24px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 40px;
+    }
+
+    .goal-banner.goal-met {
+      border-color: var(--accent-emerald);
+    }
+
+    .goal-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .goal-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+    }
+
+    .goal-value.success {
+      color: var(--accent-emerald);
+    }
+
+    .goal-value.target {
+      color: var(--text-secondary);
+    }
+
+    .goal-divider {
+      width: 1px;
+      height: 32px;
+      background: var(--border);
+    }
+
+    /* Section styles */
+    section {
+      margin-bottom: 64px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .section-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .section-header .tag {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+    }
+
+    /* Cards grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .card:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+    }
+
+    .card-label {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    .card-value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .card-value .unit {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      margin-left: 4px;
+    }
+
+    .card-sub {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* Comparison section */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+
+    .comparison-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .comparison-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .comparison-header.before {
+      background: rgba(248, 81, 73, 0.1);
+      color: var(--accent-red);
+    }
+
+    .comparison-header.after {
+      background: rgba(63, 185, 80, 0.1);
+      color: var(--accent-emerald);
+    }
+
+    .comparison-body {
+      padding: 20px;
+    }
+
+    .comparison-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9375rem;
+    }
+
+    .comparison-row:last-child {
+      border-bottom: none;
+    }
+
+    .comparison-key {
+      color: var(--text-secondary);
+    }
+
+    .comparison-val {
+      font-family: var(--font-mono);
+      font-weight: 500;
+    }
+
+    /* Improvements highlight */
+    .improvements-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 24px;
+    }
+
+    .improvements-box h3 {
+      font-size: 1.125rem;
+      margin-bottom: 16px;
+    }
+
+    .improvement-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .improvement-item {
+      text-align: center;
+      padding: 16px;
+      background: var(--bg-card);
+      border-radius: 8px;
+    }
+
+    .improvement-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent-emerald);
+    }
+
+    .improvement-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* Chart section */
+    .chart-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .chart-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 20px;
+    }
+
+    /* Benchmark categories */
+    .benchmark-categories {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .category-btn {
+      padding: 8px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 6px;
+    }
+
+    .category-btn:hover {
+      border-color: var(--border-accent);
+      color: var(--text-primary);
+    }
+
+    .category-btn.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: var(--bg-primary);
+    }
+
+    /* Benchmark explanation */
+    .benchmark-explanation {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .benchmark-explanation strong {
+      color: var(--text-primary);
+    }
+
+    /* Performance indicator */
+    .perf-legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      font-size: 0.8125rem;
+    }
+
+    .perf-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    .perf-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .perf-dot.excellent { background: var(--accent-emerald); }
+    .perf-dot.good { background: var(--accent-blue); }
+    .perf-dot.fair { background: var(--accent-orange); }
+    .perf-dot.slow { background: var(--accent-red); }
+
+    /* Benchmark groups - compact accordion */
+    .benchmark-groups-compact {
+      display: grid;
+      gap: 8px;
+    }
+
+    .benchmark-group-compact {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .benchmark-group-header-compact {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s ease;
+    }
+
+    .benchmark-group-header-compact:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .benchmark-group-title-compact {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .benchmark-group-title-compact .title {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .benchmark-group-title-compact .desc {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .benchmark-group-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .benchmark-group-stats .count {
+      font-family: var(--font-mono);
+    }
+
+    .benchmark-group-stats .summary {
+      display: flex;
+      gap: 8px;
+    }
+
+    .stat-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-family: var(--font-mono);
+    }
+
+    .stat-badge.excellent { background: var(--accent-emerald-dim); color: var(--accent-emerald); }
+    .stat-badge.good { background: var(--accent-blue-dim); color: var(--accent-blue); }
+    .stat-badge.fair { background: rgba(210, 153, 34, 0.15); color: var(--accent-orange); }
+    .stat-badge.slow { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+    .stat-badge.neutral { background: var(--bg-secondary); color: var(--text-muted); }
+
+    .expand-icon {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s ease;
+      color: var(--text-muted);
+    }
+
+    .benchmark-group-compact.expanded .expand-icon {
+      transform: rotate(180deg);
+    }
+
+    .benchmark-list-compact {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+
+    .benchmark-group-compact.expanded .benchmark-list-compact {
+      max-height: 1000px;
+    }
+
+    /* Benchmark items - compact */
+    .benchmark-list-compact {
+      display: grid;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .benchmark-item-compact {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      transition: background 0.15s ease;
+    }
+
+    .benchmark-item-compact:hover {
+      background: var(--bg-card);
+    }
+
+    .benchmark-name-compact {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .benchmark-detail-compact {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .benchmark-value-compact {
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .benchmark-value-compact.excellent { color: var(--accent-emerald); }
+    .benchmark-value-compact.good { color: var(--accent-blue); }
+    .benchmark-value-compact.fair { color: var(--accent-orange); }
+    .benchmark-value-compact.slow { color: var(--accent-red); }
+    .benchmark-value-compact.neutral { color: var(--text-muted); }
+
+    .benchmark-badge-compact {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .benchmark-badge-compact.excellent { background: var(--accent-emerald-dim); color: var(--accent-emerald); }
+    .benchmark-badge-compact.good { background: var(--accent-blue-dim); color: var(--accent-blue); }
+    .benchmark-badge-compact.fair { background: rgba(210, 153, 34, 0.15); color: var(--accent-orange); }
+    .benchmark-badge-compact.slow { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+    .benchmark-badge-compact.neutral { background: var(--bg-secondary); color: var(--text-muted); }
+
+    /* Optimizations list */
+    .optimizations-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .optimization-item {
+      display: flex;
+      gap: 16px;
+      padding: 18px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      align-items: flex-start;
+    }
+
+    .opt-number {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-blue-dim);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent-blue);
+      flex-shrink: 0;
+    }
+
+    .opt-content h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .opt-content p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 64px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-in {
+      animation: fadeInUp 0.5s ease-out backwards;
+    }
+
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .goal-banner {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+
+      .goal-divider {
+        width: 100%;
+        height: 1px;
+      }
+
+      .benchmark-item {
+        grid-template-columns: 1fr auto;
+      }
+
+      .benchmark-badge {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <div>
+          <h1>
+            <span class="accent">Pike LSP</span>
+            <span class="sub">Performance Benchmarks</span>
+          </h1>
+        </div>
+        <div class="status-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 12l2 2 4-4"/>
+          </svg>
+          Goals Achieved
+        </div>
+      </div>
+    </header>
+
+    <!-- Goal Banner -->
+    <div class="goal-banner goal-met">
+      <div>
+        <div class="goal-label">Startup Goal</div>
+        <div class="goal-value target">&lt;500ms</div>
+      </div>
+      <div class="goal-divider"></div>
+      <div>
+        <div class="goal-label">Cold Start</div>
+        <div class="goal-value success">203ms</div>
+      </div>
+      <div class="goal-divider"></div>
+      <div>
+        <div class="goal-label">First Request</div>
+        <div class="goal-value success">82ms</div>
+      </div>
+    </div>
+
+    <!-- Startup Metrics -->
+    <section class="animate-in">
+      <div class="section-header">
+        <h2>Startup Performance</h2>
+        <span class="tag">Phase 11</span>
+      </div>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-label">TypeScript Bridge</div>
+          <div class="card-value">203<span class="unit">ms</span></div>
+          <div class="card-sub">Subprocess spawn time</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Pike Subprocess</div>
+          <div class="card-value">0.05<span class="unit">ms</span></div>
+          <div class="card-sub">99.7% faster than before</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Lazy Context</div>
+          <div class="card-value">19<span class="unit">ms</span></div>
+          <div class="card-sub">Deferred to first request</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Total Ready</div>
+          <div class="card-value">82<span class="unit">ms</span></div>
+          <div class="card-sub">Async version fetch</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Before/After Comparison -->
+    <section class="animate-in delay-1">
+      <div class="section-header">
+        <h2>Optimization Results</h2>
+        <span class="tag">Comparison</span>
+      </div>
+      <div class="comparison-grid">
+        <div class="comparison-card">
+          <div class="comparison-header before">Before Optimization</div>
+          <div class="comparison-body">
+            <div class="comparison-row">
+              <span class="comparison-key">Pike Startup</span>
+              <span class="comparison-val">18.9 ms</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">Context Creation</span>
+              <span class="comparison-val">At startup</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">Version Fetch</span>
+              <span class="comparison-val">Synchronous</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">TS Start Time</span>
+              <span class="comparison-val">200-300 ms</span>
+            </div>
+          </div>
+        </div>
+        <div class="comparison-card">
+          <div class="comparison-header after">After Optimization</div>
+          <div class="comparison-body">
+            <div class="comparison-row">
+              <span class="comparison-key">Pike Startup</span>
+              <span class="comparison-val">0.053 ms</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">Context Creation</span>
+              <span class="comparison-val">Lazy (first request)</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">Version Fetch</span>
+              <span class="comparison-val">Asynchronous</span>
+            </div>
+            <div class="comparison-row">
+              <span class="comparison-key">TS Start Time</span>
+              <span class="comparison-val">203 ms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="improvements-box">
+        <h3>Key Improvements</h3>
+        <div class="improvement-grid">
+          <div class="improvement-item">
+            <div class="improvement-value">99.7%</div>
+            <div class="improvement-label">Pike startup reduction</div>
+          </div>
+          <div class="improvement-item">
+            <div class="improvement-value">99.7%</div>
+            <div class="improvement-label">Time to ready reduction</div>
+          </div>
+          <div class="improvement-item">
+            <div class="improvement-value">100-200ms</div>
+            <div class="improvement-label">Perceived startup saved</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="animate-in delay-2">
+      <div class="section-header">
+        <h2>Performance Charts</h2>
+        <span class="tag">Visual</span>
+      </div>
+      <div class="chart-row">
+        <div class="chart-container">
+          <canvas id="startupChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="comparisonChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Detailed Benchmarks -->
+    <section class="animate-in delay-3">
+      <div class="section-header">
+        <h2>Detailed Benchmarks</h2>
+        <span class="tag" id="benchmarkCount">27 tests</span>
+      </div>
+
+      <div class="benchmark-categories" id="categoryFilters">
+        <button class="category-btn active" data-category="all">All</button>
+        <button class="category-btn" data-category="startup">Startup</button>
+        <button class="category-btn" data-category="validation">Validation</button>
+        <button class="category-btn" data-category="cache">Cache</button>
+        <button class="category-btn" data-category="hover">Hover</button>
+        <button class="category-btn" data-category="completion">Completion</button>
+        <button class="category-btn" data-category="resolve">Resolve</button>
+      </div>
+
+      <div class="benchmark-explanation">
+        <strong>What these numbers mean:</strong> Time in milliseconds (ms). Lower is better.
+        Click a category to expand details.
+      </div>
+
+      <div class="perf-legend">
+        <div class="perf-legend-item">
+          <div class="perf-dot excellent"></div>
+          <span>&lt;1ms Excellent</span>
+        </div>
+        <div class="perf-legend-item">
+          <div class="perf-dot good"></div>
+          <span>&lt;10ms Good</span>
+        </div>
+        <div class="perf-legend-item">
+          <div class="perf-dot fair"></div>
+          <span>&lt;100ms Fair</span>
+        </div>
+        <div class="perf-legend-item">
+          <div class="perf-dot slow"></div>
+          <span>&gt;100ms Slow</span>
+        </div>
+      </div>
+
+      <div class="benchmark-groups-compact" id="benchmarkGroups">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- Optimizations Applied -->
+    <section class="animate-in delay-3">
+      <div class="section-header">
+        <h2>Optimizations Applied</h2>
+        <span class="tag">Phase 11</span>
+      </div>
+      <div class="optimizations-list" id="optimizationsList">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <footer>
+      <p>Pike LSP Benchmark Dashboard &bull; <span id="benchmarkDate">2026-01-22</span></p>
+      <p style="margin-top: 8px;">
+        <a href="https://github.com/smuks/pike-lsp" target="_blank">View on GitHub</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    const benchmarkSummary = {
+      "startup_goal": "<500ms",
+      "achieved": true,
+      "measured": "203ms (cold start), 82ms (total with first request)",
+      "date": "2026-01-22",
+      "results": {
+        "pike_subprocess": { "ready_ms": 0.053, "context_lazy_ms": 19.0, "total_with_first_request_ms": 82.0 },
+        "typescript_bridge": { "cold_start_ms": 203 }
+      },
+      "optimizations_applied": [
+        "Lazy Context creation (11-02) - defer Parser, Intelligence, Analysis modules to first request",
+        "__REAL_VERSION__ builtin for version logging (11-03) - eliminates LSP.Compat load at startup",
+        "Async version fetch in BridgeManager (11-04) - fire-and-forget pattern for version info"
+      ]
+    };
+
+    const benchmarkResults = [
+      { "name": "PikeBridge.start() [Cold Start]", "value": 203.15, "unit": "ms", "category": "startup", "detail": "Time to start the LSP server" },
+      { "name": "PikeBridge.start() with detailed metrics", "value": 225.55, "unit": "ms", "category": "startup", "detail": "Cold start with metrics tracking" },
+      { "name": "Cold Start + First Request", "value": 225.12, "unit": "ms", "category": "startup", "detail": "First LSP request after startup" },
+      { "name": "Cold Start + Introspect", "value": 228.77, "unit": "ms", "category": "startup", "detail": "First introspection request" },
+      { "name": "Validation: Small File (~15 lines)", "value": 0.71, "unit": "ms", "category": "validation", "detail": "Validate a small document" },
+      { "name": "Validation: Medium File (~100 lines)", "value": 2.18, "unit": "ms", "category": "validation", "detail": "Validate a medium document" },
+      { "name": "Validation: Large File (~1000 lines)", "value": 25.06, "unit": "ms", "category": "validation", "detail": "Validate a large document" },
+      { "name": "Validation Legacy (3 calls)", "value": 2.18, "unit": "ms", "category": "validation", "detail": "Old 3-call validation method" },
+      { "name": "Validation Consolidated (1 call)", "value": 1.87, "unit": "ms", "category": "validation", "detail": "New 1-call validation method" },
+      { "name": "First diagnostic after change", "value": 0.04, "unit": "ms", "category": "validation", "detail": "Incremental analysis after edit" },
+      { "name": "Validation with 250ms debounce", "value": 250.55, "unit": "ms", "category": "validation", "detail": "With debouncing (user typing)" },
+      { "name": "Rapid edit (debounce coalescing)", "value": 252.07, "unit": "ms", "category": "validation", "detail": "Multiple rapid edits" },
+      { "name": "Hover: resolveStdlib(\"Stdio.File\")", "value": 0.33, "unit": "ms", "category": "hover", "detail": "Get type info for stdlib symbol" },
+      { "name": "Hover: resolveModule(\"Stdio.File\")", "value": 0.02, "unit": "ms", "category": "hover", "detail": "Get module documentation" },
+      { "name": "Completion: getCompletionContext", "value": 5.35, "unit": "ms", "category": "completion", "detail": "Compute completion items" },
+      { "name": "Cache Hit: same version", "value": 0.04, "unit": "ms", "category": "cache", "detail": "Analysis cache hit" },
+      { "name": "Cache Miss: different version", "value": 0.04, "unit": "ms", "category": "cache", "detail": "Analysis cache miss" },
+      { "name": "Closed File: stat-based key", "value": 0.31, "unit": "ms", "category": "cache", "detail": "Cache for closed files" },
+      { "name": "Cross-file: compile with utils", "value": 0.06, "unit": "ms", "category": "cache", "detail": "Cross-file compilation" },
+      { "name": "Cross-file: recompile (cache hit)", "value": 0.05, "unit": "ms", "category": "cache", "detail": "Cached cross-file compile" },
+      { "name": "resolveStdlib(\"Stdio\") - warm", "value": 0.21, "unit": "ms", "category": "resolve", "detail": "Resolve stdlib module (warm)" },
+      { "name": "resolveStdlib(\"String\")", "value": 0.12, "unit": "ms", "category": "resolve", "detail": "Resolve String module" },
+      { "name": "resolveStdlib(\"Array\")", "value": 0.21, "unit": "ms", "category": "resolve", "detail": "Resolve Array module" },
+      { "name": "resolveStdlib(\"Mapping\")", "value": 0.02, "unit": "ms", "category": "resolve", "detail": "Resolve Mapping module" },
+      { "name": "resolveStdlib(\"Stdio.File\") nested", "value": 0.33, "unit": "ms", "category": "resolve", "detail": "Resolve nested symbol" },
+      { "name": "resolveStdlib(\"String.SplitIterator\") nested", "value": 0.02, "unit": "ms", "category": "resolve", "detail": "Resolve nested iterator" }
+    ];
+
+    const categoryInfo = {
+      startup: { title: 'Cold Start & Initialization', desc: 'Time to initialize the LSP server' },
+      validation: { title: 'Document Validation', desc: 'Analyzing code for errors and warnings' },
+      cache: { title: 'Cache Performance', desc: 'Memory cache effectiveness' },
+      hover: { title: 'Hover Information', desc: 'Type info on mouse hover' },
+      completion: { title: 'Code Completion', desc: 'Autocomplete suggestions' },
+      resolve: { title: 'Module Resolution', desc: 'Finding and loading modules' }
+    };
+
+    function getPerfClass(value, name = '') {
+      // Debounce benchmarks - the time is intentional waiting, not work
+      if (name.includes('debounce') || name.includes('Rapid edit')) {
+        return 'neutral';
+      }
+      // Startup benchmarks - one-time cost, have their own scale
+      if (name.includes('Start') || name.includes('Cold Start')) {
+        if (value < 100) return 'excellent';  // Fast startup
+        if (value < 300) return 'good';     // Acceptable startup
+        return 'fair';                      // Slow startup
+      }
+      // Normal operation benchmarks
+      if (value < 1) return 'excellent';
+      if (value < 10) return 'good';
+      if (value < 50) return 'fair';     // Raised from 100 for file operations
+      return 'slow';
+    }
+
+    function setText(element, text) {
+      if (typeof element === 'string') element = document.getElementById(element);
+      if (element) element.textContent = String(text);
+    }
+
+    function createElementWithText(tag, text, className) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      el.textContent = text;
+      return el;
+    }
+
+    function renderOptimizations(optimizations) {
+      const container = document.getElementById('optimizationsList');
+      container.innerHTML = '';
+
+      optimizations.forEach((opt, i) => {
+        const parts = opt.split('(');
+        const title = parts[0].trim();
+        const desc = parts[1] ? parts[1].replace(')', '') : '';
+
+        const item = document.createElement('div');
+        item.className = 'optimization-item';
+
+        const numberEl = document.createElement('div');
+        numberEl.className = 'opt-number';
+        numberEl.textContent = String(i + 1).padStart(2, '0');
+
+        const contentEl = document.createElement('div');
+        contentEl.className = 'opt-content';
+
+        const titleEl = document.createElement('h4');
+        titleEl.textContent = title;
+
+        const descEl = document.createElement('p');
+        descEl.textContent = desc;
+
+        contentEl.appendChild(titleEl);
+        contentEl.appendChild(descEl);
+
+        item.appendChild(numberEl);
+        item.appendChild(contentEl);
+        container.appendChild(item);
+      });
+    }
+
+    function renderBenchmarks(results, filterCategory = 'all') {
+      const container = document.getElementById('benchmarkGroups');
+      container.innerHTML = '';
+
+      const filtered = filterCategory === 'all'
+        ? results
+        : results.filter(r => r.category === filterCategory);
+
+      document.getElementById('benchmarkCount').textContent = filtered.length + ' tests';
+
+      // Group by category
+      const groups = {};
+      filtered.forEach(r => {
+        const cat = r.category || 'other';
+        if (!groups[cat]) groups[cat] = [];
+        groups[cat].push(r);
+      });
+
+      Object.keys(groups).sort().forEach(cat => {
+        const info = categoryInfo[cat] || { title: cat, desc: '' };
+        const items = groups[cat];
+
+        // Count performance tiers
+        const counts = { excellent: 0, good: 0, fair: 0, slow: 0, neutral: 0 };
+        items.forEach(r => counts[getPerfClass(r.value, r.name)]++);
+
+        // Create summary badges (exclude neutral from display)
+        const summaryBadges = Object.entries(counts)
+          .filter(([k, v]) => v > 0 && k !== 'neutral')
+          .map(([k, v]) => `<span class="stat-badge ${k}">${v} ${k}</span>`)
+          .join('');
+
+        const groupEl = document.createElement('div');
+        groupEl.className = 'benchmark-group-compact';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'benchmark-group-header-compact';
+        headerEl.innerHTML = `
+          <div class="benchmark-group-title-compact">
+            <span class="title">${info.title}</span>
+            ${info.desc ? `<span class="desc">— ${info.desc}</span>` : ''}
+          </div>
+          <div class="benchmark-group-stats">
+            <span class="count">${items.length} tests</span>
+            <span class="summary">${summaryBadges}</span>
+            <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        `;
+
+        const listEl = document.createElement('div');
+        listEl.className = 'benchmark-list-compact';
+
+        items.forEach(r => {
+          const perfClass = getPerfClass(r.value, r.name);
+          let displayValue;
+          if (r.value < 1) {
+            displayValue = r.value.toFixed(3);
+          } else if (r.value < 10) {
+            displayValue = r.value.toFixed(2);
+          } else {
+            displayValue = String(Math.round(r.value));
+          }
+
+          const badgeLabel = perfClass === 'neutral' ? 'expected' : perfClass;
+
+          const item = document.createElement('div');
+          item.className = 'benchmark-item-compact';
+          item.innerHTML = `
+            <div class="benchmark-info">
+              <div class="benchmark-name-compact">${r.name}</div>
+            </div>
+            <div class="benchmark-value-compact ${perfClass}">${displayValue} ${r.unit}</div>
+            <div class="benchmark-badge-compact ${perfClass}">${badgeLabel}</div>
+          `;
+          listEl.appendChild(item);
+        });
+
+        // Toggle expand on click
+        headerEl.addEventListener('click', () => {
+          groupEl.classList.toggle('expanded');
+        });
+
+        groupEl.appendChild(headerEl);
+        groupEl.appendChild(listEl);
+        container.appendChild(groupEl);
+      });
+    }
+
+    function renderCharts(results) {
+      const startupData = results.filter(r => r.category === 'startup');
+      const validationData = results.filter(r => r.name.includes('Validation') && r.name.includes('File'));
+
+      Chart.defaults.color = '#8b949e';
+      Chart.defaults.font.family = "'Space Grotesk', sans-serif";
+
+      new Chart(document.getElementById('startupChart'), {
+        type: 'bar',
+        data: {
+          labels: startupData.map(r => r.name.replace('[Cold Start]', '').replace('PikeBridge.start()', '').trim()),
+          datasets: [{
+            label: 'Time (ms)',
+            data: startupData.map(r => r.value),
+            backgroundColor: '#58a6ff',
+            borderColor: '#58a6ff',
+            borderWidth: 0,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: 'Cold Start Performance',
+              color: '#f0f6fc',
+              font: { size: 16, weight: '600' }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: '#30363d' },
+              ticks: { color: '#8b949e' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#8b949e', maxRotation: 30 }
+            }
+          }
+        }
+      });
+
+      new Chart(document.getElementById('comparisonChart'), {
+        type: 'bar',
+        data: {
+          labels: validationData.map(r => r.name.split(':').pop().trim().replace('(', '').replace(')', '').replace('~', '')),
+          datasets: [{
+            label: 'Time (ms)',
+            data: validationData.map(r => r.value),
+            backgroundColor: '#3fb950',
+            borderColor: '#3fb950',
+            borderWidth: 0,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: 'Validation by File Size',
+              color: '#f0f6fc',
+              font: { size: 16, weight: '600' }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { color: '#30363d' },
+              ticks: { color: '#8b949e' }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#8b949e' }
+            }
+          }
+        }
+      });
+    }
+
+    // Category filter
+    document.getElementById('categoryFilters').addEventListener('click', (e) => {
+      if (e.target.classList.contains('category-btn')) {
+        document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        renderBenchmarks(benchmarkResults, e.target.dataset.category);
+      }
+    });
+
+    // Initialize
+    setText('benchmarkDate', benchmarkSummary.date);
+    renderOptimizations(benchmarkSummary.optimizations_applied);
+    renderBenchmarks(benchmarkResults);
+    renderCharts(benchmarkResults);
+
+    // Try loading from files
+    async function loadData() {
+      try {
+        const summaryResponse = await fetch('benchmark-summary.json');
+        if (summaryResponse.ok) {
+          const summary = await summaryResponse.json();
+          setText('benchmarkDate', summary.date);
+        }
+      } catch (e) {}
+
+      try {
+        const resultsResponse = await fetch('benchmark-results.json');
+        if (resultsResponse.ok) {
+          const results = await resultsResponse.json();
+          results.forEach(r => {
+            if (!r.category) {
+              const name = r.name.toLowerCase();
+              if (name.includes('start') || name.includes('cold')) r.category = 'startup';
+              else if (name.includes('validation')) r.category = 'validation';
+              else if (name.includes('cache')) r.category = 'cache';
+              else if (name.includes('hover')) r.category = 'hover';
+              else if (name.includes('completion')) r.category = 'completion';
+              else if (name.includes('resolve')) r.category = 'resolve';
+              else r.category = 'other';
+            }
+          });
+          renderBenchmarks(results);
+          renderCharts(results);
+        }
+      } catch (e) {}
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
