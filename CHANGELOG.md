@@ -5,6 +5,29 @@ All notable changes to the Pike LSP project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.8] - 2026-01-24
+
+### Added
+- **Import IntelliSense** - Go-to-definition support for module paths (e.g., `Stdio.File`)
+- **Member access navigation** - Navigate to definitions via `->` operator (e.g., `file->read`)
+- **Expression utilities** - New `extractExpressionAtPosition()` for parsing Pike expressions at cursor
+- `ExpressionInfo` type for structured expression representation (base, member, operator, isModulePath)
+- Module path resolution for Pike stdlib modules (e.g., `Parser.Pike.split`)
+- E2E tests for inlay hints, folding ranges, document links, and selection ranges
+
+### Changed
+- Converted dynamic `require()` calls to static ES6 `import` statements for better module resolution
+- LSP server now sets proper working directory for correct module resolution
+- Selection ranges hierarchy fixed (parent now points to larger enclosing range)
+
+### Fixed
+- Performance test assertions now count symbols recursively (including nested children)
+- E2E test stability improvements for server-side features
+
+### Technical
+- Added `expression-utils.ts` with comprehensive expression parsing for Pike syntax
+- Updated test infrastructure to run previously skipped E2E tests
+
 ## [0.1.0-alpha.7] - 2026-01-24
 
 ### Added
@@ -118,6 +141,8 @@ A full-featured Language Server Protocol implementation for Pike.
 - 100% Pike stdlib compatibility - All 546+ files parse
 - Performance benchmarks with CI/CD integration
 
+[0.1.0-alpha.8]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.8
+[0.1.0-alpha.7]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.7
 [0.1.0-alpha.6]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.6
 [0.1.0-alpha.5]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.5
 [0.1.0-alpha.4]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.4
