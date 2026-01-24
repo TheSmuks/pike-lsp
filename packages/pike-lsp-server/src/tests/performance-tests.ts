@@ -23,6 +23,21 @@ interface PerformanceMetrics {
 
 const metrics: PerformanceMetrics[] = [];
 
+/**
+ * Count all symbols recursively, including nested children.
+ * Pike parser returns hierarchical symbols with children nested inside parent symbols.
+ */
+function countAllSymbols(symbols: unknown[]): number {
+    let count = 0;
+    for (const symbol of symbols as Array<{ children?: unknown[] }>) {
+        count++;
+        if (symbol.children && symbol.children.length > 0) {
+            count += countAllSymbols(symbol.children);
+        }
+    }
+    return count;
+}
+
 function measurePerformance<T>(
     operation: string,
     fn: () => Promise<T>,
@@ -66,7 +81,8 @@ describe('Performance Tests - Large File Parsing', () => {
         );
 
         assert.ok(result.symbols.length > 0, 'Should extract symbols');
-        assert.ok(result.symbols.length >= 50, 'Should extract at least 50 symbols from 100 lines');
+        const totalSymbols = countAllSymbols(result.symbols);
+        assert.ok(totalSymbols >= 50, `Should extract at least 50 symbols from 100 lines (got ${totalSymbols})`);
     });
 
     it('should parse large file (500+ lines)', async () => {
@@ -174,9 +190,10 @@ class ComplexClass {
         const result = await bridge.parse(code, 'complex.pike');
         const duration = performance.now() - start;
 
-        console.log(`  [PERF] Extract ${result.symbols.length} symbols: ${duration.toFixed(2)}ms`);
+        const totalSymbols = countAllSymbols(result.symbols);
+        console.log(`  [PERF] Extract ${totalSymbols} symbols: ${duration.toFixed(2)}ms`);
 
-        assert.ok(result.symbols.length >= 70, 'Should extract at least 70 symbols');
+        assert.ok(totalSymbols >= 70, `Should extract at least 70 symbols (got ${totalSymbols})`);
     });
 });
 
