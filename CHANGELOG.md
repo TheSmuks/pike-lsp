@@ -5,6 +5,19 @@ All notable changes to the Pike LSP project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.7] - 2026-01-24
+
+### Added
+- Code lens references now use standard VSCode peek view instead of custom QuickPick menu
+- CTRL+CLICK on symbol definition shows references peek view (context-aware navigation)
+- Comprehensive E2E LSP feature tests
+- Document cache unit tests
+- Stdlib index unit tests
+
+### Changed
+- References navigation now uses VSCode's native `vscode.openLocations` command
+- Definition handler provides context-aware behavior (references when on definition, navigation when on usage)
+
 ## [0.1.0-alpha.6] - 2026-01-24
 
 ### Fixed
