@@ -300,7 +300,9 @@ export function registerDiagnosticsHandlers(
             validationTimers.delete(uri);
             // LOG-14-01: Track debounce timer execution
             connection.console.log(`[DEBOUNCE] uri=${uri}, version=${version}, executing validateDocument`);
-            validateDocument(document).catch(err => {
+            const promise = validateDocument(document);
+            documentCache.setPending(uri, promise);
+            promise.catch(err => {
                 log.error('Debounced validation failed', {
                     uri,
                     error: err instanceof Error ? err.message : String(err)
@@ -357,6 +359,7 @@ export function registerDiagnosticsHandlers(
             const hasIntrospect = !!analyzeResult.result?.introspect;
             const hasDiagnostics = !!analyzeResult.result?.diagnostics;
             connection.console.log(`[VALIDATE] Analyze completed - parse: ${hasParse}, introspect: ${hasIntrospect}, diagnostics: ${hasDiagnostics}`);
+
 
             // Log cache hit/miss for debugging
             if (analyzeResult._perf) {
@@ -586,7 +589,9 @@ export function registerDiagnosticsHandlers(
     // Handle document open - validate immediately without debouncing
     documents.onDidOpen((event) => {
         connection.console.log(`Document opened: ${event.document.uri}`);
-        validateDocument(event.document).catch(err => {
+        const promise = validateDocument(event.document);
+        documentCache.setPending(event.document.uri, promise);
+        promise.catch(err => {
             log.error('Document open validation failed', {
                 uri: event.document.uri,
                 error: err instanceof Error ? err.message : String(err)
@@ -601,7 +606,9 @@ export function registerDiagnosticsHandlers(
 
     // Handle document save - validate immediately without debouncing
     documents.onDidSave((event) => {
-        validateDocument(event.document).catch(err => {
+        const promise = validateDocument(event.document);
+        documentCache.setPending(event.document.uri, promise);
+        promise.catch(err => {
             log.error('Document save validation failed', {
                 uri: event.document.uri,
                 error: err instanceof Error ? err.message : String(err)

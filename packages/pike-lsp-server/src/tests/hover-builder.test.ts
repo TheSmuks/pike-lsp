@@ -50,4 +50,18 @@ describe('Hover Builder', () => {
         assert.ok(content);
         assert.ok(content.includes('https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/Stdio/File.html'));
     });
+
+    it('displays inheritance information', () => {
+        const symbol: any = {
+            name: 'inherited_func',
+            kind: 'function',
+            returnType: { name: 'void' },
+            inherited: true,
+            inheritedFrom: 'ParentClass'
+        };
+
+        const content = buildHoverContent(symbol);
+        assert.ok(content);
+        assert.ok(content.includes('*Inherited from*: `ParentClass`'));
+    });
 });
