@@ -23,10 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Performance test assertions now count symbols recursively (including nested children)
 - E2E test stability improvements for server-side features
+- Benchmark false positives - Rolling average analysis replaces single-run comparison to reduce CI noise
 
 ### Technical
 - Added `expression-utils.ts` with comprehensive expression parsing for Pike syntax
 - Updated test infrastructure to run previously skipped E2E tests
+- Added `apply-rolling-average.js` for z-score based benchmark regression detection
 
 ## [0.1.0-alpha.7] - 2026-01-24
 

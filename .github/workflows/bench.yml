@@ -33,12 +33,20 @@ jobs:
         run: bash scripts/benchmark-ci.sh
         timeout-minutes: 10
 
-      - name: Check benchmark regression
+      - name: Check benchmark regression (cache metrics)
         run: |
           node scripts/check-benchmark-regression.js benchmark-results.json
         env:
           CACHE_HIT_THRESHOLD: 80  # Expect >80% hit rate for repeated requests
           COMPILE_SPEEDUP_THRESHOLD: 50  # Expect >50% speedup for cache hits
+
+      - name: Fetch gh-pages for historical data
+        run: git fetch origin gh-pages:gh-pages || true
+
+      - name: Check performance regression (rolling average)
+        run: node scripts/apply-rolling-average.js 5
+        env:
+          BENCHMARK_RESULTS: benchmark-results.json
 
       - name: Prepare for benchmark storage
         run: |
@@ -54,8 +62,8 @@ jobs:
           output-file-path: /tmp/benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
-          alert-threshold: '120%'
+          alert-threshold: '150%'
           comment-on-alert: true
-          fail-on-alert: true
+          fail-on-alert: false  # Rolling average analysis handles regression detection
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: benchmarks
