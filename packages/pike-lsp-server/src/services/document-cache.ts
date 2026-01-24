@@ -15,6 +15,7 @@ import type { DocumentCacheEntry } from '../core/types.js';
  */
 export class DocumentCache {
     private cache = new Map<string, DocumentCacheEntry>();
+    private pending = new Map<string, Promise<void>>();
 
     /**
      * Get cached document information.
@@ -33,6 +34,37 @@ export class DocumentCache {
     set(uri: string, entry: DocumentCacheEntry): void {
         this.cache.set(uri, entry);
     }
+
+    /**
+     * Mark a document as being validated.
+     * @param uri - Document URI
+     * @param promise - Validation promise
+     */
+    setPending(uri: string, promise: Promise<void>): void {
+        this.pending.set(uri, promise);
+        promise.finally(() => {
+            if (this.pending.get(uri) === promise) {
+                this.pending.delete(uri);
+            }
+        });
+    }
+
+    /**
+     * Wait for any pending validation for the document.
+     * @param uri - Document URI
+     * @returns Promise that resolves when validation is complete (or immediately if none pending)
+     */
+    async waitFor(uri: string): Promise<void> {
+        const pending = this.pending.get(uri);
+        if (pending) {
+            try {
+                await pending;
+            } catch (e) {
+                // Ignore errors, caller will check cache
+            }
+        }
+    }
+
 
     /**
      * Remove document from cache.

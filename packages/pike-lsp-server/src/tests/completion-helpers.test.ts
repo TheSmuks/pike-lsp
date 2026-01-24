@@ -41,4 +41,17 @@ describe('Completion Helpers', () => {
         assert.ok(exprItem.sortText!.startsWith('1_'), 'Constant should have priority 1 in expression context');
     });
 
+    it('adds inheritance info to detail', () => {
+        const symbol: any = {
+            kind: 'function',
+            name: 'my_func',
+            inherited: true,
+            inheritedFrom: 'ParentClass',
+            type: { kind: 'function', returnType: { name: 'void' } }
+        };
+
+        const item = buildCompletionItem('my_func', symbol, 'source');
+        assert.ok(item.detail);
+        assert.ok(item.detail.includes('(Inherited from ParentClass)'));
+    });
 });
