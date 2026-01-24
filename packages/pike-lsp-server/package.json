@@ -1,6 +1,6 @@
 {
   "name": "@pike-lsp/pike-lsp-server",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "description": "Pike Language Server Protocol implementation",
   "type": "module",
   "main": "./dist/server.js",
