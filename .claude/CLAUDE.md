@@ -46,17 +46,17 @@ This triggers the GitHub Actions release workflow (`.github/workflows/release.ym
 
 ```bash
 # Default test command - runs headless automatically
-cd packages/vscode-pike && pnpm test:features
+cd packages/vscode-pike && bun run test:features
 
 # Explicit headless (same behavior, just explicit)
-cd packages/vscode-pike && pnpm test:headless
+cd packages/vscode-pike && bun run test:headless
 ```
 
 The test script auto-selects: Xvfb (Linux) → Weston fallback → native (macOS/Windows).
 
 **Only use `USE_CURRENT_DISPLAY=1`** for debugging test failures interactively:
 ```bash
-USE_CURRENT_DISPLAY=1 pnpm test:features  # Uses your display - for debugging only
+USE_CURRENT_DISPLAY=1 bun run test:features  # Uses your display - for debugging only
 ```
 
 ## MANDATORY: E2E Verification Before Commits
@@ -67,7 +67,7 @@ USE_CURRENT_DISPLAY=1 pnpm test:features  # Uses your display - for debugging on
 
 ```bash
 # Single command - validates everything headlessly
-cd packages/vscode-pike && pnpm test:features
+cd packages/vscode-pike && bun run test:features
 ```
 
 Tests verify: document symbols, hover, go-to-definition, completion all return data.
@@ -78,7 +78,7 @@ Tests verify: document symbols, hover, go-to-definition, completion all return d
 
 1. **Pike compiles**: `pike -e 'compile_file("pike-scripts/analyzer.pike");'`
 
-2. **Bridge works**: `cd packages/pike-bridge && pnpm test`
+2. **Bridge works**: `cd packages/pike-bridge && bun run test`
 
 3. **Quick smoke test**:
    ```bash

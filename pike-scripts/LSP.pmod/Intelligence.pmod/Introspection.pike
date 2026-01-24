@@ -293,6 +293,56 @@ mapping introspect_program(program prog) {
         return result;
     }
 
+    // Get inheritance
+    array inherit_list = ({});
+    catch { inherit_list = Program.inherit_list(prog) || ({}); };
+    mapping(string:string) inherited_symbols = ([]);
+
+    // Pre-scan inherits to map symbols to parents
+    foreach (inherit_list, program parent_prog) {
+        string parent_path = "";
+        catch { parent_path = Program.defined(parent_prog) || ""; };
+        result->inherits += ({ ([ "path": parent_path ]) });
+
+        // Identify parent name
+        string parent_name = parent_path;
+        if (sizeof(parent_name) > 0) {
+            array parts = parent_name / "/";
+            string fname = parts[-1];
+            if (has_suffix(fname, ".pike")) fname = fname[..<5];
+            else if (has_suffix(fname, ".pmod")) fname = fname[..<6];
+            parent_name = fname;
+        } else {
+            parent_name = sprintf("%O", parent_prog);
+            // Cleanup /main()->Name or similar
+            if (has_value(parent_name, "->")) {
+                parent_name = (parent_name / "->")[-1];
+            }
+        }
+
+        // Extract symbols from parent to build inheritance map
+        // We use safe_instantiate to avoid crashes
+        object parent_inst = safe_instantiate(parent_prog);
+        if (parent_inst) {
+            array(string) p_syms = ({});
+            catch { p_syms = indices(parent_inst); };
+            foreach (p_syms, string s) {
+                inherited_symbols[s] = parent_name;
+            }
+        }
+    }
+
+    // Determine current program's file path for comparison
+    string prog_file = "";
+    catch {
+        string prog_loc = Program.defined(prog);
+        if (prog_loc) {
+            // Clean up line number if present (though Program.defined usually just returns file)
+            sscanf(prog_loc, "%s:%*d", prog_file);
+            if (!prog_file || sizeof(prog_file) == 0) prog_file = prog_loc;
+        }
+    };
+
     // Get symbols
     array(string) symbol_names = ({});
     array symbol_values = ({});
@@ -306,10 +356,46 @@ mapping introspect_program(program prog) {
 
         string kind = "variable";
         mapping type_info = ([ "kind": "mixed" ]);
+        int is_inherited = 0;
+        string inherited_from = 0;
 
         if (functionp(value)) {
             kind = "function";
             type_info = ([ "kind": "function" ]);
+
+            // Check for inheritance by comparing definition location
+            string func_loc = 0;
+            catch { func_loc = Function.defined(value); };
+
+            if (func_loc && sizeof(prog_file) > 0) {
+                 string func_file = "";
+                 sscanf(func_loc, "%s:%*d", func_file);
+                 // Normalize paths for comparison
+                 string norm_prog = replace(prog_file, "\\", "/");
+                 string norm_func = replace(func_file, "\\", "/");
+
+                 if (norm_prog != norm_func) {
+                     is_inherited = 1;
+                 }
+            }
+
+            if (inherited_symbols[name]) {
+                is_inherited = 1;
+                inherited_from = inherited_symbols[name];
+            } else if (is_inherited && !inherited_from) {
+                // If we detected inheritance via location but didn't find it in immediate parents,
+                // it might be deeper or from a parent that failed to instantiate.
+                // Try to guess from file name.
+                if (func_loc) {
+                    string func_file = "";
+                    sscanf(func_loc, "%s:%*d", func_file);
+                    if (sizeof(func_file) > 0) {
+                        array parts = replace(func_file, "\\", "/") / "/";
+                        inherited_from = parts[-1];
+                        if (has_suffix(inherited_from, ".pike")) inherited_from = inherited_from[..<5];
+                    }
+                }
+            }
 
             // Try to extract function signature from _typeof()
             mixed type_val;
@@ -376,12 +462,24 @@ mapping introspect_program(program prog) {
             type_info = ([ "kind": "program" ]);
         }
 
+        if (kind != "function" && inherited_symbols[name]) {
+             is_inherited = 1;
+             inherited_from = inherited_symbols[name];
+        }
+
         mapping symbol = ([
             "name": name,
             "type": type_info,
             "kind": kind,
             "modifiers": ({})
         ]);
+
+        if (is_inherited) {
+            symbol["inherited"] = 1;
+            if (inherited_from) {
+                symbol["inheritedFrom"] = inherited_from;
+            }
+        }
 
         result->symbols += ({ symbol });
 
@@ -392,16 +490,6 @@ mapping introspect_program(program prog) {
         } else if (kind == "class") {
             result->classes += ({ symbol });
         }
-    }
-
-    // Get inheritance
-    array inherit_list = ({});
-    catch { inherit_list = Program.inherit_list(prog) || ({}); };
-
-    foreach (inherit_list, program parent_prog) {
-        string parent_path = "";
-        catch { parent_path = Program.defined(parent_prog) || ""; };
-        result->inherits += ({ ([ "path": parent_path ]) });
     }
 
     return result;
@@ -432,6 +520,57 @@ mapping introspect_object(object obj) {
         return result;
     }
 
+    // Get inheritance from the object's program
+    program prog = object_program(obj);
+    mapping(string:string) inherited_symbols = ([]);
+    string prog_file = "";
+
+    if (prog) {
+        array inherit_list = ({});
+        catch { inherit_list = Program.inherit_list(prog) || ({}); };
+
+        foreach (inherit_list, program parent_prog) {
+            string parent_path = "";
+            catch { parent_path = Program.defined(parent_prog) || ""; };
+            result->inherits += ({ ([ "path": parent_path ]) });
+
+            // Identify parent name
+            string parent_name = parent_path;
+            if (sizeof(parent_name) > 0) {
+                array parts = replace(parent_name, "\\", "/") / "/";
+                string fname = parts[-1];
+                if (has_suffix(fname, ".pike")) fname = fname[..<5];
+                else if (has_suffix(fname, ".pmod")) fname = fname[..<6];
+                parent_name = fname;
+            } else {
+                parent_name = sprintf("%O", parent_prog);
+                // Cleanup /main()->Name or similar
+                if (has_value(parent_name, "->")) {
+                    parent_name = (parent_name / "->")[-1];
+                }
+            }
+
+            // Extract symbols from parent to build inheritance map
+            object parent_inst = safe_instantiate(parent_prog);
+            if (parent_inst) {
+                array(string) p_syms = ({});
+                catch { p_syms = indices(parent_inst); };
+                foreach (p_syms, string s) {
+                    inherited_symbols[s] = parent_name;
+                }
+            }
+        }
+
+        // Determine current program's file path for comparison
+        catch {
+            string prog_loc = Program.defined(prog);
+            if (prog_loc) {
+                sscanf(prog_loc, "%s:%*d", prog_file);
+                if (!prog_file || sizeof(prog_file) == 0) prog_file = prog_loc;
+            }
+        };
+    }
+
     // Get symbols directly from the object - no instantiation needed
     array(string) symbol_names = ({});
     array symbol_values = ({});
@@ -445,10 +584,43 @@ mapping introspect_object(object obj) {
 
         string kind = "variable";
         mapping type_info = ([ "kind": "mixed" ]);
+        int is_inherited = 0;
+        string inherited_from = 0;
 
         if (functionp(value)) {
             kind = "function";
             type_info = ([ "kind": "function" ]);
+
+            // Check for inheritance by comparing definition location
+            string func_loc = 0;
+            catch { func_loc = Function.defined(value); };
+
+            if (func_loc && sizeof(prog_file) > 0) {
+                 string func_file = "";
+                 sscanf(func_loc, "%s:%*d", func_file);
+                 // Normalize paths for comparison
+                 string norm_prog = replace(prog_file, "\\", "/");
+                 string norm_func = replace(func_file, "\\", "/");
+
+                 if (norm_prog != norm_func) {
+                     is_inherited = 1;
+                 }
+            }
+
+            if (is_inherited && inherited_symbols[name]) {
+                inherited_from = inherited_symbols[name];
+            } else if (is_inherited && !inherited_from) {
+                // Try to guess from file name.
+                if (func_loc) {
+                    string func_file = "";
+                    sscanf(func_loc, "%s:%*d", func_file);
+                    if (sizeof(func_file) > 0) {
+                        array parts = replace(func_file, "\\", "/") / "/";
+                        inherited_from = parts[-1];
+                        if (has_suffix(inherited_from, ".pike")) inherited_from = inherited_from[..<5];
+                    }
+                }
+            }
 
             // Try to extract function signature from _typeof()
             mixed type_val;
@@ -515,12 +687,24 @@ mapping introspect_object(object obj) {
             type_info = ([ "kind": "program" ]);
         }
 
+        if (kind != "function" && inherited_symbols[name]) {
+             is_inherited = 1;
+             inherited_from = inherited_symbols[name];
+        }
+
         mapping symbol = ([
             "name": name,
             "type": type_info,
             "kind": kind,
             "modifiers": ({})
         ]);
+
+        if (is_inherited) {
+            symbol["inherited"] = 1;
+            if (inherited_from) {
+                symbol["inheritedFrom"] = inherited_from;
+            }
+        }
 
         result->symbols += ({ symbol });
 
@@ -530,19 +714,6 @@ mapping introspect_object(object obj) {
             result->variables += ({ symbol });
         } else if (kind == "class") {
             result->classes += ({ symbol });
-        }
-    }
-
-    // Get inheritance from the object's program
-    program prog = object_program(obj);
-    if (prog) {
-        array inherit_list = ({});
-        catch { inherit_list = Program.inherit_list(prog) || ({}); };
-
-        foreach (inherit_list, program parent_prog) {
-            string parent_path = "";
-            catch { parent_path = Program.defined(parent_prog) || ""; };
-            result->inherits += ({ ([ "path": parent_path ]) });
         }
     }
 

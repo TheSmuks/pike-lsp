@@ -102,6 +102,16 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         parts.push(`\n${docsLink}`);
     }
 
+    // Add inheritance info
+    if (sym['inherited']) {
+        const from = sym['inheritedFrom'] as string | undefined;
+        if (from) {
+            parts.push(`\n*Inherited from*: \`${from}\``);
+        } else {
+            parts.push(`\n*Inherited*`);
+        }
+    }
+
     // Add modifiers if present
     if (symbol.modifiers && symbol.modifiers.length > 0) {
         parts.push(`\n*Modifiers*: ${symbol.modifiers.join(', ')}`);

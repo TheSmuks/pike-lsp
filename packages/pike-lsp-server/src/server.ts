@@ -114,13 +114,30 @@ function createServices(): features.Services {
 // ============================================================================
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
+    // DEBUG: Safe file logging
+    const logFile = '/tmp/pike-lsp-debug.log';
+    const log = (msg: string) => {
+        try {
+            fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+        } catch (e) {
+            // ignore
+        }
+    };
+
+    try {
+        log('onInitialize started');
+
+    // Do NOT override connection.console methods as it causes issues with 'this' context
     connection.console.log('Pike LSP Server initializing...');
+    log('Pike LSP Server initializing...');
 
     const analyzerPath = findAnalyzerPath();
     if (analyzerPath) {
         connection.console.log(`Found analyzer.pike at: ${analyzerPath}`);
+        log(`Found analyzer.pike at: ${analyzerPath}`);
     } else {
         connection.console.warn('Could not find analyzer.pike script');
+        log('Could not find analyzer.pike script');
     }
 
     const initOptions = params.initializationOptions as {
@@ -128,6 +145,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         diagnosticDelay?: number;
         env?: NodeJS.ProcessEnv
     } | undefined;
+
+    log(`Init options: ${JSON.stringify(initOptions)}`);
+
     const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv } = {
         pikePath: initOptions?.pikePath ?? 'pike',
         env: initOptions?.env ?? {},
@@ -150,6 +170,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         bridgeOptions.analyzerPath = analyzerPath;
     }
 
+    log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);
     const bridge = new PikeBridge(bridgeOptions);
     bridgeManager = new BridgeManager(bridge, logger);
 
@@ -157,64 +178,85 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     (services as features.Services).bridge = bridgeManager;
 
     try {
+        log('Checking Pike availability...');
         const available = await bridge.checkPike();
+        log(`Pike available: ${available}`);
+
         if (!available) {
             connection.console.warn('Pike executable not found. Some features may not work.');
+            log('Pike executable not found');
         } else {
             stdlibIndex = new StdlibIndexManager(bridge);
-            bridge.on('stderr', (msg: string) => connection.console.log(`[Pike] ${msg}`));
+            bridge.on('stderr', (msg: string) => {
+                connection.console.log(`[Pike] ${msg}`);
+                log(`[Pike STDERR] ${msg}`);
+            });
+
+            log('Starting bridge...');
             await bridgeManager.start();
+            log('Bridge started successfully');
             connection.console.log(`Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`);
         }
     } catch (err) {
-        connection.console.error(`Failed to start Pike bridge: ${err}`);
+        const errorMsg = `Failed to start Pike bridge: ${err}`;
+        connection.console.error(errorMsg);
+        log(errorMsg);
     }
 
     workspaceIndex.setBridge(bridge);
     workspaceIndex.setErrorCallback((message, uri) => {
         connection.console.warn(message + (uri ? ` (${uri})` : ''));
+        log(`[WorkspaceIndex Error] ${message} (${uri})`);
     });
+
+    log('onInitialize completing');
 
     return {
         capabilities: {
-            textDocumentSync: TextDocumentSyncKind.Incremental,
-            documentSymbolProvider: true,
-            workspaceSymbolProvider: true,
-            hoverProvider: true,
-            definitionProvider: true,
-            declarationProvider: true,
-            typeDefinitionProvider: true,
-            referencesProvider: true,
-            implementationProvider: true,
-            completionProvider: {
-                resolveProvider: true,
-                triggerCharacters: ['.', ':', '>', '-', '!'],
+                textDocumentSync: TextDocumentSyncKind.Incremental,
+                documentSymbolProvider: true,
+                workspaceSymbolProvider: true,
+                hoverProvider: true,
+                definitionProvider: true,
+                declarationProvider: true,
+                typeDefinitionProvider: true,
+                referencesProvider: true,
+                implementationProvider: true,
+                completionProvider: {
+                    resolveProvider: true,
+                    triggerCharacters: ['.', ':', '>', '-', '!'],
+                },
+                signatureHelpProvider: {
+                    triggerCharacters: ['(', ','],
+                },
+                renameProvider: {
+                    prepareProvider: true,
+                    // renameProvider is missing in capabilities interface for some reason, check version?
+                    // Wait, renameProvider can be boolean or RenameOptions.
+                },
+                callHierarchyProvider: true,
+                typeHierarchyProvider: true,
+                documentHighlightProvider: true,
+                foldingRangeProvider: true,
+                selectionRangeProvider: true,
+                inlayHintProvider: true,
+                semanticTokensProvider: {
+                    legend: { tokenTypes, tokenModifiers },
+                    full: true,
+                },
+                codeActionProvider: {
+                    codeActionKinds: ['quickfix', 'source.organizeImports'],
+                },
+                documentFormattingProvider: true,
+                documentRangeFormattingProvider: true,
+                documentLinkProvider: { resolveProvider: true },
+                codeLensProvider: { resolveProvider: true },
             },
-            signatureHelpProvider: {
-                triggerCharacters: ['(', ','],
-            },
-            renameProvider: {
-                prepareProvider: true,
-            },
-            callHierarchyProvider: true,
-            typeHierarchyProvider: true,
-            documentHighlightProvider: true,
-            foldingRangeProvider: true,
-            selectionRangeProvider: true,
-            inlayHintProvider: true,
-            semanticTokensProvider: {
-                legend: { tokenTypes, tokenModifiers },
-                full: true,
-            },
-            codeActionProvider: {
-                codeActionKinds: ['quickfix', 'source.organizeImports'],
-            },
-            documentFormattingProvider: true,
-            documentRangeFormattingProvider: true,
-            documentLinkProvider: { resolveProvider: true },
-            codeLensProvider: { resolveProvider: true },
-        },
-    };
+        };
+    } catch (err) {
+        connection.console.error(`CRITICAL ERROR in onInitialize: ${err instanceof Error ? err.stack : String(err)}`);
+        throw err;
+    }
 });
 
 connection.onInitialized(async () => {
