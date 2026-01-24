@@ -1,33 +1,33 @@
 {
-    "name": "@pike-lsp/pike-bridge",
-    "version": "0.1.0-alpha.5",
-    "description": "TypeScript <-> Pike subprocess communication layer",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/TheSmuks/pike-lsp.git"
+  "name": "@pike-lsp/pike-bridge",
+  "version": "0.1.0-alpha.6",
+  "description": "TypeScript <-> Pike subprocess communication layer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheSmuks/pike-lsp.git"
+  },
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
     },
-    "type": "module",
-    "main": "./dist/src/index.js",
-    "types": "./dist/src/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/src/index.d.ts",
-            "default": "./dist/src/index.js"
-        },
-        "./dist/*": "./dist/*"
-    },
-    "scripts": {
-        "build": "tsc",
-        "clean": "rm -rf dist",
-        "watch": "tsc --watch",
-        "test": "tsc && bun test dist/src/",
-        "typecheck": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@pike-lsp/core": "workspace:^"
-    },
-    "devDependencies": {
-        "@types/node": "^20.10.0",
-        "typescript": "^5.3.0"
-    }
+    "./dist/*": "./dist/*"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "watch": "tsc --watch",
+    "test": "tsc && bun test dist/src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pike-lsp/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
 }

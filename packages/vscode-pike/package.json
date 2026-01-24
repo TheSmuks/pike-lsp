@@ -1,158 +1,158 @@
 {
-    "name": "vscode-pike",
-    "displayName": "Pike Language Support",
-    "description": "Complete language support for Pike including IntelliSense, go-to-definition, find references, diagnostics, hover, signature help, code completion, semantic tokens, call hierarchy, and workspace symbols.",
-    "version": "0.1.0-alpha.5",
-    "publisher": "pike-lsp",
-    "license": "MIT",
-    "icon": "images/icon.png",
-    "galleryBanner": {
-        "color": "#1e3a5f",
-        "theme": "dark"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/TheSmuks/pike-lsp.git"
-    },
-    "engines": {
-        "vscode": "^1.85.0"
-    },
-    "categories": [
-        "Programming Languages",
-        "Linters"
-    ],
-    "keywords": [
-        "pike",
-        "pike programming language",
-        "lsp",
-        "intellisense",
-        "autocomplete",
-        "syntax highlighting",
-        "code navigation",
-        "diagnostics"
-    ],
-    "activationEvents": [
-        "onLanguage:pike"
-    ],
-    "main": "./dist/extension.js",
-    "extensionKind": [
-        "workspace"
-    ],
-    "contributes": {
-        "languages": [
-            {
-                "id": "pike",
-                "aliases": [
-                    "Pike",
-                    "pike"
-                ],
-                "extensions": [
-                    ".pike",
-                    ".pmod"
-                ],
-                "configuration": "./language-configuration.json"
-            }
+  "name": "vscode-pike",
+  "displayName": "Pike Language Support",
+  "description": "Complete language support for Pike including IntelliSense, go-to-definition, find references, diagnostics, hover, signature help, code completion, semantic tokens, call hierarchy, and workspace symbols.",
+  "version": "0.1.0-alpha.6",
+  "publisher": "pike-lsp",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e3a5f",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheSmuks/pike-lsp.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "pike",
+    "pike programming language",
+    "lsp",
+    "intellisense",
+    "autocomplete",
+    "syntax highlighting",
+    "code navigation",
+    "diagnostics"
+  ],
+  "activationEvents": [
+    "onLanguage:pike"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pike",
+        "aliases": [
+          "Pike",
+          "pike"
         ],
-        "grammars": [
-            {
-                "language": "pike",
-                "scopeName": "source.pike",
-                "path": "./syntaxes/pike.tmLanguage.json"
-            }
+        "extensions": [
+          ".pike",
+          ".pmod"
         ],
-        "commands": [
-            {
-                "command": "pike-module-path.add",
-                "title": "Add to Pike Module Path"
-            },
-            {
-                "command": "pike.lsp.showDiagnostics",
-                "title": "Show Diagnostics",
-                "category": "Pike LSP"
-            }
-        ],
-        "menus": {
-            "explorer/context": [
-                {
-                    "when": "explorerResourceIsFolder",
-                    "command": "pike-module-path.add"
-                }
-            ]
-        },
-        "configuration": {
-            "type": "object",
-            "title": "Pike",
-            "properties": {
-                "pike.pikePath": {
-                    "type": "string",
-                    "default": "pike",
-                    "description": "Path to the Pike executable"
-                },
-                "pike.pikeModulePath": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "default": [],
-                    "description": "Module Path"
-                },
-                "pike.pikeIncludePath": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "default": [],
-                    "description": "Include Path"
-                },
-                "pike.trace.server": {
-                    "type": "string",
-                    "enum": [
-                        "off",
-                        "messages",
-                        "verbose"
-                    ],
-                    "default": "off",
-                    "description": "Traces the communication between VS Code and the Pike language server"
-                },
-                "pike.diagnosticDelay": {
-                    "type": "number",
-                    "default": 250,
-                    "minimum": 50,
-                    "maximum": 2000,
-                    "description": "Delay in milliseconds before running diagnostics after a document change"
-                }
-            }
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pike",
+        "scopeName": "source.pike",
+        "path": "./syntaxes/pike.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "pike-module-path.add",
+        "title": "Add to Pike Module Path"
+      },
+      {
+        "command": "pike.lsp.showDiagnostics",
+        "title": "Show Diagnostics",
+        "category": "Pike LSP"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "explorerResourceIsFolder",
+          "command": "pike-module-path.add"
         }
+      ]
     },
-    "scripts": {
-        "build": "bun run build:extension && bun run build:test",
-        "build:extension": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
-        "build:test": "tsc -p src/test/tsconfig.test.json && tsc -p src/test/tsconfig.bun-test.json",
-        "clean": "rm -rf dist server",
-        "watch": "tsc --watch",
-        "bundle-server": "bash scripts/bundle-server.sh",
-        "package": "bun run build && bun run bundle-server && vsce package --no-dependencies",
-        "typecheck": "tsc --noEmit",
-        "vscode:prepublish": "bun run build && bun run bundle-server",
-        "test": "bun run build:test && vscode-test",
-        "test:unit": "bun run build:test && bun test dist/test/mockOutputChannel.test.js",
-        "test:integration": "bun run build:test && node dist/test/extension.test.js",
-        "test:features": "bun run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
-        "test:headless": "bash scripts/test-headless.sh",
-        "test:features:headless": "bash scripts/test-headless.sh --grep 'LSP Feature E2E'"
-    },
-    "dependencies": {
-        "vscode-languageclient": "^9.0.1"
-    },
-    "devDependencies": {
-        "@types/mocha": "^10.0.10",
-        "@types/node": "^20.10.0",
-        "@types/vscode": "^1.85.0",
-        "@vscode/test-cli": "^0.0.12",
-        "@vscode/test-electron": "^2.5.2",
-        "@vscode/vsce": "^2.22.0",
-        "esbuild": "^0.20.0",
-        "glob": "^13.0.0",
-        "typescript": "^5.3.0"
+    "configuration": {
+      "type": "object",
+      "title": "Pike",
+      "properties": {
+        "pike.pikePath": {
+          "type": "string",
+          "default": "pike",
+          "description": "Path to the Pike executable"
+        },
+        "pike.pikeModulePath": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Module Path"
+        },
+        "pike.pikeIncludePath": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Include Path"
+        },
+        "pike.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Pike language server"
+        },
+        "pike.diagnosticDelay": {
+          "type": "number",
+          "default": 250,
+          "minimum": 50,
+          "maximum": 2000,
+          "description": "Delay in milliseconds before running diagnostics after a document change"
+        }
+      }
     }
+  },
+  "scripts": {
+    "build": "bun run build:test && bun run build:extension",
+    "build:extension": "esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=dist/extension.js",
+    "build:test": "tsc -p src/test/tsconfig.test.json && tsc -p src/test/tsconfig.bun-test.json",
+    "clean": "rm -rf dist server",
+    "watch": "tsc --watch",
+    "bundle-server": "bash scripts/bundle-server.sh",
+    "package": "bun run build && bun run bundle-server && vsce package --no-dependencies",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "bun run build && bun run bundle-server",
+    "test": "bun run build:test && vscode-test",
+    "test:unit": "bun run build:test && bun test dist/test/mockOutputChannel.test.js",
+    "test:integration": "bun run build:test && node dist/test/extension.test.js",
+    "test:features": "bun run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
+    "test:headless": "bash scripts/test-headless.sh",
+    "test:features:headless": "bash scripts/test-headless.sh --grep 'LSP Feature E2E'"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^2.22.0",
+    "esbuild": "^0.20.0",
+    "glob": "^13.0.0",
+    "typescript": "^5.3.0"
+  }
 }
