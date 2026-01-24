@@ -152,17 +152,25 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
         };
     }
 
+    // Determine the server package root directory for proper module resolution
+    // The server.js file is in dist/, but relative imports need the package root as cwd
+    const serverDir = path.dirname(path.dirname(serverModule));
+
     // Server options - run the server as a Node.js module
     serverOptions = {
         run: {
             module: serverModule,
             transport: TransportKind.ipc,
+            options: {
+                cwd: serverDir,
+            },
         },
         debug: {
             module: serverModule,
             transport: TransportKind.ipc,
             options: {
                 execArgv: ['--nolazy', '--inspect=6009'],
+                cwd: serverDir,
             },
         },
     };

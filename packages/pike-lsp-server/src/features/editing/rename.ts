@@ -11,6 +11,7 @@ import {
     TextDocuments,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import * as fs from 'fs';
 import type { Services } from '../../services/index.js';
 
 /**
@@ -165,7 +166,7 @@ export function registerRenameHandlers(
 
             try {
                 const filePath = decodeURIComponent(wsUri.replace(/^file:\/\//, ''));
-                const fileContent = require('fs').readFileSync(filePath, 'utf-8');
+                const fileContent = fs.readFileSync(filePath, 'utf-8');
                 const fileEdits: TextEdit[] = [];
                 const fileLines = fileContent.split('\n');
 

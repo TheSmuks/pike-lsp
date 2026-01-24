@@ -2,6 +2,7 @@
  * Definition Handlers
  *
  * Provides go-to-definition, declaration, and type-definition navigation.
+ * Supports module path resolution (Stdio.File) and member access (file->read).
  */
 
 import {
@@ -13,6 +14,8 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
+import { extractExpressionAtPosition } from './expression-utils.js';
+import type { ExpressionInfo } from '@pike-lsp/pike-bridge';
 
 /**
  * Register definition handlers.
@@ -27,7 +30,10 @@ export function registerDefinitionHandlers(
 
     /**
      * Definition handler - go to symbol definition
-     * If cursor is already on a definition, returns usages of that symbol instead
+     * Supports:
+     * - Local symbol navigation
+     * - Module path resolution (Stdio.File -> Pike stdlib)
+     * - Member access navigation (file->read -> method definition)
      */
     connection.onDefinition(async (params): Promise<Location | Location[] | null> => {
         log.debug('Definition request', { uri: params.textDocument.uri });
@@ -40,7 +46,37 @@ export function registerDefinitionHandlers(
                 return null;
             }
 
-            // Find symbol at cursor position
+            // First, try to extract expression at cursor position
+            const expr = extractExpressionAtPosition(document, params.position);
+            if (expr) {
+                log.debug('Definition: extracted expression', { expression: expr });
+
+                // Try module path resolution first
+                if (expr.isModulePath || expr.operator === '.') {
+                    const moduleLocation = await resolveModulePath(services, expr, document, uri);
+                    if (moduleLocation) {
+                        return moduleLocation;
+                    }
+                }
+
+                // Try member access resolution
+                if (expr.member && expr.operator === '->') {
+                    const memberLocation = await resolveMemberAccess(services, expr, cached, uri);
+                    if (memberLocation) {
+                        return memberLocation;
+                    }
+                }
+
+                // Try module path with member (Stdio.File->read)
+                if (expr.member && expr.operator === '.') {
+                    const moduleMemberLocation = await resolveModuleMember(services, expr, document);
+                    if (moduleMemberLocation) {
+                        return moduleMemberLocation;
+                    }
+                }
+            }
+
+            // Fallback to local symbol lookup
             const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
             if (!symbol || !symbol.position) {
                 return null;
@@ -320,4 +356,209 @@ function findReferencesForSymbol(
     }
 
     return references;
+}
+
+/**
+ * Resolve a module path to its file location.
+ * Handles dotted module paths like "Stdio.File" or "Parser.Pike".
+ */
+async function resolveModulePath(
+    services: Services,
+    expr: ExpressionInfo,
+    _document: TextDocument,
+    _currentUri: string
+): Promise<Location | null> {
+    const { stdlibIndex, bridge } = services;
+
+    if (!stdlibIndex || !bridge) {
+        return null;
+    }
+
+    // Build the module path to resolve
+    let modulePath = expr.base;
+    if (expr.operator === '.' && !expr.isModulePath && expr.member) {
+        // For simple dot access like "Stdio.File", use the full path
+        modulePath = expr.fullPath;
+    }
+
+    try {
+        const moduleInfo = await stdlibIndex.getModule(modulePath);
+        if (!moduleInfo || !moduleInfo.resolvedPath) {
+            return null;
+        }
+
+        // Convert file path to URI
+        const uri = moduleInfo.resolvedPath.startsWith('file://')
+            ? moduleInfo.resolvedPath
+            : `file://${moduleInfo.resolvedPath}`;
+
+        // Find the specific symbol within the module if a member was requested
+        // Note: IntrospectedSymbol doesn't have position info, so we return the module file
+        if (expr.member && moduleInfo.symbols) {
+            const memberSymbol = moduleInfo.symbols.get(expr.member);
+            if (memberSymbol) {
+                // Return the module file location since introspected symbols don't have line positions
+                return {
+                    uri,
+                    range: {
+                        start: { line: 0, character: 0 },
+                        end: { line: 0, character: 0 },
+                    },
+                };
+            }
+        }
+
+        // Return the module file location (line 0 by default)
+        return {
+            uri,
+            range: {
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 0 },
+            },
+        };
+    } catch (error) {
+        const log = new Logger('Navigation');
+        log.debug('Module path resolution failed', {
+            modulePath,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
+/**
+ * Resolve member access (variable->member) to its definition.
+ * First resolves the variable's type, then finds the member within that type.
+ */
+async function resolveMemberAccess(
+    services: Services,
+    expr: ExpressionInfo,
+    cached: any,
+    currentUri: string
+): Promise<Location | null> {
+    const { stdlibIndex } = services;
+
+    if (!stdlibIndex || !expr.base || !expr.member) {
+        return null;
+    }
+
+    try {
+        // Find the base variable in local symbols to get its type
+        const baseSymbol = cached.symbols?.find((s: any) => s.name === expr.base);
+        let typeName: string | null = null;
+
+        if (baseSymbol) {
+            // Try to get type from introspection result
+            if (baseSymbol.type) {
+                const type = baseSymbol.type;
+                if (type.kind === 'object' && type.className) {
+                    typeName = type.className;
+                } else if (type.kind === 'program' && type.className) {
+                    typeName = type.className;
+                }
+            }
+        }
+
+        // If no type from symbol, try extracting from the first use
+        if (!typeName && baseSymbol?.position) {
+            // Could add more sophisticated type inference here
+            // For now, try to find type annotations in the code
+        }
+
+        if (!typeName) {
+            return null;
+        }
+
+        // Resolve the type module
+        const moduleInfo = await stdlibIndex.getModule(typeName);
+        if (!moduleInfo || !moduleInfo.symbols) {
+            return null;
+        }
+
+        // Find the member in the module
+        const memberSymbol = moduleInfo.symbols.get(expr.member);
+        if (!memberSymbol) {
+            return null;
+        }
+
+        // Build URI from module path
+        const uri = moduleInfo.resolvedPath?.startsWith('file://')
+            ? moduleInfo.resolvedPath
+            : moduleInfo.resolvedPath
+                ? `file://${moduleInfo.resolvedPath}`
+                : currentUri;
+
+        // Return the module file location since introspected symbols don't have line positions
+        const line = 0;
+        return {
+            uri,
+            range: {
+                start: { line, character: 0 },
+                end: { line, character: expr.member.length },
+            },
+        };
+    } catch (error) {
+        const log = new Logger('Navigation');
+        log.debug('Member access resolution failed', {
+            base: expr.base,
+            member: expr.member,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
+}
+
+/**
+ * Resolve a module member (e.g., "Parser.Pike.split").
+ * Resolves the base module, then finds the member within it.
+ */
+async function resolveModuleMember(
+    services: Services,
+    expr: ExpressionInfo,
+    document: TextDocument
+): Promise<Location | null> {
+    const { stdlibIndex } = services;
+
+    if (!stdlibIndex || !expr.base || !expr.member) {
+        return null;
+    }
+
+    try {
+        // Resolve the base module
+        const moduleInfo = await stdlibIndex.getModule(expr.base);
+        if (!moduleInfo || !moduleInfo.symbols) {
+            return null;
+        }
+
+        // Find the member in the module
+        const memberSymbol = moduleInfo.symbols.get(expr.member);
+        if (!memberSymbol) {
+            return null;
+        }
+
+        // Build URI from module path
+        const uri = moduleInfo.resolvedPath?.startsWith('file://')
+            ? moduleInfo.resolvedPath
+            : moduleInfo.resolvedPath
+                ? `file://${moduleInfo.resolvedPath}`
+                : document.uri;
+
+        // Return the module file location since introspected symbols don't have line positions
+        const line = 0;
+        return {
+            uri,
+            range: {
+                start: { line, character: 0 },
+                end: { line, character: expr.member.length },
+            },
+        };
+    } catch (error) {
+        const log = new Logger('Navigation');
+        log.debug('Module member resolution failed', {
+            base: expr.base,
+            member: expr.member,
+            error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+    }
 }

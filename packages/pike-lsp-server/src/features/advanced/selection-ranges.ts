@@ -60,10 +60,12 @@ export function registerSelectionRangesHandler(
                     lineEnd++;
                 }
 
-                const wordRange: SelectionRange = {
+                // Build selection range hierarchy: word → line → document
+                // Parent points to the LARGER enclosing range
+                const docRange: SelectionRange = {
                     range: {
-                        start: document.positionAt(wordStart),
-                        end: document.positionAt(wordEnd),
+                        start: { line: 0, character: 0 },
+                        end: document.positionAt(text.length),
                     },
                 };
 
@@ -72,19 +74,16 @@ export function registerSelectionRangesHandler(
                         start: document.positionAt(lineStart),
                         end: document.positionAt(lineEnd),
                     },
-                    parent: wordRange,
+                    parent: docRange,
                 };
 
-                const docRange: SelectionRange = {
+                const wordRange: SelectionRange = {
                     range: {
-                        start: { line: 0, character: 0 },
-                        end: document.positionAt(text.length),
+                        start: document.positionAt(wordStart),
+                        end: document.positionAt(wordEnd),
                     },
                     parent: lineRange,
                 };
-
-                wordRange.parent = lineRange;
-                lineRange.parent = docRange;
 
                 results.push(wordRange);
             }
