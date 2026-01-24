@@ -9,12 +9,14 @@ import {
     CompletionItem,
     CompletionItemKind,
     TextDocuments,
+    MarkupKind,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
-import { buildCompletionItem } from './completion-helpers.js';
+import { buildCompletionItem, extractTypeName as extractTypeNameHelper } from './completion-helpers.js';
 import { getAutoDocCompletion } from './autodoc.js';
+import { buildHoverContent } from '../utils/hover-builder.js';
 
 /**
  * Register code completion handlers.
@@ -307,9 +309,8 @@ export function registerCompletionHandlers(
             if (cached) {
                 const symbol = cached.symbols.find(s => s.name === data.name);
                 if (symbol) {
-                    const { buildHoverContent } = require('../utils/hover-builder.js');
-                    item.documentation = {
-                        kind: require('vscode-languageserver/node.js').MarkupKind.Markdown,
+    item.documentation = {
+                        kind: MarkupKind.Markdown,
                         value: buildHoverContent(symbol) ?? '',
                     };
                 }
@@ -425,6 +426,5 @@ function getCompletionContext(lineText: string): 'type' | 'expression' {
  * Extract a class/module name from a Pike type object
  */
 function extractTypeName(typeObj: unknown): string | null {
-    const { extractTypeName } = require('./completion-helpers.js');
-    return extractTypeName(typeObj);
+    return extractTypeNameHelper(typeObj);
 }

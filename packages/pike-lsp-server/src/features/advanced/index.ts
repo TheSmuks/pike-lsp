@@ -21,6 +21,14 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { PikeSettings } from '../../core/types.js';
+import { registerFoldingRangeHandler } from './folding.js';
+import { registerSemanticTokensHandler } from './semantic-tokens.js';
+import { registerInlayHintsHandler } from './inlay-hints.js';
+import { registerSelectionRangesHandler } from './selection-ranges.js';
+import { registerCodeActionsHandler } from './code-actions.js';
+import { registerFormattingHandlers } from './formatting.js';
+import { registerDocumentLinksHandler } from './document-links.js';
+import { registerCodeLensHandlers } from './code-lens.js';
 
 export { registerFoldingRangeHandler } from './folding.js';
 export { registerSemanticTokensHandler } from './semantic-tokens.js';
@@ -47,15 +55,6 @@ export function registerAdvancedHandlers(
     _globalSettings: PikeSettings,
     includePaths: string[]
 ): void {
-    const { registerFoldingRangeHandler } = require('./folding.js');
-    const { registerSemanticTokensHandler } = require('./semantic-tokens.js');
-    const { registerInlayHintsHandler } = require('./inlay-hints.js');
-    const { registerSelectionRangesHandler } = require('./selection-ranges.js');
-    const { registerCodeActionsHandler } = require('./code-actions.js');
-    const { registerFormattingHandlers } = require('./formatting.js');
-    const { registerDocumentLinksHandler } = require('./document-links.js');
-    const { registerCodeLensHandlers } = require('./code-lens.js');
-
     registerFoldingRangeHandler(connection, services, documents);
     registerSemanticTokensHandler(connection, services, documents);
     registerInlayHintsHandler(connection, services, documents);
