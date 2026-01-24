@@ -19,10 +19,14 @@ import {
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
+import { registerHoverHandler } from './hover.js';
+import { registerDefinitionHandlers } from './definition.js';
+import { registerReferencesHandlers } from './references.js';
 
 export { registerHoverHandler } from './hover.js';
 export { registerDefinitionHandlers } from './definition.js';
 export { registerReferencesHandlers } from './references.js';
+export { extractExpressionAtPosition } from './expression-utils.js';
 
 /**
  * Register all navigation handlers with the LSP connection.
@@ -36,10 +40,6 @@ export function registerNavigationHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { registerHoverHandler } = require('./hover.js');
-    const { registerDefinitionHandlers } = require('./definition.js');
-    const { registerReferencesHandlers } = require('./references.js');
-
     registerHoverHandler(connection, services, documents);
     registerDefinitionHandlers(connection, services, documents);
     registerReferencesHandlers(connection, services, documents);
