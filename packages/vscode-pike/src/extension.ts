@@ -10,19 +10,17 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { ExtensionContext, ConfigurationTarget, Position, Uri, commands, workspace, window, OutputChannel } from 'vscode';
+import { ExtensionContext, ConfigurationTarget, Position, Uri, Location, commands, workspace, window, OutputChannel } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
     ServerOptions,
     TransportKind,
 } from 'vscode-languageclient/node';
-import { DEFAULT_DIAGNOSTIC_DELAY, DEBUG_PORT } from './constants.js';
 
 let client: LanguageClient | undefined;
 let serverOptions: ServerOptions | null = null;
 let outputChannel: OutputChannel;
-let diagnosticsCommandDisposable: ReturnType<typeof commands.registerCommand> | undefined;
 
 /**
  * Extension API exported for testing
@@ -33,53 +31,14 @@ export interface ExtensionApi {
     getLogs(): string[];
 }
 
-// Test mode flag - can be set via environment variable
-const TEST_MODE = process.env['PIKE_LSP_TEST_MODE'] === 'true';
-
-/**
- * Console-logging output channel wrapper for E2E tests
- * Wraps a real OutputChannel but also logs everything to console
- * so test runners can capture Pike server errors.
- */
-function createTestOutputChannel(name: string): OutputChannel {
-    const realChannel = window.createOutputChannel(name);
-    return {
-        name: realChannel.name,
-        append: (value: string) => {
-            console.log(`[${name}] ${value}`);
-            realChannel.append(value);
-        },
-        appendLine: (value: string) => {
-            console.log(`[${name}] ${value}`);
-            realChannel.appendLine(value);
-        },
-        replace: (value: string) => {
-            console.log(`[${name}] (replace) ${value}`);
-            realChannel.replace(value);
-        },
-        clear: () => realChannel.clear(),
-        show: (column?: any, preserveFocus?: boolean) => realChannel.show(column, preserveFocus),
-        hide: () => realChannel.hide(),
-        dispose: () => realChannel.dispose(),
-    };
-}
-
 /**
  * Internal activation implementation
  */
 async function activateInternal(context: ExtensionContext, testOutputChannel?: OutputChannel): Promise<ExtensionApi> {
     console.log('Pike Language Extension is activating...');
 
-    // Use provided test output channel, or create one
-    // In test mode, wrap with console logging so tests can see Pike errors
-    if (testOutputChannel) {
-        outputChannel = testOutputChannel;
-    } else if (TEST_MODE) {
-        outputChannel = createTestOutputChannel('Pike Language Server');
-        console.log('[Pike LSP] Test mode enabled - all output will be logged to console');
-    } else {
-        outputChannel = window.createOutputChannel('Pike Language Server');
-    }
+    // Use provided test output channel or create a real one
+    outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
 
     let disposable = commands.registerCommand('pike-module-path.add', async (e) => {
         const rv = await addModulePathSetting(e.fsPath);
@@ -92,56 +51,70 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
 
     context.subscriptions.push(disposable);
 
-    // Register diagnostics command immediately (works even before client starts)
-    diagnosticsCommandDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
-        if (!client) {
-            window.showWarningMessage('Pike LSP is not active. Open a .pike file to start the server.');
-            return;
-        }
-
-        try {
-            const result = await client.sendRequest('workspace/executeCommand', {
-                command: 'pike.lsp.showDiagnostics',
-            });
-
-            const healthOutput = result as string ?? 'No health data available';
-            outputChannel.appendLine(healthOutput);
-            outputChannel.show();
-
-            // Also show as info message with summary
-            const lines = healthOutput.split('\n');
-            const summaryLine = lines.find((l) => l.includes('Server Uptime') || l.includes('Bridge Connected'));
-            if (summaryLine) {
-                window.showInformationMessage(`Pike LSP: ${summaryLine.trim()}`);
-            }
-        } catch (err) {
-            window.showErrorMessage(`Failed to get diagnostics: ${err}`);
-        }
-    });
-
-    context.subscriptions.push(diagnosticsCommandDisposable);
-
-    const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (arg) => {
-        let uri: string | undefined;
-        let position: { line: number; character: number } | undefined;
-
-        if (Array.isArray(arg)) {
-            [uri, position] = arg;
-        } else if (arg && typeof arg === 'object') {
-            const payload = arg as { uri?: string; position?: { line: number; character: number } };
-            uri = payload.uri;
-            position = payload.position;
-        }
+    const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (uri, position, symbolName?: string) => {
+        console.log('[pike.showReferences] Called with:', { uri, position, symbolName });
 
         if (!uri || !position) {
+            console.error('[pike.showReferences] Missing arguments:', { uri, position });
+            window.showErrorMessage('Invalid code lens arguments. Check console.');
             return;
         }
 
         const refUri = Uri.parse(uri);
-        const refPosition = new Position(position.line, position.character);
-        await commands.executeCommand('editor.action.findReferences', refUri, refPosition, {
-            includeDeclaration: false
-        });
+        let refPosition = new Position(position.line, position.character);
+
+        // If symbolName is provided (from code lens), find the symbol's position in the document
+        // This handles the case where the code lens position points to return type, not function name
+        if (symbolName) {
+            try {
+                const doc = await workspace.openTextDocument(refUri);
+                const lineText = doc.lineAt(position.line).text;
+                const symbolIndex = lineText.indexOf(symbolName);
+                if (symbolIndex >= 0) {
+                    refPosition = new Position(position.line, symbolIndex);
+                    console.log('[pike.showReferences] Adjusted position to symbol:', { symbolName, character: symbolIndex });
+                }
+            } catch (err) {
+                console.warn('[pike.showReferences] Could not adjust position for symbol:', err);
+            }
+        }
+
+        // Use our LSP server's reference provider directly
+        const references = await commands.executeCommand(
+            'vscode.executeReferenceProvider',
+            refUri,
+            refPosition
+        );
+
+        console.log('[pike.showReferences] Found references:', Array.isArray(references) ? references.length : 1);
+
+        // Normalize to array (can be Location, Location[], or LocationLink[])
+        let locations: Location[] = [];
+        if (!references) {
+            locations = [];
+        } else if (Array.isArray(references)) {
+            // Check if it's LocationLink array
+            if (references.length > 0 && 'targetUri' in references[0]) {
+                // Convert LocationLink to Location
+                locations = (references as any[]).map(ll =>
+                    new Location((ll as any).targetUri, (ll as any).targetRange)
+                );
+            } else {
+                locations = references as any as Location[];
+            }
+        } else {
+            // Single Location
+            locations = [references as any as Location];
+        }
+
+        // Use VSCode's built-in references peek view (same as "Go to References")
+        // This provides the standard references UI that users expect
+        await commands.executeCommand(
+            'editor.action.showReferences',
+            refUri,
+            refPosition,
+            locations
+        );
     });
 
     context.subscriptions.push(showReferencesDisposable);
@@ -189,7 +162,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
             module: serverModule,
             transport: TransportKind.ipc,
             options: {
-                execArgv: ['--nolazy', `--inspect=${DEBUG_PORT}`],
+                execArgv: ['--nolazy', '--inspect=6009'],
             },
         },
     };
@@ -201,8 +174,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
             if (
                 event.affectsConfiguration('pike.pikeModulePath') ||
                 event.affectsConfiguration('pike.pikeIncludePath') ||
-                event.affectsConfiguration('pike.pikePath') ||
-                event.affectsConfiguration('pike.diagnosticDelay')
+                event.affectsConfiguration('pike.pikePath')
             ) {
                 await restartClient(false);
             }
@@ -239,44 +211,40 @@ export async function activateForTesting(context: ExtensionContext, mockOutputCh
     return activateInternal(context, mockOutputChannel);
 }
 
-/**
- * Generic helper to expand workspace paths for a given config key.
- * Handles ${workspaceFolder} variable expansion and both string and string[] values.
- */
-function getExpandedWorkspacePaths(
-    configKey: string,
-    defaultValue: string[] | string,
-    logLabel: string
-): string[] {
+function getExpandedModulePaths(): string[] {
     const config = workspace.getConfiguration('pike');
-    const rawValue = config.get<string[] | string>(configKey, defaultValue);
-    const paths = Array.isArray(rawValue) ? rawValue : [rawValue];
+    const pikeModulePath = config.get<string[]>('pikeModulePath', ['pike']);
     let expandedPaths: string[] = [];
 
-    if (workspace.workspaceFolders !== undefined) {
-        const folder = workspace.workspaceFolders[0];
-        if (folder) {
-            const folderPath = folder.uri.fsPath;
-            for (const p of paths) {
-                expandedPaths.push(p.replace("${workspaceFolder}", folderPath));
-            }
-        } else {
-            expandedPaths = paths;
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        for (const p of pikeModulePath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
         }
     } else {
-        expandedPaths = paths;
+        expandedPaths = pikeModulePath;
     }
 
-    console.log(`${logLabel}: ` + JSON.stringify(rawValue));
+    console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
     return expandedPaths;
 }
 
-function getExpandedModulePaths(): string[] {
-    return getExpandedWorkspacePaths('pikeModulePath', 'pike', 'Pike module path');
-}
-
 function getExpandedIncludePaths(): string[] {
-    return getExpandedWorkspacePaths('pikeIncludePath', [], 'Pike include path');
+    const config = workspace.getConfiguration('pike');
+    const pikeIncludePath = config.get<string[]>('pikeIncludePath', []);
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        for (const p of pikeIncludePath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeIncludePath;
+    }
+
+    console.log('Pike include path: ' + JSON.stringify(pikeIncludePath));
+    return expandedPaths;
 }
 
 async function restartClient(showMessage: boolean): Promise<void> {
@@ -294,7 +262,6 @@ async function restartClient(showMessage: boolean): Promise<void> {
 
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
-    const diagnosticDelay = config.get<number>('diagnosticDelay', DEFAULT_DIAGNOSTIC_DELAY);
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
 
@@ -307,7 +274,6 @@ async function restartClient(showMessage: boolean): Promise<void> {
         },
         initializationOptions: {
             pikePath,
-            diagnosticDelay,
             env: {
                 'PIKE_MODULE_PATH': expandedPaths.join(":"),
                 'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
@@ -338,19 +304,17 @@ async function restartClient(showMessage: boolean): Promise<void> {
 export async function addModulePathSetting(modulePath: string): Promise<boolean> {
     // Get Pike path from configuration
     const config = workspace.getConfiguration('pike');
-    const pikeModulePath = config.get<string[] | string>('pikeModulePath', 'pike');
+    const pikeModulePath = config.get<string[]>('pikeModulePath', ['pike']);
+    let updatedPath: string[] = [];
 
-    if (workspace.workspaceFolders !== undefined) {
-        const folder = workspace.workspaceFolders[0];
-        if (folder) {
-            const f = folder.uri.fsPath;
-            modulePath = modulePath.replace(f, "${workspaceFolder}");
-        }
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        modulePath = modulePath.replace(f, "${workspaceFolder}");
     }
 
-    const existingPaths = Array.isArray(pikeModulePath) ? pikeModulePath : [pikeModulePath];
-    if (!existingPaths.includes(modulePath)) {
-        const updatedPath = [...existingPaths, modulePath];
+    if (!pikeModulePath.includes(modulePath)) {
+        updatedPath = pikeModulePath.slice();
+        updatedPath.push(modulePath);
         await config.update('pikeModulePath', updatedPath, ConfigurationTarget.Workspace);
         return true;
     }
@@ -359,12 +323,6 @@ export async function addModulePathSetting(modulePath: string): Promise<boolean>
 }
 
 export async function deactivate(): Promise<void> {
-    // Clean up diagnostics command disposable if registered
-    if (diagnosticsCommandDisposable) {
-        diagnosticsCommandDisposable.dispose();
-        diagnosticsCommandDisposable = undefined;
-    }
-
     if (!client) {
         return;
     }

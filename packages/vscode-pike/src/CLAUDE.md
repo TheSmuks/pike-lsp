@@ -21,4 +21,14 @@
 |----|------|---|-------|------|
 | #4525 | 3:52 PM | 🔵 | Examined VSCode extension client configuration and module path setup | ~324 |
 | #4522 | " | 🔵 | Reviewed VSCode extension activation code | ~169 |
+
+### Jan 24, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #6105 | 2:13 PM | 🔄 | Restored ExtensionApi Interface | ~265 |
+| #6104 | " | 🔄 | Removed Test Mode Flag and ExtensionApi Interface | ~263 |
+| #6103 | " | 🔄 | Removed Unused Selection Import | ~205 |
+| #6102 | " | 🔴 | Fixed Code Lens References to Use Standard VSCode Peek View | ~284 |
+| #6100 | 2:12 PM | 🔵 | VSCode Pike Extension Command Architecture | ~334 |
 </claude-mem-context>

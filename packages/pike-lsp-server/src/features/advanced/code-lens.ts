@@ -109,7 +109,7 @@ export function registerCodeLensHandlers(
             if (cached && cached.version === currentVersion) {
                 const cachedRefCount = cached.refCounts.get(data.symbolName);
                 if (cachedRefCount !== undefined) {
-                    lens.command = buildCodeLensCommand(cachedRefCount, data.uri, data.position);
+                    lens.command = buildCodeLensCommand(cachedRefCount, data.uri, data.position, data.symbolName);
                     return lens;
                 }
             }
@@ -138,7 +138,7 @@ export function registerCodeLensHandlers(
             }
             resolvedLensCache.get(data.uri)!.refCounts.set(data.symbolName, refCount);
 
-            lens.command = buildCodeLensCommand(refCount, data.uri, data.position);
+            lens.command = buildCodeLensCommand(refCount, data.uri, data.position, data.symbolName);
 
             connection.console.log(`[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`);
             return lens;

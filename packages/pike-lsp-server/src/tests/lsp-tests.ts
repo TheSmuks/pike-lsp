@@ -164,18 +164,20 @@ int very_long_variable_name_that_might_cause_issues = 42;
 });
 
 describe('LSP Code Lens Command Payload', () => {
-    it('should build a references command payload with position data', () => {
-        const command = buildCodeLensCommand(2, 'file:///test.pike', { line: 3, character: 7 });
+    it('should build a references command payload with position and symbol name', () => {
+        const command = buildCodeLensCommand(2, 'file:///test.pike', { line: 3, character: 7 }, 'test_function');
 
         assert.strictEqual(command.command, 'pike.showReferences', 'Should use Pike show references command');
         assert.strictEqual(command.title, '2 references', 'Should pluralize title correctly');
         assert.deepStrictEqual(command.arguments, [
-            { uri: 'file:///test.pike', position: { line: 3, character: 7 } }
+            'file:///test.pike',
+            { line: 3, character: 7 },
+            'test_function'
         ]);
     });
 
     it('should format singular reference titles', () => {
-        const command = buildCodeLensCommand(1, 'file:///test.pike', { line: 0, character: 0 });
+        const command = buildCodeLensCommand(1, 'file:///test.pike', { line: 0, character: 0 }, 'single_ref');
 
         assert.strictEqual(command.title, '1 reference', 'Should use singular title for 1 reference');
     });
