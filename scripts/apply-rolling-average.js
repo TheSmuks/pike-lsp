@@ -134,17 +134,26 @@ function analyzeCurrentResults(currentPath, historicalStats) {
     const vsMax = currentValue / max;
     const vsAvg = currentValue / avg;
 
+    // Absolute difference threshold - ignore tiny absolute changes even if statistically significant
+    // For fast benchmarks (<10ms), CI noise of 0.5-1ms is common
+    const absDiff = currentValue - avg;
+    const minAbsDiff = avg < 10 ? 0.5 : (avg < 100 ? 2 : avg * 0.05);  // 0.5ms for fast, 2ms for medium, 5% for slow
+
     let status = 'OK';
     let message = '';
 
-    if (zScore > 3) {
+    // Only flag regression if BOTH statistically significant AND meaningful absolute difference
+    if (zScore > 3 && absDiff > minAbsDiff) {
       status = 'REGRESSION';
-      message = `${zScore.toFixed(1)} std devs above mean (>${threshold} threshold)`;
+      message = `${zScore.toFixed(1)} std devs above mean (+${absDiff.toFixed(2)}ms)`;
       hasRegression = true;
-    } else if (vsMax > 1.2 && zScore > 2) {
+    } else if (vsMax > 1.2 && zScore > 2 && absDiff > minAbsDiff) {
       status = 'REGRESSION';
       message = `${(vsMax * 100 - 100).toFixed(0)}% above historical max`;
       hasRegression = true;
+    } else if (zScore > 3) {
+      status = 'WARNING';
+      message = `High z-score but small absolute diff (+${absDiff.toFixed(2)}ms < ${minAbsDiff.toFixed(2)}ms threshold)`;
     } else if (zScore > 2) {
       status = 'WARNING';
       message = `${zScore.toFixed(1)} std devs above mean`;
