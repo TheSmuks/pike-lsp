@@ -743,9 +743,11 @@ protected mapping|int type_to_json(object|void type) {
         if (type->name) result->name = type->name;
     };
 
+    // Check what type class this is
+    string class_path = "";
+    catch {class_path = Program.defined(object_program(type)) || "";};
+
     if (!result->name) {
-        string class_path = "";
-        catch {class_path = Program.defined(object_program(type)) || "";};
         if (has_value(class_path, "IntType")) result->name = "int";
         else if (has_value(class_path, "StringType")) result->name = "string";
         else if (has_value(class_path, "FloatType")) result->name = "float";
@@ -776,6 +778,34 @@ protected mapping|int type_to_json(object|void type) {
         catch {
             if (type->type_or_type) return type_to_json(type->type_or_type);
             if (type->subtype) return type_to_json(type->subtype);
+        };
+    }
+
+    // Handle OrType: extract constituent types
+    if (result->name == "or" || has_value(class_path, "OrType")) {
+        result->name = "or";
+        catch {
+            if (type->types && sizeof(type->types) > 0) {
+                result->types = map(type->types, type_to_json);
+            }
+        };
+    }
+
+    // Handle ObjectType: include classname (e.g., "this_program", "Gmp.mpz")
+    if (result->name == "object" || has_value(class_path, "ObjectType")) {
+        catch {
+            if (type->classname && sizeof(type->classname) > 0) {
+                result->className = type->classname;
+            }
+        };
+    }
+
+    // Handle ProgramType: include classname
+    if (result->name == "program" || has_value(class_path, "ProgramType")) {
+        catch {
+            if (type->classname && sizeof(type->classname) > 0) {
+                result->className = type->classname;
+            }
         };
     }
 
