@@ -323,6 +323,13 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
 
+    // Windows uses semicolon as PATH separator, Unix uses colon
+    // Pike on Windows also expects forward slashes, not backslashes
+    const pathSeparator = process.platform === 'win32' ? ';' : ':';
+    const normalizePath = (p: string) => process.platform === 'win32' ? p.replace(/\\/g, '/') : p;
+    const normalizedModulePaths = expandedPaths.map(normalizePath);
+    const normalizedIncludePaths = expandedIncludePaths.map(normalizePath);
+
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
             { scheme: 'file', language: 'pike' },
@@ -333,8 +340,8 @@ async function restartClient(showMessage: boolean): Promise<void> {
         initializationOptions: {
             pikePath,
             env: {
-                'PIKE_MODULE_PATH': expandedPaths.join(":"),
-                'PIKE_INCLUDE_PATH': expandedIncludePaths.join(":"),
+                'PIKE_MODULE_PATH': normalizedModulePaths.join(pathSeparator),
+                'PIKE_INCLUDE_PATH': normalizedIncludePaths.join(pathSeparator),
             },
         },
         outputChannel,
