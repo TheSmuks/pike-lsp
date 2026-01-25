@@ -156,4 +156,37 @@ Data structure:
         assert.ok(actual.includes('- `"key1"`: Value for key1'));
         assert.ok(actual.includes('- `"key2"`: Value for key2'));
     });
+
+    it('should handle Pike-formatted @array output with complex types', () => {
+        // This tests the output format from Pike's format_group_as_text
+        // After the fix, @elem type index is formatted as "index (type)"
+        const input = `
+**Array elements:**
+  - \`0 (Gmp.mpz|int)\` - The first prime, often called p.
+  - \`1 (Gmp.mpz|int)\` - The second prime, often called q.
+`;
+        const actual = convertPikeDocToMarkdown(input);
+        // Should preserve the Pike-formatted array output
+        assert.ok(actual.includes('**Array elements:**'));
+        assert.ok(actual.includes('`0 (Gmp.mpz|int)`'));
+        assert.ok(actual.includes('The first prime'));
+        assert.ok(actual.includes('`1 (Gmp.mpz|int)`'));
+        assert.ok(actual.includes('The second prime'));
+    });
+
+    it('should handle @elem with union types', () => {
+        // Test complex types like Gmp.mpz|int
+        const input = `
+@array
+  @elem Gmp.mpz|int 0
+    The first value
+  @elem Gmp.mpz|int 1
+    The second value
+@endarray
+`;
+        const actual = convertPikeDocToMarkdown(input);
+        // Format should be: index (type): description
+        assert.ok(actual.includes('- `0 (Gmp.mpz|int)`: The first value'));
+        assert.ok(actual.includes('- `1 (Gmp.mpz|int)`: The second value'));
+    });
 });
