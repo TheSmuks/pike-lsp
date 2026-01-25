@@ -82,6 +82,33 @@ protected string path_to_module_name(string filename) {
     return "LSP." + file;
 }
 
+//! Normalize a file path for compilation
+//! Handles Windows-style paths like /c:/path -> c:/path to avoid Pike's
+//! path mangling that produces c:/c:/path which breaks module resolution.
+//! @param filename The file path to normalize
+//! @returns Normalized path safe for compilation
+protected string normalize_path_for_compilation(string filename) {
+    string normalized = replace(filename, "\\", "/");
+
+    // Fix Windows-style paths: /c:/path -> c:/path
+    // When Pike sees /c:/path, it treats it as:
+    //   /c: (root of drive c) + /path -> c:/c:/path (broken!)
+    // We need to strip the leading / for Windows drive paths
+    if (sizeof(normalized) >= 4 && has_prefix(normalized, "/")) {
+        // Check for pattern: /X:/ where X is a drive letter
+        string second = normalized[1..1];
+        string third = normalized[2..2];
+        if (third == ":" && sizeof(second) == 1 &&
+            ((second >= "A" && second <= "Z") || (second >= "a" && second <= "z"))) {
+            // This is /X:/path -> normalize to X:/path
+            normalized = normalized[1..];
+            werror("[DEBUG] Normalized Windows path: %s\n", normalized);
+        }
+    }
+
+    return normalized;
+}
+
 //! Check if a filename is within a .pmod module directory
 //! @param filename The file path to check
 //! @returns 1 if the file is inside a .pmod directory, 0 otherwise
@@ -264,10 +291,14 @@ mapping handle_introspect(mapping params) {
             }
         }
 
+        // Normalize the filename for compilation to fix Windows path issues
+        // /c:/path -> c:/path (prevents c:/c:/path mangling)
+        string filename_for_compile = normalize_path_for_compilation(filename);
+
         // Attempt compilation
         // For LSP module files, use master()->resolv() to get the compiled program
         // with proper module context. For other files, use compile_string().
-        werror("[DEBUG] About to compile: filename=%s\n", filename);
+        werror("[DEBUG] About to compile: original=%s, normalized=%s\n", filename, filename_for_compile);
         mixed compile_err = catch {
             if (is_lsp_module_file(filename)) {
                 werror("[DEBUG] File is LSP module file\n");
@@ -282,14 +313,14 @@ mapping handle_introspect(mapping params) {
                         compiled_prog = resolved;
                     } else {
                         // Fallback: try to compile normally
-                        compiled_prog = compile_string(code_to_compile, filename);
+                        compiled_prog = compile_string(code_to_compile, filename_for_compile);
                     }
                 } else {
-                    compiled_prog = compile_string(code_to_compile, filename);
+                    compiled_prog = compile_string(code_to_compile, filename_for_compile);
                 }
             } else {
                 // Normal file - compile directly (may be preprocessed if in .pmod)
-                compiled_prog = compile_string(code_to_compile, filename);
+                compiled_prog = compile_string(code_to_compile, filename_for_compile);
             }
         };
 
