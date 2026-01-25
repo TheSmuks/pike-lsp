@@ -337,6 +337,7 @@ mapping parse_request(mapping params) {
 //! @param params Mapping with "code" key
 //! @returns Mapping with "result" containing "tokens" array
 //! @throws On tokenization errors (caller catches)
+//! PERF-004: Includes character positions to avoid JavaScript string search
 mapping tokenize_request(mapping params) {
     string code = params->code || "";
     array tokens = ({});
@@ -346,11 +347,67 @@ mapping tokenize_request(mapping params) {
     array(string) split_tokens = PikeParserModule->split(code);
     array pike_tokens = PikeParserModule->tokenize(split_tokens);
 
+    // Build character position index for each line
+    array code_lines = code / "\n";
+    mapping(int:mapping(string:array(int))) line_positions = ([]);
+
+    for (int i = 0; i < sizeof(code_lines); i++) {
+        string line = code_lines[i];
+        if (!line || sizeof(line) == 0) continue;
+
+        mapping(string:array(int)) token_chars = ([]);
+
+        // Find all occurrences of each token in this line
+        foreach (pike_tokens, mixed t) {
+            if (t->line != i + 1) continue;
+
+            string token_text = t->text;
+            if (!token_chars[token_text]) {
+                token_chars[token_text] = ({});
+            }
+
+            // Find this token's position (nth occurrence)
+            int nth = sizeof(token_chars[token_text]);
+            int char_pos = -1;
+            int search_start = 0;
+
+            for (int j = 0; j <= nth; j++) {
+                int found = search(line[search_start..], token_text);
+                if (found == -1) break;
+                char_pos = search_start + found;
+                search_start = char_pos + sizeof(token_text);
+            }
+
+            if (char_pos >= 0) {
+                token_chars[token_text] += ({char_pos});
+            }
+        }
+
+        line_positions[i + 1] = token_chars;
+    }
+
+    // Build tokens with character positions
+    mapping(string:int) occurrence_index = ([]);
+
     foreach (pike_tokens, mixed t) {
+        string key = sprintf("%d:%s", t->line, t->text);
+        int occ_idx = occurrence_index[key] || 0;
+        occurrence_index[key] = occ_idx + 1;
+
+        // Get pre-computed character position
+        int char_pos = -1;
+        if (line_positions[t->line] && line_positions[t->line][t->text]) {
+            array(int) positions = line_positions[t->line][t->text];
+            if (occ_idx < sizeof(positions)) {
+                char_pos = positions[occ_idx];
+            }
+        }
+
         tokens += ({
             ([
                 "text": t->text,
                 "line": t->line,
+                "character": char_pos,
                 "file": t->file
             ])
         });

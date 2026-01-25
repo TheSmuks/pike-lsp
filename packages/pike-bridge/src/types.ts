@@ -210,12 +210,15 @@ export interface PikeTypedef extends PikeSymbol {
 
 /**
  * Pike token from Parser.Pike
+ * PERF-004: Includes character position for efficient symbol position indexing
  */
 export interface PikeToken {
     /** Token text */
     text: string;
     /** Line number (1-indexed) */
     line: number;
+    /** Character position (0-indexed), -1 if not available */
+    character: number;
     /** File identifier */
     file: number | string;
 }

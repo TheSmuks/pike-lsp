@@ -124,8 +124,13 @@ export function registerDiagnosticsHandlers(
     /**
      * Build symbol position index for O(1) lookups
      * PERF-001: Uses Pike tokenization for accuracy and performance
+     * PERF-004: Reuses tokens from analyze() to avoid separate findOccurrences() IPC call
      */
-    async function buildSymbolPositionIndex(text: string, symbols: PikeSymbol[]): Promise<Map<string, Position[]>> {
+    async function buildSymbolPositionIndex(
+        text: string,
+        symbols: PikeSymbol[],
+        tokens?: import('@pike-lsp/pike-bridge').PikeToken[]
+    ): Promise<Map<string, Position[]>> {
         const index = new Map<string, Position[]>();
 
         // Build set of symbol names we care about
@@ -136,7 +141,52 @@ export function registerDiagnosticsHandlers(
             }
         }
 
-        // Try Pike-based tokenization first (PERF-001)
+        // PERF-004: Use tokens from analyze() when available (no additional IPC)
+        // Tokens now include character positions (computed in Pike, faster than JS string search)
+        if (tokens && tokens.length > 0) {
+            const lines = text.split('\n');
+
+            // Filter tokens for our symbols and build positions
+            for (const token of tokens) {
+                if (symbolNames.has(token.text)) {
+                    const lineIdx = token.line - 1; // Convert to 0-indexed
+
+                    // Skip if character position is not available (-1)
+                    if (token.character < 0) {
+                        continue;
+                    }
+
+                    if (lineIdx >= 0 && lineIdx < lines.length) {
+                        const line = lines[lineIdx];
+                        if (!line) continue;
+
+                        // Verify word boundary (still needed for accuracy)
+                        const beforeChar = token.character > 0 ? line[token.character - 1]! : ' ';
+                        const afterChar = token.character + token.text.length < line.length
+                            ? line[token.character + token.text.length]!
+                            : ' ';
+
+                        if (!/\w/.test(beforeChar) && !/\w/.test(afterChar)) {
+                            const pos: Position = {
+                                line: lineIdx,
+                                character: token.character,
+                            };
+
+                            if (!index.has(token.text)) {
+                                index.set(token.text, []);
+                            }
+                            index.get(token.text)!.push(pos);
+                        }
+                    }
+                }
+            }
+
+            if (index.size > 0) {
+                return index;
+            }
+        }
+
+        // PERF-001: Fallback to findOccurrences IPC call if tokens not available
         const bridge = services.bridge;
         if (bridge?.isRunning()) {
             try {
@@ -350,9 +400,11 @@ export function registerDiagnosticsHandlers(
 
         try {
             connection.console.log(`[VALIDATE] Calling unified analyze for: ${filename}`);
+            // PERF-004: Include 'tokenize' to avoid separate findOccurrences call for symbolPositions
+            // Tokens are used to build symbolPositions index without additional IPC round-trip
             // Single unified analyze call - replaces 3 separate calls (introspect, parse, analyzeUninitialized)
             // Pass document version for cache key (open docs use LSP version, no stat overhead)
-            const analyzeResult = await bridge.analyze(text, ['parse', 'introspect', 'diagnostics'], filename, version);
+            const analyzeResult = await bridge.analyze(text, ['parse', 'introspect', 'diagnostics', 'tokenize'], filename, version);
 
             // Log completion status
             const hasParse = !!analyzeResult.result?.parse;
@@ -382,6 +434,8 @@ export function registerDiagnosticsHandlers(
             const diagnosticsData = analyzeResult.failures?.diagnostics
                 ? { diagnostics: [] }
                 : analyzeResult.result?.diagnostics ?? { diagnostics: [] };
+            // PERF-004: Extract tokens for symbolPositions building
+            const tokenizeData = analyzeResult.result?.tokenize?.tokens;
 
             // Convert Pike diagnostics to LSP diagnostics
             const diagnostics: Diagnostic[] = [];
@@ -501,7 +555,7 @@ export function registerDiagnosticsHandlers(
                     version,
                     symbols: legacySymbols,
                     diagnostics,
-                    symbolPositions: await buildSymbolPositionIndex(text, legacySymbols),
+                    symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),
                 });
             } else if (parseData && parseData.symbols.length > 0) {
                 // Introspection failed, use parse results
@@ -517,7 +571,7 @@ export function registerDiagnosticsHandlers(
                     version,
                     symbols: parseData.symbols,
                     diagnostics,
-                    symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols),
+                    symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols, tokenizeData),
                 });
                 connection.console.log(`[VALIDATE] Cached document - symbols count: ${parseData.symbols.length}`);
             } else {
