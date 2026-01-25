@@ -246,6 +246,24 @@ export function convertPikeDocToMarkdown(text: string): string {
 }
 
 /**
+ * Generate a Pike documentation URL for a given path.
+ * Adds predef_3A_3A prefix for top-level modules.
+ */
+function generatePikeDocsUrl(path: string): string {
+    const cleanPath = path.replace(/`/g, '').trim();
+    // Convert Pike path separators to URL format
+    let urlPath = cleanPath.replace(/\./g, '/').replace(/->/g, '/');
+
+    // If it starts with an uppercase letter, it's likely a top-level module/class
+    // so we prepend the predef prefix
+    if (/^[A-Z]/.test(urlPath)) {
+        urlPath = `predef_3A_3A/${urlPath}`;
+    }
+
+    return `https://pike.lysator.liu.se/generated/manual/modref/ex/${urlPath}.html`;
+}
+
+/**
  * Build markdown content for hover.
  */
 export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): string | null {
@@ -259,13 +277,12 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
 
     let docsLink = '';
     if (parentScope || (symbol.kind === 'module' && /^[A-Z]/.test(symbol.name))) {
-        const baseUrl = 'https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A';
-        let path = '';
+        let path = symbol.name;
         if (parentScope) {
-            path += parentScope.replace(/\./g, '/') + '/';
+            path = `${parentScope}.${symbol.name}`;
         }
-        path += symbol.name;
-        docsLink = `[Online Documentation](${baseUrl}/${path}.html)`;
+        const url = generatePikeDocsUrl(path);
+        docsLink = `[Online Documentation](${url})`;
     }
 
     // Symbol kind badge
@@ -440,13 +457,8 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         // See also references (with Pike docs links for stdlib)
         if (doc.seealso && doc.seealso.length > 0) {
             const refs = doc.seealso.map(s => {
-                // Clean up the reference (remove backticks if present)
                 const cleaned = s.replace(/`/g, '').trim();
-                // Convert Pike path separators to URL format
-                // e.g., "Stdio.FILE" -> "Stdio/FILE"
-                const urlPath = cleaned.replace(/\./g, '/').replace(/->/g, '/');
-                // Create a link to Pike documentation
-                const docsUrl = `https://pike.lysator.liu.se/generated/manual/modref/ex/${urlPath}.html`;
+                const docsUrl = generatePikeDocsUrl(cleaned);
                 return `[\`${cleaned}\`](${docsUrl})`;
             }).join(', ');
             parts.push(`**See also:** ${refs}`);
