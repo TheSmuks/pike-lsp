@@ -82,6 +82,85 @@ protected string path_to_module_name(string filename) {
     return "LSP." + file;
 }
 
+//! Check if a filename is within a .pmod module directory
+//! @param filename The file path to check
+//! @returns 1 if the file is inside a .pmod directory, 0 otherwise
+protected int is_in_pmod_directory(string filename) {
+    string normalized = replace(filename, "\\", "/");
+    array path_parts = normalized / "/";
+    for (int i = 0; i < sizeof(path_parts); i++) {
+        if (has_suffix(path_parts[i], ".pmod")) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+//! Extract the parent module name for a file in a .pmod directory
+//! @param filename The file path (e.g., "/path/to/Crypto.pmod/RSA.pmod")
+//! @returns Module name (e.g., "Crypto") or empty string if not in a .pmod directory
+protected string get_parent_module_name(string filename) {
+    string normalized = replace(filename, "\\", "/");
+    array path_parts = normalized / "/";
+
+    // Find the .pmod directory in the path
+    for (int i = 0; i < sizeof(path_parts); i++) {
+        if (has_suffix(path_parts[i], ".pmod")) {
+            // Extract module name (e.g., "Crypto.pmod" -> "Crypto")
+            string mod_dir = path_parts[i];
+            if (has_suffix(mod_dir, ".pmod")) {
+                mod_dir = mod_dir[..<6];
+            }
+            return mod_dir;
+        }
+    }
+    return "";
+}
+
+//! Preprocess code to convert relative module references to absolute paths
+//! This allows files in .pmod directories to compile without sibling modules.
+//! @param code Source code with potential relative references (e.g., "inherit .Random;")
+//! @param module_name Parent module name (e.g., "Crypto")
+//! @returns Preprocessed code with absolute references (e.g., "inherit Crypto.Random;")
+protected string preprocess_relative_references(string code, string module_name) {
+    if (!module_name || sizeof(module_name) == 0) {
+        return code;
+    }
+
+    string result = "";
+    foreach(code / "\n", string line) {
+        string trimmed = LSP.Compat.trim_whites(line);
+
+        // Pattern: inherit .ModuleName
+        if (sscanf(trimmed, "inherit .%s", string rest) == 1) {
+            // Extract the module name (stop at semicolon, space, or comment)
+            string sibling_name = "";
+            for (int i = 0; i < sizeof(rest); i++) {
+                string c = rest[i..i];
+                if (c == ";" || c == " " || c == "/" || c == "{" || c == "}") {
+                    break;
+                }
+                sibling_name += c;
+            }
+
+            if (sizeof(sibling_name) > 0) {
+                // Replace .Sibling with Module.Sibling
+                string replacement = "inherit " + module_name + "." + sibling_name;
+                result += replacement + (sizeof(rest) > sizeof(sibling_name) ? rest[sizeof(sibling_name)..] : ";") + "\n";
+                continue;
+            }
+        }
+
+        // Pattern: .Module.member (e.g., .Random.random_string)
+        // This is harder - we'd need to parse expressions. For now, keep as-is.
+        // The inherit conversion handles most compilation issues.
+
+        result += line + "\n";
+    }
+
+    return result;
+}
+
 //! Introspect Pike code using parser only (no compilation)
 //!
 //! This is used for files with #require directives that trigger expensive
@@ -169,6 +248,16 @@ mapping handle_introspect(mapping params) {
         mixed old_error_handler = master()->get_inhibit_compile_errors();
         master()->set_inhibit_compile_errors(compile_error_handler);
 
+        // Check if file is in a .pmod directory and preprocess for relative references
+        string code_to_compile = code;
+        if (is_in_pmod_directory(filename)) {
+            string module_name = get_parent_module_name(filename);
+            if (sizeof(module_name) > 0) {
+                werror("[DEBUG] File in .pmod directory, module=%s, preprocessing relative references\n", module_name);
+                code_to_compile = preprocess_relative_references(code, module_name);
+            }
+        }
+
         // Attempt compilation
         // For LSP module files, use master()->resolv() to get the compiled program
         // with proper module context. For other files, use compile_string().
@@ -187,14 +276,14 @@ mapping handle_introspect(mapping params) {
                         compiled_prog = resolved;
                     } else {
                         // Fallback: try to compile normally
-                        compiled_prog = compile_string(code, filename);
+                        compiled_prog = compile_string(code_to_compile, filename);
                     }
                 } else {
-                    compiled_prog = compile_string(code, filename);
+                    compiled_prog = compile_string(code_to_compile, filename);
                 }
             } else {
-                // Normal file - compile directly
-                compiled_prog = compile_string(code, filename);
+                // Normal file - compile directly (may be preprocessed if in .pmod)
+                compiled_prog = compile_string(code_to_compile, filename);
             }
         };
 
