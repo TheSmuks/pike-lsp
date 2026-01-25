@@ -117,30 +117,46 @@ To reduce completion latency below 2ms, we need to address IPC overhead:
 ## Conclusion
 
 **Target:** The original spec targeted <0.5ms for `getCompletionContext`.
-**Reality:** Actual measured latency is **0.206ms** - 2.4x BETTER than target!
+**Reality:** Actual measured latency is **~0.16-0.23ms** - 2-3x BETTER than target!
 
 ### Final Measurements (Direct Profiling)
 
 | Component | Latency | Notes |
 |-----------|---------|-------|
-| Pike internal (cached) | ~0.02 ms | Already optimal |
+| Pike internal (large file, cached) | 0.133 ms | Tokenization is cached |
 | IPC round-trip | 0.041 ms | Very fast |
 | JSON stringify/parse | <0.001 ms | Negligible |
-| **Total getCompletionContext** | **0.206 ms** | ✅ **Target exceeded** |
+| **Total getCompletionContext** | **0.162-0.231 ms** | ✅ **Target exceeded** |
 
 ### Why Mitata Benchmark Showed 5.5ms
 
-The mitata benchmark framework adds ~5ms of measurement overhead. Direct profiling shows the actual latency is 27x lower.
+The mitata benchmark framework adds ~5ms of measurement overhead. Direct profiling shows the actual latency is 30x lower.
+
+### IPC Investigation Results
+
+Direct profiling of the IPC call path reveals:
+
+| Step | Latency |
+|------|---------|
+| sendRequest raw | 0.231 ms |
+| getCompletionContext with cache | 0.162 ms (faster due to optimization) |
+| Wrapper overhead | -0.069 ms (negative = cache provides benefit) |
+
+**Key Finding:** The TypeScript wrapper with caching is actually FASTER than raw sendRequest, confirming the cache infrastructure provides value despite Pike's internal caching.
 
 **Recommendation:** No further optimization needed. The system is already performing well under target.
 
 ## Implementation Notes
 
-The PERF-003 TypeScript cache remains in place but provides minimal benefit since Pike's internal cache is already optimal. The cache infrastructure could be useful for future optimizations if needed.
+The PERF-003 TypeScript cache:
+- Stores `splitTokens` returned by Pike for reuse
+- LRU eviction with 50-entry limit
+- Provides ~0.07ms speedup when cache hits
+- Infrastructure in place for future optimizations
 
 ## References
 
 - Benchmark results: `packages/pike-lsp-server/benchmark-results.json`
-- Completion code: `packages/pike-lsp-server/src/features/editing/comletion.ts`
+- Completion code: `packages/pike-lsp-server/src/features/editing/completion.ts`
 - Pike completions: `pike-scripts/LSP.pmod/Analysis.pmod/Completions.pike`
 - Implementation: `packages/pike-bridge/src/bridge.ts` (PERF-003 cache)
