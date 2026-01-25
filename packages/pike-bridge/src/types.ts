@@ -84,10 +84,25 @@ export interface PikeMultisetType {
     indexType?: PikeType;
 }
 
+/**
+ * Function type with argument information for snippets
+ * Matches the structure returned by Pike's _typeof() introspection
+ */
+export interface PikeFunctionArgument {
+    /** Argument name */
+    name: string;
+    /** Argument type */
+    type: string;
+}
+
 export interface PikeFunctionType {
     kind: 'function';
     argTypes?: PikeType[];
     returnType?: PikeType;
+    /** Arguments with names and types (for snippet generation) */
+    arguments?: PikeFunctionArgument[];
+    /** Function signature string */
+    signature?: string;
 }
 
 export interface PikeObjectType {
