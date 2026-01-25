@@ -53,9 +53,39 @@ mapping parse_request(mapping params) {
             preprocessed += "\n";
         } else if (if_depth > 0) {
             preprocessed += "\n";
+        } else if (has_prefix(trimmed, "#include")) {
+            // Extract include path for navigation
+            string include_path = "";
+            string rest = trimmed[8..];
+            rest = LSP.Compat.trim_whites(rest);
+
+            if (sizeof(rest) > 1) {
+                if (rest[0] == '"') {
+                    int end = search(rest, "\"", 1);
+                    if (end > 0) include_path = rest[1..end-1];
+                } else if (rest[0] == '<') {
+                    int end = search(rest, ">", 1);
+                    if (end > 0) include_path = rest[1..end-1];
+                }
+            }
+
+            if (sizeof(include_path) > 0) {
+                symbols += ({
+                    ([
+                        "name": include_path,
+                        "kind": "import", // Treat #include as import for navigation
+                        "modifiers": ({}),
+                        "position": ([
+                            "file": filename,
+                            "line": preprocessed_line
+                        ]),
+                        "classname": include_path // Use classname to store the path for the resolver
+                    ])
+                });
+            }
+            preprocessed += "\n";
         } else if (has_prefix(trimmed, "#pike") ||
                    has_prefix(trimmed, "#pragma") ||
-                   has_prefix(trimmed, "#include") ||
                    has_prefix(trimmed, "#define") ||
                    has_prefix(trimmed, "#charset")) {
             preprocessed += "\n";
@@ -508,6 +538,8 @@ protected mapping simple_parse_autodoc(string doc) {
         "returns": "",
         "throws": "",
         "notes": ({}),
+        "examples": ({}),
+        "bugs": ({}),
         "seealso": ({}),
         "deprecated": ""
     ]);
@@ -516,28 +548,62 @@ protected mapping simple_parse_autodoc(string doc) {
     string current_section = "text";
     string current_param = "";
     array(string) text_buffer = ({});
+    int ignoring = 0;
+
+    // Macro for flushing buffer (Pike doesn't support local functions easily here)
+    #define FLUSH_BUFFER() \
+        if (sizeof(text_buffer) > 0) { \
+            string content = text_buffer * "\n"; \
+            if (current_section == "text") result->text = content; \
+            else if (current_section == "param" && sizeof(current_param) > 0) result->params[current_param] = content; \
+            else if (current_section == "returns") result->returns = content; \
+            else if (current_section == "throws") result->throws = content; \
+            else if (current_section == "example") result->examples += ({ content }); \
+            else if (current_section == "bugs") result->bugs += ({ content }); \
+            else if (current_section == "note") { \
+                if (sizeof(result->notes) > 0) { \
+                    if (result->notes[-1] == "") result->notes[-1] = content; \
+                    else result->notes[-1] += "\n" + content; \
+                } else result->notes += ({ content }); \
+            } \
+            else if (current_section == "seealso") { \
+                array(string) parts = replace(content, "\n", ",") / ","; \
+                foreach(parts, string part) { \
+                    part = LSP.Compat.trim_whites(part); \
+                    if (sizeof(part) > 0) result->seealso += ({ part }); \
+                } \
+            } \
+            else if (current_section == "deprecated") { \
+                if (result->deprecated == "" || result->deprecated == "Deprecated") result->deprecated = content; \
+                else result->deprecated += "\n" + content; \
+            } \
+            text_buffer = ({}); \
+        }
 
     foreach(lines, string line) {
         string trimmed = LSP.Compat.trim_whites(line);
 
+        // Handle @ignore blocks
+        if (has_prefix(trimmed, "@ignore")) {
+            FLUSH_BUFFER(); // Flush anything before the ignore block
+            ignoring = 1;
+            continue;
+        }
+        if (has_prefix(trimmed, "@endignore")) {
+            ignoring = 0;
+            continue;
+        }
+        if (ignoring) continue;
+
         // Check for @tags
-        if (has_prefix(trimmed, "@param ")) {
-            // Save previous buffer
-            if (sizeof(text_buffer) > 0) {
-                if (current_section == "text") {
-                    result->text = text_buffer * " ";
-                } else if (current_section == "param" && sizeof(current_param) > 0) {
-                    result->params[current_param] = text_buffer * " ";
-                } else if (current_section == "returns") {
-                    result->returns = text_buffer * " ";
-                } else if (current_section == "throws") {
-                    result->throws = text_buffer * " ";
-                }
-                text_buffer = ({});
-            }
+        if (has_prefix(trimmed, "@param")) {
+            FLUSH_BUFFER();
 
             // Parse @param name description
-            string rest = trimmed[7..];
+            // Handle both "@param name" and "@param name description"
+            string rest = trimmed[6..];
+            if (sizeof(rest) > 0 && rest[0] == ' ') rest = LSP.Compat.trim_whites(rest);
+
             int space_pos = search(rest, " ");
             if (space_pos >= 0) {
                 current_param = rest[..space_pos-1];
@@ -548,65 +614,72 @@ protected mapping simple_parse_autodoc(string doc) {
             current_section = "param";
             result->params[current_param] = "";
 
-        } else if (has_prefix(trimmed, "@returns ") || has_prefix(trimmed, "@return ")) {
-            if (sizeof(text_buffer) > 0) {
-                if (current_section == "text") result->text = text_buffer * " ";
-                else if (current_section == "param" && sizeof(current_param) > 0) {
-                    result->params[current_param] = text_buffer * " ";
-                }
-                text_buffer = ({});
-            }
-            int at_len = has_prefix(trimmed, "@returns ") ? 9 : 8;
-            text_buffer = ({ LSP.Compat.trim_whites(trimmed[at_len..]) });
+        } else if (has_prefix(trimmed, "@returns") || has_prefix(trimmed, "@return")) {
+            FLUSH_BUFFER();
+
+            string rest = "";
+            if (has_prefix(trimmed, "@returns")) rest = trimmed[8..];
+            else rest = trimmed[7..];
+
+            rest = LSP.Compat.trim_whites(rest);
+            if (sizeof(rest) > 0) text_buffer = ({ rest });
             current_section = "returns";
 
-        } else if (has_prefix(trimmed, "@throws ")) {
-            if (sizeof(text_buffer) > 0) {
-                if (current_section == "text") result->text = text_buffer * " ";
-                else if (current_section == "param" && sizeof(current_param) > 0) {
-                    result->params[current_param] = text_buffer * " ";
-                } else if (current_section == "returns") {
-                    result->returns = text_buffer * " ";
-                }
-                text_buffer = ({});
-            }
-            text_buffer = ({ LSP.Compat.trim_whites(trimmed[8..]) });
+        } else if (has_prefix(trimmed, "@throws") || has_prefix(trimmed, "@exception")) {
+            FLUSH_BUFFER();
+
+            string rest = "";
+            if (has_prefix(trimmed, "@throws")) rest = trimmed[7..];
+            else rest = trimmed[10..];
+
+            rest = LSP.Compat.trim_whites(rest);
+            if (sizeof(rest) > 0) text_buffer = ({ rest });
             current_section = "throws";
 
-        } else if (has_prefix(trimmed, "@note ") || has_prefix(trimmed, "@note")) {
-            if (sizeof(text_buffer) > 0) {
-                if (current_section == "text") result->text = text_buffer * " ";
-                else if (current_section == "param" && sizeof(current_param) > 0) {
-                    result->params[current_param] = text_buffer * " ";
-                } else if (current_section == "returns") result->returns = text_buffer * " ";
-                else if (current_section == "throws") result->throws = text_buffer * " ";
-                text_buffer = ({});
-            }
-            string note_text = sizeof(trimmed) > 6 ? LSP.Compat.trim_whites(trimmed[6..]) : "";
+        } else if (has_prefix(trimmed, "@example")) {
+            FLUSH_BUFFER();
+            current_section = "example";
+
+        } else if (has_prefix(trimmed, "@bugs") || has_prefix(trimmed, "@bug")) {
+            FLUSH_BUFFER();
+            current_section = "bugs";
+
+        } else if (has_prefix(trimmed, "@note")) {
+            FLUSH_BUFFER();
+            string note_text = sizeof(trimmed) > 5 ? LSP.Compat.trim_whites(trimmed[5..]) : "";
             result->notes += ({ note_text });
             current_section = "note";
 
-        } else if (has_prefix(trimmed, "@seealso ")) {
-            string ref = LSP.Compat.trim_whites(trimmed[9..]);
-            if (sizeof(ref) > 0) result->seealso += ({ ref });
+        } else if (has_prefix(trimmed, "@seealso")) {
+            FLUSH_BUFFER();
+            string ref = LSP.Compat.trim_whites(trimmed[8..]);
+            if (sizeof(ref) > 0) {
+                array(string) parts = ref / ",";
+                foreach(parts, string part) {
+                    part = LSP.Compat.trim_whites(part);
+                    if (sizeof(part) > 0) result->seealso += ({ part });
+                }
+            }
+            current_section = "seealso";
 
-        } else if (has_prefix(trimmed, "@deprecated ") || has_prefix(trimmed, "@deprecated")) {
-            result->deprecated = sizeof(trimmed) > 12 ? LSP.Compat.trim_whites(trimmed[12..]) : "Deprecated";
+        } else if (has_prefix(trimmed, "@deprecated")) {
+            FLUSH_BUFFER();
+            result->deprecated = sizeof(trimmed) > 11 ? LSP.Compat.trim_whites(trimmed[11..]) : "Deprecated";
+            current_section = "deprecated";
 
         } else if (sizeof(trimmed) > 0) {
-            // Regular text line
-            text_buffer += ({ trimmed });
+            // Regular text line - use full line to preserve indentation for examples
+            // But strip first space if it exists (standard autodoc)
+            string line_content = line;
+            if (sizeof(line_content) > 0 && line_content[0] == ' ') line_content = line_content[1..];
+            text_buffer += ({ line_content });
+        } else {
+            // Empty line
+            text_buffer += ({ "" });
         }
     }
 
-    // Finalize last section
-    if (sizeof(text_buffer) > 0) {
-        if (current_section == "text") result->text = text_buffer * " ";
-        else if (current_section == "param" && sizeof(current_param) > 0) {
-            result->params[current_param] = text_buffer * " ";
-        } else if (current_section == "returns") result->returns = text_buffer * " ";
-        else if (current_section == "throws") result->throws = text_buffer * " ";
-    }
+    FLUSH_BUFFER();
 
     return result;
 }
