@@ -599,3 +599,22 @@ export interface PikeResponse {
         pike_total_ms: number;
     };
 }
+
+/**
+ * Expression information extracted at cursor position.
+ * Used for go-to-definition and hover on module paths and member access.
+ */
+export interface ExpressionInfo {
+    /** Full expression text */
+    fullPath: string;
+    /** Base part (module path or variable name) */
+    base: string;
+    /** Member being accessed (after -> or final .) */
+    member: string | null;
+    /** Last operator used ("." or "->") */
+    operator: '.' | '->' | null;
+    /** True if base is a module path (dots only) */
+    isModulePath: boolean;
+    /** Character range in document (0-indexed offsets) */
+    range: { start: number; end: number };
+}
