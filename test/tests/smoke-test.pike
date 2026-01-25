@@ -96,7 +96,7 @@ int main(int argc, array(string) argv) {
     run_test(test_cache_compilation, "LSP.pmod/Cache.pmod compiles standalone");
     run_test(test_parser_compilation, "LSP.pmod/Parser.pike compiles standalone");
     run_test(test_intelligence_compilation, "LSP.pmod/Intelligence.pike compiles standalone");
-    run_test(test_analysis_compilation, "LSP.pmod/Analysis.pike compiles standalone");
+    run_test(test_analysis_compilation, "LSP.pmod/Analysis.pmod/Analysis.pike compiles standalone");
 
     write("\n");
 
@@ -216,12 +216,12 @@ void test_intelligence_compilation() {
         error("Intelligence.pike should compile to a program");
 }
 
-//! Test: LSP.pmod/Analysis.pike compiles standalone
+//! Test: LSP.pmod/Analysis.pmod/Analysis.pike compiles standalone
 void test_analysis_compilation() {
-    string file_path = combine_path(pike_scripts_path, "LSP.pmod", "Analysis.pike");
+    string file_path = combine_path(pike_scripts_path, "LSP.pmod", "Analysis.pmod", "Analysis.pike");
     program prog = compile_file(file_path);
     if (!programp(prog))
-        error("Analysis.pike should compile to a program");
+        error("Analysis.pmod/Analysis.pike should compile to a program");
 }
 
 // =============================================================================
