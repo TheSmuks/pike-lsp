@@ -75,6 +75,13 @@ if [ -d "$PIKE_SCRIPTS_SRC" ]; then
             fi
         done
     fi
+
+    # BUILD-001: Inject Build ID
+    BUILD_ID="$(date +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    echo "  Injecting Build ID: $BUILD_ID"
+    # Use perl for in-place replacement to avoid sed portability issues between macOS/Linux
+    perl -i -pe "s/constant BUILD_ID = \"DEV_BUILD\";/constant BUILD_ID = \"$BUILD_ID\";/g" "$SERVER_DIR/pike-scripts/analyzer.pike"
+
 else
     echo "ERROR: pike-scripts not found at $PIKE_SCRIPTS_SRC"
     exit 1

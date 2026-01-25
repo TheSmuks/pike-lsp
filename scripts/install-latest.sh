@@ -33,9 +33,17 @@ fi
 echo "[4/4] Installing $VSIX_FILE..."
 code --install-extension "$VSIX_FILE" --force
 
+# Extract Build ID from the bundled server
+if [ -f "server/pike-scripts/analyzer.pike" ]; then
+    BUILD_ID=$(grep 'constant BUILD_ID =' server/pike-scripts/analyzer.pike | cut -d'"' -f2)
+else
+    BUILD_ID="unknown"
+fi
+
 echo ""
 echo "=== Done! ==="
 echo "Installed: $VSIX_FILE"
+echo "Compilation Number: $BUILD_ID"
 echo ""
 echo "Reload VSCode to use the new version:"
 echo "  - Press Ctrl+Shift+P (Cmd+Shift+P on Mac)"

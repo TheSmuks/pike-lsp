@@ -18,6 +18,9 @@ constant MAX_BLOCK_ITERATIONS = 500;
 // PERF-005: Debug mode (disabled by default for performance)
 int debug_mode = 0;
 
+// BUILD-001: Build ID (replaced by bundle script)
+constant BUILD_ID = "DEV_BUILD";
+
 // Conditional debug logging - only outputs when debug_mode is enabled
 void debug(string fmt, mixed... args) {
   if (debug_mode) {
@@ -189,7 +192,10 @@ int main(int argc, array(string) argv) {
 
     // Log Pike version for debugging
     // PERF-012: Use __REAL_VERSION__ directly instead of loading LSP.Compat module (~10-30ms saved)
-    werror("Pike LSP Analyzer running on Pike %s\n", (string)__REAL_VERSION__);
+    werror("Pike LSP Analyzer running on Pike %s (Build: %s)\n", (string)__REAL_VERSION__, BUILD_ID);
+    werror("Module Path: %O\n", master()->module_path);
+    werror("Include Path: %O\n", master()->include_path);
+
 
     // PERF-011: Record version phase time
     startup_phases->version = startup_timer->peek() * 1000.0;
@@ -277,7 +283,7 @@ int main(int argc, array(string) argv) {
             werror("[DEPRECATED] analyze_uninitialized method - use analyze with include: ['diagnostics']\n");
 
             // Call analyze with diagnostics include
-            mapping analyze_params = params + (["include":({"diagnostics"})]);
+            mapping analyze_params = params + (["include":({"diagnostics"}), "build_id": BUILD_ID]);
             mapping response = ctx->analysis->handle_analyze(analyze_params);
 
             // Extract diagnostics result
