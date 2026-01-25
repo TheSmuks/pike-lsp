@@ -8,6 +8,244 @@ import type { PikeSymbol, PikeFunctionType } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from './pike-type-formatter.js';
 
 /**
+ * Process block-level tags like @mapping, @ul, @decl
+ */
+function processBlockTags(text: string): string {
+    const lines = text.split('\n');
+    const result: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line === undefined) continue;
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith('@decl ')) {
+            const decl = trimmed.substring(6);
+            result.push('```pike');
+            result.push(decl);
+            result.push('```');
+            continue;
+        }
+
+        if (trimmed === '@mapping') {
+            result.push('**Mapping:**');
+            continue;
+        }
+
+        if (trimmed === '@endmapping' || trimmed === '@endul' || trimmed === '@endint' || trimmed === '@endarray') {
+            continue;
+        }
+
+        if (trimmed.startsWith('@member ')) {
+            // Check for description on next line
+            let nextLineDesc = '';
+            if (i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine ? nextLine.trim() : '';
+                if (nextTrimmed && !nextTrimmed.startsWith('@')) {
+                    nextLineDesc = nextTrimmed;
+                    i++; // Skip next line
+                }
+            }
+
+            // @member type "name" [description]
+            const match = trimmed.match(/^@member\s+(.+?)\s+"([^"]+)"(?:\s+(.*))?$/);
+            if (match) {
+                const type = match[1];
+                const name = match[2];
+                const desc = match[3] || nextLineDesc;
+                let newLine = `- \`"${name}"\` (\`${type}\`)`;
+                if (desc) newLine += `: ${desc}`;
+                result.push(newLine);
+                continue;
+            }
+
+            // @member type name [description] (no quotes)
+            const match2 = trimmed.match(/^@member\s+(.+?)\s+(\w+)(?:\s+(.*))?$/);
+            if (match2) {
+                 const type = match2[1];
+                 const name = match2[2];
+                 const desc = match2[3] || nextLineDesc;
+                 let newLine = `- \`${name}\` (\`${type}\`)`;
+                 if (desc) newLine += `: ${desc}`;
+                 result.push(newLine);
+                 continue;
+            }
+
+            // If match failed but we consumed a line, back up (unlikely if regex matches standard format)
+             if (nextLineDesc) i--;
+        }
+
+        if (trimmed === '@ul') {
+            continue;
+        }
+
+        if (trimmed.startsWith('@item ')) {
+             result.push(`- ${trimmed.substring(6)}`);
+             continue;
+        }
+
+        if (trimmed === '@int' || trimmed === '@array') {
+            continue;
+        }
+
+        if (trimmed.startsWith('@value ')) {
+            const val = trimmed.substring(7);
+            let desc = '';
+            if (i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine ? nextLine.trim() : '';
+                if (nextTrimmed && !nextTrimmed.startsWith('@')) {
+                    desc = nextTrimmed;
+                    i++;
+                }
+            }
+
+            if (desc) result.push(`- \`${val}\`: ${desc}`);
+            else result.push(`- \`${val}\``);
+            continue;
+        }
+
+        if (trimmed.startsWith('@elem ')) {
+            // @elem type value [description]
+            const rest = trimmed.substring(6);
+
+            let desc = '';
+            if (i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine ? nextLine.trim() : '';
+                if (nextTrimmed && !nextTrimmed.startsWith('@')) {
+                    desc = nextTrimmed;
+                    i++;
+                }
+            }
+
+            if (desc) result.push(`- \`${rest}\`: ${desc}`);
+            else result.push(`- \`${rest}\``);
+            continue;
+        }
+
+        result.push(line);
+    }
+    return result.join('\n');
+}
+
+/**
+ * Convert Pike Autodoc markup to Markdown.
+ * Handles tags like @b{}, @i{}, @tt{}, @ref{}, @[...].
+ */
+export function convertPikeDocToMarkdown(text: string): string {
+    if (!text) return '';
+
+    // First process block-level tags
+    text = processBlockTags(text);
+
+    // Buffer stack approach to handle nested tags
+    interface StackFrame {
+        tag: string;
+        content: string;
+    }
+
+    const stack: StackFrame[] = [];
+    let currentContent = '';
+
+    let i = 0;
+    while (i < text.length) {
+        if (text[i] === '@') {
+            if (i + 1 < text.length) {
+                const next = text[i + 1];
+
+                if (next === '@') {
+                    // @@ -> @
+                    currentContent += '@';
+                    i += 2;
+                    continue;
+                }
+
+                if (next === '}') {
+                    // Closing tag @}
+                    if (stack.length > 0) {
+                        const frame = stack.pop()!;
+                        const innerContent = currentContent;
+                        currentContent = frame.content; // restore outer content
+
+                        // Apply markup to innerContent
+                        const tag = frame.tag;
+                        if (tag === 'b') currentContent += `**${innerContent}**`;
+                        else if (tag === 'i') currentContent += `*${innerContent}*`;
+                        else if (tag === 'tt' || tag === 'code' || tag === 'expr') currentContent += `\`${innerContent}\``;
+                        else if (tag === 'ref') currentContent += `\`${innerContent}\``;
+                        else if (tag === 'url') currentContent += `<${innerContent}>`;
+                        else if (tag === 'rfc') currentContent += `[RFC ${innerContent}](https://tools.ietf.org/html/rfc${innerContent})`;
+                        else if (tag === 'xml') currentContent += innerContent;
+                        else if (tag === 'fixme') currentContent += `**FIXME** ${innerContent}`;
+                        else currentContent += innerContent; // Unknown tag, just keep content (stripping the tag wrapper)
+                    } else {
+                        currentContent += '@}';
+                    }
+                    i += 2;
+                    continue;
+                }
+
+                if (next === '[') {
+                    // @[ ... ] shorthand for ref
+                    // We treat this as a special tag 'bracket_ref'
+                    stack.push({ tag: 'bracket_ref', content: currentContent });
+                    currentContent = '';
+                    i += 2;
+                    continue;
+                }
+
+                // Check for start tag @keyword{
+                // Look ahead for {
+                // We limit lookahead to avoid performance issues on long strings without tags
+                const braceIdx = text.indexOf('{', i + 1);
+                if (braceIdx !== -1 && braceIdx < i + 20) {
+                    const tagCandidate = text.substring(i + 1, braceIdx);
+                    // Tags are usually simple alpha strings
+                    if (/^[a-zA-Z]+$/.test(tagCandidate)) {
+                        stack.push({ tag: tagCandidate, content: currentContent });
+                        currentContent = '';
+                        i = braceIdx + 1;
+                        continue;
+                    }
+                }
+            }
+        } else if (text[i] === ']') {
+            // potential end of @[ ... ]
+            if (stack.length > 0 && stack[stack.length - 1]!.tag === 'bracket_ref') {
+                const frame = stack.pop()!;
+                const innerContent = currentContent;
+                currentContent = frame.content;
+                currentContent += `\`${innerContent}\``;
+                i++;
+                continue;
+            }
+        }
+
+        currentContent += text[i];
+        i++;
+    }
+
+    // Handle any unclosed tags
+    while (stack.length > 0) {
+        const frame = stack.pop()!;
+        const tag = frame.tag;
+        const innerContent = currentContent;
+        currentContent = frame.content;
+
+        // Reconstruct unclosed tag as raw text to avoid swallowing content
+        if (tag === 'bracket_ref') {
+            currentContent += `@[${innerContent}`;
+        } else {
+            currentContent += `@${tag}{${innerContent}`;
+        }
+    }
+
+    return currentContent;
+}
+
+/**
  * Build markdown content for hover.
  */
 export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): string | null {
@@ -140,13 +378,13 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         if (doc.deprecated) {
             parts.push('**DEPRECATED**');
             parts.push('');
-            parts.push(`> ${doc.deprecated}`);
+            parts.push(`> ${convertPikeDocToMarkdown(doc.deprecated)}`);
             parts.push('');
         }
 
         // Main description text
         if (doc.text) {
-            parts.push(doc.text);
+            parts.push(convertPikeDocToMarkdown(doc.text));
             parts.push('');
         }
 
@@ -154,27 +392,35 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         if (doc.params && Object.keys(doc.params).length > 0) {
             parts.push('**Parameters:**');
             for (const [paramName, paramDesc] of Object.entries(doc.params)) {
-                parts.push(`- \`${paramName}\`: ${paramDesc}`);
+                parts.push(`- \`${paramName}\`: ${convertPikeDocToMarkdown(paramDesc)}`);
             }
             parts.push('');
         }
 
         // Return value
         if (doc.returns) {
-            parts.push(`**Returns:** ${doc.returns}`);
+            parts.push(`**Returns:** ${convertPikeDocToMarkdown(doc.returns)}`);
             parts.push('');
         }
 
         // Throws
         if (doc.throws) {
-            parts.push(`**Throws:** ${doc.throws}`);
+            parts.push(`**Throws:** ${convertPikeDocToMarkdown(doc.throws)}`);
             parts.push('');
         }
 
         // Notes
         if (doc.notes && doc.notes.length > 0) {
             for (const note of doc.notes) {
-                parts.push(`**Note:** ${note}`);
+                parts.push(`**Note:** ${convertPikeDocToMarkdown(note)}`);
+                parts.push('');
+            }
+        }
+
+        // Bugs
+        if (doc.bugs && doc.bugs.length > 0) {
+            for (const bug of doc.bugs) {
+                parts.push(`**Bug:** ${convertPikeDocToMarkdown(bug)}`);
                 parts.push('');
             }
         }
@@ -184,6 +430,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
             parts.push('**Example:**');
             for (const example of doc.examples) {
                 parts.push('```pike');
+                // Don't convert markup in examples as they are code
                 parts.push(example);
                 parts.push('```');
             }

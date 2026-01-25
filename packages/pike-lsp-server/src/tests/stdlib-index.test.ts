@@ -204,23 +204,30 @@ describe('StdlibIndexManager - Negative Cache', () => {
 
     it('should add modules to negative cache on bridge error', async () => {
         // Arrange
-        let callCount = 0;
-        const bridge = {
-            resolveStdlib: async () => {
-                callCount++;
-                throw new Error('Bridge error');
-            },
-        } as unknown as PikeBridge;
-        const manager = new StdlibIndexManager(bridge);
+        const originalConsoleError = console.error;
+        console.error = () => {}; // Silence expected error log
 
-        // Act
-        const result1 = await manager.getModule('Broken');
-        const result2 = await manager.getModule('Broken');
+        try {
+            let callCount = 0;
+            const bridge = {
+                resolveStdlib: async () => {
+                    callCount++;
+                    throw new Error('Bridge error');
+                },
+            } as unknown as PikeBridge;
+            const manager = new StdlibIndexManager(bridge);
 
-        // Assert
-        assert.equal(result1, null);
-        assert.equal(result2, null);
-        assert.equal(callCount, 1, 'Should only try bridge once');
+            // Act
+            const result1 = await manager.getModule('Broken');
+            const result2 = await manager.getModule('Broken');
+
+            // Assert
+            assert.equal(result1, null);
+            assert.equal(result2, null);
+            assert.equal(callCount, 1, 'Should only try bridge once');
+        } finally {
+            console.error = originalConsoleError;
+        }
     });
 
     it('should clear negative cache on clear()', async () => {
