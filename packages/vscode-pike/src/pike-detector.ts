@@ -310,7 +310,7 @@ function checkExecutable(filePath: string): boolean {
  */
 export async function detectPike(): Promise<PikeDetectionResult | null> {
     const platform = process.platform;
-    const patterns = PIKE_PATTERNS[platform] || PIKE_PATTERNS.linux;
+    const patterns = PIKE_PATTERNS[platform] || PIKE_PATTERNS.linux || [];
 
     // First, try the system PATH
     const systemPike = await findInPath('pike');
@@ -356,7 +356,7 @@ async function findInPath(executable: string): Promise<string | null> {
         ? `${executable}.exe`
         : executable;
 
-    const pathEnv = process.env.PATH || '';
+    const pathEnv = process.env['PATH'] || '';
     const pathDirs = pathEnv.split(path.delimiter);
 
     for (const dir of pathDirs) {
@@ -416,7 +416,7 @@ export function detectPikeSync(): Partial<PikeDetectionResult> | null {
     const platform = process.platform;
 
     // Quick system PATH check
-    const pathEnv = process.env.PATH || '';
+    const pathEnv = process.env['PATH'] || '';
     const pathDirs = pathEnv.split(path.delimiter);
 
     for (const dir of pathDirs) {
