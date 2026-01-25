@@ -11,6 +11,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { ExtensionContext, ConfigurationTarget, Position, Uri, Location, commands, workspace, window, OutputChannel, languages } from 'vscode';
+import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -158,6 +159,15 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
     });
 
     context.subscriptions.push(showDiagnosticsDisposable);
+
+    // Register Pike detection command
+    const detectPikeDisposable = commands.registerCommand('pike.detectPike', async () => {
+        await autoDetectPikeConfiguration();
+    });
+    context.subscriptions.push(detectPikeDisposable);
+
+    // Auto-detect Pike on first activation if not configured
+    await autoDetectPikeConfigurationIfNeeded();
 
     // Try multiple possible server locations
     const possiblePaths = [
@@ -368,6 +378,105 @@ export async function addModulePathSetting(modulePath: string): Promise<boolean>
     }
 
     return false;
+}
+
+/**
+ * Auto-detect Pike configuration and apply if not already set
+ */
+async function autoDetectPikeConfigurationIfNeeded(): Promise<void> {
+    const config = workspace.getConfiguration('pike');
+    const pikePath = config.get<string>('pikePath', 'pike');
+    const pikeModulePath = config.get<string[]>('pikeModulePath', []);
+
+    // Skip if user has explicitly configured paths
+    if (pikePath !== 'pike' || pikeModulePath.length > 0) {
+        console.log('[Pike] Using configured Pike paths:', { pikePath, pikeModulePath });
+        return;
+    }
+
+    console.log('[Pike] No configuration found, running auto-detection...');
+    const result = await detectPike();
+
+    if (result) {
+        console.log('[Pike] Auto-detected Pike:', result);
+        await applyDetectedPikeConfiguration(result);
+    } else {
+        console.log('[Pike] Pike not found in common locations');
+    }
+}
+
+/**
+ * Manually trigger Pike detection and show results
+ */
+async function autoDetectPikeConfiguration(): Promise<void> {
+    outputChannel.appendLine('Detecting Pike installation...');
+    outputChannel.show(true);
+
+    const result = await detectPike();
+
+    if (result) {
+        outputChannel.appendLine(`Found Pike v${result.version}:`);
+        outputChannel.appendLine(`  Executable: ${result.pikePath}`);
+        outputChannel.appendLine(`  Module path: ${result.modulePath || '(not found)'}`);
+        outputChannel.appendLine(`  Include path: ${result.includePath || '(not found)'}`);
+
+        const applied = await applyDetectedPikeConfiguration(result);
+        if (applied) {
+            window.showInformationMessage(`Pike v${result.version} detected and configured!`);
+        } else {
+            window.showInformationMessage('Pike detected but configuration already up to date.');
+        }
+    } else {
+        outputChannel.appendLine('Pike not found on system.');
+        window.showWarningMessage(
+            'Could not detect Pike installation automatically. Please configure Pike paths manually in settings.'
+        );
+    }
+}
+
+/**
+ * Apply detected Pike configuration to workspace settings
+ */
+async function applyDetectedPikeConfiguration(result: PikeDetectionResult): Promise<boolean> {
+    const config = workspace.getConfiguration('pike');
+    let updated = false;
+
+    // Update pikePath if it's still the default
+    const currentPikePath = config.get<string>('pikePath', 'pike');
+    if (currentPikePath === 'pike' && result.pikePath !== 'pike') {
+        await config.update('pikePath', result.pikePath, ConfigurationTarget.Workspace);
+        updated = true;
+        console.log(`[Pike] Updated pikePath to: ${result.pikePath}`);
+    }
+
+    // Update module path
+    const currentModulePath = config.get<string[]>('pikeModulePath', []);
+    const newModulePaths: string[] = [];
+
+    if (result.modulePath && !currentModulePath.includes(result.modulePath)) {
+        newModulePaths.push(result.modulePath);
+    }
+
+    if (result.includePath && !currentModulePath.includes(result.includePath)) {
+        newModulePaths.push(result.includePath);
+    }
+
+    // Also add suggestions from Pike query
+    const suggestions = await getModulePathSuggestions(result.pikePath);
+    for (const suggestion of suggestions) {
+        if (!currentModulePath.includes(suggestion) && !newModulePaths.includes(suggestion)) {
+            newModulePaths.push(suggestion);
+        }
+    }
+
+    if (newModulePaths.length > 0) {
+        const updatedModulePath = [...currentModulePath, ...newModulePaths];
+        await config.update('pikeModulePath', updatedModulePath, ConfigurationTarget.Workspace);
+        updated = true;
+        console.log(`[Pike] Added module paths:`, newModulePaths);
+    }
+
+    return updated;
 }
 
 export async function deactivate(): Promise<void> {
