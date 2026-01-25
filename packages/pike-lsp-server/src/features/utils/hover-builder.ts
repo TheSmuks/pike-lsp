@@ -8,11 +8,12 @@ import type { PikeSymbol, PikeFunctionType } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from './pike-type-formatter.js';
 
 /**
- * Process block-level tags like @mapping, @ul, @decl
+ * Process block-level tags like @mapping, @ul, @decl, @dl, @multiset, @ol
  */
 function processBlockTags(text: string): string {
     const lines = text.split('\n');
     const result: string[] = [];
+    let olCounter = 0; // Track ordered list counter
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -32,7 +33,13 @@ function processBlockTags(text: string): string {
             continue;
         }
 
-        if (trimmed === '@endmapping' || trimmed === '@endul' || trimmed === '@endint' || trimmed === '@endarray') {
+        if (trimmed === '@endmapping' || trimmed === '@endul' || trimmed === '@endint' ||
+            trimmed === '@endarray' || trimmed === '@enddl' || trimmed === '@endmultiset' ||
+            trimmed === '@endstring' || trimmed === '@endmixed' || trimmed === '@endol') {
+            // Reset ordered list counter when ending @ol
+            if (trimmed === '@endol') {
+                olCounter = 0;
+            }
             continue;
         }
 
@@ -80,12 +87,25 @@ function processBlockTags(text: string): string {
             continue;
         }
 
-        if (trimmed.startsWith('@item ')) {
-             result.push(`- ${trimmed.substring(6)}`);
-             continue;
+        if (trimmed === '@ol') {
+            olCounter = 1;
+            continue;
         }
 
-        if (trimmed === '@int' || trimmed === '@array') {
+        if (trimmed.startsWith('@item ')) {
+            const itemText = trimmed.substring(6);
+            // Use numbered list if inside @ol, otherwise bullet
+            if (olCounter > 0) {
+                result.push(`${olCounter}. ${itemText}`);
+                olCounter++;
+            } else {
+                result.push(`- ${itemText}`);
+            }
+            continue;
+        }
+
+        if (trimmed === '@int' || trimmed === '@array' || trimmed === '@multiset' ||
+            trimmed === '@string' || trimmed === '@mixed' || trimmed === '@ol') {
             continue;
         }
 
@@ -106,10 +126,9 @@ function processBlockTags(text: string): string {
             continue;
         }
 
-        if (trimmed.startsWith('@elem ')) {
-            // @elem type value [description]
-            const rest = trimmed.substring(6);
-
+        if (trimmed.startsWith('@index ')) {
+            // @index is used in @multiset blocks (similar to @value)
+            const val = trimmed.substring(7);
             let desc = '';
             if (i + 1 < lines.length) {
                 const nextLine = lines[i + 1];
@@ -120,8 +139,78 @@ function processBlockTags(text: string): string {
                 }
             }
 
-            if (desc) result.push(`- \`${rest}\`: ${desc}`);
-            else result.push(`- \`${rest}\``);
+            if (desc) result.push(`- \`${val}\`: ${desc}`);
+            else result.push(`- \`${val}\``);
+            continue;
+        }
+
+        if (trimmed.startsWith('@type ')) {
+            // @type is used in @mixed blocks
+            const rest = trimmed.substring(6);
+            let desc = '';
+            if (i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine ? nextLine.trim() : '';
+                if (nextTrimmed && !nextTrimmed.startsWith('@')) {
+                    desc = nextTrimmed;
+                    i++;
+                }
+            }
+
+            if (desc) result.push(`- **${rest}**: ${desc}`);
+            else result.push(`- **${rest}**`);
+            continue;
+        }
+
+        if (trimmed.startsWith('@elem ')) {
+            // @elem type index [description] or description on next line
+            const rest = trimmed.substring(6).trim();
+
+            // Try to parse: @elem type index
+            const parts = rest.split(/\s+/);
+            let type = '';
+            let index = '';
+            let inlineDesc = '';
+
+            if (parts.length >= 2) {
+                type = parts[0] || '';
+                index = parts[1] || '';
+                // Anything after the first two parts is inline description
+                if (parts.length > 2) {
+                    inlineDesc = parts.slice(2).join(' ');
+                }
+            }
+
+            // Check for description on next line
+            let nextLineDesc = '';
+            if (i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine ? nextLine.trim() : '';
+                if (nextTrimmed && !nextTrimmed.startsWith('@')) {
+                    nextLineDesc = nextTrimmed;
+                    i++;
+                }
+            }
+
+            const desc = inlineDesc || nextLineDesc;
+            const itemDisplay = type && index ? `${index} (${type})` : rest;
+
+            if (desc) result.push(`- \`${itemDisplay}\`: ${desc}`);
+            else result.push(`- \`${itemDisplay}\``);
+            continue;
+        }
+
+        if (trimmed.startsWith('@dt ')) {
+            // Definition term in @dl block
+            const term = trimmed.substring(4);
+            result.push(`- **${term}**`);
+            continue;
+        }
+
+        if (trimmed.startsWith('@dd ')) {
+            // Definition description in @dl block (indented)
+            const desc = trimmed.substring(4);
+            result.push(`  ${desc}`);
             continue;
         }
 
@@ -132,7 +221,8 @@ function processBlockTags(text: string): string {
 
 /**
  * Convert Pike Autodoc markup to Markdown.
- * Handles tags like @b{}, @i{}, @tt{}, @ref{}, @[...].
+ * Handles inline tags like @b{}, @i{}, @tt{}, @pre{}, @u{}, @sub{}, @sup{}, @ref{}, @[...].
+ * Also handles @url{}, @rfc{}, @xml{}, @fixme{}, @expr{}, @code{}, @image{}.
  */
 export function convertPikeDocToMarkdown(text: string): string {
     if (!text) return '';
@@ -179,6 +269,11 @@ export function convertPikeDocToMarkdown(text: string): string {
                         else if (tag === 'rfc') currentContent += `[RFC ${innerContent}](https://tools.ietf.org/html/rfc${innerContent})`;
                         else if (tag === 'xml') currentContent += innerContent;
                         else if (tag === 'fixme') currentContent += `**FIXME** ${innerContent}`;
+                        else if (tag === 'pre') currentContent += `\`\`\`\n${innerContent}\n\`\`\``;
+                        else if (tag === 'u') currentContent += `<u>${innerContent}</u>`;
+                        else if (tag === 'sub') currentContent += `<sub>${innerContent}</sub>`;
+                        else if (tag === 'sup') currentContent += `<sup>${innerContent}</sup>`;
+                        else if (tag === 'image') currentContent += `[Image: ${innerContent}]`;
                         else currentContent += innerContent; // Unknown tag, just keep content (stripping the tag wrapper)
                     } else {
                         currentContent += '@}';

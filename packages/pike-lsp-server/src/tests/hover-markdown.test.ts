@@ -61,6 +61,29 @@ describe('Hover Markdown Conversion', () => {
     it('should handle unknown tags by keeping content', () => {
         assert.equal(convertPikeDocToMarkdown('Unknown @unknown{tag@}'), 'Unknown tag');
     });
+
+    it('should convert pre tag @pre{...@}', () => {
+        const result = convertPikeDocToMarkdown('Code: @pre{line 1\nline 2@} text');
+        assert.ok(result.includes('```'));
+        assert.ok(result.includes('line 1'));
+        assert.ok(result.includes('line 2'));
+    });
+
+    it('should convert u tag @u{...@} to HTML underline', () => {
+        assert.equal(convertPikeDocToMarkdown('@u{underlined@} text'), '<u>underlined</u> text');
+    });
+
+    it('should convert sub tag @sub{...@} to HTML subscript', () => {
+        assert.equal(convertPikeDocToMarkdown('H@sub{2@}O'), 'H<sub>2</sub>O');
+    });
+
+    it('should convert sup tag @sup{...@} to HTML superscript', () => {
+        assert.equal(convertPikeDocToMarkdown('E=mc@sup{2@}'), 'E=mc<sup>2</sup>');
+    });
+
+    it('should convert image tag @image{...@}', () => {
+        assert.equal(convertPikeDocToMarkdown('@image{path/to/img.png@}'), '[Image: path/to/img.png]');
+    });
 });
 
 describe('Build Hover Content with Markup', () => {

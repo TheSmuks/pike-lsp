@@ -495,7 +495,7 @@ describe('Hover Formatting - Special Documentation', () => {
             },
             documentation: {
                 text: 'Related function.',
-                seealso: ['otherFunction', 'AnotherClass.method'],
+                seealso: ['otherFunction', 'String.trim', 'Stdio.File'],
             },
         });
 
@@ -505,6 +505,10 @@ describe('Hover Formatting - Special Documentation', () => {
         // Assert
         assert.ok(content, 'Should generate hover content');
         assert.ok(content!.includes('See also'), 'Should include see also section');
+        // Check that links are generated
+        assert.ok(content!.includes('[`otherFunction`](https://pike.lysator.liu.se/generated/manual/modref/ex/otherFunction.html)'));
+        assert.ok(content!.includes('[`String.trim`](https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/String/trim.html)'));
+        assert.ok(content!.includes('[`Stdio.File`](https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/Stdio/File.html)'));
     });
 });
 
