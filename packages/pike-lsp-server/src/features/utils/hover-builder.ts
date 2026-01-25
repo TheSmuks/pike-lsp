@@ -105,7 +105,8 @@ function processBlockTags(text: string): string {
         }
 
         if (trimmed === '@int' || trimmed === '@array' || trimmed === '@multiset' ||
-            trimmed === '@string' || trimmed === '@mixed' || trimmed === '@ol') {
+            trimmed === '@string' || trimmed === '@mixed' || trimmed === '@ol' ||
+            trimmed === '@dl') {
             continue;
         }
 
@@ -503,8 +504,19 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         // Parameters
         if (doc.params && Object.keys(doc.params).length > 0) {
             parts.push('**Parameters:**');
+            parts.push('');
             for (const [paramName, paramDesc] of Object.entries(doc.params)) {
-                parts.push(`- \`${paramName}\`: ${convertPikeDocToMarkdown(paramDesc)}`);
+                const converted = convertPikeDocToMarkdown(paramDesc);
+                // Check if the converted description contains a nested list
+                const hasNestedList = converted.includes('\n') && /^- /m.test(converted);
+                if (hasNestedList) {
+                    // Put parameter name on its own line, then indent the nested list
+                    parts.push(`- \`${paramName}\`:`);
+                    const indented = converted.split('\n').map(line => `  ${line}`).join('\n');
+                    parts.push(indented);
+                } else {
+                    parts.push(`- \`${paramName}\`: ${converted}`);
+                }
             }
             parts.push('');
         }
