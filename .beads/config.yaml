@@ -14,7 +14,8 @@
 # no-db: false
 
 # Disable daemon for RPC communication (forces direct database access)
-# no-daemon: false
+# Set to true on WSL to avoid filesystem locking issues with /mnt/c paths
+no-daemon: true
 
 # Disable auto-flush of database to JSONL after mutations
 # no-auto-flush: false
