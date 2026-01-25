@@ -205,11 +205,16 @@ mapping handle_introspect(mapping params) {
 
         werror("[DEBUG] handle_introspect called: filename=%s, code_length=%d\n", filename, sizeof(code));
 
+        // Check if this is a stdlib file (in a .pmod directory)
+        // Stdlib files with #require directives can compile fine since their
+        // modules are already loaded in the Pike runtime.
+        int is_stdlib = is_in_pmod_directory(filename);
+
         // Check for #require directives - these trigger expensive module loading
         // during compilation and can cause timeouts. For such files, use parser-based
-        // extraction instead of compilation.
+        // extraction instead of compilation. Skip this check for stdlib files.
         int has_require_directives = 0;
-        if (has_value(code, "#require")) {
+        if (!is_stdlib && has_value(code, "#require")) {
             // Check if it's actually a #require directive (not in a comment or string)
             array lines = code / "\n";
             foreach (lines, string line) {
@@ -226,6 +231,7 @@ mapping handle_introspect(mapping params) {
         }
 
         // For files with #require, use parser-based extraction to avoid timeout
+        // (except for stdlib files which can handle #require fine)
         if (has_require_directives) {
             werror("[DEBUG] Using parser-based extraction for: %s\n", filename);
             return handle_introspect_parser_only(params);
