@@ -407,37 +407,46 @@ async function resolveModulePath(
 
     try {
         const moduleInfo = await stdlibIndex.getModule(modulePath);
-        if (!moduleInfo || !moduleInfo.resolvedPath) {
+        if (!moduleInfo) {
+            return null;
+        }
+
+        // Use filePath (without line number) for the URI, and line for the position
+        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+        if (!filePath) {
             return null;
         }
 
         // Convert file path to URI
-        const uri = moduleInfo.resolvedPath.startsWith('file://')
-            ? moduleInfo.resolvedPath
-            : `file://${moduleInfo.resolvedPath}`;
+        const uri = filePath.startsWith('file://')
+            ? filePath
+            : `file://${filePath}`;
+
+        // Get the line number (0-based) from module info, default to 0
+        const line = moduleInfo.line ?? 0;
 
         // Find the specific symbol within the module if a member was requested
         // Note: IntrospectedSymbol doesn't have position info, so we return the module file
         if (expr.member && moduleInfo.symbols) {
             const memberSymbol = moduleInfo.symbols.get(expr.member);
             if (memberSymbol) {
-                // Return the module file location since introspected symbols don't have line positions
+                // Return the module file location at the module's line
                 return {
                     uri,
                     range: {
-                        start: { line: 0, character: 0 },
-                        end: { line: 0, character: 0 },
+                        start: { line, character: 0 },
+                        end: { line, character: 0 },
                     },
                 };
             }
         }
 
-        // Return the module file location (line 0 by default)
+        // Return the module file location at the parsed line number
         return {
             uri,
             range: {
-                start: { line: 0, character: 0 },
-                end: { line: 0, character: 0 },
+                start: { line, character: 0 },
+                end: { line, character: 0 },
             },
         };
     } catch (error) {
@@ -458,7 +467,7 @@ async function resolveMemberAccess(
     services: Services,
     expr: ExpressionInfo,
     cached: any,
-    currentUri: string
+    _currentUri: string
 ): Promise<Location | null> {
     const { stdlibIndex } = services;
 
@@ -505,15 +514,19 @@ async function resolveMemberAccess(
             return null;
         }
 
-        // Build URI from module path
-        const uri = moduleInfo.resolvedPath?.startsWith('file://')
-            ? moduleInfo.resolvedPath
-            : moduleInfo.resolvedPath
-                ? `file://${moduleInfo.resolvedPath}`
-                : currentUri;
+        // Use filePath (without line number) for the URI
+        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+        if (!filePath) {
+            return null;
+        }
 
-        // Return the module file location since introspected symbols don't have line positions
-        const line = 0;
+        // Build URI from module path
+        const uri = filePath.startsWith('file://')
+            ? filePath
+            : `file://${filePath}`;
+
+        // Use the module's line number (0-based) if available
+        const line = moduleInfo.line ?? 0;
         return {
             uri,
             range: {
@@ -539,7 +552,7 @@ async function resolveMemberAccess(
 async function resolveModuleMember(
     services: Services,
     expr: ExpressionInfo,
-    document: TextDocument
+    _document: TextDocument
 ): Promise<Location | null> {
     const { stdlibIndex } = services;
 
@@ -560,15 +573,19 @@ async function resolveModuleMember(
             return null;
         }
 
-        // Build URI from module path
-        const uri = moduleInfo.resolvedPath?.startsWith('file://')
-            ? moduleInfo.resolvedPath
-            : moduleInfo.resolvedPath
-                ? `file://${moduleInfo.resolvedPath}`
-                : document.uri;
+        // Use filePath (without line number) for the URI
+        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+        if (!filePath) {
+            return null;
+        }
 
-        // Return the module file location since introspected symbols don't have line positions
-        const line = 0;
+        // Build URI from module path
+        const uri = filePath.startsWith('file://')
+            ? filePath
+            : `file://${filePath}`;
+
+        // Use the module's line number (0-based) if available
+        const line = moduleInfo.line ?? 0;
         return {
             uri,
             range: {

@@ -1,208 +1,252 @@
 
-import { CompletionItem, CompletionItemKind, InsertTextFormat, Position, TextEdit } from 'vscode-languageserver/node.js';
+import { CompletionItem, CompletionItemKind, InsertTextFormat, Position, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 /**
- * Generate AutoDoc completion items based on the following function definition.
+ * AutoDoc trigger sequence: //!
+ *
+ * When the user types the second '!', we should trigger the autodoc
+ * completion that generates documentation based on the function signature
+ * on the following line.
  */
 export function getAutoDocCompletion(document: TextDocument, position: Position): CompletionItem[] {
+    const text = document.getText();
     const offset = document.offsetAt(position);
 
-    // Get text before cursor on current line
-    const text = document.getText();
+    // Get the current line's text
     const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+    const lineEnd = text.indexOf('\n', offset);
+    const currentLine = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+
+    // Get text before cursor on current line
     const lineTextBeforeCursor = text.slice(lineStart, offset);
 
-    // Check if we are triggered by //!!
-    if (!lineTextBeforeCursor.trim().endsWith('//!!')) {
+    // Trigger condition: The line should be `//!` or `//!!`
+    // - When typing the second `!`, lineTextBeforeCursor is `//!`
+    // - When done typing the second `!`, lineTextBeforeCursor is `//!!`
+    const trimmedLine = lineTextBeforeCursor.trim();
+
+    // Trigger if we have `//!` (just typed second !) or `//!!` (cursor after)
+    const isTrigger = trimmedLine === '//!' || trimmedLine.startsWith('//!!');
+
+    if (!isTrigger) {
         return [];
     }
 
-    // Find next function declaration
+    // Find the next line with the function signature
     let funcSignature: string | null = null;
     let nextLineIdx = position.line + 1;
     const lineCount = document.lineCount;
 
     while (nextLineIdx < lineCount) {
-        const line = document.getText({
+        const lineContent = document.getText({
             start: { line: nextLineIdx, character: 0 },
             end: { line: nextLineIdx + 1, character: 0 }
-        }).trim();
+        });
 
-        if (line && !line.startsWith('//') && !line.startsWith('/*')) {
-            // Check for potential function signature
-            // Heuristic: Must have parentheses and not be a control structure
-            const controlKeywords = ['if', 'while', 'for', 'foreach', 'switch', 'catch'];
-            const firstWord = line.split(/\s+/)[0];
+        const trimmedLine = lineContent.trim();
 
-            if (line.includes('(') && !controlKeywords.includes(firstWord ?? '')) {
-                funcSignature = line;
-            }
-            break;
+        // Skip empty lines and comment lines
+        if (!trimmedLine || trimmedLine.startsWith('//') || trimmedLine.startsWith('/*')) {
+            nextLineIdx++;
+            continue;
         }
-        nextLineIdx++;
+
+        // Check if this looks like a function/method signature
+        // Must have parentheses and not be a control structure
+        const controlKeywords = ['if', 'while', 'for', 'foreach', 'switch', 'catch', 'do', 'else', 'class', 'enum', 'typedef'];
+        const firstWord = trimmedLine.split(/\s+/)[0] || '';
+
+        if (trimmedLine.includes('(') && !controlKeywords.includes(firstWord)) {
+            funcSignature = trimmedLine;
+        }
+        break;
     }
 
     if (!funcSignature) {
         return [];
     }
 
-    // Parse signature
-    // Remove known modifiers
-    const modifiers = new Set(['public', 'private', 'protected', 'static', 'final', 'inline', 'nomask', 'variant', 'optional', 'local']);
-
-    // Find the parameter list. It should be the last balanced group of parentheses before the body start.
-    // Clean up the line first: remove trailing `{`, `;` and whitespace
-    let cleanSignature = funcSignature.trim();
-    if (cleanSignature.endsWith('{')) cleanSignature = cleanSignature.slice(0, -1).trim();
-    if (cleanSignature.endsWith(';')) cleanSignature = cleanSignature.slice(0, -1).trim();
-
-    // Find the last ')'
-    const lastParenIndex = cleanSignature.lastIndexOf(')');
-    if (lastParenIndex === -1) return [];
-
-    // Find the matching '('
-    let parenDepth = 0;
-    let openParenIndex = -1;
-
-    // Scan backwards from lastParenIndex
-    for (let i = lastParenIndex; i >= 0; i--) {
-        const char = cleanSignature[i];
-        if (char === ')') parenDepth++;
-        else if (char === '(') parenDepth--;
-
-        if (parenDepth === 0) {
-            openParenIndex = i;
-            break;
-        }
+    // Parse the function signature to extract name, return type, and parameters
+    const parsed = parseFunctionSignature(funcSignature);
+    if (!parsed) {
+        return [];
     }
 
-    if (openParenIndex === -1) return [];
+    // Build the AutoDoc template
+    const template = buildAutoDocTemplate(parsed);
 
-    const beforeParen = cleanSignature.substring(0, openParenIndex).trim();
-    const argsContent = cleanSignature.substring(openParenIndex + 1, lastParenIndex);
-
-    // Extract name from beforeParen
-    // It should be the last word
-    // e.g. "mapping(string:int) process_data" -> "process_data"
-    // e.g. "void main" -> "main"
-
-    // We also need to filter out modifiers from the beginning?
-    // Or just look at the last token.
-
-    // Split by whitespace to find tokens
-    // But be careful with types that don't have spaces like "array(int)foo" (bad style but valid?)
-    // Assuming standard style with space before name.
-
-    // Let's use regex to find the last identifier
-    const nameMatch = beforeParen.match(/([a-zA-Z0-9_]+)$/);
-    if (!nameMatch) return [];
-
-    const name = nameMatch[1] as string; // Assert string because we checked !nameMatch
-
-    // Return type is everything before name
-    let returnType = beforeParen.substring(0, beforeParen.length - name.length).trim();
-
-    // Clean up modifiers from return type
-    const returnTypeParts = returnType.split(/\s+/);
-    const cleanReturnTypeParts = returnTypeParts.filter(p => !modifiers.has(p));
-    returnType = cleanReturnTypeParts.join(' ');
-    if (!returnType) returnType = 'void';
-
-    // Parse arguments
-    const args: string[] = [];
-    if (argsContent.trim()) {
-        // Split by comma, but respect nested parens/angles
-        // Simple heuristic: split by comma if not nested
-        let currentArg = '';
-        let depth = 0;
-
-        for (const char of argsContent) {
-            if (char === '(' || char === '<' || char === '{' || char === '[') depth++;
-            else if (char === ')' || char === '>' || char === '}' || char === ']') depth--;
-
-            if (char === ',' && depth === 0) {
-                // End of arg
-                parseArg(currentArg, args);
-                currentArg = '';
-            } else {
-                currentArg += char;
-            }
-        }
-        parseArg(currentArg, args);
+    // Find the //!! position for the replace range
+    const bangBangIndex = currentLine.indexOf('//!!');
+    if (bangBangIndex === -1) {
+        return [];
     }
 
-    // Build Doc
-    const docLines: string[] = [];
-
-    // We want to replace `//!!` with `//!` plus the rest
-    // The user typed `//!!`. The completion should replace this.
-    // However, VS Code completion replace range usually works on the word being typed.
-    // Here we are replacing a symbol.
-
-    // Template content
-    // We use snippets for tabstops
-    // ${1:description}
-
-    docLines.push(`//! ${name}`);
-    docLines.push('//!');
-    docLines.push('//! ${1:Description}');
-    docLines.push('//!');
-
-    let tabIndex = 2;
-    for (const arg of args) {
-        docLines.push(`//! @param ${arg}`);
-        docLines.push(`//!   \${${tabIndex++}:Description for ${arg}}`);
-    }
-
-    if (returnType && returnType !== 'void') {
-        docLines.push('//! @returns');
-        docLines.push(`//!   \${${tabIndex++}:Description for return value}`);
-    }
-
-    const template = docLines.join('\n');
-
-    // Calculate the range to replace: the `//!!` characters before cursor
-    // lineTextBeforeCursor ends with `//!!`
-    // We want to replace `//!!` with the template.
-    // The start character is `offset - 4`. (Wait, offset is global)
-    // Character is `position.character - 4`.
-
-    const replaceRange = {
-        start: { line: position.line, character: position.character - 4 },
-        end: position
+    // Replace from start of //!! to the end of the line
+    // This ensures we replace all of //!! even if cursor is mid-way
+    const replaceRange: Range = {
+        start: { line: position.line, character: bangBangIndex },
+        end: { line: position.line, character: currentLine.length }
     };
 
     return [{
-        label: 'Generate AutoDoc Template',
+        label: '//!! AutoDoc Template',
         kind: CompletionItemKind.Snippet,
-        detail: `Auto-generate documentation for ${name}`,
+        detail: `${parsed.name}(${parsed.args.join(', ')})`,
         insertText: template,
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: TextEdit.replace(replaceRange, template),
         // Force sort to top
-        sortText: '!'
+        sortText: '0!!',
+        // Preselect so it's automatically selected
+        preselect: true,
+        // Accept with common characters for quick insertion
+        commitCharacters: [' ', '\t', ';'],
     }];
 }
 
-function parseArg(argStr: string, argsList: string[]) {
-    const trimmed = argStr.trim();
-    if (!trimmed) return;
+/**
+ * Parse a Pike function signature to extract components
+ */
+interface ParsedSignature {
+    name: string;
+    returnType: string;
+    args: string[];
+    hasVoidReturn: boolean;
+}
 
-    // Last token is name
-    // int x
-    // array(string) y
-    // object z
-    // function(int:void) callback
+function parseFunctionSignature(signature: string): ParsedSignature | null {
+    // Clean up: remove trailing {, ;, or whitespace
+    let clean = signature.trim();
+    if (clean.endsWith('{')) clean = clean.slice(0, -1).trim();
+    if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
 
-    // Split by space, but careful about types with spaces?
-    // Actually, we just want the last identifier.
-    // Regex for last identifier: /([a-zA-Z0-9_]+)\s*$/
+    // Find the parameter list: last balanced parentheses
+    const lastParen = clean.lastIndexOf(')');
+    if (lastParen === -1) return null;
 
-    const match = trimmed.match(/([a-zA-Z0-9_]+)\s*$/);
-    if (match && match[1]) {
-        // If it's "..." (varargs), handle it?
-        // Pike varargs: `mixed ... args`
-        argsList.push(match[1]);
+    // Find matching opening paren
+    let depth = 0;
+    let openParen = -1;
+    for (let i = lastParen; i >= 0; i--) {
+        if (clean[i] === ')') depth++;
+        else if (clean[i] === '(') depth--;
+        if (depth === 0) {
+            openParen = i;
+            break;
+        }
     }
+
+    if (openParen === -1) return null;
+
+    const beforeParen = clean.substring(0, openParen).trim();
+    const argsContent = clean.substring(openParen + 1, lastParen);
+
+    // Extract function name (last word before parentheses)
+    // Handles: "void foo", "int bar(...)", "this_program baz", "mapping(string:int) qux"
+    const nameMatch = beforeParen.match(/([a-zA-Z0-9_]+)\s*$/);
+    if (!nameMatch || !nameMatch[1]) return null;
+    const name: string = nameMatch[1];
+
+    // Return type is everything before the name
+    let returnType = beforeParen.substring(0, beforeParen.length - name.length).trim() || 'void';
+
+    // Remove common modifiers from return type
+    const modifiers = ['public', 'private', 'protected', 'static', 'final', 'inline', 'nomask', 'variant', 'optional', 'local', 'extern', 'this_program', 'final'];
+    const typeParts = returnType.split(/\s+/).filter(p => !modifiers.includes(p));
+    returnType = typeParts.join(' ') || 'void';
+
+    // Parse arguments
+    const args: string[] = [];
+    if (argsContent.trim()) {
+        const parsedArgs = parseArguments(argsContent);
+        args.push(...parsedArgs);
+    }
+
+    return {
+        name,
+        returnType,
+        args,
+        hasVoidReturn: returnType === 'void' || returnType === '__EMPTY__'
+    };
+}
+
+/**
+ * Parse function arguments, handling complex types with nested structures
+ */
+function parseArguments(argsContent: string): string[] {
+    const args: string[] = [];
+    let current = '';
+    let depth = 0;
+    let parenDepth = 0; // Track nested parens separately
+
+    for (let i = 0; i < argsContent.length; i++) {
+        const char = argsContent[i];
+
+        // Track nested structures but parentheses specially for union types like Gmp.mpz|int
+        if (char === '<' || char === '{' || char === '[') depth++;
+        else if (char === '>' || char === '}' || char === ']') depth--;
+        else if (char === '(') parenDepth++;
+        else if (char === ')') parenDepth--;
+
+        if (char === ',' && depth === 0 && parenDepth === 0) {
+            // End of argument
+            const argName = extractArgumentName(current);
+            if (argName) args.push(argName);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+
+    // Don't forget the last argument
+    if (current.trim()) {
+        const argName = extractArgumentName(current);
+        if (argName) args.push(argName);
+    }
+
+    return args;
+}
+
+/**
+ * Extract the argument name from a type+name string
+ * Handles: "int foo", "Gmp.mpz|int bar", "array(string) baz", "mixed ... args"
+ */
+function extractArgumentName(argStr: string): string | null {
+    const trimmed = argStr.trim();
+    if (!trimmed) return null;
+
+    // Handle varargs: "mixed ... args" -> "args"
+    const varargsMatch = trimmed.match(/\.\.\s+([a-zA-Z0-9_]+)$/);
+    if (varargsMatch && varargsMatch[1]) return varargsMatch[1];
+
+    // For regular arguments, find the last identifier
+    // This handles "int foo", "Gmp.mpz|int bar", "array(string) baz"
+    const match = trimmed.match(/([a-zA-Z0-9_]+)\s*$/);
+    return match && match[1] ? match[1] : null;
+}
+
+/**
+ * Build the AutoDoc template with snippet placeholders
+ */
+function buildAutoDocTemplate(parsed: ParsedSignature): string {
+    const lines: string[] = [];
+
+    // Main description (first tab stop)
+    lines.push('//! ${1:Description}');
+
+    // Parameters
+    let tabIndex = 2;
+    for (const arg of parsed.args) {
+        lines.push(`//! @param ${arg}`);
+        lines.push(`//!   \${${tabIndex++}:Description for \`${arg}\`}`);
+    }
+
+    // Return value (skip for void functions)
+    if (!parsed.hasVoidReturn) {
+        lines.push('//! @returns');
+        lines.push(`//!   \${${tabIndex++}:Description for return value}`);
+    }
+
+    return lines.join('\n');
 }
