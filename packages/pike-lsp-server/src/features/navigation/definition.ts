@@ -88,6 +88,30 @@ export function registerDefinitionHandlers(
             const isOnDefinition = symbolLine === params.position.line;
 
             if (isOnDefinition) {
+                // If this is an import or inherit, navigate to the target module/file
+                if (symbol.kind === 'import' || symbol.kind === 'inherit') {
+                    // Use classname if available (usually contains the module path), otherwise name
+                    const modulePath = symbol.classname || symbol.name;
+                    if (modulePath) {
+                        log.debug('Definition: navigating to import/inherit target', { modulePath });
+                        const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
+
+                        if (moduleInfo && moduleInfo.resolvedPath) {
+                            const targetUri = moduleInfo.resolvedPath.startsWith('file://')
+                                ? moduleInfo.resolvedPath
+                                : `file://${moduleInfo.resolvedPath}`;
+
+                            return {
+                                uri: targetUri,
+                                range: {
+                                    start: { line: 0, character: 0 },
+                                    end: { line: 0, character: 0 },
+                                },
+                            };
+                        }
+                    }
+                }
+
                 // User clicked on a definition - show references instead
                 log.debug('Definition: cursor on definition, returning references', { symbol: symbol.name });
 
