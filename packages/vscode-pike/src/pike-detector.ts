@@ -213,16 +213,17 @@ function findGlobMatches(pattern: string): string[] {
 }
 
 /**
- * Query Pike for its include and module paths
+ * Query Pike for its include and module paths using --show-paths
+ *
+ * Output format:
+ *   master.pike...: <path>
+ *   Module path...: <path>
+ *   Include path..: <path>
+ *   Program path..: <path>
  */
 function queryPikePaths(pikeExe: string): Promise<{ modulePath: string; includePath: string }> {
     return new Promise((resolve) => {
-        const script = `
-            write(master()->pike_module_path + "\\n");
-            write(master()->pike_include_path + "\\n");
-        `;
-
-        const child = spawn(pikeExe, ['-e', script]);
+        const child = spawn(pikeExe, ['--show-paths']);
 
         let stdout = '';
         let stderr = '';
@@ -236,9 +237,19 @@ function queryPikePaths(pikeExe: string): Promise<{ modulePath: string; includeP
         });
 
         child.on('close', () => {
-            const lines = stdout.trim().split('\n');
-            const modulePath = lines[0]?.trim() || '';
-            const includePath = lines[1]?.trim() || '';
+            let modulePath = '';
+            let includePath = '';
+
+            // Parse output format: "Module path...: C:/path/to/modules"
+            for (const line of stdout.split('\n')) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('Module path')) {
+                    modulePath = trimmed.split('...:')[1]?.trim() || '';
+                } else if (trimmed.startsWith('Include path')) {
+                    includePath = trimmed.split('..:')[1]?.trim() || '';
+                }
+            }
+
             resolve({ modulePath, includePath });
         });
 
@@ -255,11 +266,11 @@ function queryPikePaths(pikeExe: string): Promise<{ modulePath: string; includeP
 }
 
 /**
- * Get Pike version by running the executable
+ * Get Pike version by running --dumpversion (outputs just "8.0.1116")
  */
 async function getPikeVersion(pikeExe: string): Promise<string> {
     return new Promise((resolve) => {
-        const child = spawn(pikeExe, ['--version']);
+        const child = spawn(pikeExe, ['--dumpversion']);
 
         let stdout = '';
         let stderr = '';
@@ -274,9 +285,10 @@ async function getPikeVersion(pikeExe: string): Promise<string> {
 
         child.on('close', () => {
             const output = stdout || stderr;
-            // Parse version from "Pike v8.0 release 1956" format
-            const match = output.match(/Pike v(\d+\.\d+)/);
-            resolve(match?.[1] || 'unknown');
+            // --dumpversion outputs "8.0.1116" format, extract major.minor
+            const version = output.trim();
+            const match = version.match(/^(\d+\.\d+)/);
+            resolve(match?.[1] || version || 'unknown');
         });
 
         child.on('error', () => {
