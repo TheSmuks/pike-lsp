@@ -535,7 +535,7 @@ protected mapping simple_parse_autodoc(string doc) {
     mapping result = ([
         "text": "",
         "params": ([]),
-        "paramOrder": ({}),  // Track param order since Pike mappings don't preserve it
+        // paramOrder will be set at the end to avoid O(n²) array copying
         "returns": "",
         "throws": "",
         "notes": ({}),
@@ -549,6 +549,7 @@ protected mapping simple_parse_autodoc(string doc) {
     string current_section = "text";
     string current_param = "";
     array(string) text_buffer = ({});
+    array(string) param_order = ({});  // Local array for tracking param order
     int ignoring = 0;
 
     // Macro for flushing buffer (Pike doesn't support local functions easily here)
@@ -614,7 +615,7 @@ protected mapping simple_parse_autodoc(string doc) {
             }
             current_section = "param";
             result->params[current_param] = "";
-            result->paramOrder += ({ current_param });  // Track order
+            param_order += ({ current_param });  // Track order in local array
 
         } else if (has_prefix(trimmed, "@returns") || has_prefix(trimmed, "@return")) {
             FLUSH_BUFFER();
@@ -682,6 +683,11 @@ protected mapping simple_parse_autodoc(string doc) {
     }
 
     FLUSH_BUFFER();
+
+    // Set paramOrder once at the end (single allocation, not n times)
+    if (sizeof(param_order) > 0) {
+        result->paramOrder = param_order;
+    }
 
     return result;
 }
