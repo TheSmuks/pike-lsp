@@ -10,7 +10,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { ExtensionContext, ConfigurationTarget, Position, Uri, Location, commands, workspace, window, OutputChannel } from 'vscode';
+import { ExtensionContext, ConfigurationTarget, Position, Uri, Location, commands, workspace, window, OutputChannel, languages } from 'vscode';
 import {
     LanguageClient,
     LanguageClientOptions,
@@ -118,6 +118,46 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
     });
 
     context.subscriptions.push(showReferencesDisposable);
+
+    // Register showDiagnostics command - shows diagnostics for current document
+    const showDiagnosticsDisposable = commands.registerCommand('pike.lsp.showDiagnostics', async () => {
+        const activeEditor = window.activeTextEditor;
+        if (!activeEditor) {
+            window.showInformationMessage('No active Pike file to show diagnostics for.');
+            return;
+        }
+
+        const doc = activeEditor.document;
+        if (doc.languageId !== 'pike') {
+            window.showInformationMessage('Active file is not a Pike file.');
+            return;
+        }
+
+        const diagnostics = languages.getDiagnostics(doc.uri);
+
+        if (diagnostics.length === 0) {
+            window.showInformationMessage('No diagnostics found for this file.');
+            return;
+        }
+
+        // Show diagnostics in output channel
+        outputChannel.clear();
+        outputChannel.appendLine(`Diagnostics for ${doc.uri}:`);
+        outputChannel.appendLine(''.padEnd(40, '-'));
+
+        for (const diag of diagnostics) {
+            const severity = diag.severity === 0 ? 'Error' :
+                           diag.severity === 1 ? 'Error' :
+                           diag.severity === 2 ? 'Warning' :
+                           diag.severity === 3 ? 'Info' : 'Unknown';
+            const line = diag.range.start.line + 1;
+            outputChannel.appendLine(`  [${severity}] Line ${line}: ${diag.message}`);
+        }
+
+        outputChannel.show(true);
+    });
+
+    context.subscriptions.push(showDiagnosticsDisposable);
 
     // Try multiple possible server locations
     const possiblePaths = [

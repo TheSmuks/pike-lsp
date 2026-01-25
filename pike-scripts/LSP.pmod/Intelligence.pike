@@ -1252,7 +1252,12 @@ protected mapping parse_autodoc_impl(string doc) {
                             mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
                             if (sizeof(mname) > 0) {
                                 current_param = mname;
-                                if (!result->members[mname]) {
+                                // When inside a group (e.g., @mapping), add to group_items
+                                // so it gets collected when the group closes
+                                if (sizeof(current_group) > 0) {
+                                    string member_label = mtype + " " + mname;
+                                    group_items += ({ ([ "label": member_label, "text": "" ]) });
+                                } else if (!result->members[mname]) {
                                     result->members[mname] = process_inline_markup(mtype);
                                 }
                             }
