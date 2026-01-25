@@ -96,13 +96,13 @@ protected string normalize_path_for_compilation(string filename) {
     // We need to strip the leading / for Windows drive paths
     if (sizeof(normalized) >= 4 && has_prefix(normalized, "/")) {
         // Check for pattern: /X:/ where X is a drive letter
-        string second = normalized[1..1];
-        string third = normalized[2..2];
-        if (third == ":" && sizeof(second) == 1 &&
-            ((second >= "A" && second <= "Z") || (second >= "a" && second <= "z"))) {
+        // Optimized check using character codes
+        int c = normalized[1];
+        if (normalized[2] == ':' && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
             // This is /X:/path -> normalize to X:/path
+            string old = normalized;
             normalized = normalized[1..];
-            werror("[DEBUG] Normalized Windows path: %s\n", normalized);
+            werror("[DEBUG] Normalized Windows path: %s -> %s\n", old, normalized);
         }
     }
 
@@ -154,38 +154,79 @@ protected string preprocess_relative_references(string code, string module_name)
         return code;
     }
 
-    string result = "";
-    foreach(code / "\n", string line) {
-        string trimmed = LSP.Compat.trim_whites(line);
+    array tokens = Parser.Pike.split(code);
 
-        // Pattern: inherit .ModuleName
-        if (sscanf(trimmed, "inherit .%s", string rest) == 1) {
-            // Extract the module name (stop at semicolon, space, or comment)
-            string sibling_name = "";
-            for (int i = 0; i < sizeof(rest); i++) {
-                string c = rest[i..i];
-                if (c == ";" || c == " " || c == "/" || c == "{" || c == "}") {
-                    break;
+    for (int i = 0; i < sizeof(tokens); i++) {
+        string token = tokens[i];
+
+        if (token == ".") {
+            // Check context to see if this is a relative module reference
+            // Look backward for non-whitespace
+            int is_relative_ref = 1;
+            for (int j = i - 1; j >= 0; j--) {
+                string prev = tokens[j];
+                if (sizeof(LSP.Compat.trim_whites(prev)) == 0) continue; // Skip whitespace
+
+                // If preceded by identifier, ), ], }, ", ', it's likely a dot access (obj.member)
+                // If previous token is an identifier, it's obj.member unless it's a keyword that allows type/module
+
+                if (prev == ")" || prev == "]") {
+                    is_relative_ref = 0;
+                } else if (has_prefix(prev, "\"") || has_prefix(prev, "'")) {
+                     is_relative_ref = 0; // String/char literal
+                } else if (prev[0] >= '0' && prev[0] <= '9') {
+                     is_relative_ref = 0; // Number
+                } else {
+                     // Word/Identifier/Keyword
+                     // Check if next token is an identifier (required for .Module)
+                     if (i + 1 < sizeof(tokens)) {
+                         // Find next non-whitespace
+                         int k = i + 1;
+                         while (k < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[k])) == 0) k++;
+
+                         if (k < sizeof(tokens)) {
+                             string next_token = tokens[k];
+                             // Check if next_token is an identifier (starts with letter or _)
+                             int c = next_token[0];
+                             if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_')) {
+                                 is_relative_ref = 0;
+                             }
+                         } else {
+                             is_relative_ref = 0;
+                         }
+                     }
+
+                     if (is_relative_ref) {
+                         // Check prev again
+                         // Safe keywords that can precede a type/module reference
+                         array safe_keywords = ({
+                             "return", "case", "throw", "catch", "if", "while", "for", "foreach", "switch",
+                             "inherit", "import", "class", "module"
+                         });
+
+                         // Identifier check
+                         if ((prev[0] >= 'a' && prev[0] <= 'z') || (prev[0] >= 'A' && prev[0] <= 'Z') || prev[0] == '_') {
+                             // It is an identifier. Check if it's a safe keyword.
+                             if (search(safe_keywords, prev) == -1) {
+                                 // Not a safe keyword -> Assume it's a variable/type/module member access
+                                 is_relative_ref = 0;
+                             }
+                         }
+                         // Else it's an operator or punctuation (e.g. =, (, ,, :) -> Valid start for .Module
+                    }
                 }
-                sibling_name += c;
+                break; // Found previous token
             }
 
-            if (sizeof(sibling_name) > 0) {
-                // Replace .Sibling with Module.Sibling
-                string replacement = "inherit " + module_name + "." + sibling_name;
-                result += replacement + (sizeof(rest) > sizeof(sibling_name) ? rest[sizeof(sibling_name)..] : ";") + "\n";
-                continue;
+            if (is_relative_ref) {
+                // Replace "." with "Module."
+                // We append the dot to the module name to ensure it connects to the next identifier
+                tokens[i] = module_name + ".";
             }
         }
-
-        // Pattern: .Module.member (e.g., .Random.random_string)
-        // This is harder - we'd need to parse expressions. For now, keep as-is.
-        // The inherit conversion handles most compilation issues.
-
-        result += line + "\n";
     }
 
-    return result;
+    return tokens * "";
 }
 
 //! Introspect Pike code using parser only (no compilation)
