@@ -11,7 +11,8 @@
 //! - Uses helper functions from module.pmod directly
 
 // Import sibling modules for access to their exports
-constant Cache = LSP.Cache;
+// Use master()->resolv() to avoid compilation errors when LSP module isn't fully loaded
+// constant Cache = LSP.Cache;
 
 //! Bootstrap modules used internally by the resolver.
 //! These modules cannot be resolved using the normal path because
@@ -34,6 +35,23 @@ private object context;
 //! @param ctx Optional context object (reserved for future use)
 void create(object ctx) {
     context = ctx;
+}
+
+//! Trim leading and trailing whitespace from a string.
+//! Polyfill for missing LSP.Compat.trim_whites
+protected string trim_whites(string s) {
+    if (sizeof(s) == 0) return s;
+    while (sizeof(s) > 0) {
+        int first = s[0];
+        if (first == ' ' || first == '\t' || first == '\n' || first == '\r') s = s[1..];
+        else break;
+    }
+    while (sizeof(s) > 0) {
+        int last = s[-1];
+        if (last == ' ' || last == '\t' || last == '\n' || last == '\r') s = s[0..<1];
+        else break;
+    }
+    return s;
 }
 
 //! Check if a filename is within the LSP.pmod module directory
@@ -165,7 +183,7 @@ protected string preprocess_relative_references(string code, string module_name)
             int is_relative_ref = 1;
             for (int j = i - 1; j >= 0; j--) {
                 string prev = tokens[j];
-                if (sizeof(LSP.Compat.trim_whites(prev)) == 0) continue; // Skip whitespace
+                if (sizeof(trim_whites(prev)) == 0) continue; // Skip whitespace
 
                 // If preceded by identifier, ), ], }, ", ', it's likely a dot access (obj.member)
                 // If previous token is an identifier, it's obj.member unless it's a keyword that allows type/module
@@ -182,7 +200,7 @@ protected string preprocess_relative_references(string code, string module_name)
                      if (i + 1 < sizeof(tokens)) {
                          // Find next non-whitespace
                          int k = i + 1;
-                         while (k < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[k])) == 0) k++;
+                         while (k < sizeof(tokens) && sizeof(trim_whites(tokens[k])) == 0) k++;
 
                          if (k < sizeof(tokens)) {
                              string next_token = tokens[k];
@@ -286,7 +304,7 @@ mapping handle_introspect(mapping params) {
             // Check if it's actually a #require directive (not in a comment or string)
             array lines = code / "\n";
             foreach (lines, string line) {
-                string trimmed = LSP.Compat.trim_whites(line);
+                string trimmed = trim_whites(line);
                 // Skip comments
                 if (sizeof(trimmed) > 0 && trimmed[0] == '#') {
                     if (has_prefix(trimmed, "#require")) {
@@ -384,7 +402,13 @@ mapping handle_introspect(mapping params) {
 
         // Cache the compiled program using LSP.Cache
         werror("[DEBUG] Compilation successful, about to introspect\n");
-        Cache.put("program_cache", filename, compiled_prog);
+        // Use dynamic resolution for Cache to avoid circular dependency/load order issues
+        mixed Cache = master()->resolv("LSP.Cache");
+        if (Cache) {
+             Cache->put("program_cache", filename, compiled_prog);
+        } else {
+             werror("[WARNING] LSP.Cache not found, skipping cache put\n");
+        }
 
         // Extract type information
         werror("[DEBUG] About to call introspect_program\n");
@@ -398,8 +422,64 @@ mapping handle_introspect(mapping params) {
     };
 
     if (err) {
-        return LSP.module.LSPError(-32000, describe_error(err))->to_response();
+        mixed LSPError = master()->resolv("LSP.module.LSPError");
+        if (LSPError) {
+             return LSPError(-32000, describe_error(err))->to_response();
+        }
+        return ([
+            "error": ([
+                "code": -32000,
+                "message": describe_error(err)
+            ])
+        ]);
     }
+}
+
+//! Parse a function signature string to extract arguments and return type
+//! @param type_str The type string (e.g. "function(int, string : void)")
+//! @returns Mapping with "arguments" (array of mappings) and "returnType" (string)
+protected mapping parse_function_signature(string type_str) {
+    int paren_start = search(type_str, "(");
+    int colon_pos = search(type_str, " : ");
+    if (paren_start >= 0 && colon_pos > paren_start) {
+        string args_str = type_str[paren_start+1..colon_pos-1];
+        string ret_str = type_str[colon_pos+3..<1];
+
+        // Parse arguments (split by comma, but respect nested parens)
+        array(string) arg_types = ({});
+        string current = "";
+        int depth = 0;
+        foreach (args_str / "", string c) {
+            if (c == "(" || c == "<") depth++;
+            else if (c == ")" || c == ">") depth--;
+            else if (c == "," && depth == 0) {
+                arg_types += ({ trim_whites(current) });
+                current = "";
+                continue;
+            }
+            current += c;
+        }
+        if (sizeof(trim_whites(current)) > 0) {
+            arg_types += ({ trim_whites(current) });
+        }
+
+        // Build arguments array with placeholder names
+        array(mapping) arguments = ({});
+        for (int j = 0; j < sizeof(arg_types); j++) {
+            string arg_type = arg_types[j];
+            // Skip "void" only arguments (optional params start with "void |")
+            if (arg_type == "void") continue;
+            arguments += ({
+                ([ "name": "arg" + (j + 1), "type": arg_type ])
+            });
+        }
+
+        return ([
+            "arguments": arguments,
+            "returnType": ret_str
+        ]);
+    }
+    return 0;
 }
 
 //! Safely instantiate a program with timeout protection
@@ -584,14 +664,14 @@ mapping introspect_program(program prog) {
                         if (c == "(" || c == "<") depth++;
                         else if (c == ")" || c == ">") depth--;
                         else if (c == "," && depth == 0) {
-                            arg_types += ({ LSP.Compat.trim_whites(current) });
+                            arg_types += ({ trim_whites(current) });
                             current = "";
                             continue;
                         }
                         current += c;
                     }
-                    if (sizeof(LSP.Compat.trim_whites(current)) > 0) {
-                        arg_types += ({ LSP.Compat.trim_whites(current) });
+                    if (sizeof(trim_whites(current)) > 0) {
+                        arg_types += ({ trim_whites(current) });
                     }
 
                     // Build arguments array with placeholder names
@@ -627,6 +707,19 @@ mapping introspect_program(program prog) {
         } else if (programp(value)) {
             kind = "class";
             type_info = ([ "kind": "program" ]);
+
+            // Try to extract constructor signature from program type
+            mixed type_val;
+            catch { type_val = _typeof(value); };
+            if (type_val) {
+                string type_str = sprintf("%O", type_val);
+                mapping sig = parse_function_signature(type_str);
+                if (sig) {
+                    type_info->arguments = sig->arguments;
+                    type_info->returnType = sig->returnType;
+                    type_info->signature = type_str;
+                }
+            }
         }
 
         if (kind != "function" && inherited_symbols[name]) {
@@ -809,14 +902,14 @@ mapping introspect_object(object obj) {
                         if (c == "(" || c == "<") depth++;
                         else if (c == ")" || c == ">") depth--;
                         else if (c == "," && depth == 0) {
-                            arg_types += ({ LSP.Compat.trim_whites(current) });
+                            arg_types += ({ trim_whites(current) });
                             current = "";
                             continue;
                         }
                         current += c;
                     }
-                    if (sizeof(LSP.Compat.trim_whites(current)) > 0) {
-                        arg_types += ({ LSP.Compat.trim_whites(current) });
+                    if (sizeof(trim_whites(current)) > 0) {
+                        arg_types += ({ trim_whites(current) });
                     }
 
                     // Build arguments array with placeholder names
@@ -852,6 +945,19 @@ mapping introspect_object(object obj) {
         } else if (programp(value)) {
             kind = "class";
             type_info = ([ "kind": "program" ]);
+
+            // Try to extract constructor signature from program type
+            mixed type_val;
+            catch { type_val = _typeof(value); };
+            if (type_val) {
+                string type_str = sprintf("%O", type_val);
+                mapping sig = parse_function_signature(type_str);
+                if (sig) {
+                    type_info->arguments = sig->arguments;
+                    type_info->returnType = sig->returnType;
+                    type_info->signature = type_str;
+                }
+            }
         }
 
         if (kind != "function" && inherited_symbols[name]) {

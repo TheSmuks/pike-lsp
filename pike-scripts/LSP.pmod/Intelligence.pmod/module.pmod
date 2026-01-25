@@ -3,6 +3,28 @@
 //! This module provides shared helper functions used across the Intelligence.pmod
 //! classes. These functions are callable directly from any class within the
 //! Intelligence.pmod namespace.
+
+//! Trim whitespace from a string (wrapper for Pike 8.0 String.trim_all_whites)
+protected string trim_whites(string s) {
+    if (!s) return "";
+    return String.trim_all_whites(s);
+}
+
+//! Helper to create an LSP Error response without static dependency
+protected mapping make_error_response(int code, string message) {
+    mixed lsp_error_class = master()->resolv("LSP.module.LSPError");
+    if (lsp_error_class) {
+        return lsp_error_class(code, message)->to_response();
+    }
+    // Fallback if LSP module not loaded
+    return ([
+        "error": ([
+            "code": code,
+            "message": message
+        ])
+    ]);
+}
+
 //!
 //! Functions provided:
 //! - extract_autodoc_comments(): Extract //! comments from source code
@@ -46,7 +68,7 @@ mapping(int:string) extract_autodoc_comments(string code) {
     int doc_start_line = 0;
 
     for (int i = 0; i < sizeof(lines); i++) {
-        string line = LSP.Compat.trim_whites(lines[i]);
+        string line = trim_whites(lines[i]);
 
         if (has_prefix(line, "//!")) {
             // Autodoc comment line
@@ -104,11 +126,11 @@ string extract_symbol_name(string line) {
 
     foreach(line / "", string c) {
         if (c == "(") {
-            if (sizeof(current) > 0) tokens += ({ LSP.Compat.trim_whites(current) });
+            if (sizeof(current) > 0) tokens += ({ trim_whites(current) });
             break;
         } else if (c == " " || c == "\t") {
             if (sizeof(current) > 0) {
-                tokens += ({ LSP.Compat.trim_whites(current) });
+                tokens += ({ trim_whites(current) });
                 current = "";
             }
         } else {
@@ -314,7 +336,7 @@ class Intelligence {
         if (handler) {
             return handler->handle_introspect(params);
         }
-        return LSP.module.LSPError(-32000, "Introspection handler not available")->to_response();
+        return make_error_response(-32000, "Introspection handler not available");
     }
 
     //! Resolve module path to file system location
@@ -324,7 +346,7 @@ class Intelligence {
         if (handler) {
             return handler->handle_resolve(params);
         }
-        return LSP.module.LSPError(-32000, "Resolution handler not available")->to_response();
+        return make_error_response(-32000, "Resolution handler not available");
     }
 
     //! Resolve stdlib module and extract symbols with documentation
@@ -334,7 +356,7 @@ class Intelligence {
         if (handler) {
             return handler->handle_resolve_stdlib(params);
         }
-        return LSP.module.LSPError(-32000, "Resolution handler not available")->to_response();
+        return make_error_response(-32000, "Resolution handler not available");
     }
 
     //! Get inherited members from a class
@@ -344,7 +366,7 @@ class Intelligence {
         if (handler) {
             return handler->handle_get_inherited(params);
         }
-        return LSP.module.LSPError(-32000, "TypeAnalysis handler not available")->to_response();
+        return make_error_response(-32000, "TypeAnalysis handler not available");
     }
 
     //! Introspect a compiled program to extract symbols
@@ -360,6 +382,6 @@ class Intelligence {
         if (handler) {
             return handler->introspect_program(prog);
         }
-        return LSP.module.LSPError(-32000, "Introspection handler not available")->to_response();
+        return make_error_response(-32000, "Introspection handler not available");
     }
 }
