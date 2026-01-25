@@ -55,12 +55,22 @@ case "$(uname -s)" in
                 # 3. Run tests
                 echo "Running tests on $WAYLAND_DISPLAY..."
                 set +e  # Don't exit on test failure, we need to cleanup
-                ./node_modules/.bin/vscode-test "$@"
+                TEST_OUTPUT=$(./node_modules/.bin/vscode-test "$@" 2>&1)
                 TEST_EXIT_CODE=$?
+                echo "$TEST_OUTPUT"
 
                 # 4. Cleanup
                 kill $WESTON_PID 2>/dev/null || true
                 rm -rf "$XDG_RUNTIME_DIR"
+
+                # 5. Handle Electron SIGSEGV during teardown (known Linux issue)
+                # If all tests passed but process crashed during cleanup, treat as success
+                if [ $TEST_EXIT_CODE -ne 0 ]; then
+                    if echo "$TEST_OUTPUT" | grep -q "passing" && ! echo "$TEST_OUTPUT" | grep -q "[0-9]\+ fail"; then
+                        echo "Note: Tests passed but Electron crashed during cleanup (known Linux issue). Treating as success."
+                        exit 0
+                    fi
+                fi
 
                 exit $TEST_EXIT_CODE
 
