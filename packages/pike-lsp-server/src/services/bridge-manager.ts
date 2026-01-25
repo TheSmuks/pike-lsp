@@ -286,11 +286,23 @@ export class BridgeManager {
     }
 
     /**
-     * Get completion context at a specific position.
+     * PERF-003: Get completion context at a specific position.
+     *
+     * @param code - Source code to analyze
+     * @param line - Line number (1-based)
+     * @param character - Character position (0-based)
+     * @param documentUri - Optional document URI for tokenization caching
+     * @param documentVersion - Optional LSP document version for cache invalidation
      */
-    async getCompletionContext(code: string, line: number, character: number) {
+    async getCompletionContext(
+        code: string,
+        line: number,
+        character: number,
+        documentUri?: string,
+        documentVersion?: number
+    ) {
         if (!this.bridge) throw new Error('Bridge not available');
-        return this.bridge.getCompletionContext(code, line, character);
+        return this.bridge.getCompletionContext(code, line, character, documentUri, documentVersion);
     }
 
     /**

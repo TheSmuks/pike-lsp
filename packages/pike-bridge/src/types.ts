@@ -483,7 +483,7 @@ export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'analyze';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze';
     /** Request parameters */
     params: Record<string, unknown>;
 }

@@ -301,9 +301,19 @@ async function runBenchmarks() {
       trackPikeTime('Hover: resolveModule', res);
     });
 
-    bench('Completion: getCompletionContext (Large File)', async () => {
-      const res = await bridge.getCompletionContext(largePike, 20, 10);
+    // PERF-003: Benchmark completion context with caching
+    bench('Completion: getCompletionContext (Large File, Warm Cache)', async () => {
+      // Use a different version to avoid cross-benchmark cache interference
+      const res = await bridge.getCompletionContext(largePike, 20, 10, 'benchmark://large.pike', 1);
       trackPikeTime('Completion', res);
+      return res;
+    });
+
+    // Different version = cache miss
+    bench('Completion: getCompletionContext (Large File, Cold Cache)', async () => {
+      const res = await bridge.getCompletionContext(largePike, 20, 10, 'benchmark://large.pike', 2);
+      trackPikeTime('Completion (cold)', res);
+      return res;
     });
   });
 
