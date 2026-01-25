@@ -328,7 +328,35 @@ protected mapping parse_autodoc_impl(string doc) {
                         break;
 
                     case "elem":
+                        // @elem type index - parse type and index separately
+                        current_section = "elem";
+                        if (sizeof(trimmed_arg) > 0) {
+                            // Split into type and index: last token is index, rest is type
+                            array(string) parts = trimmed_arg / " ";
+                            string elem_type = "", elem_index = "";
+                            if (sizeof(parts) >= 2) {
+                                elem_index = parts[-1];
+                                elem_type = parts[..<1] * " ";
+                            } else {
+                                // Just a single token, treat as index
+                                elem_index = trimmed_arg;
+                            }
+                            // Format as "index (type)" for clearer display
+                            string elem_label = elem_index;
+                            if (sizeof(elem_type) > 0) {
+                                elem_label = elem_index + " (" + elem_type + ")";
+                            }
+                            current_param = trimmed_arg;
+                            if (sizeof(current_group) > 0) {
+                                group_items += ({ ([ "label": elem_label, "text": "" ]) });
+                            } else {
+                                result->items += ({ ([ "label": elem_label, "text": "" ]) });
+                            }
+                        }
+                        break;
+
                     case "value":
+                        // @value val - just use the value as-is
                         current_section = "elem";
                         if (sizeof(trimmed_arg) > 0) {
                             current_param = trimmed_arg;
