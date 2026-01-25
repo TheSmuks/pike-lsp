@@ -71,6 +71,20 @@ class Analysis {
         return (["result": (["context": "none", "objectName": "", "prefix": "", "operator": ""])]);
     }
 
+    //! PERF-003: Get completion context using pre-tokenized input
+    //! Delegates to Completions class in Analysis.pmod/
+    mapping handle_get_completion_context_cached(mapping params) {
+        object handler = get_completions_handler();
+        if (handler && handler->handle_get_completion_context_cached) {
+            return handler->handle_get_completion_context_cached(params);
+        }
+        // Fallback to full tokenization if cached method not available
+        if (handler) {
+            return handler->handle_get_completion_context(params);
+        }
+        return (["result": (["context": "none", "objectName": "", "prefix": "", "operator": ""])]);
+    }
+
     //! Find all identifier occurrences
     //! Delegates to Variables class in Analysis.pmod/
     mapping handle_find_occurrences(mapping params) {

@@ -6,7 +6,8 @@
 //! Lightweight JSON-RPC router that delegates to LSP modules:
 //! - Parser.pike: parse, tokenize, compile, batch_parse
 //! - Intelligence.pike: introspect, resolve, resolve_stdlib, get_inherited
-//! - Analysis.pike: find_occurrences, analyze_uninitialized, get_completion_context
+//! - Analysis.pike: find_occurrences, analyze_uninitialized, get_completion_context,
+//!                  get_completion_context_cached (PERF-003)
 //!
 //! Protocol: JSON-RPC over stdin/stdout
 //! Architecture: Dispatch table router with Context service container
@@ -307,6 +308,9 @@ int main(int argc, array(string) argv) {
         },
         "get_completion_context": lambda(mapping params, object ctx) {
             return ctx->analysis->handle_get_completion_context(params);
+        },
+        "get_completion_context_cached": lambda(mapping params, object ctx) {
+            return ctx->analysis->handle_get_completion_context_cached(params);
         },
         "analyze": lambda(mapping params, object ctx) {
             return ctx->analysis->handle_analyze(params);

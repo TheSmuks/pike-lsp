@@ -134,7 +134,14 @@ export function registerCompletionHandlers(
         let pikeContext: import('@pike-lsp/pike-bridge').CompletionContext | null = null;
         if (bridge) {
             try {
-                pikeContext = await bridge.getCompletionContext(text, params.position.line + 1, params.position.character);
+                // PERF-003: Pass document URI and version for tokenization caching
+                pikeContext = await bridge.getCompletionContext(
+                    text,
+                    params.position.line + 1,
+                    params.position.character,
+                    uri,
+                    document.version
+                );
                 logger.debug('Pike completion context', { context: pikeContext });
             } catch (err) {
                 logger.debug('Failed to get Pike context', { error: err instanceof Error ? err.message : String(err) });

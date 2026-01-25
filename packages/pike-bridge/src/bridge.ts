@@ -66,6 +66,19 @@ interface PendingRequest {
 }
 
 /**
+ * Cached tokenization data for a document
+ * PERF-003: Only splitTokens are cached since PikeToken objects are not JSON-serializable
+ */
+interface CachedTokens {
+    /** Document version (LSP version number) */
+    version: number;
+    /** Split tokens from Parser.Pike.split (JSON-serializable string array) */
+    splitTokens: string[];
+    /** Cache timestamp for LRU eviction */
+    timestamp: number;
+}
+
+/**
  * PikeBridge - Communication layer with Pike subprocess.
  *
  * Manages a Pike subprocess that provides parsing, tokenization, and symbol
@@ -86,6 +99,10 @@ export class PikeBridge extends EventEmitter {
     private requestId = 0;
     private pendingRequests = new Map<number, PendingRequest>();
     private requestCache = new Map<string, Promise<unknown>>();
+    /** PERF-003: Tokenization cache for completion context */
+    private tokenCache = new Map<string, CachedTokens>();
+    /** PERF-003: Maximum number of cached documents */
+    private readonly MAX_TOKEN_CACHE_SIZE = 50;
     private readonly options: Required<PikeBridgeOptions>;
     private started = false;
     private readonly logger = new Logger('PikeBridge');
@@ -713,12 +730,58 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * PERF-003: Clear tokenization cache for a document.
+     * Call when document is modified or closed.
+     *
+     * @param documentUri - URI of the document to invalidate
+     */
+    invalidateTokenCache(documentUri: string): void {
+        this.tokenCache.delete(documentUri);
+        this.debugLog(`Token cache invalidated for ${documentUri}`);
+    }
+
+    /**
+     * PERF-003: Clear all tokenization caches.
+     * Call when clearing all document data.
+     */
+    clearTokenCache(): void {
+        const size = this.tokenCache.size;
+        this.tokenCache.clear();
+        this.debugLog(`Cleared ${size} token cache entries`);
+    }
+
+    /**
+     * PERF-003: Evict oldest cache entries if cache is too large.
+     */
+    private evictOldTokenCacheEntries(): void {
+        if (this.tokenCache.size <= this.MAX_TOKEN_CACHE_SIZE) {
+            return;
+        }
+
+        // Sort by timestamp and remove oldest entries
+        const entries = Array.from(this.tokenCache.entries())
+            .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+        const toRemove = entries.slice(0, this.tokenCache.size - this.MAX_TOKEN_CACHE_SIZE);
+        for (const [uri] of toRemove) {
+            this.tokenCache.delete(uri);
+        }
+
+        this.debugLog(`Evicted ${toRemove.length} old token cache entries`);
+    }
+
+    /**
      * Get completion context at a specific position using Pike's tokenizer.
      * This replaces regex-based heuristics with Pike's accurate tokenization.
+     *
+     * PERF-003: When documentUri and version are provided, caches tokenization
+     * results to avoid re-tokenizing the entire file on every completion.
      *
      * @param code - Source code to analyze
      * @param line - Line number (1-based)
      * @param character - Character position (0-based)
+     * @param documentUri - Optional document URI for caching
+     * @param documentVersion - Optional LSP document version for cache invalidation
      * @returns Completion context with type, object name, and prefix
      * @example
      * ```ts
@@ -726,14 +789,58 @@ export class PikeBridge extends EventEmitter {
      * console.log(ctx); // { context: 'member_access', objectName: 'f', prefix: 'w', operator: '->' }
      * ```
      */
-    async getCompletionContext(code: string, line: number, character: number): Promise<import('./types.js').CompletionContext> {
-        const result = await this.sendRequest<import('./types.js').CompletionContext>('get_completion_context', {
+    async getCompletionContext(
+        code: string,
+        line: number,
+        character: number,
+        documentUri?: string,
+        documentVersion?: number
+    ): Promise<import('./types.js').CompletionContext> {
+        // Try to use cached tokenization if document version matches
+        if (documentUri && documentVersion !== undefined) {
+            const cached = this.tokenCache.get(documentUri);
+            if (cached && cached.version === documentVersion) {
+                this.debugLog(`Using cached tokens for ${documentUri} (version ${documentVersion})`);
+
+                // Use cached tokens path
+                try {
+                    const result = await this.sendRequest<import('./types.js').CompletionContext>('get_completion_context_cached', {
+                        code,
+                        line,
+                        character,
+                        splitTokens: cached.splitTokens,
+                    });
+                    return result;
+                } catch (err) {
+                    // If cached path fails, fall through to full tokenization
+                    this.debugLog(`Cached completion context failed, falling back to full tokenization: ${err instanceof Error ? err.message : String(err)}`);
+                }
+            }
+        }
+
+        // Full tokenization needed
+        const result = await this.sendRequest<{
+            context: import('./types.js').CompletionContext;
+            splitTokens?: string[];
+        }>('get_completion_context', {
             code,
             line,
             character,
         });
 
-        return result;
+        // Cache the splitTokens for future use
+        if (documentUri && documentVersion !== undefined && result.splitTokens) {
+            this.evictOldTokenCacheEntries();
+
+            this.tokenCache.set(documentUri, {
+                version: documentVersion,
+                splitTokens: result.splitTokens,
+                timestamp: Date.now(),
+            });
+            this.debugLog(`Cached tokens for ${documentUri} (version ${documentVersion})`);
+        }
+
+        return result.context;
     }
 
     async batchParse(files: Array<{ code: string; filename: string }>): Promise<import('./types.js').BatchParseResult> {
