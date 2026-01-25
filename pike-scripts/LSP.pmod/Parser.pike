@@ -535,6 +535,7 @@ protected mapping simple_parse_autodoc(string doc) {
     mapping result = ([
         "text": "",
         "params": ([]),
+        "paramOrder": ({}),  // Track param order since Pike mappings don't preserve it
         "returns": "",
         "throws": "",
         "notes": ({}),
@@ -613,6 +614,7 @@ protected mapping simple_parse_autodoc(string doc) {
             }
             current_section = "param";
             result->params[current_param] = "";
+            result->paramOrder += ({ current_param });  // Track order
 
         } else if (has_prefix(trimmed, "@returns") || has_prefix(trimmed, "@return")) {
             FLUSH_BUFFER();

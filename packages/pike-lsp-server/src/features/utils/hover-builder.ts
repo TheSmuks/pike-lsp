@@ -472,6 +472,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     const doc = sym['documentation'] as {
         text?: string;
         params?: Record<string, string>;
+        paramOrder?: string[];  // Preserves original param order from autodoc
         returns?: string;
         throws?: string;
         notes?: string[];
@@ -505,7 +506,11 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         if (doc.params && Object.keys(doc.params).length > 0) {
             parts.push('**Parameters:**');
             parts.push('');
-            for (const [paramName, paramDesc] of Object.entries(doc.params)) {
+            // Use paramOrder if available to preserve original order
+            const paramOrder = (doc.paramOrder as string[] | undefined) ?? Object.keys(doc.params);
+            for (const paramName of paramOrder) {
+                const paramDesc = doc.params[paramName];
+                if (paramDesc === undefined) continue;
                 const converted = convertPikeDocToMarkdown(paramDesc);
                 // Check if the converted description contains a nested list
                 const hasNestedList = converted.includes('\n') && /^- /m.test(converted);
