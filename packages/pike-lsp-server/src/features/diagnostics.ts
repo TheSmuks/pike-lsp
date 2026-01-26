@@ -495,12 +495,32 @@ export function registerDiagnosticsHandlers(
                 // Merge introspected symbols with parse symbols to get position info
                 const legacySymbols: PikeSymbol[] = [];
 
+                // Log introspection results for debugging
+                connection.console.log(`[VALIDATE] Introspection: success=${introspectData.success}, symbols=${introspectData.symbols.length}, functions=${introspectData.functions?.length || 0}, classes=${introspectData.classes?.length || 0}`);
+                // Log first few introspected symbol names/kinds
+                for (let i = 0; i < Math.min(5, introspectData.symbols.length); i++) {
+                    const sym = introspectData.symbols[i];
+                    if (sym) {
+                        connection.console.log(`[VALIDATE]   Introspect ${i}: name="${sym.name}", kind=${sym.kind}`);
+                    }
+                }
+
                 if (parseData && parseData.symbols.length > 0) {
                     // Flatten nested symbols to include class members
                     // This ensures get_n, get_e, set_random etc. are indexed
                     const flatParseSymbols = flattenSymbols(parseData.symbols);
 
                     connection.console.log(`[VALIDATE] Flattened ${parseData.symbols.length} symbols to ${flatParseSymbols.length} total (including class members)`);
+                    // Log first few parsed symbol names/kinds
+                    for (let i = 0; i < Math.min(5, flatParseSymbols.length); i++) {
+                        const sym = flatParseSymbols[i];
+                        if (sym) {
+                            connection.console.log(`[VALIDATE]   Parsed ${i}: name="${sym.name}", kind=${sym.kind}`);
+                        }
+                    }
+
+                    // Build a set of all parsed symbol names (including flattened) for faster lookup
+                    const parsedSymbolNames = new Set(flatParseSymbols.map(s => s.name));
 
                     // For each parsed symbol (including nested), enrich with type info from introspection
                     for (const parsedSym of flatParseSymbols) {
@@ -522,12 +542,14 @@ export function registerDiagnosticsHandlers(
                     }
 
                     // Add any introspected symbols not in parse results
+                    // Check against flattened symbols to avoid missing class methods
                     for (const introspectedSym of introspectData.symbols) {
                         // Skip symbols with null names
                         if (!introspectedSym.name) continue;
 
-                        const inParse = parseData.symbols.some(s => s.name === introspectedSym.name);
+                        const inParse = parsedSymbolNames.has(introspectedSym.name);
                         if (!inParse) {
+                            connection.console.log(`[VALIDATE]   Adding introspected-only symbol: name="${introspectedSym.name}", kind=${introspectedSym.kind}`);
                             legacySymbols.push({
                                 name: introspectedSym.name,
                                 kind: introspectedSym.kind as any,
@@ -568,6 +590,7 @@ export function registerDiagnosticsHandlers(
                 }
 
                 documentCache.set(uri, cacheEntry);
+                connection.console.log(`[VALIDATE] Cached document - total symbols: ${legacySymbols.length}, introspection success: ${introspectData.success}`);
             } else if (parseData && parseData.symbols.length > 0) {
                 // Introspection failed, use parse results
                 connection.console.log(`[VALIDATE] Using parse result with ${parseData.symbols.length} symbols`);

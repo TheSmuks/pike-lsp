@@ -139,14 +139,21 @@ export function registerSymbolsHandlers(
             }
 
             if (!cached || !cached.symbols) {
+                connection.console.log(`[SYMBOLS] No cached symbols for ${uri}`);
                 return null;
             }
 
             // Filter out invalid symbols and convert
-            const converted = cached.symbols
-                .filter(s => s && s.name)
-                .map(convertSymbol);
+            const filtered = cached.symbols.filter((s): s is PikeSymbol => s != null && s.name != null);
+            connection.console.log(`[SYMBOLS] Returning ${filtered.length} symbols (from ${cached.symbols.length} cached)`);
 
+            // Log first few symbols for debugging
+            for (let i = 0; i < Math.min(5, filtered.length); i++) {
+                const sym = filtered[i]!;
+                connection.console.log(`[SYMBOLS]   ${i}: name="${sym.name}", kind=${sym.kind}`);
+            }
+
+            const converted = filtered.map(convertSymbol);
             return converted;
         } catch (err) {
             log.error('Document symbol failed', {
