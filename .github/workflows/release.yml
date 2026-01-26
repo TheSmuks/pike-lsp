@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -56,7 +58,6 @@ jobs:
 
       - name: Install Pike
         run: |
-          # Install Pike 8.0 as a baseline (similar to test.yml)
           sudo apt-get update
           sudo apt-get install -y pike8.0 libgmp-dev
 
@@ -68,7 +69,6 @@ jobs:
 
       - name: Run tests
         run: |
-          # Run core tests
           cd packages/pike-bridge && bun test
           cd ../pike-lsp-server && bun test
 
@@ -94,3 +94,24 @@ jobs:
           name: vscode-pike-extension-${{ steps.version.outputs.version }}
           path: packages/vscode-pike/vscode-pike-*.vsix
           retention-days: 90
+
+      - name: Fetch gh-pages for benchmark data
+        run: git fetch origin gh-pages:gh-pages || true
+
+      - name: Run benchmarks
+        run: bash scripts/benchmark-ci.sh
+        timeout-minutes: 10
+
+      - name: Generate benchmark page
+        run: node scripts/generate-benchmark-page.js gh-pages/index.html
+        env:
+          BENCHMARK_RESULTS: benchmark-results.json
+
+      - name: Deploy to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cd gh-pages
+          git add index.html
+          git diff --staged --quiet || git commit -m "Update benchmark page for release"
+          git push origin gh-pages

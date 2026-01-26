@@ -5,6 +5,17 @@ All notable changes to the Pike LSP project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Changelog Sections
+
+- **Added** - New features
+- **Changed** - Changes to existing functionality
+- **Deprecated** - Features marked for removal
+- **Removed** - Features removed in this release
+- **Fixed** - Bug fixes
+- **Optimization** - Performance improvements and technical optimizations (shown on benchmark page)
+- **Security** - Security vulnerability fixes
+- **Performance** - User-facing performance notes
+
 ## [0.1.0-alpha.11] - 2026-01-26
 
 ### Added
@@ -17,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Diagnostics** - Resolved false positives for key-value pairs in `foreach` loops
 - **Formatter** - Corrected indentation for `switch`/`case` statements
 - **Testing** - E2E tests now prefer Xvfb over Weston for better headless stability
+
+### Optimization
+- **Tokenization reuse** - Cache and reuse tokenized results across analysis pipeline
+- **Line splitting reuse** - Share computed line boundaries between operations
+- **Variables analysis buffering** - Use string buffering for variables analysis
+- **Incremental indexing** - Changed document classification identifies affected files for partial re-parsing
 
 ## [0.1.0-alpha.10] - 2026-01-26
 
