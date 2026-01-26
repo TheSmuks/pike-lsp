@@ -510,12 +510,6 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                     // Look for variable declaration after this separator
                     mapping loop_var = try_parse_declaration_fn(tokens, var_start, paren_close);
                     if (loop_var && loop_var->is_declaration) {
-                        // For first separator with comma syntax, this is the collection variable
-                        // Skip it (e.g., foreach (array, int x) - skip 'array')
-                        if (sep_idx == 0 && tokens[separators[sep_idx]]->text == ",") {
-                            continue;
-                        }
-
                         // If variable already exists, just mark as initialized (handles pre-declared vars)
                         if (variables[loop_var->name]) {
                             variables[loop_var->name]->state = STATE_INITIALIZED;
@@ -529,6 +523,14 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                                 "scope_depth": scope_depth + 1,
                                 "needs_init": 0  // Don't warn for loop variables
                             ]);
+                        }
+                    } else {
+                        // Handle pre-declared variable: foreach (expr; var) or foreach (expr, var)
+                        string t = tokens[var_start]->text;
+                        if (is_identifier_fn(t)) {
+                            if (variables[t]) {
+                                variables[t]->state = STATE_INITIALIZED;
+                            }
                         }
                     }
                 }
