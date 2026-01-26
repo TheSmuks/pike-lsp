@@ -94,6 +94,48 @@ export function registerDefinitionHandlers(
                     const modulePath = symbol.classname || symbol.name;
                     if (modulePath) {
                         log.debug('Definition: navigating to import/inherit target', { modulePath });
+
+                        // Check if this is a #include statement by looking at the symbol name
+                        // #include symbols store the path in classname, and name typically starts with #
+                        const isIncludeDirective = symbol.name?.startsWith('#') ||
+                                                   modulePath.startsWith('"') ||
+                                                   modulePath.startsWith('<');
+
+                        if (isIncludeDirective && services.bridge?.bridge) {
+                            // Use resolveInclude for #include directives
+                            try {
+                                const includeResult = await services.bridge.bridge.resolveInclude(
+                                    modulePath,
+                                    uri
+                                );
+
+                                if (includeResult.exists && includeResult.path) {
+                                    const targetUri = includeResult.path.startsWith('file://')
+                                        ? includeResult.path
+                                        : `file://${includeResult.path}`;
+
+                                    log.debug('Definition: resolved include path', {
+                                        originalPath: includeResult.originalPath,
+                                        resolvedPath: includeResult.path,
+                                    });
+
+                                    return {
+                                        uri: targetUri,
+                                        range: {
+                                            start: { line: 0, character: 0 },
+                                            end: { line: 0, character: 0 },
+                                        },
+                                    };
+                                }
+                            } catch (err) {
+                                log.debug('Definition: failed to resolve include path', {
+                                    modulePath,
+                                    error: err instanceof Error ? err.message : String(err),
+                                });
+                            }
+                        }
+
+                        // Fall back to stdlib index for import/inherit statements
                         const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
 
                         if (moduleInfo && moduleInfo.resolvedPath) {

@@ -551,12 +551,23 @@ export function registerDiagnosticsHandlers(
                     }
                 }
 
-                documentCache.set(uri, {
+                // Resolve include/import dependencies for IntelliSense
+                let dependencies: import('../core/types.js').DocumentDependencies | undefined;
+                if (services.includeResolver) {
+                    dependencies = await services.includeResolver.resolveDependencies(uri, legacySymbols);
+                }
+
+                const cacheEntry: import('../core/types.js').DocumentCacheEntry = {
                     version,
                     symbols: legacySymbols,
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),
-                });
+                };
+                if (dependencies) {
+                    cacheEntry.dependencies = dependencies;
+                }
+
+                documentCache.set(uri, cacheEntry);
             } else if (parseData && parseData.symbols.length > 0) {
                 // Introspection failed, use parse results
                 connection.console.log(`[VALIDATE] Using parse result with ${parseData.symbols.length} symbols`);
@@ -567,12 +578,23 @@ export function registerDiagnosticsHandlers(
                         connection.console.log(`[VALIDATE]   Symbol ${i}: name="${sym.name}", kind=${sym.kind}`);
                     }
                 }
-                documentCache.set(uri, {
+                // Resolve include/import dependencies for IntelliSense
+                let dependencies: import('../core/types.js').DocumentDependencies | undefined;
+                if (services.includeResolver) {
+                    dependencies = await services.includeResolver.resolveDependencies(uri, parseData.symbols);
+                }
+
+                const cacheEntry: import('../core/types.js').DocumentCacheEntry = {
                     version,
                     symbols: parseData.symbols,
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols, tokenizeData),
-                });
+                };
+                if (dependencies) {
+                    cacheEntry.dependencies = dependencies;
+                }
+
+                documentCache.set(uri, cacheEntry);
                 connection.console.log(`[VALIDATE] Cached document - symbols count: ${parseData.symbols.length}`);
             } else {
                 connection.console.log(`[VALIDATE] No parse result available - features will not work`);

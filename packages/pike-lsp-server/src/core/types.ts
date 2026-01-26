@@ -25,6 +25,40 @@ export interface PikeSettings {
 }
 
 /**
+ * Resolved include dependency with cached symbols.
+ */
+export interface ResolvedInclude {
+    /** Original include path from source (e.g., '"utils.pike"' or '<Stdio.h>') */
+    originalPath: string;
+    /** Resolved absolute file path */
+    resolvedPath: string;
+    /** Symbols from the included file (cached for completion) */
+    symbols: PikeSymbol[];
+    /** Last modified time for cache invalidation */
+    lastModified: number;
+}
+
+/**
+ * Resolved import dependency.
+ */
+export interface ResolvedImport {
+    /** Module path (e.g., 'Stdio' or 'Parser.Pike') */
+    modulePath: string;
+    /** Whether this is a stdlib module (vs local module) */
+    isStdlib: boolean;
+}
+
+/**
+ * Document dependencies tracking for include/import statements.
+ */
+export interface DocumentDependencies {
+    /** Resolved #include dependencies */
+    includes: ResolvedInclude[];
+    /** Resolved import dependencies */
+    imports: ResolvedImport[];
+}
+
+/**
  * Cached document information.
  *
  * Stores parsed symbols, diagnostics, and position index for a document.
@@ -40,6 +74,8 @@ export interface DocumentCacheEntry {
     diagnostics: Diagnostic[];
     /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
     symbolPositions: Map<string, Position[]>;
+    /** Include and import dependencies (optional, populated lazily) */
+    dependencies?: DocumentDependencies;
 }
 
 /**

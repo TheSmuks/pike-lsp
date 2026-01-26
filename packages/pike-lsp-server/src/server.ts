@@ -25,6 +25,7 @@ import { TypeDatabase } from './type-database.js';
 import { StdlibIndexManager } from './stdlib-index.js';
 import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
+import { IncludeResolver } from './services/include-resolver.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
 import * as features from './features/index.js';
@@ -59,6 +60,7 @@ const documentCache = new DocumentCache();
 const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
 let stdlibIndex: StdlibIndexManager | null = null;
+let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
 
 let globalSettings: PikeSettings = defaultSettings;
@@ -102,6 +104,7 @@ function createServices(): features.Services {
         typeDatabase,
         workspaceIndex,
         stdlibIndex,
+        includeResolver, // Will be null initially, updated after onInitialize
         globalSettings,
         includePaths,
     };
@@ -171,9 +174,11 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);
     const bridge = new PikeBridge(bridgeOptions);
     bridgeManager = new BridgeManager(bridge, logger);
+    includeResolver = new IncludeResolver(bridgeManager, logger);
 
     // Update services.bridge now that bridgeManager is initialized
     (services as features.Services).bridge = bridgeManager;
+    (services as features.Services).includeResolver = includeResolver;
 
     try {
         log('Checking Pike availability...');

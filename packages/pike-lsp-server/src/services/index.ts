@@ -8,6 +8,7 @@
 import type { Logger } from '@pike-lsp/core';
 import type { DocumentCache } from './document-cache.js';
 import type { BridgeManager } from './bridge-manager.js';
+import type { IncludeResolver } from './include-resolver.js';
 import type { TypeDatabase } from '../type-database.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
@@ -32,6 +33,8 @@ export interface Services {
     workspaceIndex: WorkspaceIndex;
     /** Stdlib index manager for standard library symbols */
     stdlibIndex: StdlibIndexManager | null;
+    /** Include resolver for #include dependency tracking (null until initialized) */
+    includeResolver: IncludeResolver | null;
     /** Global LSP settings (mutable, updated by configuration changes) */
     globalSettings: PikeSettings;
     /** Include paths for module resolution (mutable, updated by configuration changes) */

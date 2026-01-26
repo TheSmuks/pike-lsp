@@ -237,7 +237,7 @@ export function registerCompletionHandlers(
         // General completion - suggest all symbols from current document
         const prefix = getWordAtPosition(text, offset);
 
-        // Add workspace symbols
+        // Add local symbols
         if (cached) {
             for (const symbol of cached.symbols) {
                 if (!symbol.name) continue;
@@ -246,6 +246,54 @@ export function registerCompletionHandlers(
                     const item = buildCompletionItem(symbol.name, symbol, 'Local symbol', cached.symbols, completionContext);
                     item.data = { uri, name: symbol.name };
                     completions.push(item);
+                }
+            }
+
+            // Add symbols from included files
+            if (services.includeResolver && cached.dependencies?.includes) {
+                for (const include of cached.dependencies.includes) {
+                    for (const symbol of include.symbols) {
+                        if (!symbol.name) continue;
+
+                        // Skip if already suggested from local symbols
+                        if (cached.symbols.some(s => s.name === symbol.name)) {
+                            continue;
+                        }
+
+                        if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                            const item = buildCompletionItem(symbol.name, symbol, `From ${include.originalPath}`, undefined, completionContext);
+                            item.data = { uri: include.resolvedPath, name: symbol.name };
+                            completions.push(item);
+                        }
+                    }
+                }
+            }
+
+            // Add symbols from imported modules (via stdlibIndex)
+            if (stdlibIndex && cached.dependencies?.imports) {
+                for (const imp of cached.dependencies.imports) {
+                    if (!imp.isStdlib) continue;
+
+                    try {
+                        const moduleInfo = await stdlibIndex.getModule(imp.modulePath);
+                        if (moduleInfo?.symbols) {
+                            for (const [name, symbol] of moduleInfo.symbols) {
+                                // Skip if already suggested
+                                if (cached.symbols.some(s => s.name === name)) {
+                                    continue;
+                                }
+
+                                if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                    completions.push(buildCompletionItem(name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        logger.debug('Failed to get import symbols', {
+                            modulePath: imp.modulePath,
+                            error: err instanceof Error ? err.message : String(err),
+                        });
+                    }
                 }
             }
         }
