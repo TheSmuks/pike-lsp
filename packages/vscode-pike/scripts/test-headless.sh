@@ -29,8 +29,19 @@ case "$(uname -s)" in
         fi
 
         # 2. Try to set up a headless display server
-        if [ -z "$USE_XVFB" ] && command -v weston &> /dev/null; then
-            echo "Running tests headlessly with Weston (Wayland)..."
+        # Prefer Xvfb for Electron/E2E tests - more stable than Weston
+        if [ -z "$USE_WESTON" ] && command -v xvfb-run &> /dev/null; then
+            echo "Running tests headlessly with Xvfb..."
+            # -a: auto-select display number
+            # --server-args: set screen size and depth
+            # Set Electron args to disable GPU for headless operation
+            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
+            # Force X11 backend (important for Wayland systems)
+            export GDK_BACKEND=x11
+            export QT_QPA_PLATFORM=xcb
+            xvfb-run -a --server-args="-screen 0 1920x1080x24" ./node_modules/.bin/vscode-test "$@"
+        elif command -v weston &> /dev/null; then
+            echo "Xvfb not found. Trying Weston (Wayland)..."
 
                 # 1. Set up XDG_RUNTIME_DIR
                 # Wayland requires this directory to store its socket
@@ -50,6 +61,9 @@ case "$(uname -s)" in
                 sleep 2
 
                 # Set Electron args to disable GPU for headless operation (Weston doesn't provide GPU accel)
+                # IMPORTANT: Tell Electron to use Ozone/Wayland backend instead of X11
+                export ELECTRON_OZONE_PLATFORM_HINT=wayland
+                export ELECTRON_ENABLE_LOGGING=1
                 export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
 
                 # 3. Run tests
@@ -74,26 +88,16 @@ case "$(uname -s)" in
 
                 exit $TEST_EXIT_CODE
 
-            elif command -v xvfb-run &> /dev/null; then
-                echo "Weston not found. Falling back to Xvfb..."
-                # -a: auto-select display number
-                # --server-args: set screen size and depth
-                # Set Electron args to disable GPU for headless operation
-                export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
-                # Force X11 backend (important for Wayland systems)
-                export GDK_BACKEND=x11
-                export QT_QPA_PLATFORM=xcb
-                xvfb-run -a --server-args="-screen 0 1920x1080x24" ./node_modules/.bin/vscode-test "$@"
             else
                 echo "ERROR: No headless display server found. Install one of:"
-                echo "  Weston (Recommended for Wayland):"
-                echo "    Ubuntu/Debian: sudo apt-get install weston"
-                echo "    Fedora/RHEL:   sudo dnf install weston"
-                echo "    Arch:          sudo pacman -S weston"
-                echo "  Xvfb (Legacy X11):"
+                echo "  Xvfb (Recommended for Electron E2E tests):"
                 echo "    Ubuntu/Debian: sudo apt-get install xvfb"
                 echo "    Fedora/RHEL:   sudo dnf install xorg-x11-server-Xvfb"
                 echo "    Arch:          sudo pacman -S xorg-server-xvfb"
+                echo "  Weston (Alternative, Wayland-based):"
+                echo "    Ubuntu/Debian: sudo apt-get install weston"
+                echo "    Fedora/RHEL:   sudo dnf install weston"
+                echo "    Arch:          sudo pacman -S weston"
                 exit 1
             fi
         ;;
