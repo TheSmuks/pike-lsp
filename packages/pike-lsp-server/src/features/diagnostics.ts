@@ -587,6 +587,9 @@ export function registerDiagnosticsHandlers(
                 };
                 if (dependencies) {
                     cacheEntry.dependencies = dependencies;
+                if (introspectData.inherits) {
+                    cacheEntry.inherits = introspectData.inherits;
+                }
                 }
 
                 documentCache.set(uri, cacheEntry);
@@ -615,6 +618,9 @@ export function registerDiagnosticsHandlers(
                 };
                 if (dependencies) {
                     cacheEntry.dependencies = dependencies;
+                if (introspectData.inherits) {
+                    cacheEntry.inherits = introspectData.inherits;
+                }
                 }
 
                 documentCache.set(uri, cacheEntry);
