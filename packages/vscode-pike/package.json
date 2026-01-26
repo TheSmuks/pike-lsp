@@ -139,12 +139,13 @@
     "package": "bun run build && bun run bundle-server && vsce package --no-dependencies",
     "typecheck": "tsc --noEmit",
     "vscode:prepublish": "bun run build && bun run bundle-server",
-    "test": "bun run build:test && vscode-test",
+    "test": "bun run build:test && bash scripts/test-headless.sh",
     "test:unit": "bun run build:test && bun test dist/test/mockOutputChannel.test.js",
-    "test:integration": "bun run build:test && node dist/test/extension.test.js",
+    "test:integration": "bun run build:test && bash scripts/test-headless.sh --grep 'Integration'",
     "test:features": "bun run build:test && bash scripts/test-headless.sh --grep 'LSP Feature E2E'",
+    "test:e2e": "bun run build:test && bash scripts/test-headless.sh",
     "test:headless": "bash scripts/test-headless.sh",
-    "test:features:headless": "bash scripts/test-headless.sh --grep 'LSP Feature E2E'"
+    "test:gui": "bun run build:test && vscode-test"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
