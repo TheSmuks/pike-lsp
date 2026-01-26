@@ -42,22 +42,27 @@ This triggers the GitHub Actions release workflow (`.github/workflows/release.ym
 
 ## MANDATORY: Headless Testing by Default
 
-**All local tests MUST run headless.** Never rely on your display session.
+**All local tests MUST run headless by default.** The test scripts are configured to automatically use a virtual display.
 
 ```bash
-# Default test command - runs headless automatically
-cd packages/vscode-pike && bun run test:features
-
-# Explicit headless (same behavior, just explicit)
-cd packages/vscode-pike && bun run test:headless
+# All test commands run headless by default
+cd packages/vscode-pike && bun run test          # All E2E tests
+cd packages/vscode-pike && bun run test:features # LSP feature tests only
+cd packages/vscode-pike && bun run test:e2e      # Same as test
 ```
 
 The test script auto-selects: Xvfb (Linux) → Weston fallback → native (macOS/Windows).
 
-**Only use `USE_CURRENT_DISPLAY=1`** for debugging test failures interactively:
+**For interactive debugging only**, use your display:
 ```bash
-USE_CURRENT_DISPLAY=1 bun run test:features  # Uses your display - for debugging only
+# Option 1: Use headless script with your display
+USE_CURRENT_DISPLAY=1 bun run test:features
+
+# Option 2: Run with GUI (opens VSCode window)
+bun run test:gui
 ```
+
+**Never run `vscode-test` directly** - it will pop up a VSCode window. Always use the headless wrapper scripts.
 
 ## MANDATORY: E2E Verification Before Commits
 

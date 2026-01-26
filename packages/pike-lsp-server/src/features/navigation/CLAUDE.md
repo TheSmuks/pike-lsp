@@ -7,11 +7,21 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #6115 | 2:30 PM | 🔄 | Improved Type Safety for DocumentCache Parameter | ~261 |
-| #6114 | " | 🔄 | Added DocumentCache Type Import | ~214 |
-| #6112 | " | 🟣 | Implemented Reference Finder for Definition Handler | ~358 |
-| #6111 | " | 🔵 | Symbol Resolution Helper Function | ~267 |
-| #6110 | " | 🟣 | Added CTRL+CLICK on Definition Shows References | ~352 |
-| #6109 | 2:29 PM | 🔵 | Reference Provider Implementation Details | ~361 |
-| #6108 | " | 🔵 | Definition Handler Architecture in Pike LSP Server | ~339 |
+| #6130 | 2:46 PM | 🟣 | Code Lens Peek View Feature Successfully Committed | ~302 |
+| #6127 | " | 🟣 | Code Lens Peek View and CTRL+CLICK Navigation Implemented | ~358 |
+| #6095 | 10:50 AM | 🔵 | Hover Handler Implementation | ~489 |
+| #6075 | 10:46 AM | 🔵 | Comprehensive Autodoc and References Architecture Analysis | ~643 |
+| #6059 | 10:44 AM | 🔵 | References and Document Highlight Implementation | ~417 |
+| #6056 | 10:43 AM | 🔵 | Hover Feature Uses Hover-Builder for Autodoc Display | ~342 |
+| #5814 | 12:33 AM | 🔵 | Found correct hover-builder import pattern in hover.ts | ~143 |
+| #5809 | 12:32 AM | 🔵 | Located hover-builder utility references across Pike LSP codebase | ~146 |
+
+### Jan 26, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #6249 | 1:20 PM | ✅ | Pushed Pike LSP improvements to remote repository | ~450 |
+| #6248 | 1:00 PM | 🔵 | Pike LSP inherit resolution architecture | ~660 |
+| #6186 | 8:30 AM | 🔵 | Definition Handler with Import Navigation Support | ~462 |
+| #6169 | 8:26 AM | 🔵 | References Feature Implementation with Multi-Document Search | ~406 |
 </claude-mem-context>
