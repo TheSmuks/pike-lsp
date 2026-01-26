@@ -96,14 +96,16 @@ jobs:
           retention-days: 90
 
       - name: Fetch gh-pages for benchmark data
-        run: git fetch origin gh-pages:gh-pages || true
+        run: |
+          git fetch origin gh-pages
+          git checkout -b gh-pages origin/gh-pages 2>/dev/null || git checkout gh-pages
 
       - name: Run benchmarks
         run: bash scripts/benchmark-ci.sh
         timeout-minutes: 10
 
       - name: Generate benchmark page
-        run: node scripts/generate-benchmark-page.js gh-pages/index.html
+        run: node scripts/generate-benchmark-page.js index.html
         env:
           BENCHMARK_RESULTS: benchmark-results.json
 
@@ -111,7 +113,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cd gh-pages
           git add index.html
-          git diff --staged --quiet || git commit -m "Update benchmark page for release"
-          git push origin gh-pages
+          git diff --staged --quiet || git commit -m "Update benchmark page for v${{ steps.version.outputs.version }}"
+          git push origin HEAD:gh-pages
