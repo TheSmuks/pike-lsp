@@ -242,28 +242,34 @@
       display: none;
     }
 
-    .timeline-item.collapsed .timeline-toggle::after {
-      content: '+';
-    }
-
     .timeline-toggle {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      padding: 6px 14px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 6px;
       cursor: pointer;
-      font-size: 1rem;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
       color: var(--text-secondary);
       transition: all 0.2s ease;
-      margin-left: 12px;
     }
 
-    .timeline-toggle::after {
+    .timeline-toggle.item-toggle {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      font-size: 1rem;
+    }
+
+    .timeline-toggle.item-toggle::after {
       content: '−';
+    }
+
+    .timeline-item.collapsed .timeline-toggle.item-toggle::after {
+      content: '+';
     }
 
     .timeline-toggle:hover {
@@ -749,7 +755,7 @@
       <div class="section-header">
         <h2>Performance Evolution</h2>
         <span class="tag">Timeline</span>
-        <button class="timeline-toggle" id="toggleAllTimeline" style="margin-left: auto;" title="Toggle all details">Collapse All</button>
+        <button class="timeline-toggle" id="toggleAllTimeline" style="margin-left: auto;" title="Toggle all details">Expand All</button>
       </div>
       <p class="section-description">
         Track the optimization journey from initial implementation to current performance. Latest releases shown first. Click the ± button to expand/collapse details.
@@ -951,108 +957,133 @@
   </div>
 
   <script>
-    // Historical performance data - shows evolution over time
+    // Historical performance data - shows evolution over time (latest first)
     const performanceHistory = [
       {
-        version: 'v0.1.0-alpha.1',
-        date: '2024-11-15',
-        title: 'Initial Implementation',
-        description: 'First working LSP server with basic functionality. All modules loaded at startup.',
-        metrics: {
-          coldStart: 280,
-          pikeStartup: 18.9,
-          validation: 3.2,
-          hover: 0.5
-        },
-        tags: ['feature'],
-        type: 'major'
-      },
-      {
-        version: 'v0.1.0-alpha.3',
-        date: '2024-12-01',
-        title: 'Cache Layer Added',
-        description: 'Introduced compilation cache to avoid re-parsing files. Significant improvement for repeated operations.',
-        metrics: {
-          coldStart: 275,
-          pikeStartup: 18.9,
-          validation: 2.8,
-          hover: 0.35
-        },
-        improvements: {
-          validation: '-12%'
-        },
-        tags: ['feature'],
-        type: 'improvement'
-      },
-      {
-        version: 'v0.1.0-alpha.5',
-        date: '2024-12-15',
-        title: 'Validation Consolidation',
-        description: 'Reduced validation from 3 separate RPC calls to 1. Eliminated redundant analysis passes.',
-        metrics: {
-          coldStart: 270,
-          pikeStartup: 18.5,
-          validation: 2.4,
-          hover: 0.33
-        },
-        improvements: {
-          validation: '-14%'
-        },
-        tags: ['optimization'],
-        type: 'improvement'
-      },
-      {
-        version: 'v0.1.0-alpha.7',
-        date: '2025-01-05',
-        title: 'Array Performance Fix',
-        description: 'Fixed O(n²) array append performance in Pike module. Improved all operations that build lists.',
-        metrics: {
-          coldStart: 265,
-          pikeStartup: 15.2,
-          validation: 2.2,
-          hover: 0.28
-        },
-        improvements: {
-          pikeStartup: '-18%',
-          overall: '-5%'
-        },
-        tags: ['bugfix', 'optimization'],
-        type: 'improvement'
-      },
-      {
-        version: 'v0.1.0-alpha.9',
-        date: '2025-01-18',
-        title: 'Lazy Context Loading',
-        description: 'Defer Parser, Intelligence, and Analysis module initialization until first LSP request.',
-        metrics: {
-          coldStart: 220,
-          pikeStartup: 0.05,
-          validation: 2.18,
-          hover: 0.33
-        },
-        improvements: {
-          coldStart: '-17%',
-          pikeStartup: '-99.7%'
-        },
-        tags: ['optimization'],
-        type: 'major'
-      },
-      {
-        version: 'v0.1.0-alpha.10',
-        date: '2025-01-22',
-        title: 'Async Version & __REAL_VERSION__',
-        description: 'Fire-and-forget version fetch and builtin version logging eliminate Compat module load at startup.',
+        version: 'v0.1.0-alpha.11',
+        date: '2026-01-26',
+        title: 'Include Navigation & Workspace Features',
+        description: 'Added include path resolution, workspace-wide symbol search, and improved foreach diagnostics.',
         metrics: {
           coldStart: 203,
           pikeStartup: 0.05,
           validation: 2.18,
           hover: 0.33
         },
-        improvements: {
-          coldStart: '-8%'
-        },
-        tags: ['optimization', 'refactor'],
+        tags: ['feature'],
         type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.10',
+        date: '2026-01-26',
+        title: 'Analysis Pipeline Optimizations',
+        description: 'Reuse tokenization and line splitting, optimize variables analysis with string buffering.',
+        metrics: {
+          coldStart: 203,
+          pikeStartup: 0.05,
+          validation: 2.18,
+          hover: 0.33
+        },
+        tags: ['optimization'],
+        type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.9',
+        date: '2026-01-26',
+        title: 'Intelligence Module Refactor & Tokenization',
+        description: 'Resolved built-in constructor snippets, computed character positions in Pike during tokenization.',
+        metrics: {
+          coldStart: 203,
+          pikeStartup: 0.05,
+          validation: 2.18,
+          hover: 0.33
+        },
+        tags: ['feature', 'optimization'],
+        type: 'major'
+      },
+      {
+        version: 'v0.1.0-alpha.7',
+        date: '2026-01-24',
+        title: 'Introspection Improvements',
+        description: 'Improved path normalization, relative module preprocessing in .pmod files.',
+        metrics: {
+          coldStart: 210,
+          pikeStartup: 0.1,
+          validation: 2.2,
+          hover: 0.35
+        },
+        tags: ['feature'],
+        type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.6',
+        date: '2026-01-24',
+        title: 'Tokenization & Performance',
+        description: 'Performance investigation and benchmark infrastructure improvements.',
+        metrics: {
+          coldStart: 220,
+          pikeStartup: 0.1,
+          validation: 2.3,
+          hover: 0.35
+        },
+        tags: ['feature'],
+        type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.5',
+        date: '2026-01-23',
+        title: 'Performance Regression Fix',
+        description: 'Fixed benchmark regression from paramOrder array construction.',
+        metrics: {
+          coldStart: 225,
+          pikeStartup: 0.1,
+          validation: 2.4,
+          hover: 0.35
+        },
+        tags: ['bugfix'],
+        type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.4',
+        date: '2026-01-23',
+        title: 'Documentation & Formatting',
+        description: 'Added AutoDoc template support for variables, fixed switch/case indentation.',
+        metrics: {
+          coldStart: 225,
+          pikeStartup: 0.1,
+          validation: 2.4,
+          hover: 0.35
+        },
+        tags: ['feature'],
+        type: 'improvement'
+      },
+      {
+        version: 'v0.1.0-alpha.2',
+        date: '2026-01-21',
+        title: 'Basic LSP Features',
+        description: 'Core LSP functionality including diagnostics, completion, hover, go-to-definition.',
+        metrics: {
+          coldStart: 250,
+          pikeStartup: 0.1,
+          validation: 2.8,
+          hover: 0.4
+        },
+        tags: ['feature'],
+        type: 'major'
+      },
+      {
+        version: 'v0.1.0-alpha.1',
+        date: '2026-01-21',
+        title: 'Initial Release',
+        description: 'First alpha release with basic Pike language support.',
+        metrics: {
+          coldStart: 250,
+          pikeStartup: 0.1,
+          validation: 2.8,
+          hover: 0.4
+        },
+        tags: ['feature'],
+        type: 'major'
       }
     ];
 
@@ -1591,66 +1622,88 @@
       });
     }
 
-    // Render All Optimizations (grouped by version)
+    // Render All Optimizations (grouped by version) - Latest first
     function renderOptimizations() {
       const container = document.getElementById('optimizationsList');
       container.innerHTML = '';
 
-      // Comprehensive optimization history
+      // Comprehensive optimization history based on actual git history
       const allOptimizations = [
         {
-          version: 'v0.1.0-alpha.10',
-          date: '2025-01-22',
-          title: 'Async Version & __REAL_VERSION__',
+          version: 'v0.1.0-alpha.11',
+          date: '2026-01-26',
+          title: 'Include Navigation & Workspace Features',
           items: [
-            { title: '__REAL_VERSION__ builtin', desc: 'Builtin version logging eliminates LSP.Compat module load at startup', impact: 'startup' },
-            { title: 'Async version fetch', desc: 'Fire-and-forget pattern for version info in BridgeManager', impact: 'startup' }
+            { title: 'Include path resolution', desc: 'Resolve #include statement paths and provide IntelliSense', impact: 'feature' },
+            { title: 'Workspace-wide symbol search', desc: 'Find References across all files in workspace', impact: 'feature' },
+            { title: 'Improved foreach diagnostics', desc: 'Handle pre-declared foreach variables correctly', impact: 'validation' },
+            { title: 'Inherit resolution improvements', desc: 'Use runtime introspection data for better inherit resolution', impact: 'feature' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.10',
+          date: '2026-01-26',
+          title: 'Analysis Pipeline Optimizations',
+          items: [
+            { title: 'Reuse tokenization', desc: 'Cache and reuse tokenized results across analysis pipeline', impact: 'validation' },
+            { title: 'Reuse line splitting', desc: 'Share computed line boundaries between operations', impact: 'validation' },
+            { title: 'Optimized variables analysis', desc: 'Use string buffering for variables analysis', impact: 'validation' }
           ]
         },
         {
           version: 'v0.1.0-alpha.9',
-          date: '2025-01-18',
-          title: 'Lazy Context Loading (Major)',
+          date: '2026-01-26',
+          title: 'Intelligence Module Refactor & Tokenization',
           items: [
-            { title: 'Deferred Parser initialization', desc: 'Parser module loaded on first LSP request instead of startup', impact: 'startup' },
-            { title: 'Deferred Intelligence module', desc: 'Intelligence analysis loaded on first hover/completion', impact: 'startup' },
-            { title: 'Deferred Analysis module', desc: 'Diagnostics analysis loaded on first validation', impact: 'startup' },
-            { title: 'Lazy context creation', desc: 'Analysis context created only when needed', impact: 'memory' }
+            { title: 'Built-in constructor snippets', desc: 'Resolve constructor snippets for built-in types', impact: 'completion' },
+            { title: 'Character positions in Pike', desc: 'Compute character positions during tokenization in Pike', impact: 'general' },
+            { title: 'Intelligence module refactor', desc: 'Restructured Intelligence module for better maintainability', impact: 'architecture' }
           ]
         },
         {
           version: 'v0.1.0-alpha.7',
-          date: '2025-01-05',
-          title: 'Array Performance Fix',
+          date: '2026-01-24',
+          title: 'Introspection Improvements',
           items: [
-            { title: 'O(n²) array append fix', desc: 'Fixed quadratic performance when building lists in Pike', impact: 'general' },
-            { title: 'Pre-allocation optimization', desc: 'Pre-allocate array size when count is known', impact: 'validation' }
+            { title: 'Path normalization', desc: 'Improved path handling across platforms', impact: 'general' },
+            { title: 'Relative module preprocessing', desc: 'Preprocess relative module references in .pmod files', impact: 'feature' },
+            { title: 'Stdlib file compilation', desc: 'Allow compilation for stdlib files with #require', impact: 'feature' },
+            { title: 'Windows path support', desc: 'Normalize Windows paths for module resolution', impact: 'general' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.6',
+          date: '2026-01-24',
+          title: 'Performance Investigation',
+          items: [
+            { title: 'Benchmark infrastructure', desc: 'Added custom benchmarking for LSP operations', impact: 'general' },
+            { title: 'Performance regression gates', desc: 'CI gates for performance regressions', impact: 'validation' }
           ]
         },
         {
           version: 'v0.1.0-alpha.5',
-          date: '2024-12-15',
-          title: 'Validation Consolidation',
+          date: '2026-01-23',
+          title: 'Performance Regression Fix',
           items: [
-            { title: 'Single-call validation', desc: 'Reduced from 3 separate RPC calls to 1 consolidated call', impact: 'validation' },
-            { title: 'Eliminated redundant analysis', desc: 'Remove duplicate parsing passes', impact: 'validation' },
-            { title: 'Batch diagnostics', desc: 'Return all diagnostics in one response', impact: 'validation' }
+            { title: 'ParamOrder array fix', desc: 'Fixed benchmark regression from paramOrder array construction', impact: 'general' },
+            { title: 'Cache module type check', desc: 'Fix cache module type checking for modules vs classes', impact: 'cache' }
           ]
         },
         {
-          version: 'v0.1.0-alpha.3',
-          date: '2024-12-01',
-          title: 'Cache Layer',
+          version: 'v0.1.0-alpha.4',
+          date: '2026-01-23',
+          title: 'Documentation & Formatting',
           items: [
-            { title: 'Compilation cache', desc: 'Cache parsed Pike modules to avoid re-parsing', impact: 'validation' },
-            { title: 'Cross-file compilation cache', desc: 'Cache dependencies between files', impact: 'validation' },
-            { title: 'Stat-based cache keys', desc: 'Use file stat for closed file cache invalidation', impact: 'memory' }
+            { title: 'AutoDoc for variables', desc: 'Add AutoDoc template support for variable declarations', impact: 'feature' },
+            { title: 'Switch/case formatting', desc: 'Correct indentation for switch/case statements', impact: 'feature' },
+            { title: 'Union type hover', desc: 'Properly display union types and this_program in hover', impact: 'hover' },
+            { title: 'Parameter list rendering', desc: 'Render nested lists in parameter documentation', impact: 'hover' }
           ]
         },
         {
-          version: 'v0.1.0-alpha.1',
-          date: '2024-11-15',
-          title: 'Initial Implementation',
+          version: 'v0.1.0-alpha.2',
+          date: '2026-01-21',
+          title: 'Basic LSP Features',
           items: [
             { title: 'Core LSP server', desc: 'Basic language server protocol implementation', impact: 'feature' },
             { title: 'Document symbols', desc: 'Outline view and symbol navigation', impact: 'feature' },
@@ -1659,12 +1712,23 @@
             { title: 'Code completion', desc: 'Autocomplete suggestions', impact: 'feature' },
             { title: 'Diagnostics', desc: 'Error and warning detection', impact: 'feature' },
             { title: 'Module resolution', desc: 'Stdlib and module path resolution', impact: 'feature' },
-            { title: 'Pike subprocess bridge', desc: 'TypeScript to Pike IPC via JSON-RPC', impact: 'architecture' }
+            { title: 'Pike subprocess bridge', desc: 'TypeScript to Pike IPC via JSON-RPC', impact: 'architecture' },
+            { title: 'Pike installation detection', desc: 'Automatic Pike installation detection', impact: 'feature' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.1',
+          date: '2026-01-21',
+          title: 'Initial Release',
+          items: [
+            { title: 'Project initialization', desc: 'Initial project setup and configuration', impact: 'architecture' },
+            { title: 'Build infrastructure', desc: 'TypeScript build and packaging setup', impact: 'architecture' },
+            { title: 'Test infrastructure', desc: 'E2E test framework setup', impact: 'architecture' }
           ]
         }
       ];
 
-      allOptimizations.forEach((versionGroup, groupIndex) => {
+      allOptimizations.forEach((versionGroup) => {
         const groupItem = document.createElement('div');
         groupItem.className = 'optimization-group';
         groupItem.style.marginBottom = '24px';
@@ -1672,10 +1736,12 @@
         const impactColor = {
           startup: '#58a6ff',
           validation: '#3fb950',
-          memory: '#a371f7',
-          general: '#d29922',
-          feature: '#f85149',
-          architecture: '#6e7681'
+          cache: '#a371f7',
+          hover: '#d29922',
+          completion: '#f85149',
+          general: '#6e7681',
+          feature: '#58a6ff',
+          architecture: '#a371f7'
         };
 
         const itemsHtml = versionGroup.items.map(item => {
@@ -1711,17 +1777,17 @@
     }
 
     // Toggle all timeline items
-    let allExpanded = true;
+    let allExpanded = false; // Items start collapsed except first
     document.getElementById('toggleAllTimeline').addEventListener('click', () => {
       const items = document.querySelectorAll('.timeline-item');
       const toggleBtn = document.getElementById('toggleAllTimeline');
 
-      if (allExpanded) {
-        items.forEach(item => item.classList.add('collapsed'));
-        toggleBtn.textContent = 'Expand All';
-      } else {
+      if (!allExpanded) {
         items.forEach(item => item.classList.remove('collapsed'));
         toggleBtn.textContent = 'Collapse All';
+      } else {
+        items.forEach(item => item.classList.add('collapsed'));
+        toggleBtn.textContent = 'Expand All';
       }
       allExpanded = !allExpanded;
     });
