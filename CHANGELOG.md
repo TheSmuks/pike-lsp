@@ -5,6 +5,19 @@ All notable changes to the Pike LSP project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-alpha.11] - 2026-01-26
+
+### Added
+- **Workspace References** - Find References now searches across the entire workspace, not just the current file
+- **Include Navigation** - IntelliSense and navigation support for `#include` statements and included symbols
+- **AutoDoc Support** - Template support for variable declarations in documentation
+- Detailed logging for document symbols debugging
+
+### Fixed
+- **Diagnostics** - Resolved false positives for key-value pairs in `foreach` loops
+- **Formatter** - Corrected indentation for `switch`/`case` statements
+- **Testing** - E2E tests now prefer Xvfb over Weston for better headless stability
+
 ## [0.1.0-alpha.10] - 2026-01-26
 
 ### Fixed

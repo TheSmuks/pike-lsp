@@ -145,9 +145,8 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             continue;
         }
 
-        // Check if this line is a case/default label or break
+        // Check if this line is a case/default label
         const isCaseLabel = /^(case\s+[^:]+|default\s*):/.test(trimmed);
-        const isBreak = trimmed === 'break' || trimmed === 'break;';
 
         // Calculate indentation for this line
         let currentLevel = indentStack[indentStack.length - 1] ?? 0;
@@ -167,15 +166,13 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             switchBaseLevel = -1; // Sentinel value - will be set after { processing
         }
 
-        // In switch: case/default/break should be at same level as the opening brace
+        // In switch: case/default should be at same level as the opening brace
         // The body after case: should be indented one more
-        if (switchBaseLevel !== null && switchBaseLevel > 0 && (isCaseLabel || isBreak)) {
-            // case/default/break at the stored switch base level
+        if (switchBaseLevel !== null && switchBaseLevel > 0 && isCaseLabel) {
+            // case/default at the stored switch base level
             currentLevel = switchBaseLevel;
             // After a case label, the next line gets extra indent
-            if (isCaseLabel) {
-                caseExtraIndent = true;
-            }
+            caseExtraIndent = true;
         } else if (caseExtraIndent) {
             // Body of case gets extra indent (switch base level + 1)
             if (switchBaseLevel !== null && switchBaseLevel > 0) {
