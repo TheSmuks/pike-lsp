@@ -95,6 +95,8 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
     const indentStack: number[] = [0];
     let pendingIndent = false;
     let inMultilineComment = false;
+    let switchBaseLevel: number | null = null; // Store the level of the switch's opening brace
+    let caseExtraIndent = false; // Track if we need extra indent after a case label
 
     const controlKeywords = ['if', 'else', 'while', 'for', 'foreach', 'do'];
 
@@ -117,8 +119,13 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
 
         // Handle comments
         if (inMultilineComment || trimmed.startsWith('//') || trimmed.startsWith('*')) {
-            const currentBase = indentStack[indentStack.length - 1] ?? 0;
-            const commentIndentLevel = currentBase + (pendingIndent ? 1 : 0);
+            let commentIndentLevel = indentStack[indentStack.length - 1] ?? 0;
+            if (pendingIndent) {
+                commentIndentLevel++;
+            }
+            if (caseExtraIndent) {
+                commentIndentLevel++;
+            }
             const expectedIndent = indent.repeat(commentIndentLevel);
             const currentIndent = originalLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
 
@@ -138,6 +145,10 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             continue;
         }
 
+        // Check if this line is a case/default label or break
+        const isCaseLabel = /^(case\s+[^:]+|default\s*):/.test(trimmed);
+        const isBreak = trimmed === 'break' || trimmed === 'break;';
+
         // Calculate indentation for this line
         let currentLevel = indentStack[indentStack.length - 1] ?? 0;
 
@@ -148,9 +159,45 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             pendingIndent = false;
         }
 
+        // Check if this line starts a switch statement - detect AFTER checking for case/break
+        // We need to know we're in a switch before we process the {
+        if (/^switch\s*\(/.test(trimmed) && switchBaseLevel === null) {
+            // Mark that we're entering a switch - the actual base level will be set
+            // after the { is processed
+            switchBaseLevel = -1; // Sentinel value - will be set after { processing
+        }
+
+        // In switch: case/default/break should be at same level as the opening brace
+        // The body after case: should be indented one more
+        if (switchBaseLevel !== null && switchBaseLevel > 0 && (isCaseLabel || isBreak)) {
+            // case/default/break at the stored switch base level
+            currentLevel = switchBaseLevel;
+            // After a case label, the next line gets extra indent
+            if (isCaseLabel) {
+                caseExtraIndent = true;
+            }
+        } else if (caseExtraIndent) {
+            // Body of case gets extra indent (switch base level + 1)
+            if (switchBaseLevel !== null && switchBaseLevel > 0) {
+                currentLevel = switchBaseLevel + 1;
+            } else {
+                currentLevel++;
+            }
+            // Reset extra indent after one line unless it's another case/default
+            if (!isCaseLabel) {
+                caseExtraIndent = false;
+            }
+        }
+
         // If line starts with closing brace, dedent visually
         if (trimmed.startsWith('}') || trimmed.startsWith(')')) {
              currentLevel = Math.max(0, currentLevel - 1);
+        }
+
+        // Check if we're exiting a switch
+        if (trimmed.startsWith('}') && switchBaseLevel !== null) {
+            switchBaseLevel = null;
+            caseExtraIndent = false;
         }
 
         const expectedIndent = indent.repeat(currentLevel);
@@ -178,6 +225,12 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             if (match[0] === '{') {
                 trackingLevel++;
                 indentStack.push(trackingLevel);
+                // If this { ends a switch(...) line, set the switch base level
+                if (switchBaseLevel === -1) {
+                    // The switch base level is the level where the { is (trackingLevel - 1)
+                    // case/break should be at this same level as the {
+                    switchBaseLevel = trackingLevel - 1;
+                }
             } else if (match[0] === '}') {
                 indentStack.pop();
                 trackingLevel = indentStack[indentStack.length - 1] ?? 0;

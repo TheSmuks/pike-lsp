@@ -117,26 +117,56 @@ y = 0;
         const expected = `
 void test() {
     switch (x) {
-        case 1:
+    case 1:
         y = 1;
         break;
-        default:
+    default:
         y = 0;
     }
 }
 `.trim();
-        // Updated expectation to match current implementation:
-        // Case statements are indented inside switch (level 2).
-        // Body statements are same level as case (level 2).
 
         assert.equal(format(input), expected);
     });
 
-    it('formats switch/case with body indentation', () => {
-         // This tests if we want extra indent for case body.
-         // Current implementation DOES NOT do this, so this test might "fail" if I expect it,
-         // or pass if I expect flat.
-         // Let's verify what it does.
+    it('formats switch/case with multiple statements in case body', () => {
+        const input = `
+void test() {
+switch (x) {
+case 1:
+y = 1;
+z = 2;
+break;
+case 2:
+do_a();
+do_b();
+do_c();
+break;
+default:
+y = 0;
+}
+}
+`.trim();
+
+        const expected = `
+void test() {
+    switch (x) {
+    case 1:
+        y = 1;
+        z = 2;
+        break;
+    case 2:
+        do_a();
+        do_b();
+        do_c();
+        break;
+    default:
+        y = 0;
+    }
+}
+`.trim();
+
+        assert.equal(format(input), expected);
     });
 
     it('formats multiline comments', () => {
