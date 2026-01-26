@@ -92,7 +92,8 @@ this_program set_public_key(Gmp.mpz|int modulo, Gmp.mpz|int pub) {
         assert.equal(items.length, 1);
         const item = items[0]!;
 
-        assert.equal(item.detail, 'set_public_key(modulo, pub)');
+        // Detail now shows the full signature with return type and parameter types
+        assert.equal(item.detail, 'this_program set_public_key(Gmp.mpz|int modulo, Gmp.mpz|int pub)');
 
         const insertText = item.insertText ?? '';
         // Should NOT have the function name line
@@ -136,7 +137,7 @@ int add(int a, int b) {
         assert.equal(item.label, '//!! AutoDoc Template');
     });
 
-    it('does not trigger when there is no function on the next line', () => {
+    it('triggers for variable declarations (not just functions)', () => {
         const content = `//!!
 int x;`;
         const doc = createDoc(content);
@@ -144,7 +145,11 @@ int x;`;
 
         const items = getAutoDocCompletion(doc, position);
 
-        assert.equal(items.length, 0);
+        // Should trigger for variable declarations
+        assert.equal(items.length, 1);
+        const item = items[0]!;
+        assert.equal(item.label, '//!! AutoDoc Template');
+        assert.equal(item.detail, 'int x');
     });
 
     it('skips empty lines between //!! and function', () => {

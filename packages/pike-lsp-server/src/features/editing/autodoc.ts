@@ -7,7 +7,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
  *
  * When the user types the second '!', we should trigger the autodoc
  * completion that generates documentation based on the function signature
- * on the following line.
+ * or variable declaration on the following line.
  */
 export function getAutoDocCompletion(document: TextDocument, position: Position): CompletionItem[] {
     const text = document.getText();
@@ -33,8 +33,9 @@ export function getAutoDocCompletion(document: TextDocument, position: Position)
         return [];
     }
 
-    // Find the next line with the function signature
+    // Find the next line with the function signature or variable declaration
     let funcSignature: string | null = null;
+    let varDeclaration: string | null = null;
     let nextLineIdx = position.line + 1;
     const lineCount = document.lineCount;
 
@@ -52,47 +53,69 @@ export function getAutoDocCompletion(document: TextDocument, position: Position)
             continue;
         }
 
-        // Check if this looks like a function/method signature
-        // Must have parentheses and not be a control structure
-        const controlKeywords = ['if', 'while', 'for', 'foreach', 'switch', 'catch', 'do', 'else', 'class', 'enum', 'typedef'];
+        // Check if this looks like a variable declaration
+        // Pattern: type name = value; or type name;
+        // Must NOT have parentheses (to distinguish from functions)
+        // Must end with ; or { (initializer or block start)
+        const controlKeywords = ['if', 'while', 'for', 'foreach', 'switch', 'catch', 'do', 'else', 'class', 'enum', 'typedef', 'return', 'continue', 'break', 'import', 'inherit', 'typeof', 'sizeof'];
         const firstWord = trimmedLine.split(/\s+/)[0] || '';
 
+        // Check for variable declaration (no parens, ends with ; or {, not a control keyword)
+        if (!trimmedLine.includes('(') &&
+            (trimmedLine.endsWith(';') || trimmedLine.endsWith('{')) &&
+            !controlKeywords.includes(firstWord)) {
+            varDeclaration = trimmedLine;
+            break;
+        }
+
+        // Check if this looks like a function/method signature
+        // Must have parentheses and not be a control structure
         if (trimmedLine.includes('(') && !controlKeywords.includes(firstWord)) {
             funcSignature = trimmedLine;
         }
         break;
     }
 
-    if (!funcSignature) {
-        return [];
+    // Parse as variable or function
+    let parsed: ParsedSignature | ParsedVariable | null = null;
+    let isVariable = false;
+
+    if (varDeclaration) {
+        parsed = parseVariableDeclaration(varDeclaration);
+        isVariable = parsed !== null;
     }
 
-    // Parse the function signature to extract name, return type, and parameters
-    const parsed = parseFunctionSignature(funcSignature);
+    if (!isVariable && funcSignature) {
+        parsed = parseFunctionSignature(funcSignature);
+    }
+
     if (!parsed) {
         return [];
     }
 
     // Build the AutoDoc template
-    const template = buildAutoDocTemplate(parsed);
+    const template = isVariable
+        ? buildVariableAutoDocTemplate(parsed as ParsedVariable)
+        : buildAutoDocTemplate(parsed as ParsedSignature);
 
-    // Find the //!! position for the replace range
-    const bangBangIndex = currentLine.indexOf('//!!');
-    if (bangBangIndex === -1) {
+    // Find the //! or //!! position for the replace range
+    const triggerIndex = currentLine.indexOf('//!');
+    if (triggerIndex === -1) {
         return [];
     }
 
-    // Replace from start of //!! to the end of the line
-    // This ensures we replace all of //!! even if cursor is mid-way
+    // Replace from start of //! or //!! to the end of the line
     const replaceRange: Range = {
-        start: { line: position.line, character: bangBangIndex },
+        start: { line: position.line, character: triggerIndex },
         end: { line: position.line, character: currentLine.length }
     };
 
     return [{
         label: '//!! AutoDoc Template',
         kind: CompletionItemKind.Snippet,
-        detail: `${parsed.name}(${parsed.args.join(', ')})`,
+        detail: isVariable
+            ? `${(parsed as ParsedVariable).varType} ${parsed.name}`
+            : (parsed as ParsedSignature).fullSignature,
         insertText: template,
         insertTextFormat: InsertTextFormat.Snippet,
         textEdit: TextEdit.replace(replaceRange, template),
@@ -113,6 +136,7 @@ interface ParsedSignature {
     returnType: string;
     args: string[];
     hasVoidReturn: boolean;
+    fullSignature: string;
 }
 
 function parseFunctionSignature(signature: string): ParsedSignature | null {
@@ -167,7 +191,8 @@ function parseFunctionSignature(signature: string): ParsedSignature | null {
         name,
         returnType,
         args,
-        hasVoidReturn: returnType === 'void' || returnType === '__EMPTY__'
+        hasVoidReturn: returnType === 'void' || returnType === '__EMPTY__',
+        fullSignature: clean
     };
 }
 
@@ -246,6 +271,79 @@ function buildAutoDocTemplate(parsed: ParsedSignature): string {
     if (!parsed.hasVoidReturn) {
         lines.push('//! @returns');
         lines.push(`//!   \${${tabIndex++}:Description for return value}`);
+    }
+
+    return lines.join('\n');
+}
+
+/**
+ * Parsed variable declaration
+ */
+interface ParsedVariable {
+    name: string;
+    varType: string;
+    hasInitializer: boolean;
+}
+
+/**
+ * Parse a variable declaration to extract components
+ *
+ * Handles patterns like:
+ * - int my_var;
+ * - string name = "value";
+ * - mapping(string:int) data = ([ ... ]);
+ */
+function parseVariableDeclaration(declaration: string): ParsedVariable | null {
+    // Clean up: remove trailing {, ;, or whitespace
+    let clean = declaration.trim();
+
+    // Find the variable name and type before any initializer or ending
+    // Pattern: type name = value; or type name; or type name {
+    const equalsIndex = clean.lastIndexOf('=');
+    let beforeEquals: string;
+
+    if (equalsIndex > 0) {
+        // Has initializer - get everything before =
+        beforeEquals = clean.substring(0, equalsIndex).trim();
+    } else {
+        // No initializer - remove trailing ; or { first
+        if (clean.endsWith('{')) clean = clean.slice(0, -1).trim();
+        if (clean.endsWith(';')) clean = clean.slice(0, -1).trim();
+        beforeEquals = clean;
+    }
+
+    // Extract variable name (last word in the type+name part)
+    const nameMatch = beforeEquals.match(/([a-zA-Z0-9_]+)\s*$/);
+    if (!nameMatch || !nameMatch[1]) return null;
+    const name: string = nameMatch[1];
+
+    // Variable type is everything before the name
+    let varType = beforeEquals.substring(0, beforeEquals.length - name.length).trim() || 'mixed';
+
+    // Remove common modifiers from type
+    const modifiers = ['public', 'private', 'protected', 'static', 'final', 'const', 'optional', 'local', 'extern'];
+    const typeParts = varType.split(/\s+/).filter(p => !modifiers.includes(p));
+    varType = typeParts.join(' ') || 'mixed';
+
+    return {
+        name,
+        varType,
+        hasInitializer: equalsIndex > 0
+    };
+}
+
+/**
+ * Build the AutoDoc template for a variable declaration
+ */
+function buildVariableAutoDocTemplate(parsed: ParsedVariable): string {
+    const lines: string[] = [];
+
+    // Main description
+    lines.push('//! ${1:Description}');
+
+    // Type declaration
+    if (parsed.varType !== 'mixed' || !parsed.hasInitializer) {
+        lines.push(`//! @type ${parsed.varType}`);
     }
 
     return lines.join('\n');
