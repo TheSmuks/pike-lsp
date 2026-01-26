@@ -165,18 +165,24 @@ export function registerSymbolsHandlers(
 
     /**
      * Workspace symbol handler - search symbols across workspace (Ctrl+T)
+     *
+     * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
+     * TODO: When upgrading to LSP 3.18+, use params.limit for client control.
      */
     connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
         const query = params.query;
+        // Note: LSP 3.17.5 doesn't support params.limit on workspace symbols
+        // This was added in a later LSP version. For now, use server constant.
+        const limit = LSP.MAX_WORKSPACE_SYMBOLS;
 
-        log.debug('Workspace symbol request', { query });
+        log.debug('Workspace symbol request', { query, limit });
 
         try {
             const allSymbols: SymbolInformation[] = [];
             const queryLower = query?.toLowerCase() ?? '';
 
             // Search the workspace index first
-            const indexedResults = workspaceIndex.searchSymbols(query, LSP.MAX_WORKSPACE_SYMBOLS);
+            const indexedResults = workspaceIndex.searchSymbols(query, limit);
             allSymbols.push(...indexedResults);
 
             // Also search open documents (documentCache) to include files that
@@ -206,7 +212,7 @@ export function registerSymbolsHandlers(
                             },
                         });
 
-                        if (allSymbols.length >= LSP.MAX_WORKSPACE_SYMBOLS) {
+                        if (allSymbols.length >= limit) {
                             log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
                             return allSymbols;
                         }

@@ -37,6 +37,49 @@ interface SymbolEntry {
 export type IndexErrorCallback = (message: string, uri?: string) => void;
 
 /**
+ * Progress information during workspace indexing
+ */
+interface IndexProgress {
+    current: number;
+    total: number;
+    phase: 'discovering' | 'reading' | 'parsing' | 'indexing';
+    message: string;
+}
+
+/**
+ * Callback type for progress updates during indexing
+ */
+type IndexProgressCallback = (progress: IndexProgress) => void;
+
+/**
+ * File information with filesystem modification time
+ */
+interface FileInfo {
+    path: string;
+    lastModified: number;
+}
+
+/**
+ * Performance metrics for indexing operations
+ */
+export interface IndexMetrics {
+    /** Total time for the last indexDirectory operation */
+    lastIndexTimeMs: number;
+    /** Time spent discovering files */
+    lastFileDiscoveryMs: number;
+    /** Time spent reading files */
+    lastFileReadMs: number;
+    /** Time spent parsing (IPC + Pike) */
+    lastParsingMs: number;
+    /** Time spent updating the index */
+    lastIndexingMs: number;
+    /** Number of files in the last index operation */
+    lastFileCount: number;
+    /** Cumulative number of files indexed since server start */
+    totalFilesIndexed: number;
+}
+
+/**
  * WorkspaceIndex manages symbol indexing across the workspace
  */
 export class WorkspaceIndex {
@@ -53,6 +96,17 @@ export class WorkspaceIndex {
     // Optional error callback for LSP connection reporting
     private onError: IndexErrorCallback | null = null;
 
+    // PERF-007: Performance metrics tracking
+    private metrics: IndexMetrics = {
+        lastIndexTimeMs: 0,
+        lastFileDiscoveryMs: 0,
+        lastFileReadMs: 0,
+        lastParsingMs: 0,
+        lastIndexingMs: 0,
+        lastFileCount: 0,
+        totalFilesIndexed: 0,
+    };
+
     constructor(bridge?: PikeBridge) {
         this.bridge = bridge ?? null;
     }
@@ -62,6 +116,28 @@ export class WorkspaceIndex {
      */
     setErrorCallback(callback: IndexErrorCallback): void {
         this.onError = callback;
+    }
+
+    /**
+     * Get performance metrics for indexing operations
+     */
+    getMetrics(): IndexMetrics {
+        return { ...this.metrics };
+    }
+
+    /**
+     * Reset performance metrics
+     */
+    resetMetrics(): void {
+        this.metrics = {
+            lastIndexTimeMs: 0,
+            lastFileDiscoveryMs: 0,
+            lastFileReadMs: 0,
+            lastParsingMs: 0,
+            lastIndexingMs: 0,
+            lastFileCount: 0,
+            totalFilesIndexed: 0,
+        };
     }
 
     /**
@@ -204,44 +280,157 @@ export class WorkspaceIndex {
     /**
      * Index all Pike files in a directory
      * PERF-002: Uses batch parsing for better performance
+     * PERF-007: Adds performance instrumentation
+     * PERF-008: Incremental indexing with progress callbacks and chunked processing
+     *
+     * @param dirPath - Directory path to index
+     * @param recursive - Whether to recursively index subdirectories
+     * @param onProgress - Optional callback for progress updates
      */
-    async indexDirectory(dirPath: string, recursive: boolean = true): Promise<number> {
+    async indexDirectory(
+        dirPath: string,
+        recursive: boolean = true,
+        onProgress?: IndexProgressCallback
+    ): Promise<number> {
         if (!this.bridge?.isRunning()) {
             return 0;
         }
 
-        const pikeFiles = this.findPikeFiles(dirPath, recursive);
+        const totalStart = performance.now();
 
-        if (pikeFiles.length === 0) {
+        // PERF-007: Time file discovery
+        const discoveryStart = performance.now();
+        const allFiles = this.findPikeFilesWithStats(dirPath, recursive);
+        const discoveryEnd = performance.now();
+        this.metrics.lastFileDiscoveryMs = discoveryEnd - discoveryStart;
+
+        if (allFiles.length === 0) {
             return 0;
         }
 
-        // PERF-002: Collect all files and use batch parsing
-        const filesToParse: Array<{ code: string; filename: string }> = [];
+        // PERF-008: Report discovery phase
+        onProgress?.({
+            current: allFiles.length,
+            total: allFiles.length,
+            phase: 'discovering',
+            message: `Discovered ${allFiles.length} Pike files`,
+        });
 
-        for (const filePath of pikeFiles) {
-            try {
-                const content = fs.readFileSync(filePath, 'utf-8');
-                filesToParse.push({
-                    code: content,
-                    filename: filePath,
-                });
-            } catch {
-                // Skip files that can't be read
+        // PERF-008: Filter for changed/new files only (incremental indexing)
+        const filesToIndex = allFiles.filter(fileInfo => {
+            const uri = `file://${fileInfo.path}`;
+            const existing = this.documents.get(uri);
+            return !existing || existing.lastModified < fileInfo.lastModified;
+        });
+
+        // PERF-008: Track and remove deleted files
+        const currentPaths = new Set(allFiles.map(f => `file://${f.path}`));
+        let deletedCount = 0;
+        for (const [uri] of this.documents) {
+            if (!currentPaths.has(uri) && uri.startsWith('file://')) {
+                this.removeDocument(uri);
+                deletedCount++;
             }
         }
 
+        const skippedCount = allFiles.length - filesToIndex.length;
+
+        // PERF-008: Report discovery results
+        onProgress?.({
+            current: 0,
+            total: filesToIndex.length,
+            phase: 'discovering',
+            message: `Found ${filesToIndex.length} changed files, skipped ${skippedCount}, removed ${deletedCount}`,
+        });
+
+        if (filesToIndex.length === 0) {
+            // PERF-008: Log incremental reindex (no changes)
+            console.log(JSON.stringify({
+                event: 'workspace-index-perf',
+                fileCount: allFiles.length,
+                indexed: 0,
+                skipped: skippedCount,
+                deleted: deletedCount,
+                fileDiscoveryMs: this.metrics.lastFileDiscoveryMs.toFixed(2),
+                fileReadMs: '0.00',
+                parsingMs: '0.00',
+                indexingMs: '0.00',
+                totalMs: (performance.now() - totalStart).toFixed(2),
+                incremental: true,
+            }));
+            this.metrics.lastFileCount = allFiles.length;
+            this.metrics.lastIndexTimeMs = performance.now() - totalStart;
+            return 0;
+        }
+
+        // PERF-008: Chunk size for file reading (smaller than bridge's 50)
+        const CHUNK_SIZE = 20;
+
+        let totalReadMs = 0;
         let indexed = 0;
 
-        if (filesToParse.length > 0) {
-            try {
-                // Batch parse all files at once
-                const batchResult = await this.bridge.batchParse(filesToParse);
+        for (let i = 0; i < filesToIndex.length; i += CHUNK_SIZE) {
+            const chunk = filesToIndex.slice(i, i + CHUNK_SIZE);
+            const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+            const totalChunks = Math.ceil(filesToIndex.length / CHUNK_SIZE);
 
-                // Process results
-                for (const result of batchResult.results) {
+            // PERF-008: Report reading progress
+            onProgress?.({
+                current: i,
+                total: filesToIndex.length,
+                phase: 'reading',
+                message: `Reading files ${i + 1}-${Math.min(i + CHUNK_SIZE, filesToIndex.length)} of ${filesToIndex.length}`,
+            });
+
+            const chunkReadStart = performance.now();
+
+            // PERF-008: Read only this chunk (lazy loading)
+            const chunkData: Array<{ code: string; filename: string; lastModified: number }> = [];
+            for (const fileInfo of chunk) {
+                try {
+                    const content = fs.readFileSync(fileInfo.path, 'utf-8');
+                    chunkData.push({
+                        code: content,
+                        filename: fileInfo.path,
+                        lastModified: fileInfo.lastModified,
+                    });
+                } catch {
+                    // Skip files that can't be read
+                }
+            }
+
+            const chunkReadEnd = performance.now();
+            totalReadMs += chunkReadEnd - chunkReadStart;
+
+            // PERF-008: Report parsing progress
+            onProgress?.({
+                current: i,
+                total: filesToIndex.length,
+                phase: 'parsing',
+                message: `Parsing chunk ${chunkNumber} of ${totalChunks} (${chunkData.length} files)`,
+            });
+
+            try {
+                // PERF-007: Time parsing (IPC + Pike)
+                const parseStart = performance.now();
+                const batchResult = await this.bridge.batchParse(
+                    chunkData.map(d => ({ code: d.code, filename: d.filename }))
+                );
+                const parseEnd = performance.now();
+                this.metrics.lastParsingMs += parseEnd - parseStart;
+
+                // PERF-008: Time indexing for this chunk
+                const indexingStart = performance.now();
+
+                // Process results with proper bounds checking
+                for (let j = 0; j < Math.min(batchResult.results.length, chunkData.length); j++) {
+                    const result = batchResult.results[j];
+                    const fileInfo = chunkData[j];
+
+                    // Skip if either result or file info is undefined
+                    if (!result || !fileInfo) continue;
+
                     const uri = `file://${result.filename}`;
-                    const version = 1;
 
                     // Remove old entries from lookup
                     const existing = this.documents.get(uri);
@@ -249,25 +438,39 @@ export class WorkspaceIndex {
                         this.removeFromLookup(uri);
                     }
 
-                    // Store indexed document
+                    // Store indexed document with filesystem mtime
+                    const symbols = this.flattenSymbols(result.symbols);
                     this.documents.set(uri, {
                         uri,
-                        symbols: this.flattenSymbols(result.symbols),
-                        version,
-                        lastModified: Date.now(),
+                        symbols,
+                        version: 1,
+                        lastModified: fileInfo.lastModified,
                     });
 
                     // Add to lookup
-                    this.addToLookup(uri, this.flattenSymbols(result.symbols));
+                    this.addToLookup(uri, symbols);
                     indexed++;
                 }
+
+                const indexingEnd = performance.now();
+                this.metrics.lastIndexingMs += indexingEnd - indexingStart;
+
+                // PERF-008: Report chunk progress
+                onProgress?.({
+                    current: i + chunk.length,
+                    total: filesToIndex.length,
+                    phase: 'indexing',
+                    message: `Indexed ${indexed} of ${filesToIndex.length} changed files`,
+                });
+
             } catch (err) {
-                this.reportError(`[Pike LSP] Batch parse failed, falling back to sequential parsing: ${err instanceof Error ? err.message : String(err)}`);
-                // Fallback to sequential parsing on error
-                for (const fileToParse of filesToParse) {
+                this.reportError(`[Pike LSP] Batch parse failed for chunk ${chunkNumber}, falling back to sequential parsing: ${err instanceof Error ? err.message : String(err)}`);
+
+                // Fallback to sequential parsing for this chunk
+                for (const fileData of chunkData) {
                     try {
-                        const parseResult = await this.bridge.parse(fileToParse.code, fileToParse.filename);
-                        const uri = `file://${fileToParse.filename}`;
+                        const parseResult = await this.bridge.parse(fileData.code, fileData.filename);
+                        const uri = `file://${fileData.filename}`;
 
                         // Remove old entries from lookup
                         const existing = this.documents.get(uri);
@@ -275,16 +478,17 @@ export class WorkspaceIndex {
                             this.removeFromLookup(uri);
                         }
 
-                        // Store indexed document
+                        // Store indexed document with filesystem mtime
+                        const symbols = this.flattenSymbols(parseResult.symbols);
                         this.documents.set(uri, {
                             uri,
-                            symbols: this.flattenSymbols(parseResult.symbols),
+                            symbols,
                             version: 1,
-                            lastModified: Date.now(),
+                            lastModified: fileData.lastModified,
                         });
 
                         // Add to lookup
-                        this.addToLookup(uri, this.flattenSymbols(parseResult.symbols));
+                        this.addToLookup(uri, symbols);
                         indexed++;
                     } catch {
                         // Skip files that fail to parse
@@ -292,6 +496,29 @@ export class WorkspaceIndex {
                 }
             }
         }
+
+        this.metrics.lastFileReadMs = totalReadMs;
+
+        // PERF-007: Log performance data
+        console.log(JSON.stringify({
+            event: 'workspace-index-perf',
+            fileCount: allFiles.length,
+            indexed,
+            skipped: skippedCount,
+            deleted: deletedCount,
+            fileDiscoveryMs: this.metrics.lastFileDiscoveryMs.toFixed(2),
+            fileReadMs: this.metrics.lastFileReadMs.toFixed(2),
+            parsingMs: this.metrics.lastParsingMs.toFixed(2),
+            indexingMs: this.metrics.lastIndexingMs.toFixed(2),
+            totalMs: (performance.now() - totalStart).toFixed(2),
+            incremental: indexed < allFiles.length,
+        }));
+
+        // PERF-007: Update metrics
+        const totalEnd = performance.now();
+        this.metrics.lastIndexTimeMs = totalEnd - totalStart;
+        this.metrics.lastFileCount = allFiles.length;
+        this.metrics.totalFilesIndexed += indexed;
 
         return indexed;
     }
@@ -365,8 +592,12 @@ export class WorkspaceIndex {
         }
     }
 
-    private findPikeFiles(dirPath: string, recursive: boolean): string[] {
-        const files: string[] = [];
+    /**
+     * Find all Pike files in a directory with filesystem modification times
+     * PERF-008: Enables incremental indexing by tracking file mtime
+     */
+    private findPikeFilesWithStats(dirPath: string, recursive: boolean): FileInfo[] {
+        const files: FileInfo[] = [];
 
         const walk = (dir: string) => {
             try {
@@ -380,7 +611,15 @@ export class WorkspaceIndex {
                         }
                     } else if (entry.isFile()) {
                         if (entry.name.endsWith('.pike') || entry.name.endsWith('.pmod')) {
-                            files.push(fullPath);
+                            try {
+                                const stats = fs.statSync(fullPath);
+                                files.push({
+                                    path: fullPath,
+                                    lastModified: stats.mtimeMs,
+                                });
+                            } catch {
+                                // Skip files we can't stat
+                            }
                         }
                     }
                 }
