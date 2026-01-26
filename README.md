@@ -1,11 +1,30 @@
 # Pike LSP - Language Server for Pike
 
 [![CI Tests](https://github.com/TheSmuks/pike-lsp/workflows/Test/badge.svg)](https://github.com/TheSmuks/pike-lsp/actions/workflows/test.yml)
+[![Benchmarks](https://img.shields.io/badge/Benchmark-GitHub%20Pages-24292f.svg)](https://thesmuks.github.io/pike-lsp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![VS Code](https://img.shields.io/badge/VS%20Code-1.85+-blue.svg)](https://code.visualstudio.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
 [![Pike](https://img.shields.io/badge/Pike-8.0+-orange.svg)](https://pike.lysator.liu.se/)
 [![Status](https://img.shields.io/badge/Status-Alpha-yellow.svg)](https://github.com/TheSmuks/pike-lsp/releases)
+
+## Table of Contents
+
+- [Features](#features)
+- [Performance](#performance)
+- [Requirements](#requirements)
+- [Compatibility](#compatibility)
+- [Installation](#installation)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Configuration](#configuration)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Development](#development)
+- [Known Limitations](#known-limitations)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+
+---
 
 A comprehensive Language Server Protocol (LSP) implementation for the [Pike programming language](https://pike.lysator.liu.se/), providing modern IDE features for VS Code and other LSP-compatible editors.
 
@@ -43,15 +62,13 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 
 ### Performance
 
-[![Benchmarks](https://img.shields.io/badge/Benchmark-GitHub%20Pages-24292f.svg)](https://thesmuks.github.io/pike-lsp/dev/benchmarks/)
-
 - Parses 1000+ line files in ~15ms
 - Batch parsing for fast workspace indexing
 - Smart caching for stdlib modules
 - 100% Pike 8 stdlib compatibility
 - Modular architecture (TypeScript + Pike 8.1116)
 
-> **View live benchmarks:** [thesmuks.github.io/pike-lsp/dev/benchmarks/](https://thesmuks.github.io/pike-lsp/dev/benchmarks/)
+> **View live benchmarks:** [thesmuks.github.io/pike-lsp](https://thesmuks.github.io/pike-lsp)
 
 ## Requirements
 
