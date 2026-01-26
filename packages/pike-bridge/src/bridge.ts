@@ -78,6 +78,17 @@ interface CachedTokens {
 }
 
 /**
+ * PERF-007: Metrics for batch parse operations
+ */
+interface BatchParseMetrics {
+    totalMs: number;
+    chunkingMs: number;
+    ipcMs: number;
+    chunkCount: number;
+    fileCount: number;
+}
+
+/**
  * PikeBridge - Communication layer with Pike subprocess.
  *
  * Manages a Pike subprocess that provides parsing, tokenization, and symbol
@@ -864,23 +875,66 @@ export class PikeBridge extends EventEmitter {
         return result.context;
     }
 
+    // PERF-007: Metrics for batch parse operations
+    private batchParseMetrics: BatchParseMetrics[] = [];
+
+    /**
+     * Get batch parse metrics from recent operations
+     */
+    getBatchParseMetrics(): BatchParseMetrics[] {
+        return [...this.batchParseMetrics];
+    }
+
+    /**
+     * Clear batch parse metrics
+     */
+    clearBatchParseMetrics(): void {
+        this.batchParseMetrics = [];
+    }
+
     async batchParse(files: Array<{ code: string; filename: string }>): Promise<import('./types.js').BatchParseResult> {
+        const totalStart = performance.now();
+        const metrics: BatchParseMetrics = {
+            totalMs: 0,
+            chunkingMs: 0,
+            ipcMs: 0,
+            chunkCount: 0,
+            fileCount: files.length,
+        };
+
         // Limit batch size to prevent memory issues
         if (files.length > BATCH_PARSE_MAX_SIZE) {
+            const chunkingStart = performance.now();
             // Split into chunks and process sequentially
             const chunks: Array<typeof files> = [];
             for (let i = 0; i < files.length; i += BATCH_PARSE_MAX_SIZE) {
                 chunks.push(files.slice(i, i + BATCH_PARSE_MAX_SIZE));
             }
+            const chunkingEnd = performance.now();
+            metrics.chunkingMs = chunkingEnd - chunkingStart;
+            metrics.chunkCount = chunks.length;
 
-            // Process chunks and combine results
+            // PERF-007: Time IPC for each chunk
             const allResults: import('./types.js').BatchParseFileResult[] = [];
             for (const chunk of chunks) {
+                const ipcStart = performance.now();
                 const result = await this.sendRequest<import('./types.js').BatchParseResult>('batch_parse', {
                     files: chunk,
                 });
+                const ipcEnd = performance.now();
+                metrics.ipcMs += ipcEnd - ipcStart;
                 allResults.push(...result.results);
             }
+
+            metrics.totalMs = performance.now() - totalStart;
+            this.batchParseMetrics.push(metrics);
+
+            // PERF-007: Log performance data
+            console.log(JSON.stringify({
+                event: 'bridge-batch-parse-perf',
+                ...metrics,
+                avgIpcMs: (metrics.ipcMs / metrics.chunkCount).toFixed(2),
+            }));
 
             return {
                 results: allResults,
@@ -888,7 +942,24 @@ export class PikeBridge extends EventEmitter {
             };
         }
 
-        return this.sendRequest<import('./types.js').BatchParseResult>('batch_parse', { files });
+        // PERF-007: Time single-batch IPC
+        const ipcStart = performance.now();
+        const result = await this.sendRequest<import('./types.js').BatchParseResult>('batch_parse', { files });
+        const ipcEnd = performance.now();
+
+        metrics.totalMs = performance.now() - totalStart;
+        metrics.ipcMs = ipcEnd - ipcStart;
+        metrics.chunkCount = 1;
+        this.batchParseMetrics.push(metrics);
+
+        // PERF-007: Log performance data
+        console.log(JSON.stringify({
+            event: 'bridge-batch-parse-perf',
+            ...metrics,
+            avgIpcMs: metrics.ipcMs.toFixed(2),
+        }));
+
+        return result;
     }
 
     /**
