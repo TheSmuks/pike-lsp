@@ -420,6 +420,18 @@ export interface StdlibResolveResult {
 }
 
 /**
+ * Result of resolving an #include path
+ */
+export interface IncludeResolveResult {
+    /** Resolved absolute path */
+    path: string;
+    /** Whether the file exists */
+    exists: boolean;
+    /** Original include path from source */
+    originalPath: string;
+}
+
+/**
  * Result of getting inherited members
  */
 export interface InheritedMembersResult {
@@ -501,7 +513,7 @@ export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze';
     /** Request parameters */
     params: Record<string, unknown>;
 }

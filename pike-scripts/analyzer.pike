@@ -273,6 +273,73 @@ int main(int argc, array(string) argv) {
         "resolve_stdlib": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_resolve_stdlib(params);
         },
+        "resolve_include": lambda(mapping params, object ctx) {
+            string include_path = params->includePath || "";
+            string current_file = params->currentFile || "";
+
+            // Try to resolve the path
+            string resolved_path = "";
+            string current_dir = "";
+
+            if (sizeof(current_file) > 0) {
+                current_dir = dirname(current_file);
+            }
+
+            // Array of paths to try, in order
+            array(string) search_paths = ({});
+
+            // 1. Relative to current file directory
+            if (sizeof(current_dir) > 0) {
+                search_paths += ({ combine_path(current_dir, include_path) });
+            }
+
+            // 2. Try as-is
+            search_paths += ({ include_path });
+
+            // 3. Try in Pike's include paths from environment
+            string include_env = getenv("PIKE_INCLUDE_PATH");
+            if (include_env && sizeof(include_env) > 0) {
+                foreach(include_env / ":", string inc_dir) {
+                    if (sizeof(inc_dir) > 0) {
+                        search_paths += ({ combine_path(inc_dir, include_path) });
+                    }
+                }
+            }
+
+            // 4. Try Pike's default lib directory
+            string pike_lib = "/usr/local/pike/8.0.1116/lib";
+            if (file_stat(pike_lib)) {
+                search_paths += ({ combine_path(pike_lib, "include", include_path) });
+                search_paths += ({ combine_path(pike_lib, include_path) });
+            }
+
+            // Try each path until we find an existing file
+            foreach(search_paths, string candidate) {
+                mixed stat = file_stat(candidate);
+                if (stat) {
+                    if (stat->isdir) {
+                        string module_file = combine_path(candidate, "module.pmod");
+                        if (file_stat(module_file)) {
+                            resolved_path = module_file;
+                            break;
+                        }
+                    } else {
+                        resolved_path = candidate;
+                        break;
+                    }
+                }
+            }
+
+            int exists = sizeof(resolved_path) > 0 ? 1 : 0;
+
+            return ([
+                "result": ([
+                    "path": resolved_path,
+                    "exists": exists,
+                    "originalPath": include_path
+                ])
+            ]);
+        },
         "get_inherited": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_get_inherited(params);
         },

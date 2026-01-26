@@ -528,6 +528,29 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Resolve an #include path to an absolute file location.
+     *
+     * Resolves #include directives to actual file system paths.
+     * Handles relative includes (e.g., "utils.pike") and system includes
+     * (e.g., <Stdio.h>).
+     *
+     * @param includePath - Path from #include directive (with or without quotes/brackets).
+     * @param currentFile - Current file path for resolving relative includes.
+     * @returns Include resolve result with path and existence flag.
+     * @example
+     * ```ts
+     * const result = await bridge.resolveInclude('utils.pike', '/path/to/current.pike');
+     * // Returns: { path: '/path/to/utils.pike', exists: true, originalPath: 'utils.pike' }
+     * ```
+     */
+    async resolveInclude(includePath: string, currentFile?: string): Promise<import('./types.js').IncludeResolveResult> {
+        return this.sendRequest<import('./types.js').IncludeResolveResult>('resolve_include', {
+            includePath,
+            currentFile: currentFile || undefined,
+        });
+    }
+
+    /**
      * Introspect Pike code through compilation.
      *
      * Compiles the code and uses Pike's `_typeof` operator to extract
