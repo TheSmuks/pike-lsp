@@ -471,14 +471,16 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             }
         }
 
-        // Handle foreach - loop variable is always initialized
+        // Handle foreach - loop variable(s) are always initialized
+        // Supports: foreach (expr, type var), foreach (expr; type var), foreach (expr; type key; type value)
         if (text == "foreach") {
-            // Find the loop variable(s) in: foreach (expr, type var) or foreach (expr; type var; ...)
             int paren_start = find_next_token_fn(tokens, i, end_idx, "(");
             if (paren_start >= 0) {
-                int comma_or_semi = -1;
+                // Collect ALL separator positions to handle multi-variable foreach
+                array(int) separators = ({});
                 int paren_close = -1;
                 int paren_depth = 1;
+
                 for (int j = paren_start + 1; j < end_idx && j < sizeof(tokens); j++) {
                     string t = tokens[j]->text;
                     if (t == "(") paren_depth++;
@@ -489,31 +491,45 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                             break;
                         }
                     }
-                    else if (paren_depth == 1 && (t == "," || t == ";") && comma_or_semi < 0) {
-                        comma_or_semi = j;
+                    else if (paren_depth == 1 && (t == "," || t == ";")) {
+                        separators += ({ j });  // Capture ALL separators
                     }
                 }
 
-                if (comma_or_semi >= 0) {
-                    // Skip whitespace tokens after comma/semicolon
-                    int var_start = comma_or_semi + 1;
-                    while (var_start < end_idx && var_start < sizeof(tokens)) {
+                // Parse variable after EACH separator (skip first for comma syntax)
+                for (int sep_idx = 0; sep_idx < sizeof(separators); sep_idx++) {
+                    int var_start = separators[sep_idx] + 1;
+
+                    // Skip whitespace tokens after separator
+                    while (var_start < paren_close && var_start < sizeof(tokens)) {
                         string t = tokens[var_start]->text;
                         if (sizeof(LSP.Compat.trim_whites(t)) > 0) break;
                         var_start++;
                     }
 
-                    // Look for variable after comma/semicolon
-                    mapping loop_var = try_parse_declaration_fn(tokens, var_start, end_idx);
+                    // Look for variable declaration after this separator
+                    mapping loop_var = try_parse_declaration_fn(tokens, var_start, paren_close);
                     if (loop_var && loop_var->is_declaration) {
-                        variables[loop_var->name] = ([
-                            "type": loop_var->type,
-                            "state": STATE_INITIALIZED,  // Loop variable is always initialized
-                            "decl_line": tokens[var_start]->line,
-                            "decl_char": 0,
-                            "scope_depth": scope_depth + 1,
-                            "needs_init": 0  // Don't warn for loop variables
-                        ]);
+                        // For first separator with comma syntax, this is the collection variable
+                        // Skip it (e.g., foreach (array, int x) - skip 'array')
+                        if (sep_idx == 0 && tokens[separators[sep_idx]]->text == ",") {
+                            continue;
+                        }
+
+                        // If variable already exists, just mark as initialized (handles pre-declared vars)
+                        if (variables[loop_var->name]) {
+                            variables[loop_var->name]->state = STATE_INITIALIZED;
+                            variables[loop_var->name]->needs_init = 0;
+                        } else {
+                            variables[loop_var->name] = ([
+                                "type": loop_var->type,
+                                "state": STATE_INITIALIZED,  // Loop variable is always initialized
+                                "decl_line": tokens[var_start]->line,
+                                "decl_char": 0,
+                                "scope_depth": scope_depth + 1,
+                                "needs_init": 0  // Don't warn for loop variables
+                            ]);
+                        }
                     }
                 }
 
