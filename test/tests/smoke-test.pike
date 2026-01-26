@@ -95,7 +95,7 @@ int main(int argc, array(string) argv) {
     run_test(test_compat_compilation, "LSP.pmod/Compat.pmod compiles standalone");
     run_test(test_cache_compilation, "LSP.pmod/Cache.pmod compiles standalone");
     run_test(test_parser_compilation, "LSP.pmod/Parser.pike compiles standalone");
-    run_test(test_intelligence_compilation, "LSP.pmod/Intelligence.pike compiles standalone");
+    run_test(test_intelligence_compilation, "LSP.pmod/Intelligence.pmod/Intelligence.pike compiles standalone");
     run_test(test_analysis_compilation, "LSP.pmod/Analysis.pmod/Analysis.pike compiles standalone");
 
     write("\n");
@@ -208,12 +208,12 @@ void test_parser_compilation() {
         error("Parser.pike should compile to a program");
 }
 
-//! Test: LSP.pmod/Intelligence.pike compiles standalone
+//! Test: LSP.pmod/Intelligence.pmod/Intelligence.pike compiles standalone
 void test_intelligence_compilation() {
-    string file_path = combine_path(pike_scripts_path, "LSP.pmod", "Intelligence.pike");
+    string file_path = combine_path(pike_scripts_path, "LSP.pmod", "Intelligence.pmod", "Intelligence.pike");
     program prog = compile_file(file_path);
     if (!programp(prog))
-        error("Intelligence.pike should compile to a program");
+        error("Intelligence.pmod/Intelligence.pike should compile to a program");
 }
 
 //! Test: LSP.pmod/Analysis.pmod/Analysis.pike compiles standalone
