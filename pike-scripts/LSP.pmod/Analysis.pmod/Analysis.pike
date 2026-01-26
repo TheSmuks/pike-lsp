@@ -107,6 +107,7 @@ class Analysis {
     //! Unified analyze handler
     mapping handle_analyze(mapping params) {
         string code = params->code || "";
+        array(string) lines = code / "\n";
         string filename = params->filename || "input.pike";
         array(string) include = params->include || ({});
         int|string lsp_version = params->version;
@@ -282,7 +283,7 @@ class Analysis {
             mixed diag_err = catch {
                 object diag_handler = get_diagnostics_handler();
                 if (diag_handler) {
-                    mapping diag_response = diag_handler->handle_analyze_uninitialized((["code": code, "filename": filename]));
+                    mapping diag_response = diag_handler->handle_analyze_uninitialized((["code": code, "filename": filename, "tokens": tokens, "lines": lines]));
                     if (diag_response && diag_response->result && diag_response->result->diagnostics) {
                         all_diagnostics += diag_response->result->diagnostics;
                     }
