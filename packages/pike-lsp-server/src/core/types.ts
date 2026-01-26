@@ -78,6 +78,10 @@ export interface DocumentCacheEntry {
     dependencies?: DocumentDependencies;
     /** Inheritance information from introspection */
     inherits?: import("@pike-lsp/pike-bridge").InheritanceInfo[];
+    /** INC-002: SHA-256 hash of document content for incremental change detection */
+    contentHash?: string;
+    /** INC-002: Hash of each line's semantic content (comments stripped) */
+    lineHashes?: number[];
 }
 
 /**

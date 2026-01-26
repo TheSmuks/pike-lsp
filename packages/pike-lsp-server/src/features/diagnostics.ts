@@ -12,6 +12,7 @@ import type {
     DiagnosticSeverity,
     DidChangeConfigurationParams,
     Position,
+    Range,
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
@@ -21,6 +22,7 @@ import { PatternHelpers } from '../utils/regex-patterns.js';
 import { TypeDatabase, CompiledProgramInfo } from '../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/index.js';
+import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
 
 /**
  * Register diagnostics handlers with the LSP connection.
@@ -329,7 +331,143 @@ export function registerDiagnosticsHandlers(
     }
 
     /**
+     * INC-002: Change detection result from classification
+     */
+    interface ChangeClassification {
+        /** Whether parsing can be skipped entirely */
+        canSkip: boolean;
+        /** Reason for classification */
+        reason: string;
+        /** New content hash (computed if needed) */
+        newHash?: string;
+        /** New line hashes (computed if needed) */
+        newLineHashes?: number[];
+    }
+
+    /**
+     * INC-002: Classify document change to determine if re-parsing is needed.
+     *
+     * Uses multiple strategies to detect if the change affects semantic content:
+     * 1. Comment/whitespace-only changes → skip entirely
+     * 2. Line hash comparison → skip if semantic content unchanged
+     * 3. Symbol position overlap → skip if no symbols affected
+     *
+     * @param document - Current document state
+     * @param changeRange - LSP range of the change (undefined = full document)
+     * @param cachedEntry - Previous cached parse result (undefined = must parse)
+     * @returns Classification indicating if parsing can be skipped
+     */
+    function classifyChange(
+        document: TextDocument,
+        changeRange: Range | undefined,
+        cachedEntry: import('../core/types.js').DocumentCacheEntry | undefined
+    ): ChangeClassification {
+        // No cache? Must parse
+        if (!cachedEntry) {
+            return { canSkip: false, reason: 'no_cache' };
+        }
+
+        const text = document.getText();
+        const lines = text.split('\n');
+
+        // Strategy 1: Check if change range is provided
+        if (changeRange) {
+            const startLine = changeRange.start.line;
+            const endLine = changeRange.end.line;
+
+            // Single-line change - check if it's just comment/whitespace
+            if (startLine === endLine && startLine < lines.length) {
+                const line = lines[startLine];
+                if (line) {
+                    const semanticContent = stripLineComments(line.trim());
+
+                    if (!semanticContent) {
+                        return { canSkip: true, reason: 'comment_only' };
+                    }
+                }
+            }
+
+            // Multi-line change - check if all affected lines are comments
+            let allComments = true;
+            for (let i = startLine; i <= endLine && i < lines.length; i++) {
+                const line = lines[i];
+                if (line) {
+                    const semanticContent = stripLineComments(line.trim());
+                    if (semanticContent) {
+                        allComments = false;
+                        break;
+                    }
+                }
+            }
+            if (allComments) {
+                return { canSkip: true, reason: 'multiline_comment_only' };
+            }
+
+            // Strategy 2: Check if change overlaps with any symbol positions
+            if (cachedEntry.lineHashes) {
+                const newLineHashes = computeLineHashes(text);
+
+                // Check if any line in the change range has different semantic content
+                let hasSemanticChange = false;
+                for (let i = startLine; i <= endLine && i < newLineHashes.length; i++) {
+                    const cachedHash = cachedEntry.lineHashes[i];
+                    const newHash = newLineHashes[i];
+
+                    if (cachedHash !== newHash) {
+                        hasSemanticChange = true;
+                        break;
+                    }
+                }
+
+                if (!hasSemanticChange) {
+                    return {
+                        canSkip: true,
+                        reason: 'semantic_unchanged',
+                        newHash: computeContentHash(text),
+                        newLineHashes
+                    };
+                }
+
+                return {
+                    canSkip: false,
+                    reason: 'semantic_changed',
+                    newHash: computeContentHash(text),
+                    newLineHashes
+                };
+            }
+        }
+
+        // No range info (full document replacement) - compare content hash
+        const newHash = computeContentHash(text);
+        if (cachedEntry.contentHash === newHash) {
+            return { canSkip: true, reason: 'content_unchanged', newHash };
+        }
+
+        return { canSkip: false, reason: 'full_replacement', newHash };
+    }
+
+    /**
+     * INC-002: Strip comments from a line of Pike code.
+     * Handles both line comments (//) and block comment markers.
+     */
+    function stripLineComments(line: string): string {
+        // Remove line comments
+        const commentPos = line.indexOf('//');
+        if (commentPos >= 0) {
+            line = line.substring(0, commentPos);
+        }
+        return line.trim();
+    }
+
+    /**
+     * INC-002: Track change ranges for incremental parsing.
+     * Stores the range of the most recent change for each document URI.
+     */
+    const pendingChangeRanges = new Map<string, Range | undefined>();
+
+    /**
      * Validate document with debouncing
+     * INC-002: Now includes incremental change classification
      * LOG-14-01: Logs didChange events and debounce execution
      */
     function validateDocumentDebounced(document: TextDocument): void {
@@ -350,7 +488,36 @@ export function registerDiagnosticsHandlers(
             validationTimers.delete(uri);
             // LOG-14-01: Track debounce timer execution
             connection.console.log(`[DEBOUNCE] uri=${uri}, version=${version}, executing validateDocument`);
-            const promise = validateDocument(document);
+
+            // INC-002: Classify change to determine if parsing is needed
+            const changeRange = pendingChangeRanges.get(uri);
+            const cachedEntry = documentCache.get(uri);
+            const classification = classifyChange(document, changeRange, cachedEntry);
+
+            connection.console.log(
+                `[INC-002] Change classification: canSkip=${classification.canSkip}, reason=${classification.reason}`
+            );
+
+            if (classification.canSkip) {
+                // Skip parsing entirely - just update cache metadata
+                connection.console.log(`[INC-002] Skipping parse for ${uri} (${classification.reason})`);
+
+                if (cachedEntry && classification.newHash) {
+                    // Update hash metadata without full reparse
+                    cachedEntry.contentHash = classification.newHash;
+                    if (classification.newLineHashes) {
+                        cachedEntry.lineHashes = classification.newLineHashes;
+                    }
+                    cachedEntry.version = version;
+                }
+
+                // Clear the pending change range
+                pendingChangeRanges.delete(uri);
+                return;
+            }
+
+            // Proceed with full validation
+            const promise = validateDocument(document, classification);
             documentCache.setPending(uri, promise);
             promise.catch(err => {
                 log.error('Debounced validation failed', {
@@ -365,9 +532,10 @@ export function registerDiagnosticsHandlers(
 
     /**
      * Validate document and send diagnostics
+     * INC-002: Accepts classification to reuse computed hashes
      * LOG-14-01: Logs validation start with version tracking
      */
-    async function validateDocument(document: TextDocument): Promise<void> {
+    async function validateDocument(document: TextDocument, classification?: ChangeClassification): Promise<void> {
         const uri = document.uri;
         const version = document.version;
 
@@ -394,6 +562,11 @@ export function registerDiagnosticsHandlers(
         const text = document.getText();
 
         connection.console.log(`[VALIDATE] Document version: ${version}, length: ${text.length} chars`);
+
+        // INC-002: Compute hashes for incremental change detection
+        // Use pre-computed hashes from classification if available
+        const contentHash = classification?.newHash ?? computeContentHash(text);
+        const lineHashes = classification?.newLineHashes ?? computeLineHashes(text);
 
         // Extract filename from URI and decode URL encoding
         const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
@@ -584,6 +757,9 @@ export function registerDiagnosticsHandlers(
                     symbols: legacySymbols,
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),
+                    // INC-002: Store hashes for incremental change detection
+                    contentHash,
+                    lineHashes,
                 };
                 if (dependencies) {
                     cacheEntry.dependencies = dependencies;
@@ -615,6 +791,9 @@ export function registerDiagnosticsHandlers(
                     symbols: parseData.symbols,
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols, tokenizeData),
+                    // INC-002: Store hashes for incremental change detection
+                    contentHash,
+                    lineHashes,
                 };
                 if (dependencies) {
                     cacheEntry.dependencies = dependencies;
@@ -705,8 +884,28 @@ export function registerDiagnosticsHandlers(
     });
 
     // Handle document changes - debounced validation (errors caught in setTimeout handler)
+    // INC-002: Capture change range for incremental parsing
     documents.onDidChangeContent((change) => {
         validateDocumentDebounced(change.document);
+    });
+
+    // INC-002: Listen to raw LSP change notifications to capture change ranges
+    // This runs before TextDocuments processes the change, allowing us to capture the range
+    connection.onDidChangeTextDocument((params) => {
+        const contentChanges = params.contentChanges;
+        let changeRange: Range | undefined;
+
+        if (contentChanges.length > 0) {
+            const firstChange = contentChanges[0]!;
+            // If range is present, it's an incremental change
+            // If range is absent, it's a full document replacement
+            if ('range' in firstChange && firstChange.range) {
+                changeRange = firstChange.range;
+            }
+        }
+
+        // Store the change range for use in debounced validation
+        pendingChangeRanges.set(params.textDocument.uri, changeRange);
     });
 
     // Handle document save - validate immediately without debouncing

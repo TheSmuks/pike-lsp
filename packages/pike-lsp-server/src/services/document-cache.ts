@@ -6,6 +6,65 @@
  */
 
 import type { DocumentCacheEntry } from '../core/types.js';
+import { createHash } from 'crypto';
+
+/**
+ * INC-002: Compute SHA-256 hash of document content.
+ * Used for detecting if semantic content has changed.
+ *
+ * @param content - Document text content
+ * @returns Hex-encoded SHA-256 hash
+ */
+export function computeContentHash(content: string): string {
+    return createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * INC-002: Compute hash of each line's semantic content.
+ * Comments and whitespace are normalized to detect semantic changes only.
+ *
+ * @param content - Document text content
+ * @returns Array of hash codes for each line
+ */
+export function computeLineHashes(content: string): number[] {
+    const lines = content.split('\n');
+    const hashes: number[] = [];
+
+    for (const line of lines) {
+        // Remove comments and normalize whitespace
+        const semantic = stripComments(line.trim());
+        // Simple hash for quick comparison
+        hashes.push(simpleHash(semantic));
+    }
+
+    return hashes;
+}
+
+/**
+ * INC-002: Strip comments from a line of Pike code.
+ * Handles both line comments (//) and removes whitespace.
+ */
+function stripComments(line: string): string {
+    // Find line comment position
+    const commentPos = line.indexOf('//');
+    if (commentPos >= 0) {
+        line = line.substring(0, commentPos);
+    }
+    return line.trim();
+}
+
+/**
+ * INC-002: Simple string hash for quick line comparison.
+ * Uses FNV-1a algorithm for fast hashing.
+ */
+function simpleHash(str: string): number {
+    let hash = 2166136261; // FNV offset basis
+    for (let i = 0; i < str.length; i++) {
+        hash ^= str.charCodeAt(i);
+        hash = Math.imul(hash, 16777619); // FNV prime
+    }
+    return hash >>> 0; // Convert to unsigned 32-bit
+}
 
 /**
  * Document cache for parsed symbols and diagnostics.
