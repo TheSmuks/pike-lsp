@@ -235,7 +235,41 @@
 
     .timeline-item {
       position: relative;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
+    }
+
+    .timeline-item.collapsed .timeline-content {
+      display: none;
+    }
+
+    .timeline-item.collapsed .timeline-toggle::after {
+      content: '+';
+    }
+
+    .timeline-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      transition: all 0.2s ease;
+      margin-left: 12px;
+    }
+
+    .timeline-toggle::after {
+      content: '−';
+    }
+
+    .timeline-toggle:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-accent);
+      color: var(--text-primary);
     }
 
     .timeline-dot {
@@ -715,9 +749,10 @@
       <div class="section-header">
         <h2>Performance Evolution</h2>
         <span class="tag">Timeline</span>
+        <button class="timeline-toggle" id="toggleAllTimeline" style="margin-left: auto;" title="Toggle all details">Collapse All</button>
       </div>
       <p class="section-description">
-        Track the optimization journey from initial implementation to current performance. Each milestone shows the specific improvements made.
+        Track the optimization journey from initial implementation to current performance. Latest releases shown first. Click the ± button to expand/collapse details.
       </p>
 
       <div class="timeline" id="performanceTimeline">
@@ -893,12 +928,15 @@
       </div>
     </section>
 
-    <!-- Optimizations Applied -->
+    <!-- All Optimizations -->
     <section class="animate-in delay-3">
       <div class="section-header">
-        <h2>Latest Optimizations</h2>
-        <span class="tag">Phase 11</span>
+        <h2>Optimization History</h2>
+        <span class="tag">All Releases</span>
       </div>
+      <p class="section-description">
+        Complete list of optimizations, features, and improvements from the initial release to current version.
+      </p>
       <div class="optimizations-list" id="optimizationsList">
         <!-- Populated by JS -->
       </div>
@@ -1088,13 +1126,17 @@
       return 'slow';
     }
 
-    // Render Performance Timeline
+    // Render Performance Timeline (latest first, collapsible)
     function renderTimeline() {
       const container = document.getElementById('performanceTimeline');
       container.innerHTML = '';
 
-      performanceHistory.forEach((entry, index) => {
-        const prevEntry = index > 0 ? performanceHistory[index - 1] : null;
+      // Reverse order - latest first
+      const reversedHistory = [...performanceHistory].reverse();
+
+      reversedHistory.forEach((entry, revIndex) => {
+        const originalIndex = performanceHistory.length - 1 - revIndex;
+        const nextEntry = originalIndex < performanceHistory.length - 1 ? performanceHistory[originalIndex + 1] : null;
 
         const tagsHtml = entry.tags.map(tag =>
           `<span class="timeline-tag ${tag}">${tag}</span>`
@@ -1107,26 +1149,26 @@
               <div class="timeline-metric">
                 <div class="timeline-metric-label">Cold Start</div>
                 <div class="timeline-metric-value">${entry.metrics.coldStart}ms</div>
-                ${prevEntry && entry.metrics.coldStart !== prevEntry.metrics.coldStart ?
-                  `<div class="timeline-metric-change ${entry.metrics.coldStart < prevEntry.metrics.coldStart ? 'positive' : 'negative'}">
-                    ${entry.metrics.coldStart < prevEntry.metrics.coldStart ? '▼' : '▲'} ${Math.abs(((entry.metrics.coldStart - prevEntry.metrics.coldStart) / prevEntry.metrics.coldStart * 100)).toFixed(0)}%
-                  </div>` : ''}
+                ${nextEntry && entry.metrics.coldStart !== nextEntry.metrics.coldStart ?
+                  `<div class="timeline-metric-change ${entry.metrics.coldStart < nextEntry.metrics.coldStart ? 'positive' : 'negative'}">
+                    ${entry.metrics.coldStart < nextEntry.metrics.coldStart ? '▼' : '▲'} ${Math.abs(((entry.metrics.coldStart - nextEntry.metrics.coldStart) / nextEntry.metrics.coldStart * 100)).toFixed(0)}%
+                  </div>` : '<div class="timeline-metric-change neutral">—</div>'}
               </div>
               <div class="timeline-metric">
                 <div class="timeline-metric-label">Pike Startup</div>
                 <div class="timeline-metric-value">${entry.metrics.pikeStartup}ms</div>
-                ${prevEntry && entry.metrics.pikeStartup !== prevEntry.metrics.pikeStartup ?
-                  `<div class="timeline-metric-change ${entry.metrics.pikeStartup < prevEntry.metrics.pikeStartup ? 'positive' : 'negative'}">
-                    ${entry.metrics.pikeStartup < prevEntry.metrics.pikeStartup ? '▼' : '▲'} ${Math.abs(((entry.metrics.pikeStartup - prevEntry.metrics.pikeStartup) / prevEntry.metrics.pikeStartup * 100)).toFixed(0)}%
-                  </div>` : ''}
+                ${nextEntry && entry.metrics.pikeStartup !== nextEntry.metrics.pikeStartup ?
+                  `<div class="timeline-metric-change ${entry.metrics.pikeStartup < nextEntry.metrics.pikeStartup ? 'positive' : 'negative'}">
+                    ${entry.metrics.pikeStartup < nextEntry.metrics.pikeStartup ? '▼' : '▲'} ${Math.abs(((entry.metrics.pikeStartup - nextEntry.metrics.pikeStartup) / nextEntry.metrics.pikeStartup * 100)).toFixed(0)}%
+                  </div>` : '<div class="timeline-metric-change neutral">—</div>'}
               </div>
               <div class="timeline-metric">
                 <div class="timeline-metric-label">Validation</div>
                 <div class="timeline-metric-value">${entry.metrics.validation}ms</div>
-                ${prevEntry && entry.metrics.validation !== prevEntry.metrics.validation ?
-                  `<div class="timeline-metric-change ${entry.metrics.validation < prevEntry.metrics.validation ? 'positive' : 'negative'}">
-                    ${entry.metrics.validation < prevEntry.metrics.validation ? '▼' : '▲'} ${Math.abs(((entry.metrics.validation - prevEntry.metrics.validation) / prevEntry.metrics.validation * 100)).toFixed(0)}%
-                  </div>` : ''}
+                ${nextEntry && entry.metrics.validation !== nextEntry.metrics.validation ?
+                  `<div class="timeline-metric-change ${entry.metrics.validation < nextEntry.metrics.validation ? 'positive' : 'negative'}">
+                    ${entry.metrics.validation < nextEntry.metrics.validation ? '▼' : '▲'} ${Math.abs(((entry.metrics.validation - nextEntry.metrics.validation) / nextEntry.metrics.validation * 100)).toFixed(0)}%
+                  </div>` : '<div class="timeline-metric-change neutral">—</div>'}
               </div>
               <div class="timeline-metric">
                 <div class="timeline-metric-label">Hover</div>
@@ -1138,9 +1180,14 @@
 
         const item = document.createElement('div');
         item.className = 'timeline-item';
+        // Collapse by default except the latest (first in reversed order)
+        if (revIndex > 0) item.classList.add('collapsed');
         item.innerHTML = `
           <div class="timeline-dot ${entry.type}"></div>
-          <div class="timeline-date">${entry.date} • ${entry.version}</div>
+          <div style="display: flex; align-items: center;">
+            <div class="timeline-date">${entry.date} • ${entry.version}</div>
+            <button class="timeline-toggle item-toggle" title="Toggle details"></button>
+          </div>
           <div class="timeline-title">${entry.title}</div>
           <div class="timeline-content">
             <p style="color: var(--text-secondary); margin-bottom: 12px;">${entry.description}</p>
@@ -1148,6 +1195,13 @@
             <div class="timeline-tags">${tagsHtml}</div>
           </div>
         `;
+
+        // Add toggle functionality
+        const toggle = item.querySelector('.item-toggle');
+        toggle.addEventListener('click', () => {
+          item.classList.toggle('collapsed');
+        });
+
         container.appendChild(item);
       });
     }
@@ -1537,28 +1591,140 @@
       });
     }
 
-    // Render Optimizations
-    function renderOptimizations(optimizations) {
+    // Render All Optimizations (grouped by version)
+    function renderOptimizations() {
       const container = document.getElementById('optimizationsList');
       container.innerHTML = '';
 
-      optimizations.forEach((opt, i) => {
-        const parts = opt.split('(');
-        const title = parts[0].trim();
-        const desc = parts[1] ? parts[1].replace(')', '') : '';
+      // Comprehensive optimization history
+      const allOptimizations = [
+        {
+          version: 'v0.1.0-alpha.10',
+          date: '2025-01-22',
+          title: 'Async Version & __REAL_VERSION__',
+          items: [
+            { title: '__REAL_VERSION__ builtin', desc: 'Builtin version logging eliminates LSP.Compat module load at startup', impact: 'startup' },
+            { title: 'Async version fetch', desc: 'Fire-and-forget pattern for version info in BridgeManager', impact: 'startup' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.9',
+          date: '2025-01-18',
+          title: 'Lazy Context Loading (Major)',
+          items: [
+            { title: 'Deferred Parser initialization', desc: 'Parser module loaded on first LSP request instead of startup', impact: 'startup' },
+            { title: 'Deferred Intelligence module', desc: 'Intelligence analysis loaded on first hover/completion', impact: 'startup' },
+            { title: 'Deferred Analysis module', desc: 'Diagnostics analysis loaded on first validation', impact: 'startup' },
+            { title: 'Lazy context creation', desc: 'Analysis context created only when needed', impact: 'memory' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.7',
+          date: '2025-01-05',
+          title: 'Array Performance Fix',
+          items: [
+            { title: 'O(n²) array append fix', desc: 'Fixed quadratic performance when building lists in Pike', impact: 'general' },
+            { title: 'Pre-allocation optimization', desc: 'Pre-allocate array size when count is known', impact: 'validation' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.5',
+          date: '2024-12-15',
+          title: 'Validation Consolidation',
+          items: [
+            { title: 'Single-call validation', desc: 'Reduced from 3 separate RPC calls to 1 consolidated call', impact: 'validation' },
+            { title: 'Eliminated redundant analysis', desc: 'Remove duplicate parsing passes', impact: 'validation' },
+            { title: 'Batch diagnostics', desc: 'Return all diagnostics in one response', impact: 'validation' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.3',
+          date: '2024-12-01',
+          title: 'Cache Layer',
+          items: [
+            { title: 'Compilation cache', desc: 'Cache parsed Pike modules to avoid re-parsing', impact: 'validation' },
+            { title: 'Cross-file compilation cache', desc: 'Cache dependencies between files', impact: 'validation' },
+            { title: 'Stat-based cache keys', desc: 'Use file stat for closed file cache invalidation', impact: 'memory' }
+          ]
+        },
+        {
+          version: 'v0.1.0-alpha.1',
+          date: '2024-11-15',
+          title: 'Initial Implementation',
+          items: [
+            { title: 'Core LSP server', desc: 'Basic language server protocol implementation', impact: 'feature' },
+            { title: 'Document symbols', desc: 'Outline view and symbol navigation', impact: 'feature' },
+            { title: 'Hover information', desc: 'Type info on mouse hover', impact: 'feature' },
+            { title: 'Go to definition', desc: 'Navigate to symbol definitions', impact: 'feature' },
+            { title: 'Code completion', desc: 'Autocomplete suggestions', impact: 'feature' },
+            { title: 'Diagnostics', desc: 'Error and warning detection', impact: 'feature' },
+            { title: 'Module resolution', desc: 'Stdlib and module path resolution', impact: 'feature' },
+            { title: 'Pike subprocess bridge', desc: 'TypeScript to Pike IPC via JSON-RPC', impact: 'architecture' }
+          ]
+        }
+      ];
 
-        const item = document.createElement('div');
-        item.className = 'optimization-item';
-        item.innerHTML = `
-          <div class="opt-number">${String(i + 1).padStart(2, '0')}</div>
-          <div class="opt-content">
-            <h4>${title}</h4>
-            <p>${desc}</p>
+      allOptimizations.forEach((versionGroup, groupIndex) => {
+        const groupItem = document.createElement('div');
+        groupItem.className = 'optimization-group';
+        groupItem.style.marginBottom = '24px';
+
+        const impactColor = {
+          startup: '#58a6ff',
+          validation: '#3fb950',
+          memory: '#a371f7',
+          general: '#d29922',
+          feature: '#f85149',
+          architecture: '#6e7681'
+        };
+
+        const itemsHtml = versionGroup.items.map(item => {
+          const color = impactColor[item.impact] || '#6e7681';
+          return `
+            <div style="display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+              <div style="width: 8px; height: 8px; background: ${color}; border-radius: 50%; margin-top: 6px; flex-shrink: 0;"></div>
+              <div style="flex: 1;">
+                <div style="font-weight: 500; font-size: 0.9rem;">${item.title}</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">${item.desc}</div>
+              </div>
+              <div style="font-size: 0.7rem; padding: 2px 8px; background: ${color}20; color: ${color}; border-radius: 4px; text-transform: uppercase; height: fit-content;">
+                ${item.impact}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        groupItem.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">${versionGroup.date}</div>
+            <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent-blue);">${versionGroup.version}</div>
+            <div style="font-weight: 600; flex: 1;">${versionGroup.title}</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">${versionGroup.items.length} change${versionGroup.items.length > 1 ? 's' : ''}</div>
+          </div>
+          <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px;">
+            ${itemsHtml}
           </div>
         `;
-        container.appendChild(item);
+
+        container.appendChild(groupItem);
       });
     }
+
+    // Toggle all timeline items
+    let allExpanded = true;
+    document.getElementById('toggleAllTimeline').addEventListener('click', () => {
+      const items = document.querySelectorAll('.timeline-item');
+      const toggleBtn = document.getElementById('toggleAllTimeline');
+
+      if (allExpanded) {
+        items.forEach(item => item.classList.add('collapsed'));
+        toggleBtn.textContent = 'Expand All';
+      } else {
+        items.forEach(item => item.classList.remove('collapsed'));
+        toggleBtn.textContent = 'Collapse All';
+      }
+      allExpanded = !allExpanded;
+    });
 
     // Category filter
     document.getElementById('categoryFilters').addEventListener('click', (e) => {
@@ -1576,7 +1742,7 @@
     renderCategoryPerformance(benchmarkResults);
     renderBenchmarkTable(benchmarkResults);
     renderAnalyticsCharts(benchmarkResults);
-    renderOptimizations(benchmarkSummary.optimizations_applied);
+    renderOptimizations();
   </script>
 </body>
 </html>
