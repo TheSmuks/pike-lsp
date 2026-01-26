@@ -13,6 +13,9 @@ class Analysis {
     private object completions_handler;
     private object variables_handler;
 
+    //! Static environment info (computed once)
+    private string static_env_info;
+
     //! Create a new Analysis instance
     void create() {
         // Handlers are created lazily when first needed
@@ -49,6 +52,17 @@ class Analysis {
             }
         }
         return variables_handler;
+    }
+
+    //! Get static environment info
+    protected string get_static_env_info() {
+        if (!static_env_info) {
+            static_env_info = sprintf(" | Pike: %s\nInclude: %O\nModule: %O",
+                (string)__REAL_VERSION__,
+                master()->include_path,
+                master()->module_path);
+        }
+        return static_env_info;
     }
 
     //! Analyze code for potentially uninitialized variable usage
@@ -258,13 +272,7 @@ class Analysis {
                 // Add as an Information diagnostic at the top of the file
                 // We do this only if requested (build_id present) and usually always useful
                 // to verify which version is running.
-                string env_info = sprintf("Pike LSP Build: %s | Pike: %s",
-                    build_id, (string)__REAL_VERSION__);
-
-                // Add paths only if verbose or if there are errors?
-                // Let's add them always for now as requested.
-                env_info += sprintf("\nInclude: %O", master()->include_path);
-                env_info += sprintf("\nModule: %O", master()->module_path);
+                string env_info = "Pike LSP Build: " + build_id + get_static_env_info();
 
                 all_diagnostics += ({
                     ([
