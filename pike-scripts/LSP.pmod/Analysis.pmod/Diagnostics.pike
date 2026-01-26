@@ -36,7 +36,8 @@ mapping handle_analyze_uninitialized(mapping params) {
     array(mapping) diagnostics = ({});
 
     mixed err = catch {
-        diagnostics = analyze_uninitialized_impl(code, filename);
+        array tokens = params->tokens;
+        diagnostics = analyze_uninitialized_impl(code, filename, tokens, params->lines);
     };
 
     if (err) {
@@ -60,22 +61,24 @@ mapping handle_analyze_uninitialized(mapping params) {
 //! @param code Pike source code to analyze
 //! @param filename Source filename for diagnostics
 //! @returns Array of diagnostic mappings (empty on tokenization error)
-protected array(mapping) analyze_uninitialized_impl(string code, string filename) {
+protected array(mapping) analyze_uninitialized_impl(string code, string filename, void|array pre_tokens, void|array(string) pre_lines) {
     array(mapping) diagnostics = ({});
 
-    // Tokenize the code
-    array tokens = ({});
-    mixed tok_err = catch {
-        array(string) split_tokens = Parser.Pike.split(code);
-        tokens = Parser.Pike.tokenize(split_tokens);
-    };
+    // Tokenize the code if pre_tokens not provided
+    array tokens = pre_tokens;
+    if (!tokens) {
+        mixed tok_err = catch {
+            array(string) split_tokens = Parser.Pike.split(code);
+            tokens = Parser.Pike.tokenize(split_tokens);
+        };
 
-    if (tok_err || sizeof(tokens) == 0) {
-        return diagnostics;
+        if (tok_err || !tokens || sizeof(tokens) == 0) {
+            return diagnostics;
+        }
     }
 
     // Build line -> character offset mapping for accurate positions
-    array(string) lines = code / "\n";
+    array(string) lines = pre_lines || (code / "\n");
 
     // Analyze at function/method level
     // We'll track variables within each scope
