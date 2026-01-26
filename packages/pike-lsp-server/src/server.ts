@@ -26,6 +26,7 @@ import { StdlibIndexManager } from './stdlib-index.js';
 import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
 import { IncludeResolver } from './services/include-resolver.js';
+import { WorkspaceScanner } from './services/workspace-scanner.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
 import * as features from './features/index.js';
@@ -59,6 +60,7 @@ const logger = new Logger('PikeLSPServer');
 const documentCache = new DocumentCache();
 const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
+const workspaceScanner = new WorkspaceScanner(logger, () => globalSettings);
 let stdlibIndex: StdlibIndexManager | null = null;
 let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
@@ -105,6 +107,7 @@ function createServices(): features.Services {
         workspaceIndex,
         stdlibIndex,
         includeResolver, // Will be null initially, updated after onInitialize
+        workspaceScanner,
         globalSettings,
         includePaths,
     };
@@ -331,9 +334,11 @@ connection.onInitialized(async () => {
         connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
         setImmediate(async () => {
             let totalIndexed = 0;
+            const folderPaths: string[] = [];
             for (const folder of workspaceFolders) {
                 try {
                     const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+                    folderPaths.push(folderPath);
                     const indexed = await workspaceIndex.indexDirectory(folderPath, true);
                     totalIndexed += indexed;
                     connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
@@ -343,6 +348,15 @@ connection.onInitialized(async () => {
             }
             const stats = workspaceIndex.getStats();
             connection.console.log(`Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`);
+
+            // Initialize workspace scanner for workspace-wide references
+            try {
+                await workspaceScanner.initialize(folderPaths);
+                const scannerStats = workspaceScanner.getStats();
+                connection.console.log(`Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`);
+            } catch (err) {
+                connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
+            }
         });
     }
 

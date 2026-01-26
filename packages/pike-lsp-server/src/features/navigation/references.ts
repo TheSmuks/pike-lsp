@@ -307,6 +307,69 @@ export function registerReferencesHandlers(
                 }
             }
 
+            // Search in workspace files that are not currently open
+            if (services.workspaceScanner?.isReady()) {
+                const cachedUris = new Set(documentCache.keys());
+                const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+                log.debug('References: searching workspace files', {
+                    uncachedFileCount: uncachedFiles.length,
+                    word
+                });
+
+                // For workspace files, read and parse on-demand to find references
+                // Use the bridge to analyze files that might contain the symbol
+                for (const file of uncachedFiles) {
+                    try {
+                        // Read file content
+                        const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+                        const { readFile } = await import('node:fs/promises');
+                        const content = await readFile(filePath, 'utf-8');
+
+                        // Check if the word appears in the file (quick text search first)
+                        if (!content.includes(word)) {
+                            continue;
+                        }
+
+                        // Word appears in file, do proper search
+                        const lines = content.split('\n');
+                        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                            const line = lines[lineNum];
+                            if (!line) continue;
+                            let searchStart = 0;
+                            let matchIndex: number;
+
+                            while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                                const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+
+                                // Check word boundaries
+                                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                                    references.push({
+                                        uri: file.uri,
+                                        range: {
+                                            start: { line: lineNum, character: matchIndex },
+                                            end: { line: lineNum, character: matchIndex + word.length },
+                                        },
+                                    });
+                                }
+                                searchStart = matchIndex + 1;
+                            }
+                        }
+                    } catch (err) {
+                        // File might not exist or be readable, skip
+                        log.debug('References: failed to read workspace file', {
+                            uri: file.uri,
+                            error: err instanceof Error ? err.message : String(err),
+                        });
+                    }
+                }
+
+                log.debug('References: workspace search complete', {
+                    workspaceReferencesFound: references.length,
+                });
+            }
+
             log.debug('References found', { word, count: references.length });
             return references;
         } catch (err) {
