@@ -43,11 +43,15 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 
 ### Performance
 
+[![Benchmarks](https://img.shields.io/badge/Benchmark-GitHub%20Pages-24292f.svg)](https://thesmuks.github.io/pike-lsp/dev/benchmarks/)
+
 - Parses 1000+ line files in ~15ms
 - Batch parsing for fast workspace indexing
 - Smart caching for stdlib modules
 - 100% Pike 8 stdlib compatibility
 - Modular architecture (TypeScript + Pike 8.1116)
+
+> **View live benchmarks:** [thesmuks.github.io/pike-lsp/dev/benchmarks/](https://thesmuks.github.io/pike-lsp/dev/benchmarks/)
 
 ## Requirements
 
