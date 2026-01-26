@@ -14,7 +14,7 @@ is_ci() {
 }
 
 # Build tests first
-npm run build:test
+bun run build:test
 
 # Check platform
 case "$(uname -s)" in
@@ -35,11 +35,14 @@ case "$(uname -s)" in
             # -a: auto-select display number
             # --server-args: set screen size and depth
             # Set Electron args to disable GPU for headless operation
-            export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
-            # Force X11 backend (important for Wayland systems)
-            export GDK_BACKEND=x11
-            export QT_QPA_PLATFORM=xcb
-            xvfb-run -a --server-args="-screen 0 1920x1080x24" ./node_modules/.bin/vscode-test "$@"
+            # Unset WAYLAND_DISPLAY to prevent VSCode from using Wayland
+            # Force X11 backend for all toolkits
+            xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+                env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET \
+                ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox" \
+                GDK_BACKEND=x11 \
+                QT_QPA_PLATFORM=xcb \
+                ./node_modules/.bin/vscode-test "$@"
         elif command -v weston &> /dev/null; then
             echo "Xvfb not found. Trying Weston (Wayland)..."
 
