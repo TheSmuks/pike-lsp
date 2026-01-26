@@ -95,6 +95,37 @@ export function registerDefinitionHandlers(
                     if (modulePath) {
                         log.debug('Definition: navigating to import/inherit target', { modulePath });
 
+                        // Use introspection data for inherits if available
+                        // This handles macros and complex resolutions performed by the Pike compiler
+                        if (symbol.kind === 'inherit' && cached.inherits) {
+                            const normalizedPath = modulePath.replace(/['"]/g, "");
+                            const foundInherit = cached.inherits.find((h: any) => 
+                                h.source_name === normalizedPath || 
+                                h.path === normalizedPath ||
+                                h.label === normalizedPath ||
+                                (h.source_name && h.source_name.replace(/['"]/g, "") === normalizedPath)
+                            );
+
+                            if (foundInherit && foundInherit.path) {
+                                log.debug('Definition: resolved inherit from introspection', { 
+                                    modulePath, 
+                                    resolvedPath: foundInherit.path 
+                                });
+                                
+                                const targetUri = foundInherit.path.startsWith('file://')
+                                    ? foundInherit.path
+                                    : `file://${foundInherit.path}`;
+
+                                return {
+                                    uri: targetUri,
+                                    range: {
+                                        start: { line: 0, character: 0 },
+                                        end: { line: 0, character: 0 },
+                                    },
+                                };
+                            }
+                        }
+
                         // Check if this is a #include statement by looking at the symbol name
                         // #include symbols store the path in classname, and name typically starts with #
                         const isIncludeDirective = symbol.name?.startsWith('#') ||
@@ -179,7 +210,7 @@ export function registerDefinitionHandlers(
                 uri,
                 range: {
                     start: { line, character: 0 },
-                    end: { line, character: symbol.name.length },
+                    end: { line, character: (symbol.name || symbol.classname || "").length },
                 },
             };
         } catch (err) {
@@ -213,7 +244,7 @@ export function registerDefinitionHandlers(
                 uri,
                 range: {
                     start: { line, character: 0 },
-                    end: { line, character: symbol.name.length },
+                    end: { line, character: (symbol.name || symbol.classname || "").length },
                 },
             };
         } catch (err) {
@@ -249,7 +280,7 @@ export function registerDefinitionHandlers(
                     uri,
                     range: {
                         start: { line, character: 0 },
-                        end: { line, character: symbol.name.length },
+                        end: { line, character: (symbol.name || symbol.classname || "").length },
                     },
                 };
             }
@@ -262,7 +293,7 @@ export function registerDefinitionHandlers(
                     uri,
                     range: {
                         start: { line, character: 0 },
-                        end: { line, character: symbol.name.length },
+                        end: { line, character: (symbol.name || symbol.classname || "").length },
                     },
                 };
             }
@@ -306,6 +337,15 @@ function findSymbolAtPosition(
     for (const symbol of symbols) {
         if (symbol.name === word) {
             return symbol;
+        }
+
+        // Match against classname for inherits and imports (stripping quotes)
+        if (symbol.kind === "inherit" || symbol.kind === "import") {
+            const classname = symbol.classname?.replace(/['"]/g, "");
+            // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
+            if (classname === word || (classname && classname.includes(word))) {
+                return symbol;
+            }
         }
     }
 

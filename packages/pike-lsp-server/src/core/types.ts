@@ -76,6 +76,8 @@ export interface DocumentCacheEntry {
     symbolPositions: Map<string, Position[]>;
     /** Include and import dependencies (optional, populated lazily) */
     dependencies?: DocumentDependencies;
+    /** Inheritance information from introspection */
+    inherits?: import("@pike-lsp/pike-bridge").InheritanceInfo[];
 }
 
 /**

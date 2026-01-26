@@ -282,6 +282,40 @@ protected mapping handle_introspect_parser_only(mapping params) {
 }
 
 //! Introspect Pike code by compiling it and extracting symbol information
+//! Extract inheritance information from source code using Tools.AutoDoc.PikeParser
+//! @param code The source code
+//! @param filename The filename for the parser
+//! @returns Array of mappings with "name" (label) and "classname" (source name)
+protected array(mapping) extract_source_inherits(string code, string filename) {
+    array(mapping) results = ({});
+    mixed err = catch {
+        object parser = Tools.AutoDoc.PikeParser(code, filename, 1);
+        int iter = 0;
+        while (parser->peekToken() != "" && iter++ < 1000) {
+            mixed decl;
+            mixed parse_err = catch {
+                decl = parser->parseDecl();
+            };
+            
+            if (!parse_err && decl) {
+                array decls = arrayp(decl) ? decl : ({ decl });
+                foreach (decls, mixed d) {
+                    if (objectp(d) && has_value(sprintf("%O", d), "->Inherit(")) {
+                        results += ({ ([
+                            "name": d->name,
+                            "classname": d->classname
+                        ]) });
+                    }
+                }
+            } else {
+                parser->readToken();
+            }
+        }
+    };
+    return results;
+}
+
+//! Introspect Pike code by compiling it and extracting symbol information
 //! @param params Mapping with "code" and "filename" keys
 //! @returns Mapping with "result" containing compilation results and symbols
 mapping handle_introspect(mapping params) {
@@ -411,8 +445,9 @@ mapping handle_introspect(mapping params) {
         }
 
         // Extract type information
+        array source_inherits = extract_source_inherits(code, filename);
         werror("[DEBUG] About to call introspect_program\n");
-        mapping result = introspect_program(compiled_prog);
+        mapping result = introspect_program(compiled_prog, source_inherits);
         werror("[DEBUG] introspect_program completed, symbols=%d\n", sizeof(result->symbols || ({})));
         result->success = 1;
         result->diagnostics = diagnostics;
@@ -512,7 +547,7 @@ protected object safe_instantiate(program prog) {
 //! IMPORTANT: Uses safe_instantiate() to prevent timeout crashes when
 //! introspecting modules with complex dependencies (e.g., Crypto.PGP
 //! which has #require directives that trigger module loading).
-mapping introspect_program(program prog) {
+mapping introspect_program(program prog, array(mapping)|void source_inherits) {
     mapping result = ([
         "symbols": ({}),
         "functions": ({}),
@@ -546,24 +581,39 @@ mapping introspect_program(program prog) {
     mapping(string:string) inherited_symbols = ([]);
 
     // Pre-scan inherits to map symbols to parents
-    foreach (inherit_list, program parent_prog) {
+    for (int i = 0; i < sizeof(inherit_list); i++) {
+        program parent_prog = inherit_list[i];
         string parent_path = "";
         catch { parent_path = Program.defined(parent_prog) || ""; };
-        result->inherits += ({ ([ "path": parent_path ]) });
+        
+        mapping source_info = (source_inherits && i < sizeof(source_inherits)) ? source_inherits[i] : 0;
+        string source_name = source_info ? source_info->classname : 0;
+        string label = source_info ? source_info->name : 0;
 
-        // Identify parent name
-        string parent_name = parent_path;
-        if (sizeof(parent_name) > 0) {
-            array parts = parent_name / "/";
-            string fname = parts[-1];
-            if (has_suffix(fname, ".pike")) fname = fname[..<5];
-            else if (has_suffix(fname, ".pmod")) fname = fname[..<6];
-            parent_name = fname;
-        } else {
-            parent_name = sprintf("%O", parent_prog);
-            // Cleanup /main()->Name or similar
-            if (has_value(parent_name, "->")) {
-                parent_name = (parent_name / "->")[-1];
+        result->inherits += ({ ([ 
+            "path": parent_path,
+            "source_name": source_name,
+            "label": label
+        ]) });
+
+        // Identify parent name for symbol tracking
+        // Prefer label, then source_name, then path-based name
+        string parent_name = label || source_name;
+        
+        if (!parent_name || sizeof(parent_name) == 0) {
+            parent_name = parent_path;
+            if (sizeof(parent_name) > 0) {
+                array parts = parent_name / "/";
+                string fname = parts[-1];
+                if (has_suffix(fname, ".pike")) fname = fname[..<5];
+                else if (has_suffix(fname, ".pmod")) fname = fname[..<6];
+                parent_name = fname;
+            } else {
+                parent_name = sprintf("%O", parent_prog);
+                // Cleanup /main()->Name or similar
+                if (has_value(parent_name, "->")) {
+                    parent_name = (parent_name / "->")[-1];
+                }
             }
         }
 

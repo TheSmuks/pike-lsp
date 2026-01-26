@@ -373,6 +373,10 @@ export interface InheritanceInfo {
     path: string;
     /** Program ID for reference */
     program_id?: string;
+    /** Original class name from source */
+    source_name?: string;
+    /** Label/name given to the inherit (e.g. "inherit Foo : Label") */
+    label?: string;
 }
 
 /**
