@@ -32,13 +32,21 @@ case "$(uname -s)" in
         # Prefer Xvfb for Electron/E2E tests - more stable than Weston
         if [ -z "$USE_WESTON" ] && command -v xvfb-run &> /dev/null; then
             echo "Running tests headlessly with Xvfb..."
-            # -a: auto-select display number
-            # --server-args: set screen size and depth
-            # Set Electron args to disable GPU for headless operation
-            # Unset WAYLAND_DISPLAY to prevent VSCode from using Wayland
-            # Force X11 backend for all toolkits
+
+            # Create isolated environment for headless testing
+            # We need to unset ALL session-related variables to prevent
+            # VSCode from connecting to the real user session (D-Bus, etc.)
             xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-                env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET \
+                env -u WAYLAND_DISPLAY \
+                -u WAYLAND_SOCKET \
+                -u DBUS_SESSION_BUS_ADDRESS \
+                -u SESSION_MANAGER \
+                -u DESKTOP_SESSION \
+                -u KDE_FULL_SESSION \
+                -u KDE_SESSION_UID \
+                -u KDE_SESSION_VERSION \
+                -u XDG_SESSION_TYPE \
+                -u XDG_SESSION_DESKTOP \
                 ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox" \
                 GDK_BACKEND=x11 \
                 QT_QPA_PLATFORM=xcb \
