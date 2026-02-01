@@ -115,8 +115,23 @@ function getWordAtPosition(document: TextDocument, position: { line: number; cha
 
 /**
  * Find symbol with matching name in collection.
+ * Prioritizes non-variant symbols over variant symbols.
  */
 function findSymbolInCollection(symbols: PikeSymbol[], name: string): PikeSymbol | null {
+    // First pass: find non-variant symbols
+    for (const symbol of symbols) {
+        if (symbol.name === name && !symbol.modifiers?.includes('variant')) {
+            return symbol;
+        }
+        if (symbol.children) {
+            const found = findSymbolInCollection(symbol.children, name);
+            if (found && !found.modifiers?.includes('variant')) {
+                return found;
+            }
+        }
+    }
+
+    // Second pass: if no non-variant found, return variant (for completeness)
     for (const symbol of symbols) {
         if (symbol.name === name) {
             return symbol;
@@ -126,5 +141,6 @@ function findSymbolInCollection(symbols: PikeSymbol[], name: string): PikeSymbol
             if (found) return found;
         }
     }
+
     return null;
 }

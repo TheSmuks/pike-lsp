@@ -135,11 +135,19 @@ export function registerDiagnosticsHandlers(
     ): Promise<Map<string, Position[]>> {
         const index = new Map<string, Position[]>();
 
-        // Build set of symbol names we care about
+        // Build set of symbol names we care about AND map to definition lines
         const symbolNames = new Set<string>();
+        const definitionLines = new Map<string, number>(); // symbol name -> definition line
+
         for (const symbol of symbols) {
             if (symbol.name) {
                 symbolNames.add(symbol.name);
+                // Track definition line to exclude from reference count
+                // Parse symbols have .line, introspection symbols have .position?.line
+                const defLine = (symbol as any).line ?? symbol.position?.line;
+                if (defLine !== undefined) {
+                    definitionLines.set(symbol.name, defLine);
+                }
             }
         }
 
@@ -156,6 +164,12 @@ export function registerDiagnosticsHandlers(
                     // Skip if character position is not available (-1)
                     if (token.character < 0) {
                         continue;
+                    }
+
+                    // Skip tokens at the definition line (don't count definition as reference)
+                    const defLine = definitionLines.get(token.text);
+                    if (defLine !== undefined && token.line === defLine) {
+                        continue; // This is the definition, not a reference
                     }
 
                     if (lineIdx >= 0 && lineIdx < lines.length) {
@@ -197,6 +211,12 @@ export function registerDiagnosticsHandlers(
                 // Group occurrences by symbol name
                 for (const occ of result.occurrences) {
                     if (symbolNames.has(occ.text)) {
+                        // Skip definition line (don't count definition as reference)
+                        const defLine = definitionLines.get(occ.text);
+                        if (defLine !== undefined && occ.line === defLine) {
+                            continue;
+                        }
+
                         const pos: Position = {
                             line: occ.line - 1, // Convert 1-indexed to 0-indexed
                             character: occ.character,
@@ -277,6 +297,14 @@ export function registerDiagnosticsHandlers(
                     if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
                         // Skip comments
                         if (!isInsideComment(line, matchIndex)) {
+                            // Skip definition line (don't count definition as reference)
+                            // Parse symbols have .line, introspection symbols have .position?.line
+                            const defLine = (symbol as any).line ?? symbol.position?.line;
+                            if (defLine !== undefined && (lineNum + 1) === defLine) {
+                                searchStart = matchIndex + 1;
+                                continue;
+                            }
+
                             positions.push({
                                 line: lineNum,
                                 character: matchIndex,
