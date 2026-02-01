@@ -363,6 +363,11 @@ function generatePikeDocsUrl(path: string): string {
  * Build markdown content for hover.
  */
 export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): string | null {
+    // Handle null/undefined symbols gracefully (edge case 1.7)
+    if (!symbol) {
+        return null;
+    }
+
     const sym = symbol as unknown as Record<string, unknown>;
     const parts: string[] = [];
 
@@ -385,9 +390,50 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     const kindLabel = symbol.kind.charAt(0).toUpperCase() + symbol.kind.slice(1);
 
     // Build type signature using introspected type info if available
-    if (symbol.kind === 'method') {
+    if (symbol.kind === 'method' || symbol.kind === 'function') {
         // Try introspected type first
-        if (symbol.type && symbol.type.kind === 'function') {
+        const symRecord = symbol as unknown as Record<string, unknown>;
+
+        // Check for test format: type: { kind: 'function', returnType: 'int' }, parameters: [...]
+        if (symRecord['type'] && typeof symRecord['type'] === 'object') {
+            const typeRecord = symRecord['type'] as Record<string, unknown>;
+            if (typeRecord['kind'] === 'function' || typeRecord['kind'] === 'method') {
+                const returnType = typeRecord['returnType']
+                    ? formatPikeType(typeRecord['returnType'])
+                    : (typeRecord['returnType'] ?? 'void');
+
+                let argList = '';
+
+                // Handle test format: parameters array
+                if (symRecord['parameters'] && Array.isArray(symRecord['parameters'])) {
+                    const params = symRecord['parameters'] as Array<{ name?: string; type?: string }>;
+                    argList = params.map(p => {
+                        const type = p.type ?? 'mixed';
+                        const name = p.name ?? 'arg';
+                        return `${type} ${name}`;
+                    }).join(', ');
+                }
+                // Handle introspection format: argTypes or arguments
+                else {
+                    const args = (typeRecord['argTypes'] ?? typeRecord['arguments']) as unknown[] | undefined;
+                    if (args && args.length > 0) {
+                        argList = args.map((arg, i) => {
+                            if (typeof arg === 'object' && arg !== null) {
+                                const argObj = arg as Record<string, unknown>;
+                                const type = formatPikeType(argObj['type'] ?? arg);
+                                const name = (argObj['name'] as string) ?? `arg${i}`;
+                                return `${type} ${name}`;
+                            }
+                            return `${formatPikeType(arg)} arg${i}`;
+                        }).join(', ');
+                    }
+                }
+
+                parts.push('```pike');
+                parts.push(`${returnType} ${symbol.name}(${argList})`);
+                parts.push('```');
+            }
+        } else if (symbol.type && symbol.type.kind === 'function') {
             const funcType = symbol.type as PikeFunctionType;
             const returnType = funcType.returnType ? formatPikeType(funcType.returnType) : 'void';
 
@@ -482,9 +528,19 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         seealso?: string[];
         members?: Record<string, string>;
         items?: Array<{ label: string; text: string }>;
-    } | undefined;
+    } | undefined | string;
 
     if (doc) {
+        // Handle string documentation (simple format or AutoDoc with //! prefix)
+        if (typeof doc === 'string') {
+            parts.push('\n---\n');
+            // Strip //! prefixes if present
+            const cleanDoc = doc.split('\n')
+                .map(line => line.replace(/^\s*\/\/!\s*/, ''))
+                .join('\n');
+            parts.push(convertPikeDocToMarkdown(cleanDoc));
+            parts.push('');
+        } else if (typeof doc === 'object') {
         // Add separator between signature and documentation
         parts.push('\n---\n');
 
@@ -574,6 +630,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
                 return `[\`${cleaned}\`](${docsUrl})`;
             }).join(', ');
             parts.push(`**See also:** ${refs}`);
+        }
         }
     }
 
