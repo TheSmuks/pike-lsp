@@ -736,7 +736,7 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits) {
                     }
 
                     type_info->arguments = arguments;
-                    type_info->returnType = ret_str;
+                    type_info->returnType = ([ "kind": ret_str ]);
                     type_info->signature = type_str;
                 }
             }
@@ -768,6 +768,70 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits) {
                     type_info->arguments = sig->arguments;
                     type_info->returnType = sig->returnType;
                     type_info->signature = type_str;
+                }
+            }
+
+            // Recursively introspect class members
+            // Use safe_instantiate to handle errors gracefully
+            object class_instance = safe_instantiate(value);
+            if (class_instance) {
+                array(string) member_names = ({});
+                array member_values = ({});
+                catch { member_names = indices(class_instance); };
+                catch { member_values = values(class_instance); };
+
+                for (int j = 0; j < sizeof(member_names); j++) {
+                    string member_name = member_names[j];
+                    mixed member_value = j < sizeof(member_values) ? member_values[j] : 0;
+
+                    // Skip if this is the class itself
+                    if (member_name == name) continue;
+
+                    string member_kind = "variable";
+                    mapping member_type_info = ([ "kind": "mixed" ]);
+
+                    if (functionp(member_value)) {
+                        member_kind = "function";
+                        member_type_info = ([ "kind": "function" ]);
+
+                        // Try to extract function signature
+                        mixed member_type_val;
+                        catch { member_type_val = _typeof(member_value); };
+                        if (member_type_val) {
+                            string member_type_str = sprintf("%O", member_type_val);
+                            mapping member_sig = parse_function_signature(member_type_str);
+                            if (member_sig) {
+                                member_type_info->arguments = member_sig->arguments;
+                                member_type_info->returnType = member_sig->returnType;
+                                member_type_info->signature = member_type_str;
+                            }
+                        }
+                    } else if (intp(member_value)) {
+                        member_type_info = ([ "kind": "int" ]);
+                    } else if (stringp(member_value)) {
+                        member_type_info = ([ "kind": "string" ]);
+                    } else if (floatp(member_value)) {
+                        member_type_info = ([ "kind": "float" ]);
+                    } else if (arrayp(member_value)) {
+                        member_type_info = ([ "kind": "array" ]);
+                    } else if (mappingp(member_value)) {
+                        member_type_info = ([ "kind": "mapping" ]);
+                    }
+
+                    mapping member_symbol = ([
+                        "name": member_name,
+                        "type": member_type_info,
+                        "kind": member_kind,
+                        "modifiers": ({})
+                    ]);
+
+                    result->symbols += ({ member_symbol });
+
+                    if (member_kind == "function") {
+                        result->functions += ({ member_symbol });
+                    } else if (member_kind == "variable") {
+                        result->variables += ({ member_symbol });
+                    }
                 }
             }
         }
@@ -974,7 +1038,7 @@ mapping introspect_object(object obj) {
                     }
 
                     type_info->arguments = arguments;
-                    type_info->returnType = ret_str;
+                    type_info->returnType = ([ "kind": ret_str ]);
                     type_info->signature = type_str;
                 }
             }
@@ -1006,6 +1070,70 @@ mapping introspect_object(object obj) {
                     type_info->arguments = sig->arguments;
                     type_info->returnType = sig->returnType;
                     type_info->signature = type_str;
+                }
+            }
+
+            // Recursively introspect class members
+            // Use safe_instantiate to handle errors gracefully
+            object class_instance = safe_instantiate(value);
+            if (class_instance) {
+                array(string) member_names = ({});
+                array member_values = ({});
+                catch { member_names = indices(class_instance); };
+                catch { member_values = values(class_instance); };
+
+                for (int j = 0; j < sizeof(member_names); j++) {
+                    string member_name = member_names[j];
+                    mixed member_value = j < sizeof(member_values) ? member_values[j] : 0;
+
+                    // Skip if this is the class itself
+                    if (member_name == name) continue;
+
+                    string member_kind = "variable";
+                    mapping member_type_info = ([ "kind": "mixed" ]);
+
+                    if (functionp(member_value)) {
+                        member_kind = "function";
+                        member_type_info = ([ "kind": "function" ]);
+
+                        // Try to extract function signature
+                        mixed member_type_val;
+                        catch { member_type_val = _typeof(member_value); };
+                        if (member_type_val) {
+                            string member_type_str = sprintf("%O", member_type_val);
+                            mapping member_sig = parse_function_signature(member_type_str);
+                            if (member_sig) {
+                                member_type_info->arguments = member_sig->arguments;
+                                member_type_info->returnType = member_sig->returnType;
+                                member_type_info->signature = member_type_str;
+                            }
+                        }
+                    } else if (intp(member_value)) {
+                        member_type_info = ([ "kind": "int" ]);
+                    } else if (stringp(member_value)) {
+                        member_type_info = ([ "kind": "string" ]);
+                    } else if (floatp(member_value)) {
+                        member_type_info = ([ "kind": "float" ]);
+                    } else if (arrayp(member_value)) {
+                        member_type_info = ([ "kind": "array" ]);
+                    } else if (mappingp(member_value)) {
+                        member_type_info = ([ "kind": "mapping" ]);
+                    }
+
+                    mapping member_symbol = ([
+                        "name": member_name,
+                        "type": member_type_info,
+                        "kind": member_kind,
+                        "modifiers": ({})
+                    ]);
+
+                    result->symbols += ({ member_symbol });
+
+                    if (member_kind == "function") {
+                        result->functions += ({ member_symbol });
+                    } else if (member_kind == "variable") {
+                        result->variables += ({ member_symbol });
+                    }
                 }
             }
         }

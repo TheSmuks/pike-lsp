@@ -839,9 +839,8 @@ export class PikeBridge extends EventEmitter {
 
         // Full tokenization needed
         const result = await this.sendRequest<{
-            context: import('./types.js').CompletionContext;
             splitTokens?: string[];
-        }>('get_completion_context', {
+        } & import('./types.js').CompletionContext>('get_completion_context', {
             code,
             line,
             character,
@@ -859,7 +858,8 @@ export class PikeBridge extends EventEmitter {
             this.debugLog(`Cached tokens for ${documentUri} (version ${documentVersion})`);
         }
 
-        return result.context;
+        // Result IS the CompletionContext (sendRequest unwraps the JSON-RPC response)
+        return result as import('./types.js').CompletionContext;
     }
 
     // PERF-007: Metrics for batch parse operations

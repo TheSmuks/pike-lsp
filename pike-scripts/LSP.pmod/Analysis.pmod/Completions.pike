@@ -89,14 +89,31 @@ mapping handle_get_completion_context(mapping params) {
             ]);
         }
 
+        // Check if we only have whitespace tokens (empty or whitespace-only file)
+        bool has_non_ws_tokens = false;
+        for (int i = 0; i < sizeof(pike_tokens); i++) {
+            string text = LSP.Compat.trim_whites(pike_tokens[i]->text);
+            if (sizeof(text) > 0) {
+                has_non_ws_tokens = true;
+                break;
+            }
+        }
+
+        if (!has_non_ws_tokens) {
+            // Only whitespace - treat as global context
+            result->context = "global";
+            return ([
+                "result": result,
+                "splitTokens": split_tokens,
+            ]);
+        }
+
         // Look at surrounding tokens to determine context
         // Scan backwards from cursor to find access operators (->, ., ::)
 
-        // Get the current token at/before cursor
-        object current_tok = pike_tokens[token_idx];
-        string current_text = current_tok->text;
-        int current_line = current_tok->line;
-        int current_char = get_char_position(code, current_line, current_text);
+        // Extract the prefix by looking at the actual text at cursor position
+        string prefix = extract_prefix_at_cursor(code, target_line, target_char);
+        result->prefix = prefix;
 
         // Scan backwards to find the most recent access operator
         string found_operator = "";
@@ -148,7 +165,6 @@ mapping handle_get_completion_context(mapping params) {
             }
 
             result->objectName = object_parts;
-            result->prefix = current_text;
 
             if (found_operator == "::") {
                 result->context = "scope_access";
@@ -157,7 +173,6 @@ mapping handle_get_completion_context(mapping params) {
             }
         } else {
             // No access operator found - regular identifier completion
-            result->prefix = current_text;
             result->context = "identifier";
         }
     };
@@ -220,10 +235,24 @@ mapping handle_get_completion_context_cached(mapping params) {
             return (["result": result]);
         }
 
-        object current_tok = pike_tokens[token_idx];
-        string current_text = current_tok->text;
-        int current_line = current_tok->line;
-        int current_char = get_char_position(code, current_line, current_text);
+        // Check if we only have whitespace tokens (empty or whitespace-only file)
+        bool has_non_ws_tokens = false;
+        for (int i = 0; i < sizeof(pike_tokens); i++) {
+            string text = LSP.Compat.trim_whites(pike_tokens[i]->text);
+            if (sizeof(text) > 0) {
+                has_non_ws_tokens = true;
+                break;
+            }
+        }
+
+        if (!has_non_ws_tokens) {
+            result->context = "global";
+            return (["result": result]);
+        }
+
+        // Extract the prefix by looking at the actual text at cursor position
+        string prefix = extract_prefix_at_cursor(code, target_line, target_char);
+        result->prefix = prefix;
 
         string found_operator = "";
         int operator_idx = -1;
@@ -268,7 +297,6 @@ mapping handle_get_completion_context_cached(mapping params) {
             }
 
             result->objectName = object_parts;
-            result->prefix = current_text;
 
             if (found_operator == "::") {
                 result->context = "scope_access";
@@ -276,7 +304,6 @@ mapping handle_get_completion_context_cached(mapping params) {
                 result->context = "member_access";
             }
         } else {
-            result->prefix = current_text;
             result->context = "identifier";
         }
     };
@@ -305,4 +332,38 @@ protected int get_char_position(string code, int line_no, string token_text) {
         if (pos >= 0) return pos;
     }
     return 0;
+}
+
+//! Helper to extract the prefix being typed at the cursor position
+//!
+//! Gets the partial identifier being typed by looking backwards from
+//! the cursor position for word characters.
+//!
+//! @param code Full source code
+//! @param line_no Line number (1-indexed)
+//! @param char_pos Character position (0-indexed)
+//! @returns The prefix string (may be empty)
+protected string extract_prefix_at_cursor(string code, int line_no, int char_pos) {
+    array lines = code / "\n";
+    if (line_no > 0 && line_no <= sizeof(lines)) {
+        string line = lines[line_no - 1];
+        // Get text up to cursor position
+        string text_before_cursor = line[0..char_pos - 1];
+
+        // Extract trailing identifier characters
+        string prefix = "";
+        for (int i = sizeof(text_before_cursor) - 1; i >= 0; i--) {
+            string ch = text_before_cursor[i..i];
+            if ((ch >= "a" && ch <= "z") ||
+                (ch >= "A" && ch <= "Z") ||
+                (ch >= "0" && ch <= "9") ||
+                ch == "_") {
+                prefix = ch + prefix;
+            } else {
+                break;
+            }
+        }
+        return prefix;
+    }
+    return "";
 }

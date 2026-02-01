@@ -37,24 +37,25 @@ export function extractTypeName(typeObj: unknown): string | null {
     }
 
     const t = typeObj as Record<string, unknown>;
+    const kind = t['kind'] as string | undefined;
     const name = t['name'] as string | undefined;
 
-    if (!name) {
-        return null;
+    // Check for object type with className (handles both kind='object' and name='object')
+    const className = t['className'] as string | undefined;
+    if (kind === 'object' && className) {
+        return className;
     }
-
-    // Direct object type
-    if (name === 'object' && t['className']) {
-        return t['className'] as string;
+    if (name === 'object' && className) {
+        return className;
     }
 
     // Function return type
-    if (t['kind'] === 'function' && t['returnType']) {
+    if (kind === 'function' && t['returnType']) {
         return extractTypeName(t['returnType']);
     }
 
-    // Object with name that's a class reference
-    if (/^[A-Z][a-zA-Z0-9_]*/.test(name)) {
+    // Object with name that's a class reference (starts with uppercase)
+    if (name && /^[A-Z][a-zA-Z0-9._]*/.test(name)) {
         return name;
     }
 

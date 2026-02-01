@@ -50,10 +50,10 @@ export const IDENTIFIER_PATTERNS = {
 
     /**
      * Matches a Pike scoped access expression.
-     * Capture group 1: scope name (e.g., "Module")
+     * Capture group 1: scope name (e.g., "Module", "Module.SubModule")
      * Capture group 2: partial member name (may be empty)
      */
-    SCOPED_ACCESS: /(\w+)::(\w*)$/,
+    SCOPED_ACCESS: /([\w.]+)::(\w*)$/,
 
     /**
      * Matches a bare identifier at end of text.
