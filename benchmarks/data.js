@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769978946425,
+  "lastUpdate": 1769979411031,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -1748,6 +1748,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 9.815955176470588,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "distinct": true,
+          "id": "2d8a3a0d2994ff9fe400804aad9a2d107985a64b",
+          "message": "test: update ESM compatibility test to check source code\n\nThe previous test checked for __filename in the bundled server code,\nbut esbuild minifies and transforms the code, making this unreliable.\n\nThe new test:\n- Checks that the bundled server accepts analyzerPath from init options\n- Verifies the source code uses import.meta.url (not __filename)\n- Focuses on functionality rather than implementation details",
+          "timestamp": "2026-02-01T21:54:47+01:00",
+          "tree_id": "0e38465f72d3b057141c176f80abf2441a218b45",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/2d8a3a0d2994ff9fe400804aad9a2d107985a64b"
+        },
+        "date": 1769979410619,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.832622,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 252.84972933333336,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 252.97697816666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 257.79353725,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.108988072463768,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.5944847905759163,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 44.460501916666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.616504722972973,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.5695371927083337,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.16666547302580142,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.17312586235803135,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.4473389066225166,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19709533608815427,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19276977217496963,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.4172366592455164,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.2755811733887734,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3560006153028693,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10225405318074723,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.6018902689594356,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08822124881093936,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.19056900324675324,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 250.90637008333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 254.91282775,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5668833022481266,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08041822364478345,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 9.883277838235294,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 9.77712875,
             "unit": "ms"
           }
         ]
