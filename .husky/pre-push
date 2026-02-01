@@ -22,16 +22,18 @@ pike -e 'compile_file("pike-scripts/analyzer.pike");' || {
   exit 1
 }
 
-# 3. Smoke tests (if smoke test exists - plan 02-02 creates it)
+# 3. Smoke tests (if smoke test exists)
 if [ -f "packages/pike-lsp-server/src/tests/smoke.test.ts" ]; then
   echo "[Pre-push] Running smoke tests..."
-  bun test ./packages/pike-lsp-server/dist/tests/smoke.test.js || {
+  cd packages/pike-lsp-server
+  bun test src/tests/smoke.test.ts || {
     echo "FAILED: Smoke tests failed. Push aborted."
     echo "Fix failing tests or use 'git push --no-verify' to bypass."
     exit 1
   }
+  cd ../..
 else
-  echo "[Pre-push] Smoke tests not yet available (plan 02-02 pending)..."
+  echo "[Pre-push] Smoke tests not yet available..."
 fi
 
 # 4. VSCode E2E feature tests
