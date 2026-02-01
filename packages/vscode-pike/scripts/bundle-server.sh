@@ -48,7 +48,8 @@ npx esbuild "$SERVER_ENTRY" \
     --outfile="$SERVER_DIR/server.js" \
     --external:vscode \
     --sourcemap \
-    --minify
+    --minify \
+    --define:import.meta.url='undefined'
 
 # Copy pike-scripts (analyzer.pike and type-introspector.pike)
 if [ -d "$PIKE_SCRIPTS_SRC" ]; then
