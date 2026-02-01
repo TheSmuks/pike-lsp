@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769984742171,
+  "lastUpdate": 1769986465136,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -2543,6 +2543,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 9.798544220588235,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "distinct": true,
+          "id": "0135fb70ca2d858eb830e1d9fe155b3c4d3d2126",
+          "message": "fix: exclude definitions from reference counts and prioritize main signatures\n\nTDD implementation of two LSP fixes:\n\nPhase 1 - Reference Count Fix:\n- Modified buildSymbolPositionIndex in diagnostics.ts to track definition lines\n- Token-based, findOccurrences, and regex fallbacks all now exclude definitions\n- Unused functions now correctly show \"0 references\" instead of \"1 reference\"\n- Functions with N references show N instead of N+1\n\nPhase 2 - Hover Variant Prioritization:\n- Modified findSymbolInCollection in hover.ts to prioritize non-variant symbols\n- Hover now shows main function signatures first, variant signatures second\n- First pass searches for non-variant symbols, second pass falls back to variants\n\nTests:\n- Added reference-counting.test.ts (5 tests demonstrating bug/fix)\n- Added reference-counting-code-lens.test.ts (2 integration tests)\n- Added hover-variant-prioritization.test.ts (3 tests)\n- All 75 unit tests pass\n- All 40 E2E tests pass\n\nResolves: Reference count shows 1 instead of 0 for unused functions\nResolves: Hover shows variant instead of main documentation",
+          "timestamp": "2026-02-01T23:52:05+01:00",
+          "tree_id": "b370732c866668357c968e6f6b1452169a8d9b56",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/0135fb70ca2d858eb830e1d9fe155b3c4d3d2126"
+        },
+        "date": 1769986464877,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.21604258333335,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 251.0287965,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 250.06885466666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 255.76837408333336,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.0831761556603774,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.739592304347826,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.39211345454545,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.845441,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.6849791559139784,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.23408760706638118,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.24843722823618472,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.507842743801653,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20006027695625386,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18597072464191755,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6625232548076923,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.37320935777777775,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3622763041599136,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10131064705882352,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5623422824112304,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08774649970059879,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3070056132162661,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 250.32065216666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 255.112193,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5715488933669185,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08204678489098735,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 9.982060343283582,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 9.939656746268657,
             "unit": "ms"
           }
         ]
