@@ -173,6 +173,110 @@ export function registerDefinitionHandlers(
                             }
                         }
 
+                        // Handle relative import paths (starting with .)
+                        if (modulePath.startsWith('.') && services.bridge?.bridge) {
+                            try {
+                                const relativeResult = await services.bridge.bridge.resolveInclude(
+                                    modulePath,
+                                    uri
+                                );
+
+                                if (relativeResult.exists && relativeResult.path) {
+                                    const targetUri = relativeResult.path.startsWith('file://')
+                                        ? relativeResult.path
+                                        : `file://${relativeResult.path}`;
+
+                                    log.debug('Definition: resolved relative import path', {
+                                        modulePath,
+                                        resolvedPath: relativeResult.path,
+                                    });
+
+                                    return {
+                                        uri: targetUri,
+                                        range: {
+                                            start: { line: 0, character: 0 },
+                                            end: { line: 0, character: 0 },
+                                        },
+                                    };
+                                }
+                            } catch (err) {
+                                log.debug('Definition: failed to resolve relative path', {
+                                    modulePath,
+                                    error: err instanceof Error ? err.message : String(err),
+                                });
+                            }
+                        }
+
+                        // For inherit statements, try resolving with prior import paths
+                        if (symbol.kind === 'inherit') {
+                            const symbolLine = symbol.position.line ?? 1;
+                            const priorImports = cached.symbols.filter((s: PikeSymbol) =>
+                                s.kind === 'import' &&
+                                s.position &&
+                                (s.position.line ?? 1) < symbolLine
+                            );
+
+                            for (const importSymbol of priorImports) {
+                                const importPath = importSymbol.classname || importSymbol.name;
+                                if (importPath && importPath !== modulePath) {
+                                    const qualifiedPath = `${importPath}.${modulePath}`;
+
+                                    const moduleInfo = await services.stdlibIndex?.getModule(qualifiedPath);
+                                    if (moduleInfo && moduleInfo.resolvedPath) {
+                                        const targetUri = moduleInfo.resolvedPath.startsWith('file://')
+                                            ? moduleInfo.resolvedPath
+                                            : `file://${moduleInfo.resolvedPath}`;
+
+                                        log.debug('Definition: resolved inherit via import', {
+                                            qualifiedPath,
+                                            resolvedPath: moduleInfo.resolvedPath,
+                                        });
+
+                                        return {
+                                            uri: targetUri,
+                                            range: {
+                                                start: { line: 0, character: 0 },
+                                                end: { line: 0, character: 0 },
+                                            },
+                                        };
+                                    }
+
+                                    if (services.bridge?.bridge) {
+                                        try {
+                                            const bridgeResult = await services.bridge.bridge.resolveInclude(
+                                                qualifiedPath,
+                                                uri
+                                            );
+
+                                            if (bridgeResult.exists && bridgeResult.path) {
+                                                const targetUri = bridgeResult.path.startsWith('file://')
+                                                    ? bridgeResult.path
+                                                    : `file://${bridgeResult.path}`;
+
+                                                log.debug('Definition: resolved inherit via bridge', {
+                                                    qualifiedPath,
+                                                    resolvedPath: bridgeResult.path,
+                                                });
+
+                                                return {
+                                                    uri: targetUri,
+                                                    range: {
+                                                        start: { line: 0, character: 0 },
+                                                        end: { line: 0, character: 0 },
+                                                    },
+                                                };
+                                            }
+                                        } catch (err) {
+                                            log.debug('Definition: bridge resolve failed for inherit', {
+                                                qualifiedPath,
+                                                error: err instanceof Error ? err.message : String(err),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Fall back to stdlib index for import/inherit statements
                         const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
 
