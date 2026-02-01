@@ -135,9 +135,9 @@ function analyzeCurrentResults(currentPath, historicalStats) {
     const vsAvg = currentValue / avg;
 
     // Absolute difference threshold - ignore tiny absolute changes even if statistically significant
-    // For fast benchmarks (<10ms), CI noise of 0.5-1ms is common
+    // CI runners have ~1ms timing jitter; use proportional floor (15%) for fast benchmarks
     const absDiff = currentValue - avg;
-    const minAbsDiff = avg < 10 ? 0.5 : (avg < 100 ? 2 : avg * 0.05);  // 0.5ms for fast, 2ms for medium, 5% for slow
+    const minAbsDiff = avg < 10 ? Math.max(0.5, avg * 0.15) : (avg < 100 ? Math.max(2, avg * 0.05) : avg * 0.05);
 
     let status = 'OK';
     let message = '';
