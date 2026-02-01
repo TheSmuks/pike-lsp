@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1769980736469,
+  "lastUpdate": 1769984429537,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -2225,6 +2225,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 9.688970811594203,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "therealsmuks@gmail.com",
+            "name": "TheSmuks",
+            "username": "TheSmuks"
+          },
+          "distinct": true,
+          "id": "91d2c5ddaaa4ee871d3fe1cc81fa055b2e6e76cd",
+          "message": "chore: bump version to 0.1.0-alpha.13 and cleanup repo\n\nVersion: 0.1.0-alpha.12 → 0.1.0-alpha.13\n\nCleanup:\n- Remove .beads/ directory (claude-mem artifacts)\n- Remove .cleanup-status.json (cleanup script state)\n- Remove gsd/CLAUDE.md (get-shit-done planning artifacts)\n- Remove TDD-IMPLEMENTATION-PROGRESS.md (temporary planning doc)\n- Remove CLEANUP_INVENTORY.md, CLEANUP_REPORT.md (cleanup artifacts)\n- Remove PIKE_DEPENDENCIES.json, PIKE_DEPENDENCIES_SUMMARY.md (temporary analysis)\n- Remove TS_DEPENDENCIES.json (temporary analysis)\n- Remove benchmark-summary.json (unused, benchmark-results.json is used)\n- Remove pike-development.skill (skill artifact)\n\nFeatures (CHANGELOG):\n- Smart Completion E2E tests\n- TDD coverage (100% for smart completion)\n- Benchmark regression detection improvements (2ms floor for fast benchmarks)\n- Phase 1-10 TDD test suites (550+ tests)\n- Navigation features with TDD tests\n- Include resolution (#include directives)",
+          "timestamp": "2026-02-01T23:18:28+01:00",
+          "tree_id": "e08a363eea4d98fee1c719be9f4ca0f597b50e6c",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/91d2c5ddaaa4ee871d3fe1cc81fa055b2e6e76cd"
+        },
+        "date": 1769984429268,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.22419325,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 250.92507325,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 252.90040566666664,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 255.69072241666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1089297971014491,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.7330015760869566,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 46.8074915,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.745678951388889,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.708725102702703,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.24989000114111828,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.23973597880891487,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.4985521622613803,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19909870309597524,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18493462966175195,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6316455402843604,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3748249977666108,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3602610627682403,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.09887547238964,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5963818618881119,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08292722424756252,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3233193110140708,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 250.90727516666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 254.9439,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5527639951377633,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08142562713048337,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 9.962880820895522,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 9.961234208955224,
             "unit": "ms"
           }
         ]
