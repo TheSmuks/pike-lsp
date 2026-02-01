@@ -240,33 +240,6 @@ int main(int argc, array(string) argv) {
         "batch_parse": lambda(mapping params, object ctx) {
             return ctx->parser->batch_parse_request(params);
         },
-        "introspect": lambda(mapping params, object ctx) {
-            // DEPRECATED: Use analyze with include: ["introspect"]
-            werror("[DEPRECATED] introspect method - use analyze with include: ['introspect']\n");
-
-            // Call analyze with introspect include
-            mapping analyze_params = params + (["include":({"introspect"})]);
-            mapping response = ctx->analysis->handle_analyze(analyze_params);
-
-            // Extract introspect result
-            if (response->result && response->result->introspect) {
-                return (["result": response->result->introspect]);
-            }
-
-            // Check for failures
-            if (response->failures && response->failures->introspect) {
-                mapping failure = response->failures->introspect;
-                return ([
-                    "error": ([
-                        "code": -32000,
-                        "message": failure->message || "Introspection failed"
-                    ])
-                ]);
-            }
-
-            // Fallback: try original handler if analyze returned empty
-            return ctx->intelligence->handle_introspect(params);
-        },
         "resolve": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_resolve(params);
         },

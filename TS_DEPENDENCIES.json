@@ -1,0 +1,383 @@
+{
+  "metadata": {
+    "generated": "2026-02-01",
+    "tool": "madge + manual analysis",
+    "packages": ["core", "pike-bridge", "pike-lsp-server", "vscode-pike"]
+  },
+  "summary": {
+    "totalSourceFiles": 109,
+    "totalTestFiles": 34,
+    "entryPoints": 4,
+    "filesWithNoInternalDeps": 6,
+    "externalDependencies": {
+      "vscode-languageserver": "LSP protocol implementation",
+      "vscode": "VSCode extension API",
+      "vscode-languageserver-textdocument": "LSP document types",
+      "@pike-lsp/core": "Internal core utilities (logging, errors)",
+      "@pike-lsp/pike-bridge": "Pike analysis bridge (IPC with Pike subprocess)",
+      "node:assert": "Node.js test assertions",
+      "node:fs": "Node.js filesystem",
+      "node:path": "Node.js path utilities",
+      "node:crypto": "Node.js crypto (hashing)",
+      "events": "Node.js EventEmitter",
+      "child_process": "Node.js process spawning",
+      "readline": "Node.js readline interface"
+    }
+  },
+  "packages": {
+    "core": {
+      "path": "packages/core/src",
+      "fileCount": 3,
+      "files": [
+        "errors.ts",
+        "index.ts",
+        "logging.ts"
+      ],
+      "dependencies": {
+        "errors.ts": [],
+        "index.ts": ["errors.ts", "logging.ts"],
+        "logging.ts": []
+      },
+      "entryPoints": ["index.ts"],
+      "leafModules": ["errors.ts", "logging.ts"],
+      "role": "Foundation - logging and error types",
+      "importsExternal": false
+    },
+    "pike-bridge": {
+      "path": "packages/pike-bridge/src",
+      "fileCount": 8,
+      "files": [
+        "bridge.test.ts",
+        "bridge.ts",
+        "constants.ts",
+        "index.ts",
+        "process.test.ts",
+        "process.ts",
+        "test.ts",
+        "types.ts"
+      ],
+      "dependencies": {
+        "bridge.ts": ["@pike-lsp/core", "constants.ts", "process.ts", "types.ts"],
+        "bridge.test.ts": ["bridge.ts"],
+        "constants.ts": [],
+        "index.ts": ["@pike-lsp/core", "bridge.ts", "constants.ts", "process.ts", "types.ts"],
+        "process.test.ts": ["process.ts"],
+        "process.ts": [],
+        "test.ts": ["bridge.ts"],
+        "types.ts": []
+      },
+      "entryPoints": ["index.ts", "test.ts"],
+      "leafModules": ["constants.ts", "process.ts", "types.ts"],
+      "role": "IPC bridge to Pike analyzer subprocess",
+      "importsExternal": true,
+      "externalImports": ["child_process", "events", "node:fs", "node:path", "readline"]
+    },
+    "pike-lsp-server": {
+      "path": "packages/pike-lsp-server/src",
+      "fileCount": 54,
+      "entryPoints": ["server.ts", "test-server.ts"],
+      "leafModules": [
+        "constants/index.ts",
+        "features/utils/pike-type-formatter.ts",
+        "utils/regex-patterns.ts"
+      ],
+      "modulesWithOnlyExternalDeps": [
+        "features/editing/autodoc.ts",
+        "utils/code-lens.ts",
+        "utils/validation.ts"
+      ],
+      "role": "LSP server implementation",
+      "importsExternal": true,
+      "keyDependencies": {
+        "server.ts": [
+          "features/index.ts",
+          "services/index.ts",
+          "stdlib-index.ts",
+          "type-database.ts",
+          "workspace-index.ts",
+          "@pike-lsp/core",
+          "@pike-lsp/pike-bridge"
+        ],
+        "features/index.ts": [
+          "features/advanced/index.ts",
+          "features/diagnostics.ts",
+          "features/editing/index.ts",
+          "features/hierarchy.ts",
+          "features/navigation/index.ts",
+          "features/symbols.ts"
+        ],
+        "services/index.ts": [
+          "services/bridge-manager.ts",
+          "services/document-cache.ts",
+          "services/include-resolver.ts",
+          "services/workspace-scanner.ts",
+          "stdlib-index.ts",
+          "type-database.ts",
+          "workspace-index.ts"
+        ]
+      }
+    },
+    "vscode-pike": {
+      "path": "packages/vscode-pike/src",
+      "fileCount": 11,
+      "files": [
+        "constants.ts",
+        "extension.ts",
+        "pike-detector.ts"
+      ],
+      "dependencies": {
+        "extension.ts": ["pike-detector.ts"],
+        "pike-detector.ts": [],
+        "constants.ts": []
+      },
+      "entryPoints": ["extension.ts"],
+      "leafModules": ["constants.ts", "pike-detector.ts"],
+      "role": "VSCode extension activation",
+      "importsExternal": true,
+      "externalImports": ["vscode"]
+    }
+  },
+  "crossPackageDependencies": {
+    "dependencyFlow": "core → pike-bridge → pike-lsp-server → vscode-pike",
+    "vscode-pike": {
+      "imports": ["pike-lsp-server"],
+      "description": "VSCode extension loads and starts LSP server"
+    },
+    "pike-lsp-server": {
+      "imports": ["pike-bridge", "core"],
+      "description": "LSP server uses bridge for Pike analysis and core for logging/errors"
+    },
+    "pike-bridge": {
+      "imports": ["core"],
+      "description": "Bridge uses core logging and error types"
+    },
+    "core": {
+      "imports": [],
+      "description": "Foundational package with no internal dependencies"
+    }
+  },
+  "aggregatorModules": {
+    "description": "Index files that re-export from multiple modules",
+    "modules": [
+      {
+        "file": "packages/core/src/index.ts",
+        "role": "Re-exports errors and logging",
+        "imports": ["errors.ts", "logging.ts"]
+      },
+      {
+        "file": "packages/pike-bridge/src/index.ts",
+        "role": "Re-exports all bridge types and classes",
+        "imports": ["bridge.ts", "constants.ts", "process.ts", "types.ts", "@pike-lsp/core"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/core/index.ts",
+        "role": "Re-exports core types",
+        "imports": ["core/types.ts", "@pike-lsp/core"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/index.ts",
+        "role": "Aggregates all feature modules",
+        "imports": ["features/advanced/index.ts", "features/diagnostics.ts", "features/editing/index.ts", "features/hierarchy.ts", "features/navigation/index.ts", "features/symbols.ts"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/advanced/index.ts",
+        "role": "Aggregates advanced LSP features",
+        "imports": ["code-actions.ts", "code-lens.ts", "document-links.ts", "folding.ts", "formatting.ts", "inlay-hints.ts", "selection-ranges.ts", "semantic-tokens.ts"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/editing/index.ts",
+        "role": "Aggregates editing features",
+        "imports": ["completion.ts", "rename.ts", "signature-help.ts"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/navigation/index.ts",
+        "role": "Aggregates navigation features",
+        "imports": ["definition.ts", "expression-utils.ts", "hover.ts", "references.ts"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/utils/index.ts",
+        "role": "Aggregates feature utilities",
+        "imports": ["hover-builder.ts", "pike-type-formatter.ts"]
+      },
+      {
+        "file": "packages/pike-lsp-server/src/services/index.ts",
+        "role": "Aggregates all service modules",
+        "imports": ["services/bridge-manager.ts", "services/document-cache.ts", "services/include-resolver.ts", "services/workspace-scanner.ts", "stdlib-index.ts", "type-database.ts", "workspace-index.ts"]
+      }
+    ]
+  },
+  "filesWithNoInternalDependencies": {
+    "description": "Files that import only external packages or have no imports (constants, pure utilities)",
+    "files": [
+      {
+        "file": "packages/pike-lsp-server/src/constants/index.ts",
+        "type": "Constants",
+        "imports": [],
+        "usedBy": "Multiple files across pike-lsp-server",
+        "status": "Active - exported constants"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/utils/regex-patterns.ts",
+        "type": "Constants",
+        "imports": [],
+        "usedBy": "formatting.ts, inlay-hints.ts, semantic-tokens.ts, diagnostics.ts, completion.ts",
+        "status": "Active - regex pattern constants"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/utils/pike-type-formatter.ts",
+        "type": "Pure utilities",
+        "imports": [],
+        "usedBy": "completion-helpers.ts, signature-help.ts, getters-setters.ts, hover-builder.ts",
+        "status": "Active - pure formatting functions"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/editing/autodoc.ts",
+        "type": "LSP feature",
+        "imports": ["vscode-languageserver/node.js", "vscode-languageserver-textdocument"],
+        "usedBy": "completion.ts",
+        "status": "Active - external deps only"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/utils/code-lens.ts",
+        "type": "Utility",
+        "imports": ["vscode-languageserver"],
+        "usedBy": "code-lens.ts, tests/lsp-tests.ts",
+        "status": "Active - external deps only"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/utils/validation.ts",
+        "type": "Type guards",
+        "imports": ["@pike-lsp/pike-bridge"],
+        "usedBy": "tests/lsp-tests.ts",
+        "status": "Active - external deps only"
+      }
+    ]
+  },
+  "orphanedFiles": {
+    "description": "Test files that are never imported (entry points for test runner)",
+    "testFiles": [
+      "packages/pike-bridge/src/bridge.test.ts",
+      "packages/pike-bridge/src/process.test.ts",
+      "packages/pike-lsp-server/src/tests/autodoc-display.test.ts",
+      "packages/pike-lsp-server/src/tests/autodoc-variable.test.ts",
+      "packages/pike-lsp-server/src/tests/autodoc.test.ts",
+      "packages/pike-lsp-server/src/tests/completion-helpers.test.ts",
+      "packages/pike-lsp-server/src/tests/document-cache.test.ts",
+      "packages/pike-lsp-server/src/tests/expression-utils.test.ts",
+      "packages/pike-lsp-server/src/tests/formatting.test.ts",
+      "packages/pike-lsp-server/src/tests/getters-setters.test.ts",
+      "packages/pike-lsp-server/src/tests/hover-blocks.test.ts",
+      "packages/pike-lsp-server/src/tests/hover-builder.test.ts",
+      "packages/pike-lsp-server/src/tests/hover-display.test.ts",
+      "packages/pike-lsp-server/src/tests/hover-links.test.ts",
+      "packages/pike-lsp-server/src/tests/hover-markdown.test.ts",
+      "packages/pike-lsp-server/src/tests/integration-tests.ts",
+      "packages/pike-lsp-server/src/tests/lsp-navigation-tests.ts",
+      "packages/pike-lsp-server/src/tests/lsp-new-features-tests.ts",
+      "packages/pike-lsp-server/src/tests/lsp-protocol-tests.ts",
+      "packages/pike-lsp-server/src/tests/lsp-tests.ts",
+      "packages/pike-lsp-server/src/tests/module-resolution-edge-cases.test.ts",
+      "packages/pike-lsp-server/src/tests/module-resolution-inherit.test.ts",
+      "packages/pike-lsp-server/src/tests/module-resolution-stdlib.test.ts",
+      "packages/pike-lsp-server/src/tests/module-resolution.test.ts",
+      "packages/pike-lsp-server/src/tests/navigation-include-import.test.ts",
+      "packages/pike-lsp-server/src/tests/performance-tests.ts",
+      "packages/pike-lsp-server/src/tests/phase-behavioral-tests.ts",
+      "packages/pike-lsp-server/src/tests/phase7-behavioral-tests.ts",
+      "packages/pike-lsp-server/src/tests/pike-source-tests.ts",
+      "packages/pike-lsp-server/src/tests/references.test.ts",
+      "packages/pike-lsp-server/src/tests/server-esm.test.ts",
+      "packages/pike-lsp-server/src/tests/smoke.test.ts",
+      "packages/pike-lsp-server/src/tests/stdlib-hover-tests.ts",
+      "packages/pike-lsp-server/src/tests/stdlib-index.test.ts",
+      "packages/pike-lsp-server/src/tests/stdlib-tests.ts",
+      "packages/pike-lsp-server/src/workspace-index.test.ts",
+      "packages/pike-bridge/src/test.ts",
+      "packages/pike-lsp-server/src/test-server.ts",
+      "packages/vscode-pike/src/test/extension.test.ts",
+      "packages/vscode-pike/src/test/integration/extension.test.ts",
+      "packages/vscode-pike/src/test/integration/lsp-features.test.ts",
+      "packages/vscode-pike/src/test/integration/responsiveness.test.ts",
+      "packages/vscode-pike/src/test/lsp-smoke.test.ts",
+      "packages/vscode-pike/src/test/mockOutputChannel.test.ts"
+    ],
+    "status": "Expected - test files are entry points, not imported by other code"
+  },
+  "findings": {
+    "circularDependencies": [],
+    "deeplyNestedModules": [
+      {
+        "file": "packages/pike-lsp-server/src/features/navigation/definition.ts",
+        "depth": 4,
+        "path": "server.ts → features/index.ts → features/navigation/index.ts → definition.ts"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/utils/hover-builder.ts",
+        "depth": 5,
+        "path": "server.ts → features/index.ts → features/navigation/index.ts → hover.ts → hover-builder.ts"
+      }
+    ],
+    "highCoupling": [
+      {
+        "file": "packages/pike-lsp-server/src/server.ts",
+        "imports": 11,
+        "assessment": "Acceptable - main entry point expected to coordinate all subsystems"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/services/index.ts",
+        "imports": 12,
+        "assessment": "Acceptable - service aggregator pattern provides clean API"
+      },
+      {
+        "file": "packages/pike-lsp-server/src/features/index.ts",
+        "imports": 7,
+        "assessment": "Acceptable - feature aggregator enables organized registration"
+      }
+    ],
+    "wellStructured": [
+      {
+        "package": "core",
+        "reason": "Simple, focused utilities with clear hierarchy. Foundation for other packages."
+      },
+      {
+        "package": "pike-bridge",
+        "reason": "Clean separation between bridge (IPC), process (subprocess management), and types (TypeScript definitions)."
+      },
+      {
+        "module": "features/advanced/",
+        "reason": "Good separation of concerns, each file implements a single LSP feature."
+      },
+      {
+        "module": "services/",
+        "reason": "Well-organized service layer with clear responsibilities (bridge manager, document cache, include resolver, etc.)."
+      }
+    ],
+    "architecturalPatterns": [
+      "Aggregator pattern: index.ts files collect and re-export related modules",
+      "Service layer: Centralized business logic in services/ directory",
+      "Feature modules: Self-contained LSP feature implementations",
+      "Clean dependency flow: core → bridge → server → extension (no circular dependencies)",
+      "Test isolation: Test files are entry points, not imported by production code"
+    ]
+  },
+  "recommendations": {
+    "strengths": [
+      "No circular dependencies - excellent dependency hygiene",
+      "Clear package boundaries with unidirectional dependencies",
+      "Good use of aggregator pattern for clean imports",
+      "Well-organized feature modules",
+      "Comprehensive test coverage with isolated test files"
+    ],
+    "optionalImprovements": [
+      "Consider extracting feature registration from server.ts into feature-specific registrars to reduce coupling",
+      "services/index.ts could use dependency injection pattern instead of direct imports for better testability",
+      "Consider creating a shared types package if type duplication exists between packages",
+      "Document the public API surface in each package's index.ts file"
+    ],
+    "noActionNeeded": [
+      "All identified 'orphaned' files are test entry points - expected and correct",
+      "Files with only external dependencies are active features, not dead code",
+      "Aggregator modules serve important organizational purpose"
+    ]
+  }
+}

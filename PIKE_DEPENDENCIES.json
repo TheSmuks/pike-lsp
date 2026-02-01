@@ -1,0 +1,629 @@
+{
+  "generated": "2026-02-01",
+  "description": "Pike file dependency analysis for pike-lsp project",
+  "summary": {
+    "total_pike_files": 11,
+    "total_module_files": 6,
+    "most_referenced_files": [
+      "LSP.pmod/module.pmod",
+      "LSP.pmod/Cache.pmod",
+      "LSP.pmod/Compat.pmod"
+    ],
+    "deprecated_handlers": [
+      "parse",
+      "introspect",
+      "analyze_uninitialized"
+    ]
+  },
+  "files": {
+    "analyzer.pike": {
+      "path": "pike-scripts/analyzer.pike",
+      "role": "Main entry point - JSON-RPC router",
+      "inherit_statements": [],
+      "include_directives": [
+        "#pike __REAL_VERSION__"
+      ],
+      "master_resolv_calls": [
+        "LSP.Parser",
+        "LSP.Intelligence.Intelligence",
+        "LSP.Analysis.Analysis",
+        "LSP.CompilationCache",
+        "LSP.Compat"
+      ],
+      "references_from": [
+        "TypeScript LSP server",
+        "Bridge communication layer"
+      ],
+      "handlers_registered": {
+        "parse": {
+          "line": 207,
+          "status": "DEPRECATED",
+          "replacement": "analyze with include: ['parse']",
+          "deprecation_warning": "werror('[DEPRECATED] parse method - use analyze with include: [\\'parse\\']\\n');"
+        },
+        "tokenize": {
+          "line": 234,
+          "status": "active",
+          "handler": "ctx->parser->tokenize_request"
+        },
+        "compile": {
+          "line": 237,
+          "status": "active",
+          "handler": "ctx->parser->compile_request"
+        },
+        "batch_parse": {
+          "line": 240,
+          "status": "active",
+          "handler": "ctx->parser->batch_parse_request"
+        },
+        "introspect": {
+          "line": 243,
+          "status": "DEPRECATED",
+          "replacement": "analyze with include: ['introspect']",
+          "deprecation_warning": "werror('[DEPRECATED] introspect method - use analyze with include: [\\'introspect\\']\\n');"
+        },
+        "resolve": {
+          "line": 270,
+          "status": "active",
+          "handler": "ctx->intelligence->handle_resolve"
+        },
+        "resolve_stdlib": {
+          "line": 273,
+          "status": "active",
+          "handler": "ctx->intelligence->handle_resolve_stdlib"
+        },
+        "resolve_include": {
+          "line": 276,
+          "status": "active",
+          "handler": "inline implementation"
+        },
+        "get_inherited": {
+          "line": 343,
+          "status": "active",
+          "handler": "ctx->intelligence->handle_get_inherited"
+        },
+        "find_occurrences": {
+          "line": 346,
+          "status": "active",
+          "handler": "ctx->analysis->handle_find_occurrences"
+        },
+        "analyze_uninitialized": {
+          "line": 349,
+          "status": "DEPRECATED",
+          "replacement": "analyze with include: ['diagnostics']",
+          "deprecation_warning": "werror('[DEPRECATED] analyze_uninitialized method - use analyze with include: [\\'diagnostics\\']\\n');"
+        },
+        "get_completion_context": {
+          "line": 376,
+          "status": "active",
+          "handler": "ctx->analysis->handle_get_completion_context"
+        },
+        "get_completion_context_cached": {
+          "line": 379,
+          "status": "active",
+          "handler": "ctx->analysis->handle_get_completion_context_cached"
+        },
+        "analyze": {
+          "line": 382,
+          "status": "active",
+          "handler": "ctx->analysis->handle_analyze"
+        },
+        "set_debug": {
+          "line": 385,
+          "status": "active",
+          "handler": "inline implementation"
+        },
+        "get_version": {
+          "line": 394,
+          "status": "active",
+          "handler": "LSP.Compat->pike_version()"
+        },
+        "get_startup_metrics": {
+          "line": 415,
+          "status": "active",
+          "handler": "inline implementation"
+        },
+        "get_cache_stats": {
+          "line": 426,
+          "status": "active",
+          "handler": "LSP.CompilationCache->get_stats()"
+        },
+        "invalidate_cache": {
+          "line": 443,
+          "status": "active",
+          "handler": "LSP.CompilationCache->invalidate()"
+        }
+      }
+    },
+    "LSP.pmod/Parser.pike": {
+      "path": "pike-scripts/LSP.pmod/Parser.pike",
+      "role": "Parse and tokenize Pike source code",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "Parser.Pike"
+      ],
+      "pike_stdlib_usage": [
+        "Tools.AutoDoc.PikeParser",
+        "Parser.Pike.split",
+        "Parser.Pike.tokenize",
+        "Program.defined"
+      ],
+      "references_from": [
+        "analyzer.pike",
+        "LSP.Intelligence.Resolution",
+        "LSP.Analysis.Analysis"
+      ],
+      "methods": [
+        "parse_request",
+        "tokenize_request",
+        "compile_request",
+        "batch_parse_request"
+      ]
+    },
+    "LSP.pmod/Intelligence.pike": {
+      "path": "pike-scripts/LSP.pmod/Intelligence.pmod/Intelligence.pike",
+      "role": "Backward-compatible delegating class",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.Resolution",
+        "LSP.Intelligence.TypeAnalysis",
+        "LSP.module.LSPError"
+      ],
+      "references_from": [
+        "analyzer.pike"
+      ],
+      "delegates_to": [
+        "Introspection.pike",
+        "Resolution.pike",
+        "TypeAnalysis.pike"
+      ]
+    },
+    "LSP.pmod/Intelligence.pmod/Introspection.pike": {
+      "path": "pike-scripts/LSP.pmod/Intelligence.pmod/Introspection.pike",
+      "role": "Symbol extraction and introspection handlers",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Cache",
+        "LSP.module.LSPError"
+      ],
+      "pike_stdlib_usage": [
+        "Parser.Pike.split",
+        "Program.defined",
+        "Program.inherit_list",
+        "Function.defined",
+        "compile_string"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Intelligence",
+        "LSP.Intelligence.Resolution",
+        "LSP.Intelligence.TypeAnalysis"
+      ],
+      "methods": [
+        "handle_introspect",
+        "introspect_program",
+        "introspect_object"
+      ]
+    },
+    "LSP.pmod/Intelligence.pmod/Resolution.pike": {
+      "path": "pike-scripts/LSP.pmod/Intelligence.pmod/Resolution.pike",
+      "role": "Module name resolution and stdlib introspection",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Cache",
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.TypeAnalysis",
+        "LSP.Intelligence.module",
+        "LSP.Parser",
+        "LSP.module.LSPError"
+      ],
+      "pike_stdlib_usage": [
+        "master()->resolv",
+        "Program.defined"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Intelligence"
+      ],
+      "methods": [
+        "handle_resolve",
+        "handle_resolve_stdlib"
+      ]
+    },
+    "LSP.pmod/Intelligence.pmod/TypeAnalysis.pike": {
+      "path": "pike-scripts/LSP.pmod/Intelligence.pmod/TypeAnalysis.pike",
+      "role": "Type inheritance and AutoDoc parsing handlers",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.module",
+        "LSP.module.LSPError"
+      ],
+      "pike_stdlib_usage": [
+        "Program.inherit_list",
+        "Tools.AutoDoc.DocParser.splitDocBlock",
+        "Tools.AutoDoc.SourcePosition"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Intelligence",
+        "LSP.Intelligence.Resolution"
+      ],
+      "methods": [
+        "handle_get_inherited",
+        "parse_autodoc"
+      ]
+    },
+    "LSP.pmod/Analysis.pike": {
+      "path": "pike-scripts/LSP.pmod/Analysis.pmod/Analysis.pike",
+      "role": "Delegating analysis class",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Analysis.Diagnostics",
+        "LSP.Analysis.Completions",
+        "LSP.Analysis.Variables",
+        "LSP.CompilationCache",
+        "LSP.CompilationCache.DependencyTrackingCompiler",
+        "LSP.CompilationCache.CompilationResult",
+        "LSP.Parser",
+        "LSP.Intelligence.Intelligence"
+      ],
+      "pike_stdlib_usage": [
+        "Parser.Pike.split",
+        "Parser.Pike.tokenize",
+        "compile_string"
+      ],
+      "references_from": [
+        "analyzer.pike"
+      ],
+      "delegates_to": [
+        "Diagnostics.pike",
+        "Completions.pike",
+        "Variables.pike"
+      ]
+    },
+    "LSP.pmod/Analysis.pmod/Diagnostics.pike": {
+      "path": "pike-scripts/LSP.pmod/Analysis.pmod/Diagnostics.pike",
+      "role": "Uninitialized variable analysis",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Analysis.module"
+      ],
+      "pike_stdlib_usage": [
+        "Parser.Pike.split",
+        "Parser.Pike.tokenize"
+      ],
+      "references_from": [
+        "LSP.Analysis.Analysis"
+      ],
+      "methods": [
+        "handle_analyze_uninitialized"
+      ],
+      "module_dependencies": [
+        "LSP.Analysis.module (constants and helpers)"
+      ]
+    },
+    "LSP.pmod/Analysis.pmod/Completions.pike": {
+      "path": "pike-scripts/LSP.pmod/Analysis.pmod/Completions.pike",
+      "role": "Code completion context analysis",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Analysis.module"
+      ],
+      "pike_stdlib_usage": [
+        "Parser.Pike.split",
+        "Parser.Pike.tokenize"
+      ],
+      "references_from": [
+        "LSP.Analysis.Analysis"
+      ],
+      "methods": [
+        "handle_get_completion_context",
+        "handle_get_completion_context_cached"
+      ],
+      "module_dependencies": [
+        "LSP.Analysis.module (constants and helpers)"
+      ]
+    },
+    "LSP.pmod/Analysis.pmod/Variables.pike": {
+      "path": "pike-scripts/LSP.pmod/Analysis.pmod/Variables.pike",
+      "role": "Variable analysis and occurrences",
+      "inherit_statements": [],
+      "include_directives": [],
+      "master_resolv_calls": [
+        "LSP.Analysis.module"
+      ],
+      "pike_stdlib_usage": [
+        "Parser.Pike.split",
+        "Parser.Pike.tokenize"
+      ],
+      "references_from": [
+        "LSP.Analysis.Analysis"
+      ],
+      "methods": [
+        "handle_find_occurrences"
+      ],
+      "module_dependencies": [
+        "LSP.Analysis.module (is_identifier helper)"
+      ]
+    },
+    "LSP.pmod/module.pmod": {
+      "path": "pike-scripts/LSP.pmod/module.pmod",
+      "role": "Main module entry point - shared constants and utilities",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "LSPError class",
+        "json_decode",
+        "json_encode",
+        "debug",
+        "make_error",
+        "MAX_TOP_LEVEL_ITERATIONS",
+        "MAX_BLOCK_ITERATIONS",
+        "set_debug_mode",
+        "get_debug_mode"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Intelligence",
+        "LSP.Intelligence.Resolution",
+        "LSP.Intelligence.TypeAnalysis",
+        "LSP.Analysis.Variables"
+      ],
+      "pike_stdlib_usage": [
+        "Standards.JSON.decode",
+        "Standards.JSON.encode"
+      ]
+    },
+    "LSP.pmod/Cache.pmod": {
+      "path": "pike-scripts/LSP.pmod/Cache.pmod",
+      "role": "LRU caching infrastructure for program_cache and stdlib_cache",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "get",
+        "put",
+        "clear",
+        "get_stats",
+        "set_limits",
+        "get_program",
+        "put_program",
+        "get_stdlib",
+        "put_stdlib"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Resolution"
+      ],
+      "constants": [
+        "DEFAULT_MAX_PROGRAMS = 30",
+        "DEFAULT_MAX_STDLIB = 50"
+      ]
+    },
+    "LSP.pmod/Compat.pmod": {
+      "path": "pike-scripts/LSP.pmod/Compat.pmod",
+      "role": "Version compatibility layer for Pike 7.6, 7.8, 8.0.x",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "pike_version",
+        "trim_whites",
+        "PIKE_VERSION",
+        "PIKE_VERSION_STRING"
+      ],
+      "references_from": [
+        "LSP.pmod/Parser.pike",
+        "LSP.pmod/Analysis.pmod/Diagnostics.pike",
+        "LSP.pmod/Analysis.pmod/Completions.pike",
+        "LSP.pmod/Intelligence.pmod/Resolution.pike",
+        "LSP.pmod/Intelligence.pmod/TypeAnalysis.pike"
+      ]
+    },
+    "LSP.pmod/CompilationCache.pmod": {
+      "path": "pike-scripts/LSP.pmod/CompilationCache.pmod",
+      "role": "File-based compilation cache with dependency tracking",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "get",
+        "put",
+        "invalidate",
+        "invalidate_all",
+        "make_cache_key",
+        "get_stats",
+        "reset_stats",
+        "CompilationResult class",
+        "DependencyTrackingCompiler class"
+      ],
+      "references_from": [
+        "analyzer.pike",
+        "LSP.Analysis.Analysis"
+      ],
+      "pike_stdlib_usage": [
+        "compile_string",
+        "String.trim_all_whites",
+        "file_stat"
+      ],
+      "constants": [
+        "MAX_CACHED_FILES = 500"
+      ]
+    },
+    "LSP.pmod/Analysis.pmod/module.pmod": {
+      "path": "pike-scripts/LSP.pmod/Analysis.pmod/module.pmod",
+      "role": "Shared helper functions for Analysis.pmod",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "STATE_UNINITIALIZED",
+        "STATE_MAYBE_INIT",
+        "STATE_INITIALIZED",
+        "STATE_UNKNOWN",
+        "NEEDS_INIT_TYPES",
+        "is_type_keyword",
+        "is_identifier",
+        "is_assignment_operator",
+        "find_next_token",
+        "find_matching_brace",
+        "get_char_pos_in_line",
+        "remove_out_of_scope_vars",
+        "save_variable_states",
+        "restore_variable_states",
+        "try_parse_declaration",
+        "is_function_definition",
+        "is_lambda_definition",
+        "extract_function_params"
+      ],
+      "references_from": [
+        "LSP.Analysis.Diagnostics",
+        "LSP.Analysis.Completions",
+        "LSP.Analysis.Variables"
+      ]
+    },
+    "LSP.pmod/Intelligence.pmod/module.pmod": {
+      "path": "pike-scripts/LSP.pmod/Intelligence.pmod/module.pmod",
+      "role": "Shared helper functions for AutoDoc parsing",
+      "inherit_statements": [],
+      "include_directives": [],
+      "exports": [
+        "extract_autodoc_comments",
+        "extract_symbol_name",
+        "process_inline_markup",
+        "replace_markup",
+        "trim_whites",
+        "make_error_response"
+      ],
+      "pike_stdlib_usage": [
+        "String.trim_all_whites"
+      ],
+      "references_from": [
+        "LSP.Intelligence.Resolution",
+        "LSP.Intelligence.TypeAnalysis"
+      ]
+    },
+    "type-introspector.pike": {
+      "path": "pike-scripts/type-introspector.pike",
+      "role": "Standalone type introspection script (LEGACY)",
+      "inherit_statements": [],
+      "include_directives": [
+        "#pike __REAL_VERSION__"
+      ],
+      "master_resolv_calls": [
+        "master()->resolv"
+      ],
+      "pike_stdlib_usage": [
+        "compile_string",
+        "Program.defined",
+        "Program.inherit_list"
+      ],
+      "status": "DEPRECATED - Superseded by LSP.Intelligence module",
+      "references_from": [],
+      "note": "This file appears to be legacy code. Functionality has been moved to the modular LSP.pmod structure."
+    }
+  },
+  "dependency_graph": {
+    "analyzer.pike": {
+      "depends_on": [
+        "LSP.Parser",
+        "LSP.Intelligence.Intelligence",
+        "LSP.Analysis.Analysis",
+        "LSP.CompilationCache",
+        "LSP.Compat"
+      ]
+    },
+    "LSP.Intelligence.Intelligence": {
+      "depends_on": [
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.Resolution",
+        "LSP.Intelligence.TypeAnalysis",
+        "LSP.module.LSPError"
+      ]
+    },
+    "LSP.Analysis.Analysis": {
+      "depends_on": [
+        "LSP.Analysis.Diagnostics",
+        "LSP.Analysis.Completions",
+        "LSP.Analysis.Variables",
+        "LSP.CompilationCache",
+        "LSP.Parser",
+        "LSP.Intelligence.Intelligence",
+        "Parser.Pike (stdlib)"
+      ]
+    },
+    "LSP.Intelligence.Resolution": {
+      "depends_on": [
+        "LSP.Cache",
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.TypeAnalysis",
+        "LSP.Intelligence.module",
+        "LSP.Parser",
+        "LSP.Compat"
+      ]
+    },
+    "LSP.Intelligence.TypeAnalysis": {
+      "depends_on": [
+        "LSP.Intelligence.Introspection",
+        "LSP.Intelligence.module",
+        "LSP.Compat",
+        "Tools.AutoDoc.DocParser (stdlib)"
+      ]
+    },
+    "LSP.Analysis.Diagnostics": {
+      "depends_on": [
+        "LSP.Analysis.module",
+        "Parser.Pike (stdlib)"
+      ]
+    },
+    "LSP.Analysis.Completions": {
+      "depends_on": [
+        "LSP.Analysis.module",
+        "Parser.Pike (stdlib)"
+      ]
+    },
+    "LSP.Analysis.Variables": {
+      "depends_on": [
+        "LSP.Analysis.module",
+        "Parser.Pike (stdlib)"
+      ]
+    }
+  },
+  "potential_dead_code": {
+    "type-introspector.pike": {
+      "reason": "Functionality moved to LSP.Intelligence module",
+      "status": "DEPRECATED",
+      "recommendation": "Remove after verifying no external consumers"
+    }
+  },
+  "deprecated_features": {
+    "handlers": {
+      "parse": {
+        "replacement": "analyze with include: ['parse']",
+        "warning_location": "analyzer.pike:209"
+      },
+      "introspect": {
+        "replacement": "analyze with include: ['introspect']",
+        "warning_location": "analyzer.pike:245"
+      },
+      "analyze_uninitialized": {
+        "replacement": "analyze with include: ['diagnostics']",
+        "warning_location": "analyzer.pike:351"
+      }
+    }
+  },
+  "pike_stdlib_modules_used": [
+    "Parser.Pike",
+    "Tools.AutoDoc.PikeParser",
+    "Tools.AutoDoc.DocParser",
+    "Tools.AutoDoc.SourcePosition",
+    "Program",
+    "Function",
+    "Stdio",
+    "String",
+    "Array",
+    "Mapping",
+    "Standards.JSON"
+  ]
+}

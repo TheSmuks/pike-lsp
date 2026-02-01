@@ -564,31 +564,6 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
-     * Introspect Pike code through compilation.
-     *
-     * Compiles the code and uses Pike's `_typeof` operator to extract
-     * full type information via runtime introspection. Provides complete
-     * type signatures for functions, classes, and variables.
-     *
-     * @param code - Pike source code to introspect.
-     * @param filename - Optional filename for error messages.
-     * @returns Introspection result with detailed type information.
-     * @example
-     * ```ts
-     * const result = await bridge.introspect('class Foo { int bar(); }');
-     * console.log(result.symbols[0].type); // "function(int:void)"
-     * ```
-     */
-    async introspect(code: string, filename?: string): Promise<import('./types.js').IntrospectionResult> {
-        const result = await this.sendRequest<import('./types.js').IntrospectionResult>('introspect', {
-            code,
-            filename: filename ?? 'input.pike',
-        });
-
-        return result;
-    }
-
-    /**
      * Unified analyze - consolidate multiple Pike operations in one request.
      *
      * Performs compilation and tokenization once, then distributes results

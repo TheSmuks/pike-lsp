@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "startTime": "2025-02-01T18:45:00Z",
+    "phase": "1_inventory",
+    "totalFiles": 112,
+    "analyzed": 0,
+    "cleaned": 0,
+    "verifiedUsed": 0
+  },
+  "packages": {
+    "core": {
+      "status": "pending",
+      "files": []
+    },
+    "pike-bridge": {
+      "status": "pending",
+      "files": []
+    },
+    "pike-lsp-server": {
+      "status": "pending",
+      "files": []
+    },
+    "vscode-pike": {
+      "status": "pending",
+      "files": []
+    }
+  },
+  "pike-scripts": {
+    "status": "pending",
+    "files": []
+  }
+}

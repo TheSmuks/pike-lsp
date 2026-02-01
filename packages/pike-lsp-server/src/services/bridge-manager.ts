@@ -201,14 +201,6 @@ export class BridgeManager {
     }
 
     /**
-     * Introspect Pike code through compilation.
-     */
-    async introspect(code: string, filename: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
-        return this.bridge.introspect(code, filename);
-    }
-
-    /**
      * Unified analyze - consolidate multiple Pike operations in one request.
      *
      * Delegates to PikeBridge.analyze() which performs compilation and

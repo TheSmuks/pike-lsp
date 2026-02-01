@@ -49,7 +49,7 @@ async function runBenchmarks() {
     bench('Cold Start + Introspect', async () => {
       const bridge = new PikeBridge();
       await bridge.start();
-      await bridge.introspect('int x;', 'test.pike');
+      await bridge.analyze('int x;', ['introspect'], 'test.pike');
       await bridge.stop();
     });
   });
@@ -87,10 +87,11 @@ async function runBenchmarks() {
   group('Validation Pipeline (Warm)', () => {
     const runValidation = async (code: string, filename: string, benchName: string) => {
       const results: any = {};
-      results.introspect = await bridge.introspect(code, filename);
-      results.parse = await bridge.parse(code, filename);
-      results.analyze = await bridge.analyzeUninitialized(code, filename);
-      trackPikeTime(benchName, results);
+      const response = await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
+      results.introspect = response.result.introspect;
+      results.parse = response.result.parse;
+      results.analyze = response.result.diagnostics;
+      trackPikeTime(benchName, response.result);
       return results;
     };
 
@@ -107,7 +108,7 @@ async function runBenchmarks() {
     });
   });
 
-  await bridge.introspect(mediumPike, 'medium.pike');
+  await bridge.analyze(mediumPike, ['introspect'], 'medium.pike');
   await bridge.analyze(mediumPike, ['parse', 'introspect', 'diagnostics'], 'medium.pike');
 
   group('Request Consolidation (Warm)', async () => {
@@ -116,9 +117,9 @@ async function runBenchmarks() {
     const filename = 'medium.pike';
 
     // Legacy: 3 separate IPC calls (the old validation approach)
-    bench('Validation Legacy (3 calls: introspect + parse + analyzeUninitialized)', async () => {
+    bench('Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)', async () => {
       const results: any = {};
-      results.introspect = await bridge.introspect(code, filename);
+      results.introspect = await bridge.analyze(code, ['introspect'], filename);
       results.parse = await bridge.parse(code, filename);
       results.analyze = await bridge.analyzeUninitialized(code, filename);
       trackPikeTime('Validation Legacy', results);
@@ -137,7 +138,7 @@ async function runBenchmarks() {
     });
 
     // Warm-up iteration to ensure JIT optimization before benchmarks run
-    await bridge.introspect(code, filename);
+    await bridge.analyze(code, ['introspect'], filename);
     await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
   });
 

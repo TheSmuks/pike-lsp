@@ -104,8 +104,10 @@ export function registerSignatureHelpHandler(
                         if (!funcSymbol && bridge) {
                             try {
                                 const code = await fs.readFile(cleanPath, 'utf-8');
-                                const parseResult = await bridge.parse(code, cleanPath);
-                                funcSymbol = findSymbolByName(parseResult.symbols, symbolName) ?? null;
+                                const response = await bridge.analyze(code, ['parse'], cleanPath);
+                                if (response.result?.parse) {
+                                    funcSymbol = findSymbolByName(response.result.parse.symbols, symbolName) ?? null;
+                                }
                             } catch (parseErr) {
                                 logger.debug('Failed to parse for signature', { error: parseErr instanceof Error ? parseErr.message : String(parseErr) });
                             }

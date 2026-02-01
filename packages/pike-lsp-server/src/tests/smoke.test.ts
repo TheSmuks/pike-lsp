@@ -37,7 +37,8 @@ describe('LSP Smoke Tests', { timeout: 30000 }, () => {
 
   it('responds to introspect request', async () => {
     const code = 'int x = 1;';
-    const result = await bridge.introspect(code, 'test.pike');
+    const response = await bridge.analyze(code, ['introspect'], 'test.pike');
+    const result = response.result?.introspect;
 
     // Verify we got a result
     assert.ok(result, 'Introspect should return a result');
@@ -63,8 +64,8 @@ describe('LSP Smoke Tests', { timeout: 30000 }, () => {
     const result2 = await bridge.parse('string b;', 'test2.pike');
     assert.ok(result2);
 
-    const result3 = await bridge.introspect('float c = 1.0;', 'test3.pike');
-    assert.ok(result3);
+    const response3 = await bridge.analyze('float c = 1.0;', ['introspect'], 'test3.pike');
+    assert.ok(response3.result?.introspect);
   });
 
   it('unified analyze handles partial failures gracefully', async () => {
