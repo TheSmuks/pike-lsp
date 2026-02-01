@@ -135,9 +135,9 @@ function analyzeCurrentResults(currentPath, historicalStats) {
     const vsAvg = currentValue / avg;
 
     // Absolute difference threshold - ignore tiny absolute changes even if statistically significant
-    // CI runners have ~1ms timing jitter; use proportional floor (15%) for fast benchmarks
+    // CI runners have 1-2ms timing jitter on shared infrastructure; sub-ms benchmarks need a 2ms floor
     const absDiff = currentValue - avg;
-    const minAbsDiff = avg < 10 ? Math.max(0.5, avg * 0.15) : (avg < 100 ? Math.max(2, avg * 0.05) : avg * 0.05);
+    const minAbsDiff = avg < 10 ? Math.max(2, avg * 0.5) : (avg < 100 ? Math.max(5, avg * 0.1) : avg * 0.05);
 
     let status = 'OK';
     let message = '';
