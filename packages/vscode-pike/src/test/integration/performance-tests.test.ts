@@ -368,7 +368,12 @@ function_with_error() {
         console.log(`Average: ${avgTime.toFixed(2)}ms, First: ${firstTime}ms, Last: ${lastTime}ms`);
 
         // Last operation shouldn't be more than 3x slower (allowing for GC variance)
-        assert.ok(lastTime < firstTime * 3, 'Performance should not degrade significantly');
+        // If firstTime is 0, check that lastTime is reasonable (<= 10ms)
+        if (firstTime === 0) {
+            assert.ok(lastTime <= 10, 'Performance should not degrade significantly');
+        } else {
+            assert.ok(lastTime < firstTime * 3, 'Performance should not degrade significantly');
+        }
     });
 
     /**

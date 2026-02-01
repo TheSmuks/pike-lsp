@@ -5,7 +5,7 @@
  * These are pure functions extracted from definition.ts for testing.
  */
 
-import { describe, it } from 'bun:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -89,16 +89,14 @@ string myString = "hello";`;
                 {
                     name: 'myVar',
                     kind: 'variable',
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
-                    selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } },
+                    position: { file: 'test.pike', line: 0, column: 0 },
                     children: [],
                     modifiers: []
                 },
                 {
                     name: 'otherVar',
                     kind: 'variable',
-                    range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
-                    selectionRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
+                    position: { file: 'test.pike', line: 1, column: 0 },
                     children: [],
                     modifiers: []
                 }
@@ -114,8 +112,7 @@ string myString = "hello";`;
             const innerMethod = {
                 name: 'innerMethod',
                 kind: 'method' as const,
-                range: { start: { line: 2, character: 4 }, end: { line: 2, character: 16 } },
-                selectionRange: { start: { line: 2, character: 4 }, end: { line: 2, character: 16 } },
+                position: { file: 'test.pike', line: 2, column: 4 },
                 children: [],
                 modifiers: []
             };
@@ -123,8 +120,7 @@ string myString = "hello";`;
             const outerClass = {
                 name: 'MyClass',
                 kind: 'class' as const,
-                range: { start: { line: 1, character: 0 }, end: { line: 3, character: 1 } },
-                selectionRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } },
+                position: { file: 'test.pike', line: 1, column: 0 },
                 children: [innerMethod],
                 modifiers: []
             };
@@ -142,8 +138,7 @@ string myString = "hello";`;
                 {
                     name: 'existingSymbol',
                     kind: 'variable',
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 14 } },
-                    selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 14 } },
+                    position: { file: 'test.pike', line: 0, column: 0 },
                     children: [],
                     modifiers: []
                 }
@@ -162,10 +157,8 @@ string myString = "hello";`;
         it('should return true when cursor on symbol definition', () => {
             const symbol: PikeSymbol = {
                 name: 'myFunction',
-                kind: 'function',
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 20 } },
-                selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
-                position: { line: 1, character: 0 }, // Pike uses 1-based lines
+                kind: 'method',
+                position: { file: 'test.pike', line: 1, column: 0 }, // Pike uses 1-based lines
                 children: [],
                 modifiers: []
             };
@@ -180,10 +173,8 @@ string myString = "hello";`;
         it('should return false when cursor on symbol usage', () => {
             const symbol: PikeSymbol = {
                 name: 'myFunction',
-                kind: 'function',
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 20 } },
-                selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
-                position: { line: 1, character: 0 },
+                kind: 'method',
+                position: { file: 'test.pike', line: 1, column: 0 },
                 children: [],
                 modifiers: []
             };
@@ -199,8 +190,6 @@ string myString = "hello";`;
             const symbol: PikeSymbol = {
                 name: 'orphan',
                 kind: 'variable',
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
-                selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
                 // No position field
                 children: [],
                 modifiers: []
@@ -285,8 +274,6 @@ string myString = "hello";`;
             const symbol: PikeSymbol = {
                 name: 'orphan',
                 kind: 'variable',
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
-                selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
                 // No position field
                 children: [],
                 modifiers: []
@@ -325,8 +312,7 @@ string myString = "hello";`;
                 symbols.push({
                     name: `symbol${i}`,
                     kind: 'variable',
-                    range: { start: { line: i, character: 0 }, end: { line: i, character: 8 } },
-                    selectionRange: { start: { line: i, character: 0 }, end: { line: i, character: 8 } },
+                    position: { file: 'test.pike', line: i, column: 0 },
                     children: [],
                     modifiers: []
                 });

@@ -390,7 +390,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     const kindLabel = symbol.kind.charAt(0).toUpperCase() + symbol.kind.slice(1);
 
     // Build type signature using introspected type info if available
-    if (symbol.kind === 'method' || symbol.kind === 'function') {
+    if (symbol.kind === 'method') {
         // Try introspected type first
         const symRecord = symbol as unknown as Record<string, unknown>;
 

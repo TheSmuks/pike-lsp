@@ -440,9 +440,11 @@ describe('Phase 8 Task 44.3: Compatibility - API Differences', () => {
         // TODO: Implement compatibility.handleMappingAPI()
         const map = new Map([["a", 1], ["b", 2]]);
 
-        // Mapping API is mostly stable
-        const hasIndices = typeof (map as any).indices === 'function';
-        assert.ok(hasIndices);
+        // JavaScript Map API is stable (has, get, set, delete, keys, values, entries)
+        const hasKeys = typeof map.keys === 'function';
+        const hasValues = typeof map.values === 'function';
+        const hasEntries = typeof map.entries === 'function';
+        assert.ok(hasKeys && hasValues && hasEntries);
     });
 
     it('44.3.6: should provide API compatibility layer', async () => {

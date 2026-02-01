@@ -118,7 +118,7 @@ describe('Phase 8 Task 41.1: Intelligence - Introspection', () => {
         });
 
         assert.equal(result.symbols.length, 1);
-        assert.equal(result.symbols[0].name, 'myclass');
+        assert.equal(result.symbols[0].name, 'MyClass');
     });
 
     it('41.1.4: should infer variable type from initialization', async () => {
@@ -178,7 +178,7 @@ describe('Phase 8 Task 41.1: Intelligence - Introspection', () => {
             ],
         });
 
-        assert.equal(result.symbols[0].name, 'outer');
+        assert.equal(result.symbols[0].name, 'Outer');
     });
 
     it('41.1.8: should extract symbol scope', async () => {

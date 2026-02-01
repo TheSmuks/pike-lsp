@@ -344,7 +344,7 @@ suite('E2E Workflow Tests', () => {
         this.timeout(30000);
 
         const config = vscode.workspace.getConfiguration('pike');
-        const modulePaths = config.get<string[]>('modulePaths');
+        const modulePaths = config.get<string[]>('pikeModulePath');
 
         // Test reading the configuration
         assert.ok(modulePaths !== undefined, 'Should be able to read module paths setting');

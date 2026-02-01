@@ -7,9 +7,6 @@
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import { Logger } from '@pike-lsp/core';
-
-const log = new Logger('Navigation.DefinitionUtils');
 
 /**
  * Get word at position in document.
