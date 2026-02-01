@@ -21,6 +21,7 @@ import {
 
 let client: LanguageClient | undefined;
 let serverOptions: ServerOptions | null = null;
+let serverModulePath: string | null = null;
 let outputChannel: OutputChannel;
 
 /**
@@ -183,6 +184,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
     for (const p of possiblePaths) {
         if (fs.existsSync(p)) {
             serverModule = p;
+            serverModulePath = p;
             console.log(`Found Pike LSP server at: ${p}`);
             break;
         }
@@ -330,6 +332,14 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const normalizedModulePaths = expandedPaths.map(normalizePath);
     const normalizedIncludePaths = expandedIncludePaths.map(normalizePath);
 
+    // Determine the analyzer path relative to the server module
+    // When bundled: server/server.js with pike-scripts in same directory
+    // When developing: dist/server.js with pike-scripts in monorepo root
+    if (!serverModulePath) {
+        throw new Error('Server module path not set');
+    }
+    const analyzerPath = path.join(path.dirname(serverModulePath), 'pike-scripts', 'analyzer.pike');
+
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
             { scheme: 'file', language: 'pike' },
@@ -339,6 +349,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
         },
         initializationOptions: {
             pikePath,
+            analyzerPath,
             env: {
                 'PIKE_MODULE_PATH': normalizedModulePaths.join(pathSeparator),
                 'PIKE_INCLUDE_PATH': normalizedIncludePaths.join(pathSeparator),

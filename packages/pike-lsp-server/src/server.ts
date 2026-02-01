@@ -149,6 +149,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     const initOptions = params.initializationOptions as {
         pikePath?: string;
         diagnosticDelay?: number;
+        analyzerPath?: string;
         env?: NodeJS.ProcessEnv
     } | undefined;
 
@@ -172,7 +173,11 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         .map(entry => entry.trim())
         .filter(entry => entry.length > 0);
 
-    if (analyzerPath) {
+    // Use analyzer path from init options if provided, otherwise use findAnalyzerPath()
+    if (initOptions?.analyzerPath) {
+        bridgeOptions.analyzerPath = initOptions.analyzerPath;
+        log(`Using analyzer path from init options: ${initOptions.analyzerPath}`);
+    } else if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
     }
 
