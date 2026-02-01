@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="bun test" tests="2" assertions="2" failures="0" skipped="0" time="0.011528064">
-  <testsuite name=".claude/tdd-guard/examples/simple.test.ts" file=".claude/tdd-guard/examples/simple.test.ts" tests="2" assertions="2" failures="0" skipped="0" time="0" hostname="smuks">
-    <testsuite name="Math operations" file=".claude/tdd-guard/examples/simple.test.ts" line="6" tests="2" assertions="2" failures="0" skipped="0" time="0" hostname="smuks">
-      <testcase name="adds two numbers" classname="Math operations" time="0" file=".claude/tdd-guard/examples/simple.test.ts" line="7" assertions="1" />
-      <testcase name="subtraction works correctly" classname="Math operations" time="0" file=".claude/tdd-guard/examples/simple.test.ts" line="11" assertions="1" />
-    </testsuite>
-  </testsuite>
-</testsuites>
