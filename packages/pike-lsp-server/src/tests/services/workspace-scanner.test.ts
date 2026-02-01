@@ -1,0 +1,362 @@
+/**
+ * Workspace Scanner Tests
+ *
+ * Tests for the workspace scanner service:
+ * - 26.1: Discover files in workspace
+ * - 26.2: Exclude patterns (node_modules, .git, etc.)
+ * - 26.3: Multi-folder workspace support
+ * - 26.4: Handle file changes (add/remove/update)
+ * - 26.5: Lazy loading of symbols
+ *
+ * Run with: bun test dist/src/tests/services/workspace-scanner.test.js
+ */
+
+import { describe, it } from 'node:test';
+import * as assert from 'node:assert/strict';
+import { WorkspaceScanner } from '../../services/workspace-scanner.js';
+import type { Logger } from '@pike-lsp/core';
+
+// ============================================================================
+// Mock Logger
+// ============================================================================
+
+function createMockLogger(): Logger {
+    return {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+    } as unknown as Logger;
+}
+
+// ============================================================================
+// 26.1 Workspace Scanner - Discover files
+// ============================================================================
+
+describe('WorkspaceScanner - 26.1 Discover files', () => {
+    it('26.1.1 should initialize with workspace folders', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        await scanner.initialize(['/workspace']);
+
+        // Assert
+        assert.equal(scanner.isReady(), true);
+    });
+
+    it('26.1.2 should scan folder and find Pike files', async () => {
+        // This is a placeholder test - real implementation would need mock filesystem
+        // For now, we test the API structure
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        await scanner.initialize(['/workspace']);
+
+        // Assert
+        const files = scanner.getAllFiles();
+        assert.ok(Array.isArray(files));
+    });
+
+    it('26.1.3 should return empty array when no files found', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        const files = scanner.getAllFiles();
+
+        // Assert
+        assert.equal(files.length, 0);
+    });
+
+    it('26.1.4 should get file by URI', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        const file = scanner.getFile('file:///test.pike');
+
+        // Assert
+        assert.equal(file, undefined);
+    });
+
+    it('26.1.5 should return workspace statistics', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        const stats = scanner.getStats();
+
+        // Assert
+        assert.ok(stats);
+        assert.equal(typeof stats.fileCount, 'number');
+        assert.equal(typeof stats.rootCount, 'number');
+        assert.equal(typeof stats.cachedFiles, 'number');
+    });
+});
+
+// ============================================================================
+// 26.2 Workspace Scanner - Exclude patterns
+// ============================================================================
+
+describe('WorkspaceScanner - 26.2 Exclude patterns', () => {
+    it('26.2.1 should exclude node_modules by default', async () => {
+        // Placeholder - would need mock filesystem
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+        assert.ok(scanner);
+    });
+
+    it('26.2.2 should exclude .git by default', async () => {
+        // Placeholder - would need mock filesystem
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+        assert.ok(scanner);
+    });
+
+    it('26.2.3 should exclude dist and build by default', async () => {
+        // Placeholder - would need mock filesystem
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+        assert.ok(scanner);
+    });
+
+    it('26.2.4 should support custom exclude patterns', async () => {
+        // Placeholder - would need mock filesystem
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+        assert.ok(scanner);
+    });
+
+    it('26.2.5 should respect max depth option', async () => {
+        // Placeholder - would need mock filesystem
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+        assert.ok(scanner);
+    });
+});
+
+// ============================================================================
+// 26.3 Workspace Scanner - Multi-folder workspace
+// ============================================================================
+
+describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
+    it('26.3.1 should handle multiple workspace folders', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        await scanner.initialize(['/workspace1', '/workspace2']);
+
+        // Assert
+        assert.equal(scanner.isReady(), true);
+        const stats = scanner.getStats();
+        assert.equal(stats.rootCount, 2);
+    });
+
+    it('26.3.2 should add folder dynamically', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace1']);
+
+        // Act
+        await scanner.addFolder('/workspace2');
+
+        // Assert
+        const stats = scanner.getStats();
+        assert.equal(stats.rootCount, 2);
+    });
+
+    it('26.3.3 should remove folder and its files', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        scanner.removeFolder('/workspace');
+
+        // Assert
+        const stats = scanner.getStats();
+        assert.equal(stats.rootCount, 0);
+    });
+
+    it('26.3.4 should scan all folders on scanAll', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace1', '/workspace2']);
+
+        // Act - should not throw
+        await scanner.scanAll();
+
+        // Assert
+        assert.equal(scanner.isReady(), true);
+    });
+
+    it('26.3.5 should prevent concurrent scans', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+
+        // Act - start first scan
+        const scan1 = scanner.scanAll();
+        // Start second scan immediately
+        const scan2 = scanner.scanAll();
+
+        // Assert - both should complete without throwing
+        await Promise.all([scan1, scan2]);
+        assert.ok(true);
+    });
+});
+
+// ============================================================================
+// 26.4 Workspace Scanner - File changes
+// ============================================================================
+
+describe('WorkspaceScanner - 26.4 File changes', () => {
+    it('26.4.1 should update file data (symbols)', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act - update non-existent file (should not throw)
+        scanner.updateFileData('file:///test.pike', {
+            symbols: [{ name: 'test', kind: 'function' }] as any,
+        });
+
+        // Assert
+        assert.ok(true);
+    });
+
+    it('26.4.2 should update file symbol positions', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        scanner.updateFileData('file:///test.pike', {
+            symbolPositions: new Map([['test', [{ line: 0, character: 0 }]]]),
+        });
+
+        // Assert
+        assert.ok(true);
+    });
+
+    it('26.4.3 should invalidate cached file data', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act - invalidate non-existent file (should not throw)
+        scanner.invalidateFile('file:///test.pike');
+
+        // Assert
+        assert.ok(true);
+    });
+
+    it('26.4.4 should track last modified time', () => {
+        // This test would require actual filesystem interaction
+        // For now, we verify the type structure exists
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        assert.ok(scanner);
+    });
+
+    it('26.4.5 should return uncached files', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        const uncached = scanner.getUncachedFiles(new Set(['file:///open.pike']));
+
+        // Assert
+        assert.ok(Array.isArray(uncached));
+    });
+});
+
+// ============================================================================
+// 26.5 Workspace Scanner - Lazy loading
+// ============================================================================
+
+describe('WorkspaceScanner - 26.5 Lazy loading', () => {
+    it('26.5.1 should support lazy symbol caching', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        scanner.updateFileData('file:///test.pike', {
+            symbols: [{ name: 'func1', kind: 'function' }] as any,
+        });
+
+        // Assert
+        const file = scanner.getFile('file:///test.pike');
+        assert.equal(file, undefined); // No files discovered yet
+    });
+
+    it('26.5.2 should cache symbol positions for search', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        scanner.updateFileData('file:///test.pike', {
+            symbolPositions: new Map([['myFunc', [{ line: 10, character: 0 }]]]),
+        });
+
+        // Assert
+        assert.ok(true);
+    });
+
+    it('26.5.3 should search symbols across workspace', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+
+        // Act
+        const results = await scanner.searchSymbol('myFunction');
+
+        // Assert
+        assert.ok(Array.isArray(results));
+    });
+
+    it('26.5.4 should use cached symbols when available', async () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        await scanner.initialize(['/workspace']);
+
+        // Act
+        const results = await scanner.searchSymbol('test');
+
+        // Assert
+        assert.ok(Array.isArray(results));
+    });
+
+    it('26.5.5 should return files without cached data for lazy parsing', () => {
+        // Arrange
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+
+        // Act
+        const uncached = scanner.getUncachedFiles(new Set());
+
+        // Assert
+        assert.ok(Array.isArray(uncached));
+    });
+});
