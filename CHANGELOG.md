@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.13] - 2026-02-01
+
+### Optimization
+- **Benchmark regression detection** - Raise absolute diff floor to 2ms for fast benchmarks (<10ms average) to properly absorb CI timing jitter while still catching real regressions
+
+### Added
+- **Smart Completion** - E2E tests for VSCode extension smart completion feature
+- **TDD Coverage** - 100% test coverage for smart completion implementation
+
+### Fixed
+- **Benchmark thresholds** - Use proportional thresholds (50% for fast, 10% for medium benchmarks) instead of fixed percentage
+- **TDD workflow** - Enforce test-first development in project guidelines
+- **ESM compatibility** - Handle import.meta.url in bundled CJS code
+
+### Test
+- **TDD Test Suites** - Complete Phases 7-10 with 100% passing tests (550+ tests total)
+- **Navigation Features** - Phase 1 TDD tests for go-to-definition, find references, hierarchy
+- **Include Resolution** - Detect and resolve #include directives by checking source line text
+
 ## [0.1.0-alpha.12] - 2026-01-26
 
 ### Added
