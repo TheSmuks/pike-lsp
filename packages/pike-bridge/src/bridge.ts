@@ -9,6 +9,7 @@ import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 import { PikeProcess } from './process.js';
 import type {
     PikeParseResult,
@@ -123,8 +124,9 @@ export class PikeBridge extends EventEmitter {
 
         // Default analyzer path relative to this file
         // Find the project root by searching upward for pike-scripts directory
-        // Bundled with esbuild --format=cjs, so __filename is available
-        const resolvedDirname = path.dirname(__filename);
+        // ESM mode: use import.meta.url to get the current module's file path
+        const modulePath = fileURLToPath(import.meta.url);
+        const resolvedDirname = path.dirname(modulePath);
 
         // Search upward for the pike-scripts directory (handles both workspace and package layouts)
         let searchPath = resolvedDirname;

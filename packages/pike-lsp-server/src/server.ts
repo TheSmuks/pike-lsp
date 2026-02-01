@@ -19,6 +19,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fsSync from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import { WorkspaceIndex } from './workspace-index.js';
 import { TypeDatabase } from './type-database.js';
@@ -73,8 +74,9 @@ let includePaths: string[] = [];
 // ============================================================================
 
 function findAnalyzerPath(): string | undefined {
-    // Bundled with esbuild --format=cjs, so __filename is available
-    const resolvedDirname = path.dirname(__filename);
+    // ESM mode: use import.meta.url to get the current module's file path
+    const modulePath = fileURLToPath(import.meta.url);
+    const resolvedDirname = path.dirname(modulePath);
 
     const possiblePaths = [
         path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
