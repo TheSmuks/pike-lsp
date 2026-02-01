@@ -64,6 +64,6 @@ inherit MyBaseClass;
 
 		const inherits = collectInherits(result.symbols);
 		expect(inherits.length).toBeGreaterThanOrEqual(1);
-		expect(inherits[0].name).toBe('MyBaseClass');
+		expect(inherits[0]?.name).toBe('MyBaseClass');
 	});
 });

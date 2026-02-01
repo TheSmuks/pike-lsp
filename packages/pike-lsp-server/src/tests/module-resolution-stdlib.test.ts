@@ -35,6 +35,9 @@ int main() {
 		expect(imports.length).toBeGreaterThanOrEqual(1);
 
 		const stdioImport = imports[0];
+		if (!stdioImport) {
+			throw new Error('Expected to find Stdio import');
+		}
 		expect(stdioImport.name).toBe('Stdio');
 		expect(stdioImport.classname).toBe('Stdio');
 	});

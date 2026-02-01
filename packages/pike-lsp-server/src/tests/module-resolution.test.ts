@@ -47,6 +47,9 @@ int main() {
 
 		// The import should have name "." not "\".\""
 		const localImport = imports[0];
+		if (!localImport) {
+			throw new Error('Expected to find local import');
+		}
 		expect(localImport.name).toBe('.');
 		expect(localImport.classname).toBe('.');
 	});

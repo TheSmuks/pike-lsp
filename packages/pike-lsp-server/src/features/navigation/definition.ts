@@ -15,7 +15,7 @@ import type { Services } from '../../services/index.js';
 import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
-import type { ExpressionInfo } from '@pike-lsp/pike-bridge';
+import type { ExpressionInfo, PikeSymbol } from '@pike-lsp/pike-bridge';
 
 /**
  * Register definition handlers.

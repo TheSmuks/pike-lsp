@@ -27,10 +27,6 @@ describe('Navigation - Include and Import Statements', () => {
 	 * This tests the resolve_include bridge method
 	 */
 	it('should resolve #include directive path', async () => {
-		// First, create a test header file
-		const headerPath = '/tmp/test_header.h';
-		const headerContent = '// Test header\nint test_value = 42;';
-
 		// For now, just test that the bridge method exists and doesn't throw
 		// We'll need file system access to fully test this
 		const result = await bridge.resolveInclude('test_header.h', '/tmp/test.pike');
