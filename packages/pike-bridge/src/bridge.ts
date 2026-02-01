@@ -136,21 +136,10 @@ export class PikeBridge extends EventEmitter {
             this.debugLog(`Using provided analyzer path: ${defaultAnalyzerPath}`);
         } else {
             // Search for pike-scripts directory relative to this file
-            // Handle both ESM (import.meta.url) and CJS (__filename) cases
-            let resolvedDirname: string;
-
-            // Check if running in CJS mode (bundled with esbuild)
-            // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
-            if (typeof __filename !== 'undefined') {
-                // @ts-ignore
-                resolvedDirname = path.dirname(__filename);
-                this.debugLog(`Running in CJS mode, __dirname=${resolvedDirname}`);
-            } else {
-                // ESM mode
-                const modulePath = fileURLToPath(import.meta.url);
-                resolvedDirname = path.dirname(modulePath);
-                this.debugLog(`Running in ESM mode, dirname=${resolvedDirname}`);
-            }
+            // ESM mode: use import.meta.url to get the current module's file path
+            const modulePath = fileURLToPath(import.meta.url);
+            const resolvedDirname = path.dirname(modulePath);
+            this.debugLog(`Searching for pike-scripts from: ${resolvedDirname}`);
 
             // Search upward for the pike-scripts directory (handles both workspace and package layouts)
             defaultAnalyzerPath = path.resolve('pike-scripts', 'analyzer.pike'); // fallback
