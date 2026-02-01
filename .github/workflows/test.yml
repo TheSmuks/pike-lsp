@@ -46,7 +46,7 @@ jobs:
         run: cd packages/pike-lsp-server && bun test
 
       - name: Run LSP smoke tests
-        run: cd packages/pike-lsp-server && bun test ./dist/tests/smoke.test.js
+        run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
 
       - name: Run integration tests
         run: cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js
