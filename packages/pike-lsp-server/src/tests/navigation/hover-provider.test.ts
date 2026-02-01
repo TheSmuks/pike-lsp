@@ -92,7 +92,7 @@ describe('Hover Provider', () => {
         it('should show function signature with parameters', () => {
             const symbol = createSymbol({
                 name: 'add',
-                kind: 'function',
+                kind: 'method',
                 type: { kind: 'function', returnType: 'int' },
                 parameters: [
                     { name: 'a', type: 'int' },
@@ -113,7 +113,7 @@ describe('Hover Provider', () => {
         it('should format AutoDoc markup in markdown', () => {
             const symbol = createSymbol({
                 name: 'add',
-                kind: 'function',
+                kind: 'method',
                 documentation: '//! Calculate the sum\n//! @param a: First number\n//! @returns: The result'
             });
 

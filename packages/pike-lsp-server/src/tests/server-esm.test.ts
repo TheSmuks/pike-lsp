@@ -14,7 +14,7 @@ describe('ESM Compatibility', () => {
   it('LSP server does not use CommonJS __filename', async () => {
     // This test checks that the compiled server.js doesn't use __filename
     // which is not available in ESM mode
-    const serverJsPath = join(__dirname, '../server.js');
+    const serverJsPath = join(__dirname, '../../dist/server.js');
     const serverCode = readFileSync(serverJsPath, 'utf-8');
 
     // Before fix: server.js will contain "__filename"
