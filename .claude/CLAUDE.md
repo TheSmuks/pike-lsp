@@ -100,6 +100,61 @@ Tests verify: document symbols, hover, go-to-definition, completion all return d
 | "hover info" fails | Hover handler returning null | Check Pike analysis returns type info |
 | "go to definition" fails | Definition handler broken | Check symbol is indexed first |
 
+## MANDATORY: Test-Driven Development
+
+**All new features and bug fixes MUST follow TDD.** No implementation code without a failing test first.
+
+### Workflow
+
+1. **RED** - Write a failing test that describes the expected behavior
+2. **GREEN** - Write the minimal implementation to make the test pass
+3. **REFACTOR** - Clean up while keeping tests green
+
+### Rules
+
+- **Never skip RED.** Write the test, run it, confirm it fails before writing implementation code.
+- **Never write implementation first** then backfill tests. The test must exist and fail before the fix.
+- **One behavior per test.** Each test should verify a single, well-named behavior.
+- **Run the relevant test suite after each step** to confirm red/green transitions.
+- **Target 80%+ coverage** on changed files.
+
+### Test Commands by Package
+
+```bash
+# pike-lsp-server (unit tests - most features live here)
+cd packages/pike-lsp-server && bun run test
+
+# pike-bridge (IPC layer)
+cd packages/pike-bridge && bun run test
+
+# vscode-pike (E2E / integration - runs headless)
+cd packages/vscode-pike && bun run test:features
+```
+
+### Where to Put Tests
+
+| Package | Test Location | Convention |
+|---------|--------------|------------|
+| pike-lsp-server | `src/tests/<category>/` | `<feature>.test.ts` |
+| pike-lsp-server | colocated with source | `<module>.test.ts` next to `<module>.ts` |
+| pike-bridge | `src/` | `<module>.test.ts` |
+| vscode-pike | `src/test/integration/` | `<feature>.test.ts` |
+
+### Bug Fix TDD
+
+When fixing a bug:
+1. Write a test that reproduces the bug (fails with current code)
+2. Run it - confirm it fails for the right reason
+3. Fix the bug with minimal changes
+4. Run it - confirm it passes
+5. Run the full test suite to check for regressions
+
+### What Does NOT Require TDD
+
+- Documentation changes
+- Configuration/build changes
+- Pure refactoring with existing test coverage (but run tests after)
+
 ## Architecture Overview
 
 ```
