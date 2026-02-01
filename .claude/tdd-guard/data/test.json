@@ -1,0 +1,25 @@
+{
+  "framework": "bun",
+  "tests": [
+    {
+      "name": "adds two numbers",
+      "file": ".claude/tdd-guard/examples/simple.test.ts",
+      "status": "passed",
+      "message": "",
+      "stack": ""
+    },
+    {
+      "name": "subtraction works correctly",
+      "file": ".claude/tdd-guard/examples/simple.test.ts",
+      "status": "passed",
+      "message": "",
+      "stack": ""
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "skipped": 0
+  }
+}
