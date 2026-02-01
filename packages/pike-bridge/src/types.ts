@@ -153,6 +153,8 @@ export interface PikeSymbol {
     inherited?: boolean;
     /** Name of the class/module it is inherited from */
     inheritedFrom?: string;
+    /** Class/module path for import and inherit statements */
+    classname?: string;
 }
 
 export type PikeSymbolKind =

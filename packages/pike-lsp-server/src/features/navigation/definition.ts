@@ -126,11 +126,18 @@ export function registerDefinitionHandlers(
                             }
                         }
 
-                        // Check if this is a #include statement by looking at the symbol name
-                        // #include symbols store the path in classname, and name typically starts with #
-                        const isIncludeDirective = symbol.name?.startsWith('#') ||
-                                                   modulePath.startsWith('"') ||
-                                                   modulePath.startsWith('<');
+                        // Check if this is a #include statement by looking at the actual source code
+                        // The parser strips quotes from the path, so we check the source line directly
+                        const symbolLine = (symbol.position.line ?? 1) - 1;  // Convert to 0-based
+                        const lineText = document.getText({
+                            start: { line: symbolLine, character: 0 },
+                            end: { line: symbolLine + 1, character: 0 }
+                        }).trim();
+                        const isIncludeDirective = lineText.startsWith('#include') ||
+                                                   lineText.startsWith('#if') ||
+                                                   lineText.startsWith('#else') ||
+                                                   lineText.startsWith('#elif') ||
+                                                   lineText.startsWith('#endif');
 
                         if (isIncludeDirective && services.bridge?.bridge) {
                             // Use resolveInclude for #include directives
