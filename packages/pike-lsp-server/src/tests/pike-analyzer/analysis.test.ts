@@ -43,11 +43,17 @@ function createMockCompletion(overrides: {
     label?: string;
     kind?: number;
     detail?: string;
+    insertText?: string;
+    deprecated?: boolean;
+    tags?: number[];
 } = {}): any {
     return {
         label: overrides.label ?? 'test',
         kind: overrides.kind ?? 1,
         detail: overrides.detail ?? 'Test completion',
+        insertText: overrides.insertText,
+        deprecated: overrides.deprecated,
+        tags: overrides.tags,
         ...overrides,
     };
 }
@@ -327,7 +333,7 @@ describe('Phase 8 Task 42.2: Analysis - Completions Context', () => {
 
     it('42.2.5: should provide this_program context completions', async () => {
         // TODO: Implement analysis.complete() for this_program
-        const code = 'class MyClass { int x; void foo() { this->' }
+        const code = 'class MyClass { int x; void foo() { this->';
         const position = { line: 0, character: 38 };
         const result = [
             createMockCompletion({ label: 'x', kind: 5, detail: 'int' }),
@@ -383,7 +389,7 @@ describe('Phase 8 Task 42.2: Analysis - Completions Context', () => {
 
     it('42.2.9: should provide keyword completions', async () => {
         // TODO: Implement analysis.complete() keywords
-        const code = '
+        const code = '';
         const position = { line: 0, character: 0 };
         const result = [
             createMockCompletion({ label: 'if', kind: 14, detail: 'keyword' }),
@@ -396,7 +402,7 @@ describe('Phase 8 Task 42.2: Analysis - Completions Context', () => {
 
     it('42.2.10: should provide snippet completions', async () => {
         // TODO: Implement analysis.complete() snippets
-        const code = 'for
+        const code = 'for';
         const position = { line: 0, character: 3 };
         const result = [
             createMockCompletion({

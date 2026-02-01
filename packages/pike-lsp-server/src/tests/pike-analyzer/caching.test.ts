@@ -499,7 +499,7 @@ describe('Phase 8 Task 43.2: Caching - Compilation Cache', () => {
 
     it('43.2.11: should deserialize cache from disk', async () => {
         // TODO: Implement CompilationCache.deserialize()
-        const data = [
+        const data: [string, any][] = [
             ['test.pike', createMockCompilationEntry({
                 code: 'int x;',
                 result: { symbols: [] },
