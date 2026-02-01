@@ -74,9 +74,20 @@ let includePaths: string[] = [];
 // ============================================================================
 
 function findAnalyzerPath(): string | undefined {
-    // ESM mode: use import.meta.url to get the current module's file path
-    const modulePath = fileURLToPath(import.meta.url);
-    const resolvedDirname = path.dirname(modulePath);
+    // Determine the current module's directory
+    // Handle both ESM (import.meta.url) and CJS (__filename) cases
+    let resolvedDirname: string;
+
+    // Check if running in CJS mode (bundled with esbuild)
+    // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
+    if (typeof __filename !== 'undefined') {
+        // @ts-ignore
+        resolvedDirname = path.dirname(__filename);
+    } else {
+        // ESM mode
+        const modulePath = fileURLToPath(import.meta.url);
+        resolvedDirname = path.dirname(modulePath);
+    }
 
     const possiblePaths = [
         path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
@@ -179,6 +190,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         log(`Using analyzer path from init options: ${initOptions.analyzerPath}`);
     } else if (analyzerPath) {
         bridgeOptions.analyzerPath = analyzerPath;
+        log(`Using analyzer path from findAnalyzerPath: ${analyzerPath}`);
+    } else {
+        log('WARNING: No analyzer path found, Pike bridge will try to auto-detect');
     }
 
     log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);

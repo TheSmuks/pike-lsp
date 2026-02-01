@@ -122,41 +122,62 @@ export class PikeBridge extends EventEmitter {
     constructor(options: PikeBridgeOptions = {}) {
         super();
 
-        // Default analyzer path relative to this file
-        // Find the project root by searching upward for pike-scripts directory
-        // ESM mode: use import.meta.url to get the current module's file path
-        const modulePath = fileURLToPath(import.meta.url);
-        const resolvedDirname = path.dirname(modulePath);
-
-        // Search upward for the pike-scripts directory (handles both workspace and package layouts)
-        let searchPath = resolvedDirname;
-        let defaultAnalyzerPath = path.resolve('pike-scripts', 'analyzer.pike'); // fallback
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (attempts < maxAttempts) {
-            const candidate = path.resolve(searchPath, 'pike-scripts', 'analyzer.pike');
-            if (fs.existsSync(candidate)) {
-                defaultAnalyzerPath = candidate;
-                break;
-            }
-            const parent = path.resolve(searchPath, '..');
-            if (parent === searchPath) {
-                // Reached filesystem root
-                break;
-            }
-            searchPath = parent;
-            attempts++;
-        }
-
         const debug = options.debug ?? false;
         this.debugLog = debug
             ? (message: string) => console.error(`[PikeBridge DEBUG] ${message}`)
             : () => {};
 
+        // Determine analyzer path
+        // If provided in options, use it. Otherwise, search for pike-scripts directory.
+        let defaultAnalyzerPath: string;
+        if (options.analyzerPath) {
+            // Use provided path directly, skip search
+            defaultAnalyzerPath = options.analyzerPath;
+            this.debugLog(`Using provided analyzer path: ${defaultAnalyzerPath}`);
+        } else {
+            // Search for pike-scripts directory relative to this file
+            // Handle both ESM (import.meta.url) and CJS (__filename) cases
+            let resolvedDirname: string;
+
+            // Check if running in CJS mode (bundled with esbuild)
+            // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
+            if (typeof __filename !== 'undefined') {
+                // @ts-ignore
+                resolvedDirname = path.dirname(__filename);
+                this.debugLog(`Running in CJS mode, __dirname=${resolvedDirname}`);
+            } else {
+                // ESM mode
+                const modulePath = fileURLToPath(import.meta.url);
+                resolvedDirname = path.dirname(modulePath);
+                this.debugLog(`Running in ESM mode, dirname=${resolvedDirname}`);
+            }
+
+            // Search upward for the pike-scripts directory (handles both workspace and package layouts)
+            defaultAnalyzerPath = path.resolve('pike-scripts', 'analyzer.pike'); // fallback
+            let searchPath = resolvedDirname;
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            while (attempts < maxAttempts) {
+                const candidate = path.resolve(searchPath, 'pike-scripts', 'analyzer.pike');
+                if (fs.existsSync(candidate)) {
+                    defaultAnalyzerPath = candidate;
+                    this.debugLog(`Found pike-scripts at: ${defaultAnalyzerPath}`);
+                    break;
+                }
+                const parent = path.resolve(searchPath, '..');
+                if (parent === searchPath) {
+                    // Reached filesystem root
+                    break;
+                }
+                searchPath = parent;
+                attempts++;
+            }
+        }
+
         this.options = {
             pikePath: options.pikePath ?? 'pike',
-            analyzerPath: options.analyzerPath ?? defaultAnalyzerPath,
+            analyzerPath: defaultAnalyzerPath,
             timeout: options.timeout ?? BRIDGE_TIMEOUT_DEFAULT,
             debug,
             env: options.env ?? {},
