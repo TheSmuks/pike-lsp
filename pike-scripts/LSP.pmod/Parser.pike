@@ -792,7 +792,20 @@ protected mapping symbol_to_json(object symbol, string|void documentation) {
         // Could add inherits, children later
     } else if (kind == "inherit" || kind == "import") {
         catch {
-            if (symbol->classname) result->classname = symbol->classname;
+            if (symbol->classname) {
+                string c = symbol->classname;
+                if (sizeof(c) >= 2 && c[0] == '"' && c[-1] == '"') c = c[1..sizeof(c)-2];
+                if (sizeof(c) >= 2 && c[0] == '\'' && c[-1] == '\'') c = c[1..sizeof(c)-2];
+                result->classname = c;
+            }
+        };
+        catch {
+            if (symbol->name) {
+                string n = symbol->name;
+                if (sizeof(n) >= 2 && n[0] == '"' && n[-1] == '"') n = n[1..sizeof(n)-2];
+                if (sizeof(n) >= 2 && n[0] == '\'' && n[-1] == '\'') n = n[1..sizeof(n)-2];
+                result->name = n;
+            }
         };
     }
 
