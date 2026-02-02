@@ -88,8 +88,8 @@ export function registerDefinitionHandlers(
             const isOnDefinition = symbolLine === params.position.line;
 
             if (isOnDefinition) {
-                // If this is an import or inherit, navigate to the target module/file
-                if (symbol.kind === 'import' || symbol.kind === 'inherit') {
+                // If this is an import, include, or inherit, navigate to the target module/file
+                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
                     // Use classname if available (usually contains the module path), otherwise name
                     const modulePath = symbol.classname || symbol.name;
                     if (modulePath) {
@@ -450,8 +450,8 @@ function findSymbolAtPosition(
             return symbol;
         }
 
-        // Match against classname for inherits and imports (stripping quotes)
-        if (symbol.kind === "inherit" || symbol.kind === "import") {
+        // Match against classname for inherits, imports, and includes (stripping quotes)
+        if (symbol.kind === "inherit" || symbol.kind === "import" || symbol.kind === "include") {
             const classname = symbol.classname?.replace(/['"]/g, "");
             // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
             if (classname === word || (classname && classname.includes(word))) {

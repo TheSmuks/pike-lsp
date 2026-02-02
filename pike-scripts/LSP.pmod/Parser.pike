@@ -73,7 +73,7 @@ mapping parse_request(mapping params) {
                 symbols += ({
                     ([
                         "name": include_path,
-                        "kind": "import", // Treat #include as import for navigation
+                        "kind": "include", // #include directives have kind='include' to distinguish from imports
                         "modifiers": ({}),
                         "position": ([
                             "file": filename,
@@ -791,6 +791,20 @@ protected mapping symbol_to_json(object symbol, string|void documentation) {
     } else if (kind == "class") {
         // Could add inherits, children later
     } else if (kind == "inherit" || kind == "import") {
+        // RESEARCH NOTE (Feb 2026): Inherit statement handling is fully implemented
+        //
+        // Parser behavior:
+        // - parseDecl() returns Tools.AutoDoc.PikeParser()->Inherit() for inherit statements
+        // - Inherit objects have: name (local alias), classname (full path), position
+        // - get_symbol_kind() line 573 returns "inherit" for these objects
+        // - Main parsing loop (lines 182-239) automatically processes inherits as class members
+        //
+        // Test results show correct extraction:
+        // - "inherit Y;" → {kind:"inherit", name:"Y", classname:"Y"}
+        // - "inherit Z : z_alias;" → {kind:"inherit", name:"z_alias", classname:"Z"}
+        // - "inherit A.B.C;" → {kind:"inherit", name:"C", classname:"A.B.C"}
+        //
+        // No Pike-side changes needed - focus TypeScript efforts on navigation/resolution.
         catch {
             if (symbol->classname) {
                 string c = symbol->classname;

@@ -51,8 +51,8 @@ export class IncludeResolver {
             imports: [],
         };
 
-        const includeSymbols = symbols.filter(s => s.kind === 'import' && s.name?.startsWith('#'));
-        const importSymbols = symbols.filter(s => s.kind === 'import' && !s.name?.startsWith('#'));
+        const includeSymbols = symbols.filter(s => s.kind === 'include');
+        const importSymbols = symbols.filter(s => s.kind === 'import');
 
         // Resolve #include statements
         for (const symbol of includeSymbols) {

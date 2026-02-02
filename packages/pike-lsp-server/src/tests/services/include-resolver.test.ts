@@ -227,7 +227,7 @@ describe('IncludeResolver - 30.2 Module path', () => {
         const logger = createMockLogger();
         const resolver = new IncludeResolver(bridge, logger);
         const symbols = [
-            { name: '#include', kind: 'import' as const, classname: '"existing.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"existing.h"' },
             { name: 'Stdio', kind: 'import' as const },
         ] as PikeSymbol[];
 
@@ -278,7 +278,7 @@ describe('IncludeResolver - 30.3 Not found', () => {
         const logger = createMockLogger();
         const resolver = new IncludeResolver(bridge, logger);
         const symbols = [
-            { name: '#include', kind: 'import' as const, classname: '"missing.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"missing.h"' },
         ] as PikeSymbol[];
 
         // Act - should not throw
@@ -325,8 +325,8 @@ describe('IncludeResolver - 30.3 Not found', () => {
         const logger = createMockLogger();
         const resolver = new IncludeResolver(bridge, logger);
         const symbols = [
-            { name: '#include', kind: 'import' as const, classname: '"missing.h"' },
-            { name: '#include', kind: 'import' as const, classname: '"existing.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"missing.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"existing.h"' },
         ] as PikeSymbol[];
 
         // Act
@@ -378,8 +378,8 @@ describe('IncludeResolver - 30.4 Nested includes', () => {
         const logger = createMockLogger();
         const resolver = new IncludeResolver(bridge, logger);
         const symbols = [
-            { name: '#include', kind: 'import' as const, classname: '"parent.h"' },
-            { name: '#include', kind: 'import' as const, classname: '"child.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"parent.h"' },
+            { name: '#include', kind: 'include' as const, classname: '"child.h"' },
         ] as PikeSymbol[];
 
         // Act

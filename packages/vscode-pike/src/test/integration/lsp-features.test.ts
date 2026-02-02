@@ -1594,4 +1594,139 @@ suite('LSP Feature E2E Tests', () => {
             assert.ok(hovers !== undefined, `Hover should not crash at position ${pos.line}:${pos.character}`);
         }
     });
+
+    // =========================================================================
+    // CATEGORY: Inherit Navigation
+    // Tests for go-to-definition on inherit statements
+    // =========================================================================
+
+    /**
+     * Test: Go-to-definition on inherit statement navigates to parent class
+     * Category: Happy Path
+     *
+     * Arrange: Find "inherit TestClass" statement in ChildClass
+     * Act: Execute definition provider on "TestClass" in inherit statement
+     * Assert: Returns location of TestClass definition
+     */
+    test('Go-to-definition on inherit statement navigates to parent class', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+
+        // Find "inherit TestClass" at line 50
+        const inheritMatch = text.match(/inherit\s+TestClass/);
+        assert.ok(inheritMatch, 'Should find "inherit TestClass" statement in test.pike');
+
+        // Calculate position to be on "TestClass" part (after "inherit ")
+        const inheritOffset = text.indexOf(inheritMatch![0]) + 'inherit '.length;
+        const inheritPosition = document.positionAt(inheritOffset);
+
+        // Execute definition provider
+        const locations = await vscode.commands.executeCommand<
+            vscode.Location | vscode.Location[] | vscode.LocationLink[]
+        >(
+            'vscode.executeDefinitionProvider',
+            testDocumentUri,
+            inheritPosition
+        );
+
+        // Verify response is not null
+        assert.ok(locations, 'Should return definition location for inherit statement (not null)');
+
+        // Normalize to array
+        let locationArray: vscode.Location[];
+        if (Array.isArray(locations)) {
+            if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
+                locationArray = (locations as vscode.LocationLink[]).map(ll =>
+                    new vscode.Location(ll.targetUri, ll.targetRange)
+                );
+            } else {
+                locationArray = locations as vscode.Location[];
+            }
+        } else {
+            locationArray = [locations as vscode.Location];
+        }
+
+        // Verify we have at least one location
+        assert.ok(locationArray.length > 0, 'Should have at least one definition location for inherit');
+
+        // Verify first location has required structure
+        const firstLocation = locationArray[0]!;
+        assert.ok(firstLocation.uri, 'Inherit location should have URI');
+        assert.ok(firstLocation.range, 'Inherit location should have range');
+
+        // The location should point to TestClass definition (around line 26)
+        const classDefMatch = text.match(/^class TestClass\s*{/m);
+        if (classDefMatch) {
+            const classDefLine = text.indexOf(classDefMatch[0]);
+            const expectedLine = document.positionAt(classDefLine).line;
+
+            // Allow some flexibility in exact line, but should be close
+            const actualLine = firstLocation.range.start.line;
+            assert.ok(
+                Math.abs(actualLine - expectedLine) < 5,
+                `Inherit definition should navigate near TestClass definition (expected around line ${expectedLine}, got ${actualLine})`
+            );
+        }
+    });
+
+    /**
+     * Test: Inherit statement appears in document symbols
+     * Category: Happy Path
+     *
+     * Arrange: Open test.pike with ChildClass containing inherit
+     * Act: Execute document symbols provider
+     * Assert: ChildClass exists and inherits are parsed (even if not shown as children)
+     *
+     * Note: Inherit symbols are extracted by the Pike parser with kind="inherit"
+     * but may not appear in the LSP symbol tree children. This test verifies
+     * that go-to-definition works (tested above) rather than requiring visual
+     * representation in the outline view.
+     */
+    test('Inherit statement is navigable via go-to-definition', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+
+        // Verify inherit statement exists in source
+        const inheritMatch = text.match(/inherit\s+TestClass/);
+        assert.ok(inheritMatch, 'Source code should contain "inherit TestClass"');
+
+        // Verify ChildClass exists in symbols
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            testDocumentUri
+        );
+
+        assert.ok(symbols, 'Should return symbols');
+
+        const findSymbol = (syms: vscode.DocumentSymbol[]): vscode.DocumentSymbol | null => {
+            for (const s of syms) {
+                if (s.name === 'ChildClass') return s;
+                if (s.children) {
+                    const found = findSymbol(s.children);
+                    if (found) return found;
+                }
+            }
+            return null;
+        };
+
+        const childClass = findSymbol(symbols);
+        assert.ok(childClass, 'ChildClass should appear in document symbols');
+
+        // The key test: inherit navigation works (verified by previous test)
+        // Inherit symbols are in the parser output but may not be LSP document symbols
+        const inheritOffset = text.indexOf(inheritMatch![0]) + 'inherit '.length;
+        const inheritPosition = document.positionAt(inheritOffset);
+
+        const locations = await vscode.commands.executeCommand<
+            vscode.Location | vscode.Location[] | vscode.LocationLink[]
+        >(
+            'vscode.executeDefinitionProvider',
+            testDocumentUri,
+            inheritPosition
+        );
+
+        assert.ok(locations, 'Go-to-definition should work on inherit statement');
+    });
 });

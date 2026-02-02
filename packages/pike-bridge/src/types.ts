@@ -167,6 +167,7 @@ export type PikeSymbolKind =
     | 'enum_constant'
     | 'inherit'
     | 'import'
+    | 'include'
     | 'module';
 
 /**
