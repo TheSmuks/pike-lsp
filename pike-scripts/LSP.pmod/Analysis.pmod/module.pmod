@@ -807,6 +807,14 @@ class Analysis {
             if (!compiled_prog) {
                 object compile_timer2 = System.Timer();
 
+                // Create CompilationContext for tracking imports across compilations
+                mixed ContextClass = master()->resolv("LSP.CompilationCache.CompilationContext");
+                object compilation_ctx = 0;
+
+                if (ContextClass && (programp(ContextClass) || objectp(ContextClass))) {
+                    compilation_ctx = ContextClass();
+                }
+
                 // Use DependencyTrackingCompiler to capture dependencies and diagnostics
                 mixed CompilerClass = master()->resolv("LSP.CompilationCache.DependencyTrackingCompiler");
                 mixed compile_err;
@@ -814,12 +822,24 @@ class Analysis {
                 if (CompilerClass && programp(CompilerClass)) {
                     // Use dependency tracking compiler which captures diagnostics internally
                     object compiler = CompilerClass();
+
+                    // Set compilation context if available
+                    if (compilation_ctx) {
+                        compiler->set_compilation_context(compilation_ctx);
+                    }
+
                     compile_err = catch {
                         compiled_prog = compiler->compile_with_tracking(code, filename);
                     };
 
                     // Get captured diagnostics (syntax errors) from compiler
                     compilation_errors = compiler->get_diagnostics();
+
+                    // Accumulate imports into context after successful compilation
+                    if (!compile_err && compilation_ctx) {
+                        // Imports are automatically added to context by compile_with_tracking
+                        // via extract_dependencies()
+                    }
 
                     if (!compile_err && compiled_prog && cache && cache_key) {
                         // Get captured dependencies and store in cache

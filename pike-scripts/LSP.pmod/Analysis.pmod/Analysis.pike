@@ -200,16 +200,36 @@ class Analysis {
             }
 
             if (!compiled_prog) {
+                // Create CompilationContext for tracking imports across compilations
+                mixed ContextClass = master()->resolv("LSP.CompilationCache.CompilationContext");
+                object compilation_ctx = 0;
+
+                if (ContextClass && (programp(ContextClass) || objectp(ContextClass))) {
+                    compilation_ctx = ContextClass();
+                }
+
                 // Use DependencyTrackingCompiler
                 mixed CompilerClass = master()->resolv("LSP.CompilationCache.DependencyTrackingCompiler");
                 mixed compile_err;
 
                 if (CompilerClass && programp(CompilerClass)) {
                     object compiler = CompilerClass();
+
+                    // Set compilation context if available
+                    if (compilation_ctx) {
+                        compiler->set_compilation_context(compilation_ctx);
+                    }
+
                     compile_err = catch {
                         compiled_prog = compiler->compile_with_tracking(code, filename);
                     };
                     compilation_errors = compiler->get_diagnostics();
+
+                    // Accumulate imports into context after successful compilation
+                    if (!compile_err && compilation_ctx) {
+                        // Imports are automatically added to context by compile_with_tracking
+                        // via extract_dependencies()
+                    }
 
                     if (!compile_err && compiled_prog && cache && cache_key) {
                         array(string) deps = compiler->get_dependencies();

@@ -226,6 +226,68 @@ void invalidate_transitive(string changed_path) {
 }
 
 // =========================================================================
+// CompilationContext Class
+// =========================================================================
+
+//! Context for tracking import state across multiple compilations
+//!
+//! This class maintains a set of discovered imports that can be
+//! shared across compilations. When File A with "import X" is compiled
+//! before File B with "inherit X", the import context ensures X is
+//! resolvable during File B's compilation.
+//!
+//! Usage:
+//! @code
+//! object ctx = CompilationContext();
+//! ctx->add_import("Module.Submodule");
+//! array(string) imports = ctx->get_imports();
+//! @endcode
+class CompilationContext {
+    //! Set of discovered imports from compiled files
+    private multiset(string) _imports = (<>);
+
+    //! Add an import to the context
+    //! @param import_path Module path being imported (e.g., "Module.Submodule")
+    void add_import(string import_path) {
+        if (import_path && sizeof(import_path) > 0) {
+            _imports[import_path] = 1;
+        }
+    }
+
+    //! Add multiple imports to the context
+    //! @param import_paths Array of module paths being imported
+    void add_imports(array(string) import_paths) {
+        foreach (import_paths, string path) {
+            add_import(path);
+        }
+    }
+
+    //! Get all discovered imports
+    //! @returns Array of import paths (as an array, not multiset)
+    array(string) get_imports() {
+        return indices(_imports);
+    }
+
+    //! Check if an import is in the context
+    //! @param import_path Module path to check
+    //! @returns 1 if imported, 0 otherwise
+    int has_import(string import_path) {
+        return _imports[import_path] ? 1 : 0;
+    }
+
+    //! Clear all imports from the context
+    void clear() {
+        _imports = (<>);
+    }
+
+    //! Get the number of tracked imports
+    //! @returns Count of imports in context
+    int size() {
+        return sizeof(_imports);
+    }
+}
+
+// =========================================================================
 // DependencyTrackingCompiler Class
 // =========================================================================
 
@@ -242,6 +304,7 @@ class DependencyTrackingCompiler {
     private array(string) _dependencies = ({});
     private array(mapping) _diagnostics = ({});
     private string _current_file;
+    private object _compilation_context;
 
     //! Get captured dependencies after compilation
     //! @returns Array of dependency file paths
@@ -253,6 +316,12 @@ class DependencyTrackingCompiler {
     //! @returns Array of diagnostic mappings with message, severity, position
     array(mapping) get_diagnostics() {
         return _diagnostics;
+    }
+
+    //! Set the compilation context for import tracking
+    //! @param ctx CompilationContext instance to use
+    void set_compilation_context(object ctx) {
+        _compilation_context = ctx;
     }
 
     //! Set the file being compiled (for context in hooks)
@@ -270,6 +339,7 @@ class DependencyTrackingCompiler {
     //! @returns Array of discovered dependency paths
     private array(string) extract_dependencies(string code, string current_file) {
         array(string) deps = ({});
+        array(string) imports = ({});
         array(string) lines = code / "\n";
 
         foreach (lines, string line) {
@@ -320,9 +390,15 @@ class DependencyTrackingCompiler {
                 rest = String.trim_all_whites(rest);
 
                 if (sizeof(rest) > 0) {
+                    imports += ({rest});
                     deps += ({rest});
                 }
             }
+        }
+
+        // Add imports to compilation context if available
+        if (_compilation_context && sizeof(imports) > 0) {
+            _compilation_context->add_imports(imports);
         }
 
         return deps;
