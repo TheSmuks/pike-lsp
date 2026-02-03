@@ -207,16 +207,14 @@ export function registerDefinitionHandlers(
                             }
                         }
 
-                        // For inherit statements, try resolving with prior import paths
+                        // For inherit statements, try resolving with ALL import paths (order-independent)
                         if (symbol.kind === 'inherit') {
-                            const symbolLine = symbol.position.line ?? 1;
-                            const priorImports = cached.symbols.filter((s: PikeSymbol) =>
-                                s.kind === 'import' &&
-                                s.position &&
-                                (s.position.line ?? 1) < symbolLine
+                            // Get ALL imports in the file, not just prior ones (fixes Gap 2)
+                            const allImports = cached.symbols.filter((s: PikeSymbol) =>
+                                s.kind === 'import'
                             );
 
-                            for (const importSymbol of priorImports) {
+                            for (const importSymbol of allImports) {
                                 const importPath = importSymbol.classname || importSymbol.name;
                                 if (importPath && importPath !== modulePath) {
                                     const qualifiedPath = `${importPath}.${modulePath}`;

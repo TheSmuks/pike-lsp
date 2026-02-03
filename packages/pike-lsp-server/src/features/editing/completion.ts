@@ -269,30 +269,47 @@ export function registerCompletionHandlers(
                 }
             }
 
-            // Add symbols from imported modules (via stdlibIndex)
-            if (stdlibIndex && cached.dependencies?.imports) {
+            // Add symbols from imported modules (stdlib and workspace)
+            if (cached.dependencies?.imports) {
                 for (const imp of cached.dependencies.imports) {
-                    if (!imp.isStdlib) continue;
+                    // Try stdlib index first
+                    if (imp.isStdlib && stdlibIndex) {
+                        try {
+                            const moduleInfo = await stdlibIndex.getModule(imp.modulePath);
+                            if (moduleInfo?.symbols) {
+                                for (const [name, symbol] of moduleInfo.symbols) {
+                                    // Skip if already suggested
+                                    if (cached.symbols.some(s => s.name === name)) {
+                                        continue;
+                                    }
 
-                    try {
-                        const moduleInfo = await stdlibIndex.getModule(imp.modulePath);
-                        if (moduleInfo?.symbols) {
-                            for (const [name, symbol] of moduleInfo.symbols) {
-                                // Skip if already suggested
-                                if (cached.symbols.some(s => s.name === name)) {
-                                    continue;
-                                }
-
-                                if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                                    completions.push(buildCompletionItem(name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
+                                    if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                        completions.push(buildCompletionItem(name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
+                                    }
                                 }
                             }
+                        } catch (err) {
+                            logger.debug('Failed to get stdlib import symbols', {
+                                modulePath: imp.modulePath,
+                                error: err instanceof Error ? err.message : String(err),
+                            });
                         }
-                    } catch (err) {
-                        logger.debug('Failed to get import symbols', {
-                            modulePath: imp.modulePath,
-                            error: err instanceof Error ? err.message : String(err),
-                        });
+                    }
+
+                    // For workspace imports, use cached symbols if available
+                    if (!imp.isStdlib && imp.symbols) {
+                        for (const symbol of imp.symbols) {
+                            if (!symbol.name) continue;
+
+                            // Skip if already suggested
+                            if (cached.symbols.some(s => s.name === symbol.name)) {
+                                continue;
+                            }
+
+                            if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                completions.push(buildCompletionItem(symbol.name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
+                            }
+                        }
                     }
                 }
             }

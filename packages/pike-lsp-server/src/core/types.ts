@@ -39,13 +39,19 @@ export interface ResolvedInclude {
 }
 
 /**
- * Resolved import dependency.
+ * Resolved import dependency with cached symbols.
  */
 export interface ResolvedImport {
     /** Module path (e.g., 'Stdio' or 'Parser.Pike') */
     modulePath: string;
     /** Whether this is a stdlib module (vs local module) */
     isStdlib: boolean;
+    /** Symbols from the imported module (cached for completion) */
+    symbols?: import('@pike-lsp/pike-bridge').PikeSymbol[];
+    /** Last accessed timestamp for cache invalidation */
+    lastAccessed?: number;
+    /** Resolved file path (for workspace modules) */
+    resolvedPath?: string;
 }
 
 /**
