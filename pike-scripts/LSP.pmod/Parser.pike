@@ -30,6 +30,9 @@ mapping parse_request(mapping params) {
 
     // Extract autodoc comments from original code before preprocessing
     // Maps line number -> documentation string
+    // Use consolidated function from Intelligence.module
+    program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+    function extract_autodoc_comments = IntelligenceModule->extract_autodoc_comments;
     mapping(int:string) autodoc_by_line = extract_autodoc_comments(code);
 
     // Preprocess code: remove preprocessor directives that confuse PikeParser
@@ -529,37 +532,6 @@ mapping batch_parse_request(mapping params) {
     ]);
 }
 
-// Protected helper methods
-protected mapping(int:string) extract_autodoc_comments(string code) {
-    mapping(int:string) result = ([]);
-    array(string) lines = code / "\n";
-    array(string) current_doc = ({});
-    int doc_start_line = 0;
-
-    for (int i = 0; i < sizeof(lines); i++) {
-        string line = LSP.Compat.trim_whites(lines[i]);
-
-        if (has_prefix(line, "//!")) {
-            if (sizeof(current_doc) == 0) {
-                doc_start_line = i + 1;
-            }
-            string doc_text = "";
-            if (sizeof(line) > 3) {
-                doc_text = line[3..];
-                if (sizeof(doc_text) > 0 && doc_text[0] == ' ') {
-                    doc_text = doc_text[1..];
-                }
-            }
-            current_doc += ({doc_text});
-        } else if (sizeof(current_doc) > 0) {
-            result[i + 1] = current_doc * "\n";
-            current_doc = ({});
-        }
-    }
-
-    return result;
-}
-
 protected string get_symbol_kind(object symbol) {
     string repr = sprintf("%O", symbol);
 
@@ -586,167 +558,29 @@ protected string get_symbol_kind(object symbol) {
 //! Extracts @param, @returns, @throws, @note, @seealso, @deprecated tags
 //! @param doc Raw autodoc string (with //! prefixes stripped)
 //! @returns Mapping with text, params, returns, throws, notes, seealso, deprecated
+//! @deprecated Use TypeAnalysis.parse_autodoc() instead. This function delegates to
+//!             TypeAnalysis which provides superior parsing with inline markup,
+//!             structured types, and native Pike parser integration.
 protected mapping simple_parse_autodoc(string doc) {
     if (!doc || sizeof(doc) == 0) return ([]);
 
-    mapping result = ([
-        "text": "",
-        "params": ([]),
-        // paramOrder will be set at the end to avoid O(n²) array copying
-        "returns": "",
-        "throws": "",
-        "notes": ({}),
-        "examples": ({}),
-        "bugs": ({}),
-        "seealso": ({}),
-        "deprecated": ""
-    ]);
+    // Delegate to TypeAnalysis.parse_autodoc() for superior parsing
+    program type_analysis_program = master()->resolv("LSP.Intelligence.TypeAnalysis");
+    if (type_analysis_program) {
+        mixed err = catch {
+            object type_analyzer = type_analysis_program(0);
+            return type_analyzer->parse_autodoc(doc);
+        };
 
-    array(string) lines = doc / "\n";
-    string current_section = "text";
-    string current_param = "";
-    array(string) text_buffer = ({});
-    array(string) param_order = ({});  // Local array for tracking param order
-    int ignoring = 0;
-
-    // Macro for flushing buffer (Pike doesn't support local functions easily here)
-    #define FLUSH_BUFFER() \
-        if (sizeof(text_buffer) > 0) { \
-            string content = text_buffer * "\n"; \
-            if (current_section == "text") result->text = content; \
-            else if (current_section == "param" && sizeof(current_param) > 0) result->params[current_param] = content; \
-            else if (current_section == "returns") result->returns = content; \
-            else if (current_section == "throws") result->throws = content; \
-            else if (current_section == "example") result->examples += ({ content }); \
-            else if (current_section == "bugs") result->bugs += ({ content }); \
-            else if (current_section == "note") { \
-                if (sizeof(result->notes) > 0) { \
-                    if (result->notes[-1] == "") result->notes[-1] = content; \
-                    else result->notes[-1] += "\n" + content; \
-                } else result->notes += ({ content }); \
-            } \
-            else if (current_section == "seealso") { \
-                array(string) parts = replace(content, "\n", ",") / ","; \
-                foreach(parts, string part) { \
-                    part = LSP.Compat.trim_whites(part); \
-                    if (sizeof(part) > 0) result->seealso += ({ part }); \
-                } \
-            } \
-            else if (current_section == "deprecated") { \
-                if (result->deprecated == "" || result->deprecated == "Deprecated") result->deprecated = content; \
-                else result->deprecated += "\n" + content; \
-            } \
-            text_buffer = ({}); \
-        }
-
-    foreach(lines, string line) {
-        string trimmed = LSP.Compat.trim_whites(line);
-
-        // Handle @ignore blocks
-        if (has_prefix(trimmed, "@ignore")) {
-            FLUSH_BUFFER(); // Flush anything before the ignore block
-            ignoring = 1;
-            continue;
-        }
-        if (has_prefix(trimmed, "@endignore")) {
-            ignoring = 0;
-            continue;
-        }
-        if (ignoring) continue;
-
-        // Check for @tags
-        if (has_prefix(trimmed, "@param")) {
-            FLUSH_BUFFER();
-
-            // Parse @param name description
-            // Handle both "@param name" and "@param name description"
-            string rest = trimmed[6..];
-            if (sizeof(rest) > 0 && rest[0] == ' ') rest = LSP.Compat.trim_whites(rest);
-
-            int space_pos = search(rest, " ");
-            if (space_pos >= 0) {
-                current_param = rest[..space_pos-1];
-                text_buffer = ({ LSP.Compat.trim_whites(rest[space_pos+1..]) });
-            } else {
-                current_param = rest;
-            }
-            current_section = "param";
-            result->params[current_param] = "";
-            param_order += ({ current_param });  // Track order in local array
-
-        } else if (has_prefix(trimmed, "@returns") || has_prefix(trimmed, "@return")) {
-            FLUSH_BUFFER();
-
-            string rest = "";
-            if (has_prefix(trimmed, "@returns")) rest = trimmed[8..];
-            else rest = trimmed[7..];
-
-            rest = LSP.Compat.trim_whites(rest);
-            if (sizeof(rest) > 0) text_buffer = ({ rest });
-            current_section = "returns";
-
-        } else if (has_prefix(trimmed, "@throws") || has_prefix(trimmed, "@exception")) {
-            FLUSH_BUFFER();
-
-            string rest = "";
-            if (has_prefix(trimmed, "@throws")) rest = trimmed[7..];
-            else rest = trimmed[10..];
-
-            rest = LSP.Compat.trim_whites(rest);
-            if (sizeof(rest) > 0) text_buffer = ({ rest });
-            current_section = "throws";
-
-        } else if (has_prefix(trimmed, "@example")) {
-            FLUSH_BUFFER();
-            current_section = "example";
-
-        } else if (has_prefix(trimmed, "@bugs") || has_prefix(trimmed, "@bug")) {
-            FLUSH_BUFFER();
-            current_section = "bugs";
-
-        } else if (has_prefix(trimmed, "@note")) {
-            FLUSH_BUFFER();
-            string note_text = sizeof(trimmed) > 5 ? LSP.Compat.trim_whites(trimmed[5..]) : "";
-            result->notes += ({ note_text });
-            current_section = "note";
-
-        } else if (has_prefix(trimmed, "@seealso")) {
-            FLUSH_BUFFER();
-            string ref = LSP.Compat.trim_whites(trimmed[8..]);
-            if (sizeof(ref) > 0) {
-                array(string) parts = ref / ",";
-                foreach(parts, string part) {
-                    part = LSP.Compat.trim_whites(part);
-                    if (sizeof(part) > 0) result->seealso += ({ part });
-                }
-            }
-            current_section = "seealso";
-
-        } else if (has_prefix(trimmed, "@deprecated")) {
-            FLUSH_BUFFER();
-            result->deprecated = sizeof(trimmed) > 11 ? LSP.Compat.trim_whites(trimmed[11..]) : "Deprecated";
-            current_section = "deprecated";
-
-        } else if (sizeof(trimmed) > 0) {
-            // Regular text line - use full line to preserve indentation for examples
-            // But strip first space if it exists (standard autodoc)
-            string line_content = line;
-            if (sizeof(line_content) > 0 && line_content[0] == ' ') line_content = line_content[1..];
-            text_buffer += ({ line_content });
-        } else {
-            // Empty line
-            text_buffer += ({ "" });
+        // Log error but continue to minimal fallback
+        if (err) {
+            // Fallback: return basic text only
+            return ([ "text": doc ]);
         }
     }
 
-    FLUSH_BUFFER();
-
-    // Set paramOrder once at the end (single allocation, not n times)
-    if (sizeof(param_order) > 0) {
-        result->paramOrder = param_order;
-    }
-
-    return result;
+    // Absolute fallback if TypeAnalysis unavailable (should not happen in normal operation)
+    return ([ "text": doc ]);
 }
 
 protected mapping symbol_to_json(object symbol, string|void documentation) {
@@ -759,8 +593,16 @@ protected mapping symbol_to_json(object symbol, string|void documentation) {
     ]);
 
     if (documentation && sizeof(documentation) > 0) {
-        // Parse autodoc into structured format for TypeScript consumption
-        result->documentation = simple_parse_autodoc(documentation);
+        // Use TypeAnalysis.parse_autodoc() for superior parsing
+        // (supports inline markup, structured types, paramOrder, @ignore/@endignore)
+        program type_analysis_program = master()->resolv("LSP.Intelligence.TypeAnalysis");
+        if (type_analysis_program) {
+            object type_analyzer = type_analysis_program(0);
+            result->documentation = type_analyzer->parse_autodoc(documentation);
+        } else {
+            // Fallback to simple parser if TypeAnalysis not available
+            result->documentation = simple_parse_autodoc(documentation);
+        }
     }
 
     catch {

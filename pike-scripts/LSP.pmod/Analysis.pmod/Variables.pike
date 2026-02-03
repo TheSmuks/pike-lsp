@@ -112,22 +112,6 @@ mapping handle_find_occurrences(mapping params) {
 
 //! Helper to get character position of a token on a line
 //!
-//! Converts token line number to character position by finding the token
-//! text within the source line.
-//!
-//! @param lines Array of code lines
-//! @param line_no Line number (1-indexed)
-//! @param token_text The token text to search for
-//! @returns Character position (0-indexed) or 0 if not found
-protected int get_char_position(array(string) lines, int line_no, string token_text) {
-    if (line_no > 0 && line_no <= sizeof(lines)) {
-        string line = lines[line_no - 1];
-        int pos = search(line, token_text);
-        if (pos >= 0) return pos;
-    }
-    return 0;
-}
-
 //! Find the nth occurrence of a token in a line (1-indexed)
 //!
 //! @param lines Array of code lines

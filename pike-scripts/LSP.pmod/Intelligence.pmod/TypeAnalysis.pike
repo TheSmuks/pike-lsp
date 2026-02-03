@@ -175,6 +175,8 @@ protected mapping parse_autodoc_impl(string doc) {
         array(mapping) group_stack = ({}); // Stack for nested groups
         array(mapping) group_items = ({});  // Items being collected in current group
         string group_owner = "";           // Which param/section owns the current group
+        array(string) param_order = ({});  // Track parameter order for signature display
+        int ignoring = 0;                  // Track @ignore/@endignore state
 
         // Process all tokens
         foreach (tokens, object tok) {
@@ -182,6 +184,11 @@ protected mapping parse_autodoc_impl(string doc) {
             string keyword = tok->keyword || "";
             string arg = tok->arg || "";
             string text = tok->text || "";
+
+            // Skip processing while ignoring (except for @endignore which stops ignoring)
+            if (ignoring && !(tok_type == 6 && keyword == "endignore")) {
+                continue;
+            }
 
             if (tok_type == 8) {
                 // TEXTTOKEN - Regular text content
@@ -233,6 +240,8 @@ protected mapping parse_autodoc_impl(string doc) {
                         current_section = "param";
                         if (!result->params[current_param]) {
                             result->params[current_param] = "";
+                            // Track parameter order for proper signature display
+                            param_order += ({ current_param });
                         }
                         break;
 
@@ -396,6 +405,71 @@ protected mapping parse_autodoc_impl(string doc) {
                         break;
                 }
 
+            } else if (tok_type == 7) {
+                // ENDCONTAINER - @ignore directive
+                if (keyword == "ignore") {
+                    ignoring = 1;
+                }
+                // Other ENDCONTAINER types (like @return) are handled above
+
+            } else if (tok_type == 6) {
+                // ENDGROUP - End of block OR @endignore directive
+                if (keyword == "endignore") {
+                    ignoring = 0;
+                } else if (!ignoring) {
+                    // Only process group end if we're not ignoring
+                    save_text_buffer(result, current_section, current_param, text_buffer);
+                    text_buffer = ({});
+
+                    // Store the collected group in the appropriate location
+                    if (sizeof(group_items) > 0) {
+                        string group_text = format_group_as_text(current_group, group_items);
+
+                        if (has_prefix(group_owner, "param:")) {
+                            string param_name = group_owner[sizeof("param:")..];
+                            if (!result->params[param_name]) {
+                                result->params[param_name] = "";
+                            }
+                            if (sizeof(result->params[param_name]) > 0) {
+                                result->params[param_name] += "\n\n" + group_text;
+                            } else {
+                                result->params[param_name] = group_text;
+                            }
+                        } else if (group_owner == "returns") {
+                            if (sizeof(result->returns) > 0) {
+                                result->returns += "\n\n" + group_text;
+                            } else {
+                                result->returns = group_text;
+                            }
+                        } else if (group_owner == "throws") {
+                            if (sizeof(result->throws) > 0) {
+                                result->throws += "\n\n" + group_text;
+                            } else {
+                                result->throws = group_text;
+                            }
+                        } else if (group_owner == "note") {
+                            result->notes += ({ group_text });
+                        }
+                    }
+
+                    // Pop context from stack
+                    if (sizeof(group_stack) > 0) {
+                        mapping context = group_stack[-1];
+                        group_stack = group_stack[..sizeof(group_stack)-2];
+                        current_section = context->section;
+                        current_param = context->param;
+                        current_group = context->group;
+                        group_owner = context->owner;
+                        group_items = context->items;
+                    } else {
+                        current_section = "text";
+                        current_param = "";
+                        current_group = "";
+                        group_owner = "";
+                        group_items = ({});
+                    }
+                }
+
             } else if (tok_type == 4) {
                 // BEGINGROUP - Start of block (@mapping, @array, @dl, etc.)
                 save_text_buffer(result, current_section, current_param, text_buffer);
@@ -426,64 +500,16 @@ protected mapping parse_autodoc_impl(string doc) {
                 current_group = keyword;
                 current_section = keyword;
                 group_items = ({});
-
-            } else if (tok_type == 6) {
-                // ENDGROUP - End of block
-                save_text_buffer(result, current_section, current_param, text_buffer);
-                text_buffer = ({});
-
-                // Store the collected group in the appropriate location
-                if (sizeof(group_items) > 0) {
-                    string group_text = format_group_as_text(current_group, group_items);
-
-                    if (has_prefix(group_owner, "param:")) {
-                        string param_name = group_owner[sizeof("param:")..];
-                        if (!result->params[param_name]) {
-                            result->params[param_name] = "";
-                        }
-                        if (sizeof(result->params[param_name]) > 0) {
-                            result->params[param_name] += "\n\n" + group_text;
-                        } else {
-                            result->params[param_name] = group_text;
-                        }
-                    } else if (group_owner == "returns") {
-                        if (sizeof(result->returns) > 0) {
-                            result->returns += "\n\n" + group_text;
-                        } else {
-                            result->returns = group_text;
-                        }
-                    } else if (group_owner == "throws") {
-                        if (sizeof(result->throws) > 0) {
-                            result->throws += "\n\n" + group_text;
-                        } else {
-                            result->throws = group_text;
-                        }
-                    } else if (group_owner == "note") {
-                        result->notes += ({ group_text });
-                    }
-                }
-
-                // Pop context from stack
-                if (sizeof(group_stack) > 0) {
-                    mapping context = group_stack[-1];
-                    group_stack = group_stack[..sizeof(group_stack)-2];
-                    current_section = context->section;
-                    current_param = context->param;
-                    current_group = context->group;
-                    group_owner = context->owner;
-                    group_items = context->items;
-                } else {
-                    current_section = "text";
-                    current_param = "";
-                    current_group = "";
-                    group_owner = "";
-                    group_items = ({});
-                }
             }
         }
 
         // Save any remaining text in buffer
         save_text_buffer(result, current_section, current_param, text_buffer);
+
+        // Add paramOrder if we have parameters
+        if (sizeof(param_order) > 0) {
+            result->paramOrder = param_order;
+        }
     }
 
     // Clean up empty fields

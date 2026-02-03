@@ -266,7 +266,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
     function find_prev_meaningful_token_fn = module_program->find_prev_meaningful_token;
     function save_variable_states_fn = module_program->save_variable_states;
     function restore_variable_states_fn = module_program->restore_variable_states;
-    function get_char_pos_in_line_fn = module_program->get_char_pos_in_line;
+    function get_char_position_fn = module_program->get_char_position;
 
     int i = start_idx;
 
@@ -377,7 +377,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                     "type": var_type,
                     "state": has_initializer ? STATE_INITIALIZED : STATE_UNINITIALIZED,
                     "decl_line": line,
-                    "decl_char": get_char_pos_in_line_fn(lines, line, var_name),
+                    "decl_char": get_char_position_fn(lines, line, var_name),
                     "scope_depth": scope_depth,
                     "needs_init": needs_init
                 ]);
@@ -440,7 +440,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                         "position": ([
                             "file": filename,
                             "line": line,
-                            "character": get_char_pos_in_line_fn(lines, line, text)
+                            "character": get_char_position_fn(lines, line, text)
                         ]),
                         "variable": text,
                         "source": "uninitialized-variable"

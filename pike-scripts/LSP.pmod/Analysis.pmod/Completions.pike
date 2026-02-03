@@ -69,7 +69,8 @@ mapping handle_get_completion_context(mapping params) {
         for (int i = 0; i < sizeof(pike_tokens); i++) {
             object tok = pike_tokens[i];
             int tok_line = tok->line;
-            int tok_char = get_char_position(code, tok_line, tok->text);
+            array(string) lines = code / "\n";
+            int tok_char = module_program->get_char_position(lines, tok_line, tok->text);
 
             // Check if this token is at or before our cursor
             if (tok_line < target_line ||
@@ -220,7 +221,8 @@ mapping handle_get_completion_context_cached(mapping params) {
         for (int i = 0; i < sizeof(pike_tokens); i++) {
             object tok = pike_tokens[i];
             int tok_line = tok->line;
-            int tok_char = get_char_position(code, tok_line, tok->text);
+            array(string) lines = code / "\n";
+            int tok_char = module_program->get_char_position(lines, tok_line, tok->text);
 
             if (tok_line < target_line ||
                 (tok_line == target_line && tok_char <= target_char)) {
@@ -317,23 +319,6 @@ mapping handle_get_completion_context_cached(mapping params) {
 
 //! Helper to get character position of a token on a line
 //!
-//! Converts token line number to character position by finding the token
-//! text within the source line.
-//!
-//! @param code Full source code
-//! @param line_no Line number (1-indexed)
-//! @param token_text The token text to search for
-//! @returns Character position (0-indexed) or 0 if not found
-protected int get_char_position(string code, int line_no, string token_text) {
-    array lines = code / "\n";
-    if (line_no > 0 && line_no <= sizeof(lines)) {
-        string line = lines[line_no - 1];
-        int pos = search(line, token_text);
-        if (pos >= 0) return pos;
-    }
-    return 0;
-}
-
 //! Helper to extract the prefix being typed at the cursor position
 //!
 //! Gets the partial identifier being typed by looking backwards from

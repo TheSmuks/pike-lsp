@@ -6,7 +6,7 @@
 //! - Constants: Variable initialization states and type checking
 //! - Type checking: is_type_keyword, is_identifier, is_assignment_operator
 //! - Token navigation: find_next_token, find_matching_brace, etc.
-//! - Position helpers: get_char_pos_in_line
+//! - Position helpers: get_char_position
 //! - Variable management: remove_out_of_scope_vars, save/restore states
 //! - Declaration parsing: try_parse_declaration
 //! - Definition detection: is_function_definition, is_lambda_definition
@@ -177,7 +177,7 @@ int find_matching_paren(array tokens, int start_idx, int end_idx) {
 //! @param line_no Line number (1-indexed)
 //! @param token_text Token text to search for
 //! @returns Character position (0-indexed) or 0 if not found
-int get_char_pos_in_line(array(string) lines, int line_no, string token_text) {
+int get_char_position(array(string) lines, int line_no, string token_text) {
     if (line_no > 0 && line_no <= sizeof(lines)) {
         string line = lines[line_no - 1];
         int pos = search(line, token_text);
