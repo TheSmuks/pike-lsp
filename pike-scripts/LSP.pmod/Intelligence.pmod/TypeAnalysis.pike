@@ -327,9 +327,15 @@ protected mapping parse_autodoc_impl(string doc) {
                             mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
                             if (sizeof(mname) > 0) {
                                 current_param = mname;
-                                if (!result->members[mname]) {
-                                    string processed = process_inline_markup ?
-                                        process_inline_markup(mtype) : mtype;
+                                string processed = process_inline_markup ?
+                                    process_inline_markup(mtype) : mtype;
+                                // When inside a group (@mapping), add to group_items
+                                // Otherwise store in result->members
+                                if (sizeof(current_group) > 0) {
+                                    // Format: "name" (type) for mapping members
+                                    string label = "\"" + mname + "\" (" + processed + ")";
+                                    group_items += ({ ([ "label": label, "text": "" ]) });
+                                } else if (!result->members[mname]) {
                                     result->members[mname] = processed;
                                 }
                             }

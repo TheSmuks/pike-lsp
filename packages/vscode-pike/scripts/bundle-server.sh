@@ -47,14 +47,23 @@ npx esbuild "$SERVER_ENTRY" \
     --format=cjs \
     --outfile="$SERVER_DIR/server.js" \
     --external:vscode \
-    --sourcemap \
     --minify \
     --define:import.meta.url='undefined'
+
+# Remove source map if it was created
+rm -f "$SERVER_DIR/server.js.map"
 
 # Copy pike-scripts (analyzer.pike and type-introspector.pike)
 if [ -d "$PIKE_SCRIPTS_SRC" ]; then
     echo "  Copying pike-scripts from $PIKE_SCRIPTS_SRC"
-    cp "$PIKE_SCRIPTS_SRC"/*.pike "$SERVER_DIR/pike-scripts/"
+    # Copy only non-test .pike files (exclude test_*.pike and verify_*.pike)
+    for f in "$PIKE_SCRIPTS_SRC"/*.pike; do
+        filename=$(basename "$f")
+        # Skip test files
+        if [[ "$filename" != test_* ]] && [[ "$filename" != verify_* ]]; then
+            cp "$f" "$SERVER_DIR/pike-scripts/"
+        fi
+    done
 
     # Also copy LSP.pmod modules if they exist
     if [ -d "$PIKE_SCRIPTS_SRC/LSP.pmod" ]; then

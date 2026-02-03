@@ -138,8 +138,18 @@ mapping parse_request(mapping params) {
 
                     foreach(decl, mixed d) {
                         if (objectp(d)) {
+                            string doc = documentation;
+                            // Check autodoc_by_line - prefer it if it has autodoc markup tags
+                            if (d->position && d->position->firstline && autodoc_by_line[d->position->firstline]) {
+                                string line_doc = autodoc_by_line[d->position->firstline];
+                                // Prefer autodoc_by_line if empty doc, or if line_doc has markup
+                                program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+                                if (sizeof(doc) == 0 || (IntelligenceModule && IntelligenceModule->has_autodoc_markup(line_doc))) {
+                                    doc = line_doc;
+                                }
+                            }
                             mixed convert_err = catch {
-                                symbols += ({symbol_to_json(d, documentation)});
+                                symbols += ({symbol_to_json(d, doc)});
                             };
                         }
                     }
@@ -149,6 +159,16 @@ mapping parse_request(mapping params) {
                     if (decl_kind != "class" && decl_kind != "enum") {
                         string documentation = sizeof(autodoc_buffer) > 0 ? autodoc_buffer * "\n" : "";
                         autodoc_buffer = ({});
+
+                        // Check autodoc_by_line - prefer it if it has autodoc markup tags
+                        if (decl->position && decl->position->firstline && autodoc_by_line[decl->position->firstline]) {
+                            string line_doc = autodoc_by_line[decl->position->firstline];
+                            // Prefer autodoc_by_line if empty doc, or if line_doc has markup
+                            program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+                            if (sizeof(documentation) == 0 || (IntelligenceModule && IntelligenceModule->has_autodoc_markup(line_doc))) {
+                                documentation = line_doc;
+                            }
+                        }
 
                         mixed convert_err = catch {
                             symbols += ({symbol_to_json(decl, documentation)});
@@ -169,6 +189,16 @@ mapping parse_request(mapping params) {
                 if (decl_kind == "class" || decl_kind == "enum") {
                     string class_documentation = sizeof(autodoc_buffer) > 0 ? autodoc_buffer * "\n" : "";
                     autodoc_buffer = ({});
+
+                    // Check autodoc_by_line - prefer it if it has autodoc markup tags
+                    if (decl->position && decl->position->firstline && autodoc_by_line[decl->position->firstline]) {
+                        string line_doc = autodoc_by_line[decl->position->firstline];
+                        // Prefer autodoc_by_line if empty doc, or if line_doc has markup
+                        program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+                        if (sizeof(class_documentation) == 0 || (IntelligenceModule && IntelligenceModule->has_autodoc_markup(line_doc))) {
+                            class_documentation = line_doc;
+                        }
+                    }
 
                     parser->readToken();
 
@@ -218,14 +248,34 @@ mapping parse_request(mapping params) {
                             if (arrayp(member_decl)) {
                                 foreach(member_decl, mixed m) {
                                     if (objectp(m)) {
+                                        string doc = member_doc;
+                                        // Check autodoc_by_line - prefer it if it has autodoc markup tags
+                                        if (m->position && m->position->firstline && autodoc_by_line[m->position->firstline]) {
+                                            string line_doc = autodoc_by_line[m->position->firstline];
+                                            // Prefer autodoc_by_line if empty doc, or if line_doc has markup
+                                            program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+                                            if (sizeof(doc) == 0 || (IntelligenceModule && IntelligenceModule->has_autodoc_markup(line_doc))) {
+                                                doc = line_doc;
+                                            }
+                                        }
                                         mixed conv_err = catch {
-                                            class_children += ({symbol_to_json(m, member_doc)});
+                                            class_children += ({symbol_to_json(m, doc)});
                                         };
                                     }
                                 }
                             } else if (objectp(member_decl)) {
+                                string doc = member_doc;
+                                // Check autodoc_by_line - prefer it if it has autodoc markup tags
+                                if (member_decl->position && member_decl->position->firstline && autodoc_by_line[member_decl->position->firstline]) {
+                                    string line_doc = autodoc_by_line[member_decl->position->firstline];
+                                    // Prefer autodoc_by_line if empty doc, or if line_doc has markup
+                                    program IntelligenceModule = master()->resolv("LSP.Intelligence.module");
+                                    if (sizeof(doc) == 0 || (IntelligenceModule && IntelligenceModule->has_autodoc_markup(line_doc))) {
+                                        doc = line_doc;
+                                    }
+                                }
                                 mixed conv_err = catch {
-                                    class_children += ({symbol_to_json(member_decl, member_doc)});
+                                    class_children += ({symbol_to_json(member_decl, doc)});
                                 };
                             }
                         } else {

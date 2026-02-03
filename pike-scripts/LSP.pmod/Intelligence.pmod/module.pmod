@@ -60,18 +60,40 @@ protected mapping make_error_response(int code, string message) {
 //! foreach (docs; int line; string doc) {
 //!     werror("Line %d: %s\n", line, doc);
 //! }
+//! Check if a line contains AutoDoc markup keywords
+//! @param line The line to check
+//! @returns 1 if the line contains AutoDoc keywords, 0 otherwise
+int has_autodoc_markup(string line) {
+    array(string) keywords = ({
+        "@returns", "@return", "@param", "@parameter", "@mapping",
+        "@member", "@array", "@string", "@int", "@mixed", "@object",
+        "@type", "@decl", "@class", "@module", "@namespace", "@endmapping",
+        "@seealso", "@example", "@note", "@fixme", "@todo"
+    });
+
+    string lower = lower_case(line);
+    foreach (keywords, string kw) {
+        if (has_value(lower, lower_case(kw))) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 mapping(int:string) extract_autodoc_comments(string code) {
     mapping(int:string) result = ([]);
     array(string) lines = code / "\n";
 
     array(string) current_doc = ({});
     int doc_start_line = 0;
+    int in_autodoc_block = 0;
 
     for (int i = 0; i < sizeof(lines); i++) {
         string line = trim_whites(lines[i]);
 
+        // Check for //! comments (always AutoDoc)
         if (has_prefix(line, "//!")) {
-            // Autodoc comment line
+            in_autodoc_block = 1;
             if (sizeof(current_doc) == 0) {
                 doc_start_line = i + 1;
             }
@@ -84,11 +106,31 @@ mapping(int:string) extract_autodoc_comments(string code) {
                 }
             }
             current_doc += ({ doc_text });
+        }
+        // Check for // comments with AutoDoc markup
+        else if (has_prefix(line, "//") && sizeof(line) > 2) {
+            string comment_text = line[2..];
+            if (sizeof(comment_text) > 0 && comment_text[0] == ' ') {
+                comment_text = comment_text[1..];
+            }
+
+            // Check if it has AutoDoc keywords
+            if (has_autodoc_markup(comment_text) || in_autodoc_block) {
+                in_autodoc_block = 1;
+                if (sizeof(current_doc) == 0) {
+                    doc_start_line = i + 1;
+                }
+                current_doc += ({ comment_text });
+            } else if (sizeof(current_doc) > 0) {
+                // End of AutoDoc block
+                in_autodoc_block = 0;
+            }
         } else if (sizeof(current_doc) > 0) {
             // Non-comment line after doc block - this is the declaration
             // Store doc for this line (the declaration line)
             result[i + 1] = current_doc * "\n";
             current_doc = ({});
+            in_autodoc_block = 0;
         }
     }
 
