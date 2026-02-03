@@ -1,0 +1,44 @@
+# Source files
+**/*.ts
+**/*.d.ts
+**/tsconfig.json
+**/tsconfig.*.json
+tsconfig.tsbuildinfo
+
+# Test files
+**/test/**
+**/*.test.ts
+**/*.test.js
+test-workspace/**
+.vscode-test/**
+.vscode-test.mjs
+test-output.log
+
+# Development files
+node_modules/**
+scripts/**
+src/**
+.planning/**
+.omc/**
+
+# Source maps
+**/*.map
+
+# Documentation (exclude all except README)
+CHANGELOG.md
+CHANGELOG
+LICENSE
+LICENSE.md
+LICENSE.txt
+**/CLAUDE.md
+
+# Build artifacts not needed
+.git/**
+.eslintrc*
+.prettierrc*
+.npmignore
+package.json.files
+
+# Parent directories
+../
+../../

@@ -136,7 +136,7 @@
     "clean": "rm -rf dist server",
     "watch": "tsc --watch",
     "bundle-server": "bash scripts/bundle-server.sh",
-    "package": "bun run build && bun run bundle-server && vsce package --no-dependencies",
+    "package": "bun run build && bun run bundle-server && yes | vsce package --no-dependencies --skip-license",
     "typecheck": "tsc --noEmit",
     "vscode:prepublish": "bun run build && bun run bundle-server",
     "test": "bun run build:test && bash scripts/test-headless.sh",
@@ -160,19 +160,5 @@
     "esbuild": "^0.20.0",
     "glob": "^13.0.0",
     "typescript": "^5.3.0"
-  },
-  "files": [
-    "dist/extension.js",
-    "dist/extension.d.ts",
-    "dist/constants.js",
-    "dist/pike-detector.js",
-    "dist/pike-detector.d.ts",
-    "server/**",
-    "syntaxes/pike.tmLanguage.json",
-    "images/icon.png",
-    "language-configuration.json",
-    "README.md",
-    "LICENSE.txt",
-    "package.json"
-  ]
+  }
 }
