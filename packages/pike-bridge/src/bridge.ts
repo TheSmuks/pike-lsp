@@ -40,6 +40,24 @@ export interface PikeBridgeOptions {
     /** Enable debug logging to stderr. */
     debug?: boolean;
     env?: NodeJS.ProcessEnv
+    /** Rate limiting options (disabled by default). */
+    rateLimit?: {
+        /** Maximum number of requests allowed. Defaults to 100. */
+        maxRequests?: number;
+        /** Time window in seconds. Defaults to 10. */
+        windowSeconds?: number;
+    };
+}
+
+/**
+ * Internal options with all required properties (as used internally).
+ */
+interface InternalBridgeOptions {
+    pikePath: string;
+    analyzerPath: string;
+    timeout: number;
+    debug: boolean;
+    env: NodeJS.ProcessEnv;
 }
 
 /**
@@ -115,11 +133,14 @@ export class PikeBridge extends EventEmitter {
     private tokenCache = new Map<string, CachedTokens>();
     /** PERF-003: Maximum number of cached documents */
     private readonly MAX_TOKEN_CACHE_SIZE = 50;
-    private readonly options: Required<PikeBridgeOptions>;
+
+    /** Internal options (excluding rateLimit which is handled separately) */
+    private readonly options: InternalBridgeOptions;
+
     private started = false;
     private readonly logger = new Logger('PikeBridge');
     private debugLog: (message: string) => void;
-    private rateLimiter = new RateLimiter(100, 10);
+    private rateLimiter: RateLimiter | null;
 
     constructor(options: PikeBridgeOptions = {}) {
         super();
@@ -173,6 +194,17 @@ export class PikeBridge extends EventEmitter {
             debug,
             env: options.env ?? {},
         };
+
+        // Initialize rate limiter if configured (disabled by default)
+        if (options.rateLimit) {
+            const maxRequests = options.rateLimit.maxRequests ?? 100;
+            const windowSeconds = options.rateLimit.windowSeconds ?? 10;
+            const refillRate = maxRequests / windowSeconds;
+            this.rateLimiter = new RateLimiter(maxRequests, refillRate);
+            this.debugLog(`Rate limiter enabled: ${maxRequests} requests per ${windowSeconds}s`);
+        } else {
+            this.rateLimiter = null;
+        }
 
         this.debugLog(`Initialized with pikePath="${this.options.pikePath}", analyzerPath="${this.options.analyzerPath}"`);
     }
@@ -317,8 +349,8 @@ export class PikeBridge extends EventEmitter {
      * Send a request to the Pike subprocess with deduplication
      */
     private async sendRequest<T>(method: string, params: Record<string, unknown>): Promise<T> {
-        // Check rate limit
-        if (!this.rateLimiter.tryAcquire()) {
+        // Check rate limit (if configured)
+        if (this.rateLimiter && !this.rateLimiter.tryAcquire()) {
             throw new PikeError('Rate limit exceeded');
         }
 
@@ -1106,7 +1138,7 @@ export class PikeBridge extends EventEmitter {
      *
      * @returns Diagnostic information including options, running state, and PID.
      */
-    getDiagnostics(): { options: Required<PikeBridgeOptions>; isRunning: boolean; pid: number | null } {
+    getDiagnostics(): { options: InternalBridgeOptions; isRunning: boolean; pid: number | null } {
         return {
             options: { ...this.options },
             isRunning: this.isRunning(),
