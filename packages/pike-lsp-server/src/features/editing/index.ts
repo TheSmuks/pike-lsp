@@ -7,6 +7,7 @@
  * - Signature help: function parameter hints
  * - Prepare rename: validation for rename operations
  * - Rename: symbol renaming across files
+ * - Linked editing: simultaneous editing of linked symbols
  */
 
 import {
@@ -18,10 +19,12 @@ import type { Services } from '../../services/index.js';
 import { registerCompletionHandlers } from './completion.js';
 import { registerSignatureHelpHandler } from './signature-help.js';
 import { registerRenameHandlers } from './rename.js';
+import { registerLinkedEditingHandler } from './linked-editing.js';
 
 export { registerCompletionHandlers } from './completion.js';
 export { registerSignatureHelpHandler } from './signature-help.js';
 export { registerRenameHandlers } from './rename.js';
+export { registerLinkedEditingHandler } from './linked-editing.js';
 
 /**
  * Register all editing handlers with the LSP connection.
@@ -38,4 +41,5 @@ export function registerEditingHandlers(
     registerCompletionHandlers(connection, services, documents);
     registerSignatureHelpHandler(connection, services, documents);
     registerRenameHandlers(connection, services, documents);
+    registerLinkedEditingHandler(connection, services, documents);
 }

@@ -25,6 +25,7 @@ import type {
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE, PROCESS_STARTUP_DELAY, GRACEFUL_SHUTDOWN_DELAY } from './constants.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeError } from '@pike-lsp/core';
+import { RateLimiter } from './rate-limiter.js';
 
 /**
  * Configuration options for the PikeBridge.
@@ -118,6 +119,7 @@ export class PikeBridge extends EventEmitter {
     private started = false;
     private readonly logger = new Logger('PikeBridge');
     private debugLog: (message: string) => void;
+    private rateLimiter = new RateLimiter(100, 10);
 
     constructor(options: PikeBridgeOptions = {}) {
         super();
@@ -315,6 +317,11 @@ export class PikeBridge extends EventEmitter {
      * Send a request to the Pike subprocess with deduplication
      */
     private async sendRequest<T>(method: string, params: Record<string, unknown>): Promise<T> {
+        // Check rate limit
+        if (!this.rateLimiter.tryAcquire()) {
+            throw new PikeError('Rate limit exceeded');
+        }
+
         // Check for inflight request with same method and params
         const requestKey = this.getRequestKey(method, params);
         const existing = this.requestCache.get(requestKey);

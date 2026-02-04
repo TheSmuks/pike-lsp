@@ -6,7 +6,8 @@
  * Business logic (request correlation, timeouts) is handled by PikeBridge.
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
+import { spawn } from 'child_process';
 import { EventEmitter } from 'events';
 import * as readline from 'readline';
 

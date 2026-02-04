@@ -120,7 +120,7 @@ protected string normalize_path_for_compilation(string filename) {
             // This is /X:/path -> normalize to X:/path
             string old = normalized;
             normalized = normalized[1..];
-            werror("[DEBUG] Normalized Windows path: %s -> %s\n", old, normalized);
+            LSP.debug("Normalized Windows path: %s -> %s", old, normalized);
         }
     }
 
@@ -261,7 +261,7 @@ protected mapping handle_introspect_parser_only(mapping params) {
     string code = params->code || "";
     string filename = params->filename || "input.pike";
 
-    werror("[DEBUG] handle_introspect_parser_only: filename=%s (returning empty result to avoid timeout)\n", filename);
+    LSP.debug("handle_introspect_parser_only: filename=%s (returning empty result to avoid timeout)", filename);
 
     // Return minimal result without any module resolution
     // This prevents the timeout that occurs when trying to resolve modules
@@ -323,7 +323,7 @@ mapping handle_introspect(mapping params) {
         string code = params->code || "";
         string filename = params->filename || "input.pike";
 
-        werror("[DEBUG] handle_introspect called: filename=%s, code_length=%d\n", filename, sizeof(code));
+        LSP.debug("handle_introspect called: filename=%s, code_length=%d", filename, sizeof(code));
 
         // Check if this is a stdlib file (in a .pmod directory)
         // Stdlib files with #require directives can compile fine since their
@@ -343,7 +343,7 @@ mapping handle_introspect(mapping params) {
                 if (sizeof(trimmed) > 0 && trimmed[0] == '#') {
                     if (has_prefix(trimmed, "#require")) {
                         has_require_directives = 1;
-                        werror("[DEBUG] File has #require directive, using parser-based extraction\n");
+                        LSP.debug("File has #require directive, using parser-based extraction");
                         break;
                     }
                 }
@@ -353,7 +353,7 @@ mapping handle_introspect(mapping params) {
         // For files with #require, use parser-based extraction to avoid timeout
         // (except for stdlib files which can handle #require fine)
         if (has_require_directives) {
-            werror("[DEBUG] Using parser-based extraction for: %s\n", filename);
+            LSP.debug("Using parser-based extraction for: %s", filename);
             return handle_introspect_parser_only(params);
         }
 
@@ -379,7 +379,7 @@ mapping handle_introspect(mapping params) {
         if (is_in_pmod_directory(filename)) {
             string module_name = get_parent_module_name(filename);
             if (sizeof(module_name) > 0) {
-                werror("[DEBUG] File in .pmod directory, module=%s, preprocessing relative references\n", module_name);
+                LSP.debug("File in .pmod directory, module=%s, preprocessing relative references", module_name);
                 code_to_compile = preprocess_relative_references(code, module_name);
             }
         }
@@ -391,13 +391,13 @@ mapping handle_introspect(mapping params) {
         // Attempt compilation
         // For LSP module files, use master()->resolv() to get the compiled program
         // with proper module context. For other files, use compile_string().
-        werror("[DEBUG] About to compile: original=%s, normalized=%s\n", filename, filename_for_compile);
+        LSP.debug("About to compile: original=%s, normalized=%s", filename, filename_for_compile);
         mixed compile_err = catch {
             if (is_lsp_module_file(filename)) {
-                werror("[DEBUG] File is LSP module file\n");
+                LSP.debug("File is LSP module file");
                 string module_name = path_to_module_name(filename);
                 if (sizeof(module_name) > 0) {
-                    werror("[DEBUG] Resolving module: %s\n", module_name);
+                    LSP.debug("Resolving module: %s", module_name);
                     // Resolve via module system - LSP namespace is available
                     mixed resolved = master()->resolv(module_name);
                     if (resolved && programp(resolved)) {
@@ -435,7 +435,7 @@ mapping handle_introspect(mapping params) {
         }
 
         // Cache the compiled program using LSP.Cache
-        werror("[DEBUG] Compilation successful, about to introspect\n");
+        LSP.debug("Compilation successful, about to introspect");
         // Use dynamic resolution for Cache to avoid circular dependency/load order issues
         mixed Cache = master()->resolv("LSP.Cache");
         if (Cache) {
@@ -446,13 +446,13 @@ mapping handle_introspect(mapping params) {
 
         // Extract type information
         array source_inherits = extract_source_inherits(code, filename);
-        werror("[DEBUG] About to call introspect_program\n");
+        LSP.debug("About to call introspect_program");
         mapping result = introspect_program(compiled_prog, source_inherits);
-        werror("[DEBUG] introspect_program completed, symbols=%d\n", sizeof(result->symbols || ({})));
+        LSP.debug("introspect_program completed, symbols=%d", sizeof(result->symbols || ({})));
         result->success = 1;
         result->diagnostics = diagnostics;
 
-        werror("[DEBUG] handle_introspect returning success\n");
+        LSP.debug("handle_introspect returning success");
         return ([ "result": result ]);
     };
 

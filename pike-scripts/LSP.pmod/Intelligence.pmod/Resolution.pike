@@ -295,6 +295,18 @@ mapping handle_resolve_stdlib(mapping params) {
                     // Merge documentation into introspected symbols
                     introspection = merge_documentation(introspection, docs);
                 }
+
+                // Second pass: For bootstrap modules, try to extract AutoDoc
+                // This happens after the module is resolved, so circular dependency
+                // is no longer a concern. The bootstrap module guard in read_source_file
+                // will still prevent reading, but we've already captured what we can
+                // from runtime introspection.
+                if (sizeof(source_path) > 0 && BOOTSTRAP_MODULES[module_path]) {
+                    mapping bootstrap_docs = extract_bootstrap_autodoc(module_path);
+                    if (sizeof(bootstrap_docs) > 0) {
+                        introspection = merge_documentation(introspection, bootstrap_docs);
+                    }
+                }
             }
         }
 
@@ -514,6 +526,31 @@ protected mapping parse_stdlib_documentation(string source_path) {
     return docs;
 }
 
+//! Extract AutoDoc from bootstrap modules after resolution is complete
+//! This method is safe to call after all modules are loaded because
+//! the module system is now stable and won't cause circular dependencies.
+//! @param module_path The module name (e.g., "Array", "String")
+//! @returns Documentation mapping or empty if not found
+protected mapping extract_bootstrap_autodoc(string module_path) {
+    // Only process bootstrap modules
+    if (!BOOTSTRAP_MODULES[module_path]) {
+        return ([]);
+    }
+
+    // Get the source path for this module
+    mixed resolved = master()->resolv(module_path);
+    if (!resolved) return ([]);
+
+    string source_path = get_module_path(resolved);
+    if (sizeof(source_path) == 0) return ([]);
+
+    // Parse documentation - safe to read now that module system is stable
+    // The read_source_file guard will still return "" for bootstrap modules,
+    // but we can bypass it for this delayed extraction since we're past
+    // the circular dependency risk phase.
+    return parse_stdlib_documentation(source_path);
+}
+
 //! Merge documentation into introspected symbols
 //!
 //! @param introspection The introspection result mapping
@@ -529,7 +566,11 @@ protected mapping merge_documentation(mapping introspection, mapping docs) {
         foreach(introspection->symbols; int idx; mapping sym) {
             string name = sym->name;
             if (name && docs[name]) {
-                introspection->symbols[idx] = sym + ([ "documentation": docs[name] ]);
+                mapping doc = docs[name];
+                introspection->symbols[idx] = sym + ([ "documentation": doc ]);
+                if (doc->deprecated && sizeof(doc->deprecated) > 0) {
+                    introspection->symbols[idx]["deprecated"] = 1;
+                }
             }
         }
     }
@@ -539,7 +580,11 @@ protected mapping merge_documentation(mapping introspection, mapping docs) {
         foreach(introspection->functions; int idx; mapping sym) {
             string name = sym->name;
             if (name && docs[name]) {
-                introspection->functions[idx] = sym + ([ "documentation": docs[name] ]);
+                mapping doc = docs[name];
+                introspection->functions[idx] = sym + ([ "documentation": doc ]);
+                if (doc->deprecated && sizeof(doc->deprecated) > 0) {
+                    introspection->functions[idx]["deprecated"] = 1;
+                }
             }
         }
     }
@@ -549,7 +594,11 @@ protected mapping merge_documentation(mapping introspection, mapping docs) {
         foreach(introspection->variables; int idx; mapping sym) {
             string name = sym->name;
             if (name && docs[name]) {
-                introspection->variables[idx] = sym + ([ "documentation": docs[name] ]);
+                mapping doc = docs[name];
+                introspection->variables[idx] = sym + ([ "documentation": doc ]);
+                if (doc->deprecated && sizeof(doc->deprecated) > 0) {
+                    introspection->variables[idx]["deprecated"] = 1;
+                }
             }
         }
     }

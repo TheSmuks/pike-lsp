@@ -278,6 +278,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 documentRangeFormattingProvider: true,
                 documentLinkProvider: { resolveProvider: true },
                 codeLensProvider: { resolveProvider: true },
+                linkedEditingRangeProvider: true,
             },
         };
     } catch (err) {
