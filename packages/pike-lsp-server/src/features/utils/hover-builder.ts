@@ -524,10 +524,17 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         notes?: string[];
         bugs?: string[];
         deprecated?: string;
+        obsolete?: string;
         examples?: string[];
         seealso?: string[];
+        copyright?: string[];
+        thanks?: string[];
+        fixme?: string[];
         members?: Record<string, string>;
+        constants?: Record<string, string>;
         items?: Array<{ label: string; text: string }>;
+        indexes?: Array<{ label: string; text: string }>;
+        types?: string[];
     } | undefined | string;
 
     if (doc) {
@@ -630,6 +637,74 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
                 return `[\`${cleaned}\`](${docsUrl})`;
             }).join(', ');
             parts.push(`**See also:** ${refs}`);
+        }
+
+        // Obsolete warning (similar to deprecated but different)
+        if (doc.obsolete) {
+            parts.push('**⚠️ OBSOLETE**');
+            parts.push('');
+            parts.push(`> ${convertPikeDocToMarkdown(doc.obsolete)}`);
+            parts.push('');
+        }
+
+        // Copyright notices
+        if (doc.copyright && doc.copyright.length > 0) {
+            for (const notice of doc.copyright) {
+                parts.push(`**© Copyright** ${convertPikeDocToMarkdown(notice)}`);
+                parts.push('');
+            }
+        }
+
+        // Thanks/acknowledgments
+        if (doc.thanks && doc.thanks.length > 0) {
+            for (const thanks of doc.thanks) {
+                parts.push(`**🙏 Thanks** ${convertPikeDocToMarkdown(thanks)}`);
+                parts.push('');
+            }
+        }
+
+        // FIXME notes (similar to notes but for known issues)
+        if (doc.fixme && doc.fixme.length > 0) {
+            for (const fixme of doc.fixme) {
+                parts.push(`**🔧 FIXME** ${convertPikeDocToMarkdown(fixme)}`);
+                parts.push('');
+            }
+        }
+
+        // Constants (enum members)
+        if (doc.constants && Object.keys(doc.constants).length > 0) {
+            parts.push('**Constants:**');
+            parts.push('');
+            for (const [name, type] of Object.entries(doc.constants)) {
+                parts.push(`- \`${name}\`: \`${type}\``);
+            }
+            parts.push('');
+        }
+
+        // Indexes (for @multiset)
+        if (doc.indexes && doc.indexes.length > 0) {
+            parts.push('**Indexes:**');
+            parts.push('');
+            for (const idx of doc.indexes) {
+                const label = idx.label || '';
+                const text = idx.text || '';
+                if (text) {
+                    parts.push(`- \`${label}\`: ${convertPikeDocToMarkdown(text)}`);
+                } else {
+                    parts.push(`- \`${label}\``);
+                }
+            }
+            parts.push('');
+        }
+
+        // Types (for @mixed containers)
+        if (doc.types && doc.types.length > 0) {
+            parts.push('**Types:**');
+            parts.push('');
+            for (const type of doc.types) {
+                parts.push(`- ${convertPikeDocToMarkdown(type)}`);
+            }
+            parts.push('');
         }
         }
     }

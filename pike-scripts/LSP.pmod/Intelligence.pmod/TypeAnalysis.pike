@@ -151,13 +151,20 @@ protected mapping parse_autodoc_impl(string doc) {
         "notes": ({}),
         "bugs": ({}),
         "deprecated": "",
+        "obsolete": "",
         "examples": ({}),
         "seealso": ({}),
+        "copyright": ({}),
+        "thanks": ({}),
+        "fixme": ({}),
         "members": ([]),
+        "constants": ([]),
         "items": ({}),
+        "indexes": ({}),
         "arrays": ({}),
         "multisets": ({}),
-        "mappings": ({})
+        "mappings": ({}),
+        "types": ({})
     ]);
 
     // Try to use Pike's native DocParser
@@ -322,50 +329,155 @@ protected mapping parse_autodoc_impl(string doc) {
 
                     case "member":
                         current_section = "member";
-                        string mtype = "", mname = "";
-                        if (sscanf(trimmed_arg, "%s %s", mtype, mname) == 2) {
-                            mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
-                            if (sizeof(mname) > 0) {
-                                current_param = mname;
-                                string processed = process_inline_markup ?
-                                    process_inline_markup(mtype) : mtype;
-                                // When inside a group (@mapping), add to group_items
-                                // Otherwise store in result->members
-                                if (sizeof(current_group) > 0) {
-                                    // Format: "name" (type) for mapping members
-                                    string label = "\"" + mname + "\" (" + processed + ")";
-                                    group_items += ({ ([ "label": label, "text": "" ]) });
-                                } else if (!result->members[mname]) {
-                                    result->members[mname] = processed;
+                        // Use Pike's native parser for robust type parsing
+                        // Get position from current token if available
+                        object parser_pos = tok->position || Tools.AutoDoc.SourcePosition("autodoc", 1);
+
+                        mixed err = catch {
+                            object member_parser = Tools.AutoDoc.PikeParser(trimmed_arg, parser_pos);
+                            object mtype_obj = member_parser->parseOrType();
+
+                            if (mtype_obj) {
+                                // Get the member name - could be literal ("key") or identifier (key)
+                                string mname = member_parser->parseLiteral() || member_parser->parseIdents();
+
+                                if (mname) {
+                                    mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
+                                    current_param = mname;
+
+                                    // Store type as XML string (from Pike's type system)
+                                    string type_xml = mtype_obj->xml();
+                                    string processed = process_inline_markup ?
+                                        process_inline_markup(type_xml) : type_xml;
+
+                                    if (sizeof(current_group) > 0) {
+                                        // Inside a @mapping block
+                                        string label = "\"" + mname + "\" (" + processed + ")";
+                                        group_items += ({ ([ "label": label, "text": "" ]) });
+                                    } else if (!result->members[mname]) {
+                                        // Store as string->string (not structured object)
+                                        result->members[mname] = processed;
+                                    }
+                                }
+
+                                // Ensure we consumed all input
+                                member_parser->eat(Tools.AutoDoc.PikeParser.EOF);
+                            }
+                        };
+
+                        // Fallback to simple parsing on error
+                        if (err) {
+                            string mtype = "", mname = "";
+                            if (sscanf(trimmed_arg, "%s %s", mtype, mname) == 2) {
+                                mname = LSP.Compat.trim_whites(replace(mname, "\"", ""));
+                                if (sizeof(mname) > 0) {
+                                    current_param = mname;
+                                    string processed = process_inline_markup ?
+                                        process_inline_markup(mtype) : mtype;
+                                    if (sizeof(current_group) > 0) {
+                                        string label = "\"" + mname + "\" (" + processed + ")";
+                                        group_items += ({ ([ "label": label, "text": "" ]) });
+                                    } else if (!result->members[mname]) {
+                                        result->members[mname] = processed;
+                                    }
                                 }
                             }
                         }
                         break;
 
                     case "elem":
-                        // @elem type index - parse type and index separately
                         current_section = "elem";
                         if (sizeof(trimmed_arg) > 0) {
-                            // Split into type and index: last token is index, rest is type
-                            array(string) parts = trimmed_arg / " ";
-                            string elem_type = "", elem_index = "";
-                            if (sizeof(parts) >= 2) {
-                                elem_index = parts[-1];
-                                elem_type = parts[..<1] * " ";
-                            } else {
-                                // Just a single token, treat as index
-                                elem_index = trimmed_arg;
-                            }
-                            // Format as "index (type)" for clearer display
-                            string elem_label = elem_index;
-                            if (sizeof(elem_type) > 0) {
-                                elem_label = elem_index + " (" + elem_type + ")";
-                            }
-                            current_param = trimmed_arg;
-                            if (sizeof(current_group) > 0) {
-                                group_items += ({ ([ "label": elem_label, "text": "" ]) });
-                            } else {
-                                result->items += ({ ([ "label": elem_label, "text": "" ]) });
+                            // Get position from current token if available
+                            object parser_pos = tok->position || Tools.AutoDoc.SourcePosition("autodoc", 1);
+
+                            mixed err = catch {
+                                object elem_parser = Tools.AutoDoc.PikeParser(trimmed_arg, parser_pos);
+
+                                // Parse the type (may be a union type)
+                                object etype_obj = elem_parser->parseOrType();
+                                if (!etype_obj) {
+                                    // If no type found, treat entire arg as index
+                                    elem_parser = Tools.AutoDoc.PikeParser(trimmed_arg, parser_pos);
+                                    string eindex = elem_parser->parseLiteral() || elem_parser->parseIdents();
+                                    if (eindex) {
+                                        current_param = eindex;
+                                        if (sizeof(current_group) > 0) {
+                                            group_items += ({ ([ "label": eindex, "text": "" ]) });
+                                        } else {
+                                            result->items += ({ ([ "label": eindex, "text": "" ]) });
+                                        }
+                                    }
+                                    elem_parser->eat(Tools.AutoDoc.PikeParser.EOF);
+                                    break;
+                                }
+
+                                // Check for varargs (...)
+                                if (elem_parser->peekToken() == "...") {
+                                    // PikeParser doesn't have a built-in VarargsType, so we track it manually
+                                    etype_obj = etype_obj;  // Will be marked as varargs in label
+                                    elem_parser->eat("...");
+                                }
+
+                                // Parse the index - could be literal or identifier
+                                string eindex = elem_parser->parseLiteral() || elem_parser->parseIdents();
+                                string emax = "";
+
+                                // Check for range (..)
+                                if (elem_parser->peekToken() == "..") {
+                                    elem_parser->eat("..");
+                                    emax = elem_parser->parseLiteral() || elem_parser->parseIdents();
+                                }
+
+                                elem_parser->eat(Tools.AutoDoc.PikeParser.EOF);
+
+                                // Format the label
+                                string type_str = etype_obj->xml();
+                                string elem_label = "";
+                                string processed_type = process_inline_markup ?
+                                    process_inline_markup(type_str) : type_str;
+
+                                if (emax) {
+                                    // Range: "0 .. 10 (int)"
+                                    elem_label = eindex + " .. " + emax + " (" + processed_type + ")";
+                                } else if (eindex) {
+                                    // Simple: "0 (int)"
+                                    elem_label = eindex + " (" + processed_type + ")";
+                                } else {
+                                    // Type only
+                                    elem_label = processed_type;
+                                }
+
+                                current_param = elem_label;
+                                if (sizeof(current_group) > 0) {
+                                    group_items += ({ ([ "label": elem_label, "text": "" ]) });
+                                } else {
+                                    result->items += ({ ([ "label": elem_label, "text": "" ]) });
+                                }
+                            };
+
+                            // Fallback to simple parsing on error
+                            if (err) {
+                                array(string) parts = trimmed_arg / " ";
+                                string elem_type = "", elem_index = "";
+                                if (sizeof(parts) >= 2) {
+                                    elem_index = parts[-1];
+                                    elem_type = parts[..<1] * " ";
+                                } else {
+                                    elem_index = trimmed_arg;
+                                }
+                                string elem_label = elem_index;
+                                if (sizeof(elem_type) > 0) {
+                                    string processed = process_inline_markup ?
+                                        process_inline_markup(elem_type) : elem_type;
+                                    elem_label = elem_index + " (" + processed + ")";
+                                }
+                                current_param = elem_label;
+                                if (sizeof(current_group) > 0) {
+                                    group_items += ({ ([ "label": elem_label, "text": "" ]) });
+                                } else {
+                                    result->items += ({ ([ "label": elem_label, "text": "" ]) });
+                                }
                             }
                         }
                         break;
@@ -402,6 +514,88 @@ protected mapping parse_autodoc_impl(string doc) {
                             string processed = process_inline_markup ?
                                 process_inline_markup(trimmed_arg) : trimmed_arg;
                             result->notes += ({ processed });
+                        }
+                        break;
+
+                    case "obsolete":
+                        current_section = "obsolete";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            text_buffer = ({ processed });
+                        }
+                        break;
+
+                    case "copyright":
+                        current_section = "copyright";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->copyright += ({ processed });
+                        } else {
+                            result->copyright += ({ "" });
+                        }
+                        break;
+
+                    case "thanks":
+                        current_section = "thanks";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->thanks += ({ processed });
+                        } else {
+                            result->thanks += ({ "" });
+                        }
+                        break;
+
+                    case "fixme":
+                        current_section = "fixme";
+                        current_param = "";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->fixme += ({ processed });
+                        } else {
+                            result->fixme += ({ "" });
+                        }
+                        break;
+
+                    case "constant":
+                        current_section = "constant";
+                        // Parse "type name" format
+                        string ctype = "", cname = "";
+                        if (sscanf(trimmed_arg, "%s %s", ctype, cname) == 2) {
+                            cname = LSP.Compat.trim_whites(cname);
+                            if (sizeof(cname) > 0) {
+                                current_param = cname;
+                                string processed = process_inline_markup ?
+                                    process_inline_markup(ctype) : ctype;
+                                result->constants[cname] = processed;
+                            }
+                        }
+                        break;
+
+                    case "index":
+                        current_section = "index";
+                        if (sizeof(trimmed_arg) > 0) {
+                            current_param = trimmed_arg;
+                            if (sizeof(current_group) > 0) {
+                                group_items += ({ ([ "label": trimmed_arg, "text": "" ]) });
+                            } else {
+                                result->indexes += ({ ([ "label": trimmed_arg, "text": "" ]) });
+                            }
+                        }
+                        break;
+
+                    case "type":
+                        current_section = "type";
+                        if (sizeof(trimmed_arg) > 0) {
+                            string processed = process_inline_markup ?
+                                process_inline_markup(trimmed_arg) : trimmed_arg;
+                            result->types += ({ processed });
                         }
                         break;
 
@@ -526,13 +720,20 @@ protected mapping parse_autodoc_impl(string doc) {
     if (sizeof(result->notes) == 0) m_delete(result, "notes");
     if (sizeof(result->bugs) == 0) m_delete(result, "bugs");
     if (sizeof(result->deprecated) == 0) m_delete(result, "deprecated");
+    if (sizeof(result->obsolete) == 0) m_delete(result, "obsolete");
     if (sizeof(result->examples) == 0) m_delete(result, "examples");
     if (sizeof(result->seealso) == 0) m_delete(result, "seealso");
+    if (sizeof(result->copyright) == 0) m_delete(result, "copyright");
+    if (sizeof(result->thanks) == 0) m_delete(result, "thanks");
+    if (sizeof(result->fixme) == 0) m_delete(result, "fixme");
     if (sizeof(result->members) == 0) m_delete(result, "members");
+    if (sizeof(result->constants) == 0) m_delete(result, "constants");
     if (sizeof(result->items) == 0) m_delete(result, "items");
+    if (sizeof(result->indexes) == 0) m_delete(result, "indexes");
     if (sizeof(result->arrays) == 0) m_delete(result, "arrays");
     if (sizeof(result->multisets) == 0) m_delete(result, "multisets");
     if (sizeof(result->mappings) == 0) m_delete(result, "mappings");
+    if (sizeof(result->types) == 0) m_delete(result, "types");
 
     return result;
 }
@@ -705,6 +906,92 @@ protected string format_group_as_text(string group_type, array(mapping) items) {
                 lines += ({ "  " + desc });
             }
         }
+    } else if (group_type == "int") {
+        lines += ({ "**Integer ranges:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - `" + label + "` - " + desc });
+            } else {
+                lines += ({ "  - `" + label + "`" });
+            }
+        }
+    } else if (group_type == "string") {
+        lines += ({ "**String values:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - `" + label + "` - " + desc });
+            } else {
+                lines += ({ "  - `" + label + "`" });
+            }
+        }
+    } else if (group_type == "mixed") {
+        lines += ({ "**Mixed types:**" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "  - " + label + " - " + desc });
+            } else {
+                lines += ({ "  - " + label });
+            }
+        }
+    } else if (group_type == "section") {
+        // @section - first item is the section title
+        if (sizeof(items) > 0) {
+            string title = items[0]->label || "";
+            lines += ({ "### " + title });
+            // Add remaining items as content
+            for (int i = 1; i < sizeof(items); i++) {
+                string label = items[i]->label || "";
+                string desc = items[i]->text || "";
+                if (sizeof(desc) > 0) {
+                    lines += ({ label + " " + desc });
+                } else if (sizeof(label) > 0) {
+                    lines += ({ label });
+                }
+            }
+        }
+    } else if (group_type == "ul") {
+        // @ul - unordered list
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ "- " + label + " " + desc });
+            } else {
+                lines += ({ "- " + label });
+            }
+        }
+    } else if (group_type == "ol") {
+        // @ol - ordered list
+        int counter = 1;
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ counter + ". " + label + " " + desc });
+            } else {
+                lines += ({ counter + ". " + label });
+            }
+            counter++;
+        }
+    } else if (group_type == "code") {
+        // @code - code block
+        lines += ({ "```" });
+        foreach (items, mapping item) {
+            string label = item->label || "";
+            string desc = item->text || "";
+            if (sizeof(desc) > 0) {
+                lines += ({ label + " " + desc });
+            } else {
+                lines += ({ label });
+            }
+        }
+        lines += ({ "```" });
     } else {
         foreach (items, mapping item) {
             string label = item->label || "";
