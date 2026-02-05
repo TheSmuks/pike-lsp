@@ -88,8 +88,8 @@ export function registerDefinitionHandlers(
             const isOnDefinition = symbolLine === params.position.line;
 
             if (isOnDefinition) {
-                // If this is an import, include, or inherit, navigate to the target module/file
-                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
+                // If this is an import, include, inherit, or require, navigate to the target module/file
+                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit' || symbol.kind === 'require') {
                     // Use classname if available (usually contains the module path), otherwise name
                     const modulePath = symbol.classname || symbol.name;
                     if (modulePath) {
@@ -139,6 +139,8 @@ export function registerDefinitionHandlers(
                                                    lineText.startsWith('#elif') ||
                                                    lineText.startsWith('#endif');
 
+                        const isRequireDirective = lineText.startsWith('#require');
+
                         if (isIncludeDirective && services.bridge?.bridge) {
                             // Use resolveInclude for #include directives
                             try {
@@ -167,6 +169,49 @@ export function registerDefinitionHandlers(
                                 }
                             } catch (err) {
                                 log.debug('Definition: failed to resolve include path', {
+                                    modulePath,
+                                    error: err instanceof Error ? err.message : String(err),
+                                });
+                            }
+                        }
+
+                        // Handle #require directives using resolveImport
+                        if (isRequireDirective && services.bridge?.bridge) {
+                            try {
+                                // Use resolveImport for #require directives
+                                // The PikeBridge's resolveImport method handles both string literals
+                                // and constant identifiers, returning appropriate results
+                                const requireResult = await services.bridge.bridge.resolveImport(
+                                    'require',
+                                    modulePath,
+                                    uri
+                                );
+
+                                if (requireResult.exists === 1 && requireResult.path) {
+                                    const targetUri = requireResult.path.startsWith('file://')
+                                        ? requireResult.path
+                                        : `file://${requireResult.path}`;
+
+                                    log.debug('Definition: resolved require path', {
+                                        modulePath,
+                                        resolvedPath: requireResult.path,
+                                    });
+
+                                    return {
+                                        uri: targetUri,
+                                        range: {
+                                            start: { line: 0, character: 0 },
+                                            end: { line: 0, character: 0 },
+                                        },
+                                    };
+                                } else {
+                                    log.debug('Definition: #require target not found', {
+                                        modulePath,
+                                        error: requireResult.error,
+                                    });
+                                }
+                            } catch (err) {
+                                log.debug('Definition: failed to resolve require path', {
                                     modulePath,
                                     error: err instanceof Error ? err.message : String(err),
                                 });

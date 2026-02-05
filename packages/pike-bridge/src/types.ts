@@ -514,13 +514,116 @@ export interface ExpressionInfo {
 }
 
 /**
+ * Import directive types
+ */
+export type ImportType = 'include' | 'import' | 'inherit' | 'require';
+
+/**
+ * Resolution type for #require directives
+ */
+export type RequireResolutionType =
+    | 'string_literal'      // #require "module.pike";
+    | 'constant_identifier' // #require constant(ModuleName);
+    | 'complex_require';    // Complex expression - skip resolution
+
+/**
+ * Extracted import directive from source code
+ */
+export interface ExtractedImport {
+    /** Import type */
+    type: ImportType;
+    /** Original path from source */
+    path: string;
+    /** Resolved absolute path (if available) */
+    resolved_path?: string;
+    /** Line number in source */
+    line: number;
+    /** Whether the file exists (0 = no, 1 = yes) */
+    exists?: 0 | 1;
+    /** Part of circular dependency (0 = no, 1 = yes) */
+    is_circular?: 0 | 1;
+    /** Provenance depth (0 = direct, >0 = transitive) */
+    depth?: number;
+    /** For #require: resolution type */
+    resolution_type?: RequireResolutionType;
+    /** For #require with constant(): the identifier name */
+    identifier?: string;
+    /** Whether to skip resolution (complex requires) (0 = no, 1 = yes) */
+    skip?: 0 | 1;
+}
+
+/**
+ * Result of extract_imports request
+ */
+export interface ExtractImportsResult {
+    /** All imports found in source */
+    imports: ExtractedImport[];
+    /** Dependencies (transitive imports, if computed) */
+    dependencies?: string[];
+}
+
+/**
+ * Result of resolve_import request
+ */
+export interface ResolveImportResult {
+    /** Original path from source */
+    original_path?: string;
+    /** Resolved absolute path */
+    path: string;
+    /** Whether the file/module exists (0 = no, 1 = yes) */
+    exists: 0 | 1;
+    /** Import type */
+    type: ImportType;
+    /** File modification time (for cache invalidation) */
+    mtime: number;
+    /** Error message if resolution failed */
+    error?: string;
+}
+
+/**
+ * Symbol with provenance tracking
+ */
+export interface SymbolWithProvenance extends PikeSymbol {
+    /** Depth at which this symbol was found (-1 = current file, 0 = direct import, >0 = transitive) */
+    provenance_depth?: number;
+    /** File that defined this symbol */
+    provenance_file?: string;
+}
+
+/**
+ * Result of get_waterfall_symbols request
+ */
+export interface WaterfallSymbolsResult {
+    /** All merged symbols (with precedence applied) */
+    symbols: SymbolWithProvenance[];
+    /** Direct imports */
+    imports: ExtractedImport[];
+    /** Transitive imports (waterfall) */
+    transitive: ExtractedImport[];
+    /** Provenance information for each symbol */
+    provenance: Record<string, { depth: number; file: string }>;
+}
+
+/**
+ * Circular dependency check result
+ */
+export interface CircularCheckResult {
+    /** Whether a circular dependency exists (0 = no, 1 = yes) */
+    has_circular: 0 | 1;
+    /** The cycle path (if circular) */
+    cycle: string[];
+    /** All dependencies found */
+    dependencies: string[];
+}
+
+/**
  * Request to Pike subprocess
  */
 export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols';
     /** Request parameters */
     params: Record<string, unknown>;
 }

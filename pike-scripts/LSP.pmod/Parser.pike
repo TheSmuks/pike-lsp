@@ -87,6 +87,59 @@ mapping parse_request(mapping params) {
                 });
             }
             preprocessed += "\n";
+        } else if (has_prefix(trimmed, "#require")) {
+            // Extract require directive using limited subset parsing
+            string rest = trimmed[sizeof("#require")..];
+            rest = LSP.Compat.trim_whites(rest);
+
+            string require_path = "";
+            string resolution_type = "unknown";
+            int skip = 0;
+
+            // Pattern 1: String literal - #require "module.pike";
+            if (sizeof(rest) > 0 && rest[0] == '"') {
+                int end = search(rest, "\"", 1);
+                if (end > 0) {
+                    require_path = rest[1..end-1];
+                    resolution_type = "string_literal";
+                }
+            }
+            // Pattern 2: Constant identifier - #require constant(ModuleName);
+            else if (has_prefix(rest, "constant(")) {
+                string inner = rest[sizeof("constant(")..];
+                inner = LSP.Compat.trim_whites(inner);
+                int end = search(inner, ")");
+                if (end > 0) {
+                    require_path = inner[0..end-1];
+                    require_path = LSP.Compat.trim_whites(require_path);
+                    resolution_type = "constant_identifier";
+                }
+            }
+            // Pattern 3: Complex expression - mark as skip
+            else {
+                require_path = rest;
+                resolution_type = "complex_require";
+                skip = 1;
+            }
+
+            if (sizeof(require_path) > 0) {
+                symbols += ({
+                    ([
+                        "name": require_path,
+                        "kind": "require", // #require directives have kind='require'
+                        "modifiers": ([
+                            "resolution_type": resolution_type,
+                            "skip": skip
+                        ]),
+                        "position": ([
+                            "file": filename,
+                            "line": preprocessed_line
+                        ]),
+                        "classname": require_path // Use classname to store the path for the resolver
+                    ])
+                });
+            }
+            preprocessed += "\n";
         } else if (has_prefix(trimmed, "#pike") ||
                    has_prefix(trimmed, "#pragma") ||
                    has_prefix(trimmed, "#define") ||

@@ -27,6 +27,7 @@ import { StdlibIndexManager } from './stdlib-index.js';
 import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
 import { IncludeResolver } from './services/include-resolver.js';
+import { ModuleContext } from './services/module-context.js';
 import { WorkspaceScanner } from './services/workspace-scanner.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
@@ -62,6 +63,7 @@ const documentCache = new DocumentCache();
 const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
 const workspaceScanner = new WorkspaceScanner(logger, () => globalSettings);
+const moduleContext = new ModuleContext();
 let stdlibIndex: StdlibIndexManager | null = null;
 let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
@@ -116,6 +118,7 @@ function createServices(): features.Services {
         bridge: bridgeManager, // Will be null initially, updated after onInitialize
         logger,
         documentCache,
+        moduleContext,
         typeDatabase,
         workspaceIndex,
         stdlibIndex,

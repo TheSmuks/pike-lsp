@@ -332,6 +332,7 @@ class Intelligence {
     private object introspection_handler;
     private object resolution_handler;
     private object type_analysis_handler;
+    private object module_resolution_handler;
 
     //! Create a new Intelligence instance
     void create() {
@@ -369,6 +370,17 @@ class Intelligence {
             }
         }
         return type_analysis_handler;
+    }
+
+    //! Get or create the module resolution handler
+    protected object get_module_resolution_handler() {
+        if (!module_resolution_handler) {
+            mixed mod_class = master()->resolv("LSP.Intelligence.ModuleResolution");
+            if (mod_class && programp(mod_class)) {
+                module_resolution_handler = mod_class(0);
+            }
+        }
+        return module_resolution_handler;
     }
 
     //! Introspect Pike code by compiling it and extracting symbol information
@@ -425,5 +437,45 @@ class Intelligence {
             return handler->introspect_program(prog);
         }
         return make_error_response(-32000, "Introspection handler not available");
+    }
+
+    //! Extract import/include/inherit/require directives from Pike code
+    //! Delegates to ModuleResolution class in Intelligence.pmod/
+    mapping handle_extract_imports(mapping params) {
+        object handler = get_module_resolution_handler();
+        if (handler) {
+            return handler->handle_extract_imports(params);
+        }
+        return make_error_response(-32000, "ModuleResolution handler not available");
+    }
+
+    //! Resolve an import/include/inherit/require directive to its file path
+    //! Delegates to ModuleResolution class in Intelligence.pmod/
+    mapping handle_resolve_import(mapping params) {
+        object handler = get_module_resolution_handler();
+        if (handler) {
+            return handler->handle_resolve_import(params);
+        }
+        return make_error_response(-32000, "ModuleResolution handler not available");
+    }
+
+    //! Check for circular dependencies in a dependency graph
+    //! Delegates to ModuleResolution class in Intelligence.pmod/
+    mapping handle_check_circular(mapping params) {
+        object handler = get_module_resolution_handler();
+        if (handler) {
+            return handler->handle_check_circular(params);
+        }
+        return make_error_response(-32000, "ModuleResolution handler not available");
+    }
+
+    //! Get symbols with waterfall loading (transitive dependency resolution)
+    //! Delegates to ModuleResolution class in Intelligence.pmod/
+    mapping handle_get_waterfall_symbols(mapping params) {
+        object handler = get_module_resolution_handler();
+        if (handler) {
+            return handler->handle_get_waterfall_symbols(params);
+        }
+        return make_error_response(-32000, "ModuleResolution handler not available");
     }
 }

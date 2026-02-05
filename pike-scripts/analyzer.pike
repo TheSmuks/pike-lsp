@@ -433,6 +433,18 @@ int main(int argc, array(string) argv) {
             }
             return (["error": (["code": -32601, "message": "Cache not available"])]);
         },
+        "extract_imports": lambda(mapping params, object ctx) {
+            return ctx->intelligence->handle_extract_imports(params);
+        },
+        "resolve_import": lambda(mapping params, object ctx) {
+            return ctx->intelligence->handle_resolve_import(params);
+        },
+        "check_circular": lambda(mapping params, object ctx) {
+            return ctx->intelligence->handle_check_circular(params);
+        },
+        "get_waterfall_symbols": lambda(mapping params, object ctx) {
+            return ctx->intelligence->handle_get_waterfall_symbols(params);
+        },
     ]);
 
     // PERF-011: Record handlers phase time

@@ -10,6 +10,7 @@ import type { DocumentCache } from './document-cache.js';
 import type { BridgeManager } from './bridge-manager.js';
 import type { IncludeResolver } from './include-resolver.js';
 import type { WorkspaceScanner } from './workspace-scanner.js';
+import type { ModuleContext } from './module-context.js';
 import type { TypeDatabase } from '../type-database.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
@@ -28,6 +29,8 @@ export interface Services {
     logger: Logger;
     /** Document cache for parsed document state */
     documentCache: DocumentCache;
+    /** Module context for import resolution and waterfall loading (null until initialized) */
+    moduleContext: ModuleContext | null;
     /** Type database for compiled program information */
     typeDatabase: TypeDatabase;
     /** Workspace index for symbol search across files */
@@ -48,3 +51,4 @@ export interface Services {
 export { DocumentCache } from './document-cache.js';
 export { BridgeManager, type HealthStatus } from './bridge-manager.js';
 export { WorkspaceScanner } from './workspace-scanner.js';
+export { ModuleContext } from './module-context.js';

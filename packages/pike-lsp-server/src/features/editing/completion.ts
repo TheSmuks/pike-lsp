@@ -26,7 +26,7 @@ export function registerCompletionHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { logger, documentCache, stdlibIndex } = services;
+    const { logger, documentCache, stdlibIndex, moduleContext } = services;
 
     /**
      * Code completion handler
@@ -249,7 +249,41 @@ export function registerCompletionHandlers(
                 }
             }
 
-            // Add symbols from included files
+            // Add waterfall symbols from imports/include/inherit/require using ModuleContext
+            // This provides symbols from transitive dependencies with provenance tracking
+            if (moduleContext && services.bridge?.bridge) {
+                try {
+                    const waterfallResult = await moduleContext.getWaterfallSymbolsForDocument(
+                        uri,
+                        text,
+                        services.bridge.bridge,
+                        3  // maxDepth for transitive resolution
+                    );
+
+                    // Add waterfall symbols with provenance tracking
+                    for (const symbol of waterfallResult.symbols) {
+                        if (!symbol.name) continue;
+
+                        // Skip if already suggested from local symbols
+                        if (cached.symbols.some(s => s.name === symbol.name)) {
+                            continue;
+                        }
+
+                        if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                            const provenance = symbol.provenance_file
+                                ? `From ${symbol.provenance_file}`
+                                : 'Imported symbol';
+                            completions.push(buildCompletionItem(symbol.name, symbol, provenance, undefined, completionContext));
+                        }
+                    }
+                } catch (err) {
+                    logger.debug('Failed to get waterfall symbols', {
+                        error: err instanceof Error ? err.message : String(err)
+                    });
+                }
+            }
+
+            // Legacy fallback: Add symbols from included files via includeResolver
             if (services.includeResolver && cached.dependencies?.includes) {
                 for (const include of cached.dependencies.includes) {
                     for (const symbol of include.symbols) {

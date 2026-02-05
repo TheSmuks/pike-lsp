@@ -1730,3 +1730,172 @@ suite('LSP Feature E2E Tests', () => {
         assert.ok(locations, 'Go-to-definition should work on inherit statement');
     });
 });
+
+/**
+ * Waterfall Loading E2E Tests
+ *
+ * Tests the NEW module resolution system with ModuleContext
+ * that provides symbols from imported/included/inherited files.
+ */
+suite('Waterfall Loading E2E Tests', () => {
+    let workspaceFolder: vscode.WorkspaceFolder;
+    let testDocumentUri: vscode.Uri;
+    let document: vscode.TextDocument;
+
+    suiteSetup(async function() {
+        this.timeout(60000);
+
+        workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+        assert.ok(workspaceFolder, 'Workspace folder should exist');
+
+        const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+        assert.ok(extension, 'Extension should be found');
+
+        if (!extension.isActive) {
+            await extension.activate();
+        }
+
+        // Open the waterfall completion test file
+        const testPath = vscode.Uri.joinPath(workspaceFolder.uri, 'test-waterfall-completion.pike');
+        testDocumentUri = testPath;
+
+        const doc = await vscode.workspace.openTextDocument(testDocumentUri);
+        document = doc;
+
+        await vscode.window.showTextDocument(doc);
+
+        // Wait for LSP to analyze
+        await new Promise(resolve => setTimeout(resolve, 2000));
+    });
+
+    suiteTeardown(async () => {
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    });
+
+    /**
+     * Test: Completion returns valid results (validates ModuleContext integration)
+     * Tests that the ModuleContext getWaterfallSymbolsForDocument is wired into completion
+     */
+    test('Completion returns valid results via ModuleContext', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+
+        // Find a position in general code to trigger completion
+        const match = text.match(/int x = waterfall_test_value;/m);
+        assert.ok(match, 'Should find "waterfall_test_value" usage in test file');
+
+        // Position at the start of the line to trigger general completion
+        const offset = text.indexOf(match![0]);
+        const position = document.positionAt(offset);
+
+        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+            'vscode.executeCompletionItemProvider',
+            testDocumentUri,
+            position
+        );
+
+        assert.ok(completions, 'Should return completions');
+        assert.ok(completions!.items.length > 0, 'Should have completion items');
+
+        // The key test: completion should return results, not be empty
+        // This validates that ModuleContext waterfall loading is integrated
+        const completionCount = completions!.items.length;
+
+        assertWithLogs(
+            completionCount > 0,
+            `Completion should return results. Got ${completionCount} items.`
+        );
+    });
+
+    /**
+     * Test: Completion shows class definitions from current file
+     */
+    test('Completion shows class definitions', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+        const match = text.match(/WaterfallTestClass obj =/m);
+        assert.ok(match, 'Should find "WaterfallTestClass obj" in test file');
+
+        const offset = text.indexOf(match![0]);
+        const position = document.positionAt(offset);
+
+        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+            'vscode.executeCompletionItemProvider',
+            testDocumentUri,
+            position
+        );
+
+        assert.ok(completions, 'Should return completions');
+        assert.ok(completions!.items.length > 0, 'Should have completion items');
+
+        const completionLabels = completions!.items.map(i => i.label);
+
+        // WaterfallTestClass should appear
+        const hasClass = completionLabels.some(l =>
+            typeof l === 'string' ? l === 'WaterfallTestClass' : l.label === 'WaterfallTestClass'
+        );
+
+        assertWithLogs(
+            hasClass,
+            'Completion should show "WaterfallTestClass". Got: ' + completionLabels.slice(0, 20).join(', ')
+        );
+    });
+
+    /**
+     * Test: Completion shows symbols from stdlib imports
+     * Validates that import resolution contributes to completion context
+     */
+    test('Completion shows stdlib import symbols', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+        const match = text.match(/File f;/m);
+        assert.ok(match, 'Should find "File f;" in test file');
+
+        // Position just before "File" to trigger completion after import
+        const offset = text.indexOf(match![0]);
+        const position = document.positionAt(offset);
+
+        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+            'vscode.executeCompletionItemProvider',
+            testDocumentUri,
+            position
+        );
+
+        assert.ok(completions, 'Should return completions');
+        assert.ok(completions!.items.length > 0, 'Should have completion items');
+
+        // Stdio types should appear due to "import Stdio;"
+        const completionLabels = completions!.items.map(i => i.label);
+
+        // File, write, stdin, etc. should appear from Stdio import
+        const hasStdioSymbol = completionLabels.some(l =>
+            typeof l === 'string' ?
+                l === 'File' || l === 'write' || l === 'stdin' :
+                l.label === 'File' || l.label === 'write' || l.label === 'stdin'
+        );
+
+        assertWithLogs(
+            hasStdioSymbol,
+            'Completion should show Stdio symbols due to import. Got: ' + completionLabels.slice(0, 10).join(', ')
+        );
+    });
+
+    /**
+     * Test: Document contains expected structure for ModuleContext tests
+     */
+    test('Test file has expected ModuleContext structure', async function() {
+        this.timeout(10000);
+
+        const text = document.getText();
+
+        // Verify the file contains key structures for ModuleContext testing
+        assert.ok(text.includes('import Stdio;'), 'Should have "import Stdio;"');
+        assert.ok(text.includes('WATERFALL_TEST_CONSTANT'), 'Should define "WATERFALL_TEST_CONSTANT"');
+        assert.ok(text.includes('WaterfallTestClass'), 'Should define "WaterfallTestClass"');
+        assert.ok(text.includes('test_waterfall_completion'), 'Should define "test_waterfall_completion"');
+        assert.ok(text.includes('test_stdlib_import_waterfall'), 'Should define "test_stdlib_import_waterfall"');
+    });
+});

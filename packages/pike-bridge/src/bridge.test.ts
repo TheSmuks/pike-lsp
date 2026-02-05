@@ -302,4 +302,152 @@ void test() {
             assert.ok(!diag, 'Should not warn for foreach loop variables');
         });
     });
+
+    // Module resolution tests
+    describe('extractImports', () => {
+        it('should extract import statements', async () => {
+            const code = `
+import Stdio;
+import Parser.Pike;
+`;
+            const result = await bridge.extractImports(code, 'test.pike');
+
+            assert.ok(result.imports, 'Should return imports array');
+            assert.ok(Array.isArray(result.imports), 'Imports should be an array');
+            assert.ok(result.imports.length >= 2, 'Should find at least 2 imports');
+
+            const stdioImport = result.imports.find((i: any) => i.path === 'Stdio');
+            assert.ok(stdioImport, 'Should find Stdio import');
+            assert.equal(stdioImport?.type, 'import');
+        });
+
+        it('should extract #include directives', async () => {
+            const code = `
+#include "local.h"
+#include <system.h>
+`;
+            const result = await bridge.extractImports(code, 'test.pike');
+
+            const includes = result.imports.filter((i: any) => i.type === 'include');
+            assert.ok(includes.length >= 2, 'Should find at least 2 includes');
+        });
+
+        it('should extract inherit statements', async () => {
+            const code = `
+inherit Thread.Thread;
+inherit SSL.Constants;
+`;
+            const result = await bridge.extractImports(code, 'test.pike');
+
+            const inherits = result.imports.filter((i: any) => i.type === 'inherit');
+            assert.ok(inherits.length >= 2, 'Should find at least 2 inherits');
+        });
+
+        it('should extract #require directives (string literal)', async () => {
+            const code = `
+#require "my_module.pike";
+`;
+            const result = await bridge.extractImports(code, 'test.pike');
+
+            const requires = result.imports.filter((i: any) => i.type === 'require');
+            assert.ok(requires.length > 0, 'Should find #require directive');
+
+            const req = requires[0];
+            assert.ok(req, 'Should have a require entry');
+            assert.equal(req?.path, 'my_module.pike');
+        });
+
+        it('should extract #require with constant() identifier', async () => {
+            const code = `
+#require constant(MyModule);
+`;
+            const result = await bridge.extractImports(code, 'test.pike');
+
+            const requires = result.imports.filter((i: any) => i.type === 'require');
+            assert.ok(requires.length > 0, 'Should find #require directive');
+
+            const req = requires[0];
+            assert.ok(req, 'Should have a require entry');
+            assert.equal(req?.identifier, 'MyModule');
+            assert.equal(req?.resolution_type, 'constant_identifier');
+        });
+    });
+
+    describe('resolveImport', () => {
+        it('should resolve import to module path', async () => {
+            const result = await bridge.resolveImport('import', 'Stdio');
+
+            assert.ok(result, 'Should return a result');
+            assert.equal(result.type, 'import');
+            // Stdio module should be found
+            if (result.exists === 1) {
+                assert.ok(result.path, 'Should have a path when found');
+            }
+        });
+
+        it('should resolve inherit to class path', async () => {
+            const result = await bridge.resolveImport('inherit', 'Thread.Thread');
+
+            assert.ok(result, 'Should return a result');
+            assert.equal(result.type, 'inherit');
+        });
+
+        it('should handle non-existent modules gracefully', async () => {
+            const result = await bridge.resolveImport('import', 'NonExistentModuleXYZ');
+
+            assert.ok(result, 'Should return a result');
+            assert.equal(result.exists, 0, 'Should not exist (0)');
+        });
+    });
+
+    describe('checkCircular', () => {
+        it('should detect no circular dependencies in simple code', async () => {
+            const code = `
+import Stdio;
+import Parser.Pike;
+`;
+            const result = await bridge.checkCircular(code, 'test.pike');
+
+            assert.ok(result, 'Should return a result');
+            assert.equal(result.has_circular, 0, 'Should not have circular dependencies (0)');
+        });
+
+        it('should return empty cycle for acyclic code', async () => {
+            const code = `import Stdio;`;
+            const result = await bridge.checkCircular(code, 'test.pike');
+
+            assert.ok(Array.isArray(result.cycle), 'Cycle should be an array');
+            assert.equal(result.cycle.length, 0, 'Cycle should be empty');
+        });
+    });
+
+    describe('getWaterfallSymbols', () => {
+        it('should get symbols from code with imports', async () => {
+            const code = `
+import Stdio;
+
+void main() {
+    write("hello");
+}
+`;
+            const result = await bridge.getWaterfallSymbols(code, 'test.pike', 2);
+
+            assert.ok(result, 'Should return a result');
+            assert.ok(Array.isArray(result.imports), 'Should have imports array');
+            assert.ok(result.imports.length > 0, 'Should have at least one import');
+
+            const stdioImport = result.imports.find((i: any) => i.path === 'Stdio');
+            assert.ok(stdioImport, 'Should find Stdio import');
+        });
+
+        it('should track provenance depth', async () => {
+            const code = `import Stdio;`;
+            const result = await bridge.getWaterfallSymbols(code, 'test.pike', 1);
+
+            assert.ok(result, 'Should return a result');
+            // Direct imports should be at depth 0
+            const directImport = result.imports.find((i: any) => i.depth === 0);
+            assert.ok(directImport, 'Should have direct imports at depth 0');
+        });
+    });
 });

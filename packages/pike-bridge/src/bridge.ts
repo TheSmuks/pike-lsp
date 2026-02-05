@@ -709,6 +709,110 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Extract import/include/inherit/require directives from Pike code.
+     *
+     * Parses Pike source code and extracts all module import directives,
+     * including preprocessor directives (#include, #require) and keyword
+     * statements (import, inherit).
+     *
+     * @param code - Pike source code to parse.
+     * @param filename - Optional filename for error reporting.
+     * @returns All imports found with their types and line numbers.
+     * @example
+     * ```ts
+     * const result = await bridge.extractImports('import Stdio;\n#include "foo.h"');
+     * console.log(result.imports); // [{ type: 'import', path: 'Stdio', line: 1 }, ...]
+     * ```
+     */
+    async extractImports(code: string, filename?: string): Promise<import('./types.js').ExtractImportsResult> {
+        const params: Record<string, unknown> = { code };
+        if (filename) params['filename'] = filename;
+        return this.sendRequest<import('./types.js').ExtractImportsResult>('extract_imports', params);
+    }
+
+    /**
+     * Resolve an import/include/inherit/require directive to its file path.
+     *
+     * Given an import directive type and target, attempts to resolve it to a
+     * file path. Resolution logic varies by import type:
+     * - INCLUDE: Resolves "local.h" relative to current file, <system.h> via include paths
+     * - IMPORT: Uses Pike's master()->resolv() to find the module
+     * - INHERIT: Multi-strategy resolution (introspection, qualified names, workspace search, stdlib)
+     * - REQUIRE: Tries as module via master()->resolv(), then as file path
+     *
+     * @param importType - Type of import (include, import, inherit, require).
+     * @param target - Module/path name to resolve.
+     * @param currentFile - Optional current file path for relative resolution.
+     * @returns Resolved path with existence status and error info.
+     * @example
+     * ```ts
+     * const result = await bridge.resolveImport('import', 'Stdio');
+     * console.log(result.path); // '/usr/local/pike/lib/modules/Stdio.so'
+     * ```
+     */
+    async resolveImport(
+        importType: import('./types.js').ImportType,
+        target: string,
+        currentFile?: string
+    ): Promise<import('./types.js').ResolveImportResult> {
+        const params: Record<string, unknown> = { import_type: importType, target };
+        if (currentFile) params['current_file'] = currentFile;
+        return this.sendRequest<import('./types.js').ResolveImportResult>('resolve_import', params);
+    }
+
+    /**
+     * Check for circular dependencies in a dependency graph.
+     *
+     * Performs cycle detection on a dependency graph structure using
+     * depth-first search. Uses three-color DFS (white=unvisited, gray=visiting,
+     * black=visited) to detect cycles efficiently.
+     *
+     * @param code - Pike source code to analyze.
+     * @param filename - Optional filename for the code.
+     * @returns Circular dependency check result with cycle path if found.
+     * @example
+     * ```ts
+     * const result = await bridge.checkCircular('import A;\nimport B;', 'test.pike');
+     * console.log(result.hasCircular); // false
+     * ```
+     */
+    async checkCircular(code: string, filename?: string): Promise<import('./types.js').CircularCheckResult> {
+        const params: Record<string, unknown> = { code };
+        if (filename) params['filename'] = filename;
+        return this.sendRequest<import('./types.js').CircularCheckResult>('check_circular', params);
+    }
+
+    /**
+     * Get symbols with waterfall loading (transitive dependency resolution).
+     *
+     * Performs transitive symbol loading by recursively resolving all
+     * dependencies of the specified file. Implements waterfall pattern where
+     * symbols from dependencies are loaded with depth tracking for proper
+     * prioritization (current file > direct imports > transitive).
+     *
+     * @param code - Pike source code to analyze.
+     * @param filename - Optional filename for resolution context.
+     * @param maxDepth - Maximum depth for transitive resolution (default: 5).
+     * @returns All symbols with provenance tracking and merge precedence applied.
+     * @example
+     * ```ts
+     * const result = await bridge.getWaterfallSymbols('import Stdio;', 'test.pike', 3);
+     * console.log(result.symbols); // All symbols from file + imports
+     * console.log(result.provenance); // Where each symbol came from
+     * ```
+     */
+    async getWaterfallSymbols(
+        code: string,
+        filename?: string,
+        maxDepth?: number
+    ): Promise<import('./types.js').WaterfallSymbolsResult> {
+        const params: Record<string, unknown> = { code };
+        if (filename) params['filename'] = filename;
+        if (maxDepth !== undefined) params['max_depth'] = maxDepth;
+        return this.sendRequest<import('./types.js').WaterfallSymbolsResult>('get_waterfall_symbols', params);
+    }
+
+    /**
      * Enable or disable debug mode in the analyzer.
      *
      * When debug mode is disabled, the analyzer skips string formatting
