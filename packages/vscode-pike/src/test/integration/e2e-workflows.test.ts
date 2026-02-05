@@ -186,7 +186,7 @@ suite('E2E Workflow Tests', () => {
         this.timeout(30000);
 
         const text = document.getText();
-        const funcMatch = text.match(/^int test_function\s*\(/m);
+        const funcMatch = text.match(/int test_function\s*\(/);
         if (funcMatch) {
             const funcOffset = text.indexOf(funcMatch[0]);
             const funcPosition = document.positionAt(funcOffset);
@@ -239,7 +239,7 @@ suite('E2E Workflow Tests', () => {
         this.timeout(30000);
 
         const text = document.getText();
-        const funcMatch = text.match(/^void caller_function\s*\(/m);
+        const funcMatch = text.match(/void caller_function\s*\(/);
         if (funcMatch) {
             const funcOffset = text.indexOf(funcMatch[0]);
             const funcPosition = document.positionAt(funcOffset);
@@ -453,7 +453,7 @@ int main(
         this.timeout(30000);
 
         const text = document.getText();
-        const funcMatch = text.match(/^int test_function\s*\(/m);
+        const funcMatch = text.match(/int test_function\s*\(/);
         if (funcMatch) {
             const funcOffset = text.indexOf(funcMatch[0]);
             const funcPosition = document.positionAt(funcOffset);

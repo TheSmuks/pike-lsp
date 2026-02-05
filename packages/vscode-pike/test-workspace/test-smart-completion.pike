@@ -18,11 +18,14 @@ void use_stdlib_modules() {
     // E2E: Completion after "Array." should show sort, filter, etc.
     array result = Array.sort(({ 3, 1, 2 }));
 
-    // E2E: Completion after "String." should show trim_all_whites, etc.
-    string trimmed = String.trim_all_whites("  hello  ");
+    // UNIQUE_PATTERN_ARRAY_COMPLETION: Array. should show members like sort
+    array a1 = ({1, 2});
 
-    // E2E: Completion after "Stdio." should show File, stdin, stdout, etc.
-    Stdio.File f = Stdio.File("/dev/null", "r");
+    // UNIQUE_PATTERN_STRING_COMPLETION: String. should show members like trim_all_whites
+    string s1 = "test";
+
+    // UNIQUE_PATTERN_STDIO_COMPLETION: Stdio. should show members like File
+    object o1 = Stdio.File();
 }
 
 // -------------------------------------------------------------------
