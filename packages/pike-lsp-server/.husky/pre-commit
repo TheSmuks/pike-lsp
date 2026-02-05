@@ -1,0 +1,60 @@
+#!/bin/sh
+# Pre-commit hook: Prevents common anti-patterns from being committed
+#
+# Checks:
+# 1. Placeholder tests (assert.ok(true) without real implementation)
+# 2. Development Pike test scripts (test_*.pike, verify_*.pike)
+# 3. Temporary analysis reports
+
+set -e
+
+echo "[Pre-commit] Checking for anti-patterns..."
+
+# 1. Check for placeholder tests in staged files
+PLACEHOLDER_TESTS=$(git diff --cached --name-only --difffilter=ACM | grep '\.test\.ts$' | xargs grep -l 'assert\.ok(true' 2>/dev/null || true)
+
+if [ -n "$PLACEHOLDER_TESTS" ]; then
+  echo "FAILED: Found placeholder tests using assert.ok(true):"
+  echo "$PLACEHOLDER_TESTS" | sed 's/^/  - /'
+  echo ""
+  echo "Placeholder tests should use test.skip() instead:"
+  echo "  test.skip('should do something', () => {"
+  echo "    assert.ok(true, 'TODO: Implement this test');"
+  echo "  });"
+  echo ""
+  echo "Use 'git commit --no-verify' to bypass (not recommended)."
+  exit 1
+fi
+
+# 2. Check for development Pike test scripts
+PIKE_TEST_SCRIPTS=$(git diff --cached --name-only --diff-filter=A | grep -E 'pike-scripts/(test_|verify_).*\.pike$' || true)
+
+if [ -n "$PIKE_TEST_SCRIPTS" ]; then
+  echo "FAILED: Attempting to commit development Pike test scripts:"
+  echo "$PIKE_TEST_SCRIPTS" | sed 's/^/  - /'
+  echo ""
+  echo "These patterns are already in .gitignore:"
+  echo "  pike-scripts/test_*.pike"
+  echo "  pike-scripts/verify_*.pike"
+  echo ""
+  echo "Use 'git commit --no-verify' to bypass (not recommended)."
+  exit 1
+fi
+
+# 3. Check for temporary analysis reports
+ANALYSIS_REPORTS=$(git diff --cached --name-only --difffilter=A | grep -E '(AUTODOC_COVERAGE_ANALYSIS|QA_TEST_REPORT|_ANALYSIS\.md|CODEBASE_REVIEW_REPORT)\.md$' || true)
+
+if [ -n "$ANALYSIS_REPORTS" ]; then
+  echo "WARNING: Attempting to commit temporary analysis reports:"
+  echo "$ANALYSIS_REPORTS" | sed 's/^/  - /'
+  echo ""
+  echo "These should be in .git/info/exclude for local reference only."
+  echo ""
+  echo "To unstage these files:"
+  echo "  git reset HEAD <file>"
+  echo ""
+  echo "Use 'git commit --no-verify' to bypass (not recommended)."
+  exit 1
+fi
+
+echo "[Pre-commit] No anti-patterns detected!"

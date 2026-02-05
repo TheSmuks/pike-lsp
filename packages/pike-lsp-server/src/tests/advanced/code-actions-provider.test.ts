@@ -11,6 +11,9 @@
  */
 
 import { describe, it } from 'bun:test';
+
+// NOTE: These tests are placeholder/skipped pending implementation
+// TODO: Implement code actions provider functionality
 import assert from 'node:assert';
 import { CodeAction, CodeActionKind } from 'vscode-languageserver/node.js';
 
@@ -34,27 +37,27 @@ describe('Code Actions Provider', () => {
      * THEN: Return "Organize Imports" action that sorts and groups imports
      */
     describe('Scenario 19.1: Code Actions - Organize imports', () => {
-        it('should provide organize imports action', () => {
-            // Placeholder: TDD test for organize imports action
+        it.skip('should provide organize imports action', () => {
+            // TODO: Implement organize imports action test
             assert.ok(true, 'Should provide organize imports action');
         });
 
-        it('should sort imports alphabetically', () => {
+        it.skip('should sort imports alphabetically', () => {
             // Placeholder: TDD test for import sorting
             assert.ok(true, 'Should sort imports alphabetically');
         });
 
-        it('should group imports by type (stdlib, local, third-party)', () => {
+        it.skip('should group imports by type (stdlib, local, third-party)', () => {
             // Placeholder: TDD test for import grouping
             assert.ok(true, 'Should group imports by type');
         });
 
-        it('should remove duplicate imports', () => {
+        it.skip('should remove duplicate imports', () => {
             // Placeholder: TDD test for duplicate removal
             assert.ok(true, 'Should remove duplicate imports');
         });
 
-        it('should remove unused imports', () => {
+        it.skip('should remove unused imports', () => {
             // Placeholder: TDD test for unused imports
             assert.ok(true, 'Should remove unused imports');
         });
@@ -67,27 +70,27 @@ describe('Code Actions Provider', () => {
      * THEN: Return appropriate quick fix actions
      */
     describe('Scenario 19.2: Code Actions - Quick fixes', () => {
-        it('should provide quick fix for syntax error', () => {
+        it.skip('should provide quick fix for syntax error', () => {
             // Placeholder: TDD test for syntax error fix
             assert.ok(true, 'Should provide quick fix for syntax error');
         });
 
-        it('should provide quick fix for missing semicolon', () => {
+        it.skip('should provide quick fix for missing semicolon', () => {
             // Placeholder: TDD test for semicolon fix
             assert.ok(true, 'Should provide quick fix for missing semicolon');
         });
 
-        it('should provide quick fix for undefined variable', () => {
+        it.skip('should provide quick fix for undefined variable', () => {
             // Placeholder: TDD test for undefined variable fix
             assert.ok(true, 'Should provide quick fix for undefined variable');
         });
 
-        it('should provide quick fix for type mismatch', () => {
+        it.skip('should provide quick fix for type mismatch', () => {
             // Placeholder: TDD test for type mismatch fix
             assert.ok(true, 'Should provide quick fix for type mismatch');
         });
 
-        it('should provide quick fix for unused variable', () => {
+        it.skip('should provide quick fix for unused variable', () => {
             // Placeholder: TDD test for unused variable fix
             assert.ok(true, 'Should provide quick fix for unused variable');
         });
@@ -100,27 +103,27 @@ describe('Code Actions Provider', () => {
      * THEN: Return refactoring actions
      */
     describe('Scenario 19.3: Code Actions - Refactoring', () => {
-        it('should provide extract function refactoring', () => {
+        it.skip('should provide extract function refactoring', () => {
             // Placeholder: TDD test for extract function
             assert.ok(true, 'Should provide extract function refactoring');
         });
 
-        it('should provide extract variable refactoring', () => {
+        it.skip('should provide extract variable refactoring', () => {
             // Placeholder: TDD test for extract variable
             assert.ok(true, 'Should provide extract variable refactoring');
         });
 
-        it('should provide inline variable refactoring', () => {
+        it.skip('should provide inline variable refactoring', () => {
             // Placeholder: TDD test for inline variable
             assert.ok(true, 'Should provide inline variable refactoring');
         });
 
-        it('should provide rename refactoring', () => {
+        it.skip('should provide rename refactoring', () => {
             // Placeholder: TDD test for rename
             assert.ok(true, 'Should provide rename refactoring');
         });
 
-        it('should provide change signature refactoring', () => {
+        it.skip('should provide change signature refactoring', () => {
             // Placeholder: TDD test for change signature
             assert.ok(true, 'Should provide change signature refactoring');
         });
@@ -130,22 +133,22 @@ describe('Code Actions Provider', () => {
      * Edge Cases
      */
     describe('Edge Cases', () => {
-        it('should handle empty file', () => {
+        it.skip('should handle empty file', () => {
             // Placeholder: TDD test for empty file
             assert.ok(true, 'Should handle empty file');
         });
 
-        it('should handle file with no imports', () => {
+        it.skip('should handle file with no imports', () => {
             // Placeholder: TDD test for no imports
             assert.ok(true, 'Should handle file with no imports');
         });
 
-        it('should handle file with no diagnostics', () => {
+        it.skip('should handle file with no diagnostics', () => {
             // Placeholder: TDD test for no diagnostics
             assert.ok(true, 'Should handle file with no diagnostics');
         });
 
-        it('should handle invalid selection range', () => {
+        it.skip('should handle invalid selection range', () => {
             // Placeholder: TDD test for invalid selection
             assert.ok(true, 'Should handle invalid selection range');
         });
@@ -155,17 +158,17 @@ describe('Code Actions Provider', () => {
      * Action Kinds
      */
     describe('Action Kinds', () => {
-        it('should use correct kind for organize imports', () => {
+        it.skip('should use correct kind for organize imports', () => {
             // Placeholder: TDD test for organize imports kind
             assert.ok(true, 'Should use correct kind for organize imports');
         });
 
-        it('should use correct kind for quick fixes', () => {
+        it.skip('should use correct kind for quick fixes', () => {
             // Placeholder: TDD test for quick fix kind
             assert.ok(true, 'Should use correct kind for quick fixes');
         });
 
-        it('should use correct kind for refactor actions', () => {
+        it.skip('should use correct kind for refactor actions', () => {
             // Placeholder: TDD test for refactor kind
             assert.ok(true, 'Should use correct kind for refactor actions');
         });
@@ -175,17 +178,17 @@ describe('Code Actions Provider', () => {
      * Edit Application
      */
     describe('Edit Application', () => {
-        it('should provide valid workspace edits', () => {
+        it.skip('should provide valid workspace edits', () => {
             // Placeholder: TDD test for valid edits
             assert.ok(true, 'Should provide valid workspace edits');
         });
 
-        it('should apply edits atomically', () => {
+        it.skip('should apply edits atomically', () => {
             // Placeholder: TDD test for atomic edits
             assert.ok(true, 'Should apply edits atomically');
         });
 
-        it('should preserve formatting when applying edits', () => {
+        it.skip('should preserve formatting when applying edits', () => {
             // Placeholder: TDD test for formatting preservation
             assert.ok(true, 'Should preserve formatting when applying edits');
         });
@@ -195,12 +198,12 @@ describe('Code Actions Provider', () => {
      * Configuration
      */
     describe('Configuration', () => {
-        it('should respect code action configuration', () => {
+        it.skip('should respect code action configuration', () => {
             // Placeholder: TDD test for configuration
             assert.ok(true, 'Should respect code action configuration');
         });
 
-        it('should filter actions based on user preferences', () => {
+        it.skip('should filter actions based on user preferences', () => {
             // Placeholder: TDD test for filtering
             assert.ok(true, 'Should filter actions based on user preferences');
         });
@@ -210,12 +213,12 @@ describe('Code Actions Provider', () => {
      * Performance
      */
     describe('Performance', () => {
-        it('should provide actions within 200ms', () => {
+        it.skip('should provide actions within 200ms', () => {
             // Placeholder: TDD test for performance
             assert.ok(true, 'Should provide actions within 200ms');
         });
 
-        it('should handle large file efficiently', () => {
+        it.skip('should handle large file efficiently', () => {
             // Placeholder: TDD test for large file
             assert.ok(true, 'Should handle large file efficiently');
         });

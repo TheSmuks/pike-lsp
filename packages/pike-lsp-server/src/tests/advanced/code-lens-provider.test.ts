@@ -12,6 +12,10 @@
  */
 
 import { describe, it } from 'bun:test';
+
+// NOTE: These tests are placeholder/skipped pending implementation
+// TODO: Implement code lens provider functionality
+
 import assert from 'node:assert';
 import { CodeLens, Command } from 'vscode-languageserver/node.js';
 
@@ -49,27 +53,27 @@ describe('Code Lens Provider', () => {
      * THEN: Return lens showing reference count
      */
     describe('Scenario 23.1: Code Lens - Reference counts', () => {
-        it('should show reference count for function', () => {
+        it.skip('should show reference count for function', () => {
             // Placeholder: TDD test for function reference count
             assert.ok(true, 'Should show reference count for function');
         });
 
-        it('should show reference count for variable', () => {
+        it.skip('should show reference count for variable', () => {
             // Placeholder: TDD test for variable reference count
             assert.ok(true, 'Should show reference count for variable');
         });
 
-        it('should show reference count for class', () => {
+        it.skip('should show reference count for class', () => {
             // Placeholder: TDD test for class reference count
             assert.ok(true, 'Should show reference count for class');
         });
 
-        it('should display count as "X references"', () => {
+        it.skip('should display count as "X references"', () => {
             // Placeholder: TDD test for count format
             assert.ok(true, 'Should display count as "X references"');
         });
 
-        it('should update count when references change', () => {
+        it.skip('should update count when references change', () => {
             // Placeholder: TDD test for count updates
             assert.ok(true, 'Should update count when references change');
         });
@@ -82,17 +86,17 @@ describe('Code Lens Provider', () => {
      * THEN: Execute "Show References" command
      */
     describe('Scenario 23.2: Code Lens - Click references', () => {
-        it('should provide command to show references', () => {
+        it.skip('should provide command to show references', () => {
             // Placeholder: TDD test for show references command
             assert.ok(true, 'Should provide command to show references');
         });
 
-        it('should include location in command arguments', () => {
+        it.skip('should include location in command arguments', () => {
             // Placeholder: TDD test for command arguments
             assert.ok(true, 'Should include location in command arguments');
         });
 
-        it('should execute reference search on click', () => {
+        it.skip('should execute reference search on click', () => {
             // Placeholder: TDD test for reference search
             assert.ok(true, 'Should execute reference search on click');
         });
@@ -105,17 +109,17 @@ describe('Code Lens Provider', () => {
      * THEN: Return lens showing "0 references" or no lens
      */
     describe('Scenario 23.3: Code Lens - No references', () => {
-        it('should show "0 references" for unused function', () => {
+        it.skip('should show "0 references" for unused function', () => {
             // Placeholder: TDD test for unused function
             assert.ok(true, 'Should show "0 references" for unused function');
         });
 
-        it('should show "0 references" for unused variable', () => {
+        it.skip('should show "0 references" for unused variable', () => {
             // Placeholder: TDD test for unused variable
             assert.ok(true, 'Should show "0 references" for unused variable');
         });
 
-        it('should optionally hide lens for unused symbols', () => {
+        it.skip('should optionally hide lens for unused symbols', () => {
             // Placeholder: TDD test for hiding lens
             assert.ok(true, 'Should optionally hide lens for unused symbols');
         });
@@ -128,22 +132,22 @@ describe('Code Lens Provider', () => {
      * THEN: Return lens for each method with reference count
      */
     describe('Scenario 23.4: Code Lens - Method in class', () => {
-        it('should show reference count for class method', () => {
+        it.skip('should show reference count for class method', () => {
             // Placeholder: TDD test for method reference count
             assert.ok(true, 'Should show reference count for class method');
         });
 
-        it('should distinguish method from function references', () => {
+        it.skip('should distinguish method from function references', () => {
             // Placeholder: TDD test for method vs function
             assert.ok(true, 'Should distinguish method from function references');
         });
 
-        it('should show lens for static methods', () => {
+        it.skip('should show lens for static methods', () => {
             // Placeholder: TDD test for static method lens
             assert.ok(true, 'Should show lens for static methods');
         });
 
-        it('should show lens for private methods', () => {
+        it.skip('should show lens for private methods', () => {
             // Placeholder: TDD test for private method lens
             assert.ok(true, 'Should show lens for private methods');
         });
@@ -153,22 +157,22 @@ describe('Code Lens Provider', () => {
      * Edge Cases
      */
     describe('Edge Cases', () => {
-        it('should handle empty file', () => {
+        it.skip('should handle empty file', () => {
             // Placeholder: TDD test for empty file
             assert.ok(true, 'Should handle empty file');
         });
 
-        it('should handle file with no declarations', () => {
+        it.skip('should handle file with no declarations', () => {
             // Placeholder: TDD test for no declarations
             assert.ok(true, 'Should handle file with no declarations');
         });
 
-        it('should handle duplicate declarations', () => {
+        it.skip('should handle duplicate declarations', () => {
             // Placeholder: TDD test for duplicates
             assert.ok(true, 'Should handle duplicate declarations');
         });
 
-        it('should handle symbols with many references', () => {
+        it.skip('should handle symbols with many references', () => {
             // Placeholder: TDD test for many references
             assert.ok(true, 'Should handle symbols with many references');
         });
@@ -178,17 +182,17 @@ describe('Code Lens Provider', () => {
      * Lens Positioning
      */
     describe('Lens Positioning', () => {
-        it('should place lens at declaration line', () => {
+        it.skip('should place lens at declaration line', () => {
             // Placeholder: TDD test for lens position
             assert.ok(true, 'Should place lens at declaration line');
         });
 
-        it('should place lens at start of declaration', () => {
+        it.skip('should place lens at start of declaration', () => {
             // Placeholder: TDD test for lens start position
             assert.ok(true, 'Should place lens at start of declaration');
         });
 
-        it('should handle multi-line declarations', () => {
+        it.skip('should handle multi-line declarations', () => {
             // Placeholder: TDD test for multi-line
             assert.ok(true, 'Should handle multi-line declarations');
         });
@@ -198,17 +202,17 @@ describe('Code Lens Provider', () => {
      * Command Format
      */
     describe('Command Format', () => {
-        it('should format reference count command correctly', () => {
+        it.skip('should format reference count command correctly', () => {
             // Placeholder: TDD test for command format
             assert.ok(true, 'Should format reference count command correctly');
         });
 
-        it('should use LSP standard command for references', () => {
+        it.skip('should use LSP standard command for references', () => {
             // Placeholder: TDD test for standard command
             assert.ok(true, 'Should use LSP standard command for references');
         });
 
-        it('should include all necessary arguments', () => {
+        it.skip('should include all necessary arguments', () => {
             // Placeholder: TDD test for command arguments
             assert.ok(true, 'Should include all necessary arguments');
         });
@@ -218,17 +222,17 @@ describe('Code Lens Provider', () => {
      * Performance
      */
     describe('Performance', () => {
-        it('should provide lens for large file within 300ms', () => {
+        it.skip('should provide lens for large file within 300ms', () => {
             // Placeholder: TDD test for performance
             assert.ok(true, 'Should provide lens for large file within 300ms');
         });
 
-        it('should handle rapid document updates', () => {
+        it.skip('should handle rapid document updates', () => {
             // Placeholder: TDD test for rapid updates
             assert.ok(true, 'Should handle rapid document updates');
         });
 
-        it('should efficiently compute reference counts', () => {
+        it.skip('should efficiently compute reference counts', () => {
             // Placeholder: TDD test for count computation
             assert.ok(true, 'Should efficiently compute reference counts');
         });
@@ -238,17 +242,17 @@ describe('Code Lens Provider', () => {
      * Configuration
      */
     describe('Configuration', () => {
-        it('should respect enabled/disabled configuration', () => {
+        it.skip('should respect enabled/disabled configuration', () => {
             // Placeholder: TDD test for configuration
             assert.ok(true, 'Should respect enabled/disabled configuration');
         });
 
-        it('should filter which symbols get lens', () => {
+        it.skip('should filter which symbols get lens', () => {
             // Placeholder: TDD test for filtering
             assert.ok(true, 'Should filter which symbols get lens');
         });
 
-        it('should allow showing/hiding for unused symbols', () => {
+        it.skip('should allow showing/hiding for unused symbols', () => {
             // Placeholder: TDD test for unused config
             assert.ok(true, 'Should allow showing/hiding for unused symbols');
         });
@@ -258,22 +262,22 @@ describe('Code Lens Provider', () => {
      * Special Cases
      */
     describe('Special Cases', () => {
-        it('should handle lambda functions', () => {
+        it.skip('should handle lambda functions', () => {
             // Placeholder: TDD test for lambdas
             assert.ok(true, 'Should handle lambda functions');
         });
 
-        it('should handle inherited methods', () => {
+        it.skip('should handle inherited methods', () => {
             // Placeholder: TDD test for inherited
             assert.ok(true, 'Should handle inherited methods');
         });
 
-        it('should handle overridden methods', () => {
+        it.skip('should handle overridden methods', () => {
             // Placeholder: TDD test for overridden
             assert.ok(true, 'Should handle overridden methods');
         });
 
-        it('should handle module-level symbols', () => {
+        it.skip('should handle module-level symbols', () => {
             // Placeholder: TDD test for module symbols
             assert.ok(true, 'Should handle module-level symbols');
         });

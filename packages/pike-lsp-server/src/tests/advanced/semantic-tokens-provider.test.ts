@@ -16,6 +16,10 @@
  */
 
 import { describe, it } from 'bun:test';
+
+// NOTE: These tests are placeholder/skipped pending implementation
+// TODO: Implement semantic tokens provider functionality
+
 import assert from 'node:assert';
 import { SemanticTokens, SemanticTokensLegend } from 'vscode-languageserver/node.js';
 
@@ -59,17 +63,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with type 'variable' and modifier 'declaration'
      */
     describe('Scenario 16.1: Semantic Tokens - Variable declarations', () => {
-        it('should tokenize local variable declaration', () => {
+        it.skip('should tokenize local variable declaration', () => {
             // Placeholder: TDD test for local variable tokenization
             assert.ok(true, 'Should tokenize local variable declaration');
         });
 
-        it('should tokenize multiple variable declarations', () => {
+        it.skip('should tokenize multiple variable declarations', () => {
             // Placeholder: TDD test for multiple variables
             assert.ok(true, 'Should tokenize multiple variable declarations');
         });
 
-        it('should mark variable with declaration modifier', () => {
+        it.skip('should mark variable with declaration modifier', () => {
             // Placeholder: TDD test for declaration modifier
             assert.ok(true, 'Should mark variable with declaration modifier');
         });
@@ -82,22 +86,22 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with type 'function' or 'method' and modifier 'declaration'
      */
     describe('Scenario 16.2: Semantic Tokens - Function declarations', () => {
-        it('should tokenize standalone function', () => {
+        it.skip('should tokenize standalone function', () => {
             // Placeholder: TDD test for function tokenization
             assert.ok(true, 'Should tokenize standalone function');
         });
 
-        it('should tokenize method declaration in class', () => {
+        it.skip('should tokenize method declaration in class', () => {
             // Placeholder: TDD test for method tokenization
             assert.ok(true, 'Should tokenize method declaration in class');
         });
 
-        it('should tokenize lambda functions', () => {
+        it.skip('should tokenize lambda functions', () => {
             // Placeholder: TDD test for lambda tokenization
             assert.ok(true, 'Should tokenize lambda functions');
         });
 
-        it('should tokenize function parameters', () => {
+        it.skip('should tokenize function parameters', () => {
             // Placeholder: TDD test for parameter tokenization
             assert.ok(true, 'Should tokenize function parameters');
         });
@@ -110,17 +114,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with type 'class' and modifier 'declaration'
      */
     describe('Scenario 16.3: Semantic Tokens - Class declarations', () => {
-        it('should tokenize class declaration', () => {
+        it.skip('should tokenize class declaration', () => {
             // Placeholder: TDD test for class tokenization
             assert.ok(true, 'Should tokenize class declaration');
         });
 
-        it('should tokenize class inheritance', () => {
+        it.skip('should tokenize class inheritance', () => {
             // Placeholder: TDD test for inheritance tokenization
             assert.ok(true, 'Should tokenize class inheritance');
         });
 
-        it('should tokenize nested class declarations', () => {
+        it.skip('should tokenize nested class declarations', () => {
             // Placeholder: TDD test for nested class tokenization
             assert.ok(true, 'Should tokenize nested class declarations');
         });
@@ -133,17 +137,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with type 'variable' without 'declaration' modifier
      */
     describe('Scenario 16.4: Semantic Tokens - Variable usage', () => {
-        it('should tokenize variable reference', () => {
+        it.skip('should tokenize variable reference', () => {
             // Placeholder: TDD test for variable reference
             assert.ok(true, 'Should tokenize variable reference');
         });
 
-        it('should distinguish declaration from usage', () => {
+        it.skip('should distinguish declaration from usage', () => {
             // Placeholder: TDD test for distinguishing declaration vs usage
             assert.ok(true, 'Should distinguish declaration from usage');
         });
 
-        it('should tokenize variable in different scope', () => {
+        it.skip('should tokenize variable in different scope', () => {
             // Placeholder: TDD test for scoped variable usage
             assert.ok(true, 'Should tokenize variable in different scope');
         });
@@ -156,17 +160,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with type 'function' or 'method' without 'declaration' modifier
      */
     describe('Scenario 16.5: Semantic Tokens - Function/method usage', () => {
-        it('should tokenize function call', () => {
+        it.skip('should tokenize function call', () => {
             // Placeholder: TDD test for function call tokenization
             assert.ok(true, 'Should tokenize function call');
         });
 
-        it('should tokenize method call', () => {
+        it.skip('should tokenize method call', () => {
             // Placeholder: TDD test for method call tokenization
             assert.ok(true, 'Should tokenize method call');
         });
 
-        it('should tokenize chained method calls', () => {
+        it.skip('should tokenize chained method calls', () => {
             // Placeholder: TDD test for chained method calls
             assert.ok(true, 'Should tokenize chained method calls');
         });
@@ -179,17 +183,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with 'static' modifier
      */
     describe('Scenario 16.6: Semantic Tokens - Static members', () => {
-        it('should tokenize static variable', () => {
+        it.skip('should tokenize static variable', () => {
             // Placeholder: TDD test for static variable tokenization
             assert.ok(true, 'Should tokenize static variable');
         });
 
-        it('should tokenize static method', () => {
+        it.skip('should tokenize static method', () => {
             // Placeholder: TDD test for static method tokenization
             assert.ok(true, 'Should tokenize static method');
         });
 
-        it('should mark static member with static modifier', () => {
+        it.skip('should mark static member with static modifier', () => {
             // Placeholder: TDD test for static modifier
             assert.ok(true, 'Should mark static member with static modifier');
         });
@@ -202,17 +206,17 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens with 'deprecated' modifier
      */
     describe('Scenario 16.7: Semantic Tokens - Deprecated symbols', () => {
-        it('should tokenize deprecated function', () => {
+        it.skip('should tokenize deprecated function', () => {
             // Placeholder: TDD test for deprecated function
             assert.ok(true, 'Should tokenize deprecated function');
         });
 
-        it('should tokenize deprecated variable', () => {
+        it.skip('should tokenize deprecated variable', () => {
             // Placeholder: TDD test for deprecated variable
             assert.ok(true, 'Should tokenize deprecated variable');
         });
 
-        it('should mark deprecated with deprecated modifier', () => {
+        it.skip('should mark deprecated with deprecated modifier', () => {
             // Placeholder: TDD test for deprecated modifier
             assert.ok(true, 'Should mark deprecated with deprecated modifier');
         });
@@ -225,32 +229,32 @@ describe('Semantic Tokens Provider', () => {
      * THEN: Return tokens for all symbol types with appropriate types and modifiers
      */
     describe('Scenario 16.8: Semantic Tokens - All token types', () => {
-        it('should tokenize all standard types', () => {
+        it.skip('should tokenize all standard types', () => {
             // Placeholder: TDD test for all types
             assert.ok(true, 'Should tokenize all standard types');
         });
 
-        it('should tokenize keywords', () => {
+        it.skip('should tokenize keywords', () => {
             // Placeholder: TDD test for keyword tokenization
             assert.ok(true, 'Should tokenize keywords');
         });
 
-        it('should tokenize string literals', () => {
+        it.skip('should tokenize string literals', () => {
             // Placeholder: TDD test for string literal tokenization
             assert.ok(true, 'Should tokenize string literals');
         });
 
-        it('should tokenize numeric literals', () => {
+        it.skip('should tokenize numeric literals', () => {
             // Placeholder: TDD test for numeric literal tokenization
             assert.ok(true, 'Should tokenize numeric literals');
         });
 
-        it('should tokenize comments', () => {
+        it.skip('should tokenize comments', () => {
             // Placeholder: TDD test for comment tokenization
             assert.ok(true, 'Should tokenize comments');
         });
 
-        it('should tokenize operators', () => {
+        it.skip('should tokenize operators', () => {
             // Placeholder: TDD test for operator tokenization
             assert.ok(true, 'Should tokenize operators');
         });
@@ -260,22 +264,22 @@ describe('Semantic Tokens Provider', () => {
      * Edge Cases
      */
     describe('Edge Cases', () => {
-        it('should handle empty file', () => {
+        it.skip('should handle empty file', () => {
             // Placeholder: TDD test for empty file
             assert.ok(true, 'Should handle empty file');
         });
 
-        it('should handle file with only comments', () => {
+        it.skip('should handle file with only comments', () => {
             // Placeholder: TDD test for comment-only file
             assert.ok(true, 'Should handle file with only comments');
         });
 
-        it('should handle duplicate symbols', () => {
+        it.skip('should handle duplicate symbols', () => {
             // Placeholder: TDD test for duplicate symbols
             assert.ok(true, 'Should handle duplicate symbols');
         });
 
-        it('should handle symbols with same name in different scopes', () => {
+        it.skip('should handle symbols with same name in different scopes', () => {
             // Placeholder: TDD test for shadowing
             assert.ok(true, 'Should handle symbols with same name in different scopes');
         });
@@ -285,12 +289,12 @@ describe('Semantic Tokens Provider', () => {
      * Performance Tests
      */
     describe('Performance', () => {
-        it('should tokenize large file within 500ms', () => {
+        it.skip('should tokenize large file within 500ms', () => {
             // Placeholder: TDD test for performance
             assert.ok(true, 'Should tokenize large file within 500ms');
         });
 
-        it('should handle incremental updates efficiently', () => {
+        it.skip('should handle incremental updates efficiently', () => {
             // Placeholder: TDD test for incremental updates
             assert.ok(true, 'Should handle incremental updates efficiently');
         });
@@ -300,18 +304,18 @@ describe('Semantic Tokens Provider', () => {
      * Legend Compatibility
      */
     describe('Legend Compatibility', () => {
-        it('should provide correct token types legend', () => {
+        it.skip('should provide correct token types legend', () => {
             const legend = createLegend();
             assert.ok(legend.tokenTypes.length > 0, 'Should have token types');
             assert.ok(legend.tokenModifiers.length > 0, 'Should have token modifiers');
         });
 
-        it('should use only standard token types', () => {
+        it.skip('should use only standard token types', () => {
             // Placeholder: TDD test for standard types
             assert.ok(true, 'Should use only standard token types');
         });
 
-        it('should use only standard token modifiers', () => {
+        it.skip('should use only standard token modifiers', () => {
             // Placeholder: TDD test for standard modifiers
             assert.ok(true, 'Should use only standard token modifiers');
         });

@@ -67,3 +67,17 @@ packages/vscode-pike/.vscode-test/
 benchmark-results-mitata.json
 benchmark-results.json
 benchmark-output.txt
+
+# Pike test/development scripts
+pike-scripts/test_*.pike
+pike-scripts/verify_*.pike
+
+# Build artifacts
+packages/vscode-pike/package.json.files
+# Local analysis reports - do not commit
+AUTODOC_COVERAGE_ANALYSIS.md
+CODEBASE_REVIEW_REPORT.md
+QA_TEST_REPORT_PHASE5.md
+pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
+# OMC agent cache
+.omc/
