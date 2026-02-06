@@ -37,8 +37,6 @@ export interface ExtensionApi {
  * Internal activation implementation
  */
 async function activateInternal(context: ExtensionContext, testOutputChannel?: OutputChannel): Promise<ExtensionApi> {
-    console.log('Pike Language Extension is activating...');
-
     // Use provided test output channel or create a real one
     outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
 
@@ -54,7 +52,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
     context.subscriptions.push(disposable);
 
     const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (uri, position, symbolName?: string) => {
-        console.log('[pike.showReferences] Called with:', { uri, position, symbolName });
+        outputChannel.appendLine(`[pike.showReferences] Called with: ${JSON.stringify({ uri, position, symbolName })}`);
 
         if (!uri || !position) {
             console.error('[pike.showReferences] Missing arguments:', { uri, position });
@@ -74,10 +72,10 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
                 const symbolIndex = lineText.indexOf(symbolName);
                 if (symbolIndex >= 0) {
                     refPosition = new Position(position.line, symbolIndex);
-                    console.log('[pike.showReferences] Adjusted position to symbol:', { symbolName, character: symbolIndex });
+                    outputChannel.appendLine(`[pike.showReferences] Adjusted position to symbol: ${symbolName} at character ${symbolIndex}`);
                 }
             } catch (err) {
-                console.warn('[pike.showReferences] Could not adjust position for symbol:', err);
+                outputChannel.appendLine(`[pike.showReferences] Could not adjust position for symbol: ${err}`);
             }
         }
 
@@ -88,9 +86,10 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
             refPosition
         );
 
-        console.log('[pike.showReferences] Found references:', Array.isArray(references) ? references.length : 1);
+        outputChannel.appendLine(`[pike.showReferences] Found references: ${Array.isArray(references) ? references.length : 1}`);
 
         // Normalize to array (can be Location, Location[], or LocationLink[])
+        outputChannel.show(true);
         let locations: Location[] = [];
         if (!references) {
             locations = [];
@@ -185,7 +184,6 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
         if (fs.existsSync(p)) {
             serverModule = p;
             serverModulePath = p;
-            console.log(`Found Pike LSP server at: ${p}`);
             break;
         }
     }
@@ -285,7 +283,7 @@ function getExpandedModulePaths(): string[] {
         expandedPaths = pikeModulePath;
     }
 
-    console.log('Pike module path: ' + JSON.stringify(pikeModulePath));
+    outputChannel.appendLine(`Pike module path: ${JSON.stringify(pikeModulePath)}`);
     return expandedPaths;
 }
 
@@ -303,7 +301,7 @@ function getExpandedIncludePaths(): string[] {
         expandedPaths = pikeIncludePath;
     }
 
-    console.log('Pike include path: ' + JSON.stringify(pikeIncludePath));
+    outputChannel.appendLine(`Pike include path: ${JSON.stringify(pikeIncludePath)}`);
     return expandedPaths;
 }
 
@@ -367,7 +365,6 @@ async function restartClient(showMessage: boolean): Promise<void> {
 
     try {
         await client.start();
-        console.log('Pike Language Extension activated successfully!');
         if (showMessage) {
             window.showInformationMessage('Pike Language Server started');
         }
@@ -408,18 +405,18 @@ async function autoDetectPikeConfigurationIfNeeded(): Promise<void> {
 
     // Skip if user has explicitly configured paths
     if (pikePath !== 'pike' || pikeModulePath.length > 0) {
-        console.log('[Pike] Using configured Pike paths:', { pikePath, pikeModulePath });
+        outputChannel.appendLine(`[Pike] Using configured Pike paths: ${JSON.stringify({ pikePath, pikeModulePath })}`);
         return;
     }
 
-    console.log('[Pike] No configuration found, running auto-detection...');
+    outputChannel.appendLine('[Pike] No configuration found, running auto-detection...');
     const result = await detectPike();
 
     if (result) {
-        console.log('[Pike] Auto-detected Pike:', result);
+        outputChannel.appendLine(`[Pike] Auto-detected Pike: ${JSON.stringify(result)}`);
         await applyDetectedPikeConfiguration(result);
     } else {
-        console.log('[Pike] Pike not found in common locations');
+        outputChannel.appendLine('[Pike] Pike not found in common locations');
     }
 }
 
@@ -464,7 +461,7 @@ async function applyDetectedPikeConfiguration(result: PikeDetectionResult): Prom
     if (currentPikePath === 'pike' && result.pikePath !== 'pike') {
         await config.update('pikePath', result.pikePath, ConfigurationTarget.Workspace);
         updated = true;
-        console.log(`[Pike] Updated pikePath to: ${result.pikePath}`);
+        outputChannel.appendLine(`[Pike] Updated pikePath to: ${result.pikePath}`);
     }
 
     // Update module path
@@ -491,7 +488,7 @@ async function applyDetectedPikeConfiguration(result: PikeDetectionResult): Prom
         const updatedModulePath = [...currentModulePath, ...newModulePaths];
         await config.update('pikeModulePath', updatedModulePath, ConfigurationTarget.Workspace);
         updated = true;
-        console.log(`[Pike] Added module paths:`, newModulePaths);
+        outputChannel.appendLine(`[Pike] Added module paths: ${JSON.stringify(newModulePaths)}`);
     }
 
     return updated;
@@ -503,7 +500,6 @@ export async function deactivate(): Promise<void> {
     }
     try {
         await client.stop();
-        console.log('Pike Language Extension deactivated');
     } catch (err) {
         console.error('Error stopping Pike Language Client:', err);
     }
