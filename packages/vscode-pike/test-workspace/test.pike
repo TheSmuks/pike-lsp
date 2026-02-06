@@ -176,11 +176,13 @@ mapping complex_function(string key, int value, array data, mapping options) {
     return ([key: value]);
 }
 
-// Call complex_function for signature help test
-mapping result = complex_function("test", 42, ({}), ([]));
-
 // Line 180: Function that references many things for document highlight
 int highlight_test() {
     int highlight_test = 5;  // Local variable shadows function name
     return highlight_test;
+}
+
+// Call complex_function for signature help test
+void test_complex_function() {
+    mapping result = complex_function("test", 42, ({}), ([]));
 }
