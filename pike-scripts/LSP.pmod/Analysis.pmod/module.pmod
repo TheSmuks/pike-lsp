@@ -571,6 +571,90 @@ mapping(string:mapping) extract_function_params(array tokens, int start_idx, int
     return params;
 }
 
+// =========================================================================
+// Documentation parsing helpers
+// =========================================================================
+
+//! Parse AutoDoc from local file code (not stdlib)
+//!
+//! This function extracts //! AutoDoc comments from Pike source code
+//! and associates them with symbols (functions, methods, variables).
+//! Similar to parse_stdlib_documentation in Resolution.pike, but operates
+//! on in-memory code strings rather than file paths.
+//!
+//! @param code Pike source code to parse
+//! @returns Mapping of symbol name -> documentation mapping
+//!
+//! The returned documentation mapping contains:
+//!   - text: Main description text
+//!   - deprecated: Deprecation message (if @deprecated tag present)
+//!   - params: Parameter documentation
+//!   - returns: Return value documentation
+//!   - And other AutoDoc fields as parsed
+mapping parse_local_file_documentation(string code) {
+    // Get helper functions from Intelligence module
+    program module_program = master()->resolv("LSP.Intelligence.module");
+    if (!module_program) {
+        return ([]);
+    }
+
+    function extract_autodoc_comments = module_program->extract_autodoc_comments;
+    function extract_symbol_name = module_program->extract_symbol_name;
+
+    if (!extract_autodoc_comments || !extract_symbol_name) {
+        return ([]);
+    }
+
+    mapping docs = ([]);
+
+    mixed parse_err = catch {
+        array(string) lines = code / "\n";
+        string current_doc = "";
+
+        for (int i = 0; i < sizeof(lines); i++) {
+            string line = lines[i];
+            string trimmed = LSP.Compat.trim_whites(line);
+
+            // Collect autodoc comments
+            if (has_prefix(trimmed, "//!")) {
+                if (sizeof(current_doc) > 0) {
+                    current_doc += "\n" + trimmed[3..];
+                } else {
+                    current_doc = trimmed[3..];
+                }
+                continue;
+            }
+
+            // If we have accumulated docs and hit a non-doc line, try to associate
+            if (sizeof(current_doc) > 0) {
+                // Look for function/method/variable definition
+                string name = extract_symbol_name(trimmed);
+                if (sizeof(name) > 0) {
+                    // Parse the autodoc using TypeAnalysis
+                    program TypeAnalysisClass = master()->resolv("LSP.Intelligence.TypeAnalysis");
+                    if (TypeAnalysisClass) {
+                        // TypeAnalysis needs a context, but parse_autodoc doesn't use it
+                        // Pass a minimal context or null
+                        object type_analyzer = TypeAnalysisClass(0);
+                        docs[name] = type_analyzer->parse_autodoc(current_doc);
+                    } else {
+                        // Fallback: store raw doc
+                        docs[name] = ([ "text": current_doc ]);
+                    }
+                }
+                current_doc = "";
+            }
+        }
+    };
+
+    if (parse_err) {
+        // Silent failure - return empty docs on error
+        return ([]);
+    }
+
+    return docs;
+}
+
 //! ============================================================================
 //! ANALYSIS DELEGATING CLASS
 //! ============================================================================
@@ -1022,6 +1106,16 @@ class Analysis {
                 mapping introspect_result = intelligence->introspect_program(compiled_prog);
                 introspect_result->success = 1;
                 introspect_result->diagnostics = ({});
+
+                // Extract AutoDoc from source code and merge into introspection
+                mapping docs = parse_local_file_documentation(code);
+                if (docs && sizeof(docs) > 0) {
+                    program ResolutionClass = master()->resolv("LSP.Intelligence.Resolution");
+                    if (ResolutionClass) {
+                        object resolver = ResolutionClass(0);  // Context not used by merge_documentation
+                        introspect_result = resolver->merge_documentation(introspect_result, docs);
+                    }
+                }
 
                 result->introspect = introspect_result;
             };

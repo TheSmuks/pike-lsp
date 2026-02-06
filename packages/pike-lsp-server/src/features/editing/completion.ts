@@ -26,7 +26,8 @@ export function registerCompletionHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { logger, documentCache, stdlibIndex, moduleContext } = services;
+    // Note: stdlibIndex accessed via services.stdlibIndex for late binding (initialized after registration)
+    const { logger, documentCache, moduleContext } = services;
 
     /**
      * Code completion handler
@@ -118,12 +119,12 @@ export function registerCompletionHandlers(
 
                         // Add inherited members from parent classes
                         const inherits = enclosingClass.children.filter(s => s.kind === 'inherit');
-                        if (stdlibIndex) {
+                        if (services.stdlibIndex) {
                             for (const inheritSymbol of inherits) {
                                 const parentName = (inheritSymbol as any).classname ?? inheritSymbol.name;
                                 if (parentName) {
                                     try {
-                                        const parentModule = await stdlibIndex.getModule(parentName);
+                                        const parentModule = await services.stdlibIndex.getModule(parentName);
                                         if (parentModule?.symbols) {
                                             for (const [name, symbol] of parentModule.symbols) {
                                                 if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
@@ -150,10 +151,10 @@ export function registerCompletionHandlers(
                 }
 
                 return completions;
-            } else if (stdlibIndex) {
+            } else if (services.stdlibIndex) {
                 // ParentClass:: - show members of that specific parent class
                 try {
-                    const parentModule = await stdlibIndex.getModule(scopeName);
+                    const parentModule = await services.stdlibIndex.getModule(scopeName);
                     if (parentModule?.symbols) {
                         logger.debug('Found stdlib module members', { module: scopeName, count: parentModule.symbols.size });
                         for (const [name, symbol] of parentModule.symbols) {
@@ -187,16 +188,110 @@ export function registerCompletionHandlers(
             }
         }
 
+        // WORKAROUND: Pike tokenizer doesn't recognize "obj->" as member_access when cursor
+        // is between -> and the next identifier. Detect this pattern manually.
+        // Match pattern like "obj->" at the cursor position with possible identifier after
+        const cursorChar = params.position.character;
+        const beforeCursor = lineText.substring(0, cursorChar);
+        const arrowMatch = beforeCursor.match(/(\w+)\s*->\s*$/);
+        if (arrowMatch && arrowMatch[1]) {
+            const objectRef = arrowMatch[1];
+            const prefixAfterCursor = lineText.substring(cursorChar).match(/^(\w*)/)?.[1] || '';
+            logger.debug('Detected obj-> pattern (workaround)', { objectRef, prefixAfterCursor, beforeCursor: beforeCursor.slice(-10) });
+
+            // Try to resolve the object's type and get its members
+            if (cached) {
+                const localSymbol = cached.symbols.find(s => s.name === objectRef);
+                if (localSymbol?.type) {
+                    const typeName = extractTypeName(localSymbol.type);
+                    if (typeName) {
+                        logger.debug('Extracted type from obj-> workaround', { objectRef, typeName });
+
+                        // Try stdlib first
+                        if (services.stdlibIndex) {
+                            try {
+                                const module = await services.stdlibIndex.getModule(typeName);
+                                if (module?.symbols) {
+                                    for (const [name, symbol] of module.symbols) {
+                                        if (!prefixAfterCursor || name.toLowerCase().startsWith(prefixAfterCursor.toLowerCase())) {
+                                            completions.push(buildCompletionItem(name, symbol, `From ${typeName}`, undefined, completionContext));
+                                        }
+                                    }
+                                    return completions;
+                                }
+                            } catch (err) {
+                                logger.debug('Type not in stdlib (obj-> workaround)', { typeName });
+                            }
+                        }
+
+                        // Then try workspace documents
+                        for (const [, doc] of documentCache.entries()) {
+                            const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
+                            if (classSymbol?.children) {
+                                // Collect all members including inherited ones
+                                const allMembers: import('@pike-lsp/pike-bridge').PikeSymbol[] = [];
+
+                                // Add direct members
+                                for (const member of classSymbol.children) {
+                                    if (member.kind !== 'inherit') {
+                                        allMembers.push(member);
+                                    }
+                                }
+
+                                // Add inherited members (collect parent classes to resolve)
+                                const inheritChildren = classSymbol.children.filter(c => c.kind === 'inherit');
+                                for (const inheritChild of inheritChildren) {
+                                    const parentClassName = (inheritChild as any).classname ?? inheritChild.name;
+                                    if (parentClassName) {
+                                        // Find parent class in same document
+                                        const parentClass = doc.symbols.find(s => s.kind === 'class' && s.name === parentClassName);
+                                        if (parentClass?.children) {
+                                            for (const parentMember of parentClass.children) {
+                                                if (parentMember.kind !== 'inherit' && parentMember.name) {
+                                                    // Mark as inherited
+                                                    allMembers.push({ ...parentMember, inherited: true, inheritedFrom: parentClassName });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Build completions for all members
+                                for (const member of allMembers) {
+                                    if (!member.name) continue;
+                                    if (!prefixAfterCursor || member.name.toLowerCase().startsWith(prefixAfterCursor.toLowerCase())) {
+                                        // Check for deprecated
+                                        const isDeprecated = member.deprecated || member.documentation?.deprecated;
+                                        const memberWithDeprecated = isDeprecated && !member.deprecated
+                                            ? { ...member, deprecated: true }
+                                            : member;
+                                        completions.push(buildCompletionItem(
+                                            member.name,
+                                            memberWithDeprecated,
+                                            `Member of ${typeName}`,
+                                            undefined,
+                                            completionContext
+                                        ));
+                                    }
+                                }
+                                return completions;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // WORKAROUND: Pike tokenizer doesn't recognize "Module." as member_access when cursor
         // is immediately after the dot with no partial identifier. Detect this pattern manually.
         // Match "Module." at end of line (with possible whitespace before)
         // NOTE: This workaround is kept as fallback until E2E tests confirm Pike-side fix works
         const moduleDotMatch = lineText.match(/([A-Z][a-zA-Z0-9_]*)\.\s*$/);
-        if (moduleDotMatch && moduleDotMatch[1] && stdlibIndex) {
+        if (moduleDotMatch && moduleDotMatch[1] && services.stdlibIndex) {
             const moduleName = moduleDotMatch[1];
             logger.debug('Detected Module. pattern (workaround)', { moduleName, lineText });
             try {
-                const testModule = await stdlibIndex.getModule(moduleName);
+                const testModule = await services.stdlibIndex.getModule(moduleName);
                 if (testModule?.symbols && testModule.symbols.size > 0) {
                     logger.debug('Module. workaround succeeded', { moduleName, count: testModule.symbols.size });
                     for (const [name, symbol] of testModule.symbols) {
@@ -226,9 +321,9 @@ export function registerCompletionHandlers(
                 logger.debug('Using fully qualified name', { typeName });
             }
             // Strategy 2: Try to resolve as a top-level stdlib module
-            else if (stdlibIndex) {
+            else if (services.stdlibIndex) {
                 try {
-                    const testModule = await stdlibIndex.getModule(objectRef);
+                    const testModule = await services.stdlibIndex.getModule(objectRef);
                     if (testModule?.symbols && testModule.symbols.size > 0) {
                         typeName = objectRef;
                         logger.debug('Resolved as stdlib module', { typeName, count: testModule.symbols.size });
@@ -248,10 +343,10 @@ export function registerCompletionHandlers(
             }
 
             // Use resolved type to get members
-            if (typeName && stdlibIndex) {
+            if (typeName && services.stdlibIndex) {
                 // First try to resolve from stdlib
                 try {
-                    const module = await stdlibIndex.getModule(typeName);
+                    const module = await services.stdlibIndex.getModule(typeName);
                     if (module?.symbols) {
                         logger.debug('Found stdlib type members', { typeName, count: module.symbols.size });
                         for (const [name, symbol] of module.symbols) {
@@ -270,53 +365,40 @@ export function registerCompletionHandlers(
                 for (const [docUri, doc] of documentCache.entries()) {
                     const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
                     if (classSymbol) {
-                        logger.debug('Found class in workspace', { typeName, uri: docUri });
+                        logger.debug('Found class in workspace', { typeName, uri: docUri, childrenCount: classSymbol.children?.length || 0 });
 
-                        // P.2 FIX: Use introspection data if available for AutoDoc including @deprecated tags
-                        // Introspection includes deprecated field set by Resolution.pike:571-572
-                        if (doc.introspection && doc.introspection.symbols && doc.introspection.symbols.length > 0) {
-                            logger.debug('Using introspection data for AutoDoc', { typeName });
-                            // Introspection returns members of the compiled program
-                            // Filter to only members that belong to the target class or are inherited
-                            // A member belongs to the target class if:
-                            // 1. It has no inheritedFrom field (local member)
-                            // 2. OR it has inheritedFrom set (inherited member)
-                            // We exclude symbols that don't have these properties
-                            for (const member of doc.introspection.symbols) {
-                                if (!member.name) continue;
-                                // Only include members that are either local or explicitly inherited
-                                // Skip symbols without kind or type (likely not class members)
-                                if (!member.kind) continue;
-                                if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                                    const detail = member.inheritedFrom
-                                        ? `Inherited from ${member.inheritedFrom}`
-                                        : `Member of ${typeName}`;
-                                    // Introspection symbols have deprecated field
-                                    completions.push(buildCompletionItem(
-                                        member.name,
-                                        member,
-                                        detail,
-                                        undefined,
-                                        completionContext
-                                    ));
+                        // P.2 FIX: Use parsed children (correct class members) but merge deprecated from introspection
+                        const members = classSymbol.children || [];
+                        logger.debug('Class members from parse', { typeName, count: members.length });
+
+                        // Build a lookup map from introspection for deprecated flags
+                        const deprecatedMap = new Map<string, boolean>();
+                        if (doc.introspection?.symbols) {
+                            for (const sym of doc.introspection.symbols) {
+                                if (sym.deprecated || sym.documentation?.deprecated) {
+                                    deprecatedMap.set(sym.name, true);
                                 }
                             }
-                        } else {
-                            // Fallback: Use parsed children (no AutoDoc/deprecated)
-                            logger.debug('No introspection data, using parse results', { typeName });
-                            const members = classSymbol.children || [];
-                            logger.debug('Class members', { typeName, count: members.length });
+                        }
 
-                            for (const member of members) {
-                                if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                                    completions.push(buildCompletionItem(
-                                        member.name,
-                                        member,
-                                        `Member of ${typeName}`,
-                                        undefined,
-                                        completionContext
-                                    ));
+                        for (const member of members) {
+                            if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                // Merge deprecated flag: check parse result, introspection, and documentation
+                                let memberWithDeprecated = member;
+                                const isDeprecated = member.deprecated ||
+                                    deprecatedMap.has(member.name) ||
+                                    member.documentation?.deprecated;
+                                if (isDeprecated && !member.deprecated) {
+                                    memberWithDeprecated = { ...member, deprecated: true };
                                 }
+
+                                completions.push(buildCompletionItem(
+                                    member.name,
+                                    memberWithDeprecated,
+                                    `Member of ${typeName}`,
+                                    undefined,
+                                    completionContext
+                                ));
                             }
                         }
                         return completions;
@@ -401,9 +483,9 @@ export function registerCompletionHandlers(
             if (cached.dependencies?.imports) {
                 for (const imp of cached.dependencies.imports) {
                     // Try stdlib index first
-                    if (imp.isStdlib && stdlibIndex) {
+                    if (imp.isStdlib && services.stdlibIndex) {
                         try {
-                            const moduleInfo = await stdlibIndex.getModule(imp.modulePath);
+                            const moduleInfo = await services.stdlibIndex.getModule(imp.modulePath);
                             if (moduleInfo?.symbols) {
                                 for (const [name, symbol] of moduleInfo.symbols) {
                                     // Skip if already suggested

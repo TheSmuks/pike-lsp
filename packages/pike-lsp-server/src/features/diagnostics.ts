@@ -25,6 +25,35 @@ import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/ind
 import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
 
 /**
+ * Extract deprecated status from parsed symbols recursively.
+ * Pike parser already extracts @deprecated into documentation.deprecated field.
+ * This promotes that to a top-level deprecated boolean for easier access.
+ *
+ * @param symbols - Parse symbols to annotate
+ * @returns Symbols with deprecated field set where applicable
+ */
+function extractDeprecatedFromSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
+    function processSymbol(sym: PikeSymbol): PikeSymbol {
+        let result = sym;
+
+        // Check if Pike parser already extracted @deprecated into documentation
+        if (sym.documentation?.deprecated) {
+            result = { ...sym, deprecated: true };
+        }
+
+        // Recursively process children (for class members)
+        if (sym.children && sym.children.length > 0) {
+            const processedChildren = sym.children.map(child => processSymbol(child));
+            result = { ...result, children: processedChildren };
+        }
+
+        return result;
+    }
+
+    return symbols.map(processSymbol);
+}
+
+/**
  * Register diagnostics handlers with the LSP connection.
  *
  * @param connection - LSP connection
@@ -780,11 +809,17 @@ export function registerDiagnosticsHandlers(
                     dependencies = await services.includeResolver.resolveDependencies(uri, legacySymbols);
                 }
 
+                // P.2 FIX: Store hierarchical symbols (not flattened) so classSymbol.children works
+                // Apply extractDeprecatedFromSymbols to preserve class hierarchy with deprecated flags
+                const hierarchicalSymbols = parseData && parseData.symbols.length > 0
+                    ? extractDeprecatedFromSymbols(parseData.symbols)
+                    : legacySymbols;
+
                 const cacheEntry: import('../core/types.js').DocumentCacheEntry = {
                     version,
-                    symbols: legacySymbols,
+                    symbols: hierarchicalSymbols,  // Use hierarchical symbols with children preserved
                     diagnostics,
-                    symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),
+                    symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),  // Use flat for indexing
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,
@@ -802,7 +837,9 @@ export function registerDiagnosticsHandlers(
                 connection.console.log(`[VALIDATE] Cached document - total symbols: ${legacySymbols.length}, introspection success: ${introspectData.success}`);
             } else if (parseData && parseData.symbols.length > 0) {
                 // Introspection failed, use parse results
-                connection.console.log(`[VALIDATE] Using parse result with ${parseData.symbols.length} symbols`);
+                // P.2 FIX: Extract @deprecated tags from source even when introspection fails
+                const symbolsWithDeprecated = extractDeprecatedFromSymbols(parseData.symbols);
+                connection.console.log(`[VALIDATE] Using parse result with ${symbolsWithDeprecated.length} symbols (with deprecated extraction)`);
                 // Log first few symbol names for debugging
                 for (let i = 0; i < Math.min(5, parseData.symbols.length); i++) {
                     const sym = parseData.symbols[i];
@@ -813,14 +850,14 @@ export function registerDiagnosticsHandlers(
                 // Resolve include/import dependencies for IntelliSense
                 let dependencies: import('../core/types.js').DocumentDependencies | undefined;
                 if (services.includeResolver) {
-                    dependencies = await services.includeResolver.resolveDependencies(uri, parseData.symbols);
+                    dependencies = await services.includeResolver.resolveDependencies(uri, symbolsWithDeprecated);
                 }
 
                 const cacheEntry: import('../core/types.js').DocumentCacheEntry = {
                     version,
-                    symbols: parseData.symbols,
+                    symbols: symbolsWithDeprecated,  // Use symbols with deprecated extracted from source
                     diagnostics,
-                    symbolPositions: await buildSymbolPositionIndex(text, parseData.symbols, tokenizeData),
+                    symbolPositions: await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData),
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,
@@ -833,7 +870,7 @@ export function registerDiagnosticsHandlers(
                 }
 
                 documentCache.set(uri, cacheEntry);
-                connection.console.log(`[VALIDATE] Cached document - symbols count: ${parseData.symbols.length}`);
+                connection.console.log(`[VALIDATE] Cached document - symbols count: ${symbolsWithDeprecated.length}`);
             } else {
                 connection.console.log(`[VALIDATE] No parse result available - features will not work`);
             }

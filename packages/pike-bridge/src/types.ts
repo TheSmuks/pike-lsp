@@ -155,6 +155,10 @@ export interface PikeSymbol {
     inheritedFrom?: string;
     /** Class/module path for import and inherit statements */
     classname?: string;
+    /** AutoDoc documentation (from parse) */
+    documentation?: AutodocDocumentation;
+    /** Whether symbol is deprecated (convenience flag) */
+    deprecated?: boolean;
 }
 
 export type PikeSymbolKind =
@@ -366,6 +370,8 @@ export interface IntrospectedSymbol {
     inherited?: boolean;
     /** Name of the class/module it is inherited from */
     inheritedFrom?: string;
+    /** Whether the symbol is deprecated (from @deprecated AutoDoc) */
+    deprecated?: boolean | number;
 }
 
 /**

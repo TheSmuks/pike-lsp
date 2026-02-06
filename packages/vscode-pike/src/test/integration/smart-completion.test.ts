@@ -331,14 +331,23 @@ suite('Smart Completion E2E Tests', () => {
 
         // Find the deprecated 'rename' method
         const renameItem = findByLabel(result, 'rename');
+        // DEBUG: Log all items and the rename item specifically
+        console.log(`[P.2 DEBUG] Total items: ${result.items.length}`);
+        console.log(`[P.2 DEBUG] renameItem found: ${!!renameItem}`);
         if (renameItem) {
+            console.log(`[P.2 DEBUG] renameItem.tags: ${JSON.stringify(renameItem.tags)}`);
+            console.log(`[P.2 DEBUG] renameItem.label: ${renameItem.label}`);
+            console.log(`[P.2 DEBUG] Deprecated tag value: ${vscode.CompletionItemTag.Deprecated}`);
             // The deprecated tag should be set on inherited members that are deprecated
             assert.ok(
                 renameItem.tags?.includes(vscode.CompletionItemTag.Deprecated),
-                'rename method should have deprecated tag'
+                `rename method should have deprecated tag, got tags: ${JSON.stringify(renameItem.tags)}`
             );
+        } else {
+            // If rename is not in the list, fail the test with useful info
+            const itemLabels = result.items.map(i => typeof i.label === 'string' ? i.label : i.label.label).slice(0, 20);
+            assert.fail(`rename not found in completions. Got: ${itemLabels.join(', ')}`);
         }
-        // If rename is not in the list, that's also acceptable for now
     });
 
     // =========================================================================

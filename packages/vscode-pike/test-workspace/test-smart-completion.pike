@@ -20,18 +20,18 @@ void use_stdlib_modules() {
 
     // UNIQUE_PATTERN_ARRAY_COMPLETION: Array. should show members like sort
     array a1 = ({1, 2});
-    // For completion testing: Array.
-    Array.
+    // For completion testing: Array.sort
+    array a2 = Array.sort(a1);
 
     // UNIQUE_PATTERN_STRING_COMPLETION: String. should show members like trim_all_whites
     string s1 = "test";
-    // For completion testing: String.
-    String.
+    // For completion testing: String.trim
+    string s2 = String.trim_all_whites(s1);
 
     // UNIQUE_PATTERN_STDIO_COMPLETION: Stdio. should show members like File
     object o1 = Stdio.File();
-    // For completion testing: Stdio.
-    Stdio.
+    // For completion testing: Stdio.File
+    object o2 = Stdio.File();
 }
 
 // -------------------------------------------------------------------

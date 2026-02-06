@@ -558,7 +558,7 @@ protected mapping extract_bootstrap_autodoc(string module_path) {
 //! @returns Updated introspection with documentation merged in
 //!
 //! Merges documentation into symbols, functions, and variables arrays.
-protected mapping merge_documentation(mapping introspection, mapping docs) {
+mapping merge_documentation(mapping introspection, mapping docs) {
     if (!introspection || !docs) return introspection;
 
     // Merge into symbols array
