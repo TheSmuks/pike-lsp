@@ -8,6 +8,22 @@
  * Run with: bun test dist/src/tests/pike-analyzer/caching.test.js
  */
 
+/**
+ * PLACEHOLDER TESTS
+ *
+ * This file contains placeholder tests for Pike caching methods that are not yet implemented.
+ * These tests document the expected behavior for:
+ * - LRUCache.get() / set() / clear() - basic cache operations
+ * - LRUCache.getStats() / getHitRate() - cache statistics
+ * - LRUCache eviction and access ordering
+ * - CompilationCache.store() / get() / invalidate() / transitiveInvalidate()
+ * - CompilationCache serialization/deserialization and time eviction
+ *
+ * Tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
+ *
+ * These tests will be implemented once the Pike analyzer supports the corresponding caching methods.
+ */
+
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 

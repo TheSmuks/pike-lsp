@@ -9,6 +9,20 @@
  * Run with: bun test dist/src/tests/pike-analyzer/analysis.test.js
  */
 
+/**
+ * PLACEHOLDER TESTS
+ *
+ * This file contains placeholder tests for Pike analyzer methods that are not yet implemented.
+ * These tests document the expected behavior for:
+ * - analysis.analyze() - for uninitialized variables, type errors, syntax errors
+ * - analysis.complete() - for context-aware, scope-aware, cached completions
+ * - analysis.findOccurrences() - for finding variable references across scopes
+ *
+ * Tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
+ *
+ * These tests will be implemented once the Pike analyzer supports the corresponding methods.
+ */
+
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { DiagnosticSeverity } from 'vscode-languageserver/node.js';
