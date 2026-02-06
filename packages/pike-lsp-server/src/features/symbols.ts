@@ -167,12 +167,13 @@ export function registerSymbolsHandlers(
      * Workspace symbol handler - search symbols across workspace (Ctrl+T)
      *
      * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
-     * TODO: When upgrading to LSP 3.18+, use params.limit for client control.
+     * NOTE: Current LSP version is 3.17 (vscode-languageserver 9.0.1).
+     * WorkspaceSymbolParams.limit was added in LSP 3.18.
+     * We implement server-side limiting to avoid overwhelming the client.
+     * Upgrade tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
      */
     connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
         const query = params.query;
-        // Note: LSP 3.17.5 doesn't support params.limit on workspace symbols
-        // This was added in a later LSP version. For now, use server constant.
         const limit = LSP.MAX_WORKSPACE_SYMBOLS;
 
         log.debug('Workspace symbol request', { query, limit });

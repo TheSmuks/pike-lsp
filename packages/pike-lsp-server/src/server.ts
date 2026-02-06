@@ -83,7 +83,7 @@ function findAnalyzerPath(): string | undefined {
     // Check if running in CJS mode (bundled with esbuild)
     // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
     if (typeof __filename !== 'undefined') {
-        // @ts-ignore
+        // @ts-ignore - __dirname is not defined in strict ESM but exists in CJS
         resolvedDirname = path.dirname(__filename);
     } else {
         // ESM mode
@@ -354,7 +354,6 @@ connection.onInitialized(async () => {
     // NOTE: Stdlib preloading disabled due to Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping).
     // These modules are used internally by the resolver and cannot be safely introspected.
     // Modules will be loaded lazily on-demand instead.
-    // TODO: Investigate alternative approach for safe stdlib preloading
     connection.console.log('Stdlib preloading skipped - modules will load on-demand');
 
     // Index workspace
