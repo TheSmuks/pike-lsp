@@ -100,6 +100,199 @@ Tests verify: document symbols, hover, go-to-definition, completion all return d
 | "hover info" fails | Hover handler returning null | Check Pike analysis returns type info |
 | "go to definition" fails | Definition handler broken | Check symbol is indexed first |
 
+## MANDATORY: Workflow Protocols
+
+**All agents working on this project MUST follow the standardized workflow.** The complete protocols are documented in `.omc/plans/standardize-workflow.md`.
+
+### Quick Reference for Agents
+
+**Before starting ANY work:**
+1. Read this file (`.claude/CLAUDE.md`)
+2. Check Pike version: `pike --version` (target: 8.0.1116)
+3. Follow TDD: write test first, confirm it fails, then implement
+
+**Decision Boundaries (Tiered Autonomy):**
+| Tier | Scope | Approval |
+|------|-------|----------|
+| T1 | Pattern application (existing patterns) | None |
+| T2 | Intra-module refactoring | Tests must pass |
+| T3 | Cross-boundary changes (TS ↔ Pike) | Architect review |
+| T4 | Foundation changes | Full architect review |
+
+**Quality Gates (enforced by git hooks):**
+- Pre-commit: Blocks placeholder tests, dev Pike scripts
+- Pre-push: Requires build, Pike compile, smoke tests, E2E tests
+
+**For detailed protocols**: See `.omc/plans/standardize-workflow.md` (14 sections: debugging flowcharts, rollback procedures, debt tracking, etc.)
+
+## MANDATORY: Proper Pike Code Style
+
+**Pike has specific idioms and patterns.** Follow these or your code will fail.
+
+### Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Functions | `snake_case` | `handle_parse()`, `get_symbols()` |
+| Variables | `snake_case` | `symbol_table`, `line_number` |
+| Constants | `UPPER_SNAKE` | `MAX_DEPTH`, `DEFAULT_TIMEOUT` |
+| Classes/Programs | `PascalCase` | `SymbolCollector`, `TypeResolver` |
+| Private members | No prefix (Pike has no private) | Use `_name` convention only for clarity |
+
+### Pike Version Compatibility (CRITICAL)
+
+**Target: Pike 8.0.1116** - Many newer APIs don't exist.
+
+```pike
+// WRONG: String.trim() doesn't exist in 8.0
+string cleaned = String.trim(input);
+
+// RIGHT: Use trim_all_whites()
+string cleaned = String.trim_all_whites(input);
+```
+
+**Always use `LSP.pmod/Compat.pmod`** for version-dependent functionality:
+```pike
+// Check version at runtime
+int version = LSP.Compat.pike_version();
+if (version < 80200) {
+    // Use fallback for older Pike
+}
+```
+
+### Handler Pattern (JSON-RPC)
+
+Every Pike handler in `analyzer.pike` MUST follow this pattern:
+
+```pike
+//! Brief description of what this handler does
+//! @param params Mapping with request data
+//! @param ctx Context service container
+//! @returns Mapping with "result" or "error"
+protected mapping handle_your_method(mapping params, Context ctx) {
+    mixed err = catch {
+        // 1. Extract and validate params
+        string code = params->code || "";
+
+        // 2. Do the work (use stdlib!)
+        array symbols = parse_code(code);
+
+        // 3. Return result mapping
+        return ([
+            "result": ([
+                "symbols": symbols
+            ])
+        ]);
+    });
+
+    // 4. Handle errors
+    if (err) {
+        return ([
+            "error": ([
+                "code": -32000,
+                "message": describe_error(err)
+            ])
+        ]);
+    }
+}
+```
+
+**Required:**
+- `//!` autodoc comments for functions
+- `snake_case` function names
+- `catch {}` for error handling
+- Return `mapping` with `"result"` OR `"error"` key
+- Registered in `HANDLERS` dispatch table
+
+### Data Structures
+
+```pike
+// Arrays: ordered sequences
+array(string) names = ({"foo", "bar", "baz"});
+names += ({"qux"});  // Append
+
+// Mappings: key-value pairs (like objects/maps)
+mapping data = ([
+    "name": "value",
+    "count": 42
+]);
+data->key = "new";  // Access/assign
+
+// Multisets: like Set ADT
+multiset(string> unique_indices = (</ "foo", "bar", "baz" >);
+
+// Check membership
+if (has_index(data, "key")) { ... }
+```
+
+### Common Patterns
+
+```pike
+// Iterate array
+foreach (symbols; int i; mapping symbol) {
+    werror("Symbol %d: %s\n", i, symbol->name);
+}
+
+// Iterate mapping indices/values
+foreach (indices(data); string key;) {
+    mixed value = data[key];
+}
+
+// Safe access with default
+string name = params->name || "default";
+
+// Type checking
+if (prog->classp) { ... }  // Check if is class
+if (intp(value)) { ... }   // Check if is int
+if (stringp(value)) { ... } // Check if is string
+if (mappingp(value)) { ... } // Check if is mapping
+
+// String operations
+string parts = input / ",";     // Split
+string joined = parts * ",";    // Join
+bool has = has_value(input, sub);  // Contains
+
+// Array operations
+array filtered = filter(arr, lambda(mixed x) { return x > 0; });
+array transformed = map(arr, lambda(mixed x) { return x * 2; });
+```
+
+### Module Loading Pattern
+
+```pike
+// In LSP.pmod module files:
+#define DUMP_RESOLV(x) werror("%s: %O\n", #x, master()->resolv(x))
+
+// Resolve with error handling
+program prog = master()->resolv("Module.SubModule");
+if (!prog) {
+    werror("Failed to resolve Module.SubModule\n");
+    return (["error": (["code": -32001, "message": "Module not found"])]);
+}
+```
+
+### Anti-Patterns to Avoid
+
+```pike
+// DON'T: Use regex to parse Pike code
+// DO: Use Parser.Pike.split() / Parser.Pike.tokenize()
+
+// DON'T: Guess at API behavior
+// DO: Read Pike source in /usr/local/pike/8.0.1116/lib/modules/
+
+// DON'T: Use String.trim()
+// DO: Use String.trim_all_whites()
+
+// DON'T: Return null/0 from handlers
+// DO: Return proper error mapping
+
+// DON'T: Silent failures
+// DO: Log with werror() for debugging, return error mapping
+
+// DON'T: Reinvent utilities
+// DO: Check Stdio, Array, Mapping, String modules first
+```
+
 ## MANDATORY: Test-Driven Development
 
 **All new features and bug fixes MUST follow TDD.** No implementation code without a failing test first.
