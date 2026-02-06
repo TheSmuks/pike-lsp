@@ -10,7 +10,10 @@
 
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { IntrospectedSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
+import { Logger } from '@pike-lsp/core';
 import { MAX_STDLIB_MODULES } from './constants/index.js';
+
+const log = new Logger('StdlibIndex');
 
 /**
  * Information about a stdlib module
@@ -222,9 +225,27 @@ export class StdlibIndexManager {
 
             // Convert arrays to Maps
             const symbols = new Map<string, IntrospectedSymbol>();
+
+            // Merge all symbol arrays (symbols, functions, variables, classes)
+            // Pike's resolve_stdlib returns these separately, not as a unified symbols array
             if (result.symbols) {
                 for (const symbol of result.symbols) {
-                    symbols.set(symbol.name, symbol);
+                    if (symbol.name) symbols.set(symbol.name, symbol);
+                }
+            }
+            if (result.functions) {
+                for (const symbol of result.functions) {
+                    if (symbol.name) symbols.set(symbol.name, symbol);
+                }
+            }
+            if (result.variables) {
+                for (const symbol of result.variables) {
+                    if (symbol.name) symbols.set(symbol.name, symbol);
+                }
+            }
+            if (result.classes) {
+                for (const symbol of result.classes) {
+                    if (symbol.name) symbols.set(symbol.name, symbol);
                 }
             }
 
@@ -255,7 +276,7 @@ export class StdlibIndexManager {
 
             return moduleInfo;
         } catch (error) {
-            console.error(`Failed to load stdlib module ${modulePath}:`, error);
+            log.error(`Failed to load stdlib module ${modulePath}:`, error as Error);
             // Add to negative cache on error too
             this.negativeCache.add(modulePath);
             return null;

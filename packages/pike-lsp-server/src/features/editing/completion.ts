@@ -79,37 +79,72 @@ export function registerCompletionHandlers(
 
             if ((scopeName === 'this_program' || scopeName === 'this') && cached) {
                 // this_program:: or this:: - show local class members
-                for (const symbol of cached.symbols) {
-                    if (symbol.kind === 'method' || symbol.kind === 'variable') {
-                        if (!symbol.name) continue;
+                // Find the enclosing class by looking for the class with the latest start line before cursor
+                const classSymbols = cached.symbols.filter(s => s.kind === 'class');
+                const enclosingClass = findEnclosingClassSymbol(cached.symbols, params.position.line);
 
-                        if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                            completions.push(buildCompletionItem(symbol.name, symbol, 'Local member', cached.symbols, completionContext));
+                logger.debug('[COMPLETION:Q.1] this_program:: scope resolution', {
+                    cursorLine: params.position.line,
+                    totalSymbols: cached.symbols.length,
+                    classCount: classSymbols.length,
+                    classes: classSymbols.map(c => ({
+                        name: c.name,
+                        positionLine: c.position?.line,
+                        hasChildren: !!c.children,
+                        childrenCount: c.children?.length ?? 0
+                    })),
+                    foundEnclosingClass: enclosingClass ? {
+                        name: enclosingClass.name,
+                        hasChildren: !!enclosingClass.children,
+                        childrenCount: enclosingClass.children?.length ?? 0
+                    } : null
+                });
+
+                if (enclosingClass && enclosingClass.kind === 'class' && enclosingClass.children) {
+                    logger.debug('[COMPLETION:Q.1] Found enclosing class for this_program::', { className: enclosingClass.name, memberCount: enclosingClass.children.length });
+
+                    // Add members from the parsed class children (which includes methods and variables)
+                    for (const member of enclosingClass.children) {
+                        if (!member.name) continue;
+
+                        // Skip inherit statements in the listing (but we use them below to find parent members)
+                        if (member.kind === 'inherit') continue;
+
+                        if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                            completions.push(buildCompletionItem(member.name, member, 'Local member', undefined, completionContext));
                         }
                     }
-                }
 
-                // Also add inherited members
-                const inherits = cached.symbols.filter(s => s.kind === 'inherit');
-                if (stdlibIndex) {
-                    for (const inheritSymbol of inherits) {
-                        const parentName = (inheritSymbol as any).classname ?? inheritSymbol.name;
-                        if (parentName) {
-                            try {
-                                const parentModule = await stdlibIndex.getModule(parentName);
-                                if (parentModule?.symbols) {
-                                    for (const [name, symbol] of parentModule.symbols) {
-                                        if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                                            completions.push(buildCompletionItem(name, symbol, `Inherited from ${parentName}`, undefined, completionContext));
+                    // Add inherited members from parent classes
+                    const inherits = enclosingClass.children.filter(s => s.kind === 'inherit');
+                    if (stdlibIndex) {
+                        for (const inheritSymbol of inherits) {
+                            const parentName = (inheritSymbol as any).classname ?? inheritSymbol.name;
+                            if (parentName) {
+                                try {
+                                    const parentModule = await stdlibIndex.getModule(parentName);
+                                    if (parentModule?.symbols) {
+                                        for (const [name, symbol] of parentModule.symbols) {
+                                            if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                                completions.push(buildCompletionItem(name, symbol, `Inherited from ${parentName}`, undefined, completionContext));
+                                            }
                                         }
                                     }
+                                } catch (err) {
+                                    logger.debug('Failed to get inherited members', { error: err instanceof Error ? err.message : String(err) });
                                 }
-                            } catch (err) {
-                                logger.debug('Failed to get inherited members', { error: err instanceof Error ? err.message : String(err) });
                             }
                         }
                     }
+                } else {
+                    logger.debug('[COMPLETION:Q.1] No enclosing class found for this_program::', {
+                        line: params.position.line,
+                        hasEnclosingClass: !!enclosingClass,
+                        isClass: enclosingClass?.kind === 'class',
+                        hasChildren: !!enclosingClass?.children
+                    });
                 }
+
                 return completions;
             } else if (stdlibIndex) {
                 // ParentClass:: - show members of that specific parent class
@@ -145,6 +180,28 @@ export function registerCompletionHandlers(
                 logger.debug('Pike completion context', { context: pikeContext });
             } catch (err) {
                 logger.debug('Failed to get Pike context', { error: err instanceof Error ? err.message : String(err) });
+            }
+        }
+
+        // WORKAROUND: Pike tokenizer doesn't recognize "Module." as member_access when cursor
+        // is immediately after the dot with no partial identifier. Detect this pattern manually.
+        // Match "Module." at end of line (with possible whitespace before)
+        // NOTE: This workaround is kept as fallback until E2E tests confirm Pike-side fix works
+        const moduleDotMatch = lineText.match(/([A-Z][a-zA-Z0-9_]*)\.\s*$/);
+        if (moduleDotMatch && moduleDotMatch[1] && stdlibIndex) {
+            const moduleName = moduleDotMatch[1];
+            logger.debug('Detected Module. pattern (workaround)', { moduleName, lineText });
+            try {
+                const testModule = await stdlibIndex.getModule(moduleName);
+                if (testModule?.symbols && testModule.symbols.size > 0) {
+                    logger.debug('Module. workaround succeeded', { moduleName, count: testModule.symbols.size });
+                    for (const [name, symbol] of testModule.symbols) {
+                        completions.push(buildCompletionItem(name, symbol, `From ${moduleName}`, undefined, completionContext));
+                    }
+                    return completions;
+                }
+            } catch (err) {
+                logger.debug('Module. workaround failed', { moduleName, error: err instanceof Error ? err.message : String(err) });
             }
         }
 
@@ -211,18 +268,51 @@ export function registerCompletionHandlers(
                     if (classSymbol) {
                         logger.debug('Found class in workspace', { typeName, uri: docUri });
 
-                        const members = classSymbol.children || [];
-                        logger.debug('Class members', { typeName, count: members.length });
+                        // P.2 FIX: Use introspection data if available for AutoDoc including @deprecated tags
+                        // Introspection includes deprecated field set by Resolution.pike:571-572
+                        if (doc.introspection && doc.introspection.symbols && doc.introspection.symbols.length > 0) {
+                            logger.debug('Using introspection data for AutoDoc', { typeName });
+                            // Introspection returns members of the compiled program
+                            // Filter to only members that belong to the target class or are inherited
+                            // A member belongs to the target class if:
+                            // 1. It has no inheritedFrom field (local member)
+                            // 2. OR it has inheritedFrom set (inherited member)
+                            // We exclude symbols that don't have these properties
+                            for (const member of doc.introspection.symbols) {
+                                if (!member.name) continue;
+                                // Only include members that are either local or explicitly inherited
+                                // Skip symbols without kind or type (likely not class members)
+                                if (!member.kind) continue;
+                                if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                    const detail = member.inheritedFrom
+                                        ? `Inherited from ${member.inheritedFrom}`
+                                        : `Member of ${typeName}`;
+                                    // Introspection symbols have deprecated field
+                                    completions.push(buildCompletionItem(
+                                        member.name,
+                                        member,
+                                        detail,
+                                        undefined,
+                                        completionContext
+                                    ));
+                                }
+                            }
+                        } else {
+                            // Fallback: Use parsed children (no AutoDoc/deprecated)
+                            logger.debug('No introspection data, using parse results', { typeName });
+                            const members = classSymbol.children || [];
+                            logger.debug('Class members', { typeName, count: members.length });
 
-                        for (const member of members) {
-                            if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                                completions.push(buildCompletionItem(
-                                    member.name,
-                                    member,
-                                    `Member of ${typeName}`,
-                                    undefined,
-                                    completionContext
-                                ));
+                            for (const member of members) {
+                                if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                    completions.push(buildCompletionItem(
+                                        member.name,
+                                        member,
+                                        `Member of ${typeName}`,
+                                        undefined,
+                                        completionContext
+                                    ));
+                                }
                             }
                         }
                         return completions;
@@ -533,4 +623,40 @@ function getCompletionContext(lineText: string): 'type' | 'expression' {
  */
 function extractTypeName(typeObj: unknown): string | null {
     return extractTypeNameHelper(typeObj);
+}
+
+/**
+ * Find the enclosing class symbol that contains the given line position.
+ * Returns the class symbol if found, null otherwise.
+ *
+ * Strategy: Find the class with the latest start line that is still before or at the cursor line.
+ * This works because classes are typically declared before their members are used.
+ */
+function findEnclosingClassSymbol(
+    symbols: import('@pike-lsp/pike-bridge').PikeSymbol[],
+    line: number
+): import('@pike-lsp/pike-bridge').PikeSymbol | null {
+    let bestMatch: import('@pike-lsp/pike-bridge').PikeSymbol | null = null;
+    let bestMatchLine = -1;
+
+    // Find the class with the latest start line that is still <= cursor line
+    for (const symbol of symbols) {
+        if (symbol.kind === 'class' && symbol.position && symbol.name) {
+            const startLine = (symbol.position.line ?? 1) - 1;  // Convert to 0-indexed
+
+            // Only consider classes that start at or before the cursor
+            if (startLine <= line && startLine > bestMatchLine) {
+                bestMatch = symbol;
+                bestMatchLine = startLine;
+            }
+        }
+    }
+
+    // If we found a match, also check for nested classes
+    if (bestMatch && bestMatch.children) {
+        const nestedClass = findEnclosingClassSymbol(bestMatch.children, line);
+        return nestedClass || bestMatch;
+    }
+
+    return bestMatch;
 }

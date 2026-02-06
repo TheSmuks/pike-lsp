@@ -13,9 +13,8 @@
 //!
 //! @note Tests use dynamic stdlib discovery - portable across machines
 //!
-//! TODO: Add tests for Logging.pmod when implemented
-//! TODO: Add tests for Protocol.pmod when implemented
-//! TODO: Cross-version tests on Pike 7.6, 7.8, 8.0.x
+//! NOTE: Logging.pmod and Protocol.pmod tests will be added when those modules are implemented
+//! NOTE: Cross-version tests (Pike 7.6, 7.8, 8.0.x) require test environment setup with multiple Pike versions
 
 // =============================================================================
 // Test Counters

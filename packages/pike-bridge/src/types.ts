@@ -617,13 +617,59 @@ export interface CircularCheckResult {
 }
 
 /**
+ * Startup phase timing information
+ */
+export interface StartupMetrics {
+    /** Time to set up module path (ms) */
+    path_setup?: number;
+    /** Time to log version info (ms) */
+    version?: number;
+    /** Time to initialize handlers (ms) */
+    handlers?: number;
+    /** Time until server ready (ms) */
+    ready?: number;
+    /** Total startup time (ms) */
+    total?: number;
+    /** Whether Context has been created */
+    context_created?: number;
+    /** Time to create Context on first request (ms) */
+    context_lazy?: number;
+    /** First LSP.Compat load time (ms) */
+    first_compat_load?: number;
+}
+
+/**
+ * Compilation cache statistics
+ */
+export interface CacheStats {
+    /** Number of cache hits */
+    hits: number;
+    /** Number of cache misses */
+    misses: number;
+    /** Number of cache evictions */
+    evictions: number;
+    /** Current cache size */
+    size: number;
+    /** Maximum cache size */
+    max_files: number;
+}
+
+/**
+ * Cache invalidation result
+ */
+export interface InvalidateCacheResult {
+    status: string;
+    path: string;
+}
+
+/**
  * Request to Pike subprocess
  */
 export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols' | 'get_startup_metrics' | 'get_cache_stats' | 'invalidate_cache';
     /** Request parameters */
     params: Record<string, unknown>;
 }

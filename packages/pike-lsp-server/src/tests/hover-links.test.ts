@@ -49,7 +49,8 @@ describe('Hover Links', () => {
             modifiers: [],
             argNames: [],
             argTypes: [],
-            // @ts-ignore
+            // @ts-ignore - documentation is not in PikeMethod interface but is handled at runtime
+            // by buildHoverContent which checks for it dynamically (line 518 of hover-builder.ts)
             documentation: {
                 text: 'Write data.',
                 seealso: ['Stdio.File', 'read']

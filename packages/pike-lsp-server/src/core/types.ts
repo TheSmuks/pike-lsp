@@ -88,6 +88,8 @@ export interface DocumentCacheEntry {
     contentHash?: string;
     /** INC-002: Hash of each line's semantic content (comments stripped) */
     lineHashes?: number[];
+    /** Introspection result with AutoDoc data including @deprecated tags */
+    introspection?: import('@pike-lsp/pike-bridge').IntrospectionResult | undefined;
 }
 
 /**

@@ -147,7 +147,7 @@ export class PikeBridge extends EventEmitter {
 
         const debug = options.debug ?? false;
         this.debugLog = debug
-            ? (message: string) => console.error(`[PikeBridge DEBUG] ${message}`)
+            ? (message: string) => this.logger.error(`[DEBUG] ${message}`)
             : () => {};
 
         // Determine analyzer path
@@ -1060,11 +1060,10 @@ export class PikeBridge extends EventEmitter {
             this.batchParseMetrics.push(metrics);
 
             // PERF-007: Log performance data
-            console.log(JSON.stringify({
-                event: 'bridge-batch-parse-perf',
+            this.logger.info('bridge-batch-parse-perf', {
                 ...metrics,
                 avgIpcMs: (metrics.ipcMs / metrics.chunkCount).toFixed(2),
-            }));
+            });
 
             return {
                 results: allResults,
@@ -1083,11 +1082,10 @@ export class PikeBridge extends EventEmitter {
         this.batchParseMetrics.push(metrics);
 
         // PERF-007: Log performance data
-        console.log(JSON.stringify({
-            event: 'bridge-batch-parse-perf',
+        this.logger.info('bridge-batch-parse-perf', {
             ...metrics,
             avgIpcMs: metrics.ipcMs.toFixed(2),
-        }));
+        });
 
         return result;
     }
@@ -1248,5 +1246,66 @@ export class PikeBridge extends EventEmitter {
             isRunning: this.isRunning(),
             pid: this.process?.pid ?? null,
         };
+    }
+
+    /**
+     * Get startup phase timing metrics from the Pike subprocess.
+     *
+     * Returns detailed timing information about the analyzer startup process,
+     * useful for performance debugging and optimization.
+     *
+     * @returns Startup metrics with phase timings in milliseconds.
+     * @example
+     * ```ts
+     * const metrics = await bridge.getStartupMetrics();
+     * console.log(`Startup took ${metrics.total}ms`);
+     * console.log(`Context created: ${metrics.context_created}`);
+     * ```
+     */
+    async getStartupMetrics(): Promise<import('./types.js').StartupMetrics> {
+        const result = await this.sendRequest<{ startup: import('./types.js').StartupMetrics }>('get_startup_metrics', {});
+        return result.startup;
+    }
+
+    /**
+     * Get compilation cache statistics from the Pike subprocess.
+     *
+     * Returns cache hit/miss ratios and size information, useful for
+     * debugging cache effectiveness and memory usage.
+     *
+     * @returns Cache statistics including hits, misses, evictions, and size.
+     * @example
+     * ```ts
+     * const stats = await bridge.getCacheStats();
+     * console.log(`Cache hit rate: ${stats.hits / (stats.hits + stats.misses)}`);
+     * ```
+     */
+    async getCacheStats(): Promise<import('./types.js').CacheStats> {
+        return this.sendRequest<import('./types.js').CacheStats>('get_cache_stats', {});
+    }
+
+    /**
+     * Invalidate compilation cache entries for testing or debugging.
+     *
+     * Forces cache invalidation for a specific file path. Useful for testing
+     * cache behavior or forcing recompilation of a specific file.
+     *
+     * @param path - File path to invalidate cache for.
+     * @param transitive - Whether to invalidate transitive dependencies (default: false).
+     * @returns Confirmation status with the invalidated path.
+     * @example
+     * ```ts
+     * // Invalidate single file
+     * await bridge.invalidateCache('/path/to/file.pike', false);
+     *
+     * // Invalidate file and all its dependencies
+     * await bridge.invalidateCache('/path/to/file.pike', true);
+     * ```
+     */
+    async invalidateCache(path: string, transitive = false): Promise<import('./types.js').InvalidateCacheResult> {
+        return this.sendRequest<import('./types.js').InvalidateCacheResult>('invalidate_cache', {
+            path,
+            transitive: transitive ? 1 : 0,
+        });
     }
 }

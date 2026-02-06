@@ -69,8 +69,9 @@ mapping handle_get_completion_context(mapping params) {
         for (int i = 0; i < sizeof(pike_tokens); i++) {
             object tok = pike_tokens[i];
             int tok_line = tok->line;
-            array(string) lines = code / "\n";
-            int tok_char = module_program->get_char_position(lines, tok_line, tok->text);
+            // Use the token's native character position from the tokenizer
+            // Note: Parser.Pike.tokenize() doesn't provide character positions, so this is 0
+            int tok_char = tok->character || 0;
 
             // Check if this token is at or before our cursor
             if (tok_line < target_line ||
@@ -109,12 +110,13 @@ mapping handle_get_completion_context(mapping params) {
             ]);
         }
 
-        // Look at surrounding tokens to determine context
-        // Scan backwards from cursor to find access operators (->, ., ::)
-
         // Extract the prefix by looking at the actual text at cursor position
         string prefix = extract_prefix_at_cursor(code, target_line, target_char);
         result->prefix = prefix;
+
+        // NEW: Check if cursor is immediately after a dot (with whitespace handling)
+        // This handles the "Module.|" pattern where there's no partial identifier
+        bool cursor_after_dot = is_cursor_after_dot(code, target_line, target_char);
 
         // Scan backwards to find the most recent access operator
         string found_operator = "";
@@ -171,6 +173,25 @@ mapping handle_get_completion_context(mapping params) {
                 result->context = "scope_access";
             } else {
                 result->context = "member_access";
+            }
+        } else if (cursor_after_dot && token_idx >= 0) {
+            // NEW: Cursor is after a dot but token scan didn't find the operator
+            // This happens when there's no token after the dot (e.g., "Array.|")
+            // Force member_access context for the identifier before the dot
+            object tok = pike_tokens[token_idx];
+            string text = LSP.Compat.trim_whites(tok->text);
+
+            // Check if the token before cursor looks like a module/identifier
+            if (sizeof(text) > 0) {
+                // Check first character to determine if it's a valid identifier start
+                int first_char = text[0];
+                if ((first_char >= 'A' && first_char <= 'Z') ||  // Starts with uppercase (module)
+                    (first_char >= 'a' && first_char <= 'z') ||  // or lowercase (variable)
+                    first_char == '_') {                          // or underscore
+                    result->context = "member_access";
+                    result->operator = ".";
+                    result->objectName = text;
+                }
             }
         } else {
             // No access operator found - regular identifier completion
@@ -256,6 +277,10 @@ mapping handle_get_completion_context_cached(mapping params) {
         string prefix = extract_prefix_at_cursor(code, target_line, target_char);
         result->prefix = prefix;
 
+        // NEW: Check if cursor is immediately after a dot (with whitespace handling)
+        bool cursor_after_dot = is_cursor_after_dot(code, target_line, target_char);
+
+        // Scan backwards to find the most recent access operator
         string found_operator = "";
         int operator_idx = -1;
 
@@ -263,25 +288,30 @@ mapping handle_get_completion_context_cached(mapping params) {
             object tok = pike_tokens[i];
             string text = LSP.Compat.trim_whites(tok->text);
 
+            // Check if this is an access operator
             if (text == "->" || text == "." || text == "::") {
                 found_operator = text;
                 operator_idx = i;
                 break;
             }
 
+            // Stop at statement boundaries
             if (text == ";" || text == "{" || text == "}") {
                 break;
             }
         }
 
         if (found_operator != "") {
+            // Found an access operator - this is member/scope access
             result->operator = found_operator;
 
+            // Find the object/module name by looking backwards from the operator
             string object_parts = "";
             for (int i = operator_idx - 1; i >= 0; i--) {
                 object obj_tok = pike_tokens[i];
                 string obj_text = LSP.Compat.trim_whites(obj_tok->text);
 
+                // Stop at statement boundaries or other operators
                 if (sizeof(obj_text) == 0 ||
                     obj_text == ";" || obj_text == "{" || obj_text == "}" ||
                     obj_text == "(" || obj_text == ")" || obj_text == "," ||
@@ -291,6 +321,7 @@ mapping handle_get_completion_context_cached(mapping params) {
                     break;
                 }
 
+                // Build the object name (handling dots in qualified names)
                 if (sizeof(object_parts) > 0) {
                     object_parts = obj_text + object_parts;
                 } else {
@@ -305,7 +336,27 @@ mapping handle_get_completion_context_cached(mapping params) {
             } else {
                 result->context = "member_access";
             }
+        } else if (cursor_after_dot && token_idx >= 0) {
+            // NEW: Cursor is after a dot but token scan didn't find the operator
+            // This happens when there's no token after the dot (e.g., "Array.|")
+            // Force member_access context for the identifier before the dot
+            object tok = pike_tokens[token_idx];
+            string text = LSP.Compat.trim_whites(tok->text);
+
+            // Check if the token before cursor looks like a module/identifier
+            if (sizeof(text) > 0) {
+                // Check first character to determine if it's a valid identifier start
+                int first_char = text[0];
+                if ((first_char >= 'A' && first_char <= 'Z') ||  // Starts with uppercase (module)
+                    (first_char >= 'a' && first_char <= 'z') ||  // or lowercase (variable)
+                    first_char == '_') {                          // or underscore
+                    result->context = "member_access";
+                    result->operator = ".";
+                    result->objectName = text;
+                }
+            }
         } else {
+            // No access operator found - regular identifier completion
             result->context = "identifier";
         }
     };
@@ -317,8 +368,35 @@ mapping handle_get_completion_context_cached(mapping params) {
     return (["result": result]);
 }
 
-//! Helper to get character position of a token on a line
+//! Check if cursor is immediately after a dot operator (with optional whitespace)
 //!
+//! When the cursor is at "Array.|" or "Array.   |" (with whitespace), this
+//! function detects that the user wants member access completion even though
+//! there's no partial identifier after the dot.
+//!
+//! @param code Full source code
+//! @param line_no Line number (1-indexed)
+//! @param char_pos Character position (0-indexed)
+//! @returns true if cursor follows a dot operator (possibly with whitespace)
+protected bool is_cursor_after_dot(string code, int line_no, int char_pos) {
+    array lines = code / "\n";
+    if (line_no > 0 && line_no <= sizeof(lines)) {
+        string line = lines[line_no - 1];
+
+        // Look backwards from cursor position, skipping whitespace
+        int i = char_pos - 1;
+        while (i >= 0 && (line[i] == ' ' || line[i] == '\t')) {
+            i--;
+        }
+
+        // Check if character immediately before cursor (after whitespace) is a dot
+        if (i >= 0 && line[i] == '.') {
+            return true;
+        }
+    }
+    return false;
+}
+
 //! Helper to extract the prefix being typed at the cursor position
 //!
 //! Gets the partial identifier being typed by looking backwards from

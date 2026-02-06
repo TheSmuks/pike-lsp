@@ -217,6 +217,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             log('Pike executable not found');
         } else {
             stdlibIndex = new StdlibIndexManager(bridge);
+
+            // Update services.stdlibIndex now that stdlibIndex is initialized
+            (services as features.Services).stdlibIndex = stdlibIndex;
+
             bridge.on('stderr', (msg: string) => {
                 connection.console.log(`[Pike] ${msg}`);
                 log(`[Pike STDERR] ${msg}`);

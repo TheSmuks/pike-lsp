@@ -266,6 +266,7 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
     function find_prev_meaningful_token_fn = module_program->find_prev_meaningful_token;
     function save_variable_states_fn = module_program->save_variable_states;
     function restore_variable_states_fn = module_program->restore_variable_states;
+    function merge_branch_states_fn = module_program->merge_branch_states;
     function get_char_position_fn = module_program->get_char_position;
 
     int i = start_idx;
@@ -289,6 +290,29 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
         }
 
         if (text == "}") {
+            // Before decreasing scope, check if we're ending an if/else block
+            if (sizeof(branch_stack) > 0) {
+                // Process any pending if/else blocks at this scope level
+                array(int) to_remove = ({});
+                for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                    mapping branch = branch_stack[k];
+                    if (branch->type == "if" && branch->scope_level == scope_depth) {
+                        // Save final branch states
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+
+                        // Merge all branch states
+                        mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
+                        restore_variable_states_fn(variables, merged);
+
+                        to_remove += ({ k });
+                    }
+                }
+                // Remove processed branches (in reverse order to maintain indices)
+                foreach (reverse(to_remove), int k) {
+                    branch_stack = branch_stack[0..k-1] + branch_stack[k+1..];
+                }
+            }
+
             remove_out_of_scope_vars_fn(variables, scope_depth);
             scope_depth--;
             if (scope_depth <= 0) break;  // End of function body
@@ -459,18 +483,23 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             branch_stack += ({ ([
                 "type": "if",
                 "saved_states": saved_states,
-                "branch_states": ({})
+                "branch_states": ({}),
+                "scope_level": scope_depth + 1  // Inside the if body, scope will be incremented
             ]) });
         }
 
         // Handle else
         if (text == "else" && sizeof(branch_stack) > 0) {
-            mapping branch = branch_stack[-1];
-            if (branch->type == "if") {
-                // Save current branch's final states
-                branch->branch_states += ({ save_variable_states_fn(variables) });
-                // Restore to pre-if states for else branch
-                restore_variable_states_fn(variables, branch->saved_states);
+            // Find the most recent if that hasn't been completed yet
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "if") {
+                    // Save current branch's final states (this is the if block's states)
+                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                    // Restore to pre-if states for else branch
+                    restore_variable_states_fn(variables, branch->saved_states);
+                    break;
+                }
             }
         }
 

@@ -10,6 +10,7 @@ import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
 import * as fs from 'fs';
 import * as path from 'path';
 import { LSP } from './constants/index.js';
+import { Logger } from '@pike-lsp/core';
 
 /**
  * Indexed document with its symbols
@@ -107,6 +108,9 @@ export class WorkspaceIndex {
         totalFilesIndexed: 0,
     };
 
+    // Logger instance
+    private log = new Logger('WorkspaceIndex');
+
     constructor(bridge?: PikeBridge) {
         this.bridge = bridge ?? null;
     }
@@ -144,7 +148,7 @@ export class WorkspaceIndex {
      * Report an error through both console and optional callback
      */
     private reportError(message: string, uri?: string): void {
-        console.error(message);
+        this.log.error(message, { uri });
         this.onError?.(message, uri);
     }
 
@@ -345,7 +349,7 @@ export class WorkspaceIndex {
 
         if (filesToIndex.length === 0) {
             // PERF-008: Log incremental reindex (no changes)
-            console.log(JSON.stringify({
+            this.log.info('workspace-index-perf', {
                 event: 'workspace-index-perf',
                 fileCount: allFiles.length,
                 indexed: 0,
@@ -357,7 +361,7 @@ export class WorkspaceIndex {
                 indexingMs: '0.00',
                 totalMs: (performance.now() - totalStart).toFixed(2),
                 incremental: true,
-            }));
+            });
             this.metrics.lastFileCount = allFiles.length;
             this.metrics.lastIndexTimeMs = performance.now() - totalStart;
             return 0;
@@ -500,7 +504,7 @@ export class WorkspaceIndex {
         this.metrics.lastFileReadMs = totalReadMs;
 
         // PERF-007: Log performance data
-        console.log(JSON.stringify({
+        this.log.info('workspace-index-perf', {
             event: 'workspace-index-perf',
             fileCount: allFiles.length,
             indexed,
@@ -512,7 +516,7 @@ export class WorkspaceIndex {
             indexingMs: this.metrics.lastIndexingMs.toFixed(2),
             totalMs: (performance.now() - totalStart).toFixed(2),
             incremental: indexed < allFiles.length,
-        }));
+        });
 
         // PERF-007: Update metrics
         const totalEnd = performance.now();

@@ -1,4 +1,19 @@
 /**
+ * PARSER TESTS - PHASE 8 PLACEHOLDERS
+ *
+ * These tests document the comprehensive parser interface for a TypeScript-side
+ * Pike parser. Currently, parsing is delegated to Pike's native Parser.Pike
+ * and Tools.AutoDoc.PikeParser.
+ *
+ * Implementing these would require building a full Pike parser in TypeScript,
+ * which is a significant undertaking. The current architecture leverages Pike's
+ * own parser for accuracy and maintainability.
+ *
+ * Status: Documenting future work, not a bug
+ * Tracking: Phase 8, Task 40
+ */
+
+/**
  * Pike Parser Tests (Phase 8: Task 40)
  *
  * Tests for Pike code parsing functionality:

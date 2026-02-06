@@ -235,7 +235,7 @@ export function registerDiagnosticsHandlers(
                 }
             } catch (err) {
                 // Log error details before falling back to regex
-                console.error(`[Pike LSP] Token-based symbol position finding failed: ${err instanceof Error ? err.message : String(err)}`);
+                log.error('Token-based symbol position finding failed', { error: err instanceof Error ? err.message : String(err) });
             }
         }
 
@@ -788,6 +788,8 @@ export function registerDiagnosticsHandlers(
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,
+                    // Store introspection for AutoDoc data including @deprecated tags
+                    introspection: introspectData.success ? introspectData : undefined,
                 };
                 if (dependencies) {
                     cacheEntry.dependencies = dependencies;

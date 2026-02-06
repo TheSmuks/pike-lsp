@@ -251,8 +251,9 @@ void test() {
             assert.ok(!diagA && !diagB, 'Should not warn for lambda parameters');
         });
 
-        it.skip('should detect conditional initialization (maybe_init)', async () => {
-            // TODO: Implement branch-aware control flow analysis
+        it('should detect conditional initialization (maybe_init)', async () => {
+            // Branch-aware control flow analysis with merge logic is implemented in Pike
+            // The merge_branch_states function in LSP.pmod/Analysis.pmod/module.pmod handles this
             const code = `
 void test(int condition) {
     string s;
@@ -266,6 +267,9 @@ void test(int condition) {
 
             // Should warn because s is only initialized in one branch
             assert.ok(result.diagnostics.length > 0, 'Should warn for conditionally initialized variable');
+            const sDiag = result.diagnostics.find(d => d.variable === 's');
+            assert.ok(sDiag, 'Should have diagnostic for variable s');
+            assert.ok(sDiag.message.includes('may be uninitialized'), 'Should indicate variable may be uninitialized');
         });
 
         it('should not warn when initialized in all branches', async () => {

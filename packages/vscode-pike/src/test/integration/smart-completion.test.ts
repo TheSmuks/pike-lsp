@@ -111,11 +111,6 @@ suite('Smart Completion E2E Tests', () => {
     test('N.1: Array. shows stdlib Array methods', async function () {
         this.timeout(30000);
 
-        // FIXME: stdlib member completion (Array., String., Stdio.) returns general symbols instead of module members
-        // This is a pre-existing bug - completion infrastructure works but stdlib resolution fails
-        // Tracking: https://github.com/pike-lsp/pike-lsp/issues/stdlib-completion
-        this.skip();
-
         // Find UNIQUE_PATTERN_ARRAY_COMPLETION and locate "Array." after it
         const text = document.getText();
         const patternIndex = text.indexOf('UNIQUE_PATTERN_ARRAY_COMPLETION');
@@ -174,16 +169,12 @@ suite('Smart Completion E2E Tests', () => {
         const itemLabels = getLabels(completions);
         assert.ok(completions.items.length > 0, 'Should have String member completions');
 
-        // FIXME: String. stdlib completion returns general symbols instead of String members
-        // This is a pre-existing bug - completion works for Array but not String/Stdio
-        // Tracking: https://github.com/pike-lsp/pike-lsp/issues/stdlib-completion
-        this.skip();
     });
 
     test('N.3: Stdio. shows stdlib Stdio members', async function () {
         this.timeout(30000);
 
-        // Find UNIQUE_PATTERN_STDIO_COMPLETION and locate "Stdio." after it
+        // Find UNIQUE_PATTERN_STDIO_COMPLETION and locate "Stdio." after this
         const text = document.getText();
         const patternIndex = text.indexOf('UNIQUE_PATTERN_STDIO_COMPLETION');
         assert.ok(patternIndex >= 0, 'Pattern not found');
@@ -206,11 +197,6 @@ suite('Smart Completion E2E Tests', () => {
         assert.ok(completions, 'Should have completions');
         const itemLabels = getLabels(completions);
         assert.ok(completions.items.length > 0, 'Should have Stdio member completions');
-
-        // FIXME: Stdio. stdlib completion returns general symbols instead of Stdio members
-        // This is a pre-existing bug - completion works for Array but not String/Stdio
-        // Tracking: https://github.com/pike-lsp/pike-lsp/issues/stdlib-completion
-        this.skip();
     });
 
     // =========================================================================
@@ -346,9 +332,11 @@ suite('Smart Completion E2E Tests', () => {
         // Find the deprecated 'rename' method
         const renameItem = findByLabel(result, 'rename');
         if (renameItem) {
-            // FIXME: Deprecated tag support for inherited members not yet implemented
-            // Tracking: https://github.com/pike-lsp/pike-lsp/issues/deprecated-tags
-            this.skip();
+            // The deprecated tag should be set on inherited members that are deprecated
+            assert.ok(
+                renameItem.tags?.includes(vscode.CompletionItemTag.Deprecated),
+                'rename method should have deprecated tag'
+            );
         }
         // If rename is not in the list, that's also acceptable for now
     });
@@ -359,11 +347,6 @@ suite('Smart Completion E2E Tests', () => {
 
     test('Q.1: this_program:: shows local and inherited members', async function () {
         this.timeout(30000);
-
-        // FIXME: this_program:: completion not working correctly after fixture changes
-        // This test needs investigation - the completion returns general symbols instead of local class members
-        // Tracking: https://github.com/pike-lsp/pike-lsp/issues/this-program-completion
-        this.skip();
 
         const text = document.getText();
         const scopeMatch = text.indexOf('this_program::local_value');

@@ -232,6 +232,96 @@ void restore_variable_states(mapping(string:mapping) variables, mapping saved) {
     }
 }
 
+//! Merge variable states from multiple branches
+//!
+//! After processing if/else branches, merge states to determine if a variable
+//! was initialized in all branches (definitely initialized), some branches
+//! (maybe initialized), or no branches (uninitialized).
+//!
+//! @param variables Mapping of variable name -> variable info
+//! @param branch_states Array of state mappings from each branch
+//! @param pre_branch_states State before the if statement
+//! @returns Mapping of variable name -> merged state
+mapping merge_branch_states(mapping(string:mapping) variables, array(mapping) branch_states, mapping pre_branch_states) {
+    mapping merged = ([]);
+
+    // Get all variable names that appear in any branch or pre-branch state
+    multiset(string) all_vars = (<>);
+    foreach (branch_states;; mapping states) {
+        foreach (indices(states), string var_name) {
+            all_vars[var_name] = 1;
+        }
+    }
+    foreach (indices(pre_branch_states), string var_name) {
+        all_vars[var_name] = 1;
+    }
+
+    foreach (indices(all_vars), string var_name) {
+        // Get state before if statement
+        int pre_state = pre_branch_states[var_name] || STATE_UNINITIALIZED;
+
+        // Collect states from each branch for this variable
+        array(int) states = ({});
+        foreach (branch_states;; mapping branch_state) {
+            states += ({ branch_state[var_name] || pre_state });
+        }
+
+        if (sizeof(states) == 0) {
+            // No branches processed, keep pre-state
+            merged[var_name] = pre_state;
+        } else if (sizeof(states) == 1) {
+            // Only one branch (if without else)
+            // If variable was initialized in the branch, it's maybe initialized overall
+            // because the branch might not execute
+            int branch_state = states[0];
+            if (branch_state == STATE_INITIALIZED && pre_state == STATE_UNINITIALIZED) {
+                merged[var_name] = STATE_MAYBE_INIT;
+            } else {
+                merged[var_name] = branch_state;
+            }
+        } else {
+            // Multiple branches (if/else)
+            // Check if all branches have the same state
+            int all_same = 1;
+            int first_state = states[0];
+            for (int i = 1; i < sizeof(states); i++) {
+                if (states[i] != first_state) {
+                    all_same = 0;
+                    break;
+                }
+            }
+
+            if (all_same) {
+                // All branches agree
+                if (first_state == STATE_INITIALIZED && pre_state == STATE_UNINITIALIZED) {
+                    // Variable initialized in all branches but not before if
+                    merged[var_name] = STATE_MAYBE_INIT;
+                } else {
+                    merged[var_name] = first_state;
+                }
+            } else {
+                // Branches disagree - check if any branch has uninitialized
+                int has_uninit = 0;
+                int has_init = 0;
+                foreach (states, int s) {
+                    if (s == STATE_UNINITIALIZED) has_uninit = 1;
+                    if (s == STATE_INITIALIZED || s == STATE_MAYBE_INIT) has_init = 1;
+                }
+
+                if (has_init && has_uninit) {
+                    merged[var_name] = STATE_MAYBE_INIT;
+                } else if (has_init) {
+                    merged[var_name] = STATE_MAYBE_INIT;
+                } else {
+                    merged[var_name] = STATE_UNINITIALIZED;
+                }
+            }
+        }
+    }
+
+    return merged;
+}
+
 // =========================================================================
 // Declaration parsing
 // =========================================================================

@@ -270,7 +270,10 @@ export function buildCompletionItem(
     item.sortText = `${priority}_${name}`;
 
     // Add deprecated tag if applicable
-    if ((symbolAny['deprecated'] as boolean) === true) {
+    // Check both direct deprecated flag and documentation.deprecated (from @deprecated AutoDoc)
+    const hasDeprecated = (symbolAny['deprecated'] as boolean) === true ||
+                         (symbolAny['documentation']?.['deprecated'] as string | undefined);
+    if (hasDeprecated) {
         item.tags = [CompletionItemTag.Deprecated];
     }
 

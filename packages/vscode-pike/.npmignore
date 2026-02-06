@@ -1,0 +1,35 @@
+# Exclude parent directories
+../
+../../
+
+# Source maps
+**/*.map
+
+# Development files
+node_modules/**
+scripts/**
+src/**
+test-workspace/**
+.planning/**
+.omc/**
+.vscode-test/**
+.vscode-test.mjs
+test-output.log
+
+# Source files
+**/*.ts
+**/*.d.ts
+**/test/**
+**/*.test.ts
+tsconfig.json
+
+# Documentation except README
+**/CLAUDE.md
+*.md
+!README.md
+
+# Extra files
+.git/**
+.eslintrc*
+.prettierrc*
+tsconfig.tsbuildinfo
