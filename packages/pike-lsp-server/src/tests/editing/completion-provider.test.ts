@@ -110,6 +110,18 @@ function method(name: string, args: { name: string; type?: string }[], returnTyp
     } as any;
 }
 
+/** Build a class symbol with children (for testing this_program::, this:: completion) */
+function classSym(name: string, children: PikeSymbol[], extra?: Partial<PikeSymbol>): PikeSymbol {
+    return {
+        name,
+        kind: 'class',
+        modifiers: [],
+        position: { line: 1, character: 0 },
+        children,
+        ...extra,
+    } as any;
+}
+
 /** Mock stdlib index with predefined modules */
 function createMockStdlibIndex(modules: Record<string, Map<string, IntrospectedSymbol>>) {
     return {
@@ -632,9 +644,11 @@ describe('Completion Provider', () => {
             const { complete } = setup({
                 code,
                 symbols: [
-                    sym('value', 'variable'),
-                    method('do_stuff', []),
-                    method('caller', []),
+                    classSym('MyClass', [
+                        sym('value', 'variable'),
+                        method('do_stuff', []),
+                        method('caller', []),
+                    ]),
                 ],
             });
 
@@ -657,9 +671,11 @@ describe('Completion Provider', () => {
             const { complete } = setup({
                 code,
                 symbols: [
-                    sym('x', 'variable'),
-                    method('method1', []),
-                    method('method2', []),
+                    classSym('MyClass', [
+                        sym('x', 'variable'),
+                        method('method1', []),
+                        method('method2', []),
+                    ]),
                 ],
             });
 
@@ -711,9 +727,11 @@ describe('Completion Provider', () => {
             const { complete } = setup({
                 code,
                 symbols: [
-                    sym('Base', 'inherit', { classname: 'Base' }),
-                    sym('local_var', 'variable'),
-                    method('func', []),
+                    classSym('MyClass', [
+                        sym('Base', 'inherit', { classname: 'Base' }),
+                        sym('local_var', 'variable'),
+                        method('func', []),
+                    ]),
                 ],
                 stdlibModules: { 'Base': parentSymbols },
             });
@@ -736,9 +754,11 @@ describe('Completion Provider', () => {
             const { complete } = setup({
                 code,
                 symbols: [
-                    sym('alpha', 'variable'),
-                    sym('beta', 'variable'),
-                    method('func', []),
+                    classSym('MyClass', [
+                        sym('alpha', 'variable'),
+                        sym('beta', 'variable'),
+                        method('func', []),
+                    ]),
                 ],
             });
 
