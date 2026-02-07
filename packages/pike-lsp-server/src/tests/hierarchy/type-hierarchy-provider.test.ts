@@ -88,7 +88,7 @@ class Derived {
 
             // Derived should show 2 supertypes: Base1 and Base2
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show inheritance chain', () => {
@@ -108,7 +108,7 @@ class Child {
             // Should allow drilling up through the chain
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show inherited members', () => {
@@ -123,7 +123,7 @@ class Derived {
 
             // Derived type hierarchy should indicate it has inheritedMethod
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle cross-file inheritance', () => {
@@ -139,7 +139,7 @@ class Derived {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle program-level inheritance', () => {
@@ -265,7 +265,7 @@ class Child2 {
             // Parent should show Child1 and Child2 as direct subtypes
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle deep inheritance trees', () => {
@@ -278,13 +278,13 @@ class Level5 { inherit Level4; }`;
 
             // Should handle deep chains efficiently
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show subtype count in detail', () => {
             // May show "5 subtypes" in the UI
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -314,7 +314,7 @@ class MultiDerived {
 
             // MultiDerived should show 3 supertypes
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show all children of multi-inherit base', () => {
@@ -338,7 +338,7 @@ class MultiDerived {
 
             // Base should show Derived1, Derived2, and MultiDerived as subtypes
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle diamond inheritance', () => {
@@ -362,7 +362,7 @@ class Bottom {
             // Diamond: Top -> (Left, Right) -> Bottom
             // Bottom has 2 paths to Top (through Left and Right)
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show method resolution order', () => {
@@ -398,7 +398,7 @@ class Derived {
 
             // Should highlight conflicts
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -438,7 +438,7 @@ class B { inherit C; }
 class C { inherit A; }  // cycle: A->B->C->A`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should prevent infinite traversal on cycles', () => {
@@ -460,7 +460,7 @@ class Final {
 
             // Should traverse graph without cycles
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -483,13 +483,13 @@ class Final {
         it('should limit depth for performance', () => {
             // Should limit traversal depth (e.g., max 10 levels)
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should provide pagination for large hierarchies', () => {
             // For very wide hierarchies (many siblings)
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -513,7 +513,7 @@ class Final {
             };
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show inherited members in detail', () => {
@@ -526,7 +526,7 @@ class Derived {
 
             const expectedDetail = 'class Derived\nInherits: Base';
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should include deprecated modifier', () => {
@@ -536,19 +536,19 @@ class OldClass {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle abstract classes (if Pike has them)', () => {
             // Pike may not have abstract keyword
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle final classes (if applicable)', () => {
             // Pike may not have final keyword
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -569,7 +569,7 @@ class Derived {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle relative paths', () => {
@@ -583,7 +583,7 @@ class Derived {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle absolute paths', () => {
@@ -593,13 +593,13 @@ class Derived {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should find all subtypes across workspace', () => {
             // Should search all files in workspace for classes that inherit Base
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -617,7 +617,7 @@ module DerivedModule {
 
             // Modules can inherit too
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show class inheriting from module', () => {
@@ -629,7 +629,7 @@ class MyClass {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -650,7 +650,7 @@ class Implementation {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show mixin patterns', () => {
@@ -663,7 +663,7 @@ class MyClass {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -701,13 +701,13 @@ class D2 { inherit Base; }`;
         it('should cache type hierarchy results', () => {
             // Same request should use cached result
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should use incremental updates on file changes', () => {
             // Should not rebuild entire hierarchy on single file change
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -718,31 +718,31 @@ class D2 { inherit Base; }`;
         it('should provide TypeHierarchyItem for initial item', () => {
             // When user invokes hierarchy on a class
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support supertypes direction', () => {
             // TypeHierarchyDirection.Supertypes
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support subtypes direction', () => {
             // TypeHierarchyDirection.Subtypes
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support both directions', () => {
             // User can navigate up and down the hierarchy
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show hierarchy tree in UI', () => {
             // Visual representation of inheritance tree
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -768,7 +768,7 @@ enum DerivedEnum {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -783,7 +783,7 @@ enum DerivedEnum {
 
             // Should handle gracefully, show error
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle type hierarchy on non-class symbol', () => {
@@ -791,7 +791,7 @@ enum DerivedEnum {
 
             // Should return empty result
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle syntax errors in class definition', () => {
@@ -801,7 +801,7 @@ enum DerivedEnum {
 
             // Should not crash
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should handle circular inheritance gracefully', () => {
@@ -810,7 +810,7 @@ class B { inherit A; }`;
 
             // Should detect cycle and show warning
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -828,25 +828,25 @@ class Derived {
 
             // Type hierarchy could show inherited methods
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show member visibility', () => {
             // If Pike has access modifiers
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support filtering by type', () => {
             // Filter to show only classes, not modules
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support searching hierarchy', () => {
             // Search for specific type in hierarchy
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 
@@ -861,13 +861,13 @@ class Derived {
 }`;
 
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should show type hierarchy in hover', () => {
             // Hover on Derived might show "inherits from Base"
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
 
         it('should support completion for inherited members', () => {
@@ -887,7 +887,7 @@ d->inh|  // should suggest inheritedMethod`;
         it('should show inheritance in document symbols', () => {
             // Outline view should indicate inheritance
             // Test expectations verified
-            assert.ok(code.length > 0, 'Code is not empty');
+            test.skip('TODO: implement proper test assertion');
         });
     });
 });
