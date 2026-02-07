@@ -113,6 +113,19 @@ Format: `type/description` (kebab-case)
 | `git checkout -b bad-name` | BLOCKED | BLOCKED |
 | `git checkout -b feat/good` | Allowed | Allowed |
 
+### What's Enforced by GitHub (server-side ruleset)
+
+In addition to local hooks, the GitHub ruleset on `main` enforces:
+
+| Rule | Effect |
+|------|--------|
+| `required_status_checks` | PRs must pass `test (20.x)`, `pike-test (8.1116)`, and `vscode-e2e` CI jobs |
+| `pull_request` | All changes to main must go through a PR (0 approvals required, but PR is mandatory) |
+| `deletion` | Branch cannot be deleted |
+| `non_fast_forward` | Force pushes blocked |
+
+These server-side rules cannot be bypassed by local tooling. Even `--admin` flags won't work.
+
 ### Releasing to Main
 
 **Do NOT push directly to main.** Use the release skill:
