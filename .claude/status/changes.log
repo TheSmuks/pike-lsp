@@ -12,3 +12,6 @@
 2026-02-07 | infra | Added per-commit regression gate (.husky/pre-commit)
 2026-02-07 | infra | Added project-specific agent roles (5 specializations)
 2026-02-07 | infra | Test quality audit: 71% real tests, 546 placeholders to convert
+2026-02-07 | infra | Carlini audit: rewrote AGENTS.md (was outdated, referenced pnpm)
+2026-02-07 | infra | Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
+2026-02-07 | test | Added oracle test suite (8 tests) - Carlini known-good oracle pattern
