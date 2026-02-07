@@ -93,13 +93,13 @@ Format: `type/description` (kebab-case)
 2. Develop & test   (commit freely on your branch)
 3. Push branch      git push -u origin feat/my-feature
 4. Create PR        gh pr create --base main
-5. Merge PR         gh pr merge <number> --squash
+5. Merge PR         gh pr merge <number> --squash --delete-branch --auto
 6. Sync main        git checkout main && git pull
 7. Cleanup          git branch -d feat/my-feature
 8. Release          /pike-lsp-release (handles tag + push to main)
 ```
 
-**Agents MUST use `gh pr merge` to complete the workflow.** Do NOT use `--admin` to bypass branch protection.
+**Agents MUST use `gh pr merge --squash --delete-branch --auto` to complete the workflow.** Auto-merge is enabled — PRs merge automatically once CI passes. Do NOT use `--admin` to bypass branch protection.
 
 ### What's Enforced by Hooks (`.claude/hooks/git-workflow-gate.sh`)
 
