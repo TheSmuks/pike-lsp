@@ -47,7 +47,8 @@ case "$(uname -s)" in
                 -u KDE_SESSION_VERSION \
                 -u XDG_SESSION_TYPE \
                 -u XDG_SESSION_DESKTOP \
-                ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox" \
+                DBUS_SESSION_BUS_ADDRESS="" \
+                ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox --disable-features=UseOzonePlatform" \
                 GDK_BACKEND=x11 \
                 QT_QPA_PLATFORM=xcb \
                 ./node_modules/.bin/vscode-test "$@"
