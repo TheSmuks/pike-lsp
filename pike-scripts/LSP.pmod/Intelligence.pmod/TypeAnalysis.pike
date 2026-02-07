@@ -182,7 +182,8 @@ protected mapping parse_autodoc_impl(string doc) {
         array(mapping) group_stack = ({}); // Stack for nested groups
         array(mapping) group_items = ({});  // Items being collected in current group
         string group_owner = "";           // Which param/section owns the current group
-        array(string) param_order = ({});  // Track parameter order for signature display
+        mapping(string:int) param_order_map = ([]);  // Track parameter order for signature display
+        int param_counter = 0;             // Counter for parameter ordering
         int ignoring = 0;                  // Track @ignore/@endignore state
 
         // Process all tokens
@@ -248,7 +249,9 @@ protected mapping parse_autodoc_impl(string doc) {
                         if (!result->params[current_param]) {
                             result->params[current_param] = "";
                             // Track parameter order for proper signature display
-                            param_order += ({ current_param });
+                            if (!param_order_map[current_param]) {
+                                param_order_map[current_param] = param_counter++;
+                            }
                         }
                         break;
 
@@ -707,8 +710,11 @@ protected mapping parse_autodoc_impl(string doc) {
         save_text_buffer(result, current_section, current_param, text_buffer);
 
         // Add paramOrder if we have parameters
-        if (sizeof(param_order) > 0) {
-            result->paramOrder = param_order;
+        if (param_counter > 0) {
+            array(string) names = indices(param_order_map);
+            array(int) positions = values(param_order_map);
+            sort(positions, names);
+            result->paramOrder = names;
         }
     }
 
