@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770489124896,
+  "lastUpdate": 1770489130173,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -10710,6 +10710,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.540694073170732,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5637af2a60ff79150e5b1d776c4307ddb434d9fc",
+          "message": "test: Convert 44 placeholder tests in symbols and config (#10)\n\n* test: convert 5 placeholder tests in workspace-scanner.test.ts\n\n* test: convert first 11 placeholder tests in configuration-handling.test.ts\n\n* test: convert 7 more placeholder tests in configuration-handling.test.ts\n\n* test: convert 9 more placeholder tests in configuration-handling.test.ts\n\n* test: convert final 9 placeholder tests in configuration-handling.test.ts\n\nAll 39 configuration-handling tests now have real assertions.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: disable DBus for Chromium in headless E2E tests\n\nThis resolves the DBus connection errors that were blocking E2E tests\nin headless mode. Chromium now runs with explicit DBUS_SESSION_BUS_ADDRESS=''\nand --disable-features=UseOzonePlatform flag.\n\n- Set DBUS_SESSION_BUS_ADDRESS to empty string in xvfb-run environment\n- Add --disable-features=UseOzonePlatform to ELECTRON_EXTRA_LAUNCH_ARGS\n- E2E tests now pass: 108 passing (3m)\n\nFixes #E2E-ENV\n\n* fix: comment out broken file path assertions in config tests\n\nTests were trying to read files that don't exist. Commented out and\nadded TODO markers for proper implementation.\n\n* fix: replace undefined variable assertions with return\n\nFixed remaining broken assertions that referenced undefined\ndiagnosticsCode and serverCode variables.\n\n* fix: remove orphaned assertion lines\n\nCleaned up leftover assertion text from previous fixes.\n\n* fix: replace incomplete assertion with return statement\n\n* fix: add missing closing brace for test\n\n* fix: import defaultSettings from correct file\n\n* fix: import defaultSettings from correct types file\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-07T19:30:45+01:00",
+          "tree_id": "f06a5baf8d4be19cfbf5067fdc0b1b340637892a",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/5637af2a60ff79150e5b1d776c4307ddb434d9fc"
+        },
+        "date": 1770489129825,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.87277808333334,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 251.75031008333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 251.21590008333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 256.91569666666663,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2125373309859153,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.922830462857143,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 48.48070127272727,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.99612094160584,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.843315005586592,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2811395193205945,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2800059437869823,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5694017135678392,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20541640286624205,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19298102781977625,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6976811818181818,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3817149086265607,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.36918542307692304,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10222476784814379,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.651970690248566,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0812405998345284,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.4056204754990925,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.0467265,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.19239691666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.39319913485113833,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5836688058169376,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08336880643795003,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.631425371900827,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.5867154426229515,
             "unit": "ms"
           }
         ]
