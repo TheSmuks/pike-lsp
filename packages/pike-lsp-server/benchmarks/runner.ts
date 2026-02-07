@@ -271,7 +271,7 @@ async function runBenchmarks() {
     });
 
     // Benchmark: Validation with debounce delay (simulates post-typing validation)
-    bench('Validation with 250ms debounce (default)', async () => {
+    bench('[Debounce] Validation with 250ms debounce', async () => {
       // Simulate waiting for debounce delay + validation
       const start = Date.now();
       await new Promise(resolve => setTimeout(resolve, 250));
@@ -280,7 +280,7 @@ async function runBenchmarks() {
     });
 
     // Benchmark: Rapid edit coalescing (multiple edits before debounce fires)
-    bench('Rapid edit simulation (debounce coalescing)', async () => {
+    bench('[Debounce] Rapid edit simulation (5x50ms)', async () => {
       // Simulate 5 rapid edits - only last one should trigger validation
       const start = Date.now();
       for (let i = 0; i < 5; i++) {
@@ -288,6 +288,11 @@ async function runBenchmarks() {
         await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', i + 1);
       }
       return Date.now() - start;
+    });
+
+    // Benchmark: Pure validation performance without debounce delays
+    bench('Validation: sequential warm revalidation', async () => {
+      await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', 2);
     });
   });
 
