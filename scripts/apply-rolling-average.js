@@ -99,6 +99,17 @@ function analyzeCurrentResults(currentPath, historicalStats) {
   let hasRegression = false;
 
   for (const bench of current) {
+    // Skip debounce benchmarks - they measure timer behavior, not LSP performance
+    if (bench.name.startsWith('[Debounce]')) {
+      analysis.push({
+        name: bench.name,
+        current: bench.value,
+        status: 'SKIPPED',
+        message: 'Debounce benchmark excluded from regression analysis'
+      });
+      continue;
+    }
+
     const historical = historicalStats[bench.name];
 
     if (!historical) {
@@ -137,7 +148,18 @@ function analyzeCurrentResults(currentPath, historicalStats) {
     // Absolute difference threshold - ignore tiny absolute changes even if statistically significant
     // CI runners have 1-2ms timing jitter on shared infrastructure; sub-ms benchmarks need a 2ms floor
     const absDiff = currentValue - avg;
-    const minAbsDiff = avg < 10 ? Math.max(2, avg * 0.5) : (avg < 100 ? Math.max(5, avg * 0.1) : avg * 0.05);
+    let minAbsDiff;
+    if (avg < 0.5) {
+      // Sub-millisecond: relative threshold only (50% increase)
+      minAbsDiff = avg * 0.5;
+    } else if (avg < 10) {
+      // Low millisecond: 2ms floor or 50%
+      minAbsDiff = Math.max(2, avg * 0.5);
+    } else if (avg < 100) {
+      minAbsDiff = Math.max(5, avg * 0.1);
+    } else {
+      minAbsDiff = avg * 0.05;
+    }
 
     let status = 'OK';
     let message = '';
