@@ -1,68 +1,78 @@
 #!/bin/sh
-# Pre-push hook: Validates build, Pike compilation, and smoke tests
+# Pre-push hook: Validates build, Pike compilation, and all tests
 # Philosophy: "Green main, not green commits" - allow broken local commits
+# Output: Agent-friendly compact output via test-agent.sh (Carlini protocol)
 
 set -e  # Exit on error
 
+# Discover tools: check common locations if not already on PATH
+for dir in "$HOME/.bun/bin" /usr/local/bin; do
+  [ -d "$dir" ] && export PATH="$dir:$PATH"
+done
+
+# Auto-discover Pike if not on PATH
+if ! command -v pike >/dev/null 2>&1; then
+  for pike_dir in /usr/local/pike/*/bin "$HOME"/*/Pike-*/bin "$HOME"/OpenCode/Pike-*/bin; do
+    if [ -x "$pike_dir/pike" ]; then
+      export PATH="$pike_dir:$PATH"
+      break
+    fi
+  done
+fi
+
 echo "[Pre-push] Running validations..."
 
-# 1. TypeScript builds
+# 1. TypeScript build (compact output - only show errors)
 echo "[Pre-push] Building all packages..."
-bun run build || {
+BUILD_LOG=$(mktemp)
+if ! bun run build > "$BUILD_LOG" 2>&1; then
   echo "FAILED: TypeScript build failed. Push aborted."
-  echo "Fix build errors or use 'git push --no-verify' to bypass (not recommended)."
+  echo "--- Build errors ---"
+  grep -iP '(error|TS\d{4})' "$BUILD_LOG" | head -15
+  echo "---"
+  echo "Full log: $BUILD_LOG"
   exit 1
-}
+fi
+rm -f "$BUILD_LOG"
 
-# 2. Pike compiles
-echo "[Pre-push] Checking Pike compilation..."
-pike -e 'compile_file("pike-scripts/analyzer.pike");' || {
-  echo "FAILED: Pike compilation failed. Push aborted."
-  echo "Fix Pike syntax errors or use 'git push --no-verify' to bypass."
-  exit 1
-}
-
-# 3. Smoke tests (if smoke test exists)
-if [ -f "packages/pike-lsp-server/src/tests/smoke.test.ts" ]; then
-  echo "[Pre-push] Running smoke tests..."
-  cd packages/pike-lsp-server
-  bun test src/tests/smoke.test.ts || {
-    echo "FAILED: Smoke tests failed. Push aborted."
-    echo "Fix failing tests or use 'git push --no-verify' to bypass."
+# 2. Run full test suite via test-agent.sh (agent-friendly output)
+if [ -f "scripts/test-agent.sh" ]; then
+  echo "[Pre-push] Running full test suite..."
+  bash scripts/test-agent.sh || {
+    echo ""
+    echo "FAILED: Tests failed. Push aborted."
+    echo "Run 'scripts/test-agent.sh --summary' to see what failed."
     exit 1
   }
-  cd ../..
 else
-  echo "[Pre-push] Smoke tests not yet available..."
-fi
+  # Fallback if test-agent.sh doesn't exist
+  echo "[Pre-push] test-agent.sh not found, running tests directly..."
 
-# 4. VSCode E2E feature tests
-if [ -f "packages/vscode-pike/src/test/integration/lsp-features.test.ts" ]; then
-  echo "[Pre-push] Running VSCode E2E feature tests..."
-  cd packages/vscode-pike
-  bun run test:features || {
-    echo "FAILED: VSCode E2E feature tests failed. Push aborted."
-    echo "LSP features (symbols, hover, definition, completion) are broken."
-    echo "Fix failing tests or use 'git push --no-verify' to bypass."
+  pike -e 'compile_file("pike-scripts/analyzer.pike");' || {
+    echo "FAILED: Pike compilation failed. Push aborted."
     exit 1
   }
-  cd ../..
-else
-  echo "[Pre-push] E2E feature tests not yet available (phase 06-01 pending)..."
+
+  if [ -f "packages/pike-lsp-server/src/tests/smoke.test.ts" ]; then
+    cd packages/pike-lsp-server && bun test src/tests/smoke.test.ts > /dev/null 2>&1 || {
+      echo "FAILED: Smoke tests failed. Push aborted."
+      exit 1
+    }
+    cd ../..
+  fi
 fi
 
-# 5. Secret detection (optional)
+# 3. Secret detection (optional)
 if command -v gitleaks >/dev/null 2>&1; then
-  echo "[Pre-push] Scanning for secrets with gitleaks..."
-  # Scan unpushed commits (assuming origin/main is upstream)
-  gitleaks detect --source . --log-opts="origin/main..HEAD" --verbose --redact || {
+  echo "[Pre-push] Scanning for secrets..."
+  GITLEAKS_LOG=$(mktemp)
+  if ! gitleaks detect --source . --log-opts="origin/main..HEAD" --redact > "$GITLEAKS_LOG" 2>&1; then
     echo "FAILED: Gitleaks detected potential secrets."
-    echo "Review output. If false positive, add to .gitleaksignore."
+    cat "$GITLEAKS_LOG"
+    rm -f "$GITLEAKS_LOG"
     exit 1
-  }
-else
-  echo "[Pre-push] gitleaks not found, skipping secret scan."
-  echo "Tip: Install gitleaks for local detection: https://github.com/gitleaks/gitleaks"
+  fi
+  rm -f "$GITLEAKS_LOG"
 fi
 
 echo "[Pre-push] All validations passed!"

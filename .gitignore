@@ -38,6 +38,7 @@ credentials.json
 npm-debug.log*
 pnpm-debug.log*
 bun-debug.log*
+!.claude/status/*.log
 
 # Test artifacts
 coverage/

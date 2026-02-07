@@ -63,4 +63,53 @@ if [ -n "$ANALYSIS_REPORTS" ]; then
   exit 1
 fi
 
-echo "[Pre-commit] No anti-patterns detected!"
+# 4. Fast regression check (Carlini protocol: new commits can't break existing tests)
+# Only run if source files were changed (skip for docs-only commits)
+CHANGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|pike)$' || true)
+
+if [ -n "$CHANGED_SRC" ]; then
+  echo "[Pre-commit] Running fast regression check..."
+  if [ -f "scripts/test-agent.sh" ]; then
+    bash scripts/test-agent.sh --fast || {
+      echo ""
+      echo "FAILED: Fast regression check failed. Commit aborted."
+      echo "Your changes broke existing tests. Fix them before committing."
+      echo "Run 'scripts/test-agent.sh --summary' to see what failed."
+      echo ""
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
+# 5. Test quality regression check - placeholder ratio must not increase
+# Only check if test files were changed
+CHANGED_TESTS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(test|spec)\.(ts|js)$' || true)
+
+if [ -n "$CHANGED_TESTS" ]; then
+  echo "[Pre-commit] Checking test quality regression..."
+  NEW_PLACEHOLDERS=0
+
+  for f in $CHANGED_TESTS; do
+    [ -f "$f" ] || continue
+    # Count new placeholder assertions in staged changes only
+    ph=$(git diff --cached -- "$f" | grep '^+' | grep -v '^+++' | grep -oP "assert\.ok\(('Test not implemented|true)" 2>/dev/null | wc -l | tr -d ' ')
+    NEW_PLACEHOLDERS=$((NEW_PLACEHOLDERS + ${ph:-0}))
+  done
+
+  if [ "$NEW_PLACEHOLDERS" -gt 0 ]; then
+    echo "FAILED: Adding $NEW_PLACEHOLDERS new placeholder assertions."
+    echo ""
+    echo "New tests MUST have real assertions. Do not add assert.ok(true) or"
+    echo "assert.ok('Test not implemented...'). Use test.skip() for planned tests:"
+    echo ""
+    echo "  test.skip('should do something', () => {"
+    echo "    // TODO: Implement this test"
+    echo "  });"
+    echo ""
+    echo "Use 'git commit --no-verify' to bypass (not recommended)."
+    exit 1
+  fi
+fi
+
+echo "[Pre-commit] All checks passed!"

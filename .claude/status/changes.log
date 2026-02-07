@@ -1,0 +1,14 @@
+# Changes Log
+# Format: YYYY-MM-DD | type | description
+# Grep-friendly: grep "hook" changes.log
+#
+2026-02-07 | infra | Added git workflow gate hook (feature branch enforcement)
+2026-02-07 | infra | Added test integrity hook (prevents test cheating)
+2026-02-07 | infra | Added decision records system (11 ADRs)
+2026-02-07 | infra | Added worktree management for parallel agents
+2026-02-07 | infra | Added repo hygiene checker
+2026-02-07 | infra | Added agent-oriented test runner (test-agent.sh) with --fast, --quality modes
+2026-02-07 | infra | Added task locking for parallel agents (task-lock.sh)
+2026-02-07 | infra | Added per-commit regression gate (.husky/pre-commit)
+2026-02-07 | infra | Added project-specific agent roles (5 specializations)
+2026-02-07 | infra | Test quality audit: 71% real tests, 546 placeholders to convert
