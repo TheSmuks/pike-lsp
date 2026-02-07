@@ -35,6 +35,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test coverage** - Converted 286 placeholder tests to real assertions (symbols, config, hierarchy, diagnostics, advanced features)
 - **Agent protocols** - Standardized workflow, TDD, and Pike code style guidelines
 
+## [0.1.0-alpha.16] - 2026-02-06
+
+### Fixed
+- **Completion tests** - Fixed E2E test skips for scope operator features
+- **Signature help** - Added complex_function call test for signature help
+- **Test script path** - Corrected npm test script path in pike-lsp-server package
+
+## [0.1.0-alpha.15] - 2026-02-05
+
+### Added
+- **Scope operator completion** - Implement `this_program::` and `this::` scope operator completion for class members
+- **Member access completion** - Implement `obj->` member access completion with deprecated tag support
+- **Module resolution** - Actual module resolution with waterfall loading for workspace symbols
+
+### Fixed
+- **Completion fallbacks** - Improve completion heuristics for edge cases
+- **Rate limiter** - Make rate limiter opt-in (disabled by default)
+- **Code review findings** - Address codebase review findings and add pre-commit guards
+
+## [0.1.0-alpha.14] - 2026-02-03
+
+### Added
+- **Linked editing** - VSCode linked ranges for multi-cursor editing
+- **Rate limiting** - Configurable rate limiter for LSP requests
+- **AutoDoc coverage** - 100% AutoDoc tag coverage with robust parsing
+- **AutoDoc tags** - Render `@returns`, `@mapping`, `@member` tags in hover
+
+### Fixed
+- **Import/inherit resolution** - Improve with workspace symbol caching
+- **Import vs include** - Distinguish `#include` directives from module imports for proper navigation
+- **Reference counting** - Exclude definitions from reference counts and prioritize main signatures
+- **ESM compatibility** - Remove CJS fallback for ESM compatibility
+- **Duplicate code** - Consolidate duplicate code in Pike LSP modules
+- **Code review guards** - Add pre-commit hooks to enforce quality standards
+
+### Changed
+- **Install script** - Make install script non-interactive and exclude bloat from VSIX
+- **Build warnings** - Suppress esbuild import.meta warnings when bundling to CJS
+
 ## [0.1.0-alpha.13] - 2026-02-01
 
 ### Optimization
