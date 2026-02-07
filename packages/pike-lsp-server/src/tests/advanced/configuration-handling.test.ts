@@ -129,6 +129,8 @@ describe('Configuration Handling', () => {
             // This is verified by the lack of validation logic in onDidChangeConfiguration
             // const fs = require('node:fs');
             // TODO: validate server.ts exists
+            return;
+        });
 
         it('should handle rapid config changes', () => {
             // Rapid config changes are debounced - only the last one triggers revalidation
