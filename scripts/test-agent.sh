@@ -14,6 +14,10 @@
 #   scripts/test-agent.sh --suite X    # Run specific suite (bridge|server|e2e|pike)
 #   scripts/test-agent.sh --summary    # Just print last run's summary
 #   scripts/test-agent.sh --quality    # Report placeholder vs real test ratios
+#   scripts/test-agent.sh --fast --seed feat/hover   # Deterministic subset for agent
+#   scripts/test-agent.sh --seed fix/crash           # Different agent, different files
+#   scripts/test-agent.sh --seed X --seed-fraction 60  # Select 60% of files (default 40%)
+#   scripts/test-agent.sh --seed X --dry-run         # Preview file selection without running
 
 set -uo pipefail
 
@@ -52,11 +56,17 @@ fi
 
 MODE="full"
 SUITE="all"
+SEED=""
+SEED_FRACTION=40
+DRY_RUN=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --fast) MODE="fast"; shift ;;
     --suite) SUITE="$2"; shift 2 ;;
+    --seed) SEED="$2"; shift 2 ;;
+    --seed-fraction) SEED_FRACTION="$2"; shift 2 ;;
+    --dry-run) DRY_RUN=true; shift ;;
     --summary)
       if [ -f "$SUMMARY_FILE" ]; then
         cat "$SUMMARY_FILE"
@@ -138,6 +148,67 @@ while [ $# -gt 0 ]; do
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+# --- Seed-based test file subsampling ---
+# When --seed is provided, deterministically select a subset of server test files.
+# Different seeds select different slices, so parallel agents exercise different tests.
+# Bridge tests and pike-compile are NEVER subsampled.
+subsample_files() {
+  local seed="$1"
+  local fraction="$2"
+  local files=()
+
+  # Collect all server test files
+  while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$f")
+  done < <(find "$REPO_ROOT/packages/pike-lsp-server/src/tests" -name '*.test.ts' -type f 2>/dev/null | sort)
+
+  local total=${#files[@]}
+  if [ "$total" -eq 0 ]; then
+    return
+  fi
+
+  # How many to select
+  local keep=$(( (total * fraction + 99) / 100 ))
+  [ "$keep" -lt 1 ] && keep=1
+  [ "$keep" -gt "$total" ] && keep=$total
+
+  # Hash each filename with the seed, sort by hash, take top N
+  local scored=()
+  for f in "${files[@]}"; do
+    local basename
+    basename=$(basename "$f")
+    local hash
+    hash=$(echo -n "${seed}:${basename}" | md5sum | cut -d' ' -f1)
+    scored+=("$hash $f")
+  done
+
+  # Sort by hash and take top $keep
+  printf '%s\n' "${scored[@]}" | sort | head -n "$keep" | cut -d' ' -f2-
+}
+
+# Handle --dry-run: show selected files and exit
+if [ "$DRY_RUN" = true ]; then
+  if [ -z "$SEED" ]; then
+    echo "=== Dry Run (no seed - all files) ==="
+    find "$REPO_ROOT/packages/pike-lsp-server/src/tests" -name '*.test.ts' -type f 2>/dev/null | sort
+  else
+    echo "=== Dry Run (seed: $SEED, fraction: $SEED_FRACTION%) ==="
+    subsample_files "$SEED" "$SEED_FRACTION"
+  fi
+  total_available=$(find "$REPO_ROOT/packages/pike-lsp-server/src/tests" -name '*.test.ts' -type f 2>/dev/null | wc -l)
+  if [ -n "$SEED" ]; then
+    selected=$(subsample_files "$SEED" "$SEED_FRACTION" | wc -l)
+    echo ""
+    echo "Selected $selected / $total_available files ($SEED_FRACTION%)"
+  else
+    echo ""
+    echo "All $total_available files (no seed)"
+  fi
+  echo ""
+  echo "Note: bridge tests and pike-compile always run (not subsampled)."
+  exit 0
+fi
 
 # Track results
 declare -A RESULTS
@@ -223,7 +294,16 @@ if [ "$MODE" = "fast" ]; then
   fi
 
   if [ "$SUITE" = "all" ] || [ "$SUITE" = "server" ]; then
-    run_suite "server" "bun run test" "packages/pike-lsp-server"
+    if [ -n "$SEED" ]; then
+      local_files=$(subsample_files "$SEED" "$SEED_FRACTION" | tr '\n' ' ')
+      if [ -n "$local_files" ]; then
+        run_suite "server" "bun test $local_files" "packages/pike-lsp-server"
+      else
+        echo "  server ... SKIP (no files selected)"
+      fi
+    else
+      run_suite "server" "bun run test" "packages/pike-lsp-server"
+    fi
   fi
 
 # --- Full mode: everything ---
@@ -237,7 +317,16 @@ else
   fi
 
   if [ "$SUITE" = "all" ] || [ "$SUITE" = "server" ]; then
-    run_suite "server" "bun run test" "packages/pike-lsp-server"
+    if [ -n "$SEED" ]; then
+      local_files=$(subsample_files "$SEED" "$SEED_FRACTION" | tr '\n' ' ')
+      if [ -n "$local_files" ]; then
+        run_suite "server" "bun test $local_files" "packages/pike-lsp-server"
+      else
+        echo "  server ... SKIP (no files selected)"
+      fi
+    else
+      run_suite "server" "bun run test" "packages/pike-lsp-server"
+    fi
   fi
 
   if [ "$SUITE" = "all" ] || [ "$SUITE" = "e2e" ]; then
