@@ -67,6 +67,10 @@ private mapping(string:int) stats = ([
     "evictions": 0
 ]);
 
+//! Access tracking for LRU eviction
+private int access_counter = 0;
+private mapping(string:int) cache_access_counter = ([]);
+
 // =========================================================================
 // CompilationResult Class
 // =========================================================================
@@ -128,6 +132,8 @@ void reset_stats() {
         "misses": 0,
         "evictions": 0
     ]);
+    cache_access_counter = ([]);
+    access_counter = 0;
 }
 
 // =========================================================================
@@ -450,6 +456,31 @@ class DependencyTrackingCompiler {
 // Cache Operations
 // =========================================================================
 
+//! Evict the N least-recently-used entries from compilation cache.
+//! Uses access_counter tracking to identify oldest entries.
+//! Also cleans up dependency graph edges for evicted files.
+//! @param count Number of entries to evict
+private void evict_lru_batch(int count) {
+    array(string) paths = indices(compilation_cache);
+    array(int) access_times = map(paths, lambda(string p) {
+        return cache_access_counter[p] || 0;
+    });
+    sort(access_times, paths);  // Ascending by access time
+    int to_evict = min(count, sizeof(paths));
+    for (int i = 0; i < to_evict; i++) {
+        m_delete(compilation_cache, paths[i]);
+        m_delete(cache_access_counter, paths[i]);
+        // Clean dependency graph edges
+        if (dependencies[paths[i]]) {
+            foreach (dependencies[paths[i]], string dep) {
+                if (dependents[dep]) dependents[dep][paths[i]] = 0;
+            }
+            m_delete(dependencies, paths[i]);
+        }
+    }
+    stats->evictions += to_evict;
+}
+
 //! Get a cached compilation result
 //!
 //! @param path
@@ -461,6 +492,9 @@ class DependencyTrackingCompiler {
 CompilationResult get(string path, string version_key) {
     if (compilation_cache[path] && compilation_cache[path][version_key]) {
         stats->hits++;
+        // Track access for LRU eviction
+        access_counter++;
+        cache_access_counter[path] = access_counter;
         return compilation_cache[path][version_key];
     }
     stats->misses++;
@@ -482,11 +516,10 @@ CompilationResult get(string path, string version_key) {
 //! @param result
 //!   The CompilationResult to cache
 void put(string path, string version_key, CompilationResult result) {
-    // Check size limit - nuclear eviction if at capacity
+    // Check size limit - LRU eviction if at capacity
     // Only evict if this is a new file (not already in cache)
     if (sizeof(compilation_cache) >= MAX_CACHED_FILES && !compilation_cache[path]) {
-        compilation_cache = ([]);  // Nuclear eviction
-        stats->evictions++;
+        evict_lru_batch(MAX_CACHED_FILES / 10);  // Evict oldest 10%
     }
 
     // Update dependency graph with new dependencies
@@ -498,6 +531,10 @@ void put(string path, string version_key, CompilationResult result) {
         compilation_cache[path] = ([]);
     }
     compilation_cache[path][version_key] = result;
+
+    // Track access for LRU eviction
+    access_counter++;
+    cache_access_counter[path] = access_counter;
 }
 
 //! Invalidate all cached versions of a file
