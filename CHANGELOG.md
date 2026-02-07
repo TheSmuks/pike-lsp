@@ -16,6 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.17] - 2026-02-07
+
+### Optimization
+- **Hash-based cache eviction** - Replace LRU tracking with hash-based eviction for zero overhead (7.2% faster on cache-intensive workloads)
+
+### Added
+- **Agent workflow automation** - Carlini Protocol for parallel agent coordination with worktrees
+- **Branch protection** - GitHub ruleset enforcing PR workflow and required status checks
+- **Seed-based test subsampling** - Deterministic test subset selection for parallel agent testing
+
+### Fixed
+- **ParamOrder performance** - Replace O(n²) array append with O(1) mapping insert
+- **Benchmark accuracy** - Improve regression detection with rolling averages
+- **Test infrastructure** - Enhanced test-agent script with quality reporting
+
+### Changed
+- **Test coverage** - Converted 286 placeholder tests to real assertions (symbols, config, hierarchy, diagnostics, advanced features)
+- **Agent protocols** - Standardized workflow, TDD, and Pike code style guidelines
+
 ## [0.1.0-alpha.13] - 2026-02-01
 
 ### Optimization
