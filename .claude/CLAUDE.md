@@ -543,7 +543,12 @@ scripts/test-agent.sh --fast       # Quick smoke test (<30s)
 scripts/test-agent.sh              # Full suite
 scripts/test-agent.sh --summary    # Last run's results
 scripts/test-agent.sh --suite X    # Specific: bridge|server|e2e|pike
+scripts/test-agent.sh --fast --seed feat/hover   # Deterministic subset (40% of server tests)
+scripts/test-agent.sh --seed X --seed-fraction 60  # Custom fraction (60%)
+scripts/test-agent.sh --seed X --dry-run           # Preview file selection
 ```
+
+**Seed-based subsampling:** When `--seed` is provided, only a deterministic subset of server test files runs. Different seeds select different files, so parallel agents exercise different slices. Bridge tests and pike-compile always run regardless of seed.
 
 Output is agent-optimized:
 - `ERROR: [suite] message` prefix on every failure (grep-friendly)
