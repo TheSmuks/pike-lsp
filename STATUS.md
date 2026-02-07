@@ -33,8 +33,8 @@ No active work items.
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
+- Oracle test suite added (8 tests) - Carlini known-good oracle pattern
 - Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
-- Carlini audit: rewrote AGENTS.md (was outdated, referenced pnpm)
 - Test quality audit: 71% real, 546 placeholders to convert
 - Added project-specific agent roles (5 specializations)
 - Added per-commit regression gate
@@ -45,7 +45,7 @@ No active work items.
 
 ## Agent Notes (last 5 - full log: `.claude/status/agent-notes.log`)
 
-- Oracle testing (known-good comparison) is the remaining Carlini gap - not yet implemented
+- Oracle testing implemented: 8 tests comparing parse vs Pike compiler introspection
 - Carlini compliance: 83/100. Gaps: AGENTS.md outdated (FIXED), role templates missing (FIXED)
 - E2E tests need Xvfb on Linux (use `bun run test:features` which handles this)
 - `bun` is at `~/.bun/bin/bun` - not on PATH in non-interactive shells
