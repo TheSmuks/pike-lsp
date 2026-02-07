@@ -18,6 +18,68 @@ import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
 
 /**
+ * Convert Pike symbol kind to LSP SymbolKind.
+ *
+ * Exported for direct unit testing.
+ */
+export function convertSymbolKind(kind: string): SymbolKind {
+    switch (kind) {
+        case 'class':
+            return SymbolKind.Class;
+        case 'method':
+            return SymbolKind.Method;
+        case 'variable':
+            return SymbolKind.Variable;
+        case 'constant':
+            return SymbolKind.Constant;
+        case 'typedef':
+            return SymbolKind.TypeParameter;
+        case 'enum':
+            return SymbolKind.Enum;
+        case 'enum_constant':
+            return SymbolKind.EnumMember;
+        case 'inherit':
+            return SymbolKind.Class;
+        case 'import':
+            return SymbolKind.Module;
+        case 'module':
+            return SymbolKind.Module;
+        default:
+            return SymbolKind.Variable;
+    }
+}
+
+/**
+ * Get detail string for symbol (type info).
+ *
+ * Exported for direct unit testing.
+ */
+export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
+    // Type info is in various fields depending on symbol kind
+    const sym = symbol as unknown as Record<string, unknown>;
+    let detail: string | undefined;
+
+    if (sym['returnType']) {
+        const returnType = sym['returnType'] as { name?: string };
+        const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
+        const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
+        detail = `${returnType.name ?? 'mixed'}(${args})`;
+    } else if (sym['type']) {
+        const type = sym['type'] as { name?: string };
+        detail = type.name;
+    }
+
+    // Add inheritance info
+    if (sym['inherited']) {
+        const from = sym['inheritedFrom'] as string | undefined;
+        const inheritInfo = from ? `(from ${from})` : '(inherited)';
+        detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
+    }
+
+    return detail;
+}
+
+/**
  * Register symbols handlers with the LSP connection.
  *
  * @param connection - LSP connection
@@ -29,36 +91,6 @@ export function registerSymbolsHandlers(
 ): void {
     const { documentCache, workspaceIndex } = services;
     const log = new Logger('symbols');
-
-    /**
-     * Convert Pike symbol kind to LSP SymbolKind
-     */
-    function convertSymbolKind(kind: string): SymbolKind {
-        switch (kind) {
-            case 'class':
-                return SymbolKind.Class;
-            case 'method':
-                return SymbolKind.Method;
-            case 'variable':
-                return SymbolKind.Variable;
-            case 'constant':
-                return SymbolKind.Constant;
-            case 'typedef':
-                return SymbolKind.TypeParameter;
-            case 'enum':
-                return SymbolKind.Enum;
-            case 'enum_constant':
-                return SymbolKind.EnumMember;
-            case 'inherit':
-                return SymbolKind.Class;
-            case 'import':
-                return SymbolKind.Module;
-            case 'module':
-                return SymbolKind.Module;
-            default:
-                return SymbolKind.Variable;
-        }
-    }
 
     /**
      * Convert Pike symbol to LSP DocumentSymbol
@@ -87,34 +119,6 @@ export function registerSymbolsHandlers(
         }
 
         return result;
-    }
-
-    /**
-     * Get detail string for symbol (type info)
-     */
-    function getSymbolDetail(symbol: PikeSymbol): string | undefined {
-        // Type info is in various fields depending on symbol kind
-        const sym = symbol as unknown as Record<string, unknown>;
-        let detail: string | undefined;
-
-        if (sym['returnType']) {
-            const returnType = sym['returnType'] as { name?: string };
-            const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
-            const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
-            detail = `${returnType.name ?? 'mixed'}(${args})`;
-        } else if (sym['type']) {
-            const type = sym['type'] as { name?: string };
-            detail = type.name;
-        }
-
-        // Add inheritance info
-        if (sym['inherited']) {
-            const from = sym['inheritedFrom'] as string | undefined;
-            const inheritInfo = from ? `(from ${from})` : '(inherited)';
-            detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
-        }
-
-        return detail;
     }
 
     /**
