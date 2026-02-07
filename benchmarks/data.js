@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770482879054,
+  "lastUpdate": 1770482998431,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -8195,6 +8195,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.64878120661157,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2b5c95a599334ec1621a53c880af2d8e346c4688",
+          "message": "test: Convert 84 placeholder tests in advanced features B\n\n* fix: disable DBus for Chromium in headless E2E tests\n\nThis resolves the DBus connection errors that were blocking E2E tests\nin headless mode. Chromium now runs with explicit DBUS_SESSION_BUS_ADDRESS=''\nand --disable-features=UseOzonePlatform flag.\n\n- Set DBUS_SESSION_BUS_ADDRESS to empty string in xvfb-run environment\n- Add --disable-features=UseOzonePlatform to ELECTRON_EXTRA_LAUNCH_ARGS\n- E2E tests now pass: 108 passing (3m)\n\nFixes #E2E-ENV\n\n* test: convert 84 placeholder tests in advanced features B\n\nConverted placeholder tests to real assertions across 5 files:\n- code-actions-provider.test.ts (2 placeholders)\n- rename-provider.test.ts (18 placeholders)\n- signature-help-provider.test.ts (18 placeholders)\n- inlay-hints-provider.test.ts (26 placeholders)\n- folding-range-provider.test.ts (20 placeholders)\n\nAll tests validate actual LSP provider behavior and pass successfully.",
+          "timestamp": "2026-02-07T16:48:38Z",
+          "tree_id": "fc1595e6578efb6a15d275398bdbf5e24ca1c814",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/2b5c95a599334ec1621a53c880af2d8e346c4688"
+        },
+        "date": 1770482998209,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.85616491666664,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 250.8367065,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 251.95561866666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 255.53504683333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2085025912280702,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.9191405314285714,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 48.54436272727273,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.962173442028985,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.847730483146067,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.28981017104111984,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.27466631714404316,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5465211890587288,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19085865181224004,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18100397422096318,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6565637913669065,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3722196104328524,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.36033335553168633,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10271637701032674,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5504694923201293,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.07947901675449263,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3698790209135938,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 251.12588458333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 255.417277,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5665372094763093,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07903433629390393,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.756801677966102,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.681941491666667,
             "unit": "ms"
           }
         ]
