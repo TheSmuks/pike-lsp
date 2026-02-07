@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770486943454,
+  "lastUpdate": 1770487970474,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -10223,6 +10223,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.838991605263158,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0174f1a2c9a228c9093b0b2131c59a528e298086",
+          "message": "feat: replace nuclear cache eviction with LRU strategy (#13)\n\n* fix: disable DBus for Chromium in headless E2E tests\n\nThis resolves the DBus connection errors that were blocking E2E tests\nin headless mode. Chromium now runs with explicit DBUS_SESSION_BUS_ADDRESS=''\nand --disable-features=UseOzonePlatform flag.\n\n- Set DBUS_SESSION_BUS_ADDRESS to empty string in xvfb-run environment\n- Add --disable-features=UseOzonePlatform to ELECTRON_EXTRA_LAUNCH_ARGS\n- E2E tests now pass: 108 passing (3m)\n\nFixes #E2E-ENV\n\n* feat: replace nuclear cache eviction with LRU strategy\n\nReplace cache-clearing eviction with LRU (Least Recently Used) eviction\nin CompilationCache.pmod. When cache reaches capacity, evicts oldest 10%\nof entries based on access tracking instead of clearing entire cache.\n\nChanges:\n- Add access_counter and cache_access_counter tracking state\n- Track access on cache hits in get() method\n- Track access on cache puts in put() method\n- Add evict_lru_batch() method for batch LRU eviction\n- Replace nuclear eviction with LRU batch call (10% evictions)\n- Clear access tracking in reset_stats() method\n\nBenefits:\n- Preserves 90% of cache when at capacity vs 0% before\n- Maintains frequently accessed entries across eviction cycles\n- Reduces redundant recompilations during active sessions\n\nFollows LRU pattern from Cache.pmod with dependency graph cleanup.\n\nNote: E2E test failure is environmental (worktree issue), code is correct.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-07T19:11:30+01:00",
+          "tree_id": "4274e5feaafb07c3910f59d3fd38f4f1f9b94f3b",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/0174f1a2c9a228c9093b0b2131c59a528e298086"
+        },
+        "date": 1770487970243,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.34271908333335,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 249.636403,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 249.74267175,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 254.85149683333336,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1901157517241379,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.929424822857143,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 48.227138454545454,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.0255505367647055,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.8872872215909093,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.26942568252032517,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2714332749590835,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5546932440816327,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19201062612074118,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.17265459908207342,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6486744868735084,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3860920091795754,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3907015345729227,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0981208452092422,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5588839433962264,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08082641206990715,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3782714676420934,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 250.94257875,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 255.111224,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.586274722508591,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07433900101407022,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.813995598290598,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.797794666666667,
             "unit": "ms"
           }
         ]
