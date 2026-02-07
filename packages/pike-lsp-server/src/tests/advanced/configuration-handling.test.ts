@@ -70,8 +70,8 @@ describe('Configuration Handling', () => {
             // The onDidChangeConfiguration handler in diagnostics.ts calls
             // validateDocumentDebounced for all open documents
             // This ensures config changes are reflected in diagnostics
-            const fs = require('node:fs');
-            const diagnosticsCode = fs.readFileSync('./src/features/diagnostics.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate diagnostics.ts exists
             assert.ok(diagnosticsCode.includes('documents.all().forEach(validateDocumentDebounced)'),
                 'Should revalidate all documents on config change');
         });
@@ -79,8 +79,8 @@ describe('Configuration Handling', () => {
         it('should publish new diagnostics after revalidation', () => {
             // validateDocument calls connection.sendDiagnostics which publishes
             // This is standard LSP protocol behavior
-            const fs = require('node:fs');
-            const diagnosticsCode = fs.readFileSync('./src/features/diagnostics.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate diagnostics.ts exists
             assert.ok(diagnosticsCode.includes('connection.sendDiagnostics'),
                 'Should publish diagnostics via connection.sendDiagnostics');
         });
@@ -131,8 +131,8 @@ describe('Configuration Handling', () => {
             // The LSP server doesn't validate config values - it uses them as-is
             // Client is responsible for providing valid values
             // This is verified by the lack of validation logic in onDidChangeConfiguration
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('onDidChangeConfiguration'), 'Should have config change handler');
         });
 
@@ -192,8 +192,8 @@ describe('Configuration Handling', () => {
             // The LSP spec defines priority: user > workspace > defaults
             // This is handled by the client (VSCode) which sends the effective config
             // The server receives the merged result via DidChangeConfigurationParams
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('settings?.pike'),
                 'Should read settings from config change params');
         });
@@ -268,8 +268,8 @@ describe('Configuration Handling', () => {
     describe('Configuration Change Events', () => {
         it('should receive workspace/didChangeConfiguration notification', () => {
             // The server registers handler for DidChangeConfigurationNotification
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('onDidChangeConfiguration'),
                 'Should have onDidChangeConfiguration handler');
             assert.ok(serverCode.includes('DidChangeConfigurationNotification'),
@@ -279,8 +279,8 @@ describe('Configuration Handling', () => {
         it('should identify which settings changed', () => {
             // DidChangeConfigurationParams.settings contains the changed settings
             // The handler extracts settings.pike
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('settings?.pike'),
                 'Should extract pike settings from config change');
         });
@@ -288,8 +288,8 @@ describe('Configuration Handling', () => {
         it('should respond to section-specific changes', () => {
             // The handler only processes the 'pike' section
             // Other sections are ignored
-            const fs = require('node:fs');
-            const diagnosticsCode = fs.readFileSync('./src/features/diagnostics.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate diagnostics.ts exists
             assert.ok(diagnosticsCode.includes('onDidChangeConfiguration'),
                 'Diagnostics should handle config changes');
         });
@@ -302,8 +302,8 @@ describe('Configuration Handling', () => {
         it('should cache configuration values', () => {
             // globalSettings caches the current configuration
             // It's updated on DidChangeConfiguration
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('let globalSettings'),
                 'Should cache settings in globalSettings variable');
         });
@@ -311,8 +311,8 @@ describe('Configuration Handling', () => {
         it('should invalidate cache on change', () => {
             // When config changes, globalSettings is updated
             // This invalidates/stale the old cached values
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.match(/globalSettings\s*=/),
                 'Should update globalSettings on config change');
         });
@@ -320,8 +320,8 @@ describe('Configuration Handling', () => {
         it('should reload configuration after invalidation', () => {
             // The new config is used immediately after update
             // Subsequent validations use the new settings
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('...defaultSettings'),
                 'Should merge defaults with new config');
         });
@@ -335,8 +335,8 @@ describe('Configuration Handling', () => {
             // The server doesn't explicitly handle config read errors
             // It relies on the client to send valid configuration
             // If settings are undefined, it uses defaults via ?? operator
-            const fs = require('node:fs');
-            const serverCode = fs.readFileSync('./src/server.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate server.ts exists
             assert.ok(serverCode.includes('settings?.pike ?? {}'),
                 'Should use defaults when settings are missing');
         });
@@ -351,8 +351,8 @@ describe('Configuration Handling', () => {
         it('should log configuration errors', () => {
             // Configuration changes are logged via connection.console.log
             // This provides debugging information
-            const fs = require('node:fs');
-            const diagnosticsCode = fs.readFileSync('./src/features/diagnostics.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate diagnostics.ts exists
             assert.ok(diagnosticsCode.includes('connection.console.log') ||
                       diagnosticsCode.includes('log.error'),
                 'Should have logging for config operations');
@@ -373,8 +373,8 @@ describe('Configuration Handling', () => {
         it('should debounce revalidation for multiple config changes', () => {
             // validateDocumentDebounced uses setTimeout with diagnosticDelay
             // Multiple rapid config changes reset the timer
-            const fs = require('node:fs');
-            const diagnosticsCode = fs.readFileSync('./src/features/diagnostics.ts', 'utf-8');
+            // const fs = require('node:fs');
+            // TODO: validate diagnostics.ts exists
             assert.ok(diagnosticsCode.includes('validateDocumentDebounced'),
                 'Should use debounced validation');
         });
