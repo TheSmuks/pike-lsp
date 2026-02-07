@@ -214,7 +214,8 @@ describe('Configuration Handling', () => {
      */
     describe('Specific Configuration Options', () => {
         it('should handle maxNumberOfProblems configuration', () => {
-            const { DEFAULT_MAX_PROBLEMS, defaultSettings } = require('../../constants/index.js');
+            const { DEFAULT_MAX_PROBLEMS } = require('../../constants/index.js');
+            const { defaultSettings } = require('../../core/types.js');
             assert.equal(DEFAULT_MAX_PROBLEMS, 100, 'DEFAULT_MAX_PROBLEMS should be 100');
             assert.equal(defaultSettings.maxNumberOfProblems, 100, 'Default maxNumberOfProblems should be 100');
         });
