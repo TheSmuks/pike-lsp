@@ -53,7 +53,8 @@ describe('Configuration Handling', () => {
         });
 
         it('should default to 250ms if not configured', () => {
-            const { defaultSettings, DIAGNOSTIC_DELAY_DEFAULT } = require('../../constants/index.js');
+            const { DIAGNOSTIC_DELAY_DEFAULT } = require('../../constants/index.js');
+            const { defaultSettings } = require('../../core/types.js');
             assert.equal(DIAGNOSTIC_DELAY_DEFAULT, 250, 'DIAGNOSTIC_DELAY_DEFAULT should be 250ms');
             assert.equal(defaultSettings.diagnosticDelay, 250, 'Default settings should have 250ms delay');
         });
