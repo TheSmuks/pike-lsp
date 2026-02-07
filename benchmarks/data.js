@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770483491299,
+  "lastUpdate": 1770483743088,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -9594,6 +9594,165 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.62948132231405,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "438e0724f092733aaae63c14d975afe356b9fa68",
+          "message": "test: Convert 158 placeholder tests in hierarchy and diagnostics\n\n* test: convert 158 placeholder tests in hierarchy and diagnostics\n\nConverted placeholder tests to real assertions across 3 files:\n- call-hierarchy-provider.test.ts (55 placeholders)\n- type-hierarchy-provider.test.ts (59 placeholders)\n- diagnostics-provider.test.ts (44 placeholders)\n\nAll tests validate actual LSP provider behavior:\n- Call hierarchy (incoming/outgoing calls)\n- Type hierarchy (super/subtypes)\n- Diagnostics (error reporting)\n\nTests verify handler implementations in hierarchy.ts and diagnostics.ts.\nAll 158 tests passing.\n\n* fix: disable DBus for Chromium in headless E2E tests\n\nThis resolves the DBus connection errors that were blocking E2E tests\nin headless mode. Chromium now runs with explicit DBUS_SESSION_BUS_ADDRESS=''\nand --disable-features=UseOzonePlatform flag.\n\n- Set DBUS_SESSION_BUS_ADDRESS to empty string in xvfb-run environment\n- Add --disable-features=UseOzonePlatform to ELECTRON_EXTRA_LAUNCH_ARGS\n- E2E tests now pass: 108 passing (3m)\n\nFixes #E2E-ENV\n\n* fix: replace broken test assertions with test.skip\n\nThe test conversion agent left 86 broken assertions referencing undefined 'code' variable.\nThis commit replaces them with proper test.skip() markers.\n\n* fix: use return instead of test.skip for unimplemented tests\n\ntest.skip() is not available inside it() blocks in bun test framework.\nUsing return statements instead to skip unimplemented test assertions.",
+          "timestamp": "2026-02-07T18:00:55+01:00",
+          "tree_id": "d640453c9e29a8e382f7c3727e5972e90de4ac6f",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/438e0724f092733aaae63c14d975afe356b9fa68"
+        },
+        "date": 1770483742747,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.79077291666667,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 251.48040016666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 249.48992308333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 254.87866225,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.174115654761905,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.8689502078651685,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.28374581818182,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.905104714285715,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.787421408839779,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.26546153333333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2761419841600667,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5460281789727127,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19979828478260872,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.20462450589735415,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6610554783653846,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.38054582379603397,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3642389109663409,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10896011576135352,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5918738706597223,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08157065863453815,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3869265599078341,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation with 250ms debounce (default)",
+            "value": 251.23929983333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Rapid edit simulation (debounce coalescing)",
+            "value": 255.39414091666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5809464083546462,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.09062154753601213,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.7275485966386555,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.628555892561983,
             "unit": "ms"
           }
         ]
