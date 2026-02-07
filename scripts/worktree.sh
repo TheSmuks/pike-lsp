@@ -215,6 +215,11 @@ cmd_cleanup() {
 
       if [ "$is_merged" = true ]; then
         git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
+        # Also delete the remote branch if it exists
+        if git -C "$REPO_ROOT" ls-remote --heads origin "$branch" 2>/dev/null | grep -q "$branch"; then
+          echo -e "    ${RED}DELETE REMOTE${NC} origin/$branch"
+          git -C "$REPO_ROOT" push origin --delete "$branch" --no-verify 2>/dev/null || true
+        fi
       fi
 
       removed=$((removed + 1))

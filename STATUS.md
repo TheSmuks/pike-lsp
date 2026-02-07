@@ -33,11 +33,11 @@ No active work items.
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
-- Added agent-oriented test runner with --fast, --quality modes
-- Added per-commit regression gate
-- Added project-specific agent roles (5 specializations)
+- Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
+- Carlini audit: rewrote AGENTS.md (was outdated, referenced pnpm)
 - Test quality audit: 71% real, 546 placeholders to convert
-- Bulletproofed hooks: blocked --no-verify, --admin, Bash test tampering
+- Added project-specific agent roles (5 specializations)
+- Added per-commit regression gate
 
 ## Failed Approaches (last 5 - full log: `.claude/status/failed-approaches.log`)
 
@@ -45,6 +45,8 @@ No active work items.
 
 ## Agent Notes (last 5 - full log: `.claude/status/agent-notes.log`)
 
-- Pike 8.0.1116 has no `String.trim()` - use `String.trim_all_whites()` instead
-- `bun` is at `~/.bun/bin/bun` - not on PATH in non-interactive shells
+- Oracle testing (known-good comparison) is the remaining Carlini gap - not yet implemented
+- Carlini compliance: 83/100. Gaps: AGENTS.md outdated (FIXED), role templates missing (FIXED)
 - E2E tests need Xvfb on Linux (use `bun run test:features` which handles this)
+- `bun` is at `~/.bun/bin/bun` - not on PATH in non-interactive shells
+- Pike 8.0.1116 has no `String.trim()` - use `String.trim_all_whites()` instead

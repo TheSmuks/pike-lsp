@@ -1,71 +1,135 @@
-# Repository Guidelines
+# Agent Guidelines
 
-## Project Structure & Module Organization
-- `packages/` contains the workspace packages: `pike-bridge`, `pike-analyzer`, `pike-lsp-server`, and `vscode-pike`.
-- `pike-scripts/` holds the Pike backend (notably `pike-scripts/analyzer.pike`).
-- `scripts/` contains helper scripts such as `scripts/run-tests.sh` and `scripts/test-extension.sh`.
-- `packages/pike-lsp-server/src/tests/` is the main test suite; `test/` holds fixtures.
-- `docs/` and `images/` store documentation assets.
+## Quick Start (Carlini Protocol)
 
-## Build, Test, and Development Commands
-- `pnpm install` installs workspace dependencies.
-- `pnpm build` builds all packages.
-- `pnpm test` runs package-level tests.
-- `pnpm test:all` runs the full test runner via `scripts/run-tests.sh`.
-- `pnpm lint` runs linting across packages.
-- `pnpm typecheck` runs TypeScript type checks.
-- `pnpm watch` runs package watch tasks in parallel.
-- `./scripts/test-extension.sh` launches VS Code with the extension for manual testing.
+Every agent session MUST follow this startup sequence:
 
-## Coding Style & Naming Conventions
-- TypeScript is strict: avoid `any`, use type guards from `utils/validation.ts`, and document public APIs with TSDoc.
-- Pike code should use `//!` doc comments and handle errors explicitly.
-- Follow existing formatting; prefer running `pnpm lint` and `pnpm typecheck` before pushing.
-- Branch naming follows `feature/your-feature-name` or `fix/your-bug-fix`.
+```
+1. Read STATUS.md              → current state, failing tests, known issues
+2. Read .claude/decisions/INDEX.md → active architectural decisions
+3. Run scripts/test-agent.sh --fast → smoke test (~30s)
+4. Run scripts/task-lock.sh list    → see what other agents are working on
+```
 
-## Testing Guidelines
-- Tests use `node:test` and live in `packages/pike-lsp-server/src/tests/`.
-- Add tests for new features and bug fixes; keep Pike stdlib parsing at 100%.
-- For targeted runs, use `pnpm --filter @pike-lsp/pike-lsp-server test` after building.
-- The stdlib parsing tests default to `../Pike`; override with `PIKE_SOURCE_ROOT` or `PIKE_STDLIB`/`PIKE_TOOLS`.
+## Project Structure
 
-## Agent Workflow (Required)
-- After completing any phase, run `./scripts/run-tests.sh` before requesting review; fix failures first.
-- After automated tests pass, run `./scripts/test-extension.sh` to validate the VS Code extension manually.
-- Add new LSP tests to `packages/pike-lsp-server/src/tests/lsp-tests.ts` and run them via `node --test packages/pike-lsp-server/dist/tests/lsp-tests.js`.
+```
+packages/
+  pike-bridge/       TypeScript <-> Pike IPC (JSON-RPC over stdin/stdout)
+  pike-lsp-server/   LSP protocol implementation
+  vscode-pike/       VSCode extension
+pike-scripts/
+  analyzer.pike      Pike subprocess entry point
+  LSP.pmod/          Pike LSP modules
+scripts/
+  test-agent.sh      Agent-optimized test runner
+  task-lock.sh       Task locking for parallel agents
+  worktree.sh        Git worktree management
+  repo-hygiene.sh    Repo clutter detection
+```
 
-## Commit & Pull Request Guidelines
-- Commit messages are short and imperative; common prefixes include `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `perf:`.
-- Example: `git commit -m "fix: handle missing Pike binary gracefully"`.
-- PRs should describe the change, link related issues, include test results, and pass CI; fill out the PR template when present.
+## Build & Test Commands
 
-## Environment & Configuration
-- Required: Node.js 18+, pnpm 8+, and Pike 8.0+.
-- For VS Code, set `pike.pikePath` if Pike is not on `PATH`.
-- Optional test env vars: `PIKE_SOURCE_ROOT`, `PIKE_STDLIB`, `PIKE_TOOLS`.
+```bash
+bun install                                    # Install dependencies
+bun run build                                  # Build all packages
 
-## Landing the Plane (Session Completion)
+# Agent-optimized testing (USE THESE, not raw test commands)
+scripts/test-agent.sh --fast                   # Quick smoke test (<30s)
+scripts/test-agent.sh                          # Full suite
+scripts/test-agent.sh --suite bridge           # Specific: bridge|server|e2e|pike
+scripts/test-agent.sh --quality                # Placeholder vs real test counts
+scripts/test-agent.sh --fast --seed feat/hover # Deterministic subset for parallel agents
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+# Direct package tests (prefer test-agent.sh instead)
+cd packages/pike-bridge && bun run test        # Bridge unit tests
+cd packages/pike-lsp-server && bun run test    # Server unit tests
+cd packages/vscode-pike && bun run test:features  # E2E tests (headless)
 
-**MANDATORY WORKFLOW:**
+# Pike validation
+pike -e 'compile_file("pike-scripts/analyzer.pike");'  # Pike compiles check
+```
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+## Coding Conventions
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+**TypeScript:** Strict mode, no `any`, type guards from `utils/validation.ts`, TSDoc for public APIs.
+
+**Pike (target: 8.0.1116):**
+- `snake_case` functions/variables, `PascalCase` classes, `UPPER_SNAKE` constants
+- Use `String.trim_all_whites()` not `String.trim()` (unavailable in 8.0)
+- Use `Parser.Pike.split()`/`tokenize()` not regex for code parsing
+- Use `//!` doc comments, `catch {}` for error handling
+- Always check `/usr/local/pike/8.0.1116/lib/` before reimplementing
+
+## Parallel Agent Protocol
+
+### Task Locking (Prevent Collisions)
+
+```bash
+scripts/task-lock.sh lock "task-name" "what I'm doing"  # Before starting
+scripts/task-lock.sh list                                # See active locks
+scripts/task-lock.sh unlock "task-name"                  # When done
+scripts/task-lock.sh cleanup                             # Remove stale locks (>2h)
+```
+
+### Git Worktrees (Parallel Workspaces)
+
+Each agent works in an isolated worktree: `../pike-lsp-{branch-sanitized}/`
+
+```bash
+scripts/worktree.sh create feat/my-feature     # Create worktree + branch
+scripts/worktree.sh list                        # Show active worktrees
+scripts/worktree.sh status                      # Detailed status
+scripts/worktree.sh remove feat/my-feature      # Cleanup (blocks if uncommitted)
+scripts/worktree.sh cleanup                     # Remove all merged worktrees
+```
+
+Max 5 concurrent worktrees. Each worktree = one branch = one PR.
+
+## Agent Roles (Carlini Specialization)
+
+When spawning parallel agents, assign a role. Prompt templates: `.claude/agent-roles/`
+
+| Role | Focus | When |
+|------|-------|------|
+| **Builder** | Implement features, fix bugs, TDD | Default for all implementation |
+| **Quality Guardian** | Find duplicate code, enforce patterns | After large merges |
+| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs | Before releases |
+| **Performance Agent** | Benchmark, profile, optimize | After feature completion |
+| **Pike Critic** | Review Pike code, validate stdlib usage, 8.0 compat | After Pike changes |
+
+## State Management
+
+### STATUS.md (Compact Dashboard)
+
+Read on startup. Update before stopping. Max 60 lines - full history in log files.
+
+### Log Files (Append-Only)
+
+```bash
+grep "Pike" .claude/status/failed-approaches.log   # Search failures
+grep "bun" .claude/status/agent-notes.log           # Search notes
+grep "2026-02" .claude/status/changes.log           # Search by date
+```
+
+| File | Format |
+|------|--------|
+| `.claude/status/changes.log` | `YYYY-MM-DD \| type \| description` |
+| `.claude/status/failed-approaches.log` | `YYYY-MM-DD \| agent \| tried \| why failed \| alternative` |
+| `.claude/status/agent-notes.log` | `YYYY-MM-DD \| agent \| note` |
+
+## Workflow Rules
+
+- **Feature branches only.** Direct commits to main are blocked by hooks.
+- **TDD required.** Write failing test first, then implement, then refactor.
+- **Branch naming:** `type/description` (feat/, fix/, docs/, refactor/, test/, chore/)
+- **Before commit:** `scripts/test-agent.sh --fast` must pass.
+- **Before push:** Full E2E suite runs automatically via pre-push hook.
+
+## Architectural Decisions
+
+Read `.claude/decisions/INDEX.md` before working. Key decisions:
+- **ADR-001:** Use Parser.Pike over regex for code parsing
+- **ADR-002:** Target Pike 8.0.1116 (no String.trim(), use String.trim_all_whites())
+
+Full ADRs in `.claude/decisions/`. Challenge protocol documented in `.claude/CLAUDE.md`.
