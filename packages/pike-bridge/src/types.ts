@@ -863,13 +863,12 @@ export interface ExpressionInfo {
  * Roxen module diagnostic from validator.
  */
 export interface RoxenDiagnostic {
-    range: {
-        start: { line: number; character: number };
-        end: { line: number; character: number };
-    };
+    /** 1-based line number (converted to 0-based by TS layer) */
+    line: number;
+    /** 1-based column number (converted to 0-based by TS layer) */
+    column: number;
     severity: 'error' | 'warning' | 'info';
     message: string;
-    source: string;
 }
 
 /**
@@ -882,6 +881,8 @@ export interface RoxenModuleInfo {
     module_type: string[];
     /** Module name from register_module() */
     module_name: string;
+    /** Inherit targets found in the module */
+    inherits: string[];
     /** defvar declarations */
     variables: ModuleVariable[];
     /** RXML tags defined by this module */
