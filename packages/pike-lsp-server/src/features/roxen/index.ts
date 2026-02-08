@@ -62,11 +62,7 @@ export { enhanceRoxenSymbols } from './symbols.js';
 
 // Re-export completion helpers
 export { provideRoxenCompletions, isRoxenModule } from './completion.js';
-export {
-  getModuleTypeCompletions,
-  getVarTypeCompletions,
-  getRequestIDCompletions
-} from './completion.js';
+export { getRequestIDCompletions } from './completion.js';
 
 // Re-export diagnostics helper
 export { provideRoxenDiagnostics } from './diagnostics.js';

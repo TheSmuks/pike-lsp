@@ -63,3 +63,68 @@ export const VAR_NOT_CFIF = 1 << 12;                     // Not in CFIF
 export const VAR_INVISIBLE = 1 << 13;                    // Invisible variable
 export const VAR_PUBLIC = 1 << 14;                       // Public variable
 export const VAR_NO_DEFAULT = 1 << 15;                   // No default value
+
+// Module type constant metadata for completions
+export const MODULE_CONSTANTS: Record<string, { value: number; description: string }> = {
+    MODULE_ZERO: { value: MODULE_ZERO, description: 'Zero/undefined module type' },
+    MODULE_EXTENSION: { value: MODULE_EXTENSION, description: 'File extension module' },
+    MODULE_LOCATION: { value: MODULE_LOCATION, description: 'Location module' },
+    MODULE_URL: { value: MODULE_URL, description: 'URL module' },
+    MODULE_FILE_EXTENSION: { value: MODULE_FILE_EXTENSION, description: 'File extension handler' },
+    MODULE_TAG: { value: MODULE_TAG, description: 'RXML tag module' },
+    MODULE_PARSER: { value: MODULE_PARSER, description: 'Content parser (alias for MODULE_TAG)' },
+    MODULE_LAST: { value: MODULE_LAST, description: 'Last module' },
+    MODULE_FIRST: { value: MODULE_FIRST, description: 'First module' },
+    MODULE_AUTH: { value: MODULE_AUTH, description: 'Authentication module' },
+    MODULE_MAIN_PARSER: { value: MODULE_MAIN_PARSER, description: 'Main parser' },
+    MODULE_TYPES: { value: MODULE_TYPES, description: 'Types module' },
+    MODULE_DIRECTORIES: { value: MODULE_DIRECTORIES, description: 'Directories module' },
+    MODULE_PROXY: { value: MODULE_PROXY, description: 'Proxy module' },
+    MODULE_LOGGER: { value: MODULE_LOGGER, description: 'Logger module' },
+    MODULE_FILTER: { value: MODULE_FILTER, description: 'Filter module' },
+    MODULE_PROVIDER: { value: MODULE_PROVIDER, description: 'Provider module' },
+    MODULE_USERDB: { value: MODULE_USERDB, description: 'User database module' },
+    MODULE_DEPRECATED: { value: MODULE_DEPRECATED, description: 'Deprecated module' },
+    MODULE_PROTOCOL: { value: MODULE_PROTOCOL, description: 'Protocol module' },
+    MODULE_CONFIG: { value: MODULE_CONFIG, description: 'Config module' },
+    MODULE_SECURITY: { value: MODULE_SECURITY, description: 'Security module' },
+    MODULE_EXPERIMENTAL: { value: MODULE_EXPERIMENTAL, description: 'Experimental module' },
+};
+
+// Variable type constant metadata for completions
+export const TYPE_CONSTANTS: Record<string, { value: number; description: string }> = {
+    TYPE_STRING: { value: TYPE_STRING, description: 'String variable' },
+    TYPE_FILE: { value: TYPE_FILE, description: 'File path variable' },
+    TYPE_INT: { value: TYPE_INT, description: 'Integer variable' },
+    TYPE_DIR: { value: TYPE_DIR, description: 'Directory path variable' },
+    TYPE_STRING_LIST: { value: TYPE_STRING_LIST, description: 'String array variable' },
+    TYPE_MULTIPLE_STRING: { value: TYPE_MULTIPLE_STRING, description: 'Alias for TYPE_STRING_LIST' },
+    TYPE_INT_LIST: { value: TYPE_INT_LIST, description: 'Integer array variable' },
+    TYPE_MULTIPLE_INT: { value: TYPE_MULTIPLE_INT, description: 'Alias for TYPE_INT_LIST' },
+    TYPE_FLAG: { value: TYPE_FLAG, description: 'Boolean flag variable' },
+    TYPE_TOGGLE: { value: TYPE_TOGGLE, description: 'Alias for TYPE_FLAG' },
+    TYPE_DIR_LIST: { value: TYPE_DIR_LIST, description: 'Directory array variable' },
+    TYPE_FILE_LIST: { value: TYPE_FILE_LIST, description: 'File array variable' },
+    TYPE_LOCATION: { value: TYPE_LOCATION, description: 'Location specifier' },
+    TYPE_TEXT_FIELD: { value: TYPE_TEXT_FIELD, description: 'Text field (multiline)' },
+    TYPE_TEXT: { value: TYPE_TEXT, description: 'Alias for TYPE_TEXT_FIELD' },
+    TYPE_PASSWORD: { value: TYPE_PASSWORD, description: 'Password field' },
+    TYPE_FLOAT: { value: TYPE_FLOAT, description: 'Floating point number' },
+    TYPE_MODULE: { value: TYPE_MODULE, description: 'Module reference' },
+    TYPE_FONT: { value: TYPE_FONT, description: 'Font selector' },
+    TYPE_CUSTOM: { value: TYPE_CUSTOM, description: 'Custom type' },
+    TYPE_URL: { value: TYPE_URL, description: 'URL variable' },
+    TYPE_URL_LIST: { value: TYPE_URL_LIST, description: 'URL array variable' },
+};
+
+// Variable flag metadata for completions
+export const VAR_FLAGS: Record<string, { value: number; description: string }> = {
+    VAR_EXPERT: { value: VAR_EXPERT, description: 'Expert-only variable' },
+    VAR_MORE: { value: VAR_MORE, description: '"More" section variable' },
+    VAR_DEVELOPER: { value: VAR_DEVELOPER, description: 'Developer-only variable' },
+    VAR_INITIAL: { value: VAR_INITIAL, description: 'Initial configuration variable' },
+    VAR_NOT_CFIF: { value: VAR_NOT_CFIF, description: 'Not in CFIF' },
+    VAR_INVISIBLE: { value: VAR_INVISIBLE, description: 'Invisible variable' },
+    VAR_PUBLIC: { value: VAR_PUBLIC, description: 'Public variable' },
+    VAR_NO_DEFAULT: { value: VAR_NO_DEFAULT, description: 'No default value' },
+};
