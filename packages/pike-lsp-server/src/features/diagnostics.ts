@@ -908,11 +908,13 @@ export function registerDiagnosticsHandlers(
 
             // --- Roxen diagnostics integration ---
             try {
-                const roxenInfo = await detectRoxenModule(text, uri, services.bridge?.bridge ?? null);
-                if (roxenInfo && roxenInfo.is_roxen_module === 1 && services.bridge?.bridge) {
-                    const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
-                    diagnostics.push(...roxenDiags);
-                    connection.console.log(`[VALIDATE] Added ${roxenDiags.length} Roxen diagnostics`);
+                if (services.bridge?.bridge) {
+                    const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
+                    if (roxenInfo && roxenInfo.is_roxen_module === 1) {
+                        const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
+                        diagnostics.push(...roxenDiags);
+                        connection.console.log(`[VALIDATE] Added ${roxenDiags.length} Roxen diagnostics`);
+                    }
                 }
             } catch (err) {
                 connection.console.log(`[VALIDATE] Roxen diagnostics failed: ${err}`);

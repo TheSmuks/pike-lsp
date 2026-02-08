@@ -11,12 +11,11 @@
  * helper functions that the main providers call for Roxen-specific enhancements.
  */
 
-import type { Connection, TextDocument } from 'vscode-languageserver';
-import type { TextDocuments } from 'vscode-languageserver-protocol';
-import type { DocumentCacheEntry } from '../../core/types.js';
+import type { Connection } from 'vscode-languageserver';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TextDocuments } from 'vscode-languageserver';
 import type { Services } from '../../services/index.js';
-import { detectRoxenModule, invalidateCache } from './detector.js';
-import { enhanceRoxenSymbols } from './symbols.js';
+import { invalidateCache } from './detector.js';
 
 /**
  * Register Roxen feature handlers.
@@ -32,12 +31,10 @@ import { enhanceRoxenSymbols } from './symbols.js';
  * @param documents - Text document manager
  */
 export function registerRoxenHandlers(
-  connection: Connection,
+  _connection: Connection,
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { bridge, documentCache } = services;
-
   // Invalidate Roxen detection cache when documents change
   documents.onDidChangeContent((change) => {
     invalidateCache(change.document.uri);
