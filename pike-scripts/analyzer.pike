@@ -45,6 +45,7 @@ class Context {
     mixed intelligence;
     mixed analysis;
     mixed compilation_cache;  // CompilationCache instance for caching compiled programs
+    mixed roxen;  // Roxen module analysis
     int debug_mode;
     mapping client_capabilities;
 
@@ -70,6 +71,14 @@ class Context {
             compilation_cache = CacheClass();
         } else {
             compilation_cache = 0;
+        }
+
+        // Initialize Roxen module for Roxen-specific analysis
+        program RoxenClass = master()->resolv("LSP.Roxen.Roxen");
+        if (RoxenClass && programp(RoxenClass)) {
+            roxen = RoxenClass();
+        } else {
+            roxen = 0;
         }
 
         debug_mode = 0;
@@ -444,6 +453,36 @@ int main(int argc, array(string) argv) {
         },
         "get_waterfall_symbols": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_get_waterfall_symbols(params);
+        },
+        "roxen_detect": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            return ctx->roxen->detect_module(params);
+        },
+        "roxen_parse_tags": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            return ctx->roxen->parse_tags(params);
+        },
+        "roxen_parse_vars": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            return ctx->roxen->parse_vars(params);
+        },
+        "roxen_get_callbacks": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            return ctx->roxen->get_callbacks(params);
+        },
+        "roxen_validate": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            return ctx->roxen->validate_api(params);
         },
     ]);
 

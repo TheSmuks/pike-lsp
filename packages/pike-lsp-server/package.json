@@ -10,6 +10,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:roxen-data": "bun run scripts/build-roxen-data.ts",
+    "prebuild": "bun run build:roxen-data",
     "clean": "rm -rf dist",
     "watch": "tsc --watch",
     "test": "bun test",

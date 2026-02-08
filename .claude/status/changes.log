@@ -15,3 +15,4 @@
 2026-02-07 | infra | Carlini audit: rewrote AGENTS.md (was outdated, referenced pnpm)
 2026-02-07 | infra | Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
 2026-02-07 | test | Added oracle test suite (8 tests) - Carlini known-good oracle pattern
+2026-02-08 | Phase 2 | Rewrote Roxen.pike parsing functions to use Parser.Pike.split() per ADR-001

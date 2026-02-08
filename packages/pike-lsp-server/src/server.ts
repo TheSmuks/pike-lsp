@@ -413,6 +413,8 @@ features.registerEditingHandlers(connection, services, documents);
 features.registerSymbolsHandlers(connection, services);
 features.registerHierarchyHandlers(connection, services, documents);
 features.registerAdvancedHandlers(connection, services, documents, globalSettings, includePaths);
+// Phase 3: Register Roxen feature handlers
+features.registerRoxenHandlers(connection, services, documents);
 
 // ============================================================================
 // Shutdown Handlers

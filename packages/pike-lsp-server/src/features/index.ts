@@ -23,5 +23,9 @@ export { registerHierarchyHandlers } from './hierarchy.js';
 // Advanced feature - formatting, semantic tokens, etc.
 export { registerAdvancedHandlers } from './advanced/index.js';
 
+// Roxen feature - Roxen module support (Phase 3)
+export { registerRoxenHandlers, detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
+export type { RoxenModuleInfo, RXMLTag, ModuleVariable } from './roxen/types.js';
+
 // Export Services type for convenience
 export type { Services } from '../services/index.js';
