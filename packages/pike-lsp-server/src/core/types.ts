@@ -90,6 +90,8 @@ export interface DocumentCacheEntry {
     lineHashes?: number[];
     /** Introspection result with AutoDoc data including @deprecated tags */
     introspection?: import('@pike-lsp/pike-bridge').IntrospectionResult | undefined;
+    /** Roxen-specific module information (Phase 3: Roxen LSP support) */
+    roxenInfo?: import('../features/roxen/types.js').RoxenModuleInfo;
 }
 
 /**

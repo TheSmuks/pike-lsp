@@ -322,6 +322,50 @@ export class BridgeManager {
     }
 
     /**
+     * Detect whether a document is a Roxen module.
+     *
+     * Phase 3: Roxen module LSP support.
+     * Calls Pike bridge to check for Roxen-specific patterns.
+     *
+     * @param code - Source code to analyze
+     * @param filename - Filename for the document
+     * @returns Roxen module information
+     */
+    async roxenDetect(code: string, filename?: string): Promise<import('../features/roxen/types.js').RoxenModuleInfo> {
+        if (!this.bridge) throw new Error('Bridge not available');
+
+        // Call the roxen_detect RPC handler
+        return this.bridge.roxenDetect(code, filename);
+    }
+
+    /**
+     * Validate Roxen module API compliance.
+     *
+     * Phase 5: Roxen-specific diagnostics.
+     * Checks required callbacks, defvar usage, and tag signatures.
+     *
+     * @param code - Source code to validate
+     * @param filename - Filename for error messages
+     * @param moduleInfo - Roxen module information from detection
+     * @returns Validation diagnostics
+     */
+    async roxenValidate(_code: string, _filename: string, _moduleInfo: any) {
+        if (!this.bridge) throw new Error('Bridge not available');
+
+        // Call the roxen_validate RPC handler
+        // TODO: Implement roxen_validate RPC in analyzer.pike (Phase 5)
+        // For now, return empty diagnostics
+        return {
+            diagnostics: [],
+            summary: {
+                errors: 0,
+                warnings: 0,
+                info: 0,
+            }
+        };
+    }
+
+    /**
      * Register event handler on the underlying bridge.
      */
     on(event: string, handler: (...args: any[]) => void): void {

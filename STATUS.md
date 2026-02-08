@@ -29,7 +29,13 @@ None currently known.
 
 ## In Progress
 
-No active work items.
+Phase 2: Rewrite Pike-side Roxen analysis module (COMPLETE)
+
+## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
+
+- Phase 2: Rewrote Roxen.pike to use Parser.Pike.split() (ADR-001 compliant)
+- Oracle test suite added (8 tests) - Carlini known-good oracle pattern
+- Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 

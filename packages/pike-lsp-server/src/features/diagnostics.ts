@@ -23,6 +23,7 @@ import { TypeDatabase, CompiledProgramInfo } from '../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/index.js';
 import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
+import { detectRoxenModule, provideRoxenDiagnostics } from '../features/roxen/index.js';
 
 /**
  * Extract deprecated status from parsed symbols recursively.
@@ -904,6 +905,21 @@ export function registerDiagnosticsHandlers(
                     });
                 }
             }
+
+            // --- Roxen diagnostics integration ---
+            try {
+                if (services.bridge?.bridge) {
+                    const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
+                    if (roxenInfo && roxenInfo.is_roxen_module === 1) {
+                        const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
+                        diagnostics.push(...roxenDiags);
+                        connection.console.log(`[VALIDATE] Added ${roxenDiags.length} Roxen diagnostics`);
+                    }
+                }
+            } catch (err) {
+                connection.console.log(`[VALIDATE] Roxen diagnostics failed: ${err}`);
+            }
+            // --- End Roxen integration ---
 
             // Send diagnostics
             connection.sendDiagnostics({ uri, diagnostics });

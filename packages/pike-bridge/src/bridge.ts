@@ -1234,6 +1234,146 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Validate Roxen module API compliance.
+     *
+     * Performs Roxen-specific validation including:
+     * - Required callbacks per module type
+     * - Defvar TYPE_* constant validation
+     * - Tag function signature validation
+     *
+     * @param code - Pike source code to validate
+     * @param filename - Optional filename for error messages
+     * @param moduleInfo - Optional Roxen module info from parsing
+     * @returns Roxen validation result with diagnostics
+     * @example
+     * ```ts
+     * const result = await bridge.roxenValidate(code, 'test.pike', {
+     *     module_type: ['MODULE_LOCATION'],
+     *     variables: [{ name: 'mountpoint', type: 'TYPE_STRING' }],
+     *     tags: []
+     * });
+     * console.log(result.diagnostics); // Array of validation diagnostics
+     * ```
+     */
+    async roxenValidate(
+        code: string,
+        filename: string,
+        moduleInfo?: Record<string, unknown>
+    ): Promise<import('./types.js').RoxenValidationResult> {
+        const params: Record<string, unknown> = { code, filename };
+        if (moduleInfo) {
+            params['module_info'] = moduleInfo;
+        }
+        return this.sendRequest<import('./types.js').RoxenValidationResult>('roxen_validate', params);
+    }
+
+    /**
+     * Detect Roxen module information in Pike code.
+     *
+     * Analyzes Pike source code to identify Roxen module patterns,
+     * including module type, variables, and RXML tags.
+     *
+     * @param code - Source code to analyze
+     * @param filename - Filename for the document (optional)
+     * @returns Roxen module information
+     *
+     * @example
+     * ```typescript
+     * const bridge = new PikeBridge();
+     * await bridge.start();
+     * const result = await bridge.roxenDetect('inherit "module"; constant module_type = MODULE_TAG;');
+     * console.log(result.is_roxen_module); // 1
+     * console.log(result.module_type); // ['module']
+     * ```
+     */
+    async roxenDetect(
+        code: string,
+        filename?: string
+    ): Promise<import('./types.js').RoxenModuleInfo> {
+        const params: Record<string, unknown> = { code };
+        if (filename) {
+            params['filename'] = filename;
+        }
+        return this.sendRequest<import('./types.js').RoxenModuleInfo>('roxen_detect', params);
+    }
+
+    /**
+     * Parse RXML tag definitions from Roxen module code.
+     *
+     * Extracts simpletag and container function definitions from the code.
+     *
+     * @param code - Pike source code to parse for tag definitions.
+     * @param filename - Optional filename for error reporting.
+     * @returns Object containing array of parsed tag definitions.
+     * @example
+     * ```ts
+     * const result = await bridge.roxenParseTags('string simpletag_hello(mapping args) { return "hi"; }');
+     * console.log(result.tags); // [{ name: 'hello', type: 'simple', ... }]
+     * ```
+     */
+    async roxenParseTags(
+        code: string,
+        filename?: string
+    ): Promise<{ tags: import('./types.js').RXMLTag[] }> {
+        const params: Record<string, unknown> = { code };
+        if (filename) {
+            params['filename'] = filename;
+        }
+        return this.sendRequest<{ tags: import('./types.js').RXMLTag[] }>('roxen_parse_tags', params);
+    }
+
+    /**
+     * Parse defvar calls from Roxen module code.
+     *
+     * Extracts module variable definitions from defvar() calls.
+     *
+     * @param code - Pike source code to parse for variable definitions.
+     * @param filename - Optional filename for error reporting.
+     * @returns Object containing array of parsed variable definitions.
+     * @example
+     * ```ts
+     * const result = await bridge.roxenParseVars('defvar("title", "Default", TYPE_STRING, "Title");');
+     * console.log(result.variables); // [{ name: 'title', name_string: 'Default', type: 'TYPE_STRING', ... }]
+     * ```
+     */
+    async roxenParseVars(
+        code: string,
+        filename?: string
+    ): Promise<{ variables: import('./types.js').ModuleVariable[] }> {
+        const params: Record<string, unknown> = { code };
+        if (filename) {
+            params['filename'] = filename;
+        }
+        return this.sendRequest<{ variables: import('./types.js').ModuleVariable[] }>('roxen_parse_vars', params);
+    }
+
+    /**
+     * Get lifecycle callback information from Roxen module code.
+     *
+     * Detects presence of create(), start(), stop(), and status() callbacks.
+     *
+     * @param code - Pike source code to analyze for lifecycle callbacks.
+     * @param filename - Optional filename for error reporting.
+     * @returns Object containing lifecycle information with detected callbacks.
+     * @example
+     * ```ts
+     * const result = await bridge.roxenGetCallbacks('void create() {} int start() { return 1; }');
+     * console.log(result.lifecycle.has_create); // 1
+     * console.log(result.lifecycle.has_start); // 1
+     * ```
+     */
+    async roxenGetCallbacks(
+        code: string,
+        filename?: string
+    ): Promise<{ lifecycle: import('./types.js').LifecycleInfo }> {
+        const params: Record<string, unknown> = { code };
+        if (filename) {
+            params['filename'] = filename;
+        }
+        return this.sendRequest<{ lifecycle: import('./types.js').LifecycleInfo }>('roxen_get_callbacks', params);
+    }
+
+    /**
      * Get diagnostic information for debugging.
      *
      * Returns the current configuration and state of the bridge.

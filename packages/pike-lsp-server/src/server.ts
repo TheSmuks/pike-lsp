@@ -410,9 +410,11 @@ const services = createServices();
 features.registerDiagnosticsHandlers(connection, services, documents);
 features.registerNavigationHandlers(connection, services, documents);
 features.registerEditingHandlers(connection, services, documents);
-features.registerSymbolsHandlers(connection, services);
+features.registerSymbolsHandlers(connection, services, documents);
 features.registerHierarchyHandlers(connection, services, documents);
 features.registerAdvancedHandlers(connection, services, documents, globalSettings, includePaths);
+// Phase 3: Register Roxen feature handlers
+features.registerRoxenHandlers(connection, services, documents);
 
 // ============================================================================
 // Shutdown Handlers

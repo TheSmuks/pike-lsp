@@ -17,6 +17,7 @@ import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
 import { buildCompletionItem, extractTypeName as extractTypeNameHelper } from './completion-helpers.js';
 import { getAutoDocCompletion } from './autodoc.js';
 import { buildHoverContent } from '../utils/hover-builder.js';
+import { provideRoxenCompletions } from '../roxen/index.js';
 
 /**
  * Register code completion handlers.
@@ -524,6 +525,19 @@ export function registerCompletionHandlers(
                 }
             }
         }
+
+        // --- Roxen completion integration ---
+        try {
+            const roxenCompletions = provideRoxenCompletions(lineText, params.position);
+            if (roxenCompletions && roxenCompletions.length > 0) {
+                completions.push(...roxenCompletions);
+            }
+        } catch (err) {
+            logger.debug('Roxen completion failed', {
+                error: err instanceof Error ? err.message : String(err)
+            });
+        }
+        // --- End Roxen integration ---
 
         // Add Pike built-in types and common functions
         const pikeBuiltins = [

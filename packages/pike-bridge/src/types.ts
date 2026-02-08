@@ -661,6 +661,54 @@ export interface CacheStats {
 }
 
 /**
+ * RXML tag definition
+ */
+export interface RXMLTag {
+    /** Tag name (without simpletag_/container_ prefix) */
+    name: string;
+    /** Tag type - 'simple' for simpletag_*, 'container' for container_* */
+    type: 'simple' | 'container';
+    /** Position in source code */
+    position: PikePosition;
+    /** Function arguments */
+    args: PikeFunctionArgument[];
+}
+
+/**
+ * Module variable from defvar declaration
+ */
+export interface ModuleVariable {
+    /** Variable name */
+    name: string;
+    /** Variable type - TYPE_* constant */
+    type: string;
+    /** Display name string */
+    name_string: string;
+    /** Documentation string */
+    doc_str: string;
+    /** Position in source code */
+    position: PikePosition;
+}
+
+/**
+ * Lifecycle callback information
+ */
+export interface LifecycleInfo {
+    /** Names of lifecycle callbacks found */
+    callbacks: string[];
+    /** Whether create() callback exists */
+    has_create: number;
+    /** Whether start() callback exists */
+    has_start: number;
+    /** Whether stop() callback exists */
+    has_stop: number;
+    /** Whether status() callback exists */
+    has_status: number;
+    /** Missing required callbacks (by module type) */
+    missing_required: string[];
+}
+
+/**
  * Cache invalidation result
  */
 export interface InvalidateCacheResult {
@@ -675,7 +723,7 @@ export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols' | 'get_startup_metrics' | 'get_cache_stats' | 'invalidate_cache';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols' | 'get_startup_metrics' | 'get_cache_stats' | 'invalidate_cache' | 'roxen_detect' | 'roxen_parse_tags' | 'roxen_parse_vars' | 'roxen_get_callbacks' | 'roxen_validate';
     /** Request parameters */
     params: Record<string, unknown>;
 }
@@ -809,4 +857,47 @@ export interface ExpressionInfo {
     isModulePath: boolean;
     /** Character range in document (0-indexed offsets) */
     range: { start: number; end: number };
+}
+
+/**
+ * Roxen module diagnostic from validator.
+ */
+export interface RoxenDiagnostic {
+    /** 1-based line number (converted to 0-based by TS layer) */
+    line: number;
+    /** 1-based column number (converted to 0-based by TS layer) */
+    column: number;
+    severity: 'error' | 'warning' | 'info';
+    message: string;
+}
+
+/**
+ * Roxen module information from Pike bridge
+ */
+export interface RoxenModuleInfo {
+    /** Whether this is a Roxen module (0 = no, 1 = yes) */
+    is_roxen_module: 0 | 1;
+    /** Module type(s): MODULE_FILE, MODULE_TAG, MODULE_LOCATION, etc. */
+    module_type: string[];
+    /** Module name from register_module() */
+    module_name: string;
+    /** Inherit targets found in the module */
+    inherits: string[];
+    /** defvar declarations */
+    variables: ModuleVariable[];
+    /** RXML tags defined by this module */
+    tags: RXMLTag[];
+    /** Lifecycle callback information */
+    lifecycle: LifecycleInfo;
+}
+
+/**
+ * Result of Roxen module validation.
+ */
+export interface RoxenValidationResult {
+    diagnostics?: RoxenDiagnostic[];
+    error?: {
+        code: number;
+        message: string;
+    };
 }

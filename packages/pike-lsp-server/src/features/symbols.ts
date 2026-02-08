@@ -12,10 +12,13 @@ import {
     SymbolInformation,
     WorkspaceSymbolParams,
 } from 'vscode-languageserver/node.js';
+import type { TextDocuments } from 'vscode-languageserver';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
+import { detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
 
 /**
  * Convert Pike symbol kind to LSP SymbolKind.
@@ -84,10 +87,12 @@ export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
  *
  * @param connection - LSP connection
  * @param services - Server services bundle
+ * @param documents - Text document manager
  */
 export function registerSymbolsHandlers(
     connection: Connection,
-    services: Services
+    services: Services,
+    documents: TextDocuments<TextDocument>
 ): void {
     const { documentCache, workspaceIndex } = services;
     const log = new Logger('symbols');
@@ -157,7 +162,26 @@ export function registerSymbolsHandlers(
                 connection.console.log(`[SYMBOLS]   ${i}: name="${sym.name}", kind=${sym.kind}`);
             }
 
-            const converted = filtered.map(convertSymbol);
+            // --- Roxen symbols integration ---
+            let symbolsToConvert = filtered;
+            try {
+                const document = documents.get(uri);
+                if (document && services.bridge?.bridge) {
+                    const text = document.getText();
+                    const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
+                    if (roxenInfo && roxenInfo.is_roxen_module === 1) {
+                        const baseConverted = filtered.map(convertSymbol);
+                        const enhanced = enhanceRoxenSymbols(baseConverted, roxenInfo);
+                        connection.console.log(`[SYMBOLS] Enhanced ${filtered.length} symbols with Roxen data -> ${enhanced.length} total`);
+                        return enhanced;
+                    }
+                }
+            } catch (err) {
+                connection.console.log(`[SYMBOLS] Roxen enhancement failed: ${err}`);
+            }
+            // --- End Roxen integration ---
+
+            const converted = symbolsToConvert.map(convertSymbol);
             return converted;
         } catch (err) {
             log.error('Document symbol failed', {
