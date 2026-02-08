@@ -32,7 +32,7 @@ import { invalidateCache } from './detector.js';
  */
 export function registerRoxenHandlers(
   _connection: Connection,
-  services: Services,
+  _services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
   // Invalidate Roxen detection cache when documents change

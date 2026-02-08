@@ -12,7 +12,7 @@ import {
     SymbolInformation,
     WorkspaceSymbolParams,
 } from 'vscode-languageserver/node.js';
-import type { TextDocuments } from 'vscode-languageserver-protocol';
+import type { TextDocuments } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
