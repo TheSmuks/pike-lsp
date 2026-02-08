@@ -22,7 +22,7 @@ inherit 'filesystem';               // Single-quote variant
 constant module_type = MODULE_;     // Direct module type declaration
 ```
 
-> **Note:** The TS-side fast-path (`detector.ts:hasMarkers()`) currently only checks 2 of these 6 patterns (`inherit "module"` and `#include <module.h>`). The Pike-side `has_fast_path_markers()` checks all 6. This gap means files matching only the Pike-side patterns may be silently skipped. See Known Issues below.
+> **Note:** Both TS-side (`detector.ts:hasMarkers()`) and Pike-side (`has_fast_path_markers()`) check all 6 patterns for parity.
 
 **Features Implemented:**
 - Module type detection (MODULE_TAG, MODULE_LOCATION, MODULE_FILTER, etc.)

@@ -4,7 +4,14 @@ import type { RoxenModuleInfo } from './types.js';
 const cache = new Map<string, RoxenModuleInfo | null>();
 
 function hasMarkers(code: string): boolean {
-  return code.includes('inherit "module"') || code.includes('#include <module.h>');
+  return (
+    code.includes('inherit "module"') ||
+    code.includes("inherit 'module'") ||
+    code.includes('inherit "filesystem"') ||
+    code.includes("inherit 'filesystem'") ||
+    code.includes('#include <module.h>') ||
+    code.includes('constant module_type = MODULE_')
+  );
 }
 
 export async function detectRoxenModule(
