@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770583349263,
+  "lastUpdate": 1770583656516,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -12330,6 +12330,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.706869285714285,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e03522b8e35c0eb00b1b4eda81ace01c5e67f1ba",
+          "message": "feat: Roxen module LSP support (Phase 1 - Pike modules) (#18)\n\n* fix(roxen): correct Pike detection logic, add real positions and RXML.Tag support\n\nFixed 8 critical bugs in Roxen module detection:\n\n1. inherit \"module\" mapping: NO longer incorrectly adds MODULE_LOCATION\n   - Only inherit \"filesystem\" adds MODULE_LOCATION\n   - inherit \"module\" alone sets is_roxen_module=1 but types=[]\n\n2. ROXEN_MODULE_TYPES constant: Fixed \"MODULE_DIRECTORY\" → \"MODULE_DIRECTORIES\"\n\n3. has_fast_path_markers(): Removed simpletag_, container_, defvar( markers\n   - These alone don't indicate Roxen module (false positives)\n\n4. detect_module_types(): Now captures ALL module types from | expressions\n   - Scans until ; or }, collecting every MODULE_* token\n   - Handles: constant module_type = MODULE_TAG | MODULE_FILTER\n\n5. Real source positions using hybrid approach:\n   - build_newline_offsets() for O(1) line/column lookup\n   - find_token_position() searches code string (not token size sum)\n   - Tags, variables, and classes now have actual line numbers\n\n6. RXML.Tag class detection:\n   - Detects class TagFoo { inherit RXML.Tag; constant name = \"foo\"; }\n   - FLAG_EMPTY_ELEMENT → type=\"simple\"\n   - Frame subclass → type=\"container\"\n\n7. Added inherits array to return value:\n   - Collects all inherit targets during token scan\n   - Returns inherits: [\"module\", \"roxen\", ...]\n\n8. Added module_name extraction:\n   - Extracts constant module_name = \"...\"\n   - Parses register_module(MODULE_TYPE, LOCALE(N, \"Name\"), ...)\n\nTDD: All tests pass (test_detect.pike, test_defvar.pike, test_tags.pike)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix(roxen): consolidate completions, generate from constants.ts\n\nPhase 5 complete - Fixed and consolidated Roxen completions.\n\nChanges:\n- Wrote RED tests first (8 tests for MODULE_*, TYPE_*, VAR_* completions)\n- Consolidated 3 completion files into single completion.ts\n- Generated all completion items from constants.ts (no hardcoded values)\n- Fixed wrong values: MODULE_TAG now 16 (was 5), TYPE_STRING now 1 (was 0)\n- Deleted: completions/module-types.ts, completions/var-types.ts\n- Fixed context detection regex patterns (MODULE_, TYPE_, VAR_ prefixes)\n- Added metadata objects to constants.ts for completion generation\n\nTest Results:\n- 8/8 completion tests passing\n- All 1576 tests passing (0 failures)\n- Verified correct values from constants.ts\n\nFiles Modified:\n- packages/pike-lsp-server/src/features/roxen/completion.ts\n- packages/pike-lsp-server/src/features/roxen/constants.ts\n- packages/pike-lsp-server/src/features/roxen/index.ts\n- packages/pike-lsp-server/src/tests/features/roxen/completion.test.ts\n\nFiles Deleted:\n- packages/pike-lsp-server/src/features/roxen/completions/module-types.ts\n- packages/pike-lsp-server/src/features/roxen/completions/var-types.ts\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix(roxen): correct data shape mismatches between Pike output and TS consumers\n\nPhase 4 fixes: TypeScript layer now correctly maps flat Pike data structures to LSP formats.\n\nChanges:\n1. pike-bridge/types.ts: Fixed RoxenDiagnostic interface\n   - Changed from nested {range: {start, end}} to flat {line, column}\n   - Removed 'source' field (Pike doesn't return it, TS layer hardcodes it)\n   - Added inherits field to RoxenModuleInfo\n\n2. pike-lsp-server/features/roxen/diagnostics.ts: Added proper mapping\n   - Converts 1-based Pike line/column to 0-based LSP\n   - Maps severity strings to LSP numeric constants\n   - Hardcodes source: 'roxen' (not from Pike)\n   - Handles missing line/column with Math.max(0, (value ?? 1) - 1)\n\n3. pike-lsp-server/features/roxen/symbols.ts: Enhanced symbol generation\n   - Added selectionRange property to all symbols (required by LSP)\n   - Uses real line numbers from Pike (v.position.line) instead of hardcoded 0\n   - Converts 1-based to 0-based for all positions\n   - Properly sets selectionRange.end to cover symbol name length\n\nTests (all 11 passing):\n- diagnostics.test.ts (5 tests) - validates flat→nested mapping\n- symbols.test.ts (6 tests) - validates selectionRange and real positions\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat(roxen): wire Roxen helpers into diagnostics, symbols, and completion providers\n\n- Detect Roxen modules in diagnostics provider and add Roxen-specific validations\n- Enhance document symbols with Roxen module metadata (tags, variables)\n- Add Roxen-aware completions for RXML tags and module variables\n- Cache Roxen detection results per-document for performance\n- Fix detector.ts signature to match calling pattern (code, uri, bridge)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* docs: add Roxen framework support roadmap\n\nCreated comprehensive roadmap documenting:\n- Current implementation (Phase 1 - Pike modules ✅)\n- Future phases (RXML templates, .rjs, mixed files)\n- Technical approach for each phase\n- Estimated effort and priorities\n\nPhase 1 (Roxen Pike module support) is complete.\nPhases 2-7 outline full framework support plan.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: resolve TypeScript build errors in Roxen feature\n\n- Fixed null handling in diagnostics.ts (bridge check before call)\n- Fixed imports in roxen/index.ts (correct module paths)\n- Removed unused imports and parameters\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: remove unused services parameter in roxen/index.ts\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-08T20:45:59Z",
+          "tree_id": "c8fea19e9f066a4cd62a773e9f510a7c467c7af3",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/e03522b8e35c0eb00b1b4eda81ace01c5e67f1ba"
+        },
+        "date": 1770583656155,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.11173125,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.6632655,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 258.32962891666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 261.44926891666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2225241578014183,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.075126898809524,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 49.50459854545455,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.186856870229008,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.897344664772727,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.29318190101634994,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2879922914856647,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5687206842546064,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2120981989442428,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.2051626516170349,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6913777401960783,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3777102997750281,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.406737450968523,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10763565833039802,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5951656325459317,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.09747159883249554,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3992177794292509,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.6673905,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.73253383333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.39882440355029586,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.6120849829136691,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08441718574268674,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.992703575221238,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.9015800173913044,
             "unit": "ms"
           }
         ]
