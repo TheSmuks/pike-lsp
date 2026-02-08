@@ -21,6 +21,7 @@
     "clean": "rm -rf dist",
     "watch": "tsc --watch",
     "test": "tsc && bun test dist/src/",
+    "test:corpus": "PIKE_CORPUS_TEST=1 bun test ./src/corpus.test.ts --timeout 1800000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
