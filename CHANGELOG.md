@@ -16,6 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.18] - 2026-02-08
+
+### Added
+- **Roxen module LSP support** - Phase 1: Complete LSP support for Roxen WebServer Pike modules
+  - Roxen module detection (inherit "module", #include <module.h>)
+  - defvar variable extraction and symbol grouping
+  - RXML tag function detection (simpletag_*, container_*, RXML.Tag classes)
+  - Lifecycle callback detection (create(), start(), stop(), etc.)
+  - Diagnostics: Missing required callbacks (e.g., query_location for MODULE_LOCATION)
+  - Document symbols: "Roxen Module" container with variables, tags, and callbacks
+  - Completions: MODULE_*, TYPE_*, VAR_* constants with correct bit-shifted values
+  - Real source positions (line/column tracking) instead of hardcoded values
+  - 16 Roxen-specific tests (detect, defvar, tags, integration)
+
+- **Roadmap document** - ROXEN_SUPPORT_ROADMAP.md outlines Phases 2-7 for full framework support (RXML templates, .rjs files, embedded RXML, etc.)
+
+### Fixed
+- TypeScript build errors in Roxen feature (null handling, import paths)
+- Removed unused imports and parameters in roxen/index.ts and symbols.ts
+
+### Changed
+- Removed junk .md files (IMPLEMENTATION_COMPLETE.md, IMPORT_INHERIT_IMPLEMENTATION_SPEC.md, IMPORT_INHERIT_TEST_SUMMARY.md, MODULE_RESOLUTION_AUDIT.md)
+
+**Note:** This is Phase 1 of Roxen framework support, focusing on `.pike` Roxen modules only. Future phases will add RXML template support (.inc, .html, .xml files), Roxen JavaScript (.rjs) support, and advanced features. See ROXEN_SUPPORT_ROADMAP.md for the complete implementation plan.
+
 ## [0.1.0-alpha.17] - 2026-02-07
 
 ### Optimization
