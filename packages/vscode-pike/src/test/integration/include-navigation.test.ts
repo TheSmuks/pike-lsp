@@ -217,4 +217,52 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
 
         console.log(`Navigate to documented symbol: ${uriPath}`);
     });
+
+    test('Go-to-definition on #include directive navigates to included file', async function() {
+        this.timeout(30000);
+
+        const text = document.getText();
+
+        // Find the #include directive line
+        const includeLineMatch = text.match(/#include\s+"([^"]+)"/);
+        assert.ok(includeLineMatch, 'Should find #include directive in main.pike');
+
+        // Position cursor on the path part (inside the quotes)
+        const includeOffset = text.indexOf(includeLineMatch[0]) + '#include "'.length;
+        const includePosition = document.positionAt(includeOffset);
+
+        const locations = await vscode.commands.executeCommand<
+            vscode.Location | vscode.Location[] | vscode.LocationLink[]
+        >(
+            'vscode.executeDefinitionProvider',
+            testDocumentUri,
+            includePosition
+        );
+
+        assertWithLogs(locations, 'Should return definition location for #include directive (not null)');
+
+        let locationArray: vscode.Location[];
+        if (Array.isArray(locations)) {
+            if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
+                locationArray = (locations as vscode.LocationLink[]).map(ll =>
+                    new vscode.Location(ll.targetUri, ll.targetRange)
+                );
+            } else {
+                locationArray = locations as vscode.Location[];
+            }
+        } else {
+            locationArray = [locations as vscode.Location];
+        }
+
+        assertWithLogs(locationArray.length > 0, 'Should have at least one location for #include');
+
+        const firstLocation = locationArray[0]!;
+        const uriPath = firstLocation.uri.fsPath;
+        assertWithLogs(
+            uriPath.includes('globals.h'),
+            `#include directive should navigate to globals.h, got: ${uriPath}`
+        );
+
+        console.log(`Navigate from #include directive to: ${uriPath}`);
+    });
 });
