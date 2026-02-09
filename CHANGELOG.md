@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.19] - 2026-02-09
+
+### Added
+- **Runtime path discovery** - Replace hardcoded Pike lib paths with runtime discovery using `master()->pike_include_path` and `master()->pike_module_path`, making LSP work across different Pike installations
+- **Bridge response validation** - Add optional validator functions to `sendRequest()` to prevent silent type mismatches from Pike (which returns 0 for undefined properties)
+- **ADR-012** - Document the decision to enforce runtime response validation at bridge boundary
+
+### Fixed
+- **Pike path APIs** - Use `master()->pike_include_path` and `pike_module_path` instead of `master()->include_path/module_path` (which return 0 in Pike 8.0)
+- **ModuleResolution.pike** - Replace hardcoded system paths with runtime discovery, fix off-by-one string slice
+- **Directive navigation** - Add `handleDirectiveNavigation()` to handle `#include`, `import`, `inherit`, and `#require` as whole-line directives before expression extraction
+- **URI handling** - Convert `file://` URIs to filesystem paths before passing to bridge resolve methods
+- **Contract tests** - Add 3 bridge tests verifying `getPikePaths` returns real Pike runtime paths (would have caught the `master()->include_path` bug)
+
 ## [0.1.0-alpha.18] - 2026-02-08
 
 ### Added
