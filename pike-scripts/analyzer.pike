@@ -288,11 +288,19 @@ int main(int argc, array(string) argv) {
                 }
             }
 
-            // 4. Try Pike's default lib directory
-            string pike_lib = "/usr/local/pike/8.0.1116/lib";
-            if (file_stat(pike_lib)) {
-                search_paths += ({ combine_path(pike_lib, "include", include_path) });
-                search_paths += ({ combine_path(pike_lib, include_path) });
+            // 4. Pike's default lib directory from runtime
+            // Use master()->include_path if available, otherwise discover Pike lib path
+            array(string) pike_includes = master()->include_path || ({});
+            if (sizeof(pike_includes) == 0) {
+                // Fallback: Discover Pike lib path (same logic as get_pike_paths)
+                string pike_lib = "/usr/local/pike/8.0.1116/lib";
+                if (file_stat(pike_lib)) {
+                    pike_includes = ({ pike_lib });
+                }
+            }
+            foreach(pike_includes, string inc_dir) {
+                search_paths += ({ combine_path(inc_dir, "include", include_path) });
+                search_paths += ({ combine_path(inc_dir, include_path) });
             }
 
             // Try each path until we find an existing file
@@ -495,6 +503,32 @@ int main(int argc, array(string) argv) {
             }
             mixed mc = MixedContentClass();
             return mc->roxen_extract_rxml_strings(params);
+        },
+        "get_pike_paths": lambda(mapping params, object ctx) {
+            // Return Pike's include and module paths for include/import resolution
+            // CRITICAL: Use master()->include_path NOT master()->pike_include_path
+            // Verified from analyzer.pike:207 that this is the correct API
+
+            // Get paths from master(), or discover Pike lib path if not set
+            array(string) include_paths = master()->include_path || ({});
+            array(string) module_paths = master()->module_path || ({});
+
+            // If master()->include_path returns 0/empty, add Pike's default lib path
+            // This mirrors the logic in resolve_include handler (line 292)
+            if (sizeof(include_paths) == 0) {
+                string pike_lib = "/usr/local/pike/8.0.1116/lib";
+                if (file_stat(pike_lib)) {
+                    include_paths += ({ pike_lib });
+                    module_paths += ({ pike_lib });
+                }
+            }
+
+            return ([
+                "result": ([
+                    "include_paths": include_paths,
+                    "module_paths": module_paths,
+                ])
+            ]);
         },
     ]);
 
