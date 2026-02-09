@@ -424,7 +424,7 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'to', type: 'string', required: true, description: 'Destination URL or path' },
       { name: 'seconds', type: 'number', required: false, description: 'Delay before redirect' },
-      { name: 'code', type: 'number', required: false, description: 'HTTP status code', values: [301, 302, 303, 307, 308] },
+      { name: 'code', type: 'number', required: false, description: 'HTTP status code', values: ['301', '302', '303', '307', '308'] },
       { name: 'post', type: 'boolean', required: false, description: 'Preserve POST data' },
     ],
   },

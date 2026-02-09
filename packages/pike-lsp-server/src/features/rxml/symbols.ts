@@ -25,9 +25,11 @@ function tagToSymbol(tag: RXMLTag): DocumentSymbol {
   const detail = buildTagDetail(tag);
 
   // Convert children recursively if they exist
-  const children = tag.children ? tag.children.map(tagToSymbol) : undefined;
+  const children = tag.children && tag.children.length > 0
+    ? tag.children.map(tagToSymbol)
+    : undefined;
 
-  return {
+  const result: DocumentSymbol = {
     name: tag.name,
     kind,
     range: tag.range,
@@ -39,8 +41,14 @@ function tagToSymbol(tag: RXMLTag): DocumentSymbol {
       }
     },
     detail,
-    children
   };
+
+  // Only add children if they exist (for exactOptionalPropertyTypes compatibility)
+  if (children) {
+    result.children = children;
+  }
+
+  return result;
 }
 
 /**

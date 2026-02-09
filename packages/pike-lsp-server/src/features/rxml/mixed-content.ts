@@ -238,13 +238,14 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
 
     for (let lineNum = 0; lineNum < lines.length; lineNum++) {
         const line = lines[lineNum];
+        if (!line) continue;
 
         // Detect opening tags: <tagname or </tagname
         const tagRegex = /<\/?([a-z][a-z0-9_]*)/gi;
         let match;
 
         while ((match = tagRegex.exec(line)) !== null) {
-            if (!match[1]) continue;
+            if (!match[1] || match.index === undefined) continue;
             const tagName: string = match[1].toLowerCase();
 
             if (rxmlTags.has(tagName)) {
@@ -263,7 +264,7 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
         const entityRegex = /\&([a-z][a-z0-9_]*)\./gi;
 
         while ((match = entityRegex.exec(line)) !== null) {
-            if (!match[1]) continue;
+            if (!match[1] || match.index === undefined) continue;
             const entityPrefix: string = match[1].toLowerCase();
 
             if (['roxen', 'form', 'cache', 'config', 'usr', 'page', 'client'].includes(entityPrefix)) {
