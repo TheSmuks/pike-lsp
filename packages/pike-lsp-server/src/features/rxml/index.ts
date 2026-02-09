@@ -56,3 +56,7 @@ export { validateRXMLDocument, checkUnknownTags, checkMissingRequiredAttributes,
 export { parseRXMLTemplate, isContainerTag, getTagAttributes } from './parser.js';
 export { provideRXMLSymbols } from './symbols.js';
 export type { RXMLTagInfo, RXMLTagCatalogEntry } from './types.js';
+
+// Phase 5: Tag Catalog Integration
+export { extractTagsFromPikeCode } from './module-scanner.js';
+export { mergeTags, rxmlTagCatalogManager, RXMLTagCatalogManager } from './catalog-manager.js';

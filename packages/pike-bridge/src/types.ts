@@ -675,6 +675,56 @@ export interface RXMLTag {
 }
 
 /**
+ * RXML tag catalog entry (from server or catalog)
+ */
+export interface RXMLTagCatalogEntry {
+    /** Tag name */
+    name: string;
+    /** Tag type - simple or container */
+    type: 'simple' | 'container';
+    /** Required attributes */
+    requiredAttributes: string[];
+    /** Optional attributes */
+    optionalAttributes: string[];
+    /** Tag description */
+    description?: string;
+}
+
+/**
+ * RXML marker detected in string content
+ */
+export interface RXMLMarker {
+    /** Marker type */
+    type: 'tag' | 'entity' | 'directive';
+    /** Marker name (e.g., "set", "emit", "roxen") */
+    name: string;
+    /** Position within the RXML content (1-indexed) */
+    line: number;
+    /** Character position within the line (1-indexed) */
+    column: number;
+}
+
+/**
+ * Result from extracting RXML strings from Pike code
+ */
+export interface RXMLStringResult {
+    /** The RXML content (excluding quotes) */
+    content: string;
+    /** 1-indexed position of content start */
+    start: { line: number; column: number };
+    /** 1-indexed position of content end */
+    end: { line: number; column: number };
+    /** 1-indexed position including quote start */
+    quote_start: { line: number; column: number };
+    /** 1-indexed position including quote end */
+    quote_end: { line: number; column: number };
+    /** Confidence score (0-1) of RXML likelihood */
+    confidence: number;
+    /** Detected RXML markers */
+    markers: RXMLMarker[];
+}
+
+/**
  * Module variable from defvar declaration
  */
 export interface ModuleVariable {
