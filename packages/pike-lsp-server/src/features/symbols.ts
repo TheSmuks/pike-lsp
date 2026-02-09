@@ -19,6 +19,7 @@ import type { Services } from '../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
 import { detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
+import { detectRXMLStrings, mergeSymbolTrees } from './rxml/mixed-content.js';
 
 /**
  * Convert Pike symbol kind to LSP SymbolKind.
@@ -175,6 +176,18 @@ export function registerSymbolsHandlers(
                         connection.console.log(`[SYMBOLS] Enhanced ${filtered.length} symbols with Roxen data -> ${enhanced.length} total`);
                         return enhanced;
                     }
+
+                    // --- Mixed RXML content integration ---
+                    // Detect RXML strings in Pike multiline strings
+                    const rxmlStrings = await detectRXMLStrings(text, uri, services.bridge.bridge);
+                    if (rxmlStrings.length > 0) {
+                        connection.console.log(`[SYMBOLS] Found ${rxmlStrings.length} RXML strings in Pike code`);
+                        const baseConverted = filtered.map(convertSymbol);
+                        const merged = mergeSymbolTrees(baseConverted, rxmlStrings);
+                        connection.console.log(`[SYMBOLS] Merged ${filtered.length} Pike symbols + ${rxmlStrings.length} RXML strings -> ${merged.length} total`);
+                        return merged;
+                    }
+                    // --- End mixed content integration ---
                 }
             } catch (err) {
                 connection.console.log(`[SYMBOLS] Roxen enhancement failed: ${err}`);

@@ -1374,6 +1374,60 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Extract RXML strings from Pike multiline string literals.
+     *
+     * Detects and extracts RXML content embedded in Pike code using
+     * #"..." and #'...' multiline string syntax.
+     *
+     * @param code - Pike source code to analyze.
+     * @param filename - Optional filename for error reporting.
+     * @returns Object containing array of detected RXML strings.
+     * @example
+     * ```ts
+     * const result = await bridge.roxenExtractRXMLStrings('string foo = #"<set>bar</set>";');
+     * console.log(result.strings); // [{ content: '<set>bar</set>', confidence: 0.8, ... }]
+     * ```
+     */
+    async roxenExtractRXMLStrings(
+        code: string,
+        filename?: string
+    ): Promise<{ strings: import('./types.js').RXMLStringResult[] }> {
+        const params: Record<string, unknown> = { code };
+        if (filename) {
+            params['filename'] = filename;
+        }
+        return this.sendRequest<{ strings: import('./types.js').RXMLStringResult[] }>('roxenExtractRXMLStrings', params);
+    }
+
+    /**
+     * Get RXML tag catalog from running Roxen server.
+     *
+     * Queries a running Roxen server for available RXML tags.
+     * Returns tag metadata including name, type, and attributes.
+     *
+     * @param serverPid - Optional Roxen server process ID. If not provided, attempts to detect running server.
+     * @returns Array of RXML tag definitions.
+     * @throws Error if server not running or communication fails.
+     * @example
+     * ```ts
+     * // Get tags from specific server
+     * const tags = await bridge.roxenGetTagCatalog(12345);
+     * console.log(tags); // [{ name: 'echo', type: 'simple', ... }]
+     *
+     * // Auto-detect server
+     * const tags = await bridge.roxenGetTagCatalog();
+     * ```
+     */
+    async roxenGetTagCatalog(serverPid?: number): Promise<import('./types.js').RXMLTagCatalogEntry[]> {
+        const params: Record<string, unknown> = {};
+        if (serverPid !== undefined) {
+            params['server_pid'] = serverPid;
+        }
+        const result = await this.sendRequest<{ tags: import('./types.js').RXMLTagCatalogEntry[] }>('roxen_get_tag_catalog', params);
+        return result.tags;
+    }
+
+    /**
      * Get diagnostic information for debugging.
      *
      * Returns the current configuration and state of the bridge.

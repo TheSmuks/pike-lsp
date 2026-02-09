@@ -82,13 +82,27 @@ export interface RXMLAttribute {
 /**
  * Parse RXML template and extract all RXML tags
  *
- * @param code - Template content (HTML/XML with RXML tags)
+ * For .rjs files (JavaScript with RXML), first extracts multiline strings
+ * before parsing. For .rxml files, parses directly as HTML/XML.
+ *
+ * @param code - Template content (HTML/XML with RXML tags, or JS with RXML in strings)
  * @param uri - Document URI for error reporting
  * @returns Array of RXML tags found in the document
  */
 export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
     try {
-        const document = parseDocument(code, {
+        // Check if this is a .rjs file (JavaScript with embedded RXML)
+        const isRJS = uri.endsWith('.rjs');
+
+        let contentToParse = code;
+
+        if (isRJS) {
+            // For .rjs files, extract string literals that may contain RXML
+            // This handles both template literals (`...`) and regular strings ("...")
+            contentToParse = extractRXMLFromJavaScript(code);
+        }
+
+        const document = parseDocument(contentToParse, {
             withStartIndices: true,
             withEndIndices: true,
             xmlMode: true,  // RXML is XML-like with proper self-closing tags
@@ -96,7 +110,7 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
         });
 
         // Walk the DOM tree to find RXML tags with hierarchy preserved
-        return walkDOM(document.children, code);
+        return walkDOM(document.children, contentToParse);
     } catch (error) {
         // Log parsing errors but don't fail - return empty array
         console.error(`Failed to parse RXML template in ${uri}:`, error);
@@ -312,6 +326,105 @@ export function isContainerTag(tagName: string): boolean {
 
     // Default to container for unknown tags (safe default)
     return true;
+}
+
+/**
+ * Extract RXML content from JavaScript code
+ *
+ * For .rjs files, we need to extract template literals and strings that may
+ * contain RXML tags. The challenge is that RXML itself uses quotes in attributes,
+ * so we need to be careful to only extract JavaScript-level string delimiters.
+ *
+ * Strategy: Use a simple state machine to track JavaScript string boundaries
+ *
+ * @param code - JavaScript source code
+ * @returns Concatenated string content from all string literals
+ */
+function extractRXMLFromJavaScript(code: string): string {
+    const contents: string[] = [];
+    let i = 0;
+
+    while (i < code.length) {
+        const char = code[i];
+
+        // Skip single-line comments
+        if (char === '/' && i + 1 < code.length && code[i + 1] === '/') {
+            while (i < code.length && code[i] !== '\n') {
+                i++;
+            }
+            i++;
+            continue;
+        }
+
+        // Skip multi-line comments
+        if (char === '/' && i + 1 < code.length && code[i + 1] === '*') {
+            i += 2;
+            while (i < code.length && !(code[i] === '*' && i + 1 < code.length && code[i + 1] === '/')) {
+                i++;
+            }
+            i += 2;
+            continue;
+        }
+
+        // Match template literals: `...`
+        if (char === '`' && (i === 0 || code[i - 1] !== '\\')) {
+            i++; // Skip opening backtick
+            let content = '';
+
+            while (i < code.length) {
+                if (code[i] === '`' && code[i - 1] !== '\\') {
+                    // Found closing backtick
+                    contents.push(content);
+                    break;
+                }
+                content += code[i];
+                i++;
+            }
+            i++;
+            continue;
+        }
+
+        // Match single-quoted strings: '...'
+        if (char === '\'' && (i === 0 || code[i - 1] !== '\\')) {
+            i++; // Skip opening quote
+            let content = '';
+
+            while (i < code.length) {
+                if (code[i] === '\'' && code[i - 1] !== '\\') {
+                    // Found closing quote
+                    contents.push(content);
+                    break;
+                }
+                content += code[i];
+                i++;
+            }
+            i++;
+            continue;
+        }
+
+        // Match double-quoted strings: "..."
+        if (char === '"' && (i === 0 || code[i - 1] !== '\\')) {
+            i++; // Skip opening quote
+            let content = '';
+
+            while (i < code.length) {
+                if (code[i] === '"' && code[i - 1] !== '\\') {
+                    // Found closing quote
+                    contents.push(content);
+                    break;
+                }
+                content += code[i];
+                i++;
+            }
+            i++;
+            continue;
+        }
+
+        i++;
+    }
+
+    // Join all extracted strings with newlines for parsing
+    return contents.join('\n');
 }
 
 /**

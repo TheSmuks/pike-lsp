@@ -56,3 +56,37 @@ export { validateRXMLDocument, checkUnknownTags, checkMissingRequiredAttributes,
 export { parseRXMLTemplate, isContainerTag, getTagAttributes } from './parser.js';
 export { provideRXMLSymbols } from './symbols.js';
 export type { RXMLTagInfo, RXMLTagCatalogEntry } from './types.js';
+
+// Phase 5: Tag Catalog Integration
+export { extractTagsFromPikeCode } from './module-scanner.js';
+export { mergeTags, rxmlTagCatalogManager, RXMLTagCatalogManager } from './catalog-manager.js';
+
+// Phase 6: Advanced LSP Features
+export {
+  provideRXMLDefinition,
+  findTagDefinition,
+  findDefvarDefinition,
+  type RoxenTagInfo,
+  type RoxenDefvarInfo,
+  type RoxenModuleInfo
+} from './definition-provider.js';
+export {
+  provideRXMLReferences,
+  findTagReferences,
+  findDefvarReferences,
+  findModulesUsingTag
+} from './references-provider.js';
+export {
+  prepareRXMLRename,
+  provideRXMLRename
+} from './rename-provider.js';
+export {
+  provideRXMLHover,
+  getModuleConstantHover,
+  getDefvarHover
+} from './hover-provider.js';
+export {
+  provideRXMLCodeActions,
+  provideRXMLQuickFix,
+  type ExtendedModuleInfo
+} from './code-actions-provider.js';

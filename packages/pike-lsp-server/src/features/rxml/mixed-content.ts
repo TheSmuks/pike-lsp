@@ -460,6 +460,62 @@ export function createPositionMapping(
     };
 }
 
+/**
+ * Known RXML tags for completion
+ */
+const KNOWN_RXML_TAGS_FOR_COMPLETION = new Set([
+    'roxen', 'set', 'emit', 'if', 'elseif', 'else', 'then', 'case',
+    'switch', 'default', 'for', 'foreach', 'while', 'output', 'insert',
+    'config', 'header', 'cache', 'input', 'date', 'apre', 'locale',
+    'referrer', 'user', 'container', 'contents', 'sqlquery'
+]);
+
+/**
+ * Get RXML tag completions for a context
+ *
+ * @param _rxmlString - The RXML string context (unused, for future context-aware completions)
+ * @param _position - Cursor position in the document (unused, for future context-aware completions)
+ * @returns Array of RXML tag names for completion
+ */
+export function getRXMLTagCompletions(
+    _rxmlString: RXMLStringLiteral,
+    _position: Position
+): string[] {
+    return Array.from(KNOWN_RXML_TAGS_FOR_COMPLETION);
+}
+
+/**
+ * Known RXML attributes per tag
+ */
+const RXML_TAG_ATTRIBUTES: Record<string, string[]> = {
+    'set': ['variable', 'scope'],
+    'emit': ['source', 'query', 'maxrows', 'skiprows', 'row'],
+    'output': ['variable', 'encode', 'trim'],
+    'config': ['variable', 'scope'],
+    'input': ['name', 'default'],
+    'if': ['variable', 'matches', 'is', 'not', 'exists'],
+    'elseif': ['variable', 'matches', 'is', 'not', 'exists'],
+    'foreach': ['variable', 'in', 'iterator'],
+    'for': ['from', 'to', 'step'],
+    'sqlquery': ['query', 'host', 'database', 'user', 'password'],
+    'container': ['name', 'noxml', 'prefix'],
+    'contents': ['name', 'of'],
+    'cache': ['key', 'seconds', 'minute', 'hour', 'day'],
+    'header': ['name', 'value', 'replace'],
+    'insert': ['data', 'from', 'variable'],
+    'date': ['time', 'timezone', 'format']
+};
+
+/**
+ * Get RXML attribute completions for a tag
+ *
+ * @param tagName - The tag name
+ * @returns Array of known attribute names for the tag
+ */
+export function getRXMLAttributeCompletions(tagName: string): string[] {
+    return RXML_TAG_ATTRIBUTES[tagName.toLowerCase()] || [];
+}
+
 // ============================================================================
 // PIKE-SIDE INTEGRATION NOTES
 // ============================================================================
