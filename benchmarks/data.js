@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770649904295,
+  "lastUpdate": 1770650073461,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -13302,6 +13302,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.34905528125,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f2d41e8760270a654dedf55c9c688e817299a4b1",
+          "message": "feat: Roxen Framework Support Phases 3-6 (Complete Implementation)\n\n* feat: Phase 5 - Tag Catalog Integration\n\nImplement dynamic RXML tag loading from multiple sources:\n\n**New Features:**\n- Module scanner: Detect simpletag_* and container_* patterns in Pike files\n- Catalog manager: Merge tags from built-in, server, and custom sources\n- Bridge method: roxenGetTagCatalog() for server tag fetching\n- Cache integration: PID-based invalidation and TTL support\n\n**Implementation:**\n- module-scanner.ts: Regex-based tag detection (temporary, ADR-001 pending)\n- catalog-manager.ts: Priority-based merging (custom > built-in > server)\n- tag-catalog-integration.test.ts: 16 tests, all passing\n\n**Bridge Integration:**\n- Added roxenGetTagCatalog(serverPid?) method to PikeBridge\n- Added RXMLTagCatalogEntry type to bridge types\n\n**Test Results:**\n- Unit tests: 16/16 passing\n- Full suite: 1668 passing (no regressions from Phase 5)\n\n**Limitations:**\n- Regex parsing (future: Parser.Pike per ADR-001)\n- Test duplication due to module resolution issues\n- Server communication not yet implemented (returns empty array)\n\n**Note:** Pre-commit hook shows failures in Phase 6 untracked test files\n(definition-provider, code-actions-provider). These are NOT part of Phase 5\nand were pre-existing in the parent commit.\n\n**Files Modified:**\n- packages/pike-bridge/src/bridge.ts: Add roxenGetTagCatalog()\n- packages/pike-bridge/src/types.ts: Add RXMLTagCatalogEntry\n- packages/pike-lsp-server/src/features/rxml/index.ts: Add exports\n- packages/pike-lsp-server/src/features/rxml/catalog-manager.ts: NEW\n- packages/pike-lsp-server/src/features/rxml/module-scanner.ts: NEW\n- packages/pike-lsp-server/src/tests/features/rxml/tag-catalog-integration.test.ts: NEW\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat: Roxen Framework Support Phases 3-6 (Complete Implementation)\n\nThis commit implements the remaining phases of the Roxen Support Roadmap:\n- Phase 3: .rjs (Roxen JavaScript) Support\n- Phase 4: Mixed Pike + RXML Files\n- Phase 5: Tag Catalog Integration\n- Phase 6: Advanced LSP Features\n\n## Phase 3: .rjs Support\n- Added .rjs file type detection and language configuration\n- JavaScript string extraction for RXML tags (template literals, strings)\n- 10 new tests for .rjs file handling\n\n## Phase 4: Mixed Pike + RXML Files\n- RXML string detection in Pike multiline strings (#\"...\")\n- Symbol tree merging (Pike + RXML)\n- Context-aware completions (Pike vs RXML regions)\n- Position mapping utilities (parser-helpers.ts)\n- 31 tests for mixed content detection and symbol merging\n\n## Phase 5: Tag Catalog Integration\n- Dynamic tag loading from running Roxen server\n- Custom module tag parsing (simpletag_*, container_*)\n- Server instance tracking with PID-based cache invalidation\n- Tag merging with priority (custom > built-in > server)\n- 16 tests for catalog integration\n\n## Phase 6: Advanced LSP Features\n- Go-to-definition: Template tag → tag function in .pike file\n- Find references: Cross-file tag usage search\n- Rename symbol: Safe tag/defvar refactoring\n- Hover documentation: Tag/attribute/defvar info\n- Code actions: Add missing lifecycle methods, extract to tag\n\n## Test Results\n- All 1,712 tests passing (1744 files, 2245 expect() calls)\n- TypeScript compilation successful (zero errors)\n- E2E tests passing\n\n## Files Added\n- src/features/rxml/definition-provider.ts (go-to-definition)\n- src/features/rxml/references-provider.ts (find references)\n- src/features/rxml/rename-provider.ts (rename symbol)\n- src/features/rxml/hover-provider.ts (hover documentation)\n- src/features/rxml/code-actions-provider.ts (code actions)\n- src/features/roxen/parser-helpers.ts (position utilities)\n- src/features/roxen/mixed-content.test.ts (31 tests)\n- pike-scripts/LSP.pmod/Roxen.pmod/MixedContent.pike (Pike-side)\n- packages/vscode-pike/javascript-language-configuration.json\n\n## Files Modified\n- src/features/rxml/parser.ts (JavaScript string extraction)\n- src/features/rxml/index.ts (Phase 6 exports)\n- src/features/symbols.ts (mixed content integration)\n- src/features/editing/completion.ts (context-aware completions)\n- pike-scripts/analyzer.pike (handler registration)\n- packages/vscode-pike/package.json (.rjs language)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-09T16:13:09+01:00",
+          "tree_id": "657433d35de45c6e9130c620bdf0218829737fb1",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/f2d41e8760270a654dedf55c9c688e817299a4b1"
+        },
+        "date": 1770650073177,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.842688,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 255.266499,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 255.33842925,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.0353405,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2234388827708704,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.8973753920454546,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.71313209090909,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.9475743956834535,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.875039485875706,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2738529277158199,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2827717276214834,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5520422001620745,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20085166491173737,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18590781337209303,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6949942235872235,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3837657656784492,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3722536387811634,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10777083913970849,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.6002226244503078,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08174166154910097,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3991606258140912,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.37166125,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.01706725,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3895238947976879,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5866137192075797,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08282742455993294,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.60260518852459,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.595544295081967,
             "unit": "ms"
           }
         ]
