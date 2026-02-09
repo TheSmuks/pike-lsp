@@ -505,7 +505,7 @@ protected string resolve_include(string target, string current_file) {
         clean_target = clean_target[1..];
     }
     if (sizeof(clean_target) > 0 && (clean_target[-1] == '"' || clean_target[-1] == '>')) {
-        clean_target = clean_target[0..<2];
+        clean_target = clean_target[0..<1];
     }
 
     if (is_local) {
@@ -517,12 +517,12 @@ protected string resolve_include(string target, string current_file) {
             include_paths = ({ "./" });
         }
     } else {
-        // System include - search standard paths
-        include_paths = ({
-            "/usr/local/pike/lib/master.pike.includedir/",
-            "/usr/local/pike/lib/modules/",
-            "."
-        });
+        // System include - use Pike's runtime include and module paths
+        // master()->pike_include_path gives e.g. ({ "/usr/local/pike/8.0.1116/lib/include" })
+        // master()->pike_module_path gives e.g. ({ "/usr/local/pike/8.0.1116/lib/modules" })
+        include_paths = master()->pike_include_path || ({});
+        include_paths += master()->pike_module_path || ({});
+        include_paths += ({ "." });
     }
 
     // Search include paths

@@ -18,6 +18,22 @@ import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol } from '@pike-lsp/pike-bridge';
 
 /**
+ * Convert a file:// URI to a filesystem path.
+ * Needed because bridge methods expect filesystem paths, not URIs.
+ */
+function uriToFilePath(uri: string): string {
+    if (uri.startsWith('file://')) {
+        try {
+            return decodeURIComponent(new URL(uri).pathname);
+        } catch {
+            // Fallback: strip file:// prefix
+            return uri.replace(/^file:\/\//, '');
+        }
+    }
+    return uri;
+}
+
+/**
  * Register definition handlers.
  */
 export function registerDefinitionHandlers(
@@ -44,6 +60,15 @@ export function registerDefinitionHandlers(
 
             if (!cached || !document) {
                 return null;
+            }
+
+            // Early check: if cursor is on a directive line (#include, import, inherit),
+            // handle it directly to avoid expression extraction mangling paths.
+            const directiveResult = await handleDirectiveNavigation(
+                document, params.position, uri, services, cached, log
+            );
+            if (directiveResult) {
+                return directiveResult;
             }
 
             // First, try to extract expression at cursor position
@@ -146,7 +171,7 @@ export function registerDefinitionHandlers(
                             try {
                                 const includeResult = await services.bridge.bridge.resolveInclude(
                                     modulePath,
-                                    uri
+                                    uriToFilePath(uri)
                                 );
 
                                 if (includeResult.exists && includeResult.path) {
@@ -184,7 +209,7 @@ export function registerDefinitionHandlers(
                                 const requireResult = await services.bridge.bridge.resolveImport(
                                     'require',
                                     modulePath,
-                                    uri
+                                    uriToFilePath(uri)
                                 );
 
                                 if (requireResult.exists === 1 && requireResult.path) {
@@ -223,7 +248,7 @@ export function registerDefinitionHandlers(
                             try {
                                 const relativeResult = await services.bridge.bridge.resolveInclude(
                                     modulePath,
-                                    uri
+                                    uriToFilePath(uri)
                                 );
 
                                 if (relativeResult.exists && relativeResult.path) {
@@ -288,7 +313,7 @@ export function registerDefinitionHandlers(
                                         try {
                                             const bridgeResult = await services.bridge.bridge.resolveInclude(
                                                 qualifiedPath,
-                                                uri
+                                                uriToFilePath(uri)
                                             );
 
                                             if (bridgeResult.exists && bridgeResult.path) {
@@ -458,6 +483,183 @@ export function registerDefinitionHandlers(
             return null;
         }
     });
+}
+
+/**
+ * Handle navigation for directive lines (#include, import, inherit).
+ * Called early to avoid expression extraction mangling include paths like "../foo.h"
+ * into dotted expressions.
+ */
+async function handleDirectiveNavigation(
+    document: TextDocument,
+    position: { line: number; character: number },
+    uri: string,
+    services: Services,
+    cached: any,
+    log: Logger
+): Promise<Location | null> {
+    const lineText = document.getText({
+        start: { line: position.line, character: 0 },
+        end: { line: position.line + 1, character: 0 }
+    }).trim();
+
+    const filePath = uriToFilePath(uri);
+
+    // Handle #include directives
+    const includeMatch = lineText.match(/^#include\s+["<]([^">]+)[">]/);
+    if (includeMatch && services.bridge?.bridge) {
+        const includePath = includeMatch[1] ?? '';
+        log.debug('Definition: directive include navigation', { includePath });
+
+        try {
+            const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
+            if (result.exists && result.path) {
+                return {
+                    uri: `file://${result.path}`,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                };
+            }
+        } catch (err) {
+            log.debug('Definition: include resolution failed', {
+                includePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+        return null;
+    }
+
+    // Handle import statements
+    const importMatch = lineText.match(/^import\s+([^;]+)/);
+    if (importMatch && services.bridge?.bridge) {
+        const modulePath = (importMatch[1] ?? '').trim();
+        log.debug('Definition: directive import navigation', { modulePath });
+
+        // Try stdlib index first
+        const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
+        if (moduleInfo?.resolvedPath) {
+            const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+            return {
+                uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+                range: { start: { line: moduleInfo.line ?? 0, character: 0 }, end: { line: moduleInfo.line ?? 0, character: 0 } },
+            };
+        }
+
+        // Try bridge resolve_import
+        try {
+            const result = await services.bridge.bridge.resolveImport('import', modulePath, filePath);
+            if (result.exists === 1 && result.path) {
+                return {
+                    uri: `file://${result.path}`,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                };
+            }
+        } catch (err) {
+            log.debug('Definition: import resolution failed', {
+                modulePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+        return null;
+    }
+
+    // Handle inherit statements
+    const inheritMatch = lineText.match(/^inherit\s+([^;:]+)/);
+    if (inheritMatch && services.bridge?.bridge) {
+        const className = (inheritMatch[1] ?? '').trim().replace(/['"]/g, '');
+        log.debug('Definition: directive inherit navigation', { className });
+
+        // Try introspection data first (cached inherits from Pike compiler)
+        if (cached.inherits) {
+            const normalizedName = className.replace(/['"]/g, '');
+            const foundInherit = cached.inherits.find((h: any) =>
+                h.source_name === normalizedName ||
+                h.path === normalizedName ||
+                h.label === normalizedName ||
+                (h.source_name && h.source_name.replace(/['"]/g, '') === normalizedName)
+            );
+
+            if (foundInherit?.path) {
+                const targetUri = foundInherit.path.startsWith('file://')
+                    ? foundInherit.path
+                    : `file://${foundInherit.path}`;
+                return {
+                    uri: targetUri,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                };
+            }
+        }
+
+        // Try stdlib index
+        const moduleInfo = await services.stdlibIndex?.getModule(className);
+        if (moduleInfo?.resolvedPath) {
+            const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+            return {
+                uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+                range: { start: { line: moduleInfo.line ?? 0, character: 0 }, end: { line: moduleInfo.line ?? 0, character: 0 } },
+            };
+        }
+
+        // Try bridge resolve_import for inherit
+        try {
+            const result = await services.bridge.bridge.resolveImport('inherit', className, filePath);
+            if (result.exists === 1 && result.path) {
+                return {
+                    uri: `file://${result.path}`,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                };
+            }
+        } catch (err) {
+            log.debug('Definition: inherit resolution failed', {
+                className,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+
+        // Try with import-qualified names
+        const allImports = cached.symbols?.filter((s: PikeSymbol) => s.kind === 'import') || [];
+        for (const importSymbol of allImports) {
+            const importPath = importSymbol.classname || importSymbol.name;
+            if (importPath) {
+                const qualifiedPath = `${importPath}.${className}`;
+                const qualifiedInfo = await services.stdlibIndex?.getModule(qualifiedPath);
+                if (qualifiedInfo?.resolvedPath) {
+                    const targetPath = qualifiedInfo.filePath ?? qualifiedInfo.resolvedPath;
+                    return {
+                        uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+                        range: { start: { line: qualifiedInfo.line ?? 0, character: 0 }, end: { line: qualifiedInfo.line ?? 0, character: 0 } },
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // Handle #require directives
+    const requireMatch = lineText.match(/^#require\s+["<]?([^">;]+)/);
+    if (requireMatch && services.bridge?.bridge) {
+        const requirePath = (requireMatch[1] ?? '').trim();
+        log.debug('Definition: directive require navigation', { requirePath });
+
+        try {
+            const result = await services.bridge.bridge.resolveImport('require', requirePath, filePath);
+            if (result.exists === 1 && result.path) {
+                return {
+                    uri: `file://${result.path}`,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                };
+            }
+        } catch (err) {
+            log.debug('Definition: require resolution failed', {
+                requirePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        }
+        return null;
+    }
+
+    // Not a directive line
+    return null;
 }
 
 /**

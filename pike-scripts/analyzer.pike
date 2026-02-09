@@ -203,8 +203,8 @@ int main(int argc, array(string) argv) {
     // Log Pike version for debugging
     // PERF-012: Use __REAL_VERSION__ directly instead of loading LSP.Compat module (~10-30ms saved)
     werror("Pike LSP Analyzer running on Pike %s (Build: %s)\n", (string)__REAL_VERSION__, BUILD_ID);
-    werror("Module Path: %O\n", master()->module_path);
-    werror("Include Path: %O\n", master()->include_path);
+    werror("Module Path: %O\n", master()->pike_module_path);
+    werror("Include Path: %O\n", master()->pike_include_path);
 
 
     // PERF-011: Record version phase time
@@ -288,19 +288,18 @@ int main(int argc, array(string) argv) {
                 }
             }
 
-            // 4. Pike's default lib directory from runtime
-            // Use master()->include_path if available, otherwise discover Pike lib path
-            array(string) pike_includes = master()->include_path || ({});
-            if (sizeof(pike_includes) == 0) {
-                // Fallback: Discover Pike lib path (same logic as get_pike_paths)
-                string pike_lib = "/usr/local/pike/8.0.1116/lib";
-                if (file_stat(pike_lib)) {
-                    pike_includes = ({ pike_lib });
-                }
-            }
+            // 4. Pike's runtime include paths (e.g., /usr/local/pike/8.0.1116/lib/include)
+            // NOTE: master()->pike_include_path is the correct API.
+            // master()->include_path returns 0 (wrong field).
+            array(string) pike_includes = master()->pike_include_path || ({});
             foreach(pike_includes, string inc_dir) {
-                search_paths += ({ combine_path(inc_dir, "include", include_path) });
                 search_paths += ({ combine_path(inc_dir, include_path) });
+            }
+
+            // 5. Pike's runtime module paths (for .pmod resolution)
+            array(string) pike_modules = master()->pike_module_path || ({});
+            foreach(pike_modules, string mod_dir) {
+                search_paths += ({ combine_path(mod_dir, include_path) });
             }
 
             // Try each path until we find an existing file
@@ -506,22 +505,10 @@ int main(int argc, array(string) argv) {
         },
         "get_pike_paths": lambda(mapping params, object ctx) {
             // Return Pike's include and module paths for include/import resolution
-            // CRITICAL: Use master()->include_path NOT master()->pike_include_path
-            // Verified from analyzer.pike:207 that this is the correct API
-
-            // Get paths from master(), or discover Pike lib path if not set
-            array(string) include_paths = master()->include_path || ({});
-            array(string) module_paths = master()->module_path || ({});
-
-            // If master()->include_path returns 0/empty, add Pike's default lib path
-            // This mirrors the logic in resolve_include handler (line 292)
-            if (sizeof(include_paths) == 0) {
-                string pike_lib = "/usr/local/pike/8.0.1116/lib";
-                if (file_stat(pike_lib)) {
-                    include_paths += ({ pike_lib });
-                    module_paths += ({ pike_lib });
-                }
-            }
+            // NOTE: master()->pike_include_path and pike_module_path are the correct APIs.
+            // master()->include_path and module_path return 0 (wrong fields).
+            array(string) include_paths = master()->pike_include_path || ({});
+            array(string) module_paths = master()->pike_module_path || ({});
 
             return ([
                 "result": ([
