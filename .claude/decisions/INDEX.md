@@ -15,6 +15,7 @@ Agents MUST consult this before starting work. Challenge any decision if context
 | 009 | testing | Agent-oriented testing (Carlini protocol) | active | 009-agent-oriented-testing.md |
 | 010 | workflow | Project-specific agent roles (5 specializations) | active | 010-project-agent-roles.md |
 | 011 | workflow | Carlini quality standards mandatory for all new code | active | 011-carlini-quality-standards.md |
+| 012 | ipc | Runtime response validation at bridge boundary | proposed | 012-bridge-response-validation.md |
 
 ## Challenge Protocol
 

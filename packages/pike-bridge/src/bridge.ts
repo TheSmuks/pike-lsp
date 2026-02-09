@@ -26,6 +26,7 @@ import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE, PROCESS_STARTUP_DELAY, GR
 import { Logger } from '@pike-lsp/core';
 import { PikeError } from '@pike-lsp/core';
 import { RateLimiter } from './rate-limiter.js';
+import { assertString, assertNumber, assertStringArray, type ResponseValidator } from './response-validator.js';
 
 /**
  * Configuration options for the PikeBridge.
@@ -348,7 +349,7 @@ export class PikeBridge extends EventEmitter {
     /**
      * Send a request to the Pike subprocess with deduplication
      */
-    private async sendRequest<T>(method: string, params: Record<string, unknown>): Promise<T> {
+    private async sendRequest<T>(method: string, params: Record<string, unknown>, validate?: ResponseValidator<T>): Promise<T> {
         // Check rate limit (if configured)
         if (this.rateLimiter && !this.rateLimiter.tryAcquire()) {
             throw new PikeError('Rate limit exceeded');
@@ -395,6 +396,11 @@ export class PikeBridge extends EventEmitter {
         promise.finally(() => {
             this.requestCache.delete(requestKey);
         });
+
+        // Apply runtime response validation if provided
+        if (validate) {
+            return promise.then(result => validate(result as unknown, method));
+        }
 
         return promise;
     }
@@ -609,6 +615,10 @@ export class PikeBridge extends EventEmitter {
         return this.sendRequest<import('./types.js').IncludeResolveResult>('resolve_include', {
             includePath,
             currentFile: currentFile || undefined,
+        }, (raw, method) => {
+            const r = raw as Record<string, unknown>;
+            assertString(r['path'], 'path', method);
+            return r as unknown as import('./types.js').IncludeResolveResult;
         });
     }
 
@@ -701,7 +711,12 @@ export class PikeBridge extends EventEmitter {
      * ```
      */
     async getPikePaths(): Promise<import('./types.js').PikePathsResult> {
-        return this.sendRequest<import('./types.js').PikePathsResult>('get_pike_paths', {});
+        return this.sendRequest<import('./types.js').PikePathsResult>('get_pike_paths', {}, (raw, method) => {
+            const r = raw as Record<string, unknown>;
+            assertStringArray(r['include_paths'], 'include_paths', method);
+            assertStringArray(r['module_paths'], 'module_paths', method);
+            return r as unknown as import('./types.js').PikePathsResult;
+        });
     }
 
     /**
@@ -775,7 +790,12 @@ export class PikeBridge extends EventEmitter {
     ): Promise<import('./types.js').ResolveImportResult> {
         const params: Record<string, unknown> = { import_type: importType, target };
         if (currentFile) params['current_file'] = currentFile;
-        return this.sendRequest<import('./types.js').ResolveImportResult>('resolve_import', params);
+        return this.sendRequest<import('./types.js').ResolveImportResult>('resolve_import', params, (raw, method) => {
+            const r = raw as Record<string, unknown>;
+            assertString(r['path'], 'path', method);
+            assertNumber(r['exists'], 'exists', method);
+            return r as unknown as import('./types.js').ResolveImportResult;
+        });
     }
 
     /**

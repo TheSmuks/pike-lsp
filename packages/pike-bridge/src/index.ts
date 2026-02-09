@@ -9,6 +9,7 @@ export * from './types.js';
 export * from './bridge.js';
 export * from './constants.js';
 export * from './process.js';
+export { BridgeResponseError, type ResponseValidator } from './response-validator.js';
 
 // Export error types for consumers who need to catch Pike subprocess errors
 export { PikeError, LSPError } from '@pike-lsp/core';

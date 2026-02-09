@@ -448,9 +448,9 @@ export interface IncludeResolveResult {
  * Result of querying Pike's runtime paths
  */
 export interface PikePathsResult {
-    /** Pike's include paths from master()->include_path */
+    /** Pike's include paths from master()->pike_include_path */
     include_paths: string[];
-    /** Pike's module paths from master()->module_path */
+    /** Pike's module paths from master()->pike_module_path */
     module_paths: string[];
 }
 
