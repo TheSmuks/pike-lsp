@@ -32,6 +32,7 @@
 
 import * as vscode from 'vscode';
 import * as assert from 'assert';
+import * as path from 'path';
 
 // Captured Pike server logs for debugging test failures
 let capturedLogs: string[] = [];
@@ -218,6 +219,70 @@ suite('LSP Feature E2E Tests', () => {
         );
         assert.ok(hasTopLevelSymbols || symbols.length > 0,
             'Should find known symbols from fixture file');
+    });
+
+    /**
+     * Preprocessor Limitation Test
+     *
+     * Verifies that symbols inside preprocessor conditional blocks
+     * are NOT indexed, as documented in README Known Limitations.
+     */
+    test('Preprocessor conditional symbols are not indexed', async function() {
+        this.timeout(30000);
+
+        // Create a test file with preprocessor conditionals
+        const preprocessorContent = `
+#if CONSTANT_DEFINE
+int platform_specific_symbol() { return 1; }
+class PlatformClass { int x; }
+#endif
+
+#if 0
+int disabled_symbol() { return 2; }
+class DisabledClass { int y; }
+#endif
+
+int normal_symbol() { return 3; }
+class NormalClass { int z; }
+`;
+
+        const testFilePath = path.join(workspaceFolder.uri.fsPath, 'test-preprocessor.pike');
+        const testDocUri = vscode.Uri.file(testFilePath);
+
+        await vscode.workspace.fs.writeFile(testDocUri, Buffer.from(preprocessorContent, 'utf-8'));
+
+        // Open the document to trigger LSP analysis
+        const doc = await vscode.workspace.openTextDocument(testDocUri);
+        await vscode.window.showTextDocument(doc);
+
+        // Wait for LSP to analyze
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Get document symbols
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            testDocUri
+        );
+
+        // Close the test document
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+        // Verify normal symbols are found
+        const hasNormalSymbol = symbols?.some(s =>
+            s.name === 'normal_symbol' || s.name === 'NormalClass'
+        );
+        assert.ok(hasNormalSymbol, 'Should find symbols outside preprocessor blocks');
+
+        // Verify preprocessor-blocked symbols are NOT found
+        const hasPlatformSymbol = symbols?.some(s =>
+            s.name === 'platform_specific_symbol' || s.name === 'PlatformClass'
+        );
+        const hasDisabledSymbol = symbols?.some(s =>
+            s.name === 'disabled_symbol' || s.name === 'DisabledClass'
+        );
+
+        assert.ok(!hasPlatformSymbol && !hasDisabledSymbol,
+            'Should NOT find symbols inside preprocessor conditional blocks');
     });
 
     /**
