@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "glob": "^13.0.1",
     "mitata": "^1.0.34",
     "typescript": "^5.3.0"
   }

@@ -33,7 +33,8 @@
   ],
   "activationEvents": [
     "onLanguage:pike",
-    "onLanguage:rxml"
+    "onLanguage:rxml",
+    "onLanguage:rjs"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
@@ -64,6 +65,17 @@
           ".roxen"
         ],
         "configuration": "./rxml-language-configuration.json"
+      },
+      {
+        "id": "rjs",
+        "aliases": [
+          "Roxen JavaScript",
+          "RJS"
+        ],
+        "extensions": [
+          ".rjs"
+        ],
+        "configuration": "./javascript-language-configuration.json"
       }
     ],
     "grammars": [

@@ -18,6 +18,7 @@ import { buildCompletionItem, extractTypeName as extractTypeNameHelper } from '.
 import { getAutoDocCompletion } from './autodoc.js';
 import { buildHoverContent } from '../utils/hover-builder.js';
 import { provideRoxenCompletions } from '../roxen/index.js';
+import { detectRXMLStrings, findRXMLStringAtPosition, getRXMLTagCompletions, getRXMLAttributeCompletions } from '../rxml/mixed-content.js';
 
 /**
  * Register code completion handlers.
@@ -528,12 +529,65 @@ export function registerCompletionHandlers(
 
         // --- Roxen completion integration ---
         try {
+            // First check if cursor is inside an RXML string in Pike code
+            if (bridge) {
+                const rxmlStrings = await detectRXMLStrings(text, uri, bridge);
+                const inRXMLString = findRXMLStringAtPosition(params.position, rxmlStrings);
+
+                if (inRXMLString) {
+                    // Cursor is inside RXML content - provide RXML tag/attribute completions
+                    logger.debug('Completion inside RXML string', {
+                        confidence: inRXMLString.confidence,
+                        markerCount: inRXMLString.markers.length
+                    });
+
+                    // Check if we're completing a tag name or attribute
+                    // Look for opening tag pattern: <tagname or <tagname attr=
+                    const beforeCursorInString = getBeforeCursorInRXMLString(text, offset, inRXMLString);
+
+                    // Check if we're inside a tag (after < but before >)
+                    const tagMatch = beforeCursorInString.match(/<([a-z0-9_]*)$/i);
+                    if (tagMatch) {
+                        // Completing tag name
+                        const tagNames = getRXMLTagCompletions(inRXMLString, params.position);
+                        for (const tagName of tagNames) {
+                            completions.push({
+                                label: tagName,
+                                kind: CompletionItemKind.Function,
+                                detail: 'RXML tag'
+                            });
+                        }
+                        return completions;
+                    }
+
+                    // Check if we're completing an attribute: inside <tag ... |
+                    const attrMatch = beforeCursorInString.match(/<[a-z0-9_]+\s+([a-z0-9_]*)$/i);
+                    if (attrMatch) {
+                        // We're in attribute position - provide attribute completions for the tag
+                        const tagNameMatch = beforeCursorInString.match(/<([a-z0-9_]+)/);
+                        if (tagNameMatch) {
+                            const tagName = tagNameMatch[1] ?? '';
+                            const attrNames = getRXMLAttributeCompletions(tagName);
+                            for (const attrName of attrNames) {
+                                completions.push({
+                                    label: attrName,
+                                    kind: CompletionItemKind.Property,
+                                    detail: `RXML attribute for <${tagName}>`
+                                });
+                            }
+                            return completions;
+                        }
+                    }
+                }
+            }
+
+            // Standard Roxen module completions
             const roxenCompletions = provideRoxenCompletions(lineText, params.position);
             if (roxenCompletions && roxenCompletions.length > 0) {
                 completions.push(...roxenCompletions);
             }
         } catch (err) {
-            logger.debug('Roxen completion failed', {
+            logger.debug('Roxen/RXML completion failed', {
                 error: err instanceof Error ? err.message : String(err)
             });
         }
@@ -769,4 +823,32 @@ function findEnclosingClassSymbol(
     }
 
     return enclosingClass;
+}
+
+/**
+ * Get the text before cursor position within an RXML string.
+ * Used for context-aware RXML completion.
+ *
+ * @param text - Full document text
+ * @param offset - Cursor offset in document
+ * @param rxmlString - The RXML string containing the cursor
+ * @returns Text before cursor within the RXML string content
+ */
+function getBeforeCursorInRXMLString(
+    text: string,
+    offset: number,
+    rxmlString: import('../rxml/mixed-content.js').RXMLStringLiteral
+): string {
+    // Calculate offset within RXML content
+    const stringStartOffset = text.indexOf(rxmlString.content, Math.max(0, offset - 1000));
+    if (stringStartOffset < 0) {
+        return '';
+    }
+
+    const contentOffset = offset - stringStartOffset;
+    if (contentOffset < 0 || contentOffset > rxmlString.content.length) {
+        return '';
+    }
+
+    return rxmlString.content.slice(0, contentOffset);
 }

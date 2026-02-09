@@ -484,6 +484,18 @@ int main(int argc, array(string) argv) {
             }
             return ctx->roxen->validate_api(params);
         },
+        "roxenExtractRXMLStrings": lambda(mapping params, object ctx) {
+            if (!ctx->roxen) {
+                return (["error": (["code": -32601, "message": "Roxen module not available"])]);
+            }
+            // Load MixedContent module on first use
+            program MixedContentClass = master()->resolv("LSP.Roxen.MixedContent");
+            if (!MixedContentClass) {
+                return (["error": (["code": -32601, "message": "Roxen MixedContent module not available"])]);
+            }
+            mixed mc = MixedContentClass();
+            return mc->roxen_extract_rxml_strings(params);
+        },
     ]);
 
     // PERF-011: Record handlers phase time
