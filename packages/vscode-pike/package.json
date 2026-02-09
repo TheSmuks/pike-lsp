@@ -32,7 +32,8 @@
     "diagnostics"
   ],
   "activationEvents": [
-    "onLanguage:pike"
+    "onLanguage:pike",
+    "onLanguage:rxml"
   ],
   "main": "./dist/extension.js",
   "extensionKind": [
@@ -51,6 +52,18 @@
           ".pmod"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "rxml",
+        "aliases": [
+          "RXML",
+          "Roxen Template"
+        ],
+        "extensions": [
+          ".rxml",
+          ".roxen"
+        ],
+        "configuration": "./rxml-language-configuration.json"
       }
     ],
     "grammars": [

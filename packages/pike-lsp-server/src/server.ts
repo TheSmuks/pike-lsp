@@ -415,6 +415,8 @@ features.registerHierarchyHandlers(connection, services, documents);
 features.registerAdvancedHandlers(connection, services, documents, globalSettings, includePaths);
 // Phase 3: Register Roxen feature handlers
 features.registerRoxenHandlers(connection, services, documents);
+// Phase 2: Register RXML feature handlers
+features.registerRXMLHandlers(connection, services, documents);
 
 // ============================================================================
 // Shutdown Handlers

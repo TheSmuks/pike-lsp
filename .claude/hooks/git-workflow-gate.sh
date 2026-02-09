@@ -22,6 +22,12 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 should_block=false
 block_message=""
 
+# --- RELEASE BYPASS: Allow pike-lsp-release skill to tag/push ---
+if [ -f ".omc/state/pike-lsp-release.json" ]; then
+  # Release skill is active - bypass all workflow restrictions
+  exit 0
+fi
+
 # --- 0. Block --no-verify and --admin bypass attempts ---
 if echo "$COMMAND" | grep -qP '\s--no-verify\b'; then
   should_block=true

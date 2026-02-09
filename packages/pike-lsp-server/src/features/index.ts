@@ -27,5 +27,19 @@ export { registerAdvancedHandlers } from './advanced/index.js';
 export { registerRoxenHandlers, detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
 export type { RoxenModuleInfo, RXMLTag, ModuleVariable } from './roxen/types.js';
 
+// RXML feature - RXML template support (Phase 2)
+export { registerRXMLHandlers } from './rxml/index.js';
+export {
+  provideRXMLCompletions,
+  parseRXMLTemplate,
+  getTagInfo,
+  RXML_TAG_CATALOG,
+  SCOPE_VARIABLES
+} from './rxml/index.js';
+export type {
+  RXMLTagInfo,
+  RXMLTagCatalogEntry
+} from './rxml/index.js';
+
 // Export Services type for convenience
 export type { Services } from '../services/index.js';
