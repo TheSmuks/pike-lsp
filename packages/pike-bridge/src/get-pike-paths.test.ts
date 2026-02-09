@@ -1,5 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { PikeBridge } from './bridge.js';
 
 describe('getPikePaths', () => {
@@ -34,5 +35,64 @@ describe('getPikePaths', () => {
             assert.strictEqual(typeof path, 'string');
             assert.ok(path.length > 0, 'Path should not be empty');
         });
+    });
+
+    it('should return paths from Pike runtime, not hardcoded fallbacks', async () => {
+        const result = await bridge.getPikePaths();
+
+        // Verify at least one include path ends with /include
+        const hasIncludeDir = result.include_paths.some((path: string) =>
+            path.endsWith('/include')
+        );
+        assert.ok(hasIncludeDir, 'At least one include_path should end with /include');
+
+        // Verify at least one module path ends with /modules
+        const hasModulesDir = result.module_paths.some((path: string) =>
+            path.endsWith('/modules')
+        );
+        assert.ok(hasModulesDir, 'At least one module_path should end with /modules');
+
+        // Verify all paths are absolute
+        result.include_paths.forEach((path: string) => {
+            assert.ok(path.startsWith('/'), `Include path should be absolute: ${path}`);
+        });
+
+        result.module_paths.forEach((path: string) => {
+            assert.ok(path.startsWith('/'), `Module path should be absolute: ${path}`);
+        });
+    });
+
+    it('should return paths that exist on the filesystem', async () => {
+        const result = await bridge.getPikePaths();
+
+        // Verify all include paths exist
+        result.include_paths.forEach((path: string) => {
+            assert.ok(
+                fs.existsSync(path),
+                `Include path should exist on filesystem: ${path}`
+            );
+        });
+
+        // Verify all module paths exist
+        result.module_paths.forEach((path: string) => {
+            assert.ok(
+                fs.existsSync(path),
+                `Module path should exist on filesystem: ${path}`
+            );
+        });
+    });
+
+    it('should return at least one include path and one module path', async () => {
+        const result = await bridge.getPikePaths();
+
+        assert.ok(
+            result.include_paths.length > 0,
+            'Should return at least one include path'
+        );
+
+        assert.ok(
+            result.module_paths.length > 0,
+            'Should return at least one module path'
+        );
     });
 });
