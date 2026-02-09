@@ -445,6 +445,16 @@ export interface IncludeResolveResult {
 }
 
 /**
+ * Result of querying Pike's runtime paths
+ */
+export interface PikePathsResult {
+    /** Pike's include paths from master()->include_path */
+    include_paths: string[];
+    /** Pike's module paths from master()->module_path */
+    module_paths: string[];
+}
+
+/**
  * Result of getting inherited members
  */
 export interface InheritedMembersResult {
@@ -773,7 +783,7 @@ export interface PikeRequest {
     /** Request ID for matching responses */
     id: number;
     /** Method to call */
-    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols' | 'get_startup_metrics' | 'get_cache_stats' | 'invalidate_cache' | 'roxen_detect' | 'roxen_parse_tags' | 'roxen_parse_vars' | 'roxen_get_callbacks' | 'roxen_validate';
+    method: 'parse' | 'tokenize' | 'resolve' | 'compile' | 'introspect' | 'resolve_stdlib' | 'resolve_include' | 'get_inherited' | 'find_occurrences' | 'batch_parse' | 'set_debug' | 'analyze_uninitialized' | 'get_completion_context' | 'get_completion_context_cached' | 'analyze' | 'extract_imports' | 'resolve_import' | 'check_circular' | 'get_waterfall_symbols' | 'get_startup_metrics' | 'get_cache_stats' | 'invalidate_cache' | 'get_pike_paths' | 'roxen_detect' | 'roxen_parse_tags' | 'roxen_parse_vars' | 'roxen_get_callbacks' | 'roxen_validate';
     /** Request parameters */
     params: Record<string, unknown>;
 }

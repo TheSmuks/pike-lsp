@@ -687,6 +687,24 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Query Pike's runtime include and module paths.
+     *
+     * Returns the current include and module paths from Pike's master(),
+     * useful for resolving #include directives and module imports.
+     *
+     * @returns Pike runtime paths with include_paths and module_paths arrays.
+     * @example
+     * ```ts
+     * const paths = await bridge.getPikePaths();
+     * console.log(paths.include_paths); // [".", "/usr/local/pike/..."]
+     * console.log(paths.module_paths); // ["/usr/local/pike/..."]
+     * ```
+     */
+    async getPikePaths(): Promise<import('./types.js').PikePathsResult> {
+        return this.sendRequest<import('./types.js').PikePathsResult>('get_pike_paths', {});
+    }
+
+    /**
      * Get inherited members from a class.
      *
      * Returns all members (methods, variables, constants) that a class
