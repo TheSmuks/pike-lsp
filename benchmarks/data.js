@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770675929203,
+  "lastUpdate": 1770676268175,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -15562,6 +15562,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.653592166666667,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6f583554d24745f7e365d8b176ac09a6d8f93e51",
+          "message": "docs: correct README known limitations with accurate descriptions (#26)\n\n* docs: correct README known limitations with accurate descriptions\n\nUpdated Known Limitations table with precise technical details:\n\n- Preprocessor Directives: Changed from \"partially skipped\" to \"fully skipped\"\n  with technical explanation about Parser.Pike.split() limitations\n- Nested Classes: Clarified that declarations are found but member extraction\n  is single-level only (Parser vs Introspection distinction)\n- Type Inference: More specific about what works (basic types from literals/\n  signatures) vs what doesn't (flow-sensitive analysis, generic resolution)\n- Dynamic Modules: No change (by design)\n\nAll entries now have accurate impact descriptions and workarounds.\n\nAddresses plan: .omc/plans/fix-readme-limitations.md\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* test: add E2E test documenting preprocessor limitation\n\nAdded integration test to verify symbols inside preprocessor\nconditional blocks (#if/#else/#endif) are NOT indexed.\n\nTest validates:\n- Normal symbols outside preprocessor blocks ARE found\n- Symbols inside #if blocks are NOT indexed\n- Test documents the limitation as described in README\n\nTest location: lsp-features.test.ts after line 221\nTest status: PASSING (2s runtime, 43 total tests passing)\n\nAdded import: path module for file path construction\n\nAddresses plan: .omc/plans/fix-readme-limitations.md Task 3\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* chore: ignore test artifact file\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-09T23:29:18+01:00",
+          "tree_id": "8e4dce4927820d911f466d1bf0ac36c876b57dd8",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/6f583554d24745f7e365d8b176ac09a6d8f93e51"
+        },
+        "date": 1770676267822,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.562872,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 254.64426166666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 255.09098866666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.189284,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1905001554404147,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.8917908920454547,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.11968309090909,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.943380586956522,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.8159438277777777,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.268287280388979,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.27606585012489593,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5391765150554675,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20175669123567666,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18967264631956912,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.7232092842892768,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.37212357087486153,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.34900667481789804,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10036159815546773,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5535864073170732,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.07740201234730067,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3898794331210191,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.951593,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 254.42857033333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.39256435976676385,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5711605188600167,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07800042700488836,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.61551103305785,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.603175368852459,
             "unit": "ms"
           }
         ]
