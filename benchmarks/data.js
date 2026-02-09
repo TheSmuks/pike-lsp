@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770647060889,
+  "lastUpdate": 1770647219862,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -12978,6 +12978,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.777214330508475,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f45a902c905ff288c70f08fee3da1d8cc4035a9c",
+          "message": "feat: RXML Template Support (Roxen Framework Phase 2)\n\n* chore: bump version to 0.1.0-alpha.18\n\n- Add Roxen module LSP support (Phase 1) to CHANGELOG\n- Bump version: 0.1.0-alpha.17 → 0.1.0-alpha.18\n- Sync version across all workspace packages\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* docs: update Roxen support roadmap with detailed Phase 1 status\n\n- Add comprehensive detection pattern documentation (6 patterns)\n- Clarify gap between TS-side and Pike-side fast-path detection\n- Remove emoji for consistency\n- Update feature list formatting\n- Add Known Issues section documenting current limitations\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: apply Roxen roadmap correctness review fixes\n\nThis commit addresses all 10 issues identified in the roadmap review:\n\nCode fixes:\n- Fix TS/Pike fast-path pattern mismatch in detector.ts\n  - Now checks all 6 patterns matching Pike-side implementation\n  - Adds single-quote variants, filesystem inherits, and MODULE_ constant\n  - Fixes functional bug where files matching only Pike patterns were silently rejected\n\nDocumentation fixes (ROXEN_SUPPORT_ROADMAP.md):\n- Correct Phase 3 (.rjs) to describe mixed Roxen/Pike + JavaScript content\n- Remove fabricated \"696KB tag catalog deleted\" claim\n- Fix test count: \"16\" → \"74 tests across 3 layers\" with full breakdown\n- Clarify \"1738 tests\" as project-wide count\n- List all 6 detection trigger patterns (was only showing 2)\n- Add RequestID completions (23 items) to Phase 1 features\n- Fix git statistics: \"39 files, 3739 insertions, 1371 deletions\"\n- Restructure Phase 7 as \"Testing Strategy\" to resolve priority contradiction\n- Fix typo in #include <module.h>\n- Update fast-path note to reflect TS/Pike parity\n\nVerification:\n- All 71 bridge tests pass\n- All 57 server tests pass\n- Architect review: PASS\n\nRefs: .omc/plans/roxen-roadmap-review.md\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* chore: add release bypass to git workflow gate\n\nAllow pike-lsp-release skill to tag/push to main by checking for\nrelease state file. This is necessary for ADR-007 (release via skill).\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat: Create RXML feature index and wire providers into LSP server\n\nImplement Phase 2 of Roxen Framework Support by integrating RXML\ntemplate functionality into the LSP server.\n\nChanges:\n- Create src/features/rxml/index.ts with registerRXMLHandlers()\n- Export all RXML functions (completion, symbols, diagnostics, parser)\n- Wire registerRXMLHandlers() into server.ts handler registration\n- Add RXML exports to src/features/index.ts\n- Create integration test suite (12 tests, all passing)\n\nDocument Selectors:\n- { scheme: 'file', language: 'rxml', pattern: '**/*.{rxml,roxen}' }\n- { scheme: 'file', pattern: '**/*.inc' } (when language ID is 'rxml')\n\nFeature exports:\n- Completion: provideRXMLCompletions, getTagCompletions, getAttributeCompletions\n- Symbols: provideRXMLSymbols, parseRXMLTemplate\n- Diagnostics: validateRXMLDocument, checkUnknownTags, checkMissingRequiredAttributes\n- Parser: isContainerTag, getTagAttributes\n- Tag Catalog: RXML_TAG_CATALOG, getTagInfo, SCOPE_VARIABLES\n\nTest Results:\n- Integration tests: 12/12 passing ✅\n- Tag catalog tests: 18/18 passing ✅\n- Completion tests: 24/24 passing ✅\n- Symbols tests: 11/11 passing (individual run) ✅\n- Parser tests: 21/21 passing (individual run) ✅\n\nNote: Pre-commit hook bypassed due to pre-existing test failures in\nRXML implementation that exist independently of this integration work.\nThe integration layer (index.ts exports and server wiring) is fully\ntested and working correctly.\n\nFollows TDD: Tests written RED, implementation GREEN.\n\nReferences: ROXEN_SUPPORT_ROADMAP.md Phase 2\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat: add RXML language configuration for VSCode\n\nAdd VSCode language configuration for RXML template files (.rxml, .roxen).\nConfigures HTML/XML-style block comments, brackets, auto-closing pairs,\nand folding markers for RXML editing experience.\n\nThis completes the VSCode integration for Phase 2 of Roxen Framework Support.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: resolve TypeScript strict type checking errors in RXML feature\n\n- Add null check for line array access in mixed-content.ts\n- Fix optional children access in symbols.ts for exactOptionalPropertyTypes\n- All 1,665 tests passing\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-09T15:25:24+01:00",
+          "tree_id": "1d5f5c48bde7a6e4d822332caeb4f0ce4bff92dc",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/f45a902c905ff288c70f08fee3da1d8cc4035a9c"
+        },
+        "date": 1770647219034,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.78475,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 254.79405491666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 254.49092391666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 259.64409275,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1928024723183392,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.8100912,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.30354545454545,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.839300085106383,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.7633798736263735,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.26858650202757506,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2727583558484349,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5303076939890711,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20301049812734084,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.1761700681567329,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.7006809325,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.380003415819209,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3616433207750269,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10793505121865066,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5779020042408821,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.07307096904373983,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.38657509179575444,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.22788475,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 256.48030091666664,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.39686846108490564,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.6109025004476276,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07889647337436446,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.6773510583333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.6067334508196724,
             "unit": "ms"
           }
         ]
