@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770667890690,
+  "lastUpdate": 1770668027825,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -13946,6 +13946,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.663083636363637,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7544dfc39e465db27c9bd3bd75a640942c4b8065",
+          "message": "feat: add runtime path discovery for include/import/inherit resolution (#22)\n\n* feat: add runtime path discovery for include/import/inherit resolution\n\nReplace hardcoded Pike lib path with runtime discovery using master()->include_path.\nThis makes the LSP work across different Pike installations.\n\nChanges:\n- Add get_pike_paths handler to query runtime include/module paths\n- Add getPikePaths() method to PikeBridge\n- Add PikePathsResult interface to types\n- Update resolve_include to use runtime paths instead of hardcoded\n- Add unit test for get_pike_paths (1 pass, 0 fail)\n- Add E2E tests for include navigation (42 passing, 21s)\n\nAcceptance Criteria:\n✓ get_pike_paths returns non-empty arrays\n✓ Uses master()->include_path (not pike_include_path)\n✓ resolve_include uses runtime path discovery\n✓ All tests passing (42 pass, 0 fail)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat: add runtime path discovery for include/import/inherit resolution\n\nAdd TypeScript bridge layer and E2E tests for runtime path discovery.\n\nChanges:\n- Add getPikePaths() method to PikeBridge\n- Add PikePathsResult interface to types.ts\n- Add unit test for get_pike_paths\n- Add E2E test for include navigation (220 lines)\n- Add test fixtures for include/import/inherit testing\n\nTest Results:\n- Unit tests: 116 pass, 16 skip, 0 fail\n- E2E tests: 42 passing (21 seconds)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: add missing get_pike_paths handler to Pike analyzer\n\nThe handler was implemented locally but not committed to the feature branch.\nThis commit adds the get_pike_paths handler that returns Pike's runtime\ninclude and module paths via master()->include_path API.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-09T20:12:16Z",
+          "tree_id": "3bd5df6bfe833159071a15002cbcda834b8da906",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/7544dfc39e465db27c9bd3bd75a640942c4b8065"
+        },
+        "date": 1770668027434,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.18335608333334,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 253.5115825,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 253.9589675,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 258.9219944166667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1543356711409396,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.837545055865922,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 45.85420033333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.835224007092198,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.8189767166666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.25570187567776914,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2371816375089993,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.562673043946932,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.16615513866528173,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.16680603071672356,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.5605352398190044,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3501031439037154,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.36504890763274334,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.09548209342560553,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5066445302013423,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.06774829601298099,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3456139927983539,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.91939175,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 254.92586125,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3466758596491228,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5285304326848249,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0596039843343099,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.763289830508474,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.717431865546218,
             "unit": "ms"
           }
         ]
