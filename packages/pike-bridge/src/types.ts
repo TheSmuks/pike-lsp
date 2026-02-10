@@ -159,6 +159,12 @@ export interface PikeSymbol {
     documentation?: AutodocDocumentation;
     /** Whether symbol is deprecated (convenience flag) */
     deprecated?: boolean;
+    /** Preprocessor conditional flag (true if inside #if/#elif/#else block) */
+    conditional?: true | 1;
+    /** Preprocessor condition expression (e.g., "DEBUG", "CONSTANT") */
+    condition?: string;
+    /** Preprocessor branch index (0 for #if, 1+ for #elif/#else) */
+    branch?: number;
 }
 
 export type PikeSymbolKind =
@@ -960,4 +966,32 @@ export interface RoxenValidationResult {
         code: number;
         message: string;
     };
+}
+
+/**
+ * Preprocessor branch (if/elif/else) line range.
+ */
+export interface PreprocessorBranch {
+    /** Branch index (0 for #if, 1+ for #elif/#else) */
+    branch: number;
+    /** Start line (1-indexed) */
+    startLine: number;
+    /** End line (1-indexed) */
+    endLine: number;
+}
+
+/**
+ * Preprocessor conditional block (#if/#else/#endif).
+ */
+export interface PreprocessorBlock {
+    /** Condition expression (e.g., "DEBUG", "CONSTANT") */
+    condition: string;
+    /** Branches within this block */
+    branches: PreprocessorBranch[];
+    /** Nesting depth (0 for top-level) */
+    depth: number;
+    /** Start line of #if directive (1-indexed) */
+    startLine: number;
+    /** End line of #endif directive (1-indexed) */
+    endLine: number;
 }

@@ -223,6 +223,13 @@ export function buildCompletionItem(
         }
     }
 
+    // Add conditional compilation info to detail
+    const conditional = symbolAny['conditional'] as { condition: string; branch: number } | undefined;
+    if (conditional) {
+        const conditionPrefix = conditional.branch === 0 ? '#if' : '#elif';
+        detail += ` [${conditionPrefix} ${conditional.condition}]`;
+    }
+
     const kind = convertCompletionKind(symbol.kind);
 
     const item: CompletionItem = {
@@ -265,6 +272,13 @@ export function buildCompletionItem(
         ) {
             priority = '2'; // Classes/Modules are useful for instantiation or static access
         }
+    }
+
+    // Lower priority for conditional symbols (they may not be compiled in)
+    if (conditional) {
+        // Add a prefix to push conditional symbols down
+        // '9' ensures they appear after unconditional symbols
+        priority = `9_${priority}`;
     }
 
     item.sortText = `${priority}_${name}`;

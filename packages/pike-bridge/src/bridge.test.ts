@@ -77,6 +77,93 @@ describe('PikeBridge', () => {
         assert.equal(classSymbol?.kind, 'class');
     });
 
+    it('should parse nested classes with children', async () => {
+        // P1 Nested Classes - Test for nested class member extraction
+        // This test FAILS because nested class members are not currently extracted
+        const code = `
+            class Outer {
+                class Inner {
+                    int x;
+                    void foo() {}
+                }
+            }
+        `;
+
+        const result = await bridge.parse(code, 'test.pike');
+
+        assert.ok(result.symbols, 'Should return symbols');
+        assert.ok(Array.isArray(result.symbols), 'Symbols should be an array');
+
+        // Find Outer class
+        const outer = result.symbols.find(s => s.name === 'Outer');
+        assert.ok(outer, 'Should find Outer class');
+        assert.equal(outer?.kind, 'class');
+
+        // Assert Outer has children array
+        assert.ok(outer?.children, 'Outer should have children array');
+        assert.ok(Array.isArray(outer.children), 'children should be an array');
+
+        // Find Inner class in Outer's children
+        const inner = outer!.children!.find((s: any) => s.name === 'Inner');
+        assert.ok(inner, 'Should find Inner class as child of Outer');
+        assert.equal(inner?.kind, 'class');
+
+        // Assert Inner has children array with members
+        assert.ok(inner?.children, 'Inner should have children array');
+        assert.ok(Array.isArray(inner.children), 'Inner.children should be an array');
+
+        // Assert that Inner.x and Inner.foo appear as children of Inner
+        const innerX = inner!.children!.find((s: any) => s.name === 'x');
+        assert.ok(innerX, 'Should find x as child of Inner');
+        assert.equal(innerX?.kind, 'variable');
+
+        const innerFoo = inner!.children!.find((s: any) => s.name === 'foo');
+        assert.ok(innerFoo, 'Should find foo as child of Inner');
+        assert.equal(innerFoo?.kind, 'method');
+    });
+
+    it('should parse 3-level nested class hierarchy', async () => {
+        // P1 Nested Classes - Test for deep nesting
+        // This test FAILS because deeply nested members are not extracted
+        const code = `
+            class A {
+                class B {
+                    class C {
+                        int deep;
+                    }
+                }
+            }
+        `;
+
+        const result = await bridge.parse(code, 'test.pike');
+
+        assert.ok(result.symbols, 'Should return symbols');
+        assert.ok(Array.isArray(result.symbols), 'Symbols should be an array');
+
+        // Find A class
+        const a = result.symbols.find((s: any) => s.name === 'A');
+        assert.ok(a, 'Should find class A');
+        assert.equal(a?.kind, 'class');
+        assert.ok(a?.children, 'A should have children array');
+
+        // Find B class in A's children
+        const b = a!.children!.find((s: any) => s.name === 'B');
+        assert.ok(b, 'Should find B as child of A');
+        assert.equal(b?.kind, 'class');
+        assert.ok(b?.children, 'B should have children array');
+
+        // Find C class in B's children
+        const c = b!.children!.find((s: any) => s.name === 'C');
+        assert.ok(c, 'Should find C as child of B');
+        assert.equal(c?.kind, 'class');
+        assert.ok(c?.children, 'C should have children array');
+
+        // Assert all levels are represented in the symbol hierarchy
+        const deep = c!.children!.find((s: any) => s.name === 'deep');
+        assert.ok(deep, 'Should find deep as child of C');
+        assert.equal(deep?.kind, 'variable');
+    });
+
     it('should detect syntax errors', async () => {
         const code = `
             int x = ;  // Syntax error
@@ -452,6 +539,156 @@ void main() {
             // Direct imports should be at depth 0
             const directImport = result.imports.find((i: any) => i.depth === 0);
             assert.ok(directImport, 'Should have direct imports at depth 0');
+        });
+    });
+
+    // =========================================================================
+    // Preprocessor Block Parsing (P2 - Task 2.1)
+    // =========================================================================
+
+    describe('parsePreprocessorBlocks', () => {
+        it('should parse simple #if/#endif block', async () => {
+            const code = `
+#if COND
+int x;
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result, 'Should return a result');
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.ok(Array.isArray(result.blocks), 'Blocks should be an array');
+            assert.ok(result.blocks.length > 0, 'Should find at least one block');
+
+            const block = result.blocks[0];
+            if (!block) throw new Error('Block should be defined');
+            assert.equal(block.condition, 'COND', 'Should extract condition');
+            assert.ok(block.branches, 'Should have branches');
+            assert.ok(Array.isArray(block.branches), 'Branches should be an array');
+        });
+
+        it('should parse #if/#else/#endif block with two branches', async () => {
+            const code = `
+#if COND
+int x;
+#else
+string y;
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.ok(result.blocks.length > 0, 'Should find at least one block');
+
+            const block = result.blocks[0];
+            if (!block) throw new Error('Block should be defined');
+            assert.equal(block.condition, 'COND', 'Should extract condition');
+            assert.equal(block.branches.length, 2, 'Should have 2 branches (if and else)');
+
+            // Verify branch structure
+            const ifBranch = block.branches[0];
+            const elseBranch = block.branches[1];
+            if (!ifBranch) throw new Error('If branch should be defined');
+            if (!elseBranch) throw new Error('Else branch should be defined');
+            assert.ok(ifBranch.startLine, 'If branch should have start line');
+            assert.ok(elseBranch.startLine, 'Else branch should have start line');
+        });
+
+        it('should parse nested #if blocks', async () => {
+            const code = `
+#if A
+#if B
+int x;
+#endif
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.ok(result.blocks.length >= 1, 'Should find at least one block');
+
+            // Should have both outer and inner blocks
+            const outerBlock = result.blocks.find((b: any) => b.condition === 'A');
+            assert.ok(outerBlock, 'Should find outer #if A block');
+
+            const innerBlock = result.blocks.find((b: any) => b.condition === 'B');
+            assert.ok(innerBlock, 'Should find inner #if B block');
+        });
+
+        it('should parse #if/#elif/#else/#endif with multiple branches', async () => {
+            const code = `
+#if DEBUG
+int x;
+#elif RELEASE
+int y;
+#else
+int z;
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.ok(result.blocks.length > 0, 'Should find at least one block');
+
+            const block = result.blocks[0];
+            if (!block) throw new Error('Block should be defined');
+            assert.ok(block.branches.length >= 2, 'Should have at least 2 branches');
+        });
+
+        it('should handle split-block preprocessor branches', async () => {
+            // Code where branches are syntactically incomplete
+            const code = `
+#if COND
+class Foo {
+#else
+class Bar {
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.ok(result.blocks.length > 0, 'Should find at least one block');
+
+            const block = result.blocks[0];
+            if (!block) throw new Error('Block should be defined');
+            assert.equal(block.condition, 'COND', 'Should extract condition');
+            assert.ok(block.branches.length >= 2, 'Should have at least 2 branches');
+        });
+
+        it('should handle code without preprocessor directives', async () => {
+            const code = `
+int x = 42;
+string hello() {
+    return "world";
+}
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result, 'Should return a result');
+            assert.ok(result.blocks, 'Should return blocks array');
+            assert.equal(result.blocks.length, 0, 'Should have no blocks');
+        });
+
+        it('should handle deeply nested #if blocks (variant cap)', async () => {
+            // 5 levels of nesting = 32 theoretical variants (capped at 16)
+            const code = `
+#if A
+#if B
+#if C
+#if D
+#if E
+int x;
+#endif
+#endif
+#endif
+#endif
+#endif
+`;
+            const result = await bridge.parsePreprocessorBlocks(code);
+
+            assert.ok(result.blocks, 'Should return blocks array');
+            // Should parse without crashing
+            assert.ok(result.blocks.length >= 1, 'Should find at least one block');
         });
     });
 });

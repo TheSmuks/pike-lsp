@@ -509,6 +509,15 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         }
     }
 
+    // Add conditional compilation info if present
+    // Pike returns: conditional: true | 1, condition: string, branch: number
+    if (sym['conditional']) {
+        const branch = sym['branch'] as number | undefined;
+        const condition = sym['condition'] as string | undefined;
+        const conditionPrefix = branch === 0 ? '#if' : '#elif';
+        parts.push(`\n*Condition*: ${conditionPrefix} ${condition || ''}`);
+    }
+
     // Add modifiers if present
     if (symbol.modifiers && symbol.modifiers.length > 0) {
         parts.push(`\n*Modifiers*: ${symbol.modifiers.join(', ')}`);

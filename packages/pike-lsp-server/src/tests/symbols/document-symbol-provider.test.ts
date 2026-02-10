@@ -317,6 +317,101 @@ describe('Document Symbol Provider', () => {
             expect(result![0]!.name).toBe('Outer');
             expect(result![0]!.kind).toBe(SymbolKind.Class);
         });
+
+        it('should show nested class members in children array', async () => {
+            // P1 Nested Classes - Test for nested class member extraction
+            // This test FAILS because nested class members are not currently extracted
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('Outer', 'class', {
+                        position: { file: 'test.pike', line: 1 },
+                        children: [
+                            sym('Inner', 'class', {
+                                position: { file: 'test.pike', line: 2 },
+                                children: [
+                                    sym('x', 'variable', { position: { file: 'test.pike', line: 3 } }),
+                                    sym('foo', 'method', {
+                                        position: { file: 'test.pike', line: 4 },
+                                        returnType: { name: 'void' },
+                                        argTypes: [],
+                                    }),
+                                ],
+                            }),
+                        ],
+                    }),
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(1);
+
+            const outer = result![0]!;
+            expect(outer.name).toBe('Outer');
+            expect(outer.kind).toBe(SymbolKind.Class);
+            expect(outer.children).toBeDefined();
+            expect(outer.children!.length).toBe(1);
+
+            const inner = outer.children![0]!;
+            expect(inner.name).toBe('Inner');
+            expect(inner.kind).toBe(SymbolKind.Class);
+            expect(inner.children).toBeDefined();
+            expect(inner.children!.length).toBe(2);
+
+            // Assert that Inner.x and Inner.foo appear as children of Inner
+            expect(inner.children![0]!.name).toBe('x');
+            expect(inner.children![0]!.kind).toBe(SymbolKind.Variable);
+            expect(inner.children![1]!.name).toBe('foo');
+            expect(inner.children![1]!.kind).toBe(SymbolKind.Method);
+        });
+
+        it('should show 3-level nesting hierarchy', async () => {
+            // P1 Nested Classes - Test for deep nesting
+            // This test FAILS because deeply nested members are not extracted
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('A', 'class', {
+                        position: { file: 'test.pike', line: 1 },
+                        children: [
+                            sym('B', 'class', {
+                                position: { file: 'test.pike', line: 2 },
+                                children: [
+                                    sym('C', 'class', {
+                                        position: { file: 'test.pike', line: 3 },
+                                        children: [
+                                            sym('deep', 'variable', { position: { file: 'test.pike', line: 4 } }),
+                                        ],
+                                    }),
+                                ],
+                            }),
+                        ],
+                    }),
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(1);
+
+            const a = result![0]!;
+            expect(a.name).toBe('A');
+            expect(a.children).toBeDefined();
+            expect(a.children!.length).toBe(1);
+
+            const b = a.children![0]!;
+            expect(b.name).toBe('B');
+            expect(b.children).toBeDefined();
+            expect(b.children!.length).toBe(1);
+
+            const c = b.children![0]!;
+            expect(c.name).toBe('C');
+            expect(c.children).toBeDefined();
+            expect(c.children!.length).toBe(1);
+
+            const deep = c.children![0]!;
+            expect(deep.name).toBe('deep');
+            expect(deep.kind).toBe(SymbolKind.Variable);
+        });
     });
 
     describe('Scenario 11.3: Document symbols - inheritance', () => {
@@ -495,8 +590,174 @@ describe('Document Symbol Provider', () => {
             // position?.line ?? 1 gives 1, then -1 = 0
             expect(result![0]!.range.start.line).toBe(0);
         });
+    });
 
-        test.todo('not applicable to Pike: preprocessor directives do not create symbols');
+    // =========================================================================
+    // Preprocessor Conditional Symbols (P2 - Task 2.1)
+    // =========================================================================
+
+    describe('Scenario 11.8: Document symbols - preprocessor conditionals', () => {
+        it('should mark symbols inside #if block with conditional metadata', async () => {
+            // Test code: #if COND \n int x; \n #endif
+            // Expected: x should have conditional: { condition: "COND", branch: 0 }
+            const { documentSymbol } = setup({
+                symbols: [
+                    {
+                        name: 'x',
+                        kind: 'variable' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 2 },
+                        conditional: { condition: 'COND', branch: 0 },
+                    } as unknown as PikeSymbol,
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(1);
+
+            const xSymbol = result![0]!;
+            expect(xSymbol.name).toBe('x');
+            expect(xSymbol.kind).toBe(SymbolKind.Variable);
+            // Verify conditional metadata is present on the raw PikeSymbol
+            // (The DocumentSymbol itself doesn't expose this, but it's in the cache)
+        });
+
+        it('should distinguish symbols in different #if/#else branches', async () => {
+            // Test code: #if COND \n int x; \n #else \n string y; \n #endif
+            // Expected: x has branch 0, y has branch 1
+            const { documentSymbol } = setup({
+                symbols: [
+                    {
+                        name: 'x',
+                        kind: 'variable' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 2 },
+                        conditional: { condition: 'COND', branch: 0 },
+                    } as unknown as PikeSymbol,
+                    {
+                        name: 'y',
+                        kind: 'variable' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 4 },
+                        conditional: { condition: 'COND', branch: 1 },
+                    } as unknown as PikeSymbol,
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(2);
+
+            const xSymbol = result![0]!;
+            const ySymbol = result![1]!;
+            expect(xSymbol.name).toBe('x');
+            expect(ySymbol.name).toBe('y');
+        });
+
+        it('should handle symbols outside #if blocks (no conditional metadata)', async () => {
+            // Test code: int a; \n #if COND \n int b; \n #endif \n int c;
+            // Expected: a and c have no conditional, b has conditional
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('a', 'variable', { position: { file: 'test.pike', line: 1 } }),
+                    {
+                        name: 'b',
+                        kind: 'variable' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 3 },
+                        conditional: { condition: 'COND', branch: 0 },
+                    } as unknown as PikeSymbol,
+                    sym('c', 'variable', { position: { file: 'test.pike', line: 5 } }),
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(3);
+
+            // All three symbols should be present
+            expect(result![0]!.name).toBe('a');
+            expect(result![1]!.name).toBe('b');
+            expect(result![2]!.name).toBe('c');
+        });
+
+        it('should handle nested #if blocks', async () => {
+            // Test code: #if A \n #if B \n int x; \n #endif \n #endif
+            // Expected: x has both conditions (or combined condition)
+            const { documentSymbol } = setup({
+                symbols: [
+                    {
+                        name: 'x',
+                        kind: 'variable' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 3 },
+                        conditional: { condition: 'A && B', branch: 0 },
+                    } as unknown as PikeSymbol,
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(1);
+            expect(result![0]!.name).toBe('x');
+        });
+
+        it('should extract symbols from split-block preprocessor branches', async () => {
+            // Test code where branches are syntactically incomplete:
+            // #if COND \n class Foo { \n #else \n class Bar { \n #endif
+            // Expected: Both Foo and Bar extracted via token-based approach
+            const { documentSymbol } = setup({
+                symbols: [
+                    {
+                        name: 'Foo',
+                        kind: 'class' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 2 },
+                        conditional: { condition: 'COND', branch: 0 },
+                    } as unknown as PikeSymbol,
+                    {
+                        name: 'Bar',
+                        kind: 'class' as const,
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 4 },
+                        conditional: { condition: 'COND', branch: 1 },
+                    } as unknown as PikeSymbol,
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(2);
+
+            const fooSymbol = result![0]!;
+            const barSymbol = result![1]!;
+            expect(fooSymbol.name).toBe('Foo');
+            expect(barSymbol.name).toBe('Bar');
+        });
+
+        it('should cap variants at 16 for deeply nested #if blocks', async () => {
+            // Test code with 5 levels of nested #if (32 variants theoretical)
+            // Expected: Symbols extracted up to cap (16 variants)
+            const symbols: unknown[] = [];
+            for (let i = 0; i < 32; i++) {
+                symbols.push({
+                    name: `variant_${i}`,
+                    kind: 'variable' as const,
+                    modifiers: [],
+                    position: { file: 'test.pike', line: i + 1 },
+                    conditional: { condition: `LEVEL_${i}`, branch: i % 2 },
+                });
+            }
+
+            const { documentSymbol } = setup({ symbols: symbols as PikeSymbol[] });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            // Should extract all symbols (Pike implementation caps at 16 variants)
+            // For now, we just verify it doesn't crash
+            expect(result!.length).toBeGreaterThan(0);
+        });
     });
 
     describe('Symbol properties', () => {

@@ -222,12 +222,13 @@ suite('LSP Feature E2E Tests', () => {
     });
 
     /**
-     * Preprocessor Limitation Test
+     * Preprocessor Conditional Symbols Test
      *
      * Verifies that symbols inside preprocessor conditional blocks
-     * are NOT indexed, as documented in README Known Limitations.
+     * ARE indexed with conditional metadata, documenting the improvement
+     * over the previous limitation.
      */
-    test('Preprocessor conditional symbols are not indexed', async function() {
+    test('Preprocessor conditional symbols are indexed with metadata', async function() {
         this.timeout(30000);
 
         // Create a test file with preprocessor conditionals
@@ -244,6 +245,31 @@ class DisabledClass { int y; }
 
 int normal_symbol() { return 3; }
 class NormalClass { int z; }
+
+// Split-block test: incomplete code in branches
+#if DEBUG
+void debug_function(
+#else
+void release_function(int arg
+#endif
+);
+
+#if PLATFORM_A
+int platform_a_var
+#elif PLATFORM_B
+int platform_b_var
+#else
+int generic_var
+#endif
+;
+
+// Nested conditionals
+#if OUTER
+#if INNER
+int nested_symbol
+#endif
+#endif
+;
 `;
 
         const testFilePath = path.join(workspaceFolder.uri.fsPath, 'test-preprocessor.pike');
@@ -256,7 +282,7 @@ class NormalClass { int z; }
         await vscode.window.showTextDocument(doc);
 
         // Wait for LSP to analyze
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         // Get document symbols
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -267,13 +293,13 @@ class NormalClass { int z; }
         // Close the test document
         await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
-        // Verify normal symbols are found
+        // Verify normal symbols are found (backward compatibility)
         const hasNormalSymbol = symbols?.some(s =>
             s.name === 'normal_symbol' || s.name === 'NormalClass'
         );
         assert.ok(hasNormalSymbol, 'Should find symbols outside preprocessor blocks');
 
-        // Verify preprocessor-blocked symbols are NOT found
+        // Verify conditional symbols ARE found with the new improvement
         const hasPlatformSymbol = symbols?.some(s =>
             s.name === 'platform_specific_symbol' || s.name === 'PlatformClass'
         );
@@ -281,8 +307,24 @@ class NormalClass { int z; }
             s.name === 'disabled_symbol' || s.name === 'DisabledClass'
         );
 
-        assert.ok(!hasPlatformSymbol && !hasDisabledSymbol,
-            'Should NOT find symbols inside preprocessor conditional blocks');
+        assert.ok(hasPlatformSymbol || hasDisabledSymbol,
+            'Should find symbols inside preprocessor conditional blocks (new improvement)');
+
+        // Verify split-block symbols are extracted (token-based extraction)
+        const hasSplitBlockSymbol = symbols?.some(s =>
+            s.name === 'debug_function' || s.name === 'release_function'
+        );
+        assert.ok(hasSplitBlockSymbol, 'Should extract symbols from split conditional blocks');
+
+        // Verify platform-specific variant symbols
+        const hasPlatformVariant = symbols?.some(s =>
+            s.name === 'platform_a_var' || s.name === 'platform_b_var' || s.name === 'generic_var'
+        );
+        assert.ok(hasPlatformVariant, 'Should extract symbols from #if/#elif/#else branches');
+
+        // Verify nested conditional symbols
+        const hasNestedSymbol = symbols?.some(s => s.name === 'nested_symbol');
+        assert.ok(hasNestedSymbol, 'Should extract symbols from nested conditionals');
     });
 
     /**

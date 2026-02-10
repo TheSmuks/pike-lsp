@@ -249,6 +249,9 @@ int main(int argc, array(string) argv) {
         "batch_parse": lambda(mapping params, object ctx) {
             return ctx->parser->batch_parse_request(params);
         },
+        "parse_preprocessor_blocks": lambda(mapping params, object ctx) {
+            return ctx->parser->parse_preprocessor_blocks_request(params);
+        },
         "resolve": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_resolve(params);
         },
