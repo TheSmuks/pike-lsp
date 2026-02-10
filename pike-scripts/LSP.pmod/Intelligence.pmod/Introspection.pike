@@ -542,12 +542,17 @@ protected object safe_instantiate(program prog) {
 
 //! Introspect a compiled program to extract symbols
 //! @param prog The compiled program to introspect
+//! @param source_inherits Optional array of inherit metadata from source parsing
+//! @param depth Recursion depth for nested class introspection (default: 0, max: 5)
 //! @returns Mapping containing symbols, functions, variables, classes, inherits
 //!
 //! IMPORTANT: Uses safe_instantiate() to prevent timeout crashes when
 //! introspecting modules with complex dependencies (e.g., Crypto.PGP
 //! which has #require directives that trigger module loading).
-mapping introspect_program(program prog, array(mapping)|void source_inherits) {
+mapping introspect_program(program prog, array(mapping)|void source_inherits, int|void depth) {
+    // Initialize depth parameter
+    if (!depth) depth = 0;
+
     mapping result = ([
         "symbols": ({}),
         "functions": ({}),
@@ -816,6 +821,12 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits) {
                         member_type_info = ([ "kind": "array" ]);
                     } else if (mappingp(member_value)) {
                         member_type_info = ([ "kind": "mapping" ]);
+                    } else if (programp(member_value) && depth < 5) {
+                        // Recursively introspect nested class
+                        mapping nested_result = introspect_program(member_value, 0, depth + 1);
+                        if (nested_result && sizeof(nested_result->symbols) > 0) {
+                            member_type_info->children = nested_result->symbols;
+                        }
                     }
 
                     mapping member_symbol = ([
@@ -880,8 +891,12 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits) {
 //! on the object to extract its symbols.
 //!
 //! @param obj The object to introspect (already instantiated)
+//! @param depth Recursion depth for nested class introspection (default: 0, max: 5)
 //! @returns Mapping containing symbols, functions, variables, classes, inherits
-mapping introspect_object(object obj) {
+mapping introspect_object(object obj, int|void depth) {
+    // Initialize depth parameter
+    if (!depth) depth = 0;
+
     mapping result = ([
         "symbols": ({}),
         "functions": ({}),
@@ -1118,6 +1133,12 @@ mapping introspect_object(object obj) {
                         member_type_info = ([ "kind": "array" ]);
                     } else if (mappingp(member_value)) {
                         member_type_info = ([ "kind": "mapping" ]);
+                    } else if (programp(member_value) && depth < 5) {
+                        // Recursively introspect nested class
+                        mapping nested_result = introspect_program(member_value, 0, depth + 1);
+                        if (nested_result && sizeof(nested_result->symbols) > 0) {
+                            member_type_info->children = nested_result->symbols;
+                        }
                     }
 
                     mapping member_symbol = ([

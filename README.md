@@ -260,8 +260,8 @@ While Pike LSP provides comprehensive IDE support, there are some known limitati
 
 | Limitation | Description | Impact |
 |------------|-------------|--------|
-| **Preprocessor Directives** | `#if`, `#else`, `#endif` blocks are fully skipped. Parser.Pike.split() cannot handle preprocessor syntax, and evaluating conditions requires full macro expansion. | Symbols inside preprocessor blocks are NOT indexed. Workaround: Use platform-agnostic code or separate files. |
-| **Nested Classes** | Nested class declarations are found by the tokenizer but members are not recursively extracted. Parser finds top-level declarations; Introspection extracts direct members only (one level). | Go-to-definition works for nested class declarations. Members of nested classes beyond level 1 are not indexed. |
+| **Preprocessor Directives** | Symbols inside `#if`/`#else`/`#endif` blocks are now indexed using token-based extraction. Conditional symbols appear with metadata (e.g., `[#if DEBUG]`). | **Improved**: Conditional symbols are now visible in outline, completion, and hover. Limitation: Syntactically incomplete branches use best-effort token extraction (may miss complex patterns). |
+| **Nested Classes** | Nested class declarations and their members are now recursively extracted up to depth 5. Document outline shows full hierarchy. | **Improved**: Go-to-definition, hover, and completion work for nested class members at all levels. Limitation: Very deep nesting (>5 levels) is capped for performance. |
 | **Type Inference** | Basic types from literals and signatures work. Flow-sensitive analysis and generic type resolution are not implemented. | Explicit types show correctly. Complex scenarios like `if (cond) x = 1; else x = "str"` show `mixed` instead of narrowed type. |
 | **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Completion won't show symbols from dynamically loaded code. |
 
