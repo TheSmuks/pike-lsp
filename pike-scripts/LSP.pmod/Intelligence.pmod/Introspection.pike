@@ -822,11 +822,8 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits, in
                     } else if (mappingp(member_value)) {
                         member_type_info = ([ "kind": "mapping" ]);
                     } else if (programp(member_value) && depth < 5) {
-                        // Recursively introspect nested class
-                        mapping nested_result = introspect_program(member_value, 0, depth + 1);
-                        if (nested_result && sizeof(nested_result->symbols) > 0) {
-                            member_type_info->children = nested_result->symbols;
-                        }
+                        // Skip recursive introspection of nested classes to avoid crashes
+                        // The class type information is already captured above
                     }
 
                     mapping member_symbol = ([
@@ -1134,11 +1131,8 @@ mapping introspect_object(object obj, int|void depth) {
                     } else if (mappingp(member_value)) {
                         member_type_info = ([ "kind": "mapping" ]);
                     } else if (programp(member_value) && depth < 5) {
-                        // Recursively introspect nested class
-                        mapping nested_result = introspect_program(member_value, 0, depth + 1);
-                        if (nested_result && sizeof(nested_result->symbols) > 0) {
-                            member_type_info->children = nested_result->symbols;
-                        }
+                        // Skip recursive introspection of nested classes to avoid crashes
+                        // The class type information is already captured above
                     }
 
                     mapping member_symbol = ([
