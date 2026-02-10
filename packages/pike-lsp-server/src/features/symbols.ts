@@ -80,6 +80,16 @@ export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
         detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
     }
 
+    // Add conditional compilation info
+    // Pike returns: conditional: 1 (flag), condition: string, branch: number
+    if (sym['conditional']) {
+        const branch = sym['branch'] as number | undefined;
+        const condition = sym['condition'] as string | undefined;
+        const conditionPrefix = branch === 0 ? '#if' : '#elif';
+        const conditionalInfo = `[${conditionPrefix} ${condition || ''}]`;
+        detail = detail ? `${detail}  ${conditionalInfo}` : conditionalInfo;
+    }
+
     return detail;
 }
 
@@ -122,6 +132,11 @@ export function registerSymbolsHandlers(
 
         if (detail) {
             result.detail = detail;
+        }
+
+        // Recursively convert children (nested class members)
+        if (pikeSymbol.children && pikeSymbol.children.length > 0) {
+            result.children = pikeSymbol.children.map(convertSymbol);
         }
 
         return result;

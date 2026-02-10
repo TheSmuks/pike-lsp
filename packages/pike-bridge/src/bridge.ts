@@ -21,6 +21,7 @@ import type {
     PikeVersionInfo,
     AnalyzeResponse,
     AnalysisOperation,
+    PreprocessorBlock,
 } from './types.js';
 import { BRIDGE_TIMEOUT_DEFAULT, BATCH_PARSE_MAX_SIZE, PROCESS_STARTUP_DELAY, GRACEFUL_SHUTDOWN_DELAY } from './constants.js';
 import { Logger } from '@pike-lsp/core';
@@ -927,6 +928,31 @@ export class PikeBridge extends EventEmitter {
         });
 
         return result;
+    }
+
+    /**
+     * Parse preprocessor conditional blocks (#if/#else/#endif).
+     *
+     * Extracts the structure of preprocessor directives, including:
+     * - Condition expressions
+     * - Branch line ranges (if/elif/else)
+     * - Nesting depth
+     *
+     * This is used for conditional symbol extraction, where symbols inside
+     * different preprocessor branches are tagged with metadata indicating
+     * which condition they belong to.
+     *
+     * @param code - Pike source code to parse.
+     * @returns Object with blocks array containing preprocessor structure.
+     * @example
+     * ```ts
+     * const result = await bridge.parsePreprocessorBlocks('#if DEBUG\nint x;\n#endif');
+     * console.log(result.blocks[0].condition); // 'DEBUG'
+     * console.log(result.blocks[0].branches[0].startLine); // 2
+     * ```
+     */
+    async parsePreprocessorBlocks(code: string): Promise<{ blocks: PreprocessorBlock[] }> {
+        return this.sendRequest<{ blocks: PreprocessorBlock[] }>('parse_preprocessor_blocks', { code });
     }
 
     /**
