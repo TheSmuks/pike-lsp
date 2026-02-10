@@ -82,3 +82,6 @@ QA_TEST_REPORT_PHASE5.md
 pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
 # OMC agent cache
 .omc/
+
+# Agent config (local overrides)
+agent.config.local

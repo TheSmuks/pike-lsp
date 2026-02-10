@@ -71,6 +71,18 @@ export interface MockConnection {
     onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
     onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
     console: { log: (...args: any[]) => void };
+    languages: {
+        callHierarchy: {
+            onPrepare: (handler: any) => void;
+            onOutgoingCalls: (handler: any) => void;
+            onIncomingCalls: (handler: any) => void;
+        };
+        typeHierarchy: {
+            onPrepare: (handler: any) => void;
+            onSupertypes: (handler: any) => void;
+            onSubtypes: (handler: any) => void;
+        };
+    };
     definitionHandler: DefinitionHandler;
     declarationHandler: DeclarationHandler;
     typeDefinitionHandler: TypeDefinitionHandler;
@@ -92,6 +104,12 @@ export function createMockConnection(): MockConnection {
     let _documentHighlightHandler: DocumentHighlightHandler | null = null;
     let _implementationHandler: ImplementationHandler | null = null;
     let _documentSymbolHandler: DocumentSymbolHandler | null = null;
+    let _callHierarchyPrepareHandler: any = null;
+    let _callHierarchyOutgoingCallsHandler: any = null;
+    let _callHierarchyIncomingCallsHandler: any = null;
+    let _typeHierarchyPrepareHandler: any = null;
+    let _typeHierarchySupertypesHandler: any = null;
+    let _typeHierarchySubtypesHandler: any = null;
 
     return {
         onDefinition(handler: DefinitionHandler) { _definitionHandler = handler; },
@@ -103,6 +121,18 @@ export function createMockConnection(): MockConnection {
         onDocumentSymbol(handler: DocumentSymbolHandler) { _documentSymbolHandler = handler; },
         onWorkspaceSymbol() {},
         console: { log: () => {} },
+        languages: {
+            callHierarchy: {
+                onPrepare(handler: any) { _callHierarchyPrepareHandler = handler; },
+                onOutgoingCalls(handler: any) { _callHierarchyOutgoingCallsHandler = handler; },
+                onIncomingCalls(handler: any) { _callHierarchyIncomingCallsHandler = handler; },
+            },
+            typeHierarchy: {
+                onPrepare(handler: any) { _typeHierarchyPrepareHandler = handler; },
+                onSupertypes(handler: any) { _typeHierarchySupertypesHandler = handler; },
+                onSubtypes(handler: any) { _typeHierarchySubtypesHandler = handler; },
+            },
+        },
         get definitionHandler(): DefinitionHandler {
             if (!_definitionHandler) throw new Error('No definition handler registered');
             return _definitionHandler;

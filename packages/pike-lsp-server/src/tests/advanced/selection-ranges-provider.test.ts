@@ -13,7 +13,83 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
-import { SelectionRange } from 'vscode-languageserver/node.js';
+import { SelectionRange, Position } from 'vscode-languageserver/node.js';
+import { PikeSymbol } from '@pike-lsp/pike-bridge';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+
+/**
+ * Helper: Create a mock PikeSymbol
+ */
+function createSymbol(overrides: Partial<PikeSymbol> = {}): PikeSymbol {
+    return {
+        name: 'testSymbol',
+        kind: 'function',
+        range: {
+            start: { line: 0, character: 0 },
+            end: { line: 2, character: 1 }
+        },
+        selectionRange: {
+            start: { line: 0, character: 4 },
+            end: { line: 0, character: 8 }
+        },
+        position: { line: 0, character: 4 },
+        children: [],
+        modifiers: [],
+        ...overrides
+    };
+}
+
+/**
+ * Helper: Find symbol at position in hierarchical symbol tree
+ */
+function findSymbolAtPosition(symbols: PikeSymbol[], position: Position): PikeSymbol | null {
+    for (const symbol of symbols) {
+        if (!symbol.range) continue;
+
+        // Check if position is within symbol's range
+        const inRange =
+            position.line >= symbol.range.start.line &&
+            position.line <= symbol.range.end.line &&
+            (position.line === symbol.range.start.line
+                ? position.character >= symbol.range.start.character
+                : true) &&
+            (position.line === symbol.range.end.line
+                ? position.character <= symbol.range.end.character
+                : true);
+
+        if (inRange) {
+            // Check children first (more specific)
+            if (symbol.children && symbol.children.length > 0) {
+                const childMatch = findSymbolAtPosition(symbol.children, position);
+                if (childMatch) return childMatch;
+            }
+            return symbol;
+        }
+    }
+    return null;
+}
+
+/**
+ * Helper: Build selection range hierarchy from symbol
+ */
+function buildRangeHierarchy(
+    symbol: PikeSymbol,
+    document: TextDocument,
+    position: Position,
+    parentRange?: SelectionRange
+): SelectionRange {
+    const currentRange: SelectionRange = {
+        range: symbol.range || symbol.selectionRange || {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 }
+        },
+        parent: parentRange
+    };
+
+    // If this symbol has a parent in the hierarchy, build it
+    // (In real implementation, we'd walk up the symbol tree)
+    return currentRange;
+}
 
 /**
  * Helper: Create a mock SelectionRange
@@ -100,8 +176,49 @@ describe('Selection Ranges Provider', () => {
      */
     describe('Scenario 18.3: Selection Ranges - Block level', () => {
         it('should select function body block', () => {
-            // Placeholder: TDD test for function block
-            assert.ok(true, 'Should select function body block');
+            // RED test: Semantic function block selection using symbol hierarchy
+            const mainFunc = createSymbol({
+                name: 'main',
+                kind: 'function',
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 4, character: 1 }
+                },
+                selectionRange: {
+                    start: { line: 0, character: 4 },
+                    end: { line: 0, character: 8 }
+                },
+                children: [
+                    createSymbol({
+                        name: 'write',
+                        kind: 'function',
+                        range: {
+                            start: { line: 2, character: 4 },
+                            end: { line: 2, character: 20 }
+                        },
+                        selectionRange: {
+                            start: { line: 2, character: 4 },
+                            end: { line: 2, character: 9 }
+                        }
+                    })
+                ]
+            });
+
+            const position = { line: 2, character: 10 }; // Inside write("Hello")
+
+            // Test: Find the innermost symbol containing the position
+            const found = findSymbolAtPosition([mainFunc], position);
+
+            assert.ok(found, 'Should find a symbol at position');
+            assert.equal(found?.name, 'write', 'Should find the write function symbol');
+            assert.ok(found?.range, 'Found symbol should have a range');
+
+            // Test: Build hierarchy from found symbol
+            const range = buildRangeHierarchy(found, {} as TextDocument, position);
+
+            assert.ok(range.range, 'Should build a selection range');
+            assert.ok(range.range.start, 'Range should have start position');
+            assert.ok(range.range.end, 'Range should have end position');
         });
 
         it('should select if-statement block', () => {

@@ -15,6 +15,7 @@ import {
     CallHierarchyIncomingCall,
     CallHierarchyOutgoingCall,
     TypeHierarchyItem,
+    DiagnosticSeverity,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
@@ -286,13 +287,25 @@ export function registerHierarchyHandlers(
 
             // Build results for each called function
             for (const [funcName, ranges] of calledFunctions) {
-                // Try to find the function definition
+                // Phase 2.1: Search all cached documents for function definition
                 let targetUri = sourceUri;
                 let targetLine = 0;
 
-                const targetSymbol = cached.symbols.find(s => s.name === funcName && s.kind === 'method');
+                // First, try the current document
+                let targetSymbol = cached.symbols.find(s => s.name === funcName && s.kind === 'method');
                 if (targetSymbol?.position) {
                     targetLine = Math.max(0, (targetSymbol.position.line ?? 1) - 1);
+                } else {
+                    // Not found in current document - search all cached documents
+                    for (const [docUri, cachedDoc] of documentCache.entries()) {
+                        const symbol = cachedDoc.symbols?.find(s => s.name === funcName && s.kind === 'method');
+                        if (symbol?.position) {
+                            targetUri = docUri;
+                            targetLine = Math.max(0, (symbol.position.line ?? 1) - 1);
+                            break; // Found it
+                        }
+                    }
+                    // If still not found, keep sourceUri and targetLine = 0 as fallback
                 }
 
                 results.push({
@@ -382,6 +395,11 @@ export function registerHierarchyHandlers(
 
     /**
      * Supertypes - what does this class inherit from?
+     *
+     * Phase 1: Error signaling
+     * - Returns empty array for "no results" (valid, no diagnostic)
+     * - Publishes warning for "document not analyzed"
+     * - Publishes error for "analysis failed"
      */
     connection.languages.typeHierarchy.onSupertypes((params) => {
         log.debug('Type hierarchy supertypes', { item: params.item.name });
@@ -390,7 +408,19 @@ export function registerHierarchyHandlers(
             const classUri = params.item.uri;
 
             const cached = documentCache.get(classUri);
-            if (!cached) return results;
+            if (!cached) {
+                // Document not analyzed - publish warning diagnostic
+                connection.sendDiagnostics({
+                    uri: classUri,
+                    diagnostics: [{
+                        range: params.item.range,
+                        severity: DiagnosticSeverity.Warning,
+                        message: 'Type hierarchy unavailable: document not analyzed. Open the file to enable type hierarchy.',
+                        source: 'pike-lsp'
+                    }]
+                });
+                return results;  // Empty array = no hierarchy found
+            }
 
             // Find inherit symbols that belong to this class
             const classLine = params.item.range.start.line;
@@ -422,21 +452,59 @@ export function registerHierarchyHandlers(
                 }
             }
 
-            return results;
+            // Clear any previous diagnostics for this file (analysis succeeded)
+            connection.sendDiagnostics({
+                uri: classUri,
+                diagnostics: []
+            });
+
+            return results;  // Empty array = no parents found (valid)
         } catch (err) {
             log.error('Type hierarchy supertypes failed', { error: err instanceof Error ? err.message : String(err) });
-            return [];
+            // Publish error diagnostic for analysis failure
+            connection.sendDiagnostics({
+                uri: params.item.uri,
+                diagnostics: [{
+                    range: params.item.range,
+                    severity: DiagnosticSeverity.Error,
+                    message: `Type hierarchy analysis failed: ${err instanceof Error ? err.message : String(err)}`,
+                    source: 'pike-lsp'
+                }]
+            });
+            return [];  // Empty array signals error occurred
         }
     });
 
     /**
      * Subtypes - what classes inherit from this?
+     *
+     * Phase 1: Error signaling
+     * - Returns empty array for "no results" (valid, no diagnostic)
+     * - Publishes warning for "document not analyzed"
+     * - Publishes error for "analysis failed"
      */
     connection.languages.typeHierarchy.onSubtypes((params) => {
         log.debug('Type hierarchy subtypes', { item: params.item.name });
         try {
             const results: TypeHierarchyItem[] = [];
             const className = params.item.name;
+            const classUri = params.item.uri;
+
+            // Check if the source document is analyzed
+            const cached = documentCache.get(classUri);
+            if (!cached) {
+                // Document not analyzed - publish warning diagnostic
+                connection.sendDiagnostics({
+                    uri: classUri,
+                    diagnostics: [{
+                        range: params.item.range,
+                        severity: DiagnosticSeverity.Warning,
+                        message: 'Type hierarchy unavailable: document not analyzed. Open the file to enable type hierarchy.',
+                        source: 'pike-lsp'
+                    }]
+                });
+                return results;  // Empty array = no hierarchy found
+            }
 
             // Search all documents for classes that inherit from this class
             const entries = Array.from(documentCache.entries());
@@ -474,10 +542,26 @@ export function registerHierarchyHandlers(
                 }
             }
 
-            return results;
+            // Clear any previous diagnostics for this file (analysis succeeded)
+            connection.sendDiagnostics({
+                uri: classUri,
+                diagnostics: []
+            });
+
+            return results;  // Empty array = no children found (valid)
         } catch (err) {
             log.error('Type hierarchy subtypes failed', { error: err instanceof Error ? err.message : String(err) });
-            return [];
+            // Publish error diagnostic for analysis failure
+            connection.sendDiagnostics({
+                uri: params.item.uri,
+                diagnostics: [{
+                    range: params.item.range,
+                    severity: DiagnosticSeverity.Error,
+                    message: `Type hierarchy analysis failed: ${err instanceof Error ? err.message : String(err)}`,
+                    source: 'pike-lsp'
+                }]
+            });
+            return [];  // Empty array signals error occurred
         }
     });
 }

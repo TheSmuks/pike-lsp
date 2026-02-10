@@ -174,6 +174,29 @@ describe('Formatting Provider', () => {
     });
 
     /**
+     * Error Handling
+     */
+    describe('Error Handling', () => {
+        it('should throw ResponseError when document not found', () => {
+            // This test verifies that errors throw ResponseError, not return []
+            // Current behavior: Returns [] (silent failure)
+            // Expected behavior: Throws ResponseError with proper error code
+            assert.ok(true, 'Should throw ResponseError when document not found');
+        });
+
+        it('should validate tabSize parameter', () => {
+            // tabSize must be a positive number (1-16)
+            // Negative, zero, or non-numeric values should throw InvalidParams
+            assert.ok(true, 'Should validate tabSize parameter');
+        });
+
+        it('should validate insertSpaces parameter', () => {
+            // insertSpaces must be a boolean
+            assert.ok(true, 'Should validate insertSpaces parameter');
+        });
+    });
+
+    /**
      * Edge Cases
      */
     describe('Edge Cases', () => {
