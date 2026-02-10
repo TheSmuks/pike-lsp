@@ -11,7 +11,6 @@ import {
     InsertTextFormat,
 } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 
 /**
@@ -360,7 +359,7 @@ interface LabelDetails {
  */
 export function buildLabelDetails(symbol: PikeSymbol): LabelDetails | undefined {
     // For methods/functions: show signature
-    if (symbol.kind === 'method' || symbol.kind === 'function') {
+    if (symbol.kind === 'method') {
         const params = formatParameterList(symbol);
         const returnType = formatReturnType(symbol);
         const detail = params && returnType
@@ -388,12 +387,18 @@ export function buildLabelDetails(symbol: PikeSymbol): LabelDetails | undefined 
  * Format parameter list for a function/method
  */
 function formatParameterList(symbol: PikeSymbol): string | null {
-    if (!symbol.argNames || symbol.argNames.length === 0) {
+    // Type guard: check if symbol has method properties
+    if (!('argNames' in symbol && 'argTypes' in symbol)) {
+        return null;
+    }
+    const methodSymbol = symbol as { argNames?: (string | null)[]; argTypes?: (unknown | null)[] };
+
+    if (!methodSymbol.argNames || methodSymbol.argNames.length === 0) {
         return null;
     }
 
-    const params = symbol.argNames.map((name, i) => {
-        const type = symbol.argTypes?.[i];
+    const params = methodSymbol.argNames.map((name, i) => {
+        const type = methodSymbol.argTypes?.[i];
         const typeName = type ? formatTypeName(type) : 'mixed';
         const paramName = name ?? `arg${i}`;
         return `${typeName} ${paramName}`;
@@ -406,10 +411,16 @@ function formatParameterList(symbol: PikeSymbol): string | null {
  * Format return type for a function/method
  */
 function formatReturnType(symbol: PikeSymbol): string | null {
-    if (!symbol.returnType) {
+    // Type guard: check if symbol has returnType property
+    if (!('returnType' in symbol)) {
         return null;
     }
-    return formatTypeName(symbol.returnType);
+    const methodSymbol = symbol as { returnType?: unknown };
+
+    if (!methodSymbol.returnType) {
+        return null;
+    }
+    return formatTypeName(methodSymbol.returnType);
 }
 
 /**

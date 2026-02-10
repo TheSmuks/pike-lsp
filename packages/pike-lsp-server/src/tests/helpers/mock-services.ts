@@ -104,12 +104,6 @@ export function createMockConnection(): MockConnection {
     let _documentHighlightHandler: DocumentHighlightHandler | null = null;
     let _implementationHandler: ImplementationHandler | null = null;
     let _documentSymbolHandler: DocumentSymbolHandler | null = null;
-    let _callHierarchyPrepareHandler: any = null;
-    let _callHierarchyOutgoingCallsHandler: any = null;
-    let _callHierarchyIncomingCallsHandler: any = null;
-    let _typeHierarchyPrepareHandler: any = null;
-    let _typeHierarchySupertypesHandler: any = null;
-    let _typeHierarchySubtypesHandler: any = null;
 
     return {
         onDefinition(handler: DefinitionHandler) { _definitionHandler = handler; },
@@ -123,14 +117,14 @@ export function createMockConnection(): MockConnection {
         console: { log: () => {} },
         languages: {
             callHierarchy: {
-                onPrepare(handler: any) { _callHierarchyPrepareHandler = handler; },
-                onOutgoingCalls(handler: any) { _callHierarchyOutgoingCallsHandler = handler; },
-                onIncomingCalls(handler: any) { _callHierarchyIncomingCallsHandler = handler; },
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onOutgoingCalls(_handler: any) { /* Store for testing if needed */ },
+                onIncomingCalls(_handler: any) { /* Store for testing if needed */ },
             },
             typeHierarchy: {
-                onPrepare(handler: any) { _typeHierarchyPrepareHandler = handler; },
-                onSupertypes(handler: any) { _typeHierarchySupertypesHandler = handler; },
-                onSubtypes(handler: any) { _typeHierarchySubtypesHandler = handler; },
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onSupertypes(_handler: any) { /* Store for testing if needed */ },
+                onSubtypes(_handler: any) { /* Store for testing if needed */ },
             },
         },
         get definitionHandler(): DefinitionHandler {

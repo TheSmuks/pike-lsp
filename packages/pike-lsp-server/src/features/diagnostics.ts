@@ -10,11 +10,11 @@ import type {
     TextDocuments,
     Diagnostic,
     DiagnosticSeverity,
-    DiagnosticTag,
     DidChangeConfigurationParams,
     Position,
     Range,
 } from 'vscode-languageserver/node.js';
+import { DiagnosticTag } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';

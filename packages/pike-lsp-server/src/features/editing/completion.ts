@@ -61,7 +61,7 @@ export function registerCompletionHandlers(
         const triggerKind = context.triggerKind;
 
         // LSP spec: 1 = Invoked, 2 = TriggerCharacter, 3 = TriggerForIncompleteCompletions
-        if (triggerKind === 2) {
+        if (triggerKind === 2 && context.triggerCharacter) {
             return {
                 kind: 'triggerCharacter',
                 character: context.triggerCharacter

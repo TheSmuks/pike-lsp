@@ -55,8 +55,8 @@ function buildSymbolHierarchy(
     symbol: PikeSymbol | null,
     document: TextDocument,
     position: Position,
-    services: Services,
-    uri: string
+    _services: Services,
+    _uri: string
 ): SelectionRange | null {
     if (!symbol) {
         return null;
