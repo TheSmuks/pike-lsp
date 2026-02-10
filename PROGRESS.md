@@ -18,6 +18,15 @@
 
 ## Current Pipeline Status
 
+**Iteration 2 COMPLETE - 4 implementations, architect verified**
+
+| Pipeline ID | Feature | Agent ID | Status | Result |
+|-------------|---------|----------|--------|--------|
+| Task 10 | Document Symbol | abdbe5c | ✅ COMPLETE | 4 integration tests, 0 placeholders |
+| Task 8 | Type Hierarchy (Phase 1) | a375f7f | ⚠️ CONDITIONAL | Error signaling, 56 placeholders |
+| Task 11 | Call Hierarchy (Phase 2) | a3b6d58 | ✅ COMPLETE | Cross-file resolution, 2 tests |
+| Task 9 | Folding Range (Phase 1) | ae9420c | ⚠️ CONDITIONAL | Protocol fixes, 36 placeholders |
+
 **Iteration 1 COMPLETE - 3 of 4 pipelines successful**
 
 | Pipeline ID | Feature | Agent ID | Status | Result |
@@ -31,8 +40,12 @@
 
 ## Feature Health Scores
 
-| Feature | Before | After | Improvement |
-|---------|--------|-------|-------------|
+| Feature | Before | After Iteration 2 | Total Improvement |
+|---------|--------|------------------|-------------------|
+| Document Symbol Provider | 92 (0% placeholders) | 95 (4 new tests) | +3 health, gold standard |
+| Type Hierarchy Provider | 60 (100% placeholders) | 65 (error signaling) | +5 health, 56 placeholders remain |
+| Call Hierarchy Provider | 65 (100% placeholders) | 75 (cross-file) | +10 health, 55 placeholders remain |
+| Folding Range Provider | 75 (100% placeholders) | 80 (protocol fix) | +5 health, 36 placeholders remain |
 | Diagnostics Provider | 80 (0% tests) | 85 (2% tests) | +2% coverage, error handling |
 | Formatting Provider | 60 (0% tests) | 75 (8% tests) | +15% coverage, error distinction |
 | Selection Ranges Provider | 70 (19% pass) | 95 (100% pass) | +81% pass rate, semantic |
@@ -42,13 +55,14 @@
 
 ## Overall Metrics
 
-| Metric | Baseline | Current | Target | Status |
-|--------|----------|--------|--------|--------|
-| Test Pass Rate | 100% (3/3 fast) | 100% (3/3 fast) | ≥100% | ✅ |
-| Test Quality | 88% real | 88% real | >88% | ✅ |
-| Placeholders Converted | 0 | 5 | >0 | ✅ |
-| Bugs Fixed | 0 | 15 | >0 | ✅ |
-| UNDEFINED Traps Eliminated | 0 | 13 | >0 | ✅ |
+| Metric | Baseline | Iteration 1 | Iteration 2 | Target | Status |
+|--------|----------|-------------|-------------|--------|--------|
+| Test Pass Rate | 100% (3/3) | 100% (3/3) | 100% (1789/0) | ≥100% | ✅ |
+| Test Quality | 88% real | 88% real | 88% real | >88% | ✅ |
+| Placeholders Converted | 0 | 5 | 9 (4 new) | >0 | ✅ |
+| Bugs Fixed | 0 | 15 | 22 (protocol fixes) | >0 | ✅ |
+| UNDEFINED Traps Eliminated | 0 | 13 | 17 (4 new) | >0 | ✅ |
+| Technical Debt | 0 | 0 | 5 (TDD violations) | 0 | ⚠️ |
 
 ---
 
@@ -88,12 +102,31 @@
 
 ---
 
-## Next Iteration Recommendations
+## Next Iteration Recommendations (Iteration 3)
 
+**Priority 1: Fix Technical Debt**
+1. Convert 5 TDD violation placeholders to real tests (formatting, folding range)
+2. Convert 5 Type Hierarchy Tier 1 tests (core functionality)
+
+**Priority 2: Placeholder Conversion**
+1. Type Hierarchy: 56 placeholders → target 10 conversions
+2. Call Hierarchy: 55 placeholders → target 10 conversions
+3. Folding Range: 36 placeholders → target 10 conversions
+
+**Priority 3: Deferred Features**
+1. Type Hierarchy Phases 2-5 (cross-file, workspace search, performance)
+2. Call Hierarchy Phases 1,3-4 (placeholders, brace counting, error distinction)
+3. Folding Range Phases 2-4 (ADR-001 refactor, missing features)
+
+**Priority 4: E2E Integration**
+1. Run E2E tests for all 4 Iteration 2 features
+2. Verify cross-file call hierarchy with real Pike bridge
+3. Verify Roxen integration end-to-end
+
+**Previous Recommendations (from Iteration 1):**
 1. **Document Links Provider** - Fix spec with actual APIs, re-run pipeline
 2. **More Test Conversion** - Convert more placeholders in completed providers
-3. **Type/Call Hierarchy** - Run Scout on 59 + 55 placeholder tests
-4. **Performance Testing** - Verify no regressions on large files
+3. **Performance Testing** - Verify no regressions on large files
 
 ---
 
@@ -109,12 +142,21 @@ All implementations followed:
 
 ## Session Summary
 
-**Duration:** ~90 minutes
+**Iteration 1 Duration:** ~90 minutes
 **Agents Spawned:** 12 (4 scouts, 4 specs, 4 reviewers, 3 builders, orchestrator)
 **Pipelines Complete:** 3/4 (75%)
 **Bugs Fixed:** 15
 **Tests Converted:** 5
 **UNDEFINED Traps Eliminated:** 13
 
+**Iteration 2 Duration:** ~2 hours
+**Agents Spawned:** 16 (4 scouts, 4 specs, 4 reviewers, 4 builders, architect)
+**Pipelines Complete:** 4/4 (100% - 2 conditional)
+**Bugs Fixed:** 7 (protocol errors, silent failures)
+**Tests Added:** 11 (4 integration, 3 error signaling, 2 cross-file, 2 protocol)
+**Technical Debt Created:** 5 (TDD violations - tracked for Iteration 3)
+**Placeholders Converted:** 4 (Document Symbol integration tests)
+**UNDEFINED Traps Eliminated:** 4 (empty vs error distinctions)
+
 **Mode:** RALPH + ULTRAWORK
-**Status:** READY FOR ARCHITECT VERIFICATION
+**Status:** Iteration 2 COMPLETE, architect CONDITIONAL_APPROVE (78/100)
