@@ -72,14 +72,14 @@ export function provideRoxenCompletions(
     return getModuleTypeCompletions();
   }
 
-  // TYPE_* completions in defvar args - trigger on TYPE_ prefix
-  if (/\bTYPE_\w*$/.test(line)) {
-    return getVarTypeCompletions();
-  }
-
   // VAR_* completions - trigger on VAR_ prefix
   if (/\bVAR_\w*$/.test(line)) {
     return getVarFlagCompletions();
+  }
+
+  // TYPE_* completions in defvar args - trigger on TYPE_ prefix
+  if (/\bTYPE_\w*$/.test(line)) {
+    return getVarTypeCompletions();
   }
 
   // defvar snippet - trigger when typing "defvar" as a word
