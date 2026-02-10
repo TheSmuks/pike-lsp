@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770723039544,
+  "lastUpdate": 1770723201167,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -15886,6 +15886,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.613136396694215,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1c618d8625400ada14dbd743ddb4b5d59b911c0e",
+          "message": "feat: Nested classes and preprocessor symbol extraction (#27)\n\n* feat: implement nested classes and preprocessor symbol extraction\n\nP1: Nested Classes (HIGH impact, LOW effort)\n- Add recursive parse_class_body() function with depth guard (max 5 levels)\n- Introspection now recursively extracts nested class members\n- TypeScript convertSymbol() handles nested children\n- Document outline shows full nested class hierarchy\n\nP2: Preprocessor Directives (HIGH impact, MEDIUM effort)\n- Add parse_preprocessor_blocks() to identify #if/#elif/#else/#endif structure\n- Add extract_symbols_from_branch() for token-based symbol extraction\n- Integration into parse_request() with 16-branch variant cap\n- TypeScript providers display conditional metadata (e.g., \"[#if DEBUG]\")\n- Handles incomplete code branches using Parser.Pike.split()\n\nChanges:\n- pike-scripts/LSP.pmod/Parser.pike: +608 lines (recursive parsing, preprocessor)\n- pike-scripts/LSP.pmod/Intelligence.pmod/Introspection.pike: +25 lines (recursive introspection)\n- packages/pike-lsp-server/src/features/symbols.ts: children + conditional display\n- packages/pike-bridge/src/types.ts: type definitions for children & conditional\n- README.md: Updated Known Limitations to reflect improvements\n\nTest Results:\n- 109/110 E2E tests pass (1 pre-existing infrastructure failure unrelated to changes)\n- 43/43 LSP feature tests pass\n- Bridge tests pass\n- Architect verified: implementation is production-ready\n\nNote: Pre-commit hook bypassed due to pre-existing server test failure\nunrelated to these changes (StdlibIndexManager stdlib loading issue).\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: remove recursive introspection to prevent Pike crashes\n\nISSUE:\nRecursive introspection of nested classes in introspect_program() and\nintrospect_object() caused segfault crashes when introspecting stdlib\nmodules like Stdio that have deeply nested class structures.\n\nROOT CAUSE:\nWhen introspecting object members, if a member is a program (nested class),\nthe code tried to recursively call introspect_program() on the program object.\nHowever, introspect_program() tries to compile_string(encode_value(prog)),\nwhich fails when prog is already a loaded program, causing Pike process crashes.\n\nFIX:\nRemoved recursive introspection logic from both functions. The class type\ninformation (name, kind, signature) is already captured in earlier code, so\nnested classes are still properly documented - just without their members.\n\nTRADE-OFF:\n- Before: Nested class members included in introspection results\n- After: Nested classes documented without their members\n- Benefit: No crashes, stable introspection for complex modules\n\nVERIFICATION:\n- All 29 StdlibIndexManager tests now pass\n- All 43 E2E feature tests pass\n- Stdio, Array, and other stdlib modules resolve correctly\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-10T11:31:51Z",
+          "tree_id": "bab38a8b69e4a86280232f6831ac8a3d505ed5f4",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/1c618d8625400ada14dbd743ddb4b5d59b911c0e"
+        },
+        "date": 1770723200452,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.83549933333333,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 256.09924958333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 257.49589941666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.63791975,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2549668287795992,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.013882596491228,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 51.01248,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.073142679104477,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.006210321637427,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.27434504558640693,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.265768235648334,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5416356380270485,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2028231992481203,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.17637683986747651,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.617113149882904,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.37206910365853657,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3511530246073299,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10175759811352535,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.56606557439734,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08453615587015587,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3768937297146055,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.11104866666665,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.05831716666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3856881277936963,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5507353613581245,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08167043089879883,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.669990741666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.5764233770491805,
             "unit": "ms"
           }
         ]
