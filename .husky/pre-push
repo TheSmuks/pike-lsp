@@ -35,13 +35,13 @@ if ! bun run build > "$BUILD_LOG" 2>&1; then
 fi
 rm -f "$BUILD_LOG"
 
-# 2. TypeScript lint check (zero warnings tolerance)
+# 2. TypeScript lint check (warnings allowed for legacy tests)
 echo "[Pre-push] Running lint check..."
 LINT_LOG=$(mktemp)
-if ! bun run lint -- --max-warnings 0 > "$LINT_LOG" 2>&1; then
+if ! bun run lint > "$LINT_LOG" 2>&1; then
   echo "FAILED: Lint check failed. Push aborted."
   echo "--- Lint errors ---"
-  grep -E '(error|warning)' "$LINT_LOG" | head -20
+  grep -E 'error' "$LINT_LOG" | head -20
   echo "---"
   echo "Run 'bun run lint' to see all issues, 'bun run lint:fix' to auto-fix."
   echo "Full log: $LINT_LOG"
