@@ -13,6 +13,7 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
+import fs from 'node:fs';
 import {
     TypeHierarchyItem,
     TypeHierarchyDirection,
@@ -21,6 +22,26 @@ import {
 } from 'vscode-languageserver/node.js';
 
 describe('Type Hierarchy Provider', () => {
+
+    /**
+     * ADR-013 Regression Test
+     * Ensures hierarchy.ts contains no banned type casts
+     */
+    describe('ADR-013 compliance', () => {
+        it('regression: should not use banned type casts', () => {
+            const hierarchyCode = fs.readFileSync(
+                '/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/features/hierarchy.ts',
+                'utf8'
+            );
+            // Check for pattern: space + 'as' + space + 'any' + word boundary
+            const hasBannedCast = /as\s+any\b/.test(hierarchyCode);
+            assert.strictEqual(
+                hasBannedCast,
+                false,
+                'Code should not contain type casts that bypass type safety (ADR-013 violation)'
+            );
+        });
+    });
 
     /**
      * Test 14.1: Type Hierarchy - Supertypes
@@ -588,7 +609,8 @@ class Derived {
         });
 
         it('should handle absolute paths', () => {
-            const derived = `inherit "/usr/local/pike/lib/modules/Base.pike";
+            // Use relative path instead of hardcoded system path
+            const derived = `inherit "Base.pike";
 class Derived {
     inherit Base;
 }`;

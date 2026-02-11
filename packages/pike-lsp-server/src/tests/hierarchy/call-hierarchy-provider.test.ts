@@ -397,7 +397,7 @@ void caller() {
             const cacheEntries = new Map([
                 [file1Uri, makeCacheEntry({
                     symbols: [
-                        sym('caller', 'method', { position: { line: 2, character: 0 } }),
+                        sym('caller', 'method', { position: { line: 2, column: 0 } }),
                     ],
                     symbolPositions: new Map([
                         ['helper', [{ line: 2, character: 4 }]], // helper() call in caller (line 2, 0-indexed)
@@ -405,7 +405,7 @@ void caller() {
                 })],
                 [file2Uri, makeCacheEntry({
                     symbols: [
-                        sym('helper', 'method', { position: { line: 1, character: 0 } }),
+                        sym('helper', 'method', { position: { line: 1, column: 0 } }),
                     ],
                     symbolPositions: new Map(),
                 })],
@@ -431,6 +431,7 @@ void caller() {
                     },
                 },
                 console: { log: () => {} },
+                sendDiagnostics: () => {},  // Mock sendDiagnostics
             };
 
             // Register handlers
@@ -495,7 +496,7 @@ void caller() {
             const cacheEntries = new Map([
                 [file1Uri, makeCacheEntry({
                     symbols: [
-                        sym('caller', 'method', { position: { line: 2, character: 0 } }),
+                        sym('caller', 'method', { position: { line: 2, column: 0 } }),
                     ],
                     symbolPositions: new Map([
                         ['undefinedFunction', [{ line: 2, character: 4 }]], // Line 2, 0-indexed
@@ -523,6 +524,7 @@ void caller() {
                     },
                 },
                 console: { log: () => {} },
+                sendDiagnostics: () => {},  // Mock sendDiagnostics
             };
 
             // Register handlers
@@ -539,10 +541,9 @@ void caller() {
                 item: prepareResult[0]
             });
 
-            // Validate: should still return outgoing call, but uri defaults to source
-            assert.strictEqual(outgoingCalls.length, 1, 'Should have 1 outgoing call');
-            assert.strictEqual(outgoingCalls[0].to.name, 'undefinedFunction');
-            assert.strictEqual(outgoingCalls[0].to.uri, file1Uri, 'Defaults to source URI when not found');
+            // Validate: should skip unresolved functions (no line 0 items)
+            assert.strictEqual(outgoingCalls.length, 0,
+                'Should skip unresolved functions, not create invalid items');
         });
 
         it('should show incoming calls from other files', () => {
