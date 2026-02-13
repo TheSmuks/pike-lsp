@@ -462,18 +462,88 @@ void caller() {
             assert.strictEqual(outgoingCalls.length, 1, 'Should have 1 outgoing call');
             assert.strictEqual(outgoingCalls[0].to.name, 'helper', 'Callee should be named helper');
 
-            // TODO: Cross-file URI resolution not yet implemented
-            // Currently returns file1Uri, should return file2Uri after feature implementation
-            assert.ok(outgoingCalls[0].to.uri, 'Callee should have a valid URI');
+            // THIS ASSERTION SHOULD FAIL (RED STATE):
+            // Current implementation only searches same document, so uri will be file1Uri
+            // After implementation, uri should be file2Uri
+            assert.strictEqual(outgoingCalls[0].to.uri, file2Uri,
+                `Callee should be in file2.pike (cross-file), but got ${outgoingCalls[0].to.uri}`);
 
             assert.strictEqual(outgoingCalls[0].fromRanges.length, 1, 'Should have 1 call site');
             assert.strictEqual(outgoingCalls[0].fromRanges[0].start.line, 2, 'Call should be on line 2 (0-indexed)');
         });
 
         it('should return empty when callee not in any cached document', async () => {
-            // TODO: Investigate implementation behavior for unresolved functions
-            // Test expects 0 items but implementation returns 1
-            assert.ok(true, 'Should return empty when callee not in any cached document');
+            // Phase 2 TDD Test: Missing callee in cache
+            // GREEN: This should work (returns empty when no definition found)
+
+            const { TextDocument } = await import('vscode-languageserver-textdocument');
+            const { registerHierarchyHandlers } = await import('../../features/index.js');
+            const { createMockDocuments, createMockServices, makeCacheEntry, sym } = await import('../helpers/mock-services.js');
+
+            // file1.pike - calls undefinedFunction (not in cache)
+            const file1 = `extern void undefinedFunction();
+void caller() {
+    undefinedFunction();
+}`;
+
+            const file1Uri = 'file:///file1.pike';
+
+            // Create mock document
+            const doc1 = TextDocument.create(file1Uri, 'pike', 1, file1);
+            const documents = createMockDocuments(new Map([[file1Uri, doc1]]));
+
+            // Create mock cache with only caller (callee not in any cached document)
+            const cacheEntries = new Map([
+                [file1Uri, makeCacheEntry({
+                    symbols: [
+                        sym('caller', 'method', { position: { line: 2, column: 0 } }),
+                    ],
+                    symbolPositions: new Map([
+                        ['undefinedFunction', [{ line: 2, character: 4 }]], // Line 2, 0-indexed
+                    ]),
+                })],
+            ]);
+
+            const services = createMockServices({ cacheEntries });
+
+            // Capture handlers
+            let prepareHandler: any = null;
+            let outgoingCallsHandler: any = null;
+
+            const conn = {
+                languages: {
+                    callHierarchy: {
+                        onPrepare: (h: any) => { prepareHandler = h; },
+                        onOutgoingCalls: (h: any) => { outgoingCallsHandler = h; },
+                        onIncomingCalls: () => {},
+                    },
+                    typeHierarchy: {
+                        onPrepare: () => {},
+                        onSupertypes: () => {},
+                        onSubtypes: () => {},
+                    },
+                },
+                console: { log: () => {} },
+                sendDiagnostics: () => {},  // Mock sendDiagnostics
+            };
+
+            // Register handlers
+            registerHierarchyHandlers(conn as any, services as any, documents as any);
+
+            // Prepare call hierarchy
+            const prepareResult = await prepareHandler({
+                textDocument: { uri: file1Uri },
+                position: { line: 1, character: 5 }  // Line 1 (0-indexed) = "void caller() {"
+            });
+
+            // Get outgoing calls
+            const outgoingCalls = await outgoingCallsHandler({
+                item: prepareResult[0]
+            });
+
+            // Validate: should skip unresolved functions (no line 0 items)
+            assert.strictEqual(outgoingCalls.length, 0,
+                'Should skip unresolved functions, not create invalid items');
         });
 
         it('should show incoming calls from other files', () => {

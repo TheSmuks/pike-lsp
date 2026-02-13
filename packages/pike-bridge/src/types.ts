@@ -165,6 +165,16 @@ export interface PikeSymbol {
     condition?: string;
     /** Preprocessor branch index (0 for #if, 1+ for #elif/#else) */
     branch?: number;
+    /** Full symbol range (for LSP DocumentSymbol compatibility) */
+    range?: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+    };
+    /** Symbol identifier range (for LSP DocumentSymbol compatibility) */
+    selectionRange?: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+    };
 }
 
 export type PikeSymbolKind =

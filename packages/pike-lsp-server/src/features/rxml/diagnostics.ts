@@ -97,25 +97,31 @@ export async function validateRXMLDocument(
         }
 
         const timeout = setTimeout(() => {
-            const diagnostics: Diagnostic[] = [];
+            try {
+                const diagnostics: Diagnostic[] = [];
 
-            // Check for unknown tags
-            diagnostics.push(...checkUnknownTags(tags));
+                // Check for unknown tags
+                diagnostics.push(...checkUnknownTags(tags));
 
-            // Check for missing required attributes
-            for (const tag of tags) {
-                diagnostics.push(...checkMissingRequiredAttributes(tag));
+                // Check for missing required attributes
+                for (const tag of tags) {
+                    diagnostics.push(...checkMissingRequiredAttributes(tag));
+                }
+
+                // Check for unclosed container tags
+                diagnostics.push(...checkUnclosedContainerTags(tags));
+
+                // Check for invalid attribute values
+                for (const tag of tags) {
+                    diagnostics.push(...checkInvalidAttributeValues(tag));
+                }
+
+                resolve(diagnostics);
+            } catch (error) {
+                // Log error and resolve with empty diagnostics to prevent Promise hang
+                console.error('[RXML Validation] Error during validation:', error);
+                resolve([]);
             }
-
-            // Check for unclosed container tags
-            diagnostics.push(...checkUnclosedContainerTags(tags));
-
-            // Check for invalid attribute values
-            for (const tag of tags) {
-                diagnostics.push(...checkInvalidAttributeValues(tag));
-            }
-
-            resolve(diagnostics);
         }, debounceMs);
 
         debounceTimeouts.set(uri, timeout);

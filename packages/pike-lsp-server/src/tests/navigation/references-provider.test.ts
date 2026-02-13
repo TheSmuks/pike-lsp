@@ -230,11 +230,34 @@ int y = process();`;
 
     /**
      * Test 6.4: Find References - Exclude Declaration
-     * The current handler does NOT support includeDeclaration=false.
-     * It always includes all occurrences.
+     * The handler now supports includeDeclaration=false.
+     * When false, the declaration location is excluded from results.
      */
     describe('Scenario 6.4: Find references - exclude declaration', () => {
-        it('should return all references regardless of includeDeclaration flag', async () => {
+        it('should exclude declaration when includeDeclaration=false', async () => {
+            const code = `int myVar = 42;
+int x = myVar;
+myVar = 10;`;
+
+            const { references } = setup({
+                code,
+                symbols: [{
+                    name: 'myVar',
+                    kind: 'variable',
+                    modifiers: [],
+                    position: { file: 'test.pike', line: 1 },
+                }],
+            });
+
+            // includeDeclaration=false excludes the declaration (line 0)
+            const result = await references(0, 5, false);
+            expect(result.length).toBe(2);
+            // Verify remaining references are on lines 1 and 2
+            expect(result[0]!.range.start.line).toBe(1);
+            expect(result[1]!.range.start.line).toBe(2);
+        });
+
+        it('should include declaration when includeDeclaration=true', async () => {
             const code = `int myVar = 42;
 int x = myVar;`;
 
@@ -248,9 +271,79 @@ int x = myVar;`;
                 }],
             });
 
-            // includeDeclaration=false still returns all
+            // includeDeclaration=true includes all references (default behavior)
+            const result = await references(0, 5, true);
+            expect(result.length).toBe(2);
+        });
+
+        it('should return empty when only declaration exists and includeDeclaration=false', async () => {
+            const code = `int unusedVar = 42;`;
+
+            const { references } = setup({
+                code,
+                symbols: [{
+                    name: 'unusedVar',
+                    kind: 'variable',
+                    modifiers: [],
+                    position: { file: 'test.pike', line: 1 },
+                }],
+            });
+
+            // Only declaration exists, should return empty when excluded
+            const result = await references(0, 5, false);
+            expect(result.length).toBe(0);
+        });
+
+        it('should filter declaration from symbolPositions results', async () => {
+            const code = `int myVar = 42;
+int x = myVar;
+myVar = 10;`;
+
+            const positions = new Map<string, { line: number; character: number }[]>();
+            positions.set('myVar', [
+                { line: 0, character: 4 },  // Declaration
+                { line: 1, character: 8 },  // Usage
+                { line: 2, character: 0 },  // Usage
+            ]);
+
+            const { references } = setup({
+                code,
+                symbols: [{
+                    name: 'myVar',
+                    kind: 'variable',
+                    modifiers: [],
+                    position: { file: 'test.pike', line: 1 },
+                }],
+                symbolPositions: positions,
+            });
+
+            // Symbol positions should be filtered
             const result = await references(0, 5, false);
             expect(result.length).toBe(2);
+            expect(result[0]!.range.start.line).toBe(1);
+            expect(result[1]!.range.start.line).toBe(2);
+        });
+
+        it('should exclude declaration regardless of cursor position', async () => {
+            const code = `void myFunc() {}
+myFunc();
+myFunc();`;
+
+            const { references } = setup({
+                code,
+                symbols: [{
+                    name: 'myFunc',
+                    kind: 'method',
+                    modifiers: [],
+                    position: { file: 'test.pike', line: 1 },
+                }],
+            });
+
+            // Cursor on usage (line 1), but declaration still excluded
+            const result = await references(1, 1, false);
+            expect(result.length).toBe(2);
+            // Both usages, no declaration
+            expect(result.every(r => r.range.start.line !== 0)).toBe(true);
         });
     });
 
@@ -258,11 +351,94 @@ int x = myVar;`;
      * Test 6.5: Find References - Across Multiple Files
      */
     describe('Scenario 6.5: Find references - across multiple files', () => {
+        it('should find references across multiple open documents', async () => {
+            const mainCode = `int myVar = 42;
+int x = myVar;`;
+            const otherCode = `myVar = 10;`;
+
+            const positions = new Map<string, { line: number; character: number }[]>();
+            positions.set('myVar', [{ line: 0, character: 4 }, { line: 1, character: 8 }]);
+
+            const otherPositions = new Map<string, { line: number; character: number }[]>();
+            otherPositions.set('myVar', [{ line: 0, character: 0 }]);
+
+            const { references } = setup({
+                code: mainCode,
+                uri: 'file:///main.pike',
+                symbols: [{
+                    name: 'myVar',
+                    kind: 'variable',
+                    modifiers: [],
+                    position: { file: 'main.pike', line: 1 },
+                }],
+                symbolPositions: positions,
+                extraDocs: new Map([
+                    ['file:///other.pike', TextDocument.create('file:///other.pike', 'pike', 1, otherCode)],
+                ]),
+                extraCacheEntries: new Map([
+                    ['file:///other.pike', makeCacheEntry({
+                        symbols: [],
+                        symbolPositions: otherPositions,
+                    })],
+                ]),
+            });
+
+            const result = await references(0, 5);
+            // Should find references in both files
+            expect(result.length).toBe(3);
+            expect(result.some(r => r.uri === 'file:///main.pike')).toBe(true);
+            expect(result.some(r => r.uri === 'file:///other.pike')).toBe(true);
+        });
+
+        it('should exclude declaration across multiple files when includeDeclaration=false', async () => {
+            const mainCode = `int myVar = 42;
+int x = myVar;`;
+            const otherCode = `myVar = 10;`;
+
+            const positions = new Map<string, { line: number; character: number }[]>();
+            positions.set('myVar', [{ line: 0, character: 4 }, { line: 1, character: 8 }]);
+
+            const otherPositions = new Map<string, { line: number; character: number }[]>();
+            otherPositions.set('myVar', [{ line: 0, character: 0 }]);
+
+            const { references } = setup({
+                code: mainCode,
+                uri: 'file:///main.pike',
+                symbols: [{
+                    name: 'myVar',
+                    kind: 'variable',
+                    modifiers: [],
+                    position: { file: 'main.pike', line: 1 },
+                }],
+                symbolPositions: positions,
+                extraDocs: new Map([
+                    ['file:///other.pike', TextDocument.create('file:///other.pike', 'pike', 1, otherCode)],
+                ]),
+                extraCacheEntries: new Map([
+                    ['file:///other.pike', makeCacheEntry({
+                        symbols: [],
+                        symbolPositions: otherPositions,
+                    })],
+                ]),
+            });
+
+            // Exclude declaration from main.pike
+            const result = await references(0, 5, false);
+            expect(result.length).toBe(2);
+            // Declaration (line 0 of main.pike) should be excluded
+            expect(result.filter(r => r.uri === 'file:///main.pike').length).toBe(1);
+            expect(result.filter(r => r.uri === 'file:///main.pike')[0]!.range.start.line).toBe(1);
+            // Reference from other.pike should still be included
+            expect(result.filter(r => r.uri === 'file:///other.pike').length).toBe(1);
+        });
+
         test.todo('requires workspace mock: search workspace files');
 
         test.todo('requires workspace mock: include file paths in results');
 
         test.todo('requires workspace mock: handle uncached workspace files');
+
+        test.todo('requires workspace mock: workspace-only results not filtered by includeDeclaration (documented limitation)');
     });
 
     /**

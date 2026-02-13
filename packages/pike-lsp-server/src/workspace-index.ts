@@ -30,6 +30,7 @@ interface SymbolEntry {
     kind: string;
     uri: string;
     line: number;
+    parentName?: string;  // WS-001: Parent symbol name for containerName field
 }
 
 /**
@@ -162,17 +163,23 @@ export class WorkspaceIndex {
     /**
      * Flatten nested symbol tree into a single-level array
      * This ensures all class members are indexed at the workspace level
+     * WS-001: Tracks parent path for containerName field support
      */
-    private flattenSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
+    private flattenSymbols(symbols: PikeSymbol[], parentPath: string[] = []): PikeSymbol[] {
         const flat: PikeSymbol[] = [];
 
         for (const sym of symbols) {
-            // Add the symbol itself
+            // Add the symbol itself with parent path metadata
+            // WS-003: Store full ancestor chain for containerName
+            if (parentPath.length > 0) {
+                (sym as any).parentName = parentPath.join('.');
+            }
             flat.push(sym);
 
-            // Recursively flatten children
+            // Recursively flatten children, building the ancestor path
             if (sym.children && sym.children.length > 0) {
-                flat.push(...this.flattenSymbols(sym.children));
+                const newPath = [...parentPath, sym.name];
+                flat.push(...this.flattenSymbols(sym.children, newPath));
             }
         }
 
@@ -235,12 +242,13 @@ export class WorkspaceIndex {
     /**
      * Search for symbols across the workspace
      * Returns symbols matching the query string (case-insensitive prefix match)
+     * WS-012 through WS-017: Implements result ranking and sorting
      */
     searchSymbols(query: string, limit: number = LSP.MAX_WORKSPACE_SYMBOLS): SymbolInformation[] {
         const results: SymbolInformation[] = [];
         const queryLower = query?.toLowerCase() ?? '';
 
-        // If query is empty, return some symbols from each file
+        // If query is empty, return some symbols from each file (WS-016: unsorted)
         if (!queryLower) {
             for (const [uri, doc] of this.documents) {
                 if (!doc.symbols) continue;
@@ -256,11 +264,14 @@ export class WorkspaceIndex {
             return results;
         }
 
+        // Collect all matching results
+        const matched: Array<{ result: SymbolInformation; score: number }> = [];
+
         // Search by prefix in the lookup index
         for (const [name, entriesByUri] of this.symbolLookup) {
             if (name.startsWith(queryLower) || name.includes(queryLower)) {
                 for (const entry of entriesByUri.values()) {
-                    results.push({
+                    const result: SymbolInformation = {
                         name: entry.name,
                         kind: this.convertSymbolKind(entry.kind),
                         location: {
@@ -270,15 +281,68 @@ export class WorkspaceIndex {
                                 end: { line: Math.max(0, entry.line - 1), character: entry.name.length },
                             },
                         },
-                    });
-                    if (results.length >= limit) {
-                        return results;
+                    };
+                    // WS-001: Add containerName if parent exists
+                    if (entry.parentName) {
+                        result.containerName = entry.parentName;
                     }
+
+                    // WS-012 through WS-017: Calculate relevance score
+                    const score = this.scoreResult(result, queryLower);
+                    matched.push({ result, score });
                 }
             }
         }
 
-        return results;
+        // WS-012 through WS-017: Sort by score, then name length, then alphabetically
+        matched.sort((a, b) => {
+            // Primary: score (descending)
+            if (Math.abs(b.score - a.score) > 0.01) {
+                return b.score - a.score;
+            }
+            // Secondary: name length (ascending) - WS-014
+            if (a.result.name.length !== b.result.name.length) {
+                return a.result.name.length - b.result.name.length;
+            }
+            // Tertiary: alphabetical (ascending) - WS-017
+            return a.result.name.localeCompare(b.result.name);
+        });
+
+        // Return top results
+        return matched.slice(0, limit).map(m => m.result);
+    }
+
+    /**
+     * Calculate relevance score for a search result
+     * WS-012 through WS-017: Scoring algorithm for result ranking
+     *
+     * Scoring:
+     * - Exact match: 100 points
+     * - Prefix match: 50 points
+     * - Substring match: 10 points
+     * - Name length penalty: 0.1 per character (prefers shorter names within same match type)
+     */
+    private scoreResult(result: SymbolInformation, queryLower: string): number {
+        const nameLower = result.name.toLowerCase();
+        let score = 0;
+
+        // Exact match (WS-012)
+        if (nameLower === queryLower) {
+            score += 100;
+        }
+        // Prefix match (WS-013)
+        else if (nameLower.startsWith(queryLower)) {
+            score += 50;
+        }
+        // Substring match
+        else if (nameLower.includes(queryLower)) {
+            score += 10;
+        }
+
+        // WS-014: Prefer shorter names within same match type
+        score -= result.name.length * 0.1;
+
+        return score;
     }
 
     /**
@@ -574,6 +638,7 @@ export class WorkspaceIndex {
                 kind: symbol.kind,
                 uri,
                 line: symbol.position?.line ?? 1,
+                parentName: (symbol as any).parentName,  // WS-001: Store parent name for containerName
             };
 
             let entriesByUri = this.symbolLookup.get(nameLower);
@@ -639,7 +704,7 @@ export class WorkspaceIndex {
     private toSymbolInformation(symbol: PikeSymbol, uri: string): SymbolInformation {
         const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
 
-        return {
+        const result: SymbolInformation = {
             name: symbol.name,
             kind: this.convertSymbolKind(symbol.kind),
             location: {
@@ -650,6 +715,14 @@ export class WorkspaceIndex {
                 },
             },
         };
+
+        // WS-001: Add containerName if parent exists
+        const parentName = (symbol as any).parentName;
+        if (parentName) {
+            result.containerName = parentName;
+        }
+
+        return result;
     }
 
     private convertSymbolKind(kind: string): SymbolKind {

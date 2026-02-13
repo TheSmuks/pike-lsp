@@ -8,6 +8,7 @@ import {
     Connection,
     CompletionItem,
     CompletionItemKind,
+    CompletionList,
     TextDocuments,
     MarkupKind,
 } from 'vscode-languageserver/node.js';
@@ -32,9 +33,50 @@ export function registerCompletionHandlers(
     const { logger, documentCache, moduleContext } = services;
 
     /**
+     * Helper to wrap completion items in CompletionList
+     */
+    function toCompletionList(items: CompletionItem[]): CompletionList {
+        const COMPLETION_LIST_THRESHOLD = 50;
+        return {
+            isIncomplete: items.length > COMPLETION_LIST_THRESHOLD,
+            items
+        };
+    }
+
+    /**
+     * Parse completion trigger context from LSP params
+     */
+    interface CompletionTrigger {
+        kind: 'invoked' | 'triggerCharacter' | 'triggerForIncomplete';
+        character?: string;
+    }
+
+    function parseCompletionTrigger(
+        context?: { triggerKind: number; triggerCharacter?: string }
+    ): CompletionTrigger {
+        if (!context) {
+            return { kind: 'invoked' };
+        }
+
+        const triggerKind = context.triggerKind;
+
+        // LSP spec: 1 = Invoked, 2 = TriggerCharacter, 3 = TriggerForIncompleteCompletions
+        if (triggerKind === 2 && context.triggerCharacter) {
+            return {
+                kind: 'triggerCharacter',
+                character: context.triggerCharacter
+            };
+        } else if (triggerKind === 3) {
+            return { kind: 'triggerForIncomplete' };
+        }
+
+        return { kind: 'invoked' };
+    }
+
+    /**
      * Code completion handler
      */
-    connection.onCompletion(async (params): Promise<CompletionItem[]> => {
+    connection.onCompletion(async (params): Promise<CompletionList> => {
         const bridge = services.bridge;
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
@@ -42,15 +84,19 @@ export function registerCompletionHandlers(
 
         if (!document) {
             logger.debug('Completion request - no document found', { uri });
-            return [];
+            return toCompletionList([]);
         }
 
         if (!cached) {
             logger.debug('Completion request - no cached document', { uri });
-            return [];
+            return toCompletionList([]);
         }
 
         logger.debug('Completion request', { uri, symbolCount: cached.symbols.length });
+
+        // Parse trigger context
+        const trigger = parseCompletionTrigger(params.context);
+        logger.debug('Completion trigger', { trigger });
 
         const completions: CompletionItem[] = [];
         const text = document.getText();
@@ -59,8 +105,19 @@ export function registerCompletionHandlers(
         // Check for AutoDoc trigger
         const autoDocItems = getAutoDocCompletion(document, params.position);
         if (autoDocItems.length > 0) {
-            return autoDocItems;
+            return toCompletionList(autoDocItems);
         }
+
+        // Apply trigger-specific filtering
+        // For scope operator (:), only show :: members (handled in scopeMatch below)
+        // For member access (>, .), the filtering is handled by the Pike context
+        // Log trigger behavior for debugging
+        logger.debug('Completion triggered', {
+            kind: trigger.kind,
+            character: trigger.character,
+            uri: params.textDocument.uri,
+            position: params.position
+        });
 
         // Get the text before cursor to determine context
         const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
@@ -152,7 +209,7 @@ export function registerCompletionHandlers(
                     logger.debug('[COMPLETION:Q.1] Document not cached for this_program::');
                 }
 
-                return completions;
+                return toCompletionList(completions);
             } else if (services.stdlibIndex) {
                 // ParentClass:: - show members of that specific parent class
                 try {
@@ -164,7 +221,7 @@ export function registerCompletionHandlers(
                                 completions.push(buildCompletionItem(name, symbol, `From ${scopeName}`, undefined, completionContext));
                             }
                         }
-                        return completions;
+                        return toCompletionList(completions);
                     }
                 } catch (err) {
                     logger.debug('Failed to resolve scope module', { scopeName, error: err instanceof Error ? err.message : String(err) });
@@ -219,7 +276,7 @@ export function registerCompletionHandlers(
                                             completions.push(buildCompletionItem(name, symbol, `From ${typeName}`, undefined, completionContext));
                                         }
                                     }
-                                    return completions;
+                                    return toCompletionList(completions);
                                 }
                             } catch (err) {
                                 logger.debug('Type not in stdlib (obj-> workaround)', { typeName });
@@ -276,7 +333,7 @@ export function registerCompletionHandlers(
                                         ));
                                     }
                                 }
-                                return completions;
+                                return toCompletionList(completions);
                             }
                         }
                     }
@@ -299,7 +356,7 @@ export function registerCompletionHandlers(
                     for (const [name, symbol] of testModule.symbols) {
                         completions.push(buildCompletionItem(name, symbol, `From ${moduleName}`, undefined, completionContext));
                     }
-                    return completions;
+                    return toCompletionList(completions);
                 }
             } catch (err) {
                 logger.debug('Module. workaround failed', { moduleName, error: err instanceof Error ? err.message : String(err) });
@@ -356,7 +413,7 @@ export function registerCompletionHandlers(
                                 completions.push(buildCompletionItem(name, symbol, `From ${typeName}`, undefined, completionContext));
                             }
                         }
-                        return completions;
+                        return toCompletionList(completions);
                     }
                 } catch (err) {
                     logger.debug('Type not in stdlib', { typeName });
@@ -403,13 +460,13 @@ export function registerCompletionHandlers(
                                 ));
                             }
                         }
-                        return completions;
+                        return toCompletionList(completions);
                     }
                 }
             }
 
             logger.debug('Could not resolve type for member access', { objectRef });
-            return [];
+            return toCompletionList([]);
         }
 
         // General completion - suggest all symbols from current document
@@ -557,7 +614,7 @@ export function registerCompletionHandlers(
                                 detail: 'RXML tag'
                             });
                         }
-                        return completions;
+                        return toCompletionList(completions);
                     }
 
                     // Check if we're completing an attribute: inside <tag ... |
@@ -575,7 +632,7 @@ export function registerCompletionHandlers(
                                     detail: `RXML attribute for <${tagName}>`
                                 });
                             }
-                            return completions;
+                            return toCompletionList(completions);
                         }
                     }
                 }
@@ -646,7 +703,7 @@ export function registerCompletionHandlers(
             }
         }
 
-        return completions;
+        return toCompletionList(completions);
     });
 
     /**

@@ -185,8 +185,16 @@ export function buildCompletionItem(
         }
     }
 
-    let detail = formatPikeType(symbol.type);
-    if (isFunction) {
+    // Build label details for structured display
+    const labelDetails = buildLabelDetails(symbol as PikeSymbol);
+
+    // Determine detail field:
+    // - Use labelDetails.detail (type signature) if available
+    // - Fall back to signature or source for compatibility
+    let detail: string;
+    if (labelDetails?.detail) {
+        detail = labelDetails.detail;
+    } else if (isFunction) {
         if (typeObj?.['signature']) {
             detail = typeObj['signature'] as string;
         } else if (symbolAny['argNames'] && symbolAny['argTypes']) {
@@ -200,6 +208,8 @@ export function buildCompletionItem(
                 params.push(`${typeName} ${argName}`);
             }
             detail = `${returnType} ${name}(${params.join(', ')})`;
+        } else {
+            detail = formatPikeType(symbol.type);
         }
     } else if (isClass && constructorArgNames && constructorArgNames.length > 0) {
         const params: string[] = [];
@@ -210,11 +220,21 @@ export function buildCompletionItem(
         }
         detail = `${name}(${params.join(', ')})`;
     } else {
-        detail = source;
+        detail = formatPikeType(symbol.type);
     }
 
-    // Add inheritance info to detail
+    // Build provenance for labelDetails.description
+    let provenance: string | undefined;
     if (symbolAny['inherited']) {
+        const from = symbolAny['inheritedFrom'] as string | undefined;
+        provenance = from ? `Inherited from ${from}` : 'Inherited';
+    } else if (source && source !== 'Local symbol' && !source.startsWith('Local ')) {
+        // Use source as provenance if it's not a local symbol
+        provenance = source;
+    }
+
+    // Add inheritance info to detail (legacy compatibility)
+    if (symbolAny['inherited'] && !labelDetails?.detail) {
         const from = symbolAny['inheritedFrom'] as string | undefined;
         if (from) {
             detail += ` (Inherited from ${from})`;
@@ -237,6 +257,13 @@ export function buildCompletionItem(
         kind,
         detail,
     };
+
+    // Add labelDetails if we have provenance information
+    if (provenance) {
+        item.labelDetails = {
+            description: provenance
+        };
+    }
 
     // Calculate relevance based on context
     let priority = '5'; // Default
@@ -314,4 +341,98 @@ export function buildCompletionItem(
     }
 
     return item;
+}
+
+// ==================== Label Details Support (GAP-003) ====================
+
+/**
+ * Interface for label details structure
+ */
+interface LabelDetails {
+    detail?: string;      // Parameters, return type (e.g., "(string): int")
+    description?: string; // Provenance (e.g., "From ModuleName")
+}
+
+/**
+ * Build label details for a completion item
+ * Extracts type signature and provenance information
+ */
+export function buildLabelDetails(symbol: PikeSymbol): LabelDetails | undefined {
+    // For methods/functions: show signature
+    if (symbol.kind === 'method') {
+        const params = formatParameterList(symbol);
+        const returnType = formatReturnType(symbol);
+        const detail = params && returnType
+            ? `${params}: ${returnType}`
+            : params || returnType || undefined;
+
+        return detail ? { detail } : undefined;
+    }
+
+    // For variables: show type
+    if (symbol.kind === 'variable' && symbol.type) {
+        const typeName = formatTypeName(symbol.type);
+        return typeName ? { detail: typeName } : undefined;
+    }
+
+    // For classes/modules: show kind
+    if (symbol.kind === 'class' || symbol.kind === 'module') {
+        return { detail: symbol.kind };
+    }
+
+    return undefined;
+}
+
+/**
+ * Format parameter list for a function/method
+ */
+function formatParameterList(symbol: PikeSymbol): string | null {
+    // Type guard: check if symbol has method properties
+    if (!('argNames' in symbol && 'argTypes' in symbol)) {
+        return null;
+    }
+    const methodSymbol = symbol as { argNames?: (string | null)[]; argTypes?: (unknown | null)[] };
+
+    if (!methodSymbol.argNames || methodSymbol.argNames.length === 0) {
+        return null;
+    }
+
+    const params = methodSymbol.argNames.map((name, i) => {
+        const type = methodSymbol.argTypes?.[i];
+        const typeName = type ? formatTypeName(type) : 'mixed';
+        const paramName = name ?? `arg${i}`;
+        return `${typeName} ${paramName}`;
+    });
+
+    return `(${params.join(', ')})`;
+}
+
+/**
+ * Format return type for a function/method
+ */
+function formatReturnType(symbol: PikeSymbol): string | null {
+    // Type guard: check if symbol has returnType property
+    if (!('returnType' in symbol)) {
+        return null;
+    }
+    const methodSymbol = symbol as { returnType?: unknown };
+
+    if (!methodSymbol.returnType) {
+        return null;
+    }
+    return formatTypeName(methodSymbol.returnType);
+}
+
+/**
+ * Format a type name from a Pike type object
+ */
+function formatTypeName(type: unknown): string {
+    // Simple type formatting
+    if (typeof type === 'string') {
+        return type;
+    }
+    if (typeof type === 'object' && type !== null && 'kind' in type) {
+        return String((type as any).kind);
+    }
+    return 'mixed';
 }

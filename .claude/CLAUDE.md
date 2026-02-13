@@ -47,6 +47,63 @@ When making a non-trivial architectural choice:
 3. Add entry to INDEX.md
 4. Status starts as `proposed` until user approves -> `active`
 
+## MANDATORY: Strict Type Safety (ADR-013)
+
+**No `any`. No ignored TypeScript errors. No exceptions.**
+
+### Rules
+
+| Rule | Enforcement | Severity |
+|------|-------------|----------|
+| No `any` type | ESLint `error` + Claude hook | **BLOCKED** |
+| No `@ts-ignore` | ESLint `error` + Claude hook | **BLOCKED** |
+| No `@ts-nocheck` | ESLint `error` + Claude hook | **BLOCKED** |
+| No `@ts-expect-error` without description | ESLint `error` | **BLOCKED** |
+| Zero lint warnings on push | Pre-push hook `--max-warnings 0` | **BLOCKED** |
+
+### What to Use Instead of `any`
+
+```typescript
+// WRONG: Using `any` to avoid thinking about types
+function process(data: any): any { ... }
+
+// RIGHT: Use `unknown` and narrow
+function process(data: unknown): Result {
+    if (typeof data === 'string') { ... }
+    if (isMyType(data)) { ... }
+}
+
+// RIGHT: Use specific types
+function process(data: PikeAnalysisResult): SymbolInfo[] { ... }
+
+// RIGHT: Use generics
+function process<T extends BaseResult>(data: T): T { ... }
+
+// RIGHT: Use Record for arbitrary objects
+function process(data: Record<string, unknown>): void { ... }
+```
+
+### What to Do When a Type Error Appears
+
+1. **Fix the type.** This is the default and only acceptable response.
+2. **Add a type guard** if the type is genuinely unknown at that point.
+3. **Create a proper interface** if the shape is known but not yet typed.
+4. **Use `@ts-expect-error` with a 10+ char description** only for genuine third-party type mismatches that cannot be fixed.
+
+**NEVER:**
+- Use `any` to make a type error go away
+- Use `@ts-ignore` to suppress an error
+- Use `as any` to force a type cast
+- Use `// @ts-nocheck` to skip a file
+- Leave TypeScript warnings unresolved
+
+### Enforcement Layers
+
+1. **Claude hook** (`type-safety-gate.sh`): Blocks Edit/Write in real-time
+2. **ESLint** (`no-explicit-any: error`): Catches during lint
+3. **Pre-push** (`--max-warnings 0`): Blocks push with any warning
+4. **CI**: Build must pass (includes type checking)
+
 ## MANDATORY: Use Pike's Built-in Tooling First
 
 **Pike stdlib is the highest priority.** Before implementing any parsing, analysis, or utility code:

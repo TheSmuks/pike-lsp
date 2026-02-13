@@ -16,3 +16,5 @@
 2026-02-07 | infra | Carlini audit: added 5 agent role prompt templates in .claude/agent-roles/
 2026-02-07 | test | Added oracle test suite (8 tests) - Carlini known-good oracle pattern
 2026-02-08 | Phase 2 | Rewrote Roxen.pike parsing functions to use Parser.Pike.split() per ADR-001
+2026-02-10 | Selection Ranges Provider | Added semantic analysis with documentCache integration - symbol hierarchy, 1 test converted, 100% pass rate
+2026-02-10 | feat | Folding Range Provider Phase 1 protocol fixes
