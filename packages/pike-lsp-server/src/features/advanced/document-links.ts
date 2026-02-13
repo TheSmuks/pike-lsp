@@ -127,8 +127,9 @@ export function registerDocumentLinksHandler(
 
 /**
  * Resolve a module path from inherit statement to a file URI
+ * @export For testing purposes
  */
-function resolveModulePath(
+export function resolveModulePath(
     modulePath: string,
     _documentDir: string,
     documentCache: DocumentCache
