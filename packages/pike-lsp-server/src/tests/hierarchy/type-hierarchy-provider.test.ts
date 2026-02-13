@@ -14,6 +14,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
     TypeHierarchyItem,
@@ -32,7 +33,7 @@ describe('Type Hierarchy Provider', () => {
         it('regression: should not use banned type casts', () => {
             // Use relative path from test file to source file
             const hierarchyPath = path.resolve(
-                import.meta.dir,
+                path.dirname(fileURLToPath(import.meta.url)),
                 '../../features/hierarchy.ts'
             );
             const hierarchyCode = fs.readFileSync(hierarchyPath, 'utf8');
