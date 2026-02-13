@@ -16,6 +16,7 @@ Agents MUST consult this before starting work. Challenge any decision if context
 | 010 | workflow | Project-specific agent roles (5 specializations) | active | 010-project-agent-roles.md |
 | 011 | workflow | Carlini quality standards mandatory for all new code | active | 011-carlini-quality-standards.md |
 | 012 | ipc | Runtime response validation at bridge boundary | proposed | 012-bridge-response-validation.md |
+| 013 | workflow | Strict type safety - no `any`, no ignored TS errors | active | 013-strict-type-safety.md |
 
 ## Challenge Protocol
 

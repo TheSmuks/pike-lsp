@@ -35,7 +35,21 @@ if ! bun run build > "$BUILD_LOG" 2>&1; then
 fi
 rm -f "$BUILD_LOG"
 
-# 2. Run full test suite via test-agent.sh (agent-friendly output)
+# 2. TypeScript lint check (warnings allowed for legacy tests)
+echo "[Pre-push] Running lint check..."
+LINT_LOG=$(mktemp)
+if ! bun run lint > "$LINT_LOG" 2>&1; then
+  echo "FAILED: Lint check failed. Push aborted."
+  echo "--- Lint errors ---"
+  grep -E 'error' "$LINT_LOG" | head -20
+  echo "---"
+  echo "Run 'bun run lint' to see all issues, 'bun run lint:fix' to auto-fix."
+  echo "Full log: $LINT_LOG"
+  exit 1
+fi
+rm -f "$LINT_LOG"
+
+# 3. Run full test suite via test-agent.sh (agent-friendly output)
 if [ -f "scripts/test-agent.sh" ]; then
   echo "[Pre-push] Running full test suite..."
   bash scripts/test-agent.sh || {
@@ -62,7 +76,7 @@ else
   fi
 fi
 
-# 3. Secret detection (optional)
+# 4. Secret detection (optional)
 if command -v gitleaks >/dev/null 2>&1; then
   echo "[Pre-push] Scanning for secrets..."
   GITLEAKS_LOG=$(mktemp)

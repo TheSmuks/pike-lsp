@@ -18,6 +18,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
+import { convertDiagnostic } from '../../features/diagnostics.js';
 
 /**
  * Helper: Create a mock Diagnostic
@@ -44,9 +45,36 @@ describe('Diagnostics Provider', () => {
      * THEN: Return error diagnostic with message describing the syntax error
      */
     describe('Scenario 24.1: Diagnostics - Syntax error', () => {
-        it('should detect missing semicolon', () => {
-            // Placeholder: TDD test for missing semicolon
-            assert.ok(true, 'Should detect missing semicolon');
+        it('should convert Pike diagnostic to LSP diagnostic with exact structure', () => {
+            // RED PHASE: Test that convertDiagnostic produces expected output
+            // This test validates the diagnostic conversion logic
+
+            // Create a mock TextDocument
+            const mockDocument = {
+                getText: () => 'int x =;\nint y = 42;',
+                uri: 'file://test.pike'
+            };
+
+            // Create a Pike diagnostic (what the bridge returns)
+            const pikeDiagnostic = {
+                message: 'Syntax error: expected expression before ";"',
+                severity: 'error' as const,
+                position: { line: 1, column: 8 }
+            };
+
+            // Convert to LSP diagnostic
+            const lspDiagnostic = convertDiagnostic(pikeDiagnostic, mockDocument as any);
+
+            // EXACT expected diagnostic structure
+            assert.deepEqual(lspDiagnostic, {
+                severity: 1, // DiagnosticSeverity.Error
+                range: {
+                    start: { line: 0, character: 7 },
+                    end: { line: 0, character: 8 }
+                },
+                message: 'Syntax error: expected expression before ";"',
+                source: 'pike'
+            });
         });
 
         it('should detect unmatched brace', () => {

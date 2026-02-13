@@ -14,6 +14,7 @@ import type {
     Position,
     Range,
 } from 'vscode-languageserver/node.js';
+import { DiagnosticTag } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
@@ -55,6 +56,108 @@ function extractDeprecatedFromSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
 }
 
 /**
+ * Convert Pike severity to LSP severity
+ */
+function convertSeverity(severity: string): DiagnosticSeverity {
+    switch (severity) {
+        case 'error':
+            return 1; // DiagnosticSeverity.Error
+        case 'warning':
+            return 2; // DiagnosticSeverity.Warning
+        case 'info':
+            return 3; // DiagnosticSeverity.Information
+        default:
+            return 1; // DiagnosticSeverity.Error
+    }
+}
+
+/**
+ * Convert Pike diagnostic to LSP diagnostic
+ * Exported for testing
+ *
+ * Adds Diagnostic.code and Diagnostic.tags:
+ * - code: Error code identifier (e.g., "uninitialized-var", "syntax-error")
+ * - tags: DiagnosticTag.Deprecated for deprecated symbol usage
+ */
+export function convertDiagnostic(
+    pikeDiag: PikeDiagnostic,
+    document: TextDocument,
+    options?: { deprecated?: boolean; code?: string }
+): Diagnostic {
+    const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
+
+    // Get the line text to determine range
+    const text = document.getText();
+    const lines = text.split('\n');
+    const lineText = lines[line] ?? '';
+
+    // Find meaningful range within the line (skip whitespace and comments)
+    let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
+    let endChar = lineText.length;
+
+    // If no specific column, find the first non-whitespace character
+    if (!pikeDiag.position.column) {
+        const trimmedStart = lineText.search(/\S/);
+        if (trimmedStart >= 0) {
+            startChar = trimmedStart;
+        }
+    }
+
+    // Check if the line is a comment - if so, try to find the actual error line
+    const trimmedLine = lineText.trim();
+    if (PatternHelpers.isCommentLine(trimmedLine)) {
+        // This line is a comment, look for the next non-comment line for highlighting
+        // Or just use a minimal range to avoid confusing the user
+        for (let i = line + 1; i < lines.length && i < line + 5; i++) {
+            const nextLine = lines[i]?.trim() ?? '';
+            if (nextLine && PatternHelpers.isNotCommentLine(nextLine)) {
+                // Found a code line, but don't change the position - just use minimal highlight
+                break;
+            }
+        }
+        // For comment lines, only highlight a small portion (first 10 chars after whitespace)
+        endChar = Math.min(startChar + 10, lineText.length);
+    }
+
+    // Ensure endChar is reasonable (highlight at least 1 char, at most the line length)
+    if (endChar <= startChar) {
+        endChar = Math.min(startChar + Math.max(1, lineText.trim().length), lineText.length);
+    }
+
+    // Build diagnostic
+    const diagnostic: Diagnostic = {
+        severity: convertSeverity(pikeDiag.severity),
+        range: {
+            start: { line, character: startChar },
+            end: { line, character: endChar },
+        },
+        message: pikeDiag.message,
+        source: 'pike',
+    };
+
+    // Add diagnostic code if provided
+    if (options?.code) {
+        diagnostic.code = options.code;
+    } else {
+        // Infer code from message
+        if (pikeDiag.message.includes('uninitialized') || pikeDiag.message.includes('used before')) {
+            diagnostic.code = 'uninitialized-var';
+        } else if (pikeDiag.message.includes('syntax') || pikeDiag.message.includes('parse')) {
+            diagnostic.code = 'syntax-error';
+        } else if (pikeDiag.message.includes('type') || pikeDiag.message.includes('mismatch')) {
+            diagnostic.code = 'type-mismatch';
+        }
+    }
+
+    // Add tags for deprecated symbols
+    if (options?.deprecated) {
+        diagnostic.tags = [DiagnosticTag.Deprecated];
+    }
+
+    return diagnostic;
+}
+
+/**
  * Register diagnostics handlers with the LSP connection.
  *
  * @param connection - LSP connection
@@ -81,77 +184,6 @@ export function registerDiagnosticsHandlers(
         diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
     };
     let globalSettings: PikeSettings = defaultSettings;
-
-    /**
-     * Convert Pike severity to LSP severity
-     */
-    function convertSeverity(severity: string): DiagnosticSeverity {
-        switch (severity) {
-            case 'error':
-                return 1; // DiagnosticSeverity.Error
-            case 'warning':
-                return 2; // DiagnosticSeverity.Warning
-            case 'info':
-                return 3; // DiagnosticSeverity.Information
-            default:
-                return 1; // DiagnosticSeverity.Error
-        }
-    }
-
-    /**
-     * Convert Pike diagnostic to LSP diagnostic
-     */
-    function convertDiagnostic(pikeDiag: PikeDiagnostic, document: TextDocument): Diagnostic {
-        const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
-
-        // Get the line text to determine range
-        const text = document.getText();
-        const lines = text.split('\n');
-        const lineText = lines[line] ?? '';
-
-        // Find meaningful range within the line (skip whitespace and comments)
-        let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
-        let endChar = lineText.length;
-
-        // If no specific column, find the first non-whitespace character
-        if (!pikeDiag.position.column) {
-            const trimmedStart = lineText.search(/\S/);
-            if (trimmedStart >= 0) {
-                startChar = trimmedStart;
-            }
-        }
-
-        // Check if the line is a comment - if so, try to find the actual error line
-        const trimmedLine = lineText.trim();
-        if (PatternHelpers.isCommentLine(trimmedLine)) {
-            // This line is a comment, look for the next non-comment line for highlighting
-            // Or just use a minimal range to avoid confusing the user
-            for (let i = line + 1; i < lines.length && i < line + 5; i++) {
-                const nextLine = lines[i]?.trim() ?? '';
-                if (nextLine && PatternHelpers.isNotCommentLine(nextLine)) {
-                    // Found a code line, but don't change the position - just use minimal highlight
-                    break;
-                }
-            }
-            // For comment lines, only highlight a small portion (first 10 chars after whitespace)
-            endChar = Math.min(startChar + 10, lineText.length);
-        }
-
-        // Ensure endChar is reasonable (highlight at least 1 char, at most the line length)
-        if (endChar <= startChar) {
-            endChar = Math.min(startChar + Math.max(1, lineText.trim().length), lineText.length);
-        }
-
-        return {
-            severity: convertSeverity(pikeDiag.severity),
-            range: {
-                start: { line, character: startChar },
-                end: { line, character: endChar },
-            },
-            message: pikeDiag.message,
-            source: 'pike',
-        };
-    }
 
     /**
      * Build symbol position index for O(1) lookups
@@ -693,7 +725,12 @@ export function registerDiagnosticsHandlers(
                 if (shouldSkipDiagnostic(pikeDiag.message)) {
                     continue;
                 }
-                diagnostics.push(convertDiagnostic(pikeDiag, document));
+
+                // Check if this diagnostic is about a deprecated symbol
+                // (Pike analyzer doesn't currently provide this context, but we can add it later)
+                const isDeprecated = false; // TODO: Check if diagnostic relates to deprecated symbol
+
+                diagnostics.push(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }));
             }
 
             // Update type database with introspected symbols if compilation succeeded

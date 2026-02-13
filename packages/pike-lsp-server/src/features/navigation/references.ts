@@ -67,7 +67,7 @@ export function registerReferencesHandlers(
                 return symbolLine === cursorLine;
             });
 
-            const references: Location[] = [];
+            let references: Location[] = [];
 
             // Search for all occurrences of the word in the current document
             const lines = text.split('\n');
@@ -144,6 +144,13 @@ export function registerReferencesHandlers(
 
     /**
      * References handler - find all references to a symbol (Find References / Show Usages)
+     *
+     * LSP Compliance Notes:
+     * - includeDeclaration parameter controls whether the symbol's declaration is included
+     * - For parsed documents (symbolPositions), declaration is accurately filtered
+     * - For workspace-only text search results, declaration filtering is NOT applied
+     *   (LIMITATION: No symbol table available for uncached files)
+     * - Progress reporting is enabled for workspace scans of 20+ files
      */
     connection.onReferences(async (params): Promise<Location[]> => {
         log.debug('References request', { uri: params.textDocument.uri, position: params.position });
@@ -156,6 +163,10 @@ export function registerReferencesHandlers(
                 log.debug('References: no cached document');
                 return [];
             }
+
+            // Extract includeDeclaration parameter (LSP 3.17 spec)
+            // Default is true - include declaration in results
+            const includeDeclaration = params.context.includeDeclaration ?? true;
 
             const text = document.getText();
             const offset = document.offsetAt(params.position);
@@ -176,7 +187,7 @@ export function registerReferencesHandlers(
                 return [];
             }
 
-            log.debug('References: searching for word', { word, offset, start, end });
+            log.debug('References: searching for word', { word, offset, start, end, includeDeclaration });
 
             // Check if this word matches a known symbol
             let matchingSymbol = cached.symbols.find(s => s.name === word);
@@ -209,7 +220,7 @@ export function registerReferencesHandlers(
                 return [];
             }
 
-            const references: Location[] = [];
+            let references: Location[] = [];
 
             // Use symbolPositions index if available (pre-computed positions)
             if (cached.symbolPositions) {
@@ -317,52 +328,96 @@ export function registerReferencesHandlers(
                     word
                 });
 
-                // For workspace files, read and parse on-demand to find references
-                // Use the bridge to analyze files that might contain the symbol
-                for (const file of uncachedFiles) {
+                // Progress reporting configuration
+                const enableProgress = process.env['PIKE_LSP_REFERENCES_PROGRESS'] !== 'false';
+                const PROGRESS_THRESHOLD = 20; // Only show progress for searches of 20+ files
+                const BATCH_SIZE = 15;
+                const YIELD_EVERY_N_BATCHES = 5;
+
+                let progress: any = null;
+
+                // Create progress token for large workspace scans
+                if (enableProgress && uncachedFiles.length > PROGRESS_THRESHOLD) {
                     try {
-                        // Read file content
-                        const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                        const { readFile } = await import('node:fs/promises');
-                        const content = await readFile(filePath, 'utf-8');
-
-                        // Check if the word appears in the file (quick text search first)
-                        if (!content.includes(word)) {
-                            continue;
-                        }
-
-                        // Word appears in file, do proper search
-                        const lines = content.split('\n');
-                        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                            const line = lines[lineNum];
-                            if (!line) continue;
-                            let searchStart = 0;
-                            let matchIndex: number;
-
-                            while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
-                                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                                const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                                // Check word boundaries
-                                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                                    references.push({
-                                        uri: file.uri,
-                                        range: {
-                                            start: { line: lineNum, character: matchIndex },
-                                            end: { line: lineNum, character: matchIndex + word.length },
-                                        },
-                                    });
-                                }
-                                searchStart = matchIndex + 1;
-                            }
-                        }
+                        progress = await connection.window.createWorkDoneProgress();
+                        progress.begin('Searching workspace...', 0, uncachedFiles.length);
+                        log.debug('References: progress started', { totalFiles: uncachedFiles.length });
                     } catch (err) {
-                        // File might not exist or be readable, skip
-                        log.debug('References: failed to read workspace file', {
-                            uri: file.uri,
-                            error: err instanceof Error ? err.message : String(err),
-                        });
+                        // Client may not support workDoneProgress
+                        log.debug('References: failed to create progress', { error: err instanceof Error ? err.message : String(err) });
+                        progress = null;
                     }
+                }
+
+                // Process workspace files in batches with yielding
+                for (let i = 0; i < uncachedFiles.length; i += BATCH_SIZE) {
+                    const batch = uncachedFiles.slice(i, Math.min(i + BATCH_SIZE, uncachedFiles.length));
+
+                    for (const file of batch) {
+                        try {
+                            // Read file content
+                            const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+                            const { readFile } = await import('node:fs/promises');
+                            const content = await readFile(filePath, 'utf-8');
+
+                            // Check if the word appears in the file (quick text search first)
+                            if (!content.includes(word)) {
+                                continue;
+                            }
+
+                            // Word appears in file, do proper search
+                            // NOTE: Workspace-only results are NOT filtered by includeDeclaration
+                            // This is a documented limitation - we don't have symbol position info
+                            // for uncached files, so we can't identify which occurrence is the declaration
+                            const lines = content.split('\n');
+                            for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                                const line = lines[lineNum];
+                                if (!line) continue;
+                                let searchStart = 0;
+                                let matchIndex: number;
+
+                                while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                                    const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                                    const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+
+                                    // Check word boundaries
+                                    if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                                        references.push({
+                                            uri: file.uri,
+                                            range: {
+                                                start: { line: lineNum, character: matchIndex },
+                                                end: { line: lineNum, character: matchIndex + word.length },
+                                            },
+                                        });
+                                    }
+                                    searchStart = matchIndex + 1;
+                                }
+                            }
+                        } catch (err) {
+                            // File might not exist or be readable, skip
+                            log.debug('References: failed to read workspace file', {
+                                uri: file.uri,
+                                error: err instanceof Error ? err.message : String(err),
+                            });
+                        }
+                    }
+
+                    // Report progress after each batch
+                    if (progress) {
+                        const completed = Math.min(i + BATCH_SIZE, uncachedFiles.length);
+                        progress.report(completed, `Scanned ${completed} files...`);
+                    }
+
+                    // Yield periodically to avoid blocking the event loop
+                    if (progress && (i / BATCH_SIZE) % YIELD_EVERY_N_BATCHES === 0 && i > 0) {
+                        await new Promise(resolve => setImmediate(resolve));
+                    }
+                }
+
+                // Complete progress reporting
+                if (progress) {
+                    progress.done(`Found ${references.length} references`);
+                    log.debug('References: progress complete', { totalReferences: references.length });
                 }
 
                 log.debug('References: workspace search complete', {
@@ -370,7 +425,93 @@ export function registerReferencesHandlers(
                 });
             }
 
-            log.debug('References found', { word, count: references.length });
+            // Apply includeDeclaration filtering for parsed documents only
+            // NOTE: Workspace-only results (text search) are NOT filtered
+            // See limitation documentation above
+            if (!includeDeclaration && matchingSymbol.position) {
+                const declLine = matchingSymbol.position.line - 1; // Convert to 0-based
+
+                // Helper function to check if a reference URI matches the declaration file
+                // Handles various URI formats: file:///test.pike, file://test.pike, test.pike
+                const isDeclarationUri = (refUri: string): boolean => {
+                    if (!matchingSymbol.position) return false;
+
+                    // If symbol has no explicit file, only match the current document URI
+                    if (!matchingSymbol.position.file) {
+                        return refUri === uri;
+                    }
+
+                    const symFile = matchingSymbol.position.file;
+
+                    // Direct match
+                    if (refUri === symFile) return true;
+
+                    // Both are URIs - normalize and compare
+                    if (symFile.startsWith('file://') && refUri.startsWith('file://')) {
+                        // Extract paths and compare
+                        const symPath = symFile.replace(/^file:\/\//, '');
+                        const refPath = refUri.replace(/^file:\/\//, '');
+                        return symPath === refPath;
+                    }
+
+                    // Symbol file is not a URI but reference is
+                    if (refUri.startsWith('file://')) {
+                        const refPath = refUri.replace(/^file:\/\//, '');
+                        // Check if reference path ends with the symbol filename
+                        if (refPath.endsWith(`/${symFile}`) || refPath.endsWith(`\\${symFile}`)) {
+                            return true;
+                        }
+                        // For simple filename match (e.g., "test.pike")
+                        const refBasename = refPath.split('/').pop() ?? refPath.split('\\').pop() ?? '';
+                        if (refBasename === symFile) {
+                            return true;
+                        }
+                    }
+
+                    // Reference is not a URI but symbol file is
+                    if (symFile.startsWith('file://')) {
+                        const symPath = symFile.replace(/^file:\/\//, '');
+                        if (refUri.endsWith(`/${symPath}`) || refUri.endsWith(`\\${symPath}`)) {
+                            return true;
+                        }
+                        const symBasename = symPath.split('/').pop() ?? symPath.split('\\').pop() ?? '';
+                        if (refUri === symBasename) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                };
+
+                log.debug('References: filtering declaration', {
+                    includeDeclaration,
+                    declLine,
+                    declFile: matchingSymbol.position.file,
+                    currentUri: uri,
+                    word
+                });
+
+                // Filter out declaration location from parsed results
+                const beforeFilter = references.length;
+                references = references.filter(ref => {
+                    // Check if this reference is at the declaration location
+                    const isSameFile = isDeclarationUri(ref.uri);
+                    const isSameLine = ref.range.start.line === declLine;
+
+                    // Exclude if this is the declaration location
+                    // NOTE: This only works for parsed documents with symbolPositions
+                    // Workspace-only text search results may still include the declaration
+                    return !(isSameFile && isSameLine);
+                });
+
+                log.debug('References: filtered declaration', {
+                    beforeFilter,
+                    afterFilter: references.length,
+                    removed: beforeFilter - references.length
+                });
+            }
+
+            log.debug('References found', { word, count: references.length, includeDeclaration });
             return references;
         } catch (err) {
             log.error('References failed', { error: err instanceof Error ? err.message : String(err) });

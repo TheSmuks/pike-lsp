@@ -71,6 +71,18 @@ export interface MockConnection {
     onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
     onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
     console: { log: (...args: any[]) => void };
+    languages: {
+        callHierarchy: {
+            onPrepare: (handler: any) => void;
+            onOutgoingCalls: (handler: any) => void;
+            onIncomingCalls: (handler: any) => void;
+        };
+        typeHierarchy: {
+            onPrepare: (handler: any) => void;
+            onSupertypes: (handler: any) => void;
+            onSubtypes: (handler: any) => void;
+        };
+    };
     definitionHandler: DefinitionHandler;
     declarationHandler: DeclarationHandler;
     typeDefinitionHandler: TypeDefinitionHandler;
@@ -103,6 +115,18 @@ export function createMockConnection(): MockConnection {
         onDocumentSymbol(handler: DocumentSymbolHandler) { _documentSymbolHandler = handler; },
         onWorkspaceSymbol() {},
         console: { log: () => {} },
+        languages: {
+            callHierarchy: {
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onOutgoingCalls(_handler: any) { /* Store for testing if needed */ },
+                onIncomingCalls(_handler: any) { /* Store for testing if needed */ },
+            },
+            typeHierarchy: {
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onSupertypes(_handler: any) { /* Store for testing if needed */ },
+                onSubtypes(_handler: any) { /* Store for testing if needed */ },
+            },
+        },
         get definitionHandler(): DefinitionHandler {
             if (!_definitionHandler) throw new Error('No definition handler registered');
             return _definitionHandler;

@@ -7,12 +7,46 @@
 import {
     Connection,
     TextEdit,
+    ResponseError,
+    ErrorCodes,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { INDENT_PATTERNS } from '../../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
+
+/**
+ * Validate formatting options
+ * @throws {ResponseError} If options are invalid
+ */
+function validateFormattingOptions(options: { tabSize?: number; insertSpaces?: boolean }): void {
+    const { tabSize, insertSpaces } = options;
+
+    // Validate tabSize: must be a positive number (1-16)
+    if (tabSize !== undefined) {
+        if (typeof tabSize !== 'number') {
+            throw new ResponseError(
+                ErrorCodes.InvalidParams,
+                `tabSize must be a number, got: ${typeof tabSize}`
+            );
+        }
+        if (tabSize < 1 || tabSize > 16) {
+            throw new ResponseError(
+                ErrorCodes.InvalidParams,
+                `tabSize must be between 1 and 16, got: ${tabSize}`
+            );
+        }
+    }
+
+    // Validate insertSpaces: must be a boolean
+    if (insertSpaces !== undefined && typeof insertSpaces !== 'boolean') {
+        throw new ResponseError(
+            ErrorCodes.InvalidParams,
+            `insertSpaces must be a boolean, got: ${typeof insertSpaces}`
+        );
+    }
+}
 
 /**
  * Register formatting handlers.
@@ -29,13 +63,19 @@ export function registerFormattingHandlers(
      */
     connection.onDocumentFormatting((params): TextEdit[] => {
         log.debug('Document formatting request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const document = documents.get(uri);
 
-            if (!document) {
-                return [];
-            }
+        const uri = params.textDocument.uri;
+        const document = documents.get(uri);
+
+        if (!document) {
+            throw new ResponseError(
+                ErrorCodes.InvalidRequest,
+                `Document not found: ${uri}`
+            );
+        }
+
+        try {
+            validateFormattingOptions(params.options);
 
             const text = document.getText();
             const options = params.options;
@@ -45,8 +85,15 @@ export function registerFormattingHandlers(
 
             return formatPikeCode(text, indent);
         } catch (err) {
+            if (err instanceof ResponseError) {
+                // Re-throw ResponseError as-is (validation errors)
+                throw err;
+            }
             log.error('Document formatting failed', { error: err instanceof Error ? err.message : String(err) });
-            return [];
+            throw new ResponseError(
+                ErrorCodes.InternalError,
+                `Document formatting failed: ${err instanceof Error ? err.message : String(err)}`
+            );
         }
     });
 
@@ -55,13 +102,19 @@ export function registerFormattingHandlers(
      */
     connection.onDocumentRangeFormatting((params): TextEdit[] => {
         log.debug('Range formatting request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const document = documents.get(uri);
 
-            if (!document) {
-                return [];
-            }
+        const uri = params.textDocument.uri;
+        const document = documents.get(uri);
+
+        if (!document) {
+            throw new ResponseError(
+                ErrorCodes.InvalidRequest,
+                `Document not found: ${uri}`
+            );
+        }
+
+        try {
+            validateFormattingOptions(params.options);
 
             const text = document.getText();
             const options = params.options;
@@ -78,8 +131,15 @@ export function registerFormattingHandlers(
 
             return formattedEdits;
         } catch (err) {
+            if (err instanceof ResponseError) {
+                // Re-throw ResponseError as-is (validation errors)
+                throw err;
+            }
             log.error('Range formatting failed', { error: err instanceof Error ? err.message : String(err) });
-            return [];
+            throw new ResponseError(
+                ErrorCodes.InternalError,
+                `Range formatting failed: ${err instanceof Error ? err.message : String(err)}`
+            );
         }
     });
 }

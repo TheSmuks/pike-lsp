@@ -7,3 +7,4 @@
 2026-02-07 | setup | E2E tests need Xvfb on Linux (use bun run test:features which handles this)
 2026-02-07 | audit | Carlini compliance: 83/100. Gaps: AGENTS.md outdated (FIXED), agent role templates missing (FIXED), oracle testing missing (TODO)
 2026-02-07 | audit | Oracle testing (known-good comparison) is the remaining Carlini gap - not yet implemented
+2026-02-10 | executor | Selection Ranges: Phase 1 (documentCache) and Phase 2 (symbol hierarchy) complete - see .omc/implementation/selection-ranges-provider-report.md

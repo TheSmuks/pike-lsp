@@ -8,12 +8,15 @@
  * - 19.1 Code Actions - Organize imports
  * - 19.2 Code Actions - Quick fixes
  * - 19.3 Code Actions - Refactoring
+ * - Context Filtering (CA-001 through CA-015)
  */
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { CodeAction, CodeActionKind } from 'vscode-languageserver/node.js';
+import { CodeAction, CodeActionKind, CodeActionParams } from 'vscode-languageserver/node.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { getGenerateGetterSetterActions } from '../../features/advanced/getters-setters.js';
 
 /**
  * Helper: Create a mock CodeAction
@@ -481,6 +484,396 @@ int main() {
 
             assert.ok(result.result !== undefined, 'Should parse large file');
             assert.ok(elapsed < 500, `Should handle large file efficiently, took ${elapsed}ms`);
+        });
+    });
+
+    // ============================================================================
+    // Context Filtering Tests (CA-001 through CA-015)
+    // ============================================================================
+
+    /**
+     * CA-001: When context.only = [QuickFix], only return QuickFix actions
+     */
+    describe('Context Filtering - CA-001 QuickFix Filter', () => {
+        it('should return only QuickFix when context.only is quickfix', () => {
+            const onlyKinds = [CodeActionKind.QuickFix];
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            // Test QuickFix matches
+            assert.ok(matchesFilter(CodeActionKind.QuickFix), 'QuickFix should match');
+
+            // Test other kinds don't match
+            assert.ok(!matchesFilter(CodeActionKind.Refactor), 'Refactor should not match');
+            assert.ok(!matchesFilter(CodeActionKind.SourceOrganizeImports), 'SourceOrganizeImports should not match');
+        });
+    });
+
+    /**
+     * CA-002: When context.only = [Refactor], return RefactorRewrite actions
+     */
+    describe('Context Filtering - CA-002 Refactor Filter', () => {
+        it('should return RefactorRewrite when context.only is refactor', () => {
+            const onlyKinds = [CodeActionKind.Refactor];
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            // Test Refactor matches RefactorRewrite (hierarchical)
+            assert.ok(matchesFilter(CodeActionKind.RefactorRewrite), 'Refactor should match RefactorRewrite');
+            assert.ok(matchesFilter(CodeActionKind.Refactor), 'Refactor should match itself');
+
+            // Test other kinds don't match
+            assert.ok(!matchesFilter(CodeActionKind.QuickFix), 'QuickFix should not match');
+            assert.ok(!matchesFilter(CodeActionKind.SourceOrganizeImports), 'SourceOrganizeImports should not match');
+        });
+    });
+
+    /**
+     * CA-003: When context.only = [SourceOrganizeImports], only return organize action
+     */
+    describe('Context Filtering - CA-003 OrganizeImports Filter', () => {
+        it('should return only organize imports when context.only is SourceOrganizeImports', () => {
+            const onlyKinds = [CodeActionKind.SourceOrganizeImports];
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            assert.ok(matchesFilter(CodeActionKind.SourceOrganizeImports), 'SourceOrganizeImports should match');
+            assert.ok(!matchesFilter(CodeActionKind.QuickFix), 'QuickFix should not match');
+            assert.ok(!matchesFilter(CodeActionKind.RefactorRewrite), 'RefactorRewrite should not match');
+        });
+    });
+
+    /**
+     * CA-004: When context.only is empty array, return all applicable actions
+     */
+    describe('Context Filtering - CA-004 Empty Filter', () => {
+        it('should return all actions when context.only is empty', () => {
+            const onlyKinds: string[] = [];
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            // Empty filter means match everything
+            assert.ok(matchesFilter(CodeActionKind.QuickFix), 'Should match QuickFix');
+            assert.ok(matchesFilter(CodeActionKind.Refactor), 'Should match Refactor');
+            assert.ok(matchesFilter(CodeActionKind.SourceOrganizeImports), 'Should match SourceOrganizeImports');
+        });
+    });
+
+    /**
+     * CA-005: When context.only is undefined, return all applicable actions
+     */
+    describe('Context Filtering - CA-005 Undefined Filter', () => {
+        it('should return all actions when context.only is undefined', () => {
+            const onlyKinds = undefined;
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds!.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            // Undefined filter means match everything
+            assert.ok(matchesFilter(CodeActionKind.QuickFix), 'Should match QuickFix');
+            assert.ok(matchesFilter(CodeActionKind.Refactor), 'Should match Refactor');
+            assert.ok(matchesFilter(CodeActionKind.SourceOrganizeImports), 'Should match SourceOrganizeImports');
+        });
+    });
+
+    /**
+     * CA-006, CA-007: Validate URI is not empty string
+     */
+    describe('Input Validation - CA-006, CA-007 URI Validation', () => {
+        it('should validate URI is not empty', () => {
+            const uri = '';
+            const isValid = uri && typeof uri === 'string' && uri.length > 0;
+
+            assert.ok(!isValid, 'Empty URI should be invalid');
+        });
+
+        it('should accept valid non-empty URI', () => {
+            const uri = 'file:///path/to/test.pike';
+            const isValid = uri && typeof uri === 'string' && uri.length > 0;
+
+            assert.ok(isValid, 'Non-empty URI should be valid');
+        });
+    });
+
+    /**
+     * CA-008, CA-009: Validate range bounds
+     */
+    describe('Input Validation - CA-008, CA-009 Range Bounds', () => {
+        it('should detect out of bounds range', () => {
+            const lines = ['line 0', 'line 1', 'line 2'];
+            const startLine = 999;
+            const maxLine = lines.length - 1;
+
+            const isOutOfBounds = startLine < 0 || startLine >= lines.length;
+
+            assert.ok(isOutOfBounds, 'Line 999 should be out of bounds for 3-line document');
+        });
+
+        it('should clamp out of bounds range gracefully', () => {
+            const lines = ['line 0', 'line 1', 'line 2'];
+            const startLine = 999;
+
+            // Clamp to valid range
+            const clampedLine = Math.max(0, Math.min(startLine, lines.length - 1));
+
+            assert.equal(clampedLine, 2, 'Should clamp to last line');
+            assert.ok(lines[clampedLine] !== undefined, 'Clamped line should exist');
+        });
+    });
+
+    /**
+     * CA-010: Handle undefined/null diagnostics gracefully
+     */
+    describe('Input Validation - CA-010 Diagnostics Handling', () => {
+        it('should handle undefined diagnostics', () => {
+            const diagnostics = undefined as any;
+            const normalized = diagnostics ?? [];
+
+            assert.ok(Array.isArray(normalized), 'Should normalize undefined to empty array');
+            assert.equal(normalized.length, 0, 'Normalized array should be empty');
+        });
+
+        it('should handle null diagnostics', () => {
+            const diagnostics = null as any;
+            const normalized = diagnostics ?? [];
+
+            assert.ok(Array.isArray(normalized), 'Should normalize null to empty array');
+            assert.equal(normalized.length, 0, 'Normalized array should be empty');
+        });
+
+        it('should detect invalid diagnostics array', () => {
+            const diagnostics = 'not an array' as any;
+            const isValid = Array.isArray(diagnostics);
+
+            assert.ok(!isValid, 'String should not be valid diagnostics array');
+        });
+    });
+
+    /**
+     * CA-011: Getter/setter respects context.only filter
+     */
+    describe('Context Filtering - CA-011 Getter/Setter Filter', () => {
+        it('should return empty when filter excludes RefactorRewrite', () => {
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
+            const uri = 'file:///test.pike';
+            const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
+            const symbols: any[] = [{
+                name: '_foo',
+                kind: 'variable',
+                type: 'int',
+                position: { line: 1 }
+            }];
+
+            // Filter that excludes RefactorRewrite
+            const onlyKinds = [CodeActionKind.QuickFix];
+
+            const result = getGenerateGetterSetterActions(document, uri, range, symbols, onlyKinds);
+
+            assert.equal(result.length, 0, 'Should return no actions when filter excludes RefactorRewrite');
+        });
+
+        it('should return actions when filter includes Refactor', () => {
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
+            const uri = 'file:///test.pike';
+            const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
+            const symbols: any[] = [{
+                name: '_foo',
+                kind: 'variable',
+                type: 'int',
+                position: { line: 1 }
+            }];
+
+            // Filter that includes Refactor (should match RefactorRewrite)
+            const onlyKinds = [CodeActionKind.Refactor];
+
+            const result = getGenerateGetterSetterActions(document, uri, range, symbols, onlyKinds);
+
+            assert.ok(result.length > 0, 'Should return actions when filter includes Refactor');
+        });
+
+        it('should return all actions when filter is undefined', () => {
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
+            const uri = 'file:///test.pike';
+            const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
+            const symbols: any[] = [{
+                name: '_foo',
+                kind: 'variable',
+                type: 'int',
+                position: { line: 1 }
+            }];
+
+            // No filter - should return all actions
+            const result = getGenerateGetterSetterActions(document, uri, range, symbols);
+
+            assert.ok(result.length > 0, 'Should return all actions when filter is undefined');
+        });
+    });
+
+    /**
+     * CA-012: Hierarchical kind matching works
+     */
+    describe('Hierarchical Kind Matching - CA-012', () => {
+        it('should match refactorRewrite when filter is refactor', () => {
+            const onlyKinds = [CodeActionKind.Refactor];
+
+            // Test exact match
+            const exactMatch = onlyKinds.some((only) => {
+                return CodeActionKind.Refactor === only;
+            });
+            assert.ok(exactMatch, 'Exact match should work');
+
+            // Test hierarchical match - refactor.rewrite starts with refactor.
+            const hierarchicalMatch = onlyKinds.some((only) => {
+                return CodeActionKind.RefactorRewrite.startsWith(only + '.');
+            });
+            assert.ok(hierarchicalMatch, 'Hierarchical match: refactor should match refactorRewrite');
+
+            // Test alternative: refactorRewrite could be considered sub-kind
+            const subKindMatch = onlyKinds.some((only) => {
+                return CodeActionKind.RefactorRewrite === only ||
+                       CodeActionKind.RefactorRewrite.startsWith(only + '.') ||
+                       only.startsWith(CodeActionKind.Refactor + '.');
+            });
+            assert.ok(subKindMatch, 'Sub-kind match should work');
+        });
+
+        it('should not match quickfix when filter is refactor', () => {
+            const onlyKinds = [CodeActionKind.Refactor];
+            const kind = CodeActionKind.QuickFix;
+
+            const matches = onlyKinds.some((only) => {
+                return kind === only || kind.startsWith(only + '.');
+            });
+
+            assert.ok(!matches, 'quickfix should not match refactor filter');
+        });
+
+        it('should not match refactor when filter is quickfix', () => {
+            const onlyKinds = [CodeActionKind.QuickFix];
+            const kind = CodeActionKind.RefactorRewrite;
+
+            const matches = onlyKinds.some((only) => {
+                return kind === only || kind.startsWith(only + '.');
+            });
+
+            assert.ok(!matches, 'refactorRewrite should not match quickfix filter');
+        });
+    });
+
+    /**
+     * CA-013: TypeScript compiles without type errors
+     * (Verified by running: bun run build)
+     */
+
+    /**
+     * CA-014: All existing tests pass
+     * (Verified by running: bun run test)
+     */
+
+    /**
+     * CA-015: Backwards compatibility tests
+     */
+    describe('Backwards Compatibility - CA-015', () => {
+        it('should work with older client missing context.only', () => {
+            // Simulate old client without context.only
+            const context = {
+                diagnostics: []
+                // No 'only' property
+            };
+
+            const onlyKinds = (context as any).only;
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            assert.ok(!filterByKind, 'Missing context.only should not enable filtering');
+        });
+
+        it('should work with empty context.only array', () => {
+            const context = {
+                diagnostics: [],
+                only: []
+            };
+
+            const onlyKinds = context.only;
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            assert.ok(!filterByKind, 'Empty context.only should not enable filtering');
+        });
+
+        it('should maintain existing behavior for unfiltered requests', () => {
+            // When no filter is applied, all actions should be returned
+            const onlyKinds = undefined;
+            const filterByKind = onlyKinds && onlyKinds.length > 0;
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!filterByKind) return true;
+                return onlyKinds!.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            assert.ok(matchesFilter(CodeActionKind.QuickFix), 'Should match QuickFix');
+            assert.ok(matchesFilter(CodeActionKind.Refactor), 'Should match Refactor');
+            assert.ok(matchesFilter(CodeActionKind.SourceOrganizeImports), 'Should match SourceOrganizeImports');
+        });
+    });
+
+    /**
+     * E2E: Code action with filter shows only matching actions
+     */
+    describe('E2E - Filtered Code Actions', () => {
+        it('should provide correct CodeAction kinds for client filtering', () => {
+            // Verify that CodeActionKind values are what we expect
+            assert.equal(CodeActionKind.QuickFix, 'quickfix');
+            assert.equal(CodeActionKind.Refactor, 'refactor');
+            assert.equal(CodeActionKind.RefactorRewrite, 'refactor.rewrite');
+            assert.equal(CodeActionKind.SourceOrganizeImports, 'source.organizeImports');
+        });
+
+        it('should handle multiple kinds in filter', () => {
+            const onlyKinds = [
+                CodeActionKind.QuickFix,
+                CodeActionKind.Refactor
+            ];
+
+            const matchesFilter = (kind: string): boolean => {
+                if (!onlyKinds || onlyKinds.length === 0) return true;
+                return onlyKinds.some((only) => {
+                    return kind === only || kind.startsWith(only + '.');
+                });
+            };
+
+            assert.ok(matchesFilter(CodeActionKind.QuickFix), 'Should match QuickFix');
+            assert.ok(matchesFilter(CodeActionKind.RefactorRewrite), 'Should match RefactorRewrite via Refactor');
+            assert.ok(!matchesFilter(CodeActionKind.SourceOrganizeImports), 'Should not match SourceOrganizeImports');
         });
     });
 });

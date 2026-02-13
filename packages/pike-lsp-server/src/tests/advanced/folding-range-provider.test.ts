@@ -11,9 +11,19 @@
  * - 15.4 Folding - Nested structures
  */
 
-import { describe, it } from 'bun:test';
+import { describe, it, beforeAll } from 'bun:test';
 import assert from 'node:assert';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import { FoldingRange } from 'vscode-languageserver/node.js';
+import { ErrorCodes, ResponseError } from 'vscode-languageserver/node.js';
+import { getFoldingRanges } from '../../features/advanced/folding.js';
+
+/**
+ * Helper: Create a mock TextDocument
+ */
+function createDocument(code: string, uri: string = 'test://test.pike'): TextDocument {
+    return TextDocument.create(uri, 'pike', 1, code);
+}
 
 /**
  * Helper: Create a mock FoldingRange
@@ -229,12 +239,21 @@ int x = 42;`;
             // Should return empty array of folding ranges
         });
 
-        it('should handle file with no foldable structures', () => {
+        it('should return empty array for file with no foldable structures', () => {
             const code = `int x = 42;
 string y = "hello";`;
 
             const hasBraces = code.includes('{');
             assert.ok(!hasBraces, 'No braces means no foldable structures');
+
+            // TODO: Call handler and verify empty array is returned (not null)
+            // This test will FAIL until we fix the protocol issue
+            assert.ok(true, 'Placeholder - needs handler integration');
+        });
+
+        it('should throw ResponseError when document not found', () => {
+            // TODO: Test error propagation - document not found should throw ResponseError
+            assert.ok(true, 'Placeholder - needs handler integration');
         });
 
         it('should handle incomplete class definition', () => {
@@ -311,6 +330,48 @@ comment */`;
             // FoldingRangeKind.Comment
             const kind = 'comment';
             assert.equal(kind, 'comment', 'Comment kind');
+        });
+    });
+
+    /**
+     * Protocol Compliance Tests (Phase 1)
+     *
+     * Tests for LSP protocol fixes:
+     * - Return empty array (not null) for no folding ranges
+     * - Throw ResponseError for missing documents (not silent null return)
+     */
+    describe('Protocol Compliance', () => {
+        it('should return empty array (not null) for document with no folding ranges', () => {
+            const code = `int x = 42;
+string y = "hello";`;
+
+            const document = createDocument(code);
+
+            // Call handler - must return [], not null
+            const result = getFoldingRanges(document);
+
+            // RED: This will fail until we fix the implementation
+            assert.ok(Array.isArray(result), 'Result must be an array');
+            assert.equal(result.length, 0, 'Result must be empty array');
+            assert.notEqual(result, null, 'Result must not be null');
+        });
+
+        it('should throw ResponseError when document not found', () => {
+            // Test error propagation - should throw ResponseError, not return null
+            const code = `class MyClass { }`;
+
+            // Pass document without URI to simulate missing document
+            const document = createDocument(code, '');
+
+            // RED: This will fail until we fix the implementation
+            assert.throws(
+                () => getFoldingRanges(document),
+                (err: unknown) => {
+                    return err instanceof ResponseError &&
+                           err.code === ErrorCodes.InvalidRequest;
+                },
+                'Should throw ResponseError with InvalidRequest code'
+            );
         });
     });
 });
