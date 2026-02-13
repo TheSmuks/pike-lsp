@@ -15,8 +15,23 @@ export function getGenerateGetterSetterActions(
     document: TextDocument,
     uri: string,
     range: Range,
-    symbols: PikeSymbol[]
+    symbols: PikeSymbol[],
+    onlyKinds?: string[]  // Optional filter for context.only
 ): CodeAction[] {
+    // Early exit if filter excludes RefactorRewrite
+    if (onlyKinds && onlyKinds.length > 0) {
+        const matches = onlyKinds.some((only) => {
+            // Check if filter includes Refactor or RefactorRewrite
+            // RefactorRewrite is 'refactor.rewrite', which starts with 'refactor.'
+            return CodeActionKind.RefactorRewrite === only ||
+                   CodeActionKind.RefactorRewrite.startsWith(only + '.') ||
+                   only.startsWith(CodeActionKind.Refactor + '.');
+        });
+        if (!matches) {
+            return [];  // Filtered out
+        }
+    }
+
     const actions: CodeAction[] = [];
 
     // We operate on the line of the selection start

@@ -383,4 +383,145 @@ describe('Hover Provider', () => {
             // HTML should be escaped or sanitized
         });
     });
+
+    /**
+     * New Tests: Range Field and Content Format
+     * Tests for the hover range and conditional MarkupContent improvements
+     */
+    describe('Range Field and Content Format', () => {
+        it('should detect documentation object with text', () => {
+            const symbol = createSymbol({
+                name: 'documentedFunc',
+                kind: 'method',
+                documentation: { text: 'This function does something' }
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for documented symbol');
+            assert.ok(content.includes('This function does something'), 'Should include documentation text');
+        });
+
+        it('should detect string documentation', () => {
+            const symbol = createSymbol({
+                name: 'documentedVar',
+                kind: 'variable',
+                documentation: 'A simple variable documentation'
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for symbol with string documentation');
+            assert.ok(content.includes('A simple variable documentation'), 'Should include string documentation');
+        });
+
+        it('should detect autodoc metadata', () => {
+            const symbol = createSymbol({
+                name: 'autodocFunc',
+                kind: 'method',
+                autodoc: { params: { x: 'int' } }
+            } as any);
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for symbol with autodoc');
+        });
+
+        it('should handle symbol without documentation', () => {
+            const symbol = createSymbol({
+                name: 'undocumentedVar',
+                kind: 'variable'
+                // No documentation property
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content even without documentation');
+            assert.ok(content.includes('undocumentedVar'), 'Should include symbol name');
+        });
+
+        it('should handle empty string documentation', () => {
+            const symbol = createSymbol({
+                name: 'emptyDocVar',
+                kind: 'variable',
+                documentation: ''
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for empty documentation');
+        });
+
+        it('should handle whitespace-only documentation', () => {
+            const symbol = createSymbol({
+                name: 'whitespaceDocVar',
+                kind: 'variable',
+                documentation: '   \n  '
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for whitespace-only documentation');
+        });
+
+        it('should handle documentation object with empty text', () => {
+            const symbol = createSymbol({
+                name: 'emptyDocObjVar',
+                kind: 'variable',
+                documentation: { text: '' }
+            });
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should return content for documentation object with empty text');
+        });
+
+        it('should detect documentation in object with other keys', () => {
+            const symbol = createSymbol({
+                name: 'docWithParams',
+                kind: 'method',
+                documentation: { params: { x: 'The input value' } }
+            } as any);
+
+            const content = buildHoverContent(symbol);
+            assert.ok(content, 'Should detect documentation by presence of params key');
+        });
+
+        it('should handle null symbol gracefully', () => {
+            const content = buildHoverContent(null as any);
+            assert.ok(content === null, 'Should return null for null symbol');
+        });
+
+        it('should handle undefined symbol gracefully', () => {
+            const content = buildHoverContent(undefined as any);
+            assert.ok(content === null, 'Should return null for undefined symbol');
+        });
+    });
+
+    /**
+     * Performance Tests for Range Computation
+     */
+    describe('Range Performance', () => {
+        it('should compute range efficiently for short identifiers', () => {
+            const symbol = createSymbol({
+                name: 'x',
+                kind: 'variable'
+            });
+
+            const start = Date.now();
+            const content = buildHoverContent(symbol);
+            const elapsed = Date.now() - start;
+
+            assert.ok(content, 'Should return content');
+            assert.ok(elapsed < 100, `Should complete quickly, took ${elapsed}ms`);
+        });
+
+        it('should compute range efficiently for long identifiers', () => {
+            const longName = 'myVeryLongIdentifierNameThatContainsManyCharacters';
+            const symbol = createSymbol({
+                name: longName,
+                kind: 'variable'
+            });
+
+            const start = Date.now();
+            const content = buildHoverContent(symbol);
+            const elapsed = Date.now() - start;
+
+            assert.ok(content, 'Should return content');
+            assert.ok(elapsed < 100, `Should complete quickly even for long names, took ${elapsed}ms`);
+        });
+    });
 });

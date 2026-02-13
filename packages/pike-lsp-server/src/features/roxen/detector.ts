@@ -5,12 +5,26 @@ const cache = new Map<string, RoxenModuleInfo | null>();
 
 function hasMarkers(code: string): boolean {
   return (
+    // Inherit patterns
     code.includes('inherit "module"') ||
     code.includes("inherit 'module'") ||
     code.includes('inherit "filesystem"') ||
     code.includes("inherit 'filesystem'") ||
+    code.includes('inherit "roxen"') ||
+    code.includes("inherit 'roxen'") ||
+    // Include patterns (both <> and "" variants)
     code.includes('#include <module.h>') ||
-    code.includes('constant module_type = MODULE_')
+    code.includes('#include "module.h"') ||
+    // Module type constant patterns (multiple assignment styles)
+    /constant\s+(int\s+)?module_type\s*=\s*MODULE_/.test(code) ||
+    /constant\s+(int\s+)?module_type\s*=\s*1\s*<<\s*\d+/.test(code) ||
+    /constant\s+(int\s+)?module_type\s*=\s*\d+/.test(code) ||
+    // Direct module type constant reference
+    code.includes('MODULE_TAG') ||
+    code.includes('MODULE_LOCATION') ||
+    code.includes('MODULE_FILTER') ||
+    // defvar pattern
+    code.includes('defvar(')
   );
 }
 

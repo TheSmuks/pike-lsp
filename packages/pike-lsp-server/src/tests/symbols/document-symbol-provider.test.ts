@@ -8,6 +8,7 @@
 
 import { describe, it, expect, test } from 'bun:test';
 import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
 import { registerSymbolsHandlers } from '../../features/symbols.js';
@@ -27,6 +28,8 @@ interface SetupOptions {
     symbols?: PikeSymbol[];
     uri?: string;
     noCache?: boolean;
+    bridge?: any;
+    documents?: Map<string, TextDocument>;
 }
 
 function setup(opts: SetupOptions) {
@@ -39,10 +42,19 @@ function setup(opts: SetupOptions) {
         }));
     }
 
-    const services = createMockServices({ cacheEntries });
+    const services = createMockServices({
+        cacheEntries,
+        bridge: opts.bridge,
+    });
     const conn = createMockConnection();
 
-    registerSymbolsHandlers(conn as any, services as any);
+    // Mock documents manager if provided
+    const mockDocuments = opts.documents;
+    const documents = {
+        get: (docUri: string) => mockDocuments?.get(docUri),
+    };
+
+    registerSymbolsHandlers(conn as any, services as any, documents as any);
 
     return {
         documentSymbol: () =>
@@ -812,6 +824,221 @@ describe('Document Symbol Provider', () => {
             expect(result).not.toBeNull();
             expect(result!.length).toBe(1000);
             expect(elapsed).toBeLessThan(500);
+        });
+    });
+
+    // =========================================================================
+    // Roxen Integration Tests (Priority 1 - Task 10)
+    // =========================================================================
+
+    describe('Scenario 11.9: Document symbols - Roxen module integration', () => {
+        it('should enhance Roxen module symbols with defvar children', async () => {
+            // TDD GREEN Phase: Test Roxen module symbol classification
+            const uri = 'file:///test.pike';
+            const testCode = 'inherit "module"; constant module_type = MODULE_TAG;';
+
+            const mockBridge = {
+                bridge: {
+                    roxenDetect: async () => ({
+                        is_roxen_module: 1,
+                        module_type: ['MODULE_TAG'],
+                        module_name: 'MyModule',
+                        inherits: ['module'],
+                        variables: [
+                            { name: 'my_config', type: 'TYPE_STRING', name_string: 'My Config', doc_str: 'Config variable', position: { line: 3, column: 1 } },
+                            { name: 'debug_mode', type: 'TYPE_FLAG', name_string: 'Debug Mode', doc_str: 'Debug flag', position: { line: 4, column: 1 } },
+                        ],
+                        tags: [],
+                    }),
+                },
+            };
+
+            const mockDocuments = new Map([
+                [uri, TextDocument.create(uri, 'pike', 0, testCode)],
+            ]);
+
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('MyModule', 'class', { position: { file: 'test.pike', line: 1 } }),
+                ],
+                bridge: mockBridge,
+                documents: mockDocuments,
+            });
+
+            const result = await documentSymbol();
+
+            // GREEN Phase: Should pass with Roxen enhancement
+            expect(result).not.toBeNull();
+            expect(result!.length).toBeGreaterThan(0);
+
+            // First symbol should be the "Roxen Module" container
+            expect(result![0]!.name).toBe('Roxen Module');
+            expect(result![0]!.children).toBeDefined();
+            expect(result![0]!.children!.length).toBeGreaterThanOrEqual(1);
+
+            // Should have "Module Variables" group
+            const variablesGroup = result![0]!.children!.find(c => c.name === 'Module Variables');
+            expect(variablesGroup).toBeDefined();
+            expect(variablesGroup!.children).toBeDefined();
+            expect(variablesGroup!.children!.length).toBe(2);
+
+            // Check for specific variable names
+            const varNames = variablesGroup!.children!.map(c => c.name);
+            expect(varNames).toContain('my_config');
+            expect(varNames).toContain('debug_mode');
+        });
+
+        it('should extract RXML tags from multiline strings', async () => {
+            // TDD GREEN Phase: Test RXML tag detection
+            const uri = 'file:///test.pike';
+            const testCode = 'string template = #"<set name=\\"foo\\">bar</set>"#;';
+
+            const mockBridge = {
+                bridge: {
+                    roxenExtractRXMLStrings: async () => ({
+                        strings: [
+                            {
+                                content: '<set name="foo">bar</set>',
+                                range: {
+                                    start: { line: 0, character: 19 },
+                                    end: { line: 0, character: 49 },
+                                },
+                                fullRange: {
+                                    start: { line: 0, character: 18 },
+                                    end: { line: 0, character: 50 },
+                                },
+                                confidence: 0.95,
+                                markers: [
+                                    { type: 'tag', name: 'set', position: { line: 0, character: 0 } },
+                                    { type: 'tag', name: 'set', position: { line: 0, character: 5 } },
+                                ],
+                            },
+                        ],
+                    }),
+                },
+            };
+
+            const mockDocuments = new Map([
+                [uri, TextDocument.create(uri, 'pike', 0, testCode)],
+            ]);
+
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('MyTag', 'class', { position: { file: 'test.pike', line: 1 } }),
+                ],
+                bridge: mockBridge,
+                documents: mockDocuments,
+            });
+
+            const result = await documentSymbol();
+
+            // Should have both Pike symbol and RXML Template container
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(2);
+
+            // Find the RXML Template container
+            const rxmlContainer = result!.find(s => s.name === 'RXML Template');
+            expect(rxmlContainer).toBeDefined();
+            expect(rxmlContainer!.kind).toBe(16); // SymbolKind.Namespace
+            expect(rxmlContainer!.detail).toContain('2 RXML markers');
+        });
+
+        it('should handle mixed Pike + RXML content', async () => {
+            // TDD GREEN Phase: Test document with both Pike code and RXML strings
+            const uri = 'file:///test.pike';
+            const testCode = `class MyClass { void foo() { } }
+string template1 = #"<roxen><output>hello</output></roxen>"#;
+string template2 = #"<set name='x'>value</set>"#;`;
+
+            const mockBridge = {
+                bridge: {
+                    roxenExtractRXMLStrings: async () => ({
+                        strings: [
+                            {
+                                content: '<roxen><output>hello</output></roxen>',
+                                range: { start: { line: 0, character: 38 }, end: { line: 0, character: 82 } },
+                                fullRange: { start: { line: 0, character: 37 }, end: { line: 0, character: 83 } },
+                                confidence: 0.9,
+                                markers: [
+                                    { type: 'tag', name: 'roxen', position: { line: 0, character: 0 } },
+                                    { type: 'tag', name: 'output', position: { line: 0, character: 7 } },
+                                ],
+                            },
+                            {
+                                content: "<set name='x'>value</set>",
+                                range: { start: { line: 1, character: 20 }, end: { line: 1, character: 48 } },
+                                fullRange: { start: { line: 1, character: 19 }, end: { line: 1, character: 49 } },
+                                confidence: 0.95,
+                                markers: [{ type: 'tag', name: 'set', position: { line: 0, character: 0 } }],
+                            },
+                        ],
+                    }),
+                },
+            };
+
+            const mockDocuments = new Map([
+                [uri, TextDocument.create(uri, 'pike', 0, testCode)],
+            ]);
+
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('MyClass', 'class', { position: { file: 'test.pike', line: 1 } }),
+                    sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
+                ],
+                bridge: mockBridge,
+                documents: mockDocuments,
+            });
+
+            const result = await documentSymbol();
+
+            // Should have both Pike symbols and RXML Template containers
+            expect(result).not.toBeNull();
+            expect(result!.length).toBeGreaterThan(2);
+
+            // Find both RXML Template containers
+            const rxmlContainers = result!.filter(s => s.name === 'RXML Template');
+            expect(rxmlContainers.length).toBe(2);
+
+            // First container should have 2 markers (roxen, output)
+            expect(rxmlContainers[0]!.detail).toContain('2 RXML markers');
+
+            // Second container should have 1 marker (set)
+            expect(rxmlContainers[1]!.detail).toContain('1 RXML markers');
+        });
+
+        it('should handle Roxen enhancement failure gracefully', async () => {
+            // TDD GREEN Phase: Test graceful degradation when Roxen detection fails
+            const uri = 'file:///test.pike';
+            const testCode = 'class MyClass { void foo() { } }';
+
+            const mockBridge = {
+                bridge: {
+                    roxenDetect: async () => {
+                        throw new Error('Roxen detection failed');
+                    },
+                },
+            };
+
+            const mockDocuments = new Map([
+                [uri, TextDocument.create(uri, 'pike', 0, testCode)],
+            ]);
+
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('MyClass', 'class', { position: { file: 'test.pike', line: 1 } }),
+                    sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
+                ],
+                bridge: mockBridge,
+                documents: mockDocuments,
+            });
+
+            const result = await documentSymbol();
+
+            // Should still return base symbols, not crash
+            expect(result).not.toBeNull();
+            expect(result!.length).toBe(2);
+            expect(result![0]!.name).toBe('MyClass');
+            expect(result![1]!.name).toBe('foo');
         });
     });
 });

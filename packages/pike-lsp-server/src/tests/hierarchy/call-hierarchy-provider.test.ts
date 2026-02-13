@@ -365,18 +365,185 @@ void level1() { level2(); }
      * THEN: Show calls across file boundaries
      */
     describe('Scenario 13.4: Call Hierarchy - Cross-file calls', () => {
-        it('should show outgoing calls to other files', () => {
-            // file1.pike
+        it('should show outgoing calls to other files', async () => {
+            // Phase 2 TDD Test: Cross-file outgoing call resolution
+            // RED: This test should fail initially (cross-file not implemented)
+
+            const { TextDocument } = await import('vscode-languageserver-textdocument');
+            const { registerHierarchyHandlers } = await import('../../features/index.js');
+            const { createMockDocuments, createMockServices, makeCacheEntry, sym } = await import('../helpers/mock-services.js');
+
+            // file1.pike - caller that calls helper defined in file2
             const file1 = `extern void helper();
 void caller() {
     helper();
 }`;
 
-            // file2.pike (in same directory)
+            // file2.pike - defines helper
             const file2 = `void helper() { }`;
 
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
+            const file1Uri = 'file:///file1.pike';
+            const file2Uri = 'file:///file2.pike';
+
+            // Create mock documents
+            const doc1 = TextDocument.create(file1Uri, 'pike', 1, file1);
+            const doc2 = TextDocument.create(file2Uri, 'pike', 1, file2);
+            const documents = createMockDocuments(new Map([
+                [file1Uri, doc1],
+                [file2Uri, doc2],
+            ]));
+
+            // Create mock cache with both files
+            const cacheEntries = new Map([
+                [file1Uri, makeCacheEntry({
+                    symbols: [
+                        sym('caller', 'method', { position: { line: 2, column: 0 } }),
+                    ],
+                    symbolPositions: new Map([
+                        ['helper', [{ line: 2, character: 4 }]], // helper() call in caller (line 2, 0-indexed)
+                    ]),
+                })],
+                [file2Uri, makeCacheEntry({
+                    symbols: [
+                        sym('helper', 'method', { position: { line: 1, column: 0 } }),
+                    ],
+                    symbolPositions: new Map(),
+                })],
+            ]);
+
+            const services = createMockServices({ cacheEntries });
+
+            // Capture handlers
+            let prepareHandler: any = null;
+            let outgoingCallsHandler: any = null;
+
+            const conn = {
+                languages: {
+                    callHierarchy: {
+                        onPrepare: (h: any) => { prepareHandler = h; },
+                        onOutgoingCalls: (h: any) => { outgoingCallsHandler = h; },
+                        onIncomingCalls: () => {},
+                    },
+                    typeHierarchy: {
+                        onPrepare: () => {},
+                        onSupertypes: () => {},
+                        onSubtypes: () => {},
+                    },
+                },
+                console: { log: () => {} },
+                sendDiagnostics: () => {},  // Mock sendDiagnostics
+            };
+
+            // Register handlers
+            registerHierarchyHandlers(conn as any, services as any, documents as any);
+
+            // Verify handlers were captured
+            assert.ok(prepareHandler, 'prepareHandler should be captured after registration');
+            assert.ok(outgoingCallsHandler, 'outgoingCallsHandler should be captured after registration');
+
+            // Prepare call hierarchy on caller
+            // Line 2 (0-indexed) is the caller function declaration
+            const prepareResult = await prepareHandler({
+                textDocument: { uri: file1Uri },
+                position: { line: 1, character: 5 }  // Line 1 (0-indexed) = "void caller() {"
+            });
+
+            assert.ok(prepareResult, 'Should prepare call hierarchy for caller');
+            assert.strictEqual(prepareResult[0].name, 'caller');
+
+            // Get outgoing calls from caller
+            const outgoingCalls = await outgoingCallsHandler({
+                item: prepareResult[0]
+            });
+
+            // VALIDATE: THIS SHOULD FAIL IN RED STATE
+            // Currently: targetUri defaults to file1Uri (same file)
+            // Expected: targetUri should be file2Uri (cross-file resolution)
+            assert.strictEqual(outgoingCalls.length, 1, 'Should have 1 outgoing call');
+            assert.strictEqual(outgoingCalls[0].to.name, 'helper', 'Callee should be named helper');
+
+            // THIS ASSERTION SHOULD FAIL (RED STATE):
+            // Current implementation only searches same document, so uri will be file1Uri
+            // After implementation, uri should be file2Uri
+            assert.strictEqual(outgoingCalls[0].to.uri, file2Uri,
+                `Callee should be in file2.pike (cross-file), but got ${outgoingCalls[0].to.uri}`);
+
+            assert.strictEqual(outgoingCalls[0].fromRanges.length, 1, 'Should have 1 call site');
+            assert.strictEqual(outgoingCalls[0].fromRanges[0].start.line, 2, 'Call should be on line 2 (0-indexed)');
+        });
+
+        it('should return empty when callee not in any cached document', async () => {
+            // Phase 2 TDD Test: Missing callee in cache
+            // GREEN: This should work (returns empty when no definition found)
+
+            const { TextDocument } = await import('vscode-languageserver-textdocument');
+            const { registerHierarchyHandlers } = await import('../../features/index.js');
+            const { createMockDocuments, createMockServices, makeCacheEntry, sym } = await import('../helpers/mock-services.js');
+
+            // file1.pike - calls undefinedFunction (not in cache)
+            const file1 = `extern void undefinedFunction();
+void caller() {
+    undefinedFunction();
+}`;
+
+            const file1Uri = 'file:///file1.pike';
+
+            // Create mock document
+            const doc1 = TextDocument.create(file1Uri, 'pike', 1, file1);
+            const documents = createMockDocuments(new Map([[file1Uri, doc1]]));
+
+            // Create mock cache with only caller (callee not in any cached document)
+            const cacheEntries = new Map([
+                [file1Uri, makeCacheEntry({
+                    symbols: [
+                        sym('caller', 'method', { position: { line: 2, column: 0 } }),
+                    ],
+                    symbolPositions: new Map([
+                        ['undefinedFunction', [{ line: 2, character: 4 }]], // Line 2, 0-indexed
+                    ]),
+                })],
+            ]);
+
+            const services = createMockServices({ cacheEntries });
+
+            // Capture handlers
+            let prepareHandler: any = null;
+            let outgoingCallsHandler: any = null;
+
+            const conn = {
+                languages: {
+                    callHierarchy: {
+                        onPrepare: (h: any) => { prepareHandler = h; },
+                        onOutgoingCalls: (h: any) => { outgoingCallsHandler = h; },
+                        onIncomingCalls: () => {},
+                    },
+                    typeHierarchy: {
+                        onPrepare: () => {},
+                        onSupertypes: () => {},
+                        onSubtypes: () => {},
+                    },
+                },
+                console: { log: () => {} },
+                sendDiagnostics: () => {},  // Mock sendDiagnostics
+            };
+
+            // Register handlers
+            registerHierarchyHandlers(conn as any, services as any, documents as any);
+
+            // Prepare call hierarchy
+            const prepareResult = await prepareHandler({
+                textDocument: { uri: file1Uri },
+                position: { line: 1, character: 5 }  // Line 1 (0-indexed) = "void caller() {"
+            });
+
+            // Get outgoing calls
+            const outgoingCalls = await outgoingCallsHandler({
+                item: prepareResult[0]
+            });
+
+            // Validate: should skip unresolved functions (no line 0 items)
+            assert.strictEqual(outgoingCalls.length, 0,
+                'Should skip unresolved functions, not create invalid items');
         });
 
         it('should show incoming calls from other files', () => {

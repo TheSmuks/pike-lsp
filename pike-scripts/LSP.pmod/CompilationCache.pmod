@@ -313,6 +313,10 @@ class DependencyTrackingCompiler {
     }
 
     //! Get captured compilation diagnostics (syntax errors)
+    //!
+    //! For Roxen framework code, stub definitions are automatically prepended
+    //! during compilation to prevent false positive "undefined identifier" errors.
+    //!
     //! @returns Array of diagnostic mappings with message, severity, position
     array(mapping) get_diagnostics() {
         return _diagnostics;
@@ -405,6 +409,10 @@ class DependencyTrackingCompiler {
     }
 
     //! Compile with dependency tracking
+    //!
+    //! For Roxen framework code, automatically prepends stub definitions to
+    //! allow compilation of code using Roxen.RequestID, RXML.Tag, etc.
+    //!
     //! @param code The source code to compile
     //! @param filename The filename for compilation (for error messages)
     //! @returns The compiled program, or 0 on compilation failure
@@ -427,7 +435,65 @@ class DependencyTrackingCompiler {
 
         program prog = 0;
         mixed err = catch {
-            prog = compile_string(code, filename);
+            // Check if this code uses Roxen framework APIs
+            // If so, prepend stub definitions to allow compilation
+            string code_to_compile = code;
+
+            // Detect Roxen usage patterns
+            int has_roxen = has_value(code, "Roxen.") || has_value(code, "RequestID.") ||
+                           has_value(code, "RXML.") || has_value(code, "inherit \"module\"") ||
+                           has_value(code, "inherit 'module'");
+
+            if (has_roxen) {
+                // Prepend minimal stub definitions for Roxen framework
+                // These stubs allow code to compile during LSP analysis
+                string roxen_stubs =
+                    "// Roxen Framework Stubs for LSP Compilation\n" +
+                    "// Real Roxen framework provides actual implementations at runtime\n" +
+                    "\n" +
+                    "class RequestID {\n" +
+                    "    mapping variables = ([]);\n" +
+                    "    mapping config = ([]);\n" +
+                    "    string remoteaddr = \"\";\n" +
+                    "    string query_string = \"\";\n" +
+                    "    string method = \"GET\";\n" +
+                    "    void set_max_cache(int seconds) { }\n" +
+                    "    string url_base() { return \"\"; }\n" +
+                    "}\n" +
+                    "\n" +
+                    "class Tag {\n" +
+                    "    string name = \"\";\n" +
+                    "    mapping(string:mixed) args = ([]);\n" +
+                    "    void create(string|int n, void|mapping a) { name = (string)n; args = a || ([]); }\n" +
+                    "}\n" +
+                    "\n" +
+                    "class TagSet {\n" +
+                    "    string name = \"\";\n" +
+                    "    array(Tag) tags = ({});\n" +
+                    "    void create(string n, void|array(Tag) t) { name = n; tags = t || ({}); }\n" +
+                    "    void add_tag(Tag t) { tags += ({t}); }\n" +
+                    "}\n" +
+                    "\n" +
+                    "constant MODULE_TAG = 0;\n" +
+                    "constant MODULE_LOCATION = 1;\n" +
+                    "constant MODULE_FILTER = 2;\n" +
+                    "constant MODULE_PARSER = 3;\n" +
+                    "constant MODULE_DIRECTORIES = 4;\n" +
+                    "constant MODULE_PROVIDER = 5;\n" +
+                    "constant MODULE_AUTH = 6;\n" +
+                    "\n" +
+                    "constant TYPE_STRING = 0;\n" +
+                    "constant TYPE_INT = 1;\n" +
+                    "constant TYPE_FLOAT = 2;\n" +
+                    "constant TYPE_FILE = 3;\n" +
+                    "constant TYPE_DIR = 4;\n" +
+                    "constant TYPE_FLAG = 5;\n" +
+                    "\n";
+
+                code_to_compile = roxen_stubs + code;
+            }
+
+            prog = compile_string(code_to_compile, filename);
         };
 
         master()->set_inhibit_compile_errors(old_handler);

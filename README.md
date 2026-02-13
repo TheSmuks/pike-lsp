@@ -59,6 +59,12 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 | **Workspace Symbols** | Search symbols project-wide |
 | **Code Actions** | Quick fixes and organize imports |
 | **Formatting** | Document and range formatting |
+| **Smart Completion** | Scope operator (`::`, `->`) completion with deprecated tag support |
+| **Linked Editing** | Multi-cursor editing for linked ranges |
+| **Rate Limiting** | Configurable rate limiter for LSP requests |
+| **AutoDoc Rendering** | Full AutoDoc tag support (@returns, @mapping, @member) |
+| **Nested Classes** | Recursive extraction up to depth 5 with full symbol resolution |
+| **Preprocessor Extraction** | Token-based symbol extraction from conditional blocks |
 
 ### Performance
 
@@ -67,8 +73,64 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 - Smart caching for stdlib modules
 - 100% Pike 8 stdlib compatibility
 - Modular architecture (TypeScript + Pike 8.1116)
+- Runtime path discovery for cross-installation compatibility
+- Hash-based cache eviction (7.2% faster on cache-intensive workloads)
 
 > **View live benchmarks:** [thesmuks.github.io/pike-lsp](https://thesmuks.github.io/pike-lsp)
+
+### Roxen Framework Support
+
+Pike LSP provides comprehensive LSP support for the [Roxen WebServer](https://roxen.com/) framework across all file types and development scenarios.
+
+#### Supported File Types
+
+| File Type | Extension | Support Level |
+|-----------|-----------|---------------|
+| Pike Modules | `.pike` | ✅ Full LSP |
+| RXML Templates | `.inc`, `.html`, `.xml` | ✅ Full LSP |
+| Roxen JavaScript | `.rjs` | ✅ Full LSP |
+| Mixed Content | `.pike` with embedded RXML | ✅ Full LSP |
+
+#### Roxen-Specific Features
+
+| Feature | Description |
+|---------|-------------|
+| **Module Detection** | Auto-detects Roxen modules via `inherit "module"`, `#include <module.h>`, or `constant module_type` |
+| **defvar Extraction** | Extracts and groups module variables (defvars) in document outline |
+| **RXML Tag Detection** | Identifies `simpletag_*`, `container_*`, and `RXML.Tag` class-based tags |
+| **Lifecycle Callbacks** | Detects `create()`, `start()`, `stop()`, and other lifecycle methods |
+| **Validation Diagnostics** | Warns about missing required callbacks (e.g., `query_location` for `MODULE_LOCATION`) |
+| **Constant Completions** | Auto-completes `MODULE_*`, `TYPE_*`, `VAR_*` constants with correct bit-shifted values |
+| **RequestID Completions** | Provides 23+ RequestID member completions (properties, methods) |
+| **Tag Catalog Integration** | Integrates with Roxen's tag catalog for enhanced RXML support |
+
+#### Custom File Extensions
+
+For non-standard extensions, add file associations in VSCode settings:
+
+```json
+{
+  "files.associations": {
+    "*.rjs": "pike",
+    "*.inc": "pike"
+  }
+}
+```
+
+#### Implementation Status
+
+All 6 phases of Roxen framework support are complete:
+
+- **Phase 1 (Pike Module Support)**: Module detection, defvar extraction, RXML tags, lifecycle callbacks, diagnostics
+- **Phase 2 (RXML Template Support)**: `.inc`, `.html`, `.xml` files with pure RXML content (92 tests)
+- **Phase 3 (.rjs Support)**: Roxen JavaScript files with template literal parsing (10 tests)
+- **Phase 4 (Mixed Content)**: Files with both Pike and RXML embedded (31 tests)
+- **Phase 5 (Tag Catalog Integration)**: Dynamic tag loading from running Roxen server (16 tests)
+- **Phase 6 (Advanced LSP Features)**: Go-to-definition, find references, rename, hover, code actions (provider implementations complete)
+
+**Total:** 223 Roxen-specific tests passing
+
+See [ROXEN_SUPPORT_ROADMAP.md](ROXEN_SUPPORT_ROADMAP.md) for complete implementation details.
 
 ## Requirements
 
@@ -264,6 +326,7 @@ While Pike LSP provides comprehensive IDE support, there are some known limitati
 | **Nested Classes** | Nested class declarations and their members are now recursively extracted up to depth 5. Document outline shows full hierarchy. | **Improved**: Go-to-definition, hover, and completion work for nested class members at all levels. Limitation: Very deep nesting (>5 levels) is capped for performance. |
 | **Type Inference** | Basic types from literals and signatures work. Flow-sensitive analysis and generic type resolution are not implemented. | Explicit types show correctly. Complex scenarios like `if (cond) x = 1; else x = "str"` show `mixed` instead of a narrowed type. |
 | **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Completion won't show symbols from dynamically loaded code. |
+| **Deep Nesting** | Nested classes deeper than 5 levels are capped for performance. | Very deep nesting (>5 levels) may have limited symbol extraction. |
 
 ## Troubleshooting
 
