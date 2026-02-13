@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771020502775,
+  "lastUpdate": 1771020587395,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -17494,6 +17494,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.612379669421488,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a288f7056258b9d894f05555a690220041ae58ff",
+          "message": "feat: Roxen framework LSP integration - production ready (#31)\n\n* feat: Roxen framework LSP integration - production ready\n\nComplete Roxen 6.1 framework support through 5 iterations of refinement.\n\nPike Stubs (RoxenStubs.pmod/):\n- Add complete MODULE_* constants (22) with bit-shifted values\n- Add complete TYPE_* constants (22) matching Roxen 6.1 headers\n- Add complete VAR_* flags (8) with bit positions\n- Expand RequestID class: 25+ properties, 10 methods\n- Add RXML.Tag, TagSet, PXml stub classes with full API\n- Add RXML flag constants (FLAG_EMPTY_ELEMENT, etc.)\n\nTypeScript Integration:\n- Fix detector.ts: comprehensive pattern matching for all Roxen patterns\n- Fix completion.ts: VAR_* completions now trigger correctly\n- Verify constants.ts: all values match Pike stubs bit-for-bit\n- Verify diagnostics.ts: proper 1-based to 0-based conversion\n- Verify symbols.ts: proper selection ranges\n\nTesting:\n- Add test-roxen-edge-cases.mjs: 15+ edge case scenarios\n- Fix test-bridge-exports.mjs: correct import syntax\n- Fix test-roxen-stubs.mjs: correct analyze() signature\n- All 1720 tests passing, 0 failures\n\nDocumentation:\n- Add ROXEN_IMPLEMENTATION.md: 282-line comprehensive guide\n- Update STATUS.md: production-ready status logged\n- Update README.md: Roxen support noted\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat(iteration-2): Document Symbol, Type Hierarchy, Call Hierarchy, Folding Range\n\n## Document Symbol (Task 10) ✅\n- 4 integration tests for Roxen/RXML\n- 50 tests (159 assertions), 0 placeholders\n- Health: 92 → 95\n\n## Type Hierarchy (Task 8) ⚠️\n- Phase 1: Error signaling diagnostics\n- 3 tests, 56 placeholders deferred\n- Health: 60 → 65\n\n## Call Hierarchy (Task 11) ✅\n- Phase 2: Cross-file resolution\n- 2 tests pass\n- Health: 65 → 75\n\n## Folding Range (Task 9) ⚠️\n- Phase 1: Protocol fixes\n- 2 tests, 36 placeholders deferred\n- Health: 75 → 80\n\n## Technical Debt ⚠️\n5 placeholders added (TDD violation) - tracked for Iteration 3\n\n## Results\n1789 pass, Architect: 78/100 CONDITIONAL_APPROVE\nADR-001/002/008 compliant, ADR-006 partial\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: Add range/selectionRange properties to PikeSymbol interface\n\n- Optional range properties for LSP DocumentSymbol compatibility\n- Enables selection-ranges.ts semantic analysis feature\n- Bridge tests pass (182 pass, 0 fail)\n\nTechnical debt:\n- completion-helpers.ts has duplicate PikeSymbol import\n- mock-services.ts has unused handler variables\n- completion.ts has type compatibility issue\n\nTracking for Iteration 3: Fix remaining TypeScript build errors\n\n* fix: Resolve TypeScript build errors\n\n- Fixed DiagnosticTag import (value not type)\n- Fixed unused parameters in selection-ranges.ts\n- Fixed type guards in completion-helpers.ts\n- Fixed completion trigger type check\n- Removed unused hierarchy handler variables\n\nBuild: 0 TypeScript errors\n\n* docs: Add ADR-013 - Strict type safety enforcement\n\nAdd architectural decision requiring zero type safety violations:\n- No `any` type allowed\n- No `@ts-ignore` / `@ts-nocheck` / `@ts-expect-error` without description\n- ESLint error-level enforcement\n- Pre-push hook blocks warnings\n\nAdd type-safety-gate.sh hook to enforce in real-time during\ndevelopment. Hook blocks Edit/Write tools when violations detected.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* chore: Update project configuration for ADR-013\n\n- Update CLAUDE.md with ADR-013 section\n- Add ADR-013 to decisions index\n- Configure type-safety-gate.sh in settings.json\n- Update ESLint to enforce no-explicit-any at error level\n- Update pre-push hook to enforce --max-warnings 0\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* feat: Improve Call Hierarchy and Type Hierarchy providers\n\nImplement RALPH Iteration 3 improvements for LSP hierarchy features.\n\nCall Hierarchy (57/57 tests passing):\n- Add cross-file resolution with URI validation\n- Add diagnostic signaling for uncached documents (6 sendDiagnostics calls)\n- Remove `?? 1` fallbacks for undefined positions\n- Convert 5 placeholder tests to real assertions\n- Add regression test for line 0 item prevention\n\nType Hierarchy (64/64 tests passing):\n- Add circular inheritance detection (single-file with visited Set)\n- Distinguish null vs empty results for LSP compliance\n- Add VALID_KINDS type-safe validation with PikeSymbolKind assertions\n- Add diagnostic filtering by code 'type-hierarchy'\n- Fix test mocks with correct position types (column vs character)\n\nBoth features:\n- Zero `as any` violations (ADR-013 compliant)\n- All acceptance criteria met\n- TypeScript strict mode clean\n\nResolves: .omc/specs/call-hierarchy-spec.md\nResolves: .omc/specs/type-hierarchy-spec.md\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* chore: Allow lint warnings in pre-push hook\n\nTemporarily allow lint warnings to accommodate legacy test files\nwith unused variables. These are placeholder tests that will be\nconverted in future iterations.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\n\n* fix: use relative path for ADR-013 compliance test\n\nThe hardcoded absolute path failed on CI. Use path.resolve with import.meta.dir\nfor a portable solution.\n\n* fix: use fileURLToPath for ADR-013 test compatibility\n\n---------\n\nCo-authored-by: Claude Sonnet 4.5 <noreply@anthropic.com>",
+          "timestamp": "2026-02-13T23:08:22+01:00",
+          "tree_id": "bac84adea59bc40f94638f9a0a4ba5ae56888afd",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/a288f7056258b9d894f05555a690220041ae58ff"
+        },
+        "date": 1771020586702,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.14788458333334,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 255.51131825,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 255.50986608333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.7815560833333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.258452722120658,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.024374760233918,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 50.18271836363637,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.000880744525547,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.9778040174418603,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2674376778904665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2744309579866888,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5355348291338583,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2115651622691293,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.22104657945536021,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6344161800947867,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3557482803191489,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3607723815434431,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.11232131153631804,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.56481027680798,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08640816465922443,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.38201091861126923,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.91174583333336,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 254.93704966666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3937548973004695,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.557478524200164,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08560693465288896,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.577677614754099,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.572336049180328,
             "unit": "ms"
           }
         ]
