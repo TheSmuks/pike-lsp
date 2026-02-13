@@ -14,6 +14,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
+import path from 'node:path';
 import {
     TypeHierarchyItem,
     TypeHierarchyDirection,
@@ -29,10 +30,12 @@ describe('Type Hierarchy Provider', () => {
      */
     describe('ADR-013 compliance', () => {
         it('regression: should not use banned type casts', () => {
-            const hierarchyCode = fs.readFileSync(
-                '/home/smuks/OpenCode/pike-lsp/packages/pike-lsp-server/src/features/hierarchy.ts',
-                'utf8'
+            // Use relative path from test file to source file
+            const hierarchyPath = path.resolve(
+                import.meta.dir,
+                '../../features/hierarchy.ts'
             );
+            const hierarchyCode = fs.readFileSync(hierarchyPath, 'utf8');
             // Check for pattern: space + 'as' + space + 'any' + word boundary
             const hasBannedCast = /as\s+any\b/.test(hierarchyCode);
             assert.strictEqual(
