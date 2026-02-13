@@ -1,889 +1,230 @@
-/**
- * Call Hierarchy Provider Tests
- *
- * TDD tests for call hierarchy functionality based on specification:
- * https://github.com/.../TDD-SPEC.md#13-call-hierarchy-provider
- *
- * Test scenarios:
- * - 13.1 Call Hierarchy - Outgoing Calls (show calls from function)
- * - 13.2 Call Hierarchy - Incoming Calls (show callers to function)
- * - 13.3 Call Hierarchy - Multi-Level (nested call tree)
- * - 13.4 Call Hierarchy - Cross-File Calls
- * - Edge cases: recursion, indirect calls, stdlib, performance
- */
-
-import { describe, it } from 'bun:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert';
 import {
     CallHierarchyItem,
     CallHierarchyIncomingCall,
     CallHierarchyOutgoingCall,
-    Range
+    Range,
+    SymbolKind
 } from 'vscode-languageserver/node.js';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { registerHierarchyHandlers } from '../../features/hierarchy.js';
+import {
+    createMockHierarchyConnection,
+    createMockServices,
+    createMockDocuments,
+    makeCacheEntry,
+    sym
+} from '../helpers/mock-services.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+
+// Test setup
+let mockConnection: ReturnType<typeof createMockHierarchyConnection>;
+let documents: Map<string, TextDocument>;
+let testServices: ReturnType<typeof createMockServices>;
+const testUri = 'file:///test.pike';
+
+before(() => {
+    mockConnection = createMockHierarchyConnection();
+    documents = new Map();
+    testServices = createMockServices();
+
+    const mockDocuments = createMockDocuments(documents);
+
+    registerHierarchyHandlers(
+        mockConnection as any,
+        testServices,
+        mockDocuments as any
+    );
+});
+
+// Helper to create a test document with content
+function setupDocument(content: string, symbols: PikeSymbol[]) {
+    const doc = TextDocument.create(
+        testUri,
+        'pike',
+        0,
+        content
+    );
+    documents.set(testUri, doc);
+
+    const symbolPositions = new Map<string, { line: number; character: number }[]>();
+    for (const symbol of symbols) {
+        if (symbol.position) {
+            const pos = { line: (symbol.position.line ?? 1) - 1, character: symbol.position.character ?? 0 };
+            if (!symbolPositions.has(symbol.name)) {
+                symbolPositions.set(symbol.name, []);
+            }
+            symbolPositions.get(symbol.name)!.push(pos);
+        }
+    }
+
+    (testServices.documentCache as any).set(testUri, makeCacheEntry({
+        symbols,
+        symbolPositions
+    }));
+}
 
 describe('Call Hierarchy Provider', () => {
+    describe('onPrepare', () => {
+        it('should return null when document is not cached', async () => {
+            documents.clear();
+            (testServices.documentCache as any).set = () => {};
 
-    /**
-     * Test 13.1: Call Hierarchy - Outgoing Calls
-     * GIVEN: A Pike document with a function that calls other functions
-     * WHEN: User invokes call hierarchy on the calling function
-     * THEN: Show all functions called by this function
-     */
-    describe('Scenario 13.1: Call Hierarchy - Outgoing calls', () => {
-        it('should show direct function calls', () => {
-            const code = `void helper1() { }
-void helper2() { }
-void main() {
+            const handler = mockConnection.callHierarchyPrepareHandler;
+            assert.ok(handler, 'Prepare handler should be registered');
+
+            const result = await handler!({
+                textDocument: { uri: testUri },
+                position: { line: 0, character: 5 }
+            });
+
+            assert.strictEqual(result, null, 'Should return null for uncached document');
+        });
+
+        it('should return CallHierarchyItem for method at position', async () => {
+            const content = 'int myFunction() {\n  return 1;\n}';
+            setupDocument(content, [
+                sym('myFunction', 'method', { position: { line: 1, character: 4 } })
+            ]);
+
+            const handler = mockConnection.callHierarchyPrepareHandler;
+            const result = await handler!({
+                textDocument: { uri: testUri },
+                position: { line: 0, character: 8 }
+            });
+
+            assert.ok(result, 'Should return a result');
+            assert.strictEqual(result!.length, 1, 'Should return one item');
+            assert.strictEqual(result![0].name, 'myFunction', 'Item name should match');
+            assert.strictEqual(result![0].kind, SymbolKind.Method, 'Item kind should be Method');
+            assert.strictEqual(result![0].uri, testUri, 'Item URI should match');
+        });
+
+        it('should return null when position is not on a method', async () => {
+            const content = 'int x = 5;';
+            setupDocument(content, []);
+
+            const handler = mockConnection.callHierarchyPrepareHandler;
+            const result = await handler!({
+                textDocument: { uri: testUri },
+                position: { line: 0, character: 5 }
+            });
+
+            assert.strictEqual(result, null, 'Should return null for non-method position');
+        });
+    });
+
+    describe('onIncomingCalls', () => {
+        it('should return empty array when no cached documents', async () => {
+            (testServices.documentCache as any).set = () => {};
+
+            const handler = mockConnection.callHierarchyIncomingCallsHandler;
+            assert.ok(handler, 'Incoming calls handler should be registered');
+
+            const result = await handler!({
+                item: {
+                    name: 'testFunc',
+                    kind: SymbolKind.Method,
+                    uri: testUri,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } },
+                    selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } }
+                }
+            });
+
+            assert.deepStrictEqual(result, [], 'Should return empty array');
+        });
+
+        it('should find incoming calls from other methods in same file', async () => {
+            const content = `
+void caller1() {
+    testFunc();
+}
+
+void testFunc() {
+    return 1;
+}
+
+void caller2() {
+    testFunc();
+}
+`;
+            setupDocument(content, [
+                sym('caller1', 'method', { position: { line: 2, character: 0 } }),
+                sym('testFunc', 'method', { position: { line: 6, character: 0 } }),
+                sym('caller2', 'method', { position: { line: 10, character: 0 } })
+            ]);
+
+            const handler = mockConnection.callHierarchyIncomingCallsHandler;
+            const result = await handler!({
+                item: {
+                    name: 'testFunc',
+                    kind: SymbolKind.Method,
+                    uri: testUri,
+                    range: { start: { line: 5, character: 0 }, end: { line: 5, character: 8 } },
+                    selectionRange: { start: { line: 5, character: 0 }, end: { line: 5, character: 8 } }
+                }
+            });
+
+            assert.ok(result, 'Should return results');
+            assert.strictEqual(result!.length, 2, 'Should find 2 callers');
+            assert.strictEqual(result![0].from.name, 'caller1', 'First caller should be caller1');
+            assert.strictEqual(result![1].from.name, 'caller2', 'Second caller should be caller2');
+        });
+    });
+
+    describe('onOutgoingCalls', () => {
+        it('should return empty array when document not cached', async () => {
+            (testServices.documentCache as any).set = () => {};
+
+            const handler = mockConnection.callHierarchyOutgoingCallsHandler;
+            assert.ok(handler, 'Outgoing calls handler should be registered');
+
+            const result = await handler!({
+                item: {
+                    name: 'testFunc',
+                    kind: SymbolKind.Method,
+                    uri: testUri,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } },
+                    selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } }
+                }
+            });
+
+            assert.deepStrictEqual(result, [], 'Should return empty array');
+        });
+
+        it('should find functions called within method body', async () => {
+            const content = `
+void caller() {
     helper1();
     helper2();
-}`;
-
-            const mainFunction: CallHierarchyItem = {
-                name: 'main',
-                kind: 12, // SymbolKind.Function
-                range: {
-                    start: { line: 3, character: 0 },
-                    end: { line: 6, character: 1 }
-                },
-                selectionRange: {
-                    start: { line: 3, character: 5 },
-                    end: { line: 3, character: 9 }
-                },
-                uri: 'file:///test.pike'
-            };
-
-            const expectedOutgoingCalls: CallHierarchyOutgoingCall[] = [
-                {
-                    from: mainFunction,
-                    fromRanges: [
-                        { start: { line: 4, character: 4 }, end: { line: 4, character: 12 } },
-                        { start: { line: 5, character: 4 }, end: { line: 5, character: 12 } }
-                    ]
-                }
-            ];
-
-            // Verify the main function structure
-            assert.strictEqual(mainFunction.name, 'main');
-            assert.strictEqual(mainFunction.kind, 12);
-            assert.strictEqual(mainFunction.uri, 'file:///test.pike');
-
-            // Verify expected outgoing calls structure
-            assert.strictEqual(expectedOutgoingCalls.length, 1);
-            assert.strictEqual(expectedOutgoingCalls[0]!.from.name, 'main');
-            assert.strictEqual(expectedOutgoingCalls[0]!.fromRanges.length, 2);
-
-            // Verify call ranges
-            const range1 = expectedOutgoingCalls[0]!.fromRanges[0]!;
-            const range2 = expectedOutgoingCalls[0]!.fromRanges[1]!;
-            assert.strictEqual(range1.start.line, 4);
-            assert.strictEqual(range1.start.character, 4);
-            assert.strictEqual(range2.start.line, 5);
-            assert.strictEqual(range2.start.character, 4);
-        });
-
-        it('should show method calls via -> operator', () => {
-            const code = `class Helper {
-    void method1() { }
-    void method2() { }
 }
-void main() {
-    Helper h = Helper();
-    h->method1();
-    h->method2();
-}`;
 
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle calls with parameters', () => {
-            const code = `void helper(int x, string s) { }
-void main() {
-    helper(42, "test");
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle nested member access calls', () => {
-            const code = `class Factory {
-    Helper createHelper() { return Helper(); }
-}
-class Helper {
-    void doWork() { }
-}
-void main() {
-    Factory f = Factory();
-    f->createHelper()->doWork();
-}`;
-
-            // Verified - feature implemented in handler
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle calls in expressions', () => {
-            const code = `int getValue() { return 42; }
-void main() {
-    int x = getValue() + 10;
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle calls in conditional statements', () => {
-            const code = `bool check() { return true; }
-void main() {
-    if (check()) {
-        // do something
-    }
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Test 13.2: Call Hierarchy - Incoming Calls
-     * GIVEN: A Pike document with a function that is called by other functions
-     * WHEN: User invokes call hierarchy on the called function
-     * THEN: Show all functions that call this function
-     */
-    describe('Scenario 13.2: Call Hierarchy - Incoming calls', () => {
-        it('should show direct callers', () => {
-            const code = `void helper() { }
-void caller1() {
-    helper();
-}
-void caller2() {
-    helper();
-}`;
-
-            const helperFunction: CallHierarchyItem = {
-                name: 'helper',
-                kind: 12, // SymbolKind.Function
-                range: {
-                    start: { line: 0, character: 0 },
-                    end: { line: 0, character: 18 }
-                },
-                selectionRange: {
-                    start: { line: 0, character: 5 },
-                    end: { line: 0, character: 11 }
-                },
-                uri: 'file:///test.pike'
-            };
-
-            const expectedIncomingCalls: CallHierarchyIncomingCall[] = [
-                {
-                    from: {
-                        name: 'caller1',
-                        kind: 12,
-                        range: {
-                            start: { line: 1, character: 0 },
-                            end: { line: 3, character: 1 }
-                        },
-                        selectionRange: {
-                            start: { line: 1, character: 5 },
-                            end: { line: 1, character: 12 }
-                        },
-                        uri: 'file:///test.pike'
-                    },
-                    fromRanges: [
-                        { start: { line: 2, character: 4 }, end: { line: 2, character: 12 } }
-                    ]
-                },
-                {
-                    from: {
-                        name: 'caller2',
-                        kind: 12,
-                        range: {
-                            start: { line: 4, character: 0 },
-                            end: { line: 6, character: 1 }
-                        },
-                        selectionRange: {
-                            start: { line: 4, character: 5 },
-                            end: { line: 4, character: 12 }
-                        },
-                        uri: 'file:///test.pike'
-                    },
-                    fromRanges: [
-                        { start: { line: 5, character: 4 }, end: { line: 5, character: 12 } }
-                    ]
-                }
-            ];
-
-            // Handler implemented in hierarchy.ts or diagnostics.ts
-            assert.ok(true, 'Handler structure verified');
-        });
-
-        it('should show callers from multiple files', () => {
-            // File1: helper.pike
-            const file1 = `void helper() { }`;
-
-            // File2: caller1.pike
-            const file2 = `extern void helper();
-void caller1() {
-    helper();
-}`;
-
-            // File3: caller2.pike
-            const file3 = `extern void helper();
-void caller2() {
-    helper();
-}`;
-
-            // Verified - feature implemented in handler
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle indirect calls through variables', () => {
-            const code = `typedef function(void:void) VoidFunc;
-void helper() { }
-void caller() {
-    VoidFunc f = helper;
-    f();
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle calls in array/map operations', () => {
-            const code = `void process(int x) { }
-void caller() {
-    array(int) arr = ({1, 2, 3});
-    arr->map(process);
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-    });
-
-    /**
-     * Test 13.3: Call Hierarchy - Multi-Level
-     * GIVEN: A Pike document with nested function calls
-     * WHEN: User drills down into call hierarchy
-     * THEN: Show nested call tree at multiple levels
-     */
-    describe('Scenario 13.3: Call Hierarchy - Multi-level', () => {
-        it('should show two-level call tree', () => {
-            const code = `void level3() { }
-void level2() {
-    level3();
-}
-void level1() {
-    level2();
-}`;
-
-            // Level 1 -> Level 2 -> Level 3
-            // Should allow drilling down from level1 to level2 to level3
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show three-level call tree', () => {
-            const code = `void leaf() { }
-void branch() {
-    leaf();
-}
-void trunk() {
-    branch();
-}
-void root() {
-    trunk();
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should show branching call tree', () => {
-            const code = `void leaf1() { }
-void leaf2() { }
-void leaf3() { }
-void branch() {
-    leaf1();
-    leaf2();
-    leaf3();
-}
-void root() {
-    branch();
-}`;
-
-            // Root -> Branch -> [Leaf1, Leaf2, Leaf3]
-            // Branch should show 3 outgoing calls
-            // Root should show 1 outgoing call to Branch
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle diamond call pattern', () => {
-            const code = `void shared() { }
-void caller1() {
-    shared();
-}
-void caller2() {
-    shared();
-}
-void root() {
-    caller1();
-    caller2();
-}`;
-
-            // Root calls both Caller1 and Caller2
-            // Both callers call Shared
-            // Shared has 2 incoming calls
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should limit depth for performance', () => {
-            const code = `
-// Generate deep call chain
-void level100() { }
-void level99() { level100(); }
-// ... (imagine 100 levels)
-void level1() { level2(); }
+void helper1() {}
+void helper2() {}
 `;
-
-            // Should limit traversal depth (e.g., max 10 levels)
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-    });
-
-    /**
-     * Test 13.4: Call Hierarchy - Cross-File Calls
-     * GIVEN: Multiple Pike documents with cross-file function calls
-     * WHEN: User invokes call hierarchy
-     * THEN: Show calls across file boundaries
-     */
-    describe('Scenario 13.4: Call Hierarchy - Cross-file calls', () => {
-        it('should show outgoing calls to other files', () => {
-            // file1.pike
-            const file1 = `extern void helper();
-void caller() {
-    helper();
-}`;
-
-            // file2.pike (in same directory)
-            const file2 = `void helper() { }`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show incoming calls from other files', () => {
-            // utils.pike
-            const utils = `void utilityFunction() { }`;
-
-            // main.pike
-            const main = `extern void utilityFunction();
-void main() {
-    utilityFunction();
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle calls via #include', () => {
-            // header.pike
-            const header = `void includedFunction() { }`;
-
-            // main.pike
-            const mainCode = `#include "header.pike"
-void caller() {
-    includedFunction();
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should resolve calls through inherit', () => {
-            // base.pike
-            const base = `class Base {
-    void inheritedMethod() { }
-}`;
-
-            // derived.pike
-            const derived = `inherit "base.pike";
-class Derived {
-    void caller() {
-        inheritedMethod();
-    }
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle relative file paths', () => {
-            // dir1/helper.pike
-            const helper = `void helper() { }`;
-
-            // dir2/main.pike
-            const main = `extern void helper();
-void main() {
-    helper();
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle calls from modules', () => {
-            // mymodule.pike
-            const moduleCode = `module MyModule {
-    void moduleFunction() { }
-}`;
-
-            // main.pike
-            const mainCode = `void main() {
-    MyModule->moduleFunction();
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Edge Cases: Recursion
-     */
-    describe('Edge Cases: Recursion', () => {
-        it('should detect direct recursion', () => {
-            const code = `void recursive() {
-    recursive();
-}`;
-
-            // Should detect cycle and prevent infinite traversal
-            // Verified - feature implemented in handler
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should detect indirect recursion', () => {
-            const code = `void a() {
-    b();
-}
-void b() {
-    a();
-}`;
-
-            // A -> B -> A (cycle)
-            // Verified - feature implemented in handler
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle mutual recursion', () => {
-            const code = `void a() { b(); }
-void b() { c(); }
-void c() { a(); }`;
-
-            // A -> B -> C -> A (3-way cycle)
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show recursion indicator in UI', () => {
-            const code = `void factorial(int n) {
-    if (n <= 1) return 1;
-    return n * factorial(n - 1);
-}`;
-
-            // Should show recursion indicator (circular arrow or similar)
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Edge Cases: Indirect Calls
-     */
-    describe('Edge Cases: Indirect calls', () => {
-        it('should handle function pointer calls', () => {
-            const code = `typedef function(int:int) IntFunc;
-int square(int x) { return x * x; }
-void caller() {
-    IntFunc f = square;
-    f(5);
-}`;
-
-            // Static analysis may not resolve function pointers
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle calls through mapping', () => {
-            const code = `void func1() { }
-void func2() { }
-void caller() {
-    mapping(string:function) dispatch = ([
-        "a": func1,
-        "b": func2
-    ]);
-    dispatch["a"]();
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle callback patterns', () => {
-            const code = `void execute(function(void:void) cb) {
-    cb();
-}
-void helper() { }
-void main() {
-    execute(helper);
-}`;
-
-            // helper is passed as callback
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Edge Cases: Stdlib Calls
-     */
-    describe('Edge Cases: Stdlib calls', () => {
-        it('should show calls to stdlib functions', () => {
-            const code = `void main() {
-    array arr = ({});
-    arr->map(lambda(mixed x) { return x; });
-}`;
-
-            // Should show call to Array.map
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show calls to stdlib methods', () => {
-            const code = `void main() {
-    string s = "hello";
-    s->upper();
-}`;
-
-            // Should show call to String.upper
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle stdlib in call hierarchy', () => {
-            // Should show stdlib calls but may not show their implementations
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show incoming calls from stdlib (if indexed)', () => {
-            // If stdlib is indexed, show callbacks passed to stdlib
-            const code = `void myCallback(mixed x) { }
-void main() {
-    array arr = ({1, 2, 3});
-    arr->map(myCallback);
-}`;
-
-            // myCallback is called by Array.map
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-    });
-
-    /**
-     * Edge Cases: Special Syntax
-     */
-    describe('Edge Cases: Special syntax', () => {
-        it('should handle calls in preprocessor directives', () => {
-            const code = `#if constant(__PIKE__)
-void debug() { }
-#endif
-void main() {
-    #if constant(__PIKE__)
-    debug();
-    #endif
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle calls in string macros', () => {
-            const code = `#define CALL(f) f()
-void helper() { }
-void main() {
-    CALL(helper);
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle calls in lambda expressions', () => {
-            const code = `void outer() {
-    lambda() {
-        void inner() { }
-        inner();
-    }();
-}`;
-
-            // Verified - handler supports this feature
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle calls in catch blocks', () => {
-            const code = `void errorHandler() { }
-void main() {
-    mixed err = catch {
-        // risky code
-    };
-    if (err) {
-        errorHandler();
-    }
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Performance
-     */
-    describe('Performance', () => {
-        it('should handle functions with many outgoing calls', () => {
-            const code = `
-void helper0() { }
-void helper1() { }
-// ... (100 helpers)
-void helper99() { }
-
-void main() {
-    helper0();
-    helper1();
-    // ... (100 calls)
-    helper99();
-}`;
-
-            // Should perform well with many outgoing calls
-            const start = Date.now();
-            // TODO: Build call hierarchy
-            const elapsed = Date.now() - start;
-
-            assert.ok(elapsed < 500, `Should build hierarchy in < 500ms, took ${elapsed}ms`);
-        });
-
-        it('should handle functions with many incoming calls', () => {
-            // Generate code with 100 callers
-            const lines: string[] = ['void sharedFunction() { }'];
-            for (let i = 0; i < 100; i++) {
-                lines.push(`void caller${i}() { sharedFunction(); }`);
-            }
-            const code = lines.join('\n');
-
-            // Should perform well with many incoming calls
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should limit hierarchy size for performance', () => {
-            // Should limit total items returned (e.g., max 100)
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should cache call hierarchy results', () => {
-            // Same request should use cached result
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle large codebase efficiently', () => {
-            // Should use indexing for fast lookup
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * UI Integration
-     */
-    describe('UI Integration', () => {
-        it('should provide CallHierarchyItem for initial item', () => {
-            // Prepare CallHierarchyItem for when user first invokes hierarchy
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should support outgoing calls navigation', () => {
-            // User can navigate from caller to callee
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should support incoming calls navigation', () => {
-            // User can navigate from callee to caller
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show call locations in fromRanges', () => {
-            // fromRanges should show where the call happens
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle multiple call sites from same caller', () => {
-            const code = `void helper() { }
-void caller() {
-    helper();
-    // ...
-    helper();
-}`;
-
-            // Same caller, multiple fromRanges
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Symbol Properties
-     */
-    describe('Symbol properties', () => {
-        it('should include function signature in detail', () => {
-            const code = `void myFunction(int a, string b) { }`;
-
-            const expectedItem: CallHierarchyItem = {
-                name: 'myFunction',
-                detail: 'void myFunction(int a, string b)',
-                kind: 12,
-                range: {} as Range,
-                selectionRange: {} as Range,
-                uri: 'file:///test.pike'
-            };
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should include method signature', () => {
-            const code = `class MyClass {
-    int calculate(int x) { return x * 2; }
-}`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle overloaded functions', () => {
-            const code = `void myFunc(int x) { }
-void myFunc(string s) { }`;
-
-            // May need to show multiple items or pick best match
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Inheritance Considerations
-     */
-    describe('Inheritance considerations', () => {
-        it('should show calls to inherited methods', () => {
-            const code = `class Base {
-    void method() { }
-}
-class Derived {
-    inherit Base;
-}
-void caller() {
-    Derived d = Derived();
-    d->method();
-}`;
-
-            // Should show call to Base.method
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should show calls through inherited methods', () => {
-            const code = `class Base {
-                void helper() { }
-            }
-            class Derived {
-                inherit Base;
-                void caller() {
-                    helper();
+            setupDocument(content, [
+                sym('caller', 'method', { position: { line: 2, character: 0 } }),
+                sym('helper1', 'method', { position: { line: 6, character: 0 } }),
+                sym('helper2', 'method', { position: { line: 7, character: 0 } })
+            ]);
+
+            const handler = mockConnection.callHierarchyOutgoingCallsHandler;
+            const result = await handler!({
+                item: {
+                    name: 'caller',
+                    kind: SymbolKind.Method,
+                    uri: testUri,
+                    range: { start: { line: 1, character: 0 }, end: { line: 1, character: 11 } },
+                    selectionRange: { start: { line: 1, character: 0 }, end: { line: 1, character: 11 } }
                 }
-            }`;
+            });
 
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
+            assert.ok(result, 'Should return results');
+            assert.strictEqual(result!.length, 2, 'Should find 2 called functions');
 
-        it('should handle override calls', () => {
-            const code = `class Base {
-                void method() { }
-            }
-            class Derived {
-                inherit Base;
-                void method() { }  // override
-            }
-            void caller() {
-                Derived d = Derived();
-                d->method();  // calls Derived.method
-            }`;
-
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-    });
-
-    /**
-     * Error Handling
-     */
-    describe('Error handling', () => {
-        it('should handle call hierarchy on non-callable symbol', () => {
-            const code = `int myVar = 42;`;
-
-            // Should return empty result
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle missing extern definitions', () => {
-            const code = `extern void undefinedFunction();
-void caller() {
-    undefinedFunction();  // no implementation found
-}`;
-
-            // Should handle gracefully
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
-        });
-
-        it('should handle circular imports', () => {
-            // File1 includes File2, File2 includes File1
-            // Verified - feature implemented in handler
-            assert.ok(true, 'Feature verified');
-        });
-
-        it('should handle syntax errors in document', () => {
-            const code = `void main() {
-    helper(  // syntax error - missing closing paren
-}`;
-
-            // Should not crash
-            // Test expectations verified
-            return; // TODO: implement proper test assertion
+            const calledNames = result!.map(r => r.to.name).sort();
+            assert.deepStrictEqual(calledNames, ['helper1', 'helper2']);
         });
     });
 });

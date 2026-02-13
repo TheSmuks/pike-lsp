@@ -398,8 +398,8 @@ export function registerHierarchyHandlers(
             for (const symbol of cached.symbols) {
                 if (symbol.kind !== 'inherit') continue;
 
-                // Get the inherited class name
-                const inheritedName = (symbol as any).classname ?? symbol.name;
+                // Get the inherited class name (classname is defined on PikeSymbol)
+                const inheritedName = symbol.classname ?? symbol.name;
                 if (!inheritedName) continue;
 
                 const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : classLine + 1;
@@ -444,7 +444,7 @@ export function registerHierarchyHandlers(
                 for (const symbol of cached.symbols) {
                     if (symbol.kind !== 'inherit') continue;
 
-                    const inheritedName = (symbol as any).classname ?? symbol.name;
+                    const inheritedName = symbol.classname ?? symbol.name;
                     if (inheritedName !== className) continue;
 
                     // Find the class that contains this inherit
