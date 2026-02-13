@@ -7,20 +7,9 @@
  */
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type {
-    Location,
-    DocumentHighlight,
-    Position,
-    CallHierarchyItem,
-    CallHierarchyIncomingCall,
-    CallHierarchyOutgoingCall,
-} from 'vscode-languageserver/node.js';
+import type { Location, DocumentHighlight, Position } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { DocumentCacheEntry } from '../../core/types.js';
-import type { BridgeManager } from '../../services/bridge-manager.js';
-import type { WorkspaceScanner } from '../../services/workspace-scanner.js';
-import type { WorkspaceIndex } from '../../workspace-index.js';
-import type { StdlibIndexManager } from '../../stdlib-index.js';
 
 // =============================================================================
 // Handler Types
@@ -69,50 +58,6 @@ export type DocumentSymbolHandler = (params: {
 }) => Promise<import('vscode-languageserver/node.js').DocumentSymbol[] | null>;
 
 // =============================================================================
-// Call Hierarchy Handler Types
-// =============================================================================
-
-/** Prepare handler params type */
-export interface CallHierarchyPrepareParams {
-    textDocument: { uri: string };
-    position: { line: number; character: number };
-}
-
-/** Prepare handler result type */
-export type CallHierarchyPrepareResult = CallHierarchyItem[] | null;
-
-/** Handler signature for call hierarchy prepare */
-export type CallHierarchyPrepareHandler = (
-    params: CallHierarchyPrepareParams
-) => Promise<CallHierarchyPrepareResult>;
-
-/** Incoming calls handler params type */
-export interface CallHierarchyIncomingCallsParams {
-    item: CallHierarchyItem;
-}
-
-/** Incoming calls handler result type */
-export type CallHierarchyIncomingCallsResult = CallHierarchyIncomingCall[];
-
-/** Handler signature for call hierarchy incoming calls */
-export type CallHierarchyIncomingCallsHandler = (
-    params: CallHierarchyIncomingCallsParams
-) => Promise<CallHierarchyIncomingCallsResult>;
-
-/** Outgoing calls handler params type */
-export interface CallHierarchyOutgoingCallsParams {
-    item: CallHierarchyItem;
-}
-
-/** Outgoing calls handler result type */
-export type CallHierarchyOutgoingCallsResult = CallHierarchyOutgoingCall[];
-
-/** Handler signature for call hierarchy outgoing calls */
-export type CallHierarchyOutgoingCallsHandler = (
-    params: CallHierarchyOutgoingCallsParams
-) => Promise<CallHierarchyOutgoingCallsResult>;
-
-// =============================================================================
 // Mock Connection
 // =============================================================================
 
@@ -126,6 +71,18 @@ export interface MockConnection {
     onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
     onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
     console: { log: (...args: any[]) => void };
+    languages: {
+        callHierarchy: {
+            onPrepare: (handler: any) => void;
+            onOutgoingCalls: (handler: any) => void;
+            onIncomingCalls: (handler: any) => void;
+        };
+        typeHierarchy: {
+            onPrepare: (handler: any) => void;
+            onSupertypes: (handler: any) => void;
+            onSubtypes: (handler: any) => void;
+        };
+    };
     definitionHandler: DefinitionHandler;
     declarationHandler: DeclarationHandler;
     typeDefinitionHandler: TypeDefinitionHandler;
@@ -158,6 +115,18 @@ export function createMockConnection(): MockConnection {
         onDocumentSymbol(handler: DocumentSymbolHandler) { _documentSymbolHandler = handler; },
         onWorkspaceSymbol() {},
         console: { log: () => {} },
+        languages: {
+            callHierarchy: {
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onOutgoingCalls(_handler: any) { /* Store for testing if needed */ },
+                onIncomingCalls(_handler: any) { /* Store for testing if needed */ },
+            },
+            typeHierarchy: {
+                onPrepare(_handler: any) { /* Store for testing if needed */ },
+                onSupertypes(_handler: any) { /* Store for testing if needed */ },
+                onSubtypes(_handler: any) { /* Store for testing if needed */ },
+            },
+        },
         get definitionHandler(): DefinitionHandler {
             if (!_definitionHandler) throw new Error('No definition handler registered');
             return _definitionHandler;
@@ -186,47 +155,6 @@ export function createMockConnection(): MockConnection {
             if (!_documentSymbolHandler) throw new Error('No document symbol handler registered');
             return _documentSymbolHandler;
         },
-    };
-}
-
-// =============================================================================
-// Mock Hierarchy Connection
-// =============================================================================
-
-/**
- * Mock Connection for call/type hierarchy tests.
- * Extends MockConnection with hierarchy-specific handlers.
- */
-export interface MockHierarchyConnection extends MockConnection {
-    callHierarchy: {
-        onPrepare: (handler: CallHierarchyPrepareHandler) => void;
-        onIncomingCalls: (handler: CallHierarchyIncomingCallsHandler) => void;
-        onOutgoingCalls: (handler: CallHierarchyOutgoingCallsHandler) => void;
-    };
-    callHierarchyPrepareHandler: CallHierarchyPrepareHandler | null;
-    callHierarchyIncomingCallsHandler: CallHierarchyIncomingCallsHandler | null;
-    callHierarchyOutgoingCallsHandler: CallHierarchyOutgoingCallsHandler | null;
-}
-
-export function createMockHierarchyConnection(): MockHierarchyConnection {
-    const base = createMockConnection();
-
-    let _prepareHandler: CallHierarchyPrepareHandler | null = null;
-    let _incomingCallsHandler: CallHierarchyIncomingCallsHandler | null = null;
-    let _outgoingCallsHandler: CallHierarchyOutgoingCallsHandler | null = null;
-
-    return {
-        ...base,
-
-        callHierarchy: {
-            onPrepare(handler: CallHierarchyPrepareHandler) { _prepareHandler = handler; },
-            onIncomingCalls(handler: CallHierarchyIncomingCallsHandler) { _incomingCallsHandler = handler; },
-            onOutgoingCalls(handler: CallHierarchyOutgoingCallsHandler) { _outgoingCallsHandler = handler; },
-        },
-
-        get callHierarchyPrepareHandler() { return _prepareHandler; },
-        get callHierarchyIncomingCallsHandler() { return _incomingCallsHandler; },
-        get callHierarchyOutgoingCallsHandler() { return _outgoingCallsHandler; },
     };
 }
 
@@ -287,11 +215,11 @@ export interface MockServicesOverrides {
     symbols?: PikeSymbol[];
     symbolPositions?: Map<string, Position[]>;
     cacheEntries?: Map<string, DocumentCacheEntry>;
-    inherits?: PikeSymbol[];
-    bridge?: BridgeManager;
-    stdlibIndex?: StdlibIndexManager;
-    workspaceScanner?: WorkspaceScanner;
-    workspaceIndex?: WorkspaceIndex;
+    inherits?: any[];
+    bridge?: any;
+    stdlibIndex?: any;
+    workspaceScanner?: any;
+    workspaceIndex?: any;
 }
 
 /**
