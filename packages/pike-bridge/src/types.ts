@@ -898,13 +898,38 @@ export interface AnalyzeResponse {
 }
 
 /**
+ * Union type for all possible Pike response result types.
+ */
+export type PikeResponseResult =
+    | PikeParseResult
+    | IntrospectionResult
+    | StdlibResolveResult
+    | IncludeResolveResult
+    | PikePathsResult
+    | InheritedMembersResult
+    | AnalyzeUninitializedResult
+    | ExtractImportsResult
+    | ResolveImportResult
+    | WaterfallSymbolsResult
+    | CircularCheckResult
+    | RXMLStringResult
+    | InvalidateCacheResult
+    | AnalyzeResults
+    | FindOccurrencesResult
+    | BatchParseResult
+    | RoxenValidationResult
+    | CompletionContext
+    | CacheStats
+    | PikeVersionInfo;
+
+/**
  * Response from Pike subprocess
  */
 export interface PikeResponse {
     /** Request ID this responds to */
     id: number;
     /** Result on success */
-    result?: any;
+    result?: PikeResponseResult;
     /** Error on failure */
     error?: {
         code: number;

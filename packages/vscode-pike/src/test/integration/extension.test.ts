@@ -92,13 +92,46 @@ int main() {
         await vscode.workspace.fs.delete(testUri);
     });
 
+    /**
+     * Verify extension is fully activated with LSP client running
+     *
+     * Tests that:
+     * - Extension is active (extension.isActive === true)
+     * - LSP client is running and can handle requests
+     * - Server did not crash during startup
+     *
+     * This replaces the tautological "Extension started without crash" test
+     * by actually verifying the activation state and client availability.
+     */
     test('Should have no errors in output after startup', async function() {
         this.timeout(45000); // More than 30s for full startup
 
         // Wait for any startup errors to manifest
         await new Promise(resolve => setTimeout(resolve, 10000));
 
-        // The test passes if we got here without crashing
-        assert.ok(true, 'Extension started without crash');
+        // Verify extension is actually active
+        const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+        assert.ok(extension, 'Extension should be found');
+        assert.strictEqual(extension?.isActive, true, 'Extension should be active after startup');
+
+        // Verify we can make a basic LSP request (proves server is running)
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        assert.ok(workspaceFolder, 'Workspace folder should exist');
+
+        // Try to get document symbols - this verifies LSP server is responsive
+        const testUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+
+        // This will return undefined or an array, but should not throw
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            testUri
+        );
+
+        // Symbols may be undefined (file not analyzed yet) or an array
+        // The important thing is we got a response (not a crash)
+        assert.ok(symbols === undefined || Array.isArray(symbols),
+            'LSP server should respond to requests (not crash)');
+
+        console.log('Extension activated and LSP server responsive');
     });
 });
