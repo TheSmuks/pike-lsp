@@ -1,1 +1,241 @@
-/**\n * Include Resolver Service\n *\n * Manages resolution and caching of #include dependencies.\n * Provides symbol lookup from included files for IntelliSense.\n */\n\nimport type { PikeSymbol } from '@pike-lsp/pike-bridge';\nimport type { BridgeManager } from './bridge-manager.js';\nimport type { ResolvedInclude, DocumentDependencies } from '../core/types.js';\nimport { Logger } from '@pike-lsp/core';\nimport { readFileSync } from 'node:fs';\n\n/**\n * Cache for resolved includes with their symbols.\n * Key is the absolute file path.\n */\ntype IncludeCache = Map<string, ResolvedInclude>;\n\n/**\n * Include Resolver Service\n *\n * Resolves #include paths to absolute file paths and caches\n * symbols from included files for IntelliSense completion.\n */\nexport class IncludeResolver {\n    private cache: IncludeCache = new Map();\n    private readonly CACHE_TTL = 30_000; // 30 seconds\n\n    constructor(\n        private readonly bridge: BridgeManager | null,\n        private readonly logger: Logger\n    ) {}\n\n    /**\n     * Resolve dependencies for a document.\n     *\n     * Extracts #include and import symbols, resolves their paths,\n     * and caches symbols from included files.\n     *\n     * @param uri - Document URI\n     * @param symbols - Symbols from the document\n     * @returns Document dependencies with resolved includes and imports\n     */\n    async resolveDependencies(\n        uri: string,\n        symbols: PikeSymbol[]\n    ): Promise<DocumentDependencies> {\n        const dependencies: DocumentDependencies = {\n            includes: [],\n            imports: [],\n        };\n\n        const includeSymbols = symbols.filter(s => s.kind === 'include');\n        const importSymbols = symbols.filter(s => s.kind === 'import');\n\n        // Resolve #include statements\n        for (const symbol of includeSymbols) {\n            const includePath = (symbol as any).classname || symbol.name;\n            if (!includePath) continue;\n\n            try {\n                const resolved = await this.resolveInclude(includePath, uri);\n                if (resolved) {\n                    dependencies.includes.push(resolved);\n                }\n            } catch (err) {\n                this.logger.debug('Failed to resolve include', {\n                    includePath,\n                    error: err instanceof Error ? err.message : String(err),\n                });\n            }\n        }\n\n        // Track import statements\n        for (const symbol of importSymbols) {\n            const modulePath = (symbol as any).classname || symbol.name;\n            if (!modulePath) continue;\n\n            // Try to resolve as stdlib to determine type\n            const isStdlib = await this.isStdlibModule(modulePath);\n            dependencies.imports.push({\n                modulePath,\n                isStdlib,\n            });\n        }\n\n        return dependencies;\n    }\n\n    /**\n     * Resolve a single include path.\n     *\n     * @param includePath - Include path from source (with or without quotes/brackets)\n     * @param currentUri - Current document URI\n     * @returns Resolved include with symbols, or null if not found\n     */\n    async resolveInclude(includePath: string, currentUri: string): Promise<ResolvedInclude | null> {\n        if (!this.bridge?.bridge) {\n            return null;\n        }\n\n        try {\n            const result = await this.bridge.bridge.resolveInclude(includePath, currentUri);\n\n            if (!result.exists || !result.path) {\n                return null;\n            }\n\n            const cacheKey = result.path;\n            const cached = this.cache.get(cacheKey);\n            const now = Date.now();\n\n            // Return cached if still valid\n            if (cached && (now - cached.lastModified) < this.CACHE_TTL) {\n                return cached;\n            }\n\n            // Parse the included file to get symbols\n            const symbols = await this.parseIncludedFile(result.path);\n\n            const resolved: ResolvedInclude = {\n                originalPath: result.originalPath,\n                resolvedPath: result.path,\n                symbols,\n                lastModified: now,\n            };\n\n            this.cache.set(cacheKey, resolved);\n            return resolved;\n        } catch (err) {\n            this.logger.debug('Include resolution failed', {\n                includePath,\n                error: err instanceof Error ? err.message : String(err),\n            });\n            return null;\n        }\n    }\n\n    /**\n     * Parse an included file to extract its symbols.\n     *\n     * @param filePath - Absolute path to the included file\n     * @returns Array of symbols from the file\n     */\n    private async parseIncludedFile(filePath: string): Promise<PikeSymbol[]> {\n        if (!this.bridge?.bridge) {\n            return [];\n        }\n\n        try {\n            // Read file content\n            const content = readFileSync(filePath, 'utf-8');\n\n            // Use analyze to get symbols (parse operation only)\n            const response = await this.bridge.bridge.analyze(content, ['parse'], filePath);\n\n            if (response.result?.parse?.symbols) {\n                return response.result.parse.symbols;\n            }\n\n            return [];\n        } catch (err) {\n            this.logger.debug('Failed to parse included file', {\n                filePath,\n                error: err instanceof Error ? err.message : String(err),\n            });\n            return [];\n        }\n    }\n\n    /**\n     * Check if a module is a stdlib module.\n     *\n     * @param modulePath - Module path to check\n     * @returns true if the module is in stdlib\n     */\n    private async isStdlibModule(modulePath: string): Promise<boolean> {\n        if (!this.bridge?.bridge) {\n            return false;\n        }\n\n        try {\n            const result = await this.bridge.bridge.resolveStdlib(modulePath);\n            return result.found === 1;\n        } catch {\n            return false;\n        }\n    }\n\n    /**\n     * Get all symbols from document dependencies.\n     *\n     * @param dependencies - Document dependencies\n     * @returns Array of all symbols from includes\n     */\n    async getDependencySymbols(dependencies: DocumentDependencies): Promise<PikeSymbol[]> {\n        const symbols: PikeSymbol[] = [];\n\n        // Add symbols from includes\n        for (const include of dependencies.includes) {\n            symbols.push(...include.symbols);\n        }\n\n        // Import symbols are resolved via stdlibIndex in completion handler\n        // We just return the include symbols here\n\n        return symbols;\n    }\n\n    /**\n     * Invalidate cache for a specific file.\n     *\n     * @param filePath - Absolute path to invalidate\n     */\n    invalidate(filePath: string): void {\n        this.cache.delete(filePath);\n    },    /**,     * Clear all cached includes.,     */,    clear(): void {,        this.cache.clear();,    },,    /**,     * Get cache statistics.,     */,    getStats(): { cachedIncludes: number; totalSymbols: number } {,        let totalSymbols = 0;,        for (const include of this.cache.values()) {,            totalSymbols += include.symbols.length;,        },,        return {,            cachedIncludes: this.cache.size,,            totalSymbols,,        };,    },},
+/**
+ * Include Resolver Service
+ *
+ * Manages resolution and caching of #include dependencies.
+ * Provides symbol lookup from included files for IntelliSense.
+ */
+
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { BridgeManager } from './bridge-manager.js';
+import type { ResolvedInclude, DocumentDependencies } from '../core/types.js';
+import { Logger } from '@pike-lsp/core';
+import { readFileSync } from 'node:fs';
+
+/**
+ * Cache for resolved includes with their symbols.
+ * Key is the absolute file path.
+ */
+type IncludeCache = Map<string, ResolvedInclude>;
+
+/**
+ * Include Resolver Service
+ *
+ * Resolves #include paths to absolute file paths and caches
+ * symbols from included files for IntelliSense completion.
+ */
+export class IncludeResolver {
+    private cache: IncludeCache = new Map();
+    private readonly CACHE_TTL = 30_000; // 30 seconds
+
+    constructor(
+        private readonly bridge: BridgeManager | null,
+        private readonly logger: Logger
+    ) {}
+
+    /**
+     * Resolve dependencies for a document.
+     *
+     * Extracts #include and import symbols, resolves their paths,
+     * and caches symbols from included files.
+     *
+     * @param uri - Document URI
+     * @param symbols - Symbols from the document
+     * @returns Document dependencies with resolved includes and imports
+     */
+    async resolveDependencies(
+        uri: string,
+        symbols: PikeSymbol[]
+    ): Promise<DocumentDependencies> {
+        const dependencies: DocumentDependencies = {
+            includes: [],
+            imports: [],
+        };
+
+        const includeSymbols = symbols.filter(s => s.kind === 'include');
+        const importSymbols = symbols.filter(s => s.kind === 'import');
+
+        // Resolve #include statements
+        for (const symbol of includeSymbols) {
+            const includePath = (symbol as any).classname || symbol.name;
+            if (!includePath) continue;
+
+            try {
+                const resolved = await this.resolveInclude(includePath, uri);
+                if (resolved) {
+                    dependencies.includes.push(resolved);
+                }
+            } catch (err) {
+                this.logger.debug('Failed to resolve include', {
+                    includePath,
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }
+        }
+
+        // Track import statements
+        for (const symbol of importSymbols) {
+            const modulePath = (symbol as any).classname || symbol.name;
+            if (!modulePath) continue;
+
+            // Try to resolve as stdlib to determine type
+            const isStdlib = await this.isStdlibModule(modulePath);
+            dependencies.imports.push({
+                modulePath,
+                isStdlib,
+            });
+        }
+
+        return dependencies;
+    }
+
+    /**
+     * Resolve a single include path.
+     *
+     * @param includePath - Include path from source (with or without quotes/brackets)
+     * @param currentUri - Current document URI
+     * @returns Resolved include with symbols, or null if not found
+     */
+    async resolveInclude(includePath: string, currentUri: string): Promise<ResolvedInclude | null> {
+        if (!this.bridge?.bridge) {
+            return null;
+        }
+
+        try {
+            const result = await this.bridge.bridge.resolveInclude(includePath, currentUri);
+
+            if (!result.exists || !result.path) {
+                return null;
+            }
+
+            const cacheKey = result.path;
+            const cached = this.cache.get(cacheKey);
+            const now = Date.now();
+
+            // Return cached if still valid
+            if (cached && (now - cached.lastModified) < this.CACHE_TTL) {
+                return cached;
+            }
+
+            // Parse the included file to get symbols
+            const symbols = await this.parseIncludedFile(result.path);
+
+            const resolved: ResolvedInclude = {
+                originalPath: result.originalPath,
+                resolvedPath: result.path,
+                symbols,
+                lastModified: now,
+            };
+
+            this.cache.set(cacheKey, resolved);
+            return resolved;
+        } catch (err) {
+            this.logger.debug('Include resolution failed', {
+                includePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            return null;
+        }
+    }
+
+    /**
+     * Parse an included file to extract its symbols.
+     *
+     * @param filePath - Absolute path to the included file
+     * @returns Array of symbols from the file
+     */
+    private async parseIncludedFile(filePath: string): Promise<PikeSymbol[]> {
+        if (!this.bridge?.bridge) {
+            return [];
+        }
+
+        try {
+            // Read file content
+            const content = readFileSync(filePath, 'utf-8');
+
+            // Use analyze to get symbols (parse operation only)
+            const response = await this.bridge.bridge.analyze(content, ['parse'], filePath);
+
+            if (response.result?.parse?.symbols) {
+                return response.result.parse.symbols;
+            }
+
+            return [];
+        } catch (err) {
+            this.logger.debug('Failed to parse included file', {
+                filePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            return [];
+        }
+    }
+
+    /**
+     * Check if a module is a stdlib module.
+     *
+     * @param modulePath - Module path to check
+     * @returns true if the module is in stdlib
+     */
+    private async isStdlibModule(modulePath: string): Promise<boolean> {
+        if (!this.bridge?.bridge) {
+            return false;
+        }
+
+        try {
+            const result = await this.bridge.bridge.resolveStdlib(modulePath);
+            return result.found === 1;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Get all symbols from document dependencies.
+     *
+     * @param dependencies - Document dependencies
+     * @returns Array of all symbols from includes
+     */
+    async getDependencySymbols(dependencies: DocumentDependencies): Promise<PikeSymbol[]> {
+        const symbols: PikeSymbol[] = [];
+
+        // Add symbols from includes
+        for (const include of dependencies.includes) {
+            symbols.push(...include.symbols);
+        }
+
+        // Import symbols are resolved via stdlibIndex in completion handler
+        // We just return the include symbols here
+
+        return symbols;
+    }
+
+    /**
+     * Invalidate cache for a specific file.
+     *
+     * @param filePath - Absolute path to invalidate
+     */
+    invalidate(filePath: string): void {
+        this.cache.delete(filePath);
+    }
+
+    /**
+     * Clear all cached includes.
+     */
+    clear(): void {
+        this.cache.clear();
+    }
+
+    /**
+     * Get cache statistics.
+     */
+    getStats(): { cachedIncludes: number; totalSymbols: number } {
+        let totalSymbols = 0;
+        for (const include of this.cache.values()) {
+            totalSymbols += include.symbols.length;
+        }
+
+        return {
+            cachedIncludes: this.cache.size,
+            totalSymbols,
+        };
+    }
+}
