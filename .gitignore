@@ -83,6 +83,10 @@ pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
 # OMC agent cache
 .omc/
 
+# Dev-only directories
+.planning/
+.agent/
+
 # Agent config (local overrides)
 agent.config.local
 
