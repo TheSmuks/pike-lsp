@@ -87,6 +87,9 @@ pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
 .planning/
 .agent/
 
+# Scattered CLAUDE.md files (claude-mem artifacts)
+**/CLAUDE.md
+
 # Agent config (local overrides)
 agent.config.local
 
