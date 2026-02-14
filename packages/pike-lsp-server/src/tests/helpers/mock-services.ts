@@ -57,6 +57,24 @@ export type DocumentSymbolHandler = (params: {
     textDocument: { uri: string };
 }) => Promise<import('vscode-languageserver/node.js').DocumentSymbol[] | null>;
 
+/** Handler signature for typeHierarchy onPrepare */
+export type TypeHierarchyPrepareHandler = (params: {
+    textDocument: { uri: string };
+    position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
+/** Handler signature for typeHierarchy onSupertypes */
+export type TypeHierarchySupertypesHandler = (params: {
+    item: import('vscode-languageserver/node.js').TypeHierarchyItem;
+    direction: 'parents' | 'children';
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
+/** Handler signature for typeHierarchy onSubtypes */
+export type TypeHierarchySubtypesHandler = (params: {
+    item: import('vscode-languageserver/node.js').TypeHierarchyItem;
+    direction: 'parents' | 'children';
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
 // =============================================================================
 // Mock Connection
 // =============================================================================
@@ -70,6 +88,8 @@ export interface MockConnection {
     onImplementation: (handler: ImplementationHandler) => void;
     onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
     onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
+    sendDiagnostics: (params: { uri: string; diagnostics: any[] }) => void;
+    getSentDiagnostics: () => any[];
     console: { log: (...args: any[]) => void };
     languages: {
         callHierarchy: {
@@ -90,6 +110,9 @@ export interface MockConnection {
     documentHighlightHandler: DocumentHighlightHandler;
     implementationHandler: ImplementationHandler;
     documentSymbolHandler: DocumentSymbolHandler;
+    typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
+    typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
+    typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
 }
 
 /**
@@ -104,6 +127,10 @@ export function createMockConnection(): MockConnection {
     let _documentHighlightHandler: DocumentHighlightHandler | null = null;
     let _implementationHandler: ImplementationHandler | null = null;
     let _documentSymbolHandler: DocumentSymbolHandler | null = null;
+    let _typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler | null = null;
+    let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
+    const _sentDiagnostics: Array<{ uri: string; diagnostics: any[] }> = [];
+    let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
 
     return {
         onDefinition(handler: DefinitionHandler) { _definitionHandler = handler; },
@@ -114,6 +141,7 @@ export function createMockConnection(): MockConnection {
         onImplementation(handler: ImplementationHandler) { _implementationHandler = handler; },
         onDocumentSymbol(handler: DocumentSymbolHandler) { _documentSymbolHandler = handler; },
         onWorkspaceSymbol() {},
+        sendDiagnostics(params: { uri: string; diagnostics: any[] }) { _sentDiagnostics.push(params); },
         console: { log: () => {} },
         languages: {
             callHierarchy: {
@@ -122,9 +150,9 @@ export function createMockConnection(): MockConnection {
                 onIncomingCalls(_handler: any) { /* Store for testing if needed */ },
             },
             typeHierarchy: {
-                onPrepare(_handler: any) { /* Store for testing if needed */ },
-                onSupertypes(_handler: any) { /* Store for testing if needed */ },
-                onSubtypes(_handler: any) { /* Store for testing if needed */ },
+                onPrepare(handler: TypeHierarchyPrepareHandler) { _typeHierarchyPrepareHandler = handler; },
+                onSupertypes(handler: TypeHierarchySupertypesHandler) { _typeHierarchySupertypesHandler = handler; },
+                onSubtypes(handler: TypeHierarchySubtypesHandler) { _typeHierarchySubtypesHandler = handler; },
             },
         },
         get definitionHandler(): DefinitionHandler {
@@ -155,6 +183,19 @@ export function createMockConnection(): MockConnection {
             if (!_documentSymbolHandler) throw new Error('No document symbol handler registered');
             return _documentSymbolHandler;
         },
+        get typeHierarchyPrepareHandler(): TypeHierarchyPrepareHandler {
+            if (!_typeHierarchyPrepareHandler) throw new Error('No type hierarchy prepare handler registered');
+            return _typeHierarchyPrepareHandler;
+        },
+        get typeHierarchySupertypesHandler(): TypeHierarchySupertypesHandler {
+            if (!_typeHierarchySupertypesHandler) throw new Error('No type hierarchy supertypes handler registered');
+            return _typeHierarchySupertypesHandler;
+        },
+        get typeHierarchySubtypesHandler(): TypeHierarchySubtypesHandler {
+            if (!_typeHierarchySubtypesHandler) throw new Error('No type hierarchy subtypes handler registered');
+            return _typeHierarchySubtypesHandler;
+        },
+        getSentDiagnostics() { return _sentDiagnostics; },
     };
 }
 
