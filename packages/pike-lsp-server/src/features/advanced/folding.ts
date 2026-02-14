@@ -39,10 +39,32 @@ export function getFoldingRanges(document: TextDocument): FoldingRange[] {
         const braceStack: { line: number; kind: FoldingRangeKind | undefined }[] = [];
         let commentStart: number | null = null;
         let inBlockComment = false;
+        let inMultilineString = false; // Pike #"..."# strings
+        let multilineStringStart: number | null = null;
 
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
             const line = lines[lineNum] ?? '';
             const trimmed = line.trim();
+
+            // Handle Pike multi-line strings: #" starts, "# ends
+            if (trimmed.includes('#"') && !inMultilineString) {
+                const startIndex = trimmed.indexOf('#"');
+                // Basic check to avoid matching inside regular strings
+                if (startIndex >= 0 && !trimmed.substring(0, startIndex).includes('"')) {
+                    inMultilineString = true;
+                    multilineStringStart = lineNum;
+                }
+            }
+            if (trimmed.includes('"#') && inMultilineString) {
+                if (multilineStringStart !== null && lineNum > multilineStringStart) {
+                    foldingRanges.push({
+                        startLine: multilineStringStart,
+                        endLine: lineNum,
+                    });
+                }
+                inMultilineString = false;
+                multilineStringStart = null;
+            }
 
             if (!inBlockComment && trimmed.startsWith('/*')) {
                 commentStart = lineNum;
