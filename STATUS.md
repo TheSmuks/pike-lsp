@@ -25,11 +25,12 @@ None currently known.
 
 ## Known Issues
 
-- 3 packages out of version sync (pike-bridge, pike-lsp-server, core at alpha.14 vs root at alpha.16)
+(None currently known)
 
 ## In Progress
 
-- Converting remaining placeholder tests (75 remaining, mostly require bridge/handler infrastructure)
+- Converting remaining vscode-pike extension tests (75 placeholders in Categories 31-39)
+- Import/inherit symbol exports (better module resolution for symbols, LocalMod, cached lookup)
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
