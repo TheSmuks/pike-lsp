@@ -13,15 +13,23 @@ type CompletionHandler = (params: {
 interface MockConnection {
     onCompletion: (handler: CompletionHandler) => void;
     completionHandler: CompletionHandler;
+    onCompletionResolve: (handler: (item: CompletionItem) => CompletionItem) => void;
+    completionResolveHandler: (item: CompletionItem) => CompletionItem;
 };
 
 function createMockConnection(): MockConnection {
     let h: CompletionHandler | null = null;
+    let rh: ((item: CompletionItem) => CompletionItem) | null = null;
     return {
         onCompletion: (cb: CompletionHandler) => { h = cb; },
         get completionHandler(): CompletionHandler {
             if (!h) throw new Error("No handler");
             return h;
+        },
+        onCompletionResolve: (cb: (item: CompletionItem) => CompletionItem) => { rh = cb; },
+        get completionResolveHandler(): (item: CompletionItem) => CompletionItem {
+            if (!rh) throw new Error("No resolve handler");
+            return rh;
         },
     };
 }
@@ -121,9 +129,9 @@ describe("Completion Provider - Chained Access", () => {
                 symbols: [],
                 bridgeContext: { context: "member_access", objectName: "getFile", prefix: "", operator: "->" },
                 stdlibModules: {
-                    Stdio.File: fileMembers,
-                    Stdio.Stat: {
-                        symbols: new Map([["getFile", { name: "getFile", type: { kind: "function", returnType: { kind: "object", className: "Stdio.File" } }, kind: "function", modifiers: [] }]),
+                    "Stdio.File": fileMembers,
+                    "Stdio.Stat": {
+                        symbols: new Map([["getFile", { name: "getFile", type: { kind: "function", returnType: { kind: "object", className: "Stdio.File" } }, kind: "function", modifiers: [] }]]),
                     },
                 },
             });
@@ -132,6 +140,53 @@ describe("Completion Provider - Chained Access", () => {
             const names = labels(result);
             expect(names).toContain("read");
             expect(names).toContain("write");
+        });
+
+        it("D.4: property chaining (obj->prop->subprop)", async () => {
+            const objMembers = new Map<string, import('@pike-lsp/pike-bridge').IntrospectedSymbol>();
+            objMembers.set("path", { name: "path", type: { kind: "property" } });
+
+            const { complete } = setup({
+                code: "obj->path->",
+                symbols: [],
+                bridgeContext: { context: "member_access", objectName: "obj", prefix: "path", operator: "->" },
+                stdlibModules: {
+                    "Stdio.File": objMembers,
+                },
+            });
+
+            const result = await complete(0, 11);
+            const names = labels(result);
+            expect(names).toContain("path");
+            expect(names).toContain("basename");
+            expect(names).toContain("dirname");
+            expect(names).toContain("explode_path");
+            expect(names).toContain("stat");
+        });
+
+        it("D.5: mixed access (obj->prop.method()->field)", async () => {
+            const fileMembers = new Map<string, import('@pike-lsp/pike-bridge').IntrospectedSymbol>();
+            const fileMethods = new Map<string, import('@pike-lsp/pike-bridge').IntrospectedSymbol>();
+            fileMembers.set("read", { name: "read", type: { kind: "method" } });
+            fileMethods.set("read", { name: "read", type: { kind: "method" } });
+            fileMethods.set("close", { name: "close", type: { kind: "method" } });
+            fileMethods.set("open", { name: "open", type: { kind: "method" } });
+
+            const { complete } = setup({
+                code: "obj->file->close()->",
+                symbols: [],
+                bridgeContext: { context: "member_access", objectName: "file", prefix: "", operator: "->" },
+                stdlibModules: {
+                    "Stdio.File": fileMembers,
+                    "Stdio.File": fileMethods,
+                },
+            });
+
+            const result = await complete(0, 16);
+            const names = labels(result);
+            expect(names).toContain("read");
+            expect(names).toContain("close");
+            expect(names).toContain("open");
         });
     });
 });
