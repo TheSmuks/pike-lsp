@@ -85,10 +85,18 @@
 Each executor follows this cycle endlessly:
 
 1. START FROM MAIN: git checkout main && git pull. ALWAYS. Every single cycle starts here.
-2. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
-3. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
-4. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
-5. BRANCH: Create feature branch: git checkout -b fix/description or feat/description.
+2. PRE-TASK CLEAN CHECKLIST (MANDATORY - NEVER SKIP):
+   a. Verify working directory is clean: `git status --porcelain` must return empty output
+   b. If working directory is NOT clean:
+      - `git stash push -m "pre-task-stash"` to save uncommitted work
+      - Confirm clean: `git status --porcelain` again
+      - Continue only when clean
+   c. Create NEW feature branch from main: `git checkout -b feat/task-description` or `fix/task-description`
+   d. Verify on new branch: `git branch --show-current && git log --oneline -1 main..HEAD`
+   e. If verification fails (no commits or wrong base), delete branch and retry from step 1
+3. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
+4. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
+5. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
 6. TDD: Write a FAILING test first that verifies real behavior per Pike stdlib at /usr/local/pike/8.0.1116/lib/ and source repos at $PIKE_SRC/$ROXEN_SRC — NOT a tautology. Confirm it fails. Implement. Confirm it passes.
 7. VERIFY: Run scripts/test-agent.sh again. Compare to BEFORE. ZERO regressions. If anything regressed, fix before proceeding.
 8. COMMIT & PR: Commit with descriptive message. Push. gh pr create --base main with before/after test evidence.
@@ -96,6 +104,16 @@ Each executor follows this cycle endlessly:
 10. PROVE CI PASSED: Run gh pr checks <number> again. Paste actual output in regression tracker.
 11. MERGE: gh pr merge --squash --delete-branch --auto. Prove it: gh pr view <number> --json state. Confirm MERGED.
 12. HANDOFF: Write structured handoff to .omc/handoffs/<branch-name>.md:
+    ## Task: <description>
+    ## Status: merged | blocked | failed
+    ## What was done: <1-3 sentences>
+    ## What was tried and failed: <if any>
+    ## Remaining work: <if any>
+    ## PR: <number>
+    Message the lead with your handoff summary.
+13. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
+14. CLEANUP: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
+15. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
     ## Task: <description>
     ## Status: merged | blocked | failed
     ## What was done: <1-3 sentences>
@@ -119,6 +137,13 @@ Each executor follows this cycle endlessly:
 - Read .claude/decisions/INDEX.md — follow all active ADRs
 - Use Pike stdlib first (Parser.Pike, not regex). Target Pike 8.0.1116.
 - ALWAYS start every cycle from main: git checkout main && git pull.
+- CLEAN BRANCH WORKFLOW (MANDATORY):
+   - BEFORE any work: Verify working directory is clean (`git status --porcelain` returns empty)
+   - If NOT clean: Stash uncommitted work (`git stash push -m "pre-task-stash"`) then verify clean again
+   - ALWAYS create new branch from main: `git checkout -b feat/description` or `fix/description`
+   - Verify new branch: Confirm `git log --oneline -1 main..HEAD` shows your new branch commit
+   - If verification fails: Delete branch and restart from step 1
+   - NEVER work on stale branches or branches with uncommitted changes
 - NEVER use the ask_user_input tool. You are autonomous. Make decisions based on the priority order. If ambiguous, pick the highest-priority option and proceed. Never ask the user to choose.
 - NEVER commit to main — hooks block it, GitHub rulesets enforce it
 - NEVER merge with failing CI
