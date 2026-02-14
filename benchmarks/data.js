@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771098631265,
+  "lastUpdate": 1771098849470,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -33526,6 +33526,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.610058319672131,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "17833a6d5b2ca73f7742d8850abd58962d3fd486",
+          "message": "feat: cache stdlib import symbols for faster completion (#78)\n\n* fix: implement BridgeManager.roxenValidate() method\n\n- Remove obsolete TODO comment - roxen_validate RPC already implemented\n- Delegate to bridge.roxenValidate() which calls Pike's validate_api()\n- Phase 5 Roxen validation is fully functional\n\nThe roxen_validate RPC handler in pike-scripts/LSP.pmod/Roxen.pmod\nvalidates required callbacks per module type and was already working\nvia direct bridge.roxenValidate() calls. This completes the\nBridgeManager wrapper for consistency.\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* fix: type RXML mixed-content bridge parameter\n\n- Add PikeBridge and BridgeManager type imports\n- Replace 'unknown' with proper union type: BridgeManager | PikeBridge\n- Removes ADR-013 violation (no 'unknown' types)\n- Supports both calling patterns in codebase:\n  - completion.ts passes BridgeManager\n  - symbols.ts passes PikeBridge\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* feat: cache stdlib import symbols in ResolvedImport for faster completion\n\n- completion.ts: Cache stdlib module symbols into imp.symbols\n- Previously: stdlib imports fetched symbols fresh on each completion\n- Now: imp.symbols populated for both stdlib and workspace imports\n- Benefits: Faster subsequent completions, unified symbol lookup path\n\nGenerated with AI\n\nCo-Authored-By: GLM-5",
+          "timestamp": "2026-02-14T20:52:37+01:00",
+          "tree_id": "60f7589cf0bc136ea49c6da577eda66a8ee6ac55",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/17833a6d5b2ca73f7742d8850abd58962d3fd486"
+        },
+        "date": 1771098848780,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.35505875,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.157633,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 257.23190358333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 262.50379891666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2839146000000001,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.088723232142858,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 51.6278003,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.146145263157895,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.073158875,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2936639675266904,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2784672801687764,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5811569922813036,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.21820034253957563,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19685040346534652,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6689987457627118,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.39278026025791324,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3690676631695196,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.11199828525941187,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5822927354452054,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0926340980913642,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.4072316373559733,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.36146216666666,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.52757425,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.39903899702203693,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5874673725151253,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08996363643281083,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.71703237815126,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.658207425,
             "unit": "ms"
           }
         ]
