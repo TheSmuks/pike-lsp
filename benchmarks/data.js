@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771092398648,
+  "lastUpdate": 1771092400193,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -31254,6 +31254,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.69119975,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de71cdf844efecc041c0c2bb6c569932ad141524",
+          "message": "docs: add TASK CLAIMING PROTOCOL to prevent duplicate worker assignments (#70)\n\n* feat: add workspace import symbol caching (Gap 5)\n\n- Add ResolvedImport to imports in include-resolver.ts\n- Add resolveWorkspaceImport() method to resolve and cache workspace module symbols\n- Populate ResolvedImport.symbols and resolvedPath for non-stdlib imports\n- Completion handler already checks imp.symbols - now workspace imports will work\n\nCloses Gap 5 from import-inherit-resolution.test.ts\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* docs: add TASK CLAIMING PROTOCOL to prevent duplicate worker assignments\n\nAdds explicit protocol for task claiming to prevent multiple workers\nfrom being assigned the same task simultaneously. This addresses the\nissue where worker-1, worker-3, and pr68-fixer all worked on PR #68.\n\nKey points:\n- Check TaskList before creating new tasks\n- Set owner atomically with status=in_progress\n- Atomic claim check before starting any work\n- Merge duplicate tasks immediately\n\nGenerated with AI\n\nCo-Authored-By: GLM-5",
+          "timestamp": "2026-02-14T19:05:14+01:00",
+          "tree_id": "ca7be4317d8033fe439022fe33ebd145484b595d",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/de71cdf844efecc041c0c2bb6c569932ad141524"
+        },
+        "date": 1771092398068,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.85516416666667,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 255.5746165,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 255.78735466666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.60708216666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2579260365630711,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.006168608187134,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 49.68499818181818,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.138613917293233,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.958040138728324,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.27905629737732657,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.27416717331670826,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5562290196882691,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.21599887870709764,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19671813376583255,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6528596258992807,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3679854485981308,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.370707905882353,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.11135906823184152,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5795337116040955,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.09752627902374669,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.38785306994219654,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.49007858333334,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 251.99311958333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.378813151241535,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5630313371996686,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07931243346526545,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.639263082644629,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.64505626446281,
             "unit": "ms"
           }
         ]
