@@ -33,11 +33,11 @@ None currently known.
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
+- **2026-02-14**: Converted 9 more type-hierarchy placeholder tests to real tests (PR #47)
 - **2026-02-14**: Converted 15 more type-hierarchy placeholder tests to real tests (PR #45)
 - **2026-02-14**: Converted 10 type-hierarchy placeholder tests to real tests (PR #43)
 - **2026-02-14**: Converted 8 document-links placeholder tests to real tests (PR #41)
 - **2026-02-14**: Converted 15 call-hierarchy placeholder tests to real tests (PR #38)
-- **2026-02-14**: Converted 31 selection-ranges placeholder tests to real tests (PR #36)
 
 ## Failed Approaches (last 5 - full log: `.claude/status/failed-approaches.log`)
 
