@@ -9,13 +9,16 @@
 
 ## Medium (improvements)
 - [x] **Audit Roxen features** - COMPLETED (worker-4). All Roxen features from PR #28 were delivered via PR #31.
-- [ ] **Convert remaining placeholder tests** - IN PROGRESS. Test quality: 93% real (145 placeholders remaining)
+- [ ] **Convert remaining placeholder tests** - IN PROGRESS. Test quality: 97% real (75 placeholders remaining)
   - [x] Tier 1 providers (hover, completion, definition, references, document-symbol) - 0 placeholders
   - [x] Diagnostics provider - 43 placeholders converted (PR #34)
   - [x] Selection ranges provider - 31 placeholders converted (PR #36)
   - [x] Call hierarchy provider - 15 placeholders converted (PR #38)
   - [x] Document links provider - 8 placeholders converted (PR #41)
   - [x] Type hierarchy provider - 34 placeholders converted (PR #43, PR #45, PR #47)
+  - [x] Workspace scanner - 5 placeholders converted (PR #50)
+  - [x] Formatting provider - 41 placeholders converted (PR #51)
+  - [x] Workspace symbol provider - 25 placeholders converted (PR #52)
   - [ ] Remaining files need bridge/handler infrastructure
 
 ## Low (nice to have)
@@ -35,6 +38,9 @@
 - [x] **PR #43** - 10 type-hierarchy placeholder tests converted
 - [x] **PR #45** - 15 more type-hierarchy placeholder tests converted
 - [x] **PR #47** - 9 more type-hierarchy placeholder tests converted
+- [x] **PR #50** - 5 workspace-scanner placeholder tests converted
+- [x] **PR #51** - 41 formatting-provider placeholder tests converted
+- [x] **PR #52** - 25 workspace-symbol-provider placeholder tests converted
 
 ## Roxen Feature Audit (PR #28/31)
 

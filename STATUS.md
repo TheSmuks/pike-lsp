@@ -16,8 +16,8 @@ Run `scripts/test-agent.sh --quality` for live numbers. Last audit (2026-02-14):
 |---------|------|-------------|--------|
 | pike-bridge | 216 | 0 | **100%** |
 | vscode-pike | 266 | 35 | **88%** |
-| pike-lsp-server | 1670 | 110 | **93%** |
-| **OVERALL** | **2152** | **145** | **93%** |
+| pike-lsp-server | 1739 | 40 | **98%** |
+| **OVERALL** | **2221** | **75** | **97%** |
 
 ## Failing Tests
 
@@ -29,10 +29,13 @@ None currently known.
 
 ## In Progress
 
-- Converting remaining placeholder tests (157 remaining, mostly require bridge/handler infrastructure)
+- Converting remaining placeholder tests (75 remaining, mostly require bridge/handler infrastructure)
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
+- **2026-02-14**: Converted 25 workspace-symbol-provider placeholder tests to real tests (PR #52)
+- **2026-02-14**: Converted 41 formatting-provider placeholder tests to real tests (PR #51)
+- **2026-02-14**: Converted 5 workspace-scanner placeholder tests to real tests (PR #50)
 - **2026-02-14**: Converted 9 more type-hierarchy placeholder tests to real tests (PR #47)
 - **2026-02-14**: Converted 15 more type-hierarchy placeholder tests to real tests (PR #45)
 - **2026-02-14**: Converted 10 type-hierarchy placeholder tests to real tests (PR #43)
