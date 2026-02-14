@@ -16,8 +16,8 @@ Run `scripts/test-agent.sh --quality` for live numbers. Last audit (2026-02-14):
 |---------|------|-------------|--------|
 | pike-bridge | 216 | 0 | **100%** |
 | vscode-pike | 264 | 37 | **87%** |
-| pike-lsp-server | 1651 | 120 | **93%** |
-| **OVERALL** | **2131** | **157** | **93%** |
+| pike-lsp-server | 1670 | 118 | **93%** |
+| **OVERALL** | **2150** | **155** | **93%** |
 
 ## Failing Tests
 
@@ -33,11 +33,11 @@ None currently known.
 
 ## Recent Changes (last 5 - full log: `.claude/status/changes.log`)
 
+- **2026-02-14**: Converted 8 document-links placeholder tests to real tests (PR #41)
 - **2026-02-14**: Converted 15 call-hierarchy placeholder tests to real tests (PR #38)
 - **2026-02-14**: Converted 31 selection-ranges placeholder tests to real tests (PR #36)
 - **2026-02-14**: Converted 43 diagnostics-provider placeholder tests to real tests (PR #34)
 - **2026-02-14**: Completed Roxen audit - all features present via PR #31 (PR #33)
-- **2026-02-14**: Added circular inheritance test in references-provider (PR #33)
 
 ## Failed Approaches (last 5 - full log: `.claude/status/failed-approaches.log`)
 
