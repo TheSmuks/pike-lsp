@@ -91,3 +91,6 @@ agent.config.local
 Screenshot*.png
 WhatsApp*.jpeg
 t_v7.txt
+
+# Large binaries - install via package manager
+scripts/act
