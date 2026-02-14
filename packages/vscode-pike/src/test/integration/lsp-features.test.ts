@@ -1273,17 +1273,18 @@ int nested_symbol
 
         // Test that the pike.showReferences command can be invoked directly
         // This simulates what happens when user clicks the code lens
+        let commandExecuted = false;
         try {
             await vscode.commands.executeCommand(
                 'pike.showReferences',
                 testDocumentUri.toString(),
                 { line: funcPosition.line, character: funcPosition.character }
             );
-            // If we get here without error, the command is invocable
-            assert.ok(true, 'pike.showReferences command executed successfully');
+            commandExecuted = true;
         } catch (err) {
             assert.fail(`pike.showReferences command failed: ${err}`);
         }
+        assert.strictEqual(commandExecuted, true, 'pike.showReferences command should execute without throwing');
     });
 
     /**
@@ -1347,6 +1348,7 @@ int nested_symbol
 
         // Execute command with all three parameters (uri, position, symbolName)
         // Position is at column 0 (return type), but symbolName should help find the right position
+        let commandExecuted = false;
         try {
             await vscode.commands.executeCommand(
                 'pike.showReferences',
@@ -1354,10 +1356,11 @@ int nested_symbol
                 { line: funcLine, character: 0 },
                 'test_function'  // This symbolName should help find the right position
             );
-            assert.ok(true, 'pike.showReferences command with symbolName executed successfully');
+            commandExecuted = true;
         } catch (err) {
             assert.fail(`pike.showReferences command with symbolName failed: ${err}`);
         }
+        assert.strictEqual(commandExecuted, true, 'pike.showReferences command with symbolName should execute without throwing');
     });
 
     /**
