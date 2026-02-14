@@ -15,7 +15,7 @@
   - [x] Selection ranges provider - 31 placeholders converted (PR #36)
   - [x] Call hierarchy provider - 15 placeholders converted (PR #38)
   - [x] Document links provider - 8 placeholders converted (PR #41)
-  - [x] Type hierarchy provider - 25 placeholders converted (PR #43, PR #45)
+  - [x] Type hierarchy provider - 34 placeholders converted (PR #43, PR #45, PR #47)
   - [ ] Remaining files need bridge/handler infrastructure
 
 ## Low (nice to have)
@@ -34,6 +34,7 @@
 - [x] **PR #41** - 8 document-links placeholder tests converted
 - [x] **PR #43** - 10 type-hierarchy placeholder tests converted
 - [x] **PR #45** - 15 more type-hierarchy placeholder tests converted
+- [x] **PR #47** - 9 more type-hierarchy placeholder tests converted
 
 ## Roxen Feature Audit (PR #28/31)
 
