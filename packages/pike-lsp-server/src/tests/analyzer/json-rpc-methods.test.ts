@@ -658,69 +658,89 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
   // =========================================================================
   // 45.16 Method: get_startup_metrics
   // =========================================================================
-  // NOTE: Startup metrics are tracked internally. Bridge state can be checked
-  // via isRunning() and getDiagnostics() methods.
+  // Tests the get_startup_metrics JSON-RPC method which returns
+  // startup phase timing information from the Pike subprocess.
 
   describe('45.16 Method: get_startup_metrics', () => {
-    it('should indicate bridge is running after start', async () => {
-      assert.ok(bridge.isRunning(), 'Bridge should be running after start()');
+    it('should return startup metrics from Pike subprocess', async () => {
+      const metrics = await bridge.getStartupMetrics();
+
+      assert.ok(metrics, 'getStartupMetrics should return a result');
+      assert.ok(typeof metrics === 'object' && metrics !== null, 'Should return an object');
     });
 
-    it('should provide diagnostics with running state', () => {
-      const diagnostics = bridge.getDiagnostics();
-      assert.ok(diagnostics, 'getDiagnostics should return a result');
-      assert.strictEqual(typeof diagnostics.isRunning, 'boolean', 'Should have isRunning boolean');
+    it('should include total startup time', async () => {
+      const metrics = await bridge.getStartupMetrics();
+
+      assert.ok('total' in metrics, 'Should have total field');
+      assert.ok(typeof metrics.total === 'number', 'total should be a number');
     });
 
-    it('should include process ID in diagnostics when running', () => {
-      const diagnostics = bridge.getDiagnostics();
-      if (diagnostics.isRunning) {
-        assert.ok(typeof diagnostics.pid === 'number', 'Should have pid when running');
-        assert.ok(diagnostics.pid! > 0, 'pid should be positive');
+    it('should include path_setup timing', async () => {
+      const metrics = await bridge.getStartupMetrics();
+
+      assert.ok('path_setup' in metrics, 'Should have path_setup field');
+      if (metrics.path_setup !== undefined) {
+        assert.ok(typeof metrics.path_setup === 'number', 'path_setup should be a number');
       }
     });
 
-    it('should have options in diagnostics', () => {
-      const diagnostics = bridge.getDiagnostics();
-      assert.ok(diagnostics.options, 'Should have options in diagnostics');
-      assert.ok(typeof diagnostics.options.timeout === 'number', 'Should have timeout option');
+    it('should include version timing', async () => {
+      const metrics = await bridge.getStartupMetrics();
+
+      assert.ok('version' in metrics, 'Should have version field');
+      if (metrics.version !== undefined) {
+        assert.ok(typeof metrics.version === 'number', 'version should be a number');
+      }
+    });
+
+    it('should include handlers timing', async () => {
+      const metrics = await bridge.getStartupMetrics();
+
+      assert.ok('handlers' in metrics, 'Should have handlers field');
+      if (metrics.handlers !== undefined) {
+        assert.ok(typeof metrics.handlers === 'number', 'handlers should be a number');
+      }
     });
   });
 
   // =========================================================================
   // 45.17 Method: get_cache_stats
   // =========================================================================
-  // NOTE: Cache statistics are tracked internally by the Pike analyzer.
-  // Token cache can be invalidated via invalidateTokenCache().
+  // Tests the get_cache_stats JSON-RPC method which returns
+  // compilation cache statistics from the Pike subprocess.
 
   describe('45.17 Method: get_cache_stats', () => {
-    it('should have token cache invalidation method', () => {
-      // Token cache is an internal cache that can be invalidated
-      assert.ok(typeof bridge.invalidateTokenCache === 'function', 'Should have invalidateTokenCache method');
+    it('should return cache stats from Pike subprocess', async () => {
+      const stats = await bridge.getCacheStats();
+
+      assert.ok(stats, 'getCacheStats should return a result');
+      assert.ok(typeof stats === 'object' && stats !== null, 'Should return an object');
     });
 
-    it('should invalidate token cache without error', () => {
-      // This tests that invalidateTokenCache works without throwing
-      assert.doesNotThrow(() => {
-        bridge.invalidateTokenCache('file:///test.pike');
-      }, 'invalidateTokenCache should not throw');
+    it('should include hits and misses counters', async () => {
+      const stats = await bridge.getCacheStats();
+
+      assert.ok('hits' in stats, 'Should have hits field');
+      assert.ok('misses' in stats, 'Should have misses field');
+      assert.ok(typeof stats.hits === 'number', 'hits should be a number');
+      assert.ok(typeof stats.misses === 'number', 'misses should be a number');
     });
 
-    it('should handle multiple cache invalidations', () => {
-      // Multiple invalidations should work
-      bridge.invalidateTokenCache('file:///test1.pike');
-      bridge.invalidateTokenCache('file:///test2.pike');
-      bridge.invalidateTokenCache('file:///test3.pike');
-      assert.ok(true, 'Multiple invalidations should work');
+    it('should include size and max_files', async () => {
+      const stats = await bridge.getCacheStats();
+
+      assert.ok('size' in stats, 'Should have size field');
+      assert.ok('max_files' in stats, 'Should have max_files field');
+      assert.ok(typeof stats.size === 'number', 'size should be a number');
+      assert.ok(typeof stats.max_files === 'number', 'max_files should be a number');
     });
 
-    it('should handle invalid URIs gracefully', () => {
-      // Invalid URIs should not crash
-      assert.doesNotThrow(() => {
-        bridge.invalidateTokenCache('');
-        bridge.invalidateTokenCache('not-a-uri');
-        bridge.invalidateTokenCache('file:///');
-      }, 'Should handle invalid URIs gracefully');
+    it('should include evictions counter', async () => {
+      const stats = await bridge.getCacheStats();
+
+      assert.ok('evictions' in stats, 'Should have evictions field');
+      assert.ok(typeof stats.evictions === 'number', 'evictions should be a number');
     });
   });
 
