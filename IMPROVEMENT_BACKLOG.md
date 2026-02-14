@@ -33,14 +33,14 @@
 ### Code TODOs Found
 | File | Line | TODO | Estimate |
 |------|------|------|----------|
-| `packages/pike-bridge/src/corpus.test.ts` | 395 | Categorize false positives and tighten assertion | 2-4h |
+| ~~`packages/pike-bridge/src/corpus.test.ts`~~ | ~~395~~ | ~~Categorize false positives and tighten assertion~~ | ✅ Completed 2026-02-14 |
 | `packages/pike-lsp-server/src/tests/pike-analyzer/compatibility.test.ts` | 475 | Implement compatibility.handleMissingModule() | 1-2h |
 
 ### Coverage Gaps Identified
 | Area | File/Line | Gap | Impact | Estimate |
 |-------|------------|-----|--------|----------|
 | Cross-file cycle detection | `features/hierarchy.ts:561,628,669` | NOT IMPLEMENTED | Call/type hierarchy single-file only | 8-16h |
-| Chained access completion | `tests/editing/completion-provider.test.ts:869` | Type resolution not implemented | `a.b.c` completion incomplete | 4-8h |
+| Chained access completion | `tests/editing/completion-provider.test.ts:885` | ✅ COMPLETED (PR #xx) | Type resolution works for `obj->method()->` chained access | - |
 | Import/inherit symbols | `tests/import-inherit-resolution.test.ts:406,558,559` | Missing: symbols, LocalMod, cached lookup | Module info incomplete | 6-12h |
 
 ### LSP Feature Coverage
@@ -72,7 +72,7 @@
 
 ### Recommended Next Steps (Priority Order)
 1. **Convert vscode-pike placeholder tests** (35 remaining) - Unblocks completion
-2. **Fix corpus.test.ts false positives** - Test integrity issue
+2. ~~**Fix corpus.test.ts false positives**~~ - ✅ Completed 2026-02-14
 3. **Implement chained access completion** - High value feature gap
 4. **Cross-file hierarchy analysis** - Completes call/type hierarchy
 5. **Import/inherit symbol exports** - Better module resolution

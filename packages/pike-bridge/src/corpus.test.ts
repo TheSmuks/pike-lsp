@@ -398,12 +398,46 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
             'modules/System.pmod/FSEvents.pmod',
         ]);
 
+        // Files with expected diagnostics (true positives)
+        // These are known to have legitimate issues in Pike's stdlib (e.g., uninitialized variables)
+        // Diagnostics on files NOT in this list are false positives (analyzer bugs)
+        const EXPECTED_DIAGNOSTICS: Set<string> = new Set([
+            // Add files here that have known true positives
+            // Example: 'modules/Mysql.pmod/module.pmod',
+        ]);
+
         // Files with diagnostics - these are typically uninitialized variable warnings
         const filesWithDiagnostics = results.filter(r =>
             r.diagnosticCount > 0 && r.operations.diagnostics === 'ok'
         );
 
         console.log(`Files with diagnostics: ${filesWithDiagnostics.length}/${results.length}`);
+
+        // Separate true positives (expected) from false positives (analyzer bugs)
+        const truePositives = filesWithDiagnostics.filter(r =>
+            EXPECTED_DIAGNOSTICS.has(r.relativePath)
+        );
+        const falsePositives = filesWithDiagnostics.filter(r =>
+            !EXPECTED_DIAGNOSTICS.has(r.relativePath)
+        );
+
+        console.log(`  - True positives (expected): ${truePositives.length}`);
+        console.log(`  - False positives (analyzer bugs): ${falsePositives.length}`);
+
+        if (falsePositives.length > 0) {
+            console.log('\nFalse positive diagnostic files (analyzer bugs):');
+            for (const r of falsePositives.slice(0, 10)) {
+                console.log(`  - ${r.relativePath} (${r.diagnosticCount} diagnostics)`);
+            }
+            if (falsePositives.length > 10) {
+                console.log(`  ... and ${falsePositives.length - 10} more`);
+            }
+        }
+
+        // Zero tolerance for false positives - analyzer bugs should be fixed
+        assert.equal(falsePositives.length, 0,
+            `${falsePositives.length} files have false positive diagnostics (analyzer bugs). ` +
+            `Either fix the analyzer or add the file to EXPECTED_DIAGNOSTICS if it's a true positive.`);
 
         // Diagnostics are expected on some stdlib files (uninitialized variable analysis)
         // This is NOT a bug - the analyzer correctly identifies potential issues
