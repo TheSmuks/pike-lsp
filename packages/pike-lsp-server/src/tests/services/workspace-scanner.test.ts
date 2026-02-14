@@ -218,12 +218,18 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
 
         // Act - start first scan
         const scan1 = scanner.scanAll();
-        // Start second scan immediately
+        // Start second scan immediately (should be skipped due to scanPending flag)
         const scan2 = scanner.scanAll();
 
         // Assert - both should complete without throwing
+        // The implementation uses scanPending flag to prevent concurrent scans
+        // The second scan returns early without doing work
         await Promise.all([scan1, scan2]);
-        assert.ok(true);
+
+        // Verify scanner is still ready after concurrent scan attempts
+        assert.equal(scanner.isReady(), true, 'Scanner should remain ready after concurrent scans');
+        const stats = scanner.getStats();
+        assert.ok(typeof stats.fileCount === 'number', 'Stats should be available');
     });
 });
 
@@ -232,44 +238,113 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
 // ============================================================================
 
 describe('WorkspaceScanner - 26.4 File changes', () => {
-    it('26.4.1 should update file data (symbols)', () => {
-        // Arrange
+    it('26.4.1 should update file data (symbols)', async () => {
+        // Arrange - create a temp directory with a Pike file for testing
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const tempDir = path.join(os.tmpdir(), `ws-test-${Date.now()}`);
+        await fs.mkdir(tempDir, { recursive: true });
+        const testFile = path.join(tempDir, 'test.pike');
+        await fs.writeFile(testFile, 'int x;');
 
-        // Act - update non-existent file (should not throw)
-        scanner.updateFileData('file:///test.pike', {
-            symbols: [{ name: 'test', kind: 'function' }] as any,
-        });
+        try {
+            // Initialize scanner with the temp directory
+            await scanner.initialize([tempDir]);
 
-        // Assert
-        assert.ok(true);
+            // Verify file was discovered
+            const filesBefore = scanner.getAllFiles();
+            assert.ok(filesBefore.length > 0, 'File should be discovered');
+
+            // Get the file URI
+            const fileUri = filesBefore[0].uri;
+
+            // Act - update file symbols
+            scanner.updateFileData(fileUri, {
+                symbols: [{ name: 'x', kind: 'variable' }] as any,
+            });
+
+            // Assert - symbols should be cached
+            const stats = scanner.getStats();
+            assert.equal(stats.cachedFiles, 1, 'One file should have cached symbols');
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        }
     });
 
-    it('26.4.2 should update file symbol positions', () => {
-        // Arrange
+    it('26.4.2 should update file symbol positions', async () => {
+        // Arrange - create a temp directory with a Pike file for testing
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const tempDir = path.join(os.tmpdir(), `ws-test-${Date.now()}`);
+        await fs.mkdir(tempDir, { recursive: true });
+        const testFile = path.join(tempDir, 'test.pike');
+        await fs.writeFile(testFile, 'void func() {}');
 
-        // Act
-        scanner.updateFileData('file:///test.pike', {
-            symbolPositions: new Map([['test', [{ line: 0, character: 0 }]]]),
-        });
+        try {
+            // Initialize scanner with the temp directory
+            await scanner.initialize([tempDir]);
 
-        // Assert
-        assert.ok(true);
+            // Get the file URI
+            const files = scanner.getAllFiles();
+            const fileUri = files[0].uri;
+
+            // Act - update symbol positions
+            scanner.updateFileData(fileUri, {
+                symbolPositions: new Map([['func', [{ line: 0, character: 5 }]]]),
+            });
+
+            // Assert - symbol positions should be cached
+            const file = scanner.getFile(fileUri);
+            assert.ok(file, 'File should exist');
+            assert.ok(file.symbolPositions, 'Symbol positions should be cached');
+            assert.ok(file.symbolPositions!.has('func'), 'func symbol should be in positions map');
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        }
     });
 
-    it('26.4.3 should invalidate cached file data', () => {
-        // Arrange
+    it('26.4.3 should invalidate cached file data', async () => {
+        // Arrange - create a temp directory with a Pike file for testing
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const tempDir = path.join(os.tmpdir(), `ws-test-${Date.now()}`);
+        await fs.mkdir(tempDir, { recursive: true });
+        const testFile = path.join(tempDir, 'test.pike');
+        await fs.writeFile(testFile, 'int y;');
 
-        // Act - invalidate non-existent file (should not throw)
-        scanner.invalidateFile('file:///test.pike');
+        try {
+            // Initialize scanner and add cached data
+            await scanner.initialize([tempDir]);
+            const files = scanner.getAllFiles();
+            const fileUri = files[0].uri;
 
-        // Assert
-        assert.ok(true);
+            // First add some cached data
+            scanner.updateFileData(fileUri, {
+                symbols: [{ name: 'y', kind: 'variable' }] as any,
+            });
+
+            // Verify data was cached
+            let stats = scanner.getStats();
+            assert.equal(stats.cachedFiles, 1, 'File should have cached symbols');
+
+            // Act - invalidate the cached data
+            scanner.invalidateFile(fileUri);
+
+            // Assert - cached data should be cleared
+            stats = scanner.getStats();
+            assert.equal(stats.cachedFiles, 0, 'Cached data should be cleared after invalidation');
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        }
     });
 
     it('26.4.4 should track last modified time', () => {
@@ -313,18 +388,44 @@ describe('WorkspaceScanner - 26.5 Lazy loading', () => {
         assert.equal(file, undefined); // No files discovered yet
     });
 
-    it('26.5.2 should cache symbol positions for search', () => {
-        // Arrange
+    it('26.5.2 should cache symbol positions for search', async () => {
+        // Arrange - create a temp directory with a Pike file for testing
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const tempDir = path.join(os.tmpdir(), `ws-test-${Date.now()}`);
+        await fs.mkdir(tempDir, { recursive: true });
+        const testFile = path.join(tempDir, 'search.pike');
+        await fs.writeFile(testFile, 'void myFunc() {}');
 
-        // Act
-        scanner.updateFileData('file:///test.pike', {
-            symbolPositions: new Map([['myFunc', [{ line: 10, character: 0 }]]]),
-        });
+        try {
+            // Initialize scanner
+            await scanner.initialize([tempDir]);
+            const files = scanner.getAllFiles();
+            const fileUri = files[0].uri;
 
-        // Assert
-        assert.ok(true);
+            // Act - cache symbol positions
+            scanner.updateFileData(fileUri, {
+                symbolPositions: new Map([['myFunc', [{ line: 0, character: 5 }]]]),
+            });
+
+            // Assert - symbol positions should be retrievable
+            const file = scanner.getFile(fileUri);
+            assert.ok(file, 'File should exist in scanner');
+            assert.ok(file!.symbolPositions, 'Symbol positions should be cached');
+            assert.equal(file!.symbolPositions!.size, 1, 'One symbol position should be cached');
+            assert.ok(file!.symbolPositions!.has('myFunc'), 'myFunc position should be cached');
+
+            const positions = file!.symbolPositions!.get('myFunc');
+            assert.ok(positions, 'Positions should be defined');
+            assert.equal(positions!.length, 1, 'One position entry');
+            assert.equal(positions![0].line, 0, 'Correct line number');
+            assert.equal(positions![0].character, 5, 'Correct character position');
+        } finally {
+            await fs.rm(tempDir, { recursive: true, force: true });
+        }
     });
 
     it('26.5.3 should search symbols across workspace', async () => {
