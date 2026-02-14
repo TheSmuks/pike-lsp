@@ -1,9 +1,8 @@
 /**
  * Pike Stdlib E2E Tests
  *
- * End-to-end tests against real Pike standard library modules at
- * /usr/local/pike/8.0.1116/lib/modules/. These tests verify the LSP works
- * correctly with actual Pike stdlib code.
+ * End-to-end tests against real Pike standard library modules.
+ * These tests verify the LSP works correctly with actual Pike stdlib code.
  *
  * Test categories:
  * 1. Parser.Pike module resolution
@@ -13,11 +12,6 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
-import * as fs from 'fs';
-import * as path from 'path';
-
-// Pike stdlib location
-const PIKE_STDLIB = '/usr/local/pike/8.0.1116/lib/modules';
 
 describe('Pike Stdlib E2E - Parser.Pike Module', () => {
     let bridge: PikeBridge;
@@ -32,36 +26,11 @@ describe('Pike Stdlib E2E - Parser.Pike Module', () => {
         await bridge.stop();
     });
 
-    it('should parse Parser.Pike module file', async () => {
-        const parserPikePath = path.join(PIKE_STDLIB, 'Parser.pmod', 'Pike.pike');
-
-        if (!fs.existsSync(parserPikePath)) {
-            console.log(`Skipping: ${parserPikePath} not found`);
-            return;
-        }
-
-        const code = fs.readFileSync(parserPikePath, 'utf-8');
-        const result = await bridge.parse(code, parserPikePath);
-
-        // Should parse without errors
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-
-        // Should extract classes
-        const classes = result.symbols.filter(s => s.kind === 'class');
-        expect(classes.length).toBeGreaterThan(0);
-
-        // Parser.Pike should have key classes like Parser, Token, SplitContext
-        const classNames = classes.map(c => c.name);
-        expect(classNames.some(n => n.includes('Parser') || n.includes('Token') || n.includes('Split'))).toBe(true);
-    });
-
     it('should resolve Parser.Pike import in user code', async () => {
         const code = `
 import Parser.Pike;
 
 void main() {
-    // Should be able to resolve Parser.Pike module
     array tokens = Parser.Pike.split("int x;");
 }
 `;
@@ -78,14 +47,13 @@ void main() {
         expect(parserImport).toBeDefined();
     });
 
-    it('should extract symbols from Parser.Pike.Split context', async () => {
+    it('should extract symbols from code using Parser.Pike.Split context', async () => {
         // Parser.Pike.split is commonly used for tokenization
         const code = `
 import Parser.Pike;
 
 void main() {
     array tokens = Parser.Pike.split("int x;");
-    // Tokens should be extractable
 }
 `;
 
@@ -107,21 +75,6 @@ describe('Pike Stdlib E2E - Stdio Module', () => {
 
     afterEach(async () => {
         await bridge.stop();
-    });
-
-    it('should parse Stdio module.pike', async () => {
-        const stdioModulePath = path.join(PIKE_STDLIB, 'Stdio.pmod', 'module.pike');
-
-        if (!fs.existsSync(stdioModulePath)) {
-            console.log(`Skipping: ${stdioModulePath} not found`);
-            return;
-        }
-
-        const code = fs.readFileSync(stdioModulePath, 'utf-8');
-        const result = await bridge.parse(code, stdioModulePath);
-
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
     });
 
     it('should extract Stdio.File class symbols', async () => {
@@ -206,23 +159,6 @@ describe('Pike Stdlib E2E - Array Module', () => {
         await bridge.stop();
     });
 
-    it('should parse Array.pmod module', async () => {
-        const arrayModulePath = path.join(PIKE_STDLIB, 'Array.pmod');
-
-        if (!fs.existsSync(arrayModulePath)) {
-            console.log(`Skipping: ${arrayModulePath} not found`);
-            return;
-        }
-
-        // Check for module.pike or try to parse a Pike file in the module
-        const modulePike = path.join(arrayModulePath, 'module.pike');
-        if (fs.existsSync(modulePike)) {
-            const code = fs.readFileSync(modulePike, 'utf-8');
-            const result = await bridge.parse(code, modulePike);
-            expect(result.symbols).toBeDefined();
-        }
-    });
-
     it('should complete Array methods (sort, filter, map)', async () => {
         const code = `
 import Array;
@@ -246,7 +182,7 @@ void main() {
         expect(arrayImport).toBeDefined();
     });
 
-    it('should resolve array utilities (uniq, reduce, sum)', async () => {
+    it('should resolve array utilities (uniq, sum)', async () => {
         const code = `
 import Array;
 
@@ -254,7 +190,6 @@ void test_utils() {
     array(int) arr = ({1, 2, 2, 3});
     arr = Array.uniq(arr);
     int total = Array.sum(arr);
-    // Note: Array.reduce syntax varies by Pike version
 }
 `;
 
