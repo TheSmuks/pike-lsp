@@ -7,7 +7,7 @@
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
-import type { ResolvedInclude, DocumentDependencies } from '../core/types.js';
+import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { readFileSync } from 'node:fs';
 
@@ -79,10 +79,22 @@ export class IncludeResolver {
 
             // Try to resolve as stdlib to determine type
             const isStdlib = await this.isStdlibModule(modulePath);
-            dependencies.imports.push({
+
+            // For workspace imports, resolve and cache symbols
+            const importData: ResolvedImport = {
                 modulePath,
                 isStdlib,
-            });
+            };
+
+            if (!isStdlib) {
+                const resolved = await this.resolveWorkspaceImport(modulePath, uri);
+                if (resolved) {
+                    importData.symbols = resolved.symbols;
+                    importData.resolvedPath = resolved.resolvedPath;
+                }
+            }
+
+            dependencies.imports.push(importData);
         }
 
         return dependencies;
@@ -131,6 +143,44 @@ export class IncludeResolver {
         } catch (err) {
             this.logger.debug('Include resolution failed', {
                 includePath,
+                error: err instanceof Error ? err.message : String(err),
+            });
+            return null;
+        }
+    }
+
+    /**
+     * Resolve a workspace import path.
+     *
+     * @param modulePath - Module path (e.g., '.LocalHelpers', 'MyModule')
+     * @param currentUri - Current document URI
+     * @returns Resolved import with symbols and path, or null if not found
+     */
+    private async resolveWorkspaceImport(
+        modulePath: string,
+        currentUri: string
+    ): Promise<{ symbols: PikeSymbol[]; resolvedPath: string } | null> {
+        if (!this.bridge?.bridge) {
+            return null;
+        }
+
+        try {
+            const result = await this.bridge.bridge.resolveInclude(modulePath, currentUri);
+
+            if (!result.exists || !result.path) {
+                return null;
+            }
+
+            // Parse the module file to get symbols
+            const symbols = await this.parseIncludedFile(result.path);
+
+            return {
+                symbols,
+                resolvedPath: result.path,
+            };
+        } catch (err) {
+            this.logger.debug('Workspace import resolution failed', {
+                modulePath,
                 error: err instanceof Error ? err.message : String(err),
             });
             return null;
