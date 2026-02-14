@@ -40,8 +40,8 @@ import type {
     // @ts-ignore - SymbolKind imported but not used yet (Phase 4)
     SymbolKind
 } from 'vscode-languageserver/node.js';
-// @ts-ignore - PikeSymbol imported but not used yet (Phase 4)
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeBridge } from '@pike-lsp/pike-bridge';
+import type { BridgeManager } from '../../services/bridge-manager.js';
 
 /**
  * RXML string literal found in Pike code
@@ -138,7 +138,7 @@ export interface PositionMapping {
 export async function detectRXMLStrings(
     code: string,
     uri: string,
-    bridge: unknown // TODO: Type as PikeBridge when implemented
+    bridge: BridgeManager | PikeBridge
 ): Promise<RXMLStringLiteral[]> {
     // Call Pike-side method: roxenExtractRXMLStrings()
     // This uses Parser.Pike.split() to find multiline string literals
