@@ -85,3 +85,9 @@ pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
 
 # Agent config (local overrides)
 agent.config.local
+
+# Accidental files - should never be committed
+*.kate-swp
+Screenshot*.png
+WhatsApp*.jpeg
+t_v7.txt
