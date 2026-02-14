@@ -142,6 +142,9 @@ jobs:
       )
 
     steps:
+      - name: Skip for PRs
+        if: github.event_name != 'push'
+        run: echo "Skipping build-extension for PRs"
       - name: Checkout code
         uses: actions/checkout@v4
 
