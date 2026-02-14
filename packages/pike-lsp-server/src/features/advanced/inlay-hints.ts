@@ -51,6 +51,15 @@ export function registerInlayHintsHandler(
     }
 
     /**
+     * Get parameter name from argNames array, handling undefined elements.
+     */
+    function getParamName(argNames: string[] | undefined, index: number): string {
+        if (!argNames || index >= argNames.length) return `arg${index}`;
+        const name = argNames[index];
+        return name || `arg${index}`;
+    }
+
+    /**
      * Format inlay hint label with parameter name and optional type.
      * Examples:
      * - "x:" (parameter name only)
@@ -124,7 +133,7 @@ export function registerInlayHintsHandler(
                                     const paramType = getParamType(argTypes, argIndex);
                                     hints.push({
                                         position: argPos,
-                                        label: formatHintLabel(argNames[argIndex], paramType, config),
+                                        label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
                                         kind: InlayHintKind.Parameter,
                                         paddingRight: true,
                                     });
@@ -137,7 +146,7 @@ export function registerInlayHintsHandler(
                                 const paramType = getParamType(argTypes, argIndex);
                                 hints.push({
                                     position: argPos,
-                                    label: formatHintLabel(argNames[argIndex], paramType, config),
+                                    label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
                                     kind: InlayHintKind.Parameter,
                                     paddingRight: true,
                                 });
