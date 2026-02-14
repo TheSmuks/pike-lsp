@@ -665,15 +665,44 @@ export function registerHierarchyHandlers(
                             }
                         });
 
-                        // Add to queue for multi-level traversal (same document only)
-                        // Cross-file inheritance: NOT IMPLEMENTED in Phase 2
+                        // Add to queue for multi-level traversal
                         queue.push({ uri: current.uri, name: inheritedName });
                     } else {
-                        // Parent not found in current document
-                        log.debug(`Parent class not found in document: ${inheritedName}`, {
-                            document: current.uri,
-                            note: 'Cross-file inheritance not supported in Phase 2'
-                        });
+                        // Parent not found in current document - search all cached documents
+                        let foundInOtherFile = false;
+                        for (const [otherUri, otherCached] of documentCache.entries()) {
+                            if (otherUri === current.uri) continue; // Already checked current doc
+
+                            const parentInOther = otherCached.symbols.find(s =>
+                                s.name === inheritedName && s.kind === 'class'
+                            );
+
+                            if (parentInOther?.position) {
+                                const parentLine = Math.max(0, (parentInOther.position.line ?? 1) - 1);
+                                results.push({
+                                    name: inheritedName,
+                                    kind: SymbolKind.Class,
+                                    uri: otherUri,
+                                    range: {
+                                        start: { line: parentLine, character: 0 },
+                                        end: { line: parentLine, character: inheritedName.length }
+                                    },
+                                    selectionRange: {
+                                        start: { line: parentLine, character: 0 },
+                                        end: { line: parentLine, character: inheritedName.length }
+                                    }
+                                });
+
+                                // Add to queue for multi-level traversal
+                                queue.push({ uri: otherUri, name: inheritedName });
+                                foundInOtherFile = true;
+                                break; // Found in one file, stop searching
+                            }
+                        }
+
+                        if (!foundInOtherFile) {
+                            log.debug(`Parent class not found in any document: ${inheritedName}`);
+                        }
                     }
                 }
             }
@@ -751,9 +780,9 @@ export function registerHierarchyHandlers(
                     // Find the class that contains this inherit
                     const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : 0;
 
-                    // Find the class that declared this inherit (closest class before inherit line)
+                    // Find the class that declared this inherit (closest class at or before inherit line)
                     const containingClass = cached.symbols
-                        .filter(s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 < inheritLine)
+                        .filter(s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine)
                         .sort((a, b) => ((b.position?.line ?? 0) - (a.position?.line ?? 0)))[0];
 
                     if (containingClass) {
