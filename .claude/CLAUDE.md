@@ -2,6 +2,18 @@
 
 ## MANDATORY: Agent Team Protocol
 
+### Launch Command
+
+```bash
+claude --dangerously-skip-permissions --teammate-mode tmux
+```
+
+Then type:
+
+```
+/oh-my-claudecode:team 1:lead,4:executor "Continuous self-improvement loop on the Pike LSP. This runs FOREVER until the USER types /cancel. All roles, rules, and protocols are defined in CLAUDE.md under 'Agent Team Protocol'. Read it NOW before doing anything. Lead: you are strictly an orchestrator, you NEVER write code. Executors: follow the cycle in CLAUDE.md endlessly."
+```
+
 ### LEAD ROLE (orchestrator — STRICTLY NO CODING)
 - You are FORBIDDEN from using these tools: Write, Edit, Bash (for code changes), git commit, git checkout -b, gh pr create.
 - The ONLY shell commands you may run are: git status, git branch, git log, git pull, git ls-remote, gh pr list, gh pr checks, gh pr view, gh pr diff, gh pr merge, gh run list, scripts/test-agent.sh, cat, grep, head, tail, ls.
@@ -122,11 +134,13 @@ Each executor follows this cycle endlessly:
   - The messaging system IS your coordination mechanism. Use it.
 - IDLE PROTOCOL (follow this EXACTLY when you finish a task):
   1. Message the lead ONCE with your handoff summary.
-  2. Check the shared task list yourself. If a task is available and unassigned, claim it immediately. Do NOT ask the lead for permission.
-  3. If NO tasks are available, message the lead ONCE: "Idle, no tasks on the list."
-  4. Then GO IDLE AND WAIT. Do NOT send follow-up messages. Do NOT poll. Do NOT remind the lead.
-  5. The lead will message YOU when work is ready. Until then, you are silent.
-  6. NEVER send more than ONE idle notification. Repeated messages waste everyone's context window and create noise.
+  2. Run: git checkout main && git pull (ALWAYS — no exceptions, even if you're about to claim another task)
+  3. Check the shared task list yourself. If a task is available and unassigned, claim it, create a NEW branch from main, and start working. Do NOT ask the lead for permission.
+  4. If NO tasks are available, message the lead ONCE: "Idle, no tasks on the list."
+  5. Then GO IDLE AND WAIT. Do NOT send follow-up messages. Do NOT poll. Do NOT remind the lead.
+  6. The lead will message YOU when work is ready. When you receive it, you are ALREADY on main — create your branch and go.
+  7. NEVER send more than ONE idle notification. Repeated messages waste everyone's context window and create noise.
+  8. NEVER start a new task from an old feature branch. Every task starts from a fresh main.
 
 ### RULES (ALL AGENTS)
 - Read .claude/decisions/INDEX.md — follow all active ADRs

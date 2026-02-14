@@ -11,6 +11,14 @@
 
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
+import {
+    detectModule,
+    handleMissingModule,
+    checkModuleAvailability,
+    detectFeature,
+    clearFeatureCache,
+    parseVersion,
+} from '../../utils/compatibility.js';
 
 // ============================================================================
 // Helper Functions
