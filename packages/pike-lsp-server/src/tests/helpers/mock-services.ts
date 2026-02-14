@@ -75,6 +75,12 @@ export type TypeHierarchySubtypesHandler = (params: {
     direction: 'parents' | 'children';
 }) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
 
+/** Handler signature for onLinkedEditingRange */
+export type LinkedEditingRangeHandler = (params: {
+    textDocument: { uri: string };
+    position: { line: number; character: number };
+}) => import('vscode-languageserver/node.js').LinkedEditingRanges | null;
+
 // =============================================================================
 // Mock Connection
 // =============================================================================
@@ -88,6 +94,7 @@ export interface MockConnection {
     onImplementation: (handler: ImplementationHandler) => void;
     onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
     onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
+    onLinkedEditingRange: (handler: LinkedEditingRangeHandler) => void;
     sendDiagnostics: (params: { uri: string; diagnostics: any[] }) => void;
     getSentDiagnostics: () => any[];
     console: { log: (...args: any[]) => void };
@@ -110,6 +117,7 @@ export interface MockConnection {
     documentHighlightHandler: DocumentHighlightHandler;
     implementationHandler: ImplementationHandler;
     documentSymbolHandler: DocumentSymbolHandler;
+    linkedEditingRangeHandler: LinkedEditingRangeHandler;
     typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
     typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
     typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
@@ -127,6 +135,7 @@ export function createMockConnection(): MockConnection {
     let _documentHighlightHandler: DocumentHighlightHandler | null = null;
     let _implementationHandler: ImplementationHandler | null = null;
     let _documentSymbolHandler: DocumentSymbolHandler | null = null;
+    let _linkedEditingRangeHandler: LinkedEditingRangeHandler | null = null;
     let _typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler | null = null;
     let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
     const _sentDiagnostics: Array<{ uri: string; diagnostics: any[] }> = [];
@@ -141,6 +150,7 @@ export function createMockConnection(): MockConnection {
         onImplementation(handler: ImplementationHandler) { _implementationHandler = handler; },
         onDocumentSymbol(handler: DocumentSymbolHandler) { _documentSymbolHandler = handler; },
         onWorkspaceSymbol() {},
+        onLinkedEditingRange(handler: LinkedEditingRangeHandler) { _linkedEditingRangeHandler = handler; },
         sendDiagnostics(params: { uri: string; diagnostics: any[] }) { _sentDiagnostics.push(params); },
         console: { log: () => {} },
         languages: {
@@ -182,6 +192,10 @@ export function createMockConnection(): MockConnection {
         get documentSymbolHandler(): DocumentSymbolHandler {
             if (!_documentSymbolHandler) throw new Error('No document symbol handler registered');
             return _documentSymbolHandler;
+        },
+        get linkedEditingRangeHandler(): LinkedEditingRangeHandler {
+            if (!_linkedEditingRangeHandler) throw new Error('No linked editing range handler registered');
+            return _linkedEditingRangeHandler;
         },
         get typeHierarchyPrepareHandler(): TypeHierarchyPrepareHandler {
             if (!_typeHierarchyPrepareHandler) throw new Error('No type hierarchy prepare handler registered');
