@@ -1,0 +1,182 @@
+/**
+ * RXML Cache Tests
+ *
+ * Tests Phase 5 implementation: Integration with bridge-manager for server PID tracking.
+ * Follows TDD: Write failing test first, implement to make it pass.
+ */
+
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import * as assert from 'node:assert';
+import { RXMLTagCatalogCache } from '../../features/rxml/cache.js';
+
+// Test catalog entries
+const MOCK_CATALOG = [
+    {
+        name: 'test-tag',
+        type: 'simple',
+        requiredAttributes: [],
+        optionalAttributes: [],
+    },
+];
+
+describe('RXML Tag Catalog Cache', () => {
+    let cache: RXMLTagCatalogCache;
+
+    beforeEach(() => {
+        cache = new RXMLTagCatalogCache();
+    });
+
+    afterEach(() => {
+        cache.clear();
+    });
+
+    describe('Basic Cache Operations', () => {
+        it('should return undefined for non-existent entry', () => {
+            const result = cache.get(12345, 'test-server');
+            assert.strictEqual(result, undefined);
+        });
+
+        it('should store and retrieve catalog entry', () => {
+            cache.set(12345, 'test-server', MOCK_CATALOG);
+
+            const result = cache.get(12345, 'test-server');
+            assert.deepStrictEqual(result, MOCK_CATALOG);
+        });
+
+        it('should maintain separate caches for different PIDs', () => {
+            const catalog1 = [{ ...MOCK_CATALOG[0], name: 'tag1' }];
+            const catalog2 = [{ ...MOCK_CATALOG[0], name: 'tag2' }];
+
+            cache.set(11111, 'server1', catalog1);
+            cache.set(22222, 'server2', catalog2);
+
+            const result1 = cache.get(11111, 'server1');
+            const result2 = cache.get(22222, 'server2');
+
+            assert.strictEqual(result1?.[0]?.name, 'tag1');
+            assert.strictEqual(result2?.[0]?.name, 'tag2');
+        });
+
+        it('should clear all entries', () => {
+            cache.set(12345, 'test-server', MOCK_CATALOG);
+            assert.strictEqual(cache.size, 1);
+
+            cache.clear();
+            assert.strictEqual(cache.size, 0);
+        });
+
+        it('should provide cache statistics', () => {
+            cache.set(12345, 'server1', MOCK_CATALOG);
+            cache.set(67890, 'server2', MOCK_CATALOG);
+
+            const stats = cache.getStats();
+            assert.strictEqual(stats.size, 2);
+            assert.ok(stats.keys.includes('server1:12345'));
+            assert.ok(stats.keys.includes('server2:67890'));
+        });
+    });
+
+    describe('Cache Invalidation', () => {
+        it('should invalidate specific server cache', () => {
+            cache.set(12345, 'test-server', MOCK_CATALOG);
+            assert.ok(cache.get(12345, 'test-server'));
+
+            cache.invalidate(12345, 'test-server');
+            assert.strictEqual(cache.get(12345, 'test-server'), undefined);
+        });
+
+        it('should only invalidate specified server', () => {
+            cache.set(11111, 'server1', MOCK_CATALOG);
+            cache.set(22222, 'server2', MOCK_CATALOG);
+
+            // Invalidate only server1
+            cache.invalidate(11111, 'server1');
+
+            assert.strictEqual(cache.get(11111, 'server1'), undefined);
+            assert.ok(cache.get(22222, 'server2'));
+        });
+    });
+
+    describe('TTL Expiration', () => {
+        it('should expire entries after TTL', async () => {
+            // Create a cache with very short TTL for testing
+            const shortTTLCache = new RXMLTagCatalogCache();
+            // Modify TTL to 1ms for testing
+            (shortTTLCache as any).TTL_MS = 1;
+
+            shortTTLCache.set(12345, 'test-server', MOCK_CATALOG);
+
+            // Should be available immediately
+            assert.ok(shortTTLCache.get(12345, 'test-server'));
+
+            // Wait for TTL to expire
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // Should be expired now
+            assert.strictEqual(shortTTLCache.get(12345, 'test-server'), undefined);
+        });
+
+        it('should remove expired entries on access', async () => {
+            const shortTTLCache = new RXMLTagCatalogCache();
+            (shortTTLCache as any).TTL_MS = 1;
+
+            shortTTLCache.set(12345, 'test-server', MOCK_CATALOG);
+
+            // Wait for expiration
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            // Access should trigger deletion
+            const result = shortTTLCache.get(12345, 'test-server');
+
+            assert.strictEqual(result, undefined);
+            // Entry should be removed from cache
+            assert.strictEqual(shortTTLCache.getStats().size, 0);
+        });
+    });
+
+    describe('Bridge Manager Integration', () => {
+        it('should use consistent cache keys for same PID/server', () => {
+            // This test verifies that cache keys don't include timestamps
+            // which would break caching
+            const mockBridge = {
+                getHealth: () => ({
+                    pikePid: 12345,
+                }),
+            };
+
+            // First set
+            cache.set(12345, 'pike-8.0.1116', MOCK_CATALOG);
+
+            // Second set with same PID/server should update, not create new entry
+            const updatedCatalog = [{ ...MOCK_CATALOG[0], name: 'updated-tag' }];
+            cache.set(12345, 'pike-8.0.1116', updatedCatalog);
+
+            // Should only have one entry, not two
+            assert.strictEqual(cache.size, 1);
+
+            const result = cache.get(12345, 'pike-8.0.1116');
+            assert.strictEqual(result?.[0]?.name, 'updated-tag');
+        });
+
+        it('should invalidate when PID changes (server restart)', () => {
+            // Simulate server restart with new PID
+            const oldPid = 12345;
+            const newPid = 67890;
+
+            // Set cache with old PID
+            cache.set(oldPid, 'pike-8.0.1116', MOCK_CATALOG);
+            assert.ok(cache.get(oldPid, 'pike-8.0.1116'));
+
+            // Invalidate old PID (simulating restart detection)
+            cache.invalidate(oldPid, 'pike-8.0.1116');
+
+            // Old cache should be gone
+            assert.strictEqual(cache.get(oldPid, 'pike-8.0.1116'), undefined);
+
+            // New PID gets fresh cache
+            const newCatalog = [{ ...MOCK_CATALOG[0], name: 'new-server-tag' }];
+            cache.set(newPid, 'pike-8.0.1116', newCatalog);
+            assert.deepStrictEqual(cache.get(newPid, 'pike-8.0.1116'), newCatalog);
+        });
+    });
+});
