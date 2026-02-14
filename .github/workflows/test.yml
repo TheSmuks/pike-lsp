@@ -136,8 +136,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
     if: |
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      always() && (
+        github.event_name == 'push' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      )
 
     steps:
       - name: Checkout code
