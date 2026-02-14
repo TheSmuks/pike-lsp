@@ -7,7 +7,7 @@
         "strict": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": ["node"],
+        "types": ["node", "bun-types"],
         "outDir": "../../dist/test",
         "rootDir": "."
     },
