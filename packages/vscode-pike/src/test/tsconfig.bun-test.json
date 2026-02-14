@@ -7,12 +7,12 @@
         "strict": false,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "types": ["node"],
         "outDir": "../../dist/test",
         "rootDir": "."
     },
     "include": [
         "./bun-test.d.ts",
-        "./mockOutputChannel.test.ts"
+        "./mockOutputChannel.test.ts",
+        "./extension-features.test.ts"
     ]
 }
