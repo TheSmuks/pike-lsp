@@ -9,7 +9,10 @@
 
 ## Medium (improvements)
 - [x] **Audit Roxen features** - COMPLETED (worker-4). All Roxen features from PR #28 were delivered via PR #31.
-- [ ] Convert remaining placeholder tests (Tier 1 priority: hover, completion, definition, references, document-symbol providers)
+- [ ] **Convert remaining placeholder tests** - IN PROGRESS. Test quality: 91% real (203 placeholders remaining)
+  - [x] Tier 1 providers (hover, completion, definition, references, document-symbol) - 0 placeholders
+  - [x] Diagnostics provider - 43 placeholders converted (PR #34)
+  - [ ] Remaining files need bridge/handler infrastructure
 
 ## Low (nice to have)
 - [ ] Performance improvements
@@ -20,6 +23,8 @@
 - [x] Fix build issue - removed broken `prebuild` script from package.json
 - [x] Clean up all stale branches (12 local, 12 remote deleted)
 - [x] **PR #28/31 Roxen Audit** - All Roxen features successfully delivered
+- [x] **PR #33** - Circular inheritance test + Roxen audit documentation
+- [x] **PR #34** - 43 diagnostics-provider placeholder tests converted
 
 ## Roxen Feature Audit (PR #28/31)
 
