@@ -847,18 +847,31 @@ describe('Completion Provider', () => {
         it('D.3: type from function return value (chained access)', async () => {
             // obj->getFile()->read()
             // getFile() returns Stdio.File, so after -> we should see File members
-            // This is a stretch goal - documenting expected behavior
             const fileMembers = new Map<string, IntrospectedSymbol>();
             fileMembers.set('read', {
                 name: 'read', type: { kind: 'function' }, kind: 'function', modifiers: [],
             });
+            fileMembers.set('write', {
+                name: 'write', type: { kind: 'function' }, kind: 'function', modifiers: [],
+            });
 
             const { complete } = setup({
                 code: 'obj->getFile()->',
-                symbols: [],
+                // Need getFile symbol in local cache with its return type information
+                symbols: [
+                    method('getFile', [], 'object', {
+                        type: {
+                            kind: 'function',
+                            returnType: {
+                                kind: 'object',
+                                className: 'Stdio.File',  // This tells us getFile returns Stdio.File
+                            }
+                        }
+                    }),
+                ],
                 bridgeContext: {
                     context: 'member_access',
-                    objectName: 'getFile', // Bridge would return the last identifier
+                    objectName: 'getFile', // Bridge returns the last identifier before ->
                     prefix: '',
                     operator: '->',
                 },
@@ -866,9 +879,11 @@ describe('Completion Provider', () => {
             });
 
             const result = await complete(0, 16);
-            // Currently this returns empty - chained access type resolution is not implemented
-            // This test documents the desired behavior for future implementation
-            expect(result).toBeDefined();
+            const names = labels(result);
+
+            // Should offer Stdio.File members (read, write) because getFile returns Stdio.File
+            expect(names).toContain('read');
+            expect(names).toContain('write');
         });
     });
 
