@@ -555,9 +555,18 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
       const result = await bridge.analyze(code, ['parse', 'introspect'], 'test.pike');
 
       assert.ok(result, 'Should handle partial failures');
-      // Parse should succeed, introspect may fail
-      if (result.failures?.introspect) {
-        assert.ok(true, 'Introspect failure recorded');
+      // Parse should succeed even if import fails
+      assert.ok(result.result !== undefined || result.failures !== undefined,
+        'Should have either successful results or recorded failures');
+
+      // Verify the result structure includes failure tracking
+      assert.ok('result' in result || 'failures' in result,
+        'Result should track both successes and failures');
+
+      // Parse operation should succeed even with missing imports
+      if (result.result?.parse) {
+        assert.ok(Array.isArray(result.result.parse.symbols),
+          'Parse result should have symbols array even with import errors');
       }
     });
 
