@@ -287,6 +287,9 @@ sudo apt-get install pike8.0
 
 # macOS (if available via Homebrew):
 brew install pike
+
+# Install act (for running GitHub Actions locally)
+go install github.com/nektos/act@latest
 ```
 
 ### Building
