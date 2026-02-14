@@ -67,6 +67,17 @@
   - If a task truly has a dependency, split it: extract the independent part as a separate task.
   - Example: Instead of "fix hover → fix completion → fix goto-def → add tests"
     Do: "fix hover" + "fix completion" + "fix goto-def" (parallel) → "add cross-feature E2E tests" (depends on all 3)
+- TASK CLAIMING PROTOCOL (CRITICAL - prevents duplicate work):
+  - BEFORE creating or assigning a task, run TaskList to check ALL existing tasks
+  - If a task with similar description exists, DO NOT create a duplicate. Update the existing task instead.
+  - When a lead assigns work: use TaskUpdate to set the owner IMMEDIATELY. Do NOT create tasks without owners.
+  - When a worker self-claims: they MUST use TaskUpdate to set owner before starting work.
+  - ATOMIC CLAIM CHECK: Before starting work on any task:
+    1. Run TaskGet to read the full task details
+    2. Check the owner field and status
+    3. If owner is set AND status is in_progress, DO NOT claim it. Message the lead instead.
+    4. If owner is empty OR status is pending, use TaskUpdate to set owner simultaneously with status=in_progress
+  - NEVER have multiple workers on the same task. If you see duplicate tasks, merge them immediately.
 - ACTIVE MANAGEMENT RULES:
   - You are a PROACTIVE orchestrator, not a passive observer.
   - NEVER just wait for teammates to report. Actively manage:
