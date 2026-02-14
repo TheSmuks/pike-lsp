@@ -103,18 +103,26 @@ Then type:
 ### EXECUTOR ROLE (workers — NO orchestration)
 Each executor follows this cycle endlessly:
 
+**CRITICAL: WORKTREE PROTOCOL**
+- BEFORE starting any work, create a dedicated worktree: `scripts/worktree.sh create worker-{N}/task-description`
+- Work in the worktree directory: `cd ../pike-lsp-worker-{N}/`
+- This prevents file conflicts with other workers
+- After merge, cleanup: `scripts/worktree.sh remove worker-{N}/task-description`
+
 1. START FROM MAIN: git checkout main && git pull. ALWAYS. Every single cycle starts here.
-2. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
-3. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
-4. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
-5. BRANCH: Create feature branch: git checkout -b fix/description or feat/description.
-6. TDD: Write a FAILING test first that verifies real behavior per Pike stdlib at /usr/local/pike/8.0.1116/lib/ and source repos at $PIKE_SRC/$ROXEN_SRC — NOT a tautology. Confirm it fails. Implement. Confirm it passes.
-7. VERIFY: Run scripts/test-agent.sh again. Compare to BEFORE. ZERO regressions. If anything regressed, fix before proceeding.
-8. COMMIT & PR: Commit with descriptive message. Push. gh pr create --base main with before/after test evidence.
-9. CI: gh pr checks — wait. If fails, fix and push. NEVER merge with failing CI.
-10. PROVE CI PASSED: Run gh pr checks <number> again. Paste actual output in regression tracker.
-11. MERGE: gh pr merge --squash --delete-branch --auto. Prove it: gh pr view <number> --json state. Confirm MERGED.
-12. HANDOFF: Write structured handoff to .omc/handoffs/<branch-name>.md:
+2. CREATE WORKTREE: `scripts/worktree.sh create worker-{N}/task-description` then `cd ../pike-lsp-worker-{N}/`. EVERY task gets its own worktree.
+3. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
+4. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
+5. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
+6. BRANCH: Create feature branch: git checkout -b fix/description or feat/description.
+7. TDD: Write a FAILING test first that verifies real behavior per Pike stdlib at /usr/local/pike/8.0.1116/lib/ and source repos at $PIKE_SRC/$ROXEN_SRC — NOT a tautology. Confirm it fails. Implement. Confirm it passes.
+8. VERIFY: Run scripts/test-agent.sh again. Compare to BEFORE. ZERO regressions. If anything regressed, fix before proceeding.
+9. COMMIT & PR: Commit with descriptive message. Push. gh pr create --base main with before/after test evidence.
+10. CI: gh pr checks — wait. If fails, fix and push. NEVER merge with failing CI.
+11. PROVE CI PASSED: Run gh pr checks <number> again. Paste actual output in regression tracker.
+12. MERGE: gh pr merge --squash --delete-branch --auto. Prove it: gh pr view <number> --json state. Confirm MERGED.
+13. CLEANUP WORKTREE: `cd ../pike-lsp && scripts/worktree.sh remove worker-{N}/task-description`
+14. HANDOFF: Write structured handoff to .omc/handoffs/<branch-name>.md:
     ## Task: <description>
     ## Status: merged | blocked | failed
     ## What was done: <1-3 sentences>
@@ -122,9 +130,9 @@ Each executor follows this cycle endlessly:
     ## Remaining work: <if any>
     ## PR: <number>
     Message the lead with your handoff summary.
-13. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
-14. CLEANUP: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
-15. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
+15. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
+16. UPDATE STATUS: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
+17. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
 
 - COMMUNICATION RULES:
   - NEVER use 'sleep', 'watch', 'poll', or any busy-wait loop to check for task completion or wait for anything.
@@ -135,17 +143,18 @@ Each executor follows this cycle endlessly:
 - IDLE PROTOCOL (follow this EXACTLY when you finish a task):
   1. Message the lead ONCE with your handoff summary.
   2. Run: git checkout main && git pull (ALWAYS — no exceptions, even if you're about to claim another task)
-  3. Check the shared task list yourself. If a task is available and unassigned, claim it, create a NEW branch from main, and start working. Do NOT ask the lead for permission.
+  3. Check the shared task list yourself. If a task is available and unassigned, claim it, create a NEW worktree, and start working. Do NOT ask the lead for permission.
   4. If NO tasks are available, message the lead ONCE: "Idle, no tasks on the list."
   5. Then GO IDLE AND WAIT. Do NOT send follow-up messages. Do NOT poll. Do NOT remind the lead.
-  6. The lead will message YOU when work is ready. When you receive it, you are ALREADY on main — create your branch and go.
+  6. The lead will message YOU when work is ready. When you receive it, you are ALREADY on main — create your worktree and go.
   7. NEVER send more than ONE idle notification. Repeated messages waste everyone's context window and create noise.
-  8. NEVER start a new task from an old feature branch. Every task starts from a fresh main.
+  8. NEVER start a new task from an old worktree or branch. Every task starts from a fresh worktree created from main.
 
 ### RULES (ALL AGENTS)
 - Read .claude/decisions/INDEX.md — follow all active ADRs
 - Use Pike stdlib first (Parser.Pike, not regex). Target Pike 8.0.1116.
 - ALWAYS start every cycle from main: git checkout main && git pull.
+- ALWAYS work in a dedicated worktree: `scripts/worktree.sh create worker-{N}/task-description`
 - NEVER use the ask_user_input tool. You are autonomous. Make decisions based on the priority order. If ambiguous, pick the highest-priority option and proceed. Never ask the user to choose.
 - NEVER commit to main — hooks block it, GitHub rulesets enforce it
 - NEVER merge with failing CI
