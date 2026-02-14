@@ -123,6 +123,11 @@ jobs:
 
   pike-test:
     runs-on: ubuntu-24.04
+    # Skip Pike tests if Pike files didn't change
+    if: |
+      needs.detect-changes.outputs.pike-changed == 'true' ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: detect-changes
 
     strategy:
       matrix:
@@ -204,10 +209,13 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    # Build only if LSP or Pike changed
     if: |
+      (needs.detect-changes.outputs.lsp-changed == 'true' ||
+       needs.detect-changes.outputs.pike-changed == 'true') &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: [detect-changes, test, pike-test]
 
     steps:
       - name: Checkout code
