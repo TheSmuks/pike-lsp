@@ -12,16 +12,24 @@ type CompletionHandler = (params: {
 
 interface MockConnection {
     onCompletion: (handler: CompletionHandler) => void;
+    onCompletionResolve: (handler: (item: CompletionItem) => CompletionItem) => void;
     completionHandler: CompletionHandler;
+    completionResolveHandler: (item: CompletionItem) => CompletionItem;
 };
 
 function createMockConnection(): MockConnection {
     let h: CompletionHandler | null = null;
+    let r: ((item: CompletionItem) => CompletionItem) | null = null;
     return {
         onCompletion: (cb: CompletionHandler) => { h = cb; },
+        onCompletionResolve: (cb: (item: CompletionItem) => CompletionItem) => { r = cb; },
         get completionHandler(): CompletionHandler {
             if (!h) throw new Error("No handler");
             return h;
+        },
+        get completionResolveHandler(): (item: CompletionItem) => CompletionItem {
+            if (!r) throw new Error("No resolve handler");
+            return r;
         },
     };
 }
@@ -54,7 +62,9 @@ function createMockStdlibIndex(modules: any) {
         getModule: async (path: string) => {
             const mod = modules[path];
             if (!mod) return null;
-            return { modulePath: path, symbols: mod?.symbols || null, lastAccessed: Date.now(), accessCount: 1, sizeBytes: 100 };
+            // If mod is a Map, use it; if it's a plain object with own properties, treat as symbols directly
+            const symbols = mod instanceof Map ? mod : (Object.hasOwn(mod, 'symbols') ? mod.symbols : mod);
+            return { modulePath: path, symbols: symbols ?? null, lastAccessed: Date.now(), accessCount: 1, sizeBytes: 100 };
         },
     };
 }
@@ -118,13 +128,15 @@ describe("Completion Provider - Chained Access", () => {
 
             const { complete } = setup({
                 code: "obj->getFile()->",
-                symbols: [],
+                symbols: [
+                    { name: "getFile", type: { kind: "function", returnType: { kind: "object", className: "Stdio.File" } }, kind: "function", modifiers: [] },
+                ],
                 bridgeContext: { context: "member_access", objectName: "getFile", prefix: "", operator: "->" },
                 stdlibModules: {
-                    Stdio.File: fileMembers,
-                    Stdio.Stat: {
-                        symbols: new Map([["getFile", { name: "getFile", type: { kind: "function", returnType: { kind: "object", className: "Stdio.File" } }, kind: "function", modifiers: [] }]),
-                    },
+                    "Stdio.File": fileMembers,
+                    "Stdio.Stat": new Map([
+                        ["getFile", { name: "getFile", type: { kind: "function", returnType: { kind: "object", className: "Stdio.File" } }, kind: "function", modifiers: [] }],
+                    ]),
                 },
             });
 
