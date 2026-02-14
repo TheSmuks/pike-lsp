@@ -173,6 +173,7 @@
     "test:gui": "bun run build:test && vscode-test"
   },
   "dependencies": {
+    "mocha": "^11.7.5",
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
