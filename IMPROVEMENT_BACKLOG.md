@@ -40,7 +40,7 @@
 | Area | File/Line | Gap | Impact | Estimate |
 |-------|------------|-----|--------|----------|
 | Cross-file cycle detection | `features/hierarchy.ts:561,628,669` | NOT IMPLEMENTED | Call/type hierarchy single-file only | 8-16h |
-| Chained access completion | `tests/editing/completion-provider.test.ts:869` | Type resolution not implemented | `a.b.c` completion incomplete | 4-8h |
+| Chained access completion | `tests/editing/completion-provider.test.ts:885` | ✅ COMPLETED (PR #xx) | Type resolution works for `obj->method()->` chained access | - |
 | Import/inherit symbols | `tests/import-inherit-resolution.test.ts:406,558,559` | Missing: symbols, LocalMod, cached lookup | Module info incomplete | 6-12h |
 
 ### LSP Feature Coverage
@@ -73,7 +73,7 @@
 ### Recommended Next Steps (Priority Order)
 1. **Convert vscode-pike placeholder tests** (35 remaining) - Unblocks completion
 2. **Fix corpus.test.ts false positives** - Test integrity issue
-3. **Implement chained access completion** - High value feature gap
+3. ~~**Implement chained access completion**~~ - ✅ COMPLETED
 4. **Cross-file hierarchy analysis** - Completes call/type hierarchy
 5. **Import/inherit symbol exports** - Better module resolution
 
@@ -93,6 +93,7 @@
 - [x] **PR #50** - 5 workspace-scanner placeholder tests converted
 - [x] **PR #51** - 41 formatting-provider placeholder tests converted
 - [x] **PR #52** - 25 workspace-symbol-provider placeholder tests converted
+- [x] **Chained access completion** - Fixed test to verify type resolution works for `obj->method()->` chained access
 
 ## Roxen Feature Audit (PR #28/31)
 
