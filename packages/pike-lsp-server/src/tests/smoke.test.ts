@@ -91,10 +91,10 @@ describe('LSP Smoke Tests', { timeout: 30000 }, () => {
     assert.ok(result.result?.parse, 'Parse should succeed for valid syntax');
 
     // If introspect fails, it should be in failures, not throw
-    if (result.failures?.introspect) {
-      // This is expected for code with missing dependencies
-      assert.ok(true, 'Introspect failure is recorded in failures object');
-    }
+    // Either introspect succeeds, or failures.introspect exists
+    const hasIntrospectResult = result.result?.introspect !== undefined;
+    const hasIntrospectFailure = result.failures?.introspect !== undefined;
+    assert.ok(hasIntrospectResult || hasIntrospectFailure, 'Introspect either succeeds or has failure recorded');
   });
 
   it('analyze reports introspect failure in failures object (not as thrown error)', async () => {
@@ -117,14 +117,14 @@ describe('LSP Smoke Tests', { timeout: 30000 }, () => {
     assert.ok(result, 'Analyze should return result, not throw');
 
     // The introspect operation should have failed and be recorded in failures
-    if (result.failures?.introspect) {
-      assert.ok(true, 'Introspect failure properly recorded in failures object');
-    } else if (result.result?.introspect?.success === 0) {
-      assert.ok(true, 'Introspect returned with success=0');
-    } else {
-      // If introspect succeeded, the module might exist in the test environment
-      assert.ok(true, 'Introspect succeeded (module may exist in test environment)');
-    }
+    // or returned with success=0, or succeeded if module exists in test environment
+    // All three outcomes are valid - verify the result structure is correct
+    assert.ok(result.result !== undefined || result.failures !== undefined, 'Result has either result or failures');
+    // Specifically check introspect handling
+    const hasIntrospectFailure = result.failures?.introspect !== undefined;
+    const hasIntrospectSuccess0 = result.result?.introspect?.success === 0;
+    const hasIntrospectResult = result.result?.introspect !== undefined;
+    assert.ok(hasIntrospectFailure || hasIntrospectSuccess0 || hasIntrospectResult, 'Introspect handled gracefully (failure recorded, success=0, or succeeded)');
   });
 
   it('analyze returns syntax errors in diagnostics array', async () => {
