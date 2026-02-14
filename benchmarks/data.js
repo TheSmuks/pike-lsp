@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771091752311,
+  "lastUpdate": 1771091925650,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -30602,6 +30602,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.614677603305785,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "075a78825103e54b79dd7aebe2d846496aef0bc4",
+          "message": "test: add categories 35-39 extension tests (#68)\n\n* chore: update STATUS.md and IMPROVEMENT_BACKLOG.md with resolved items\n\n- Remove version sync issue from Known Issues (all packages at alpha.19)\n- Mark cross-file hierarchy as COMPLETED (PR #65)\n- Update In Progress section with current work\n- Add PR #64 and PR #65 to completed items\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* test: convert vscode extension tests categories 31-34 to bun:test\n\nConverted 16 tests across categories 31-34 from mocha to bun:test framework:\n- Category 31 (Language Registration): 2 tests\n- Category 32 (Syntax Highlighting): 5 tests\n- Category 33 (Commands): 4 tests\n- Category 34 (Configuration Options): 5 tests\n\nChanges:\n- Migrated from mocha/assert to bun:test/expect\n- Removed vscode runtime dependencies (uses fs/path to verify package.json)\n- Fixed test assertions to match actual package.json structure\n- Updated tsconfig.bun-test.json to include extension-features.test.ts\n\nAll 17 tests pass (16 + 1 summary test).\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* test: add categories 35-39 extension tests\n\n- Add Category 35: Auto-Detection (5 tests)\n- Add Category 36: Context Menus (2 tests)\n- Add Category 37: Output Channel (3 tests)\n- Add Category 38: Status Bar & Notifications (3 tests)\n- Add Category 39: Debug Mode (1 test)\n\nAll tests use bun:test framework and verify actual\ncode behavior by reading package.json and source files.\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* fix: add bun-types to tsconfig for CI\n\n* fix: remove types array to allow auto-detection of bun:test types\n\n* fix: add triple-slash reference for bun:test types\n\nAdds /// <reference path=\"./bun-test.d.ts\" /> to extension-features.test.ts\nso TypeScript can resolve the bun:test module using the local type\ndeclarations in bun-test.d.ts instead of requiring bun-types package.\n\nGenerated with AI\n\nCo-Authored-By: GLM-5",
+          "timestamp": "2026-02-14T18:57:24+01:00",
+          "tree_id": "45e164ccc5760a9e77285cd559e32b917909f96c",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/075a78825103e54b79dd7aebe2d846496aef0bc4"
+        },
+        "date": 1771091924972,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.71303825,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.2941660833333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 257.0138978333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.15481775,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1651253608768972,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.8395317318435755,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 47.4491229090909,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.251635376923077,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.953173190751445,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2653461595284872,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2641572456003129,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5677891458333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.19733950857988167,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.1684726140852391,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.8213247566137565,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3844119870056497,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.39650777712952157,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.09987839215080345,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5753791210084034,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.07738631240092672,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3506660298969072,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.44458383333335,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.9374095,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.358402158337717,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.6072748343666962,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08089596297705084,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 6.212089284403669,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 6.1440613,
             "unit": "ms"
           }
         ]
