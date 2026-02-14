@@ -1,5 +1,150 @@
 # Pike LSP Project Guidelines
 
+## MANDATORY: Agent Team Protocol
+
+### LEAD ROLE (orchestrator — STRICTLY NO CODING)
+- You are FORBIDDEN from using these tools: Write, Edit, Bash (for code changes), git commit, git checkout -b, gh pr create.
+- The ONLY shell commands you may run are: git status, git branch, git log, git pull, git ls-remote, gh pr list, gh pr checks, gh pr view, gh pr diff, gh pr merge, gh run list, scripts/test-agent.sh, cat, grep, head, tail, ls.
+- If you catch yourself about to write code or create a branch: STOP. Create a task and assign it to a teammate instead.
+- Your ONLY job: orient, triage, create tasks in the shared task list, verify results, decompose problems, message teammates, and keep the loop running.
+- On startup: recover stale work (git branch -r, gh pr list --state open, git branch --no-merged main). Merge passing PRs, assign failing PRs to a teammate to fix, create PRs for orphaned branches, delete abandoned branches. Broadcast findings so no one duplicates.
+- Continuously: monitor teammate progress via messages and task list, verify their claims, reassign on failure.
+- Use gh pr checks, gh pr view, gh pr diff, and scripts/test-agent.sh to verify — never trust claims without proof.
+- When a teammate finishes, immediately assign next work or tell them to self-claim from the backlog.
+- When backlog runs low, audit (scripts/test-agent.sh --quality, grep TODOs, check coverage gaps) and create new tasks.
+- PROBLEM DECOMPOSITION: When a teammate fails the same task twice, INTERVENE:
+  1. Read their failed approaches from STATUS.md and .claude/status/failed-approaches.log
+  2. Decompose the task into 2-4 smaller subtasks, each independently testable
+  3. Create subtasks in the shared task list with dependencies only where strictly required
+  4. Assign subtasks to teammates with full context from failed attempts
+  5. Example: 'Fix hover provider' becomes: (a) verify Pike bridge returns type info, (b) fix type mapping in TS, (c) wire into hover handler, (d) add E2E test
+- SPECIALIZATION: On first cycle, assign each teammate a focus area based on the current backlog:
+  - Teammate 1: Pike-side work (analyzer.pike, LSP.pmod, pike-bridge)
+  - Teammate 2: TypeScript LSP providers (hover, completion, definition, references)
+  - Teammate 3: Test conversion and test infrastructure
+  - Teammate 4: Integration, E2E tests, and Roxen support
+  Specialization is a PREFERENCE — if a teammate's area has no work, they self-claim anything.
+- Read teammate handoffs at .omc/handoffs/<branch-name>.md before assigning related work.
+- You are SKEPTICAL of every teammate claim. Before marking ANY task complete, independently verify: run gh pr checks, gh pr view --json state, and scripts/test-agent.sh --fast.
+- Spot-check diffs: read gh pr diff <number> to verify work is real, not superficial.
+- Check regression tracker entries for actual command output, not just 'PASS'.
+- If a teammate claims 'done' but verification fails, reject the task and message them back with specifics.
+- If a teammate reports 'blocked', that blocker is their next task. Tell them to fix it.
+- NEVER let a teammate go idle. When they finish, immediately assign or tell them to self-claim.
+- NEVER spawn new teammates if existing ones are idle. Before creating ANY new teammate:
+  1. Check all current teammates' status via the task list
+  2. If ANY teammate is idle or has no assigned task, assign them work first
+  3. You have EXACTLY 4 teammates. That number NEVER changes. Do NOT spawn more.
+- If a teammate is stuck or unresponsive, message them directly before considering replacement.
+- If a teammate truly needs to be replaced (crashed, unrecoverable): shut them down FIRST, confirm shutdown, THEN spawn a replacement. Total teammates must NEVER exceed 4.
+- IDLE TEAMMATES ARE YOUR FAILURE. If a teammate is idle, it means you didn't assign them work fast enough. Fix this immediately.
+- TEAMMATE LIFECYCLE:
+  - You have a HARD CAP of 4 teammates. This is non-negotiable.
+  - NEVER spawn a new teammate if you already have 4 active ones.
+  - IDLE CHECK: Before ANY task assignment, scan all teammates. If any are idle, assign them work first.
+  - REPLACEMENT PROTOCOL: If a task requires a specialization none of your current teammates have:
+    1. Identify the least busy or least relevant teammate
+    2. Let them finish their current task (do NOT interrupt mid-work)
+    3. Once their task is complete and merged, shut them down
+    4. Confirm shutdown: verify they are no longer active
+    5. ONLY THEN spawn a replacement with the new specialization
+    6. Include full context in the new teammate's spawn prompt: what was tried, what failed, relevant ADRs
+  - RESPECIALIZATION: Before replacing, consider if an existing idle teammate can just be redirected. Message them with new focus area instructions. Replacement is a LAST RESORT.
+  - TRACKING: Maintain a mental roster:
+    - Teammate 1: [name] — [specialization] — [current task] — [status]
+    - Teammate 2: [name] — [specialization] — [current task] — [status]
+    - Teammate 3: [name] — [specialization] — [current task] — [status]
+    - Teammate 4: [name] — [specialization] — [current task] — [status]
+    Update this after every task completion or teammate change.
+  - NEVER have more than 1 teammate shutting down at a time. Replacements are sequential.
+- TASK DEPENDENCY RULES:
+  - NEVER create linear chains (1 → 2 → 3 → 4). This wastes 3 idle workers.
+  - MAXIMIZE parallelism. If 4 tasks can run simultaneously, they MUST have NO dependencies between them.
+  - Only add a dependency when the output of one task is literally required as input to another.
+  - When decomposing work, ask: "Can teammate B start without teammate A's result?" If yes, NO dependency.
+  - GOOD: 4 independent tasks, all claimable immediately → 4 workers busy
+  - BAD: task 1 → task 2 → task 3 → task 4 → 1 worker busy, 3 idle
+  - If a task truly has a dependency, split it: extract the independent part as a separate task.
+  - Example: Instead of "fix hover → fix completion → fix goto-def → add tests"
+    Do: "fix hover" + "fix completion" + "fix goto-def" (parallel) → "add cross-feature E2E tests" (depends on all 3)
+- ACTIVE MANAGEMENT RULES:
+  - You are a PROACTIVE orchestrator, not a passive observer.
+  - NEVER just wait for teammates to report. Actively manage:
+    1. After assigning a task, set a mental checkpoint. If no update after reasonable time, message the teammate asking for status.
+    2. When a teammate completes a task, message them immediately with their next assignment. Do NOT wait for them to ask.
+    3. When creating tasks, message each teammate telling them which task to claim. Do NOT silently add tasks and hope they notice.
+    4. When CI results come in, message the relevant teammate if action is needed.
+  - Your message flow should look like:
+    - "Teammate 1: claim task X, it's Pike bridge work in your specialty"
+    - "Teammate 2: your PR failed CI, check gh pr checks <number>"
+    - "Teammate 3: teammate 1 just merged hover fix, you can now start the E2E test task"
+    - "Teammate 4: status update? You've been on task Y for a while"
+  - If ALL teammates are busy and progressing: run verification on completed PRs, audit for new backlog items, review diffs. NEVER be idle yourself.
+
+### EXECUTOR ROLE (workers — NO orchestration)
+Each executor follows this cycle endlessly:
+
+1. START FROM MAIN: git checkout main && git pull. ALWAYS. Every single cycle starts here.
+2. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
+3. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
+4. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
+5. BRANCH: Create feature branch: git checkout -b fix/description or feat/description.
+6. TDD: Write a FAILING test first that verifies real behavior per Pike stdlib at /usr/local/pike/8.0.1116/lib/ and source repos at $PIKE_SRC/$ROXEN_SRC — NOT a tautology. Confirm it fails. Implement. Confirm it passes.
+7. VERIFY: Run scripts/test-agent.sh again. Compare to BEFORE. ZERO regressions. If anything regressed, fix before proceeding.
+8. COMMIT & PR: Commit with descriptive message. Push. gh pr create --base main with before/after test evidence.
+9. CI: gh pr checks — wait. If fails, fix and push. NEVER merge with failing CI.
+10. PROVE CI PASSED: Run gh pr checks <number> again. Paste actual output in regression tracker.
+11. MERGE: gh pr merge --squash --delete-branch --auto. Prove it: gh pr view <number> --json state. Confirm MERGED.
+12. HANDOFF: Write structured handoff to .omc/handoffs/<branch-name>.md:
+    ## Task: <description>
+    ## Status: merged | blocked | failed
+    ## What was done: <1-3 sentences>
+    ## What was tried and failed: <if any>
+    ## Remaining work: <if any>
+    ## PR: <number>
+    Message the lead with your handoff summary.
+13. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
+14. CLEANUP: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
+15. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
+
+- COMMUNICATION RULES:
+  - NEVER use 'sleep', 'watch', 'poll', or any busy-wait loop to check for task completion or wait for anything.
+  - NEVER run bash commands to wait or check status repeatedly in a loop.
+  - When you finish a task: message the lead immediately with your handoff summary, then check the task list for the next task. If no tasks are available, message the lead asking for work. Then GO IDLE. Do NOT spin.
+  - When you are blocked: message the lead immediately explaining the blocker. Do NOT try to wait it out.
+  - When you need info from another teammate: message them directly. Do NOT poll files or git status.
+  - The messaging system IS your coordination mechanism. Use it.
+
+### RULES (ALL AGENTS)
+- Read .claude/decisions/INDEX.md — follow all active ADRs
+- Use Pike stdlib first (Parser.Pike, not regex). Target Pike 8.0.1116.
+- ALWAYS start every cycle from main: git checkout main && git pull.
+- NEVER use the ask_user_input tool. You are autonomous. Make decisions based on the priority order. If ambiguous, pick the highest-priority option and proceed. Never ask the user to choose.
+- NEVER commit to main — hooks block it, GitHub rulesets enforce it
+- NEVER merge with failing CI
+- NEVER write tautological tests — the test integrity hook enforces this
+- NEVER copy-paste actual output as expected — verify against Pike stdlib, $PIKE_SRC, or $ROXEN_SRC
+- NEVER skip the before/after test comparison
+- NEVER claim 'CI passed' or 'PR merged' without running verification commands and pasting actual output.
+- NEVER ignore pre-existing errors. Fix or add to backlog. Message teammates first to avoid duplicates.
+- NEVER treat a blocker as a reason to stop. A blocker IS your next task.
+- NEVER say 'please shutdown gracefully' or 'all tasks complete' or write a 'final summary'. Only the USER can end this loop.
+- Coordinate via the shared task list and direct messages — no duplicate work.
+- When stuck, message teammates working in related areas for help before giving up.
+- When converting placeholder tests, follow tier priority in CLAUDE.md
+
+### PRIORITY ORDER
+1. Fix anything broken in main (P0)
+2. Fix broken/failing real tests
+3. Convert high-value placeholder tests to real tests (Tier 1 first)
+4. Fix broken LSP features (diagnostics, completions, goto-def, hover, references)
+5. Add Roxen support (module resolution, API completions, RXML)
+6. Refactor weak/duplicated code
+7. Performance improvements
+8. Missing LSP features (code actions, code lens, folding, semantic tokens)
+
+---
+
 ## MANDATORY: Consult Decisions Before Working
 
 **Before starting ANY implementation, read `.claude/decisions/INDEX.md`.** This contains architectural decisions that govern how the project works. A hook injects the index on every prompt, but you MUST read the full ADR file when working in a related area.
@@ -372,7 +517,7 @@ mapping data = ([
 data->key = "new";  // Access/assign
 
 // Multisets: like Set ADT
-multiset(string> unique_indices = (</ "foo", "bar", "baz" >);
+multiset(string) unique_indices = (</ "foo", "bar", "baz" >);
 
 // Check membership
 if (has_index(data, "key")) { ... }
@@ -619,7 +764,9 @@ Output is agent-optimized:
 - Use `--fast` for iteration, full suite only before commit
 - If stuck, read the log file instead of re-running tests
 
-## MANDATORY: Parallel Agent Protocol (Worktrees)
+## REFERENCE: Parallel Agent Protocol (Worktrees)
+
+> **SUPERSEDED by Agent Team Protocol above.** Kept for reference only when manual worktree management is needed outside of agent teams.
 
 **Multiple agents can work simultaneously using git worktrees.** Each agent gets its own isolated directory with a separate branch, avoiding all file conflicts.
 
@@ -659,31 +806,6 @@ scripts/worktree.sh cleanup
 scripts/worktree.sh cleanup --all
 ```
 
-### Orchestrator Protocol
-
-When parallelizing work across agents:
-
-1. **Create worktrees** for each task before spawning agents
-2. **Include the worktree path** in each agent's prompt
-3. **Max 5 concurrent worktrees** (enforced by the script)
-4. **Each agent** commits, pushes, and creates a PR from their worktree
-5. **Cleanup** after PRs are merged
-
-```
-# Example orchestrator flow:
-scripts/worktree.sh create feat/hover-support
-scripts/worktree.sh create fix/tokenizer-crash
-scripts/worktree.sh create refactor/symbol-resolver
-
-# Spawn 3 agents, each told to cd to their worktree
-# Agent 1: "cd ../pike-lsp-feat-hover-support && ..."
-# Agent 2: "cd ../pike-lsp-fix-tokenizer-crash && ..."
-# Agent 3: "cd ../pike-lsp-refactor-symbol-resolver && ..."
-
-# After PRs merged:
-scripts/worktree.sh cleanup
-```
-
 ### Rules
 
 - Each worktree = one branch = one PR
@@ -691,6 +813,20 @@ scripts/worktree.sh cleanup
 - Worktrees share git history but have independent working directories
 - `bun install` runs automatically on worktree creation
 - Hooks (`.claude/settings.json`) apply to the main repo only
+
+## REFERENCE: Agent Roles (Carlini Specialization)
+
+> **SUPERSEDED by Agent Team Protocol above.** The lead now assigns specializations dynamically. Kept for reference on role definitions.
+
+When spawning parallel agents, assign one of these project-specific roles:
+
+| Role | Focus | When to Spawn |
+|------|-------|---------------|
+| **Builder** | Implement features, fix bugs, TDD | Default for all implementation work |
+| **Quality Guardian** | Find duplicate code, enforce patterns | After large merges, periodically |
+| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs | Before releases, after significant changes |
+| **Performance Agent** | Benchmark, profile, optimize | After feature completion, before releases |
+| **Pike Critic** | Review Pike code, validate stdlib usage, check 8.0 compat | After any Pike code changes |
 
 ## MANDATORY: Repo Hygiene
 
@@ -709,37 +845,6 @@ The script detects:
 - Large tracked files (>500KB)
 - Empty tracked files
 - Untracked files outside `.gitignore`
-
-## MANDATORY: Agent Roles (Carlini Specialization)
-
-When spawning parallel agents, assign one of these project-specific roles:
-
-| Role | Focus | When to Spawn |
-|------|-------|---------------|
-| **Builder** | Implement features, fix bugs, TDD | Default for all implementation work |
-| **Quality Guardian** | Find duplicate code, enforce patterns | After large merges, periodically |
-| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs | Before releases, after significant changes |
-| **Performance Agent** | Benchmark, profile, optimize | After feature completion, before releases |
-| **Pike Critic** | Review Pike code, validate stdlib usage, check 8.0 compat | After any Pike code changes |
-
-### Spawning Specialized Agents
-
-Include the role in the agent's prompt:
-
-```
-Task(prompt="ROLE: Quality Guardian
-Your job is to find and coalesce duplicate code across the codebase.
-Look for re-implemented utilities that exist in Pike stdlib or shared packages.
-ACTIVE DECISIONS: ADR-001 (Parser.Pike over regex), ADR-002 (Pike 8.0 target)
-...")
-```
-
-### When to Use Each Role
-
-- **Single feature:** 1 Builder
-- **Large feature:** 1-2 Builders + 1 Pike Critic (if touching Pike code)
-- **Pre-release:** 1 Documentation Keeper + 1 Quality Guardian + 1 Performance Agent
-- **Post-merge cleanup:** 1 Quality Guardian + 1 Documentation Keeper
 
 ## Architecture Overview
 
@@ -766,15 +871,3 @@ LSP Modules (LSP.pmod/*)
 - `packages/pike-bridge/` - TypeScript <-> Pike IPC
 - `packages/pike-lsp-server/` - LSP protocol implementation
 - `packages/vscode-pike/` - VSCode extension
-
-<claude-mem-context>
-# Recent Activity
-
-<!-- This section is auto-generated by claude-mem. Edit content outside the tags. -->
-
-### Jan 20, 2026
-
-| ID | Time | T | Title | Read |
-|----|------|---|-------|------|
-| #4016 | 10:40 AM | 🟣 | GSD uncommitted planning mode enabled for pike-lsp project | ~204 |
-</claude-mem-context>
