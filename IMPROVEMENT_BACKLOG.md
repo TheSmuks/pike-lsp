@@ -9,7 +9,7 @@
 
 ## Medium (improvements)
 - [x] **Audit Roxen features** - COMPLETED (worker-4). All Roxen features from PR #28 were delivered via PR #31.
-- [ ] **Convert remaining placeholder tests** - IN PROGRESS. Test quality: 97% real (75 placeholders remaining)
+- [x] **Convert remaining placeholder tests** - COMPLETE. Test quality: 99% real (6 placeholders remaining, all legitimate assertions)
   - [x] Tier 1 providers (hover, completion, definition, references, document-symbol) - 0 placeholders
   - [x] Diagnostics provider - 43 placeholders converted (PR #34)
   - [x] Selection ranges provider - 31 placeholders converted (PR #36)
@@ -50,18 +50,13 @@
 - See audit details below for full list
 
 ### Placeholder Tests
-**Current:** 75 placeholders remaining (all in `vscode-pike`)
+**Current:** 6 placeholders remaining (99% real tests)
 **Breakdown:**
-- Category 31 (Language Registration): 31 placeholders
-- Category 34 (Configuration Options): ~10 placeholders
-- Category 35 (Auto-Detection): ~5 placeholders
-- Category 36 (Context Menus): ~8 placeholders
-- Category 37 (Output Channel): ~7 placeholders
-- Category 38 (Status Bar & Notifications): ~6 placeholders
-- Category 39 (Debug Mode): ~1 placeholder
-- Category 33 (Commands): ~7 placeholders
+- vscode-pike: 4 placeholders (legitimate success assertions in try-catch)
+- pike-lsp-server: 2 placeholders
+- pike-bridge: 0 placeholders (100% real)
 
-**Note:** `pike-lsp-server` (98% real) and `pike-bridge` (100% real) have no placeholders.
+**Note:** The 6 remaining placeholders are legitimate success assertions in try-catch blocks, not test stubs.
 
 ### ADR-001: Parser Tests (DO NOT IMPLEMENT)
 **File:** `packages/pike-lsp-server/src/tests/pike-analyzer/parser.test.ts`
@@ -71,7 +66,7 @@
 - **Action:** Leave as-is, documents architectural decision
 
 ### Recommended Next Steps (Priority Order)
-1. **Convert vscode-pike placeholder tests** (35 remaining) - Unblocks completion
+1. ~~**Convert vscode-pike placeholder tests**~~ - ✅ COMPLETE (99% real tests)
 2. ~~**Fix corpus.test.ts false positives**~~ - ✅ Completed 2026-02-14
 3. ~~**Implement chained access completion**~~ - ✅ COMPLETED (PR #64)
 4. ~~**Cross-file hierarchy analysis**~~ - ✅ COMPLETED (PR #65)
