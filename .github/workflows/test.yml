@@ -7,8 +7,78 @@ on:
     branches: [main, master]
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      lsp-changed: ${{ steps.changes.outputs.lsp-changed }}
+      pike-changed: ${{ steps.changes.outputs.pike-changed }}
+      docs-changed: ${{ steps.changes.outputs.docs-changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect changes
+        id: changes
+        run: |
+          # Get changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.sha }}"
+          else
+            # Push event - compare with previous commit
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          # Skip comparison for first push (BASE_SHA might be 0000...)
+          if [ "$BASE_SHA" = "0000000000000000000000000000000000000000000" ]; then
+            echo "lsp-changed=true" >> $GITHUB_OUTPUT
+            echo "pike-changed=true" >> $GITHUB_OUTPUT
+            echo "docs-changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get list of changed files
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA 2>/dev/null || echo "")
+
+          # Check if LSP-related files changed
+          LSP_CHANGED=false
+          PIKE_CHANGED=false
+
+          if [ -n "$CHANGED_FILES" ]; then
+            for FILE in $CHANGED_FILES; do
+              # LSP files: pike-lsp-server, pike-bridge, vscode-pike source
+              if echo "$FILE" | grep -qE "^packages/(pike-lsp-server|pike-bridge|vscode-pike)/"; then
+                LSP_CHANGED=true
+              fi
+              # Pike files: pike-scripts, LSP.pmod
+              if echo "$FILE" | grep -qE "^pike-scripts/|^packages/pike-lsp-server/src/LSP\.pmod"; then
+                PIKE_CHANGED=true
+              fi
+            done
+          else
+            # No diff available, run all tests
+            LSP_CHANGED=true
+            PIKE_CHANGED=true
+          fi
+
+          echo "lsp-changed=$LSP_CHANGED" >> $GITHUB_OUTPUT
+          echo "pike-changed=$PIKE_CHANGED" >> $GITHUB_OUTPUT
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES" | head -20 || echo "none"
+          echo "LSP changed: $LSP_CHANGED"
+          echo "Pike changed: $PIKE_CHANGED"
+
   test:
     runs-on: ubuntu-24.04
+    # Skip LSP tests if only docs changed
+    if: |
+      needs.detect-changes.outputs.lsp-changed == 'true' ||
+      needs.detect-changes.outputs.pike-changed == 'true' ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: detect-changes
 
     strategy:
       matrix:
@@ -173,7 +243,11 @@ jobs:
 
   vscode-e2e:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    # Skip E2E tests if LSP files didn't change
+    if: |
+      needs.detect-changes.outputs.lsp-changed == 'true' ||
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [detect-changes, test, pike-test]
 
     steps:
       - name: Checkout code
