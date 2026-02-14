@@ -158,6 +158,33 @@ export function convertDiagnostic(
 }
 
 /**
+ * Check if a diagnostic message relates to a deprecated symbol.
+ *
+ * @param message - The diagnostic message to check
+ * @param introspectSymbols - Symbols from introspection data
+ * @returns true if the message mentions a deprecated symbol
+ */
+export function isDeprecatedSymbolDiagnostic(
+    message: string,
+    introspectSymbols: readonly { name: string; deprecated?: boolean | number }[]
+): boolean {
+    const deprecatedNames = new Set<string>();
+    for (const sym of introspectSymbols) {
+        if (sym.deprecated === true || sym.deprecated === 1) {
+            deprecatedNames.add(sym.name);
+        }
+    }
+
+    for (const name of deprecatedNames) {
+        if (message.includes(name)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Register diagnostics handlers with the LSP connection.
  *
  * @param connection - LSP connection
@@ -727,8 +754,10 @@ export function registerDiagnosticsHandlers(
                 }
 
                 // Check if this diagnostic is about a deprecated symbol
-                // (Pike analyzer doesn't currently provide this context, but we can add it later)
-                const isDeprecated = false; // TODO: Check if diagnostic relates to deprecated symbol
+                const isDeprecated = isDeprecatedSymbolDiagnostic(
+                    pikeDiag.message,
+                    introspectData.symbols
+                );
 
                 diagnostics.push(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }));
             }

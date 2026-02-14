@@ -19,7 +19,7 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { convertDiagnostic } from '../../features/diagnostics.js';
+import { convertDiagnostic, isDeprecatedSymbolDiagnostic } from '../../features/diagnostics.js';
 
 /**
  * Helper: Create a mock Diagnostic
@@ -735,6 +735,65 @@ describe('Diagnostics Provider', () => {
             const elapsed = performance.now() - start;
 
             assert.ok(elapsed < 100, `100 conversions took ${elapsed}ms, should be < 100ms`);
+        });
+    });
+
+    describe('Deprecated Symbol Detection', () => {
+        it('should tag diagnostic when message mentions deprecated symbol', () => {
+            const symbols = [
+                { name: 'old_function', deprecated: true },
+                { name: 'new_function', deprecated: false },
+            ];
+
+            assert.ok(
+                isDeprecatedSymbolDiagnostic('Calling deprecated function old_function', symbols),
+                'Should detect deprecated symbol in message'
+            );
+            assert.ok(
+                isDeprecatedSymbolDiagnostic('old_function is deprecated', symbols),
+                'Should detect deprecated symbol when message says symbol is deprecated'
+            );
+            assert.ok(
+                !isDeprecatedSymbolDiagnostic('Calling function new_function', symbols),
+                'Should not tag non-deprecated symbol'
+            );
+            assert.ok(
+                !isDeprecatedSymbolDiagnostic('Unknown symbol error', symbols),
+                'Should return false for unknown symbols'
+            );
+        });
+
+        it('should handle numeric deprecated flag (Pike returns 1 for true)', () => {
+            const symbols = [
+                { name: 'deprecated_func', deprecated: 1 },
+                { name: 'another_func', deprecated: 0 },
+            ];
+
+            assert.ok(
+                isDeprecatedSymbolDiagnostic('deprecated_func is deprecated', symbols),
+                'Should detect deprecated when flag is numeric 1'
+            );
+            assert.ok(
+                !isDeprecatedSymbolDiagnostic('another_func error', symbols),
+                'Should not detect deprecated when flag is numeric 0'
+            );
+        });
+
+        it('should handle empty symbol list and no deprecated symbols', () => {
+            assert.ok(
+                !isDeprecatedSymbolDiagnostic('Some error message', []),
+                'Should return false for empty symbol list'
+            );
+
+            const symbols = [
+                { name: 'func1', deprecated: false },
+                { name: 'func2', deprecated: undefined },
+            ];
+
+            assert.ok(
+                !isDeprecatedSymbolDiagnostic('func1 is deprecated', symbols),
+                'Should return false when no symbols are marked deprecated'
+            );
         });
     });
 });
