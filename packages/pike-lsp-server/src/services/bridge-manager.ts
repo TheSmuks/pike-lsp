@@ -344,25 +344,18 @@ export class BridgeManager {
      * Phase 5: Roxen-specific diagnostics.
      * Checks required callbacks, defvar usage, and tag signatures.
      *
+     * Delegates to the bridge's roxenValidate method which calls the
+     * roxen_validate RPC handler in Pike.
+     *
      * @param code - Source code to validate
      * @param filename - Filename for error messages
-     * @param moduleInfo - Roxen module information from detection
+     * @param moduleInfo - Optional Roxen module information from detection
      * @returns Validation diagnostics
      */
-    async roxenValidate(_code: string, _filename: string, _moduleInfo: any) {
+    async roxenValidate(code: string, filename: string, moduleInfo?: Record<string, unknown>) {
         if (!this.bridge) throw new Error('Bridge not available');
 
-        // Call the roxen_validate RPC handler
-        // TODO: Implement roxen_validate RPC in analyzer.pike (Phase 5)
-        // For now, return empty diagnostics
-        return {
-            diagnostics: [],
-            summary: {
-                errors: 0,
-                warnings: 0,
-                info: 0,
-            }
-        };
+        return this.bridge.roxenValidate(code, filename, moduleInfo);
     }
 
     /**
