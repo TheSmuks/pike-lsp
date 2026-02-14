@@ -282,8 +282,9 @@ void broken_func() {
 
         // Assert
         assert.ok(func, 'broken_func should be found');
-        // Should still parse even with malformed autodoc
-        assert.ok(true, 'should handle malformed autodoc without crashing');
+        // Parse succeeded without crashing - malformed autodoc is handled gracefully
+        // The function exists, meaning the parser didn't crash on malformed @param
+        assert.ok(result.symbols !== undefined, 'Parse returned valid symbols despite malformed autodoc');
     });
 
     it('should handle missing documentation', async () => {
@@ -319,8 +320,9 @@ void empty_doc_func() {
 
         // Assert
         assert.ok(func, 'empty_doc_func should be found');
-        // Should handle empty doc gracefully
-        assert.ok(true, 'should handle empty autodoc without crashing');
+        // Empty autodoc comment (just //! with nothing) is handled gracefully
+        // The function exists and parse succeeded
+        assert.ok(result.symbols !== undefined, 'Parse returned valid symbols despite empty autodoc');
     });
 });
 
