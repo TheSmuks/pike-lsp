@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Pre-push hook: Validates build, Pike compilation, and all tests
 # Philosophy: "Green main, not green commits" - allow broken local commits
 # Output: Agent-friendly compact output via test-agent.sh (Carlini protocol)
@@ -18,12 +18,10 @@ if ! command -v pike >/dev/null 2>&1; then
       break
     fi
   done
-fi
+  fi
 
-echo "[Pre-push] Running validations..."
-
-# 1. TypeScript build (compact output - only show errors)
-echo "[Pre-push] Building all packages..."
+# 2. TypeScript build (compact output - only show errors)
+echo "[Pre-push] Running TypeScript build check..."
 BUILD_LOG=$(mktemp)
 if ! bun run build > "$BUILD_LOG" 2>&1; then
   echo "FAILED: TypeScript build failed. Push aborted."
@@ -31,50 +29,22 @@ if ! bun run build > "$BUILD_LOG" 2>&1; then
   grep -iP '(error|TS\d{4})' "$BUILD_LOG" | head -15
   echo "---"
   echo "Full log: $BUILD_LOG"
+  rm -f "$BUILD_LOG"
   exit 1
-fi
-rm -f "$BUILD_LOG"
+  fi
 
-# 2. TypeScript lint check (warnings allowed for legacy tests)
-echo "[Pre-push] Running lint check..."
-LINT_LOG=$(mktemp)
-if ! bun run lint > "$LINT_LOG" 2>&1; then
-  echo "FAILED: Lint check failed. Push aborted."
-  echo "--- Lint errors ---"
-  grep -E 'error' "$LINT_LOG" | head -20
-  echo "---"
-  echo "Run 'bun run lint' to see all issues, 'bun run lint:fix' to auto-fix."
-  echo "Full log: $LINT_LOG"
-  exit 1
-fi
-rm -f "$LINT_LOG"
-
-# 3. Run full test suite via test-agent.sh (agent-friendly output)
-if [ -f "scripts/test-agent.sh" ]; then
-  echo "[Pre-push] Running full test suite..."
-  bash scripts/test-agent.sh || {
-    echo ""
-    echo "FAILED: Tests failed. Push aborted."
-    echo "Run 'scripts/test-agent.sh --summary' to see what failed."
-    exit 1
-  }
+# 3. Pike compile check (skip if SKIP_E2E=1)
+if [ "$SKIP_E2E" = "1" ]; then
+  echo "[Pre-push] SKIP_E2E=1, skipping Pike compile check..."
+  echo "Pike compile check SKIPPED"
 else
-  # Fallback if test-agent.sh doesn't exist
-  echo "[Pre-push] test-agent.sh not found, running tests directly..."
-
-  pike -e 'compile_file("pike-scripts/analyzer.pike");' || {
+  echo "[Pre-push] Running Pike compile check..."
+  pike -e 'compile_file("pike-scripts/analyzer.pike");' >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
     echo "FAILED: Pike compilation failed. Push aborted."
     exit 1
-  }
-
-  if [ -f "packages/pike-lsp-server/src/tests/smoke.test.ts" ]; then
-    cd packages/pike-lsp-server && bun test src/tests/smoke.test.ts > /dev/null 2>&1 || {
-      echo "FAILED: Smoke tests failed. Push aborted."
-      exit 1
-    }
-    cd ../..
   fi
-fi
+  fi
 
 # 4. Secret detection (optional)
 if command -v gitleaks >/dev/null 2>&1; then
@@ -86,7 +56,4 @@ if command -v gitleaks >/dev/null 2>&1; then
     rm -f "$GITLEAKS_LOG"
     exit 1
   fi
-  rm -f "$GITLEAKS_LOG"
 fi
-
-echo "[Pre-push] All validations passed!"

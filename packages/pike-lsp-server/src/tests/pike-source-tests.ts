@@ -203,7 +203,7 @@ async function testCategory(
  */
 function validateSymbolRanges(results: FileTestResult[]): { valid: number; invalid: number; examples: string[] } {
     let valid = 0;
-    let invalid = 0;
+    const invalid = 0;
     const examples: string[] = [];
 
     for (const result of results) {

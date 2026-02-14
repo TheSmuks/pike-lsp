@@ -106,7 +106,7 @@ function findExpressionBounds(
             }
 
             // Find the identifier before the arrow
-            let idEnd = start;
+            const idEnd = start;
             while (start > 0 && isWordChar(text[start - 1] ?? '')) {
                 start--;
             }
@@ -127,7 +127,7 @@ function findExpressionBounds(
             }
 
             // Find the identifier before the dot
-            let idEnd = start;
+            const idEnd = start;
             while (start > 0 && isWordChar(text[start - 1] ?? '')) {
                 start--;
             }
@@ -159,7 +159,7 @@ function findExpressionBounds(
             }
 
             // Find the identifier after the arrow
-            let idStart = end;
+            const idStart = end;
             while (end < text.length && isWordChar(text[end] ?? '')) {
                 end++;
             }

@@ -67,7 +67,7 @@ export function registerReferencesHandlers(
                 return symbolLine === cursorLine;
             });
 
-            let references: Location[] = [];
+            const references: Location[] = [];
 
             // Search for all occurrences of the word in the current document
             const lines = text.split('\n');

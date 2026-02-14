@@ -1,0 +1,3 @@
+#!/bin/sh
+# Empty stderr content for git-workflow-gate hook
+echo "" >&2

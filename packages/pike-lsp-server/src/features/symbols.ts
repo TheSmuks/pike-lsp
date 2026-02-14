@@ -179,7 +179,7 @@ export function registerSymbolsHandlers(
             }
 
             // --- Roxen symbols integration ---
-            let symbolsToConvert = filtered;
+            const symbolsToConvert = filtered;
             try {
                 const document = documents.get(uri);
                 if (document && services.bridge?.bridge) {

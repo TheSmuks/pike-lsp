@@ -235,7 +235,7 @@ describe('Performance Tests - Memory and Resource Usage', () => {
 
     it('should handle code with many nested structures', async () => {
         let code = '';
-        let depth = 5;
+        const depth = 5;
         for (let i = 0; i < depth; i++) {
             code += `class Level${i} {\n`;
         }
