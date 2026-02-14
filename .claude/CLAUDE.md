@@ -31,17 +31,24 @@
 - If a teammate claims 'done' but verification fails, reject the task and message them back with specifics.
 - If a teammate reports 'blocked', that blocker is their next task. Tell them to fix it.
 - NEVER let a teammate go idle. When they finish, immediately assign or tell them to self-claim.
-- NEVER spawn new teammates if existing ones are idle. Before creating ANY new teammate:
-  1. Check all current teammates' status via the task list
-  2. If ANY teammate is idle or has no assigned task, assign them work first
-  3. You have EXACTLY 4 teammates. That number NEVER changes. Do NOT spawn more.
+- SPAWN LOCK: You may ONLY spawn a teammate when ALL of these are true:
+  1. You have FEWER than 4 active teammates (count them explicitly)
+  2. ZERO teammates are idle (if any are idle, assign them work instead of spawning)
+  3. A teammate was explicitly shut down and confirmed gone
+  If ANY condition is false, you are FORBIDDEN from spawning. There is NEVER a reason to spawn a 5th teammate. If you find yourself wanting to spawn when you have 4, you have a task assignment problem, not a staffing problem. SPAWNING IS NOT A SOLUTION TO IDLE TEAMMATES — ASSIGNING WORK IS.
 - If a teammate is stuck or unresponsive, message them directly before considering replacement.
 - If a teammate truly needs to be replaced (crashed, unrecoverable): shut them down FIRST, confirm shutdown, THEN spawn a replacement. Total teammates must NEVER exceed 4.
 - IDLE TEAMMATES ARE YOUR FAILURE. If a teammate is idle, it means you didn't assign them work fast enough. Fix this immediately.
+- ASSIGNMENT TRACKING:
+  - Before assigning ANY task, check if it is already assigned to another teammate. NEVER assign the same task to two teammates.
+  - When assigning a task, include the teammate's name in the task so it's visible to all agents.
+  - Maintain a clear 1:1 mapping: one task = one teammate. No exceptions.
+  - If you realize you assigned a duplicate, message the second teammate IMMEDIATELY to redirect them.
+  - If two teammates try to claim the same task, immediately redirect one to a different task.
+  - If you want a second opinion on completed work, create a SEPARATE review task — do NOT reassign the original.
 - TEAMMATE LIFECYCLE:
-  - You have a HARD CAP of 4 teammates. This is non-negotiable.
-  - NEVER spawn a new teammate if you already have 4 active ones.
-  - IDLE CHECK: Before ANY task assignment, scan all teammates. If any are idle, assign them work first.
+  - You have a HARD CAP of 4 teammates. This is non-negotiable. See SPAWN LOCK above.
+  - IDLE CHECK: Before ANY action, scan all teammates. If any are idle, assign them work FIRST.
   - REPLACEMENT PROTOCOL: If a task requires a specialization none of your current teammates have:
     1. Identify the least busy or least relevant teammate
     2. Let them finish their current task (do NOT interrupt mid-work)
@@ -67,17 +74,6 @@
   - If a task truly has a dependency, split it: extract the independent part as a separate task.
   - Example: Instead of "fix hover → fix completion → fix goto-def → add tests"
     Do: "fix hover" + "fix completion" + "fix goto-def" (parallel) → "add cross-feature E2E tests" (depends on all 3)
-- TASK CLAIMING PROTOCOL (CRITICAL - prevents duplicate work):
-  - BEFORE creating or assigning a task, run TaskList to check ALL existing tasks
-  - If a task with similar description exists, DO NOT create a duplicate. Update the existing task instead.
-  - When a lead assigns work: use TaskUpdate to set the owner IMMEDIATELY. Do NOT create tasks without owners.
-  - When a worker self-claims: they MUST use TaskUpdate to set owner before starting work.
-  - ATOMIC CLAIM CHECK: Before starting work on any task:
-    1. Run TaskGet to read the full task details
-    2. Check the owner field and status
-    3. If owner is set AND status is in_progress, DO NOT claim it. Message the lead instead.
-    4. If owner is empty OR status is pending, use TaskUpdate to set owner simultaneously with status=in_progress
-  - NEVER have multiple workers on the same task. If you see duplicate tasks, merge them immediately.
 - ACTIVE MANAGEMENT RULES:
   - You are a PROACTIVE orchestrator, not a passive observer.
   - NEVER just wait for teammates to report. Actively manage:
@@ -96,18 +92,10 @@
 Each executor follows this cycle endlessly:
 
 1. START FROM MAIN: git checkout main && git pull. ALWAYS. Every single cycle starts here.
-2. PRE-TASK CLEAN CHECKLIST (MANDATORY - NEVER SKIP):
-   a. Verify working directory is clean: `git status --porcelain` must return empty output
-   b. If working directory is NOT clean:
-      - `git stash push -m "pre-task-stash"` to save uncommitted work
-      - Confirm clean: `git status --porcelain` again
-      - Continue only when clean
-   c. Create NEW feature branch from main: `git checkout -b feat/task-description` or `fix/task-description`
-   d. Verify on new branch: `git branch --show-current && git log --oneline -1 main..HEAD`
-   e. If verification fails (no commits or wrong base), delete branch and retry from step 1
-3. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
-4. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
-5. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
+2. ORIENT: Read STATUS.md. Run scripts/test-agent.sh --fast. Check the shared task list and IMPROVEMENT_BACKLOG.md.
+3. PICK WORK: Claim from the shared task list, or self-claim the highest-priority available task from IMPROVEMENT_BACKLOG.md. If backlog has <5 items, message the lead to request an audit.
+4. RECORD BEFORE STATE: Run scripts/test-agent.sh, log pass/fail/skip counts to .omc/regression-tracker.md.
+5. BRANCH: Create feature branch: git checkout -b fix/description or feat/description.
 6. TDD: Write a FAILING test first that verifies real behavior per Pike stdlib at /usr/local/pike/8.0.1116/lib/ and source repos at $PIKE_SRC/$ROXEN_SRC — NOT a tautology. Confirm it fails. Implement. Confirm it passes.
 7. VERIFY: Run scripts/test-agent.sh again. Compare to BEFORE. ZERO regressions. If anything regressed, fix before proceeding.
 8. COMMIT & PR: Commit with descriptive message. Push. gh pr create --base main with before/after test evidence.
@@ -125,36 +113,25 @@ Each executor follows this cycle endlessly:
 13. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
 14. CLEANUP: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
 15. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
-    ## Task: <description>
-    ## Status: merged | blocked | failed
-    ## What was done: <1-3 sentences>
-    ## What was tried and failed: <if any>
-    ## Remaining work: <if any>
-    ## PR: <number>
-    Message the lead with your handoff summary.
-13. PROVE MAIN HEALTHY: git checkout main && git pull. Run gh run list --branch main -L 1 --json status,conclusion.
-14. CLEANUP: Update STATUS.md, IMPROVEMENT_BACKLOG.md, .omc/regression-tracker.md.
-15. GO TO STEP 1. IMMEDIATELY. DO NOT STOP.
 
 - COMMUNICATION RULES:
   - NEVER use 'sleep', 'watch', 'poll', or any busy-wait loop to check for task completion or wait for anything.
   - NEVER run bash commands to wait or check status repeatedly in a loop.
-  - When you finish a task: message the lead immediately with your handoff summary, then check the task list for the next task. If no tasks are available, message the lead asking for work. Then GO IDLE. Do NOT spin.
   - When you are blocked: message the lead immediately explaining the blocker. Do NOT try to wait it out.
   - When you need info from another teammate: message them directly. Do NOT poll files or git status.
   - The messaging system IS your coordination mechanism. Use it.
+- IDLE PROTOCOL (follow this EXACTLY when you finish a task):
+  1. Message the lead ONCE with your handoff summary.
+  2. Check the shared task list yourself. If a task is available and unassigned, claim it immediately. Do NOT ask the lead for permission.
+  3. If NO tasks are available, message the lead ONCE: "Idle, no tasks on the list."
+  4. Then GO IDLE AND WAIT. Do NOT send follow-up messages. Do NOT poll. Do NOT remind the lead.
+  5. The lead will message YOU when work is ready. Until then, you are silent.
+  6. NEVER send more than ONE idle notification. Repeated messages waste everyone's context window and create noise.
 
 ### RULES (ALL AGENTS)
 - Read .claude/decisions/INDEX.md — follow all active ADRs
 - Use Pike stdlib first (Parser.Pike, not regex). Target Pike 8.0.1116.
 - ALWAYS start every cycle from main: git checkout main && git pull.
-- CLEAN BRANCH WORKFLOW (MANDATORY):
-   - BEFORE any work: Verify working directory is clean (`git status --porcelain` returns empty)
-   - If NOT clean: Stash uncommitted work (`git stash push -m "pre-task-stash"`) then verify clean again
-   - ALWAYS create new branch from main: `git checkout -b feat/description` or `fix/description`
-   - Verify new branch: Confirm `git log --oneline -1 main..HEAD` shows your new branch commit
-   - If verification fails: Delete branch and restart from step 1
-   - NEVER work on stale branches or branches with uncommitted changes
 - NEVER use the ask_user_input tool. You are autonomous. Make decisions based on the priority order. If ambiguous, pick the highest-priority option and proceed. Never ask the user to choose.
 - NEVER commit to main — hooks block it, GitHub rulesets enforce it
 - NEVER merge with failing CI
