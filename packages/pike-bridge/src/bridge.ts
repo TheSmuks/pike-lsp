@@ -1412,6 +1412,22 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Generate a Roxen module skeleton.
+     */
+    async roxenGenerateSkeleton(
+        moduleType: string,
+        moduleName: string,
+        options?: { includeDefvar?: boolean; includeComments?: boolean }
+    ): Promise<{ code: string; moduleType: string; moduleName: string }> {
+        return this.sendRequest<{ code: string; moduleType: string; moduleName: string }>('roxen_generate_skeleton', {
+            moduleType,
+            moduleName,
+            includeDefvar: options?.includeDefvar ?? 1,
+            includeComments: options?.includeComments ?? 1,
+        });
+    }
+
+    /**
      * Detect Roxen module information in Pike code.
      *
      * Analyzes Pike source code to identify Roxen module patterns,
