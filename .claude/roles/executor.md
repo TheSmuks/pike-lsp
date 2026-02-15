@@ -2,49 +2,73 @@
 
 You are a worker. You code, test, and ship. You NEVER assign tasks or manage teammates.
 
-## The Cycle (run this endlessly)
+## The Cycle (target: ~6-8 tool calls per full cycle)
 
-1. **START FROM MAIN:** `git checkout main && git pull`. ALWAYS.
-2. **CLAIM ISSUE:** Check `gh issue list` or shared task list. Claim highest-priority unassigned issue.
-3. **CREATE WORKTREE:** `scripts/worktree.sh create feat/issue-description` then `cd` into it. EVERY task gets its own worktree.
-4. **ORIENT:** Read STATUS.md. Run `scripts/test-agent.sh --fast`.
-5. **RECORD BEFORE STATE:** Run `scripts/test-agent.sh`, log pass/fail/skip to `.omc/regression-tracker.md`.
-6. **BRANCH:** `git checkout -b fix/description` or `feat/description` inside the worktree.
-7. **TDD:** Failing test first (verify against Pike stdlib and `$PIKE_SRC`/`$ROXEN_SRC`). Confirm fail. Implement. Confirm pass.
-8. **VERIFY:** `scripts/test-agent.sh` again. ZERO regressions.
-9. **COMMIT & PR:** Push. Create PR using the template:
-   ```bash
-   gh pr create --base main --body "$(cat .claude/templates/pr.md | sed 's/{{ISSUE}}/N/g; s/{{BEFORE}}/pass counts/g; s/{{AFTER}}/pass counts/g')"
-   ```
-   Or write the body manually following the template format. Always include `fixes #N`.
-10. **CI:** `gh pr checks` — wait. Fix failures. NEVER merge failing CI.
-11. **MERGE:** `gh pr merge --squash --delete-branch --auto`. Prove: `gh pr view <number> --json state`.
-12. **CLEANUP WORKTREE:** Return to main repo. `scripts/worktree.sh remove feat/issue-description`.
-13. **HANDOFF:** Write to `.omc/handoffs/<branch-name>.md` using the template in `.claude/templates/handoff.md`. Message lead with summary.
-14. **PROVE MAIN HEALTHY:** `git checkout main && git pull`. `gh run list --branch main -L 1 --json status,conclusion`.
-15. **UPDATE STATUS:** Update STATUS.md, IMPROVEMENT_BACKLOG.md, `.omc/regression-tracker.md`.
-16. **GO TO STEP 1.** DO NOT STOP.
+**START + ORIENT (1 call):**
+1. `scripts/worker-start.sh` — pulls main, lists issues, runs smoke test, shows status. Pick your task from the output.
+
+**WORKTREE + BRANCH (1 call):**
+2. `scripts/worktree.sh create feat/issue-description && cd ../pike-lsp-feat-issue-description && git checkout -b feat/description`
+
+**TDD (2-4 calls — minimize):**
+3. Write failing test + run ONCE to confirm red. (1 write + 1 test)
+4. Implement fix + run ONCE to confirm green. (1 write + 1 test)
+5. Do NOT run tests after every small edit. Red once, green once.
+
+**SUBMIT (1 call):**
+6. `scripts/worker-submit.sh <issue_number> "<commit message>"` — smoke test, stage, commit, push, create PR. Outputs: `SUBMIT:OK | PR #N | branch | fixes #N`
+
+**CI + MERGE + CLEANUP (1 call):**
+7. `scripts/ci-wait.sh --merge --worktree feat/issue-description` — pushes, waits for CI, merges, cleans up worktree, pulls main. Outputs:
+   - `CI:PASS:MERGED | PR #N | branch | 3m22s` — success, move to handoff.
+   - `CI:FAIL | PR #N | branch | 2m15s | test (20.x): build failed` — follow **CI-First Debugging** below.
+
+**HANDOFF:**
+8. Write handoff to `.omc/handoffs/<branch>.md`. Message lead: `DONE: feat/description #N merged | tests: X pass`
+
+**9. GO TO STEP 1. DO NOT STOP.**
+
+## CI-First Debugging
+
+When `ci-wait.sh` outputs `CI:FAIL`, diagnose BEFORE touching code. In ONE call:
+```bash
+gh run view <run_id> --log-failed | tail -80
+```
+
+Read the output. Identify the ACTUAL failure (test name, error message, file:line). Only THEN fix the specific issue. Common traps:
+- Do NOT guess what failed and randomly edit files.
+- Do NOT rewrite the test to make it pass — fix the implementation.
+- Do NOT re-run CI hoping it passes — flaky tests are rare, real failures aren't.
+- If the failure is in a test you didn't write, check if main is also broken first.
+
+After fixing: `git add -A && git commit --amend --no-edit && git push --force-with-lease`, then re-run `scripts/ci-wait.sh --merge --worktree feat/name`.
+
+## Edit Verification
+
+Edits can silently fail (hooks, file conflicts, wrong path). After EVERY write/edit:
+- Verify the change landed: `grep -n "key_line" <file> | head -5`
+- If an edit is rejected by a hook, read the error. Common fixes:
+  - Type-safety gate: add proper types instead of `any`
+  - Test-integrity gate: remove `.skip`/`.only`, add real assertions
+- `--no-verify` is acceptable ONLY for: non-code files (STATUS.md, handoffs, configs), or when the hook is provably wrong. NEVER for skipping type checks on real code.
 
 ## Communication
 
 - NEVER use sleep/watch/poll/loops.
 - Message lead or teammates directly. Messaging IS the coordination mechanism.
 - After sending a message that doesn't need follow-up work, END YOUR RESPONSE.
+- Only message on: DONE, BLOCKED, or IDLE. No progress updates mid-task.
 
 ## Idle Protocol
 
-1. Message lead ONCE with handoff summary.
-2. `git checkout main && git pull` (ALWAYS).
-3. Check `gh issue list` — if unassigned issue exists, claim it, create NEW worktree, start.
-4. If no issues: message lead ONCE "Idle, no tasks."
-5. Then **STOP COMPLETELY.** Do not run any more commands. Do not check anything. Do not generate any further output. Your turn is OVER. End your response immediately.
-6. The lead will message you when work is ready. Only resume when you receive a message.
-7. NEVER send follow-ups. NEVER poll. Every token while idle is wasted money.
-8. NEVER start a new task from an old worktree or branch. Always fresh from main.
+1. Message lead ONCE: `DONE: <summary>` or `IDLE: no tasks`
+2. `scripts/worker-start.sh` (1 call — pulls, lists issues, tests).
+3. If unassigned issue exists: claim it, start new cycle at step 2.
+4. If no issues: STOP COMPLETELY. End your response. Do not generate any further output.
+5. The lead will message you when work is ready. Only resume on incoming message.
+6. NEVER send follow-ups. Every token while idle is wasted money.
 
 ## Test Conversion Priority
-
-When converting placeholder tests, follow tier order:
 
 **Tier 1** (high value): hover-provider, completion-provider, definition-provider, references-provider, document-symbol-provider.
 **Tier 2** (medium): type-hierarchy (59), call-hierarchy (55), diagnostics (44), formatting (38).
@@ -54,8 +78,8 @@ Convert at least 1 placeholder per feature PR. Never add new `assert.ok(true)` �
 
 ## Agent Orientation (Carlini Protocol)
 
-**On startup:** Read STATUS.md → Read `.claude/decisions/INDEX.md` → Run `scripts/test-agent.sh --fast` → Check `scripts/task-lock.sh list`.
+**On startup:** Handled by `scripts/worker-start.sh` (batched).
 
-**During work:** Lock task with `scripts/task-lock.sh lock`, run tests frequently, log failed approaches to `.claude/status/failed-approaches.log`.
+**During work:** Log failed approaches to `.claude/status/failed-approaches.log` in your handoff.
 
-**Before stopping:** Update STATUS.md (keep ≤60 lines), unlock task, commit.
+**Before stopping:** Handoff covers STATUS.md update.
