@@ -8,6 +8,7 @@
  * 2. **Server Detection**: Cache is invalidated when server restarts (process PID changes)
  * 3. **TTL Fallback**: If server info unavailable, cache expires after 5 minutes
  * 4. **Thread Safety**: Map operations are inherently thread-safe in Node.js
+ * 5. **BridgeManager Integration**: PID tracking via bridge-manager for accurate cache keys
  *
  * Cache Structure:
  * - Key: `{serverPid: number, timestamp: number}`
@@ -15,16 +16,15 @@
  *
  * Invalidation Triggers:
  * - Document change (cache key contains timestamp)
- * - Server restart (PID change)
+ * - Server restart (PID change from BridgeManager)
  * - TTL expiration (timestamp > 5 minutes ago)
  *
  * This cache is used by the RXML parser to validate tags and provide
  * accurate diagnostics for RXML templates.
- *
- * TODO Phase 5: Integrate with bridge-manager.ts for server PID tracking
  */
 
 import type { RXMLTagCatalogEntry } from './types.js';
+import type { BridgeManager } from '../../services/index.js';
 
 /**
  * Cache entry structure
@@ -43,10 +43,43 @@ interface CacheEntry {
  *
  * Provides thread-safe in-memory caching for RXML tag catalogs
  * extracted from Roxen server instances.
+ *
+ * Integrates with BridgeManager to track the Pike subprocess PID for
+ * accurate cache invalidation when the server restarts.
  */
 export class RXMLTagCatalogCache {
     private cache = new Map<string, CacheEntry>();
     private readonly TTL_MS = 5 * 60 * 1000; // 5 minutes
+    private bridgeManager: BridgeManager | null = null;
+
+    /**
+     * Set the bridge manager for PID tracking.
+     *
+     * When a bridge manager is set, the cache can automatically
+     * get the current Pike subprocess PID for cache key generation.
+     *
+     * @param bridgeManager - Bridge manager instance or null to clear
+     */
+    setBridgeManager(bridgeManager: BridgeManager | null): void {
+        this.bridgeManager = bridgeManager;
+    }
+
+    /**
+     * Get the current Pike subprocess PID from BridgeManager.
+     *
+     * Returns the PID from the health status, which is tracked
+     * by the bridge manager. Returns undefined if no bridge is set
+     * or the bridge is not running.
+     *
+     * @returns Pike subprocess PID or undefined if not available
+     */
+    async getPikePid(): Promise<number | undefined> {
+        if (!this.bridgeManager) {
+            return undefined;
+        }
+        const health = await this.bridgeManager.getHealth();
+        return health.pikePid ?? undefined;
+    }
 
     /**
      * Get a cache entry for the given server instance
