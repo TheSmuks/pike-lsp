@@ -13,7 +13,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs/promises';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, AutodocDocumentation } from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 
@@ -133,20 +133,26 @@ export function registerSignatureHelpHandler(
         const symbolAny = funcSymbol as any;
         const argNames: string[] = symbolAny.argNames ?? [];
         const argTypes: unknown[] = symbolAny.argTypes ?? [];
+        const doc = symbolAny.documentation as AutodocDocumentation | undefined;
 
         const returnType = formatPikeType(symbolAny.returnType);
         let signatureLabel = `${returnType} ${funcName}(`;
 
         for (let i = 0; i < argNames.length; i++) {
+            const paramName = argNames[i];
             const typeName = formatPikeType(argTypes[i]);
-            const paramStr = `${typeName} ${argNames[i]}`;
+            const paramStr = `${typeName} ${paramName}`;
 
             const startOffset = signatureLabel.length;
             signatureLabel += paramStr;
             const endOffset = signatureLabel.length;
 
+            // Add parameter documentation if available
+            const paramDoc = doc?.params?.[paramName];
+
             params_list.push({
                 label: [startOffset, endOffset],
+                documentation: paramDoc,
             });
 
             if (i < argNames.length - 1) {
@@ -158,6 +164,11 @@ export function registerSignatureHelpHandler(
         const signature: SignatureInformation = {
             label: signatureLabel,
             parameters: params_list,
+            documentation: doc?.text || doc?.returns
+                ? `${doc.text || ''}${doc.returns ? `
+
+@returns ${doc.returns}` : ''}`
+                : undefined,
         };
 
         logger.debug('Signature help', { func: funcName, paramIndex, paramsCount: params_list.length });
