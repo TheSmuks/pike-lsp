@@ -10,6 +10,8 @@
 
 If you catch yourself about to violate any of these: STOP. Re-read this section.
 
+**HOOK ENFORCED:** `worktree-guard.sh` blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. If you try to write a source file without using worktree absolute paths, the hook will reject it and tell you the correct path. Config/doc files (.md, .json, .yaml, .sh) in the main repo are allowed. `toolchain-guard.sh` blocks `gh pr create` without `fixes #N`.
+
 ---
 
 ## ⚠️ CRITICAL: `cd` does NOT persist between tool calls

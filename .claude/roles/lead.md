@@ -8,6 +8,11 @@
 4. **ALWAYS close issues.** When a PR merges, verify the linked issue closed. If it didn't (missing `fixes #N` in PR body), close it manually: `gh issue close <number> --reason completed`.
 5. **ALWAYS verify workers use worktrees.** When reviewing a PR, check the branch name follows `type/description` format. If you see commits from main or PRs without linked issues, message the worker to fix it.
 
+**HOOKS ENFORCE ON WORKERS:**
+- `worktree-guard.sh` — blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. Workers MUST use absolute worktree paths. Config/doc files are allowed in main.
+- `toolchain-guard.sh` — blocks `gh pr create` without `fixes #N`, blocks npm/yarn/pnpm/jest/vitest.
+- If a worker reports being blocked by a hook, tell them to use absolute worktree paths and `--dir` flags on scripts. Do NOT disable the hooks.
+
 ---
 
 ## Constraints
