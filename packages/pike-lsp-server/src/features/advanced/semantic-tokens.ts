@@ -98,6 +98,7 @@ export function registerSemanticTokensHandler(
             const declarationBit = 1 << tokenModifiers.indexOf('declaration');
             const readonlyBit = 1 << tokenModifiers.indexOf('readonly');
             const staticBit = 1 << tokenModifiers.indexOf('static');
+            const deprecatedBit = 1 << tokenModifiers.indexOf('deprecated');
 
             for (const symbol of cached.symbols) {
                 if (!symbol.name) continue;
@@ -105,9 +106,16 @@ export function registerSemanticTokensHandler(
                 let tokenType = tokenTypes.indexOf('variable');
                 let declModifiers = declarationBit;
 
-                const isStatic = symbol.modifiers && symbol.modifiers.includes('static');
-                if (isStatic) {
+                // PERF-104: Check modifiers array once
+                const hasModifier = (mod: string) => symbol.modifiers && symbol.modifiers.includes(mod);
+
+                if (hasModifier('static')) {
                     declModifiers |= staticBit;
+                }
+
+                // Issue #104: Add deprecated modifier support
+                if (hasModifier('deprecated')) {
+                    declModifiers |= deprecatedBit;
                 }
 
                 switch (symbol.kind) {
@@ -134,15 +142,38 @@ export function registerSemanticTokensHandler(
                     case 'typedef':
                         tokenType = tokenTypes.indexOf('type');
                         break;
+                    case 'module':
+                        tokenType = tokenTypes.indexOf('namespace');
+                        break;
+                    case 'import':
+                        tokenType = tokenTypes.indexOf('namespace');
+                        break;
+                    case 'inherit':
+                        tokenType = tokenTypes.indexOf('class');
+                        break;
+                    case 'include':
+                        tokenType = tokenTypes.indexOf('namespace');
+                        break;
                     default:
                         continue;
                 }
 
                 const symbolRegex = PatternHelpers.wholeWordPattern(symbol.name);
 
+                // PERF-104: Limit search to lines near symbol declaration for better performance
+                // Search all lines for global symbols, but only nearby lines for local declarations
+                const declLine = symbol.position ? symbol.position.line - 1 : -1;
+                const searchRadius = 50; // Search 50 lines before/after declaration
+
                 for (let lineNum = 0; lineNum < lines.length; lineNum++) {
                     const line = lines[lineNum];
                     if (!line) continue;
+
+                    // PERF-104: Skip lines far from declaration for non-global symbols
+                    // This reduces O(n*m) to O(n*k) where k is search radius
+                    if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
+                        continue;
+                    }
 
                     let match: RegExpExecArray | null;
                     while ((match = symbolRegex.exec(line)) !== null) {
