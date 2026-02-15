@@ -1264,8 +1264,8 @@ int nested_symbol
 
         // Get the document text to find a test function position
         const text = document.getText();
-        const funcMatch = text.match(/^void caller_function\s*\(/m);
-        assert.ok(funcMatch, 'Should find caller_function for code lens test');
+        const funcMatch = text.match(/^int test_function\s*\(/m);
+        assert.ok(funcMatch, 'Should find test_function for code lens test');
 
         // Calculate position for the function
         const funcOffset = text.indexOf(funcMatch![0]);
@@ -1273,18 +1273,29 @@ int nested_symbol
 
         // Test that the pike.showReferences command can be invoked directly
         // This simulates what happens when user clicks the code lens
-        let commandExecuted = false;
+        // First verify there are references to show for this function
+        const references = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeReferenceProvider',
+            testDocumentUri,
+            funcPosition
+        );
+
+        assert.ok(references, 'test_function should have references');
+        assert.ok(references!.length > 0, 'test_function should be referenced somewhere');
+
+        // Now test that pike.showReferences command can be invoked without error
+        // The command opens the Peek View UI - we verify it doesn't throw
         try {
             await vscode.commands.executeCommand(
                 'pike.showReferences',
                 testDocumentUri.toString(),
                 { line: funcPosition.line, character: funcPosition.character }
             );
-            commandExecuted = true;
+            // Command executed successfully - verify we had references to show
+            assert.ok(references!.length > 0, 'pike.showReferences should open with references available');
         } catch (err) {
             assert.fail(`pike.showReferences command failed: ${err}`);
         }
-        assert.strictEqual(commandExecuted, true, 'pike.showReferences command should execute without throwing');
     });
 
     /**
@@ -1348,7 +1359,17 @@ int nested_symbol
 
         // Execute command with all three parameters (uri, position, symbolName)
         // Position is at column 0 (return type), but symbolName should help find the right position
-        let commandExecuted = false;
+        // First verify test_function has references
+        const references = await vscode.commands.executeCommand<vscode.Location[]>(
+            'vscode.executeReferenceProvider',
+            testDocumentUri,
+            new vscode.Position(funcLine, 4) // Position on "test_function"
+        );
+
+        assert.ok(references, 'test_function should have references');
+        assert.ok(references!.length >= 2, 'test_function should have definition and at least one call');
+
+        // Now test pike.showReferences command with symbolName parameter
         try {
             await vscode.commands.executeCommand(
                 'pike.showReferences',
@@ -1356,11 +1377,11 @@ int nested_symbol
                 { line: funcLine, character: 0 },
                 'test_function'  // This symbolName should help find the right position
             );
-            commandExecuted = true;
+            // Command executed successfully - verify we had references to show
+            assert.ok(references!.length >= 2, 'pike.showReferences with symbolName should have references to display');
         } catch (err) {
             assert.fail(`pike.showReferences command with symbolName failed: ${err}`);
         }
-        assert.strictEqual(commandExecuted, true, 'pike.showReferences command with symbolName should execute without throwing');
     });
 
     /**
