@@ -135,11 +135,13 @@ jobs:
   build-extension:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
-    if: |
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
+      - name: Skip for PRs
+        if: |
+          github.event_name != 'push' ||
+          (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
+        run: echo "Skipping build-extension (only runs on main/master pushes)"
       - name: Checkout code
         uses: actions/checkout@v4
 
