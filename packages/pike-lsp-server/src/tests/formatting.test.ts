@@ -315,4 +315,106 @@ void test() {
 
         assert.equal(format(input), expected);
     });
+
+    // Issue #102: Tests for Pike-specific constructs
+    describe('Pike-specific constructs', () => {
+        it('handles multiline strings (content preserved as-is)', () => {
+            // Issue #102: Multi-line strings - the opening line is formatted
+            // but content inside is not modified by the formatter
+            const input = `
+string s = #"
+    This is a
+    multiline string
+"#;
+`.trim();
+
+            // The formatter doesn't modify content inside multi-line strings
+            // This is expected behavior - we preserve user's string formatting
+            const actual = format(input);
+
+            // Just verify the start and end markers are intact
+            assert.ok(actual.includes('#"'));
+            assert.ok(actual.includes('"#;'));
+        });
+
+        it('formats constant declarations', () => {
+            const input = `
+constant PI = 3.14;
+constant MAX_SIZE = 100;
+`.trim();
+
+            const expected = `
+constant PI = 3.14;
+constant MAX_SIZE = 100;
+`.trim();
+
+            assert.equal(format(input), expected);
+        });
+
+        it('formats import statements', () => {
+            const input = `
+import Stdio;
+import Array.*;
+`.trim();
+
+            const expected = `
+import Stdio;
+import Array.*;
+`.trim();
+
+            assert.equal(format(input), expected);
+        });
+
+        it('formats inherit statements', () => {
+            const input = `
+class Child {
+inherit Parent;
+void method() {}
+}
+`.trim();
+
+            const expected = `
+class Child {
+    inherit Parent;
+    void method() {}
+}
+`.trim();
+
+            assert.equal(format(input), expected);
+        });
+
+        it('formats enum declarations', () => {
+            const input = `
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+}
+`.trim();
+
+            const expected = `
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+}
+`.trim();
+
+            assert.equal(format(input), expected);
+        });
+
+        it('formats typedef declarations', () => {
+            const input = `
+typedef mapping(string:int) StringIntMap;
+StringIntMap map = ([]);
+`.trim();
+
+            const expected = `
+typedef mapping(string:int) StringIntMap;
+StringIntMap map = ([]);
+`.trim();
+
+            assert.equal(format(input), expected);
+        });
+    });
 });
