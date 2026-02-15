@@ -22,6 +22,20 @@ export interface PikeSettings {
     maxNumberOfProblems: number;
     /** Delay in milliseconds before validating after document change */
     diagnosticDelay: number;
+    /** Inlay hints configuration (optional) */
+    inlayHints?: InlayHintsSettings;
+}
+
+/**
+ * Inlay hints configuration.
+ */
+export interface InlayHintsSettings {
+    /** Enable inlay hints */
+    enabled: boolean;
+    /** Show parameter name hints */
+    parameterNames: boolean;
+    /** Show type hints (not implemented yet) */
+    typeHints: boolean;
 }
 
 /**
@@ -103,4 +117,9 @@ export const defaultSettings: PikeSettings = {
     pikePath: 'pike',
     maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
     diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
+    inlayHints: {
+        enabled: true,
+        parameterNames: true,
+        typeHints: false,
+    },
 };
