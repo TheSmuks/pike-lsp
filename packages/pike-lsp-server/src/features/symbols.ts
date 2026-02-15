@@ -242,18 +242,21 @@ export function registerSymbolsHandlers(
             const indexedResults = workspaceIndex.searchSymbols(query, limit);
             allSymbols.push(...indexedResults);
 
+            // PERF-109: Build Set of indexed URIs for O(1) duplicate checking
+            // This avoids O(n*m) complexity from repeated some() calls
+            const indexedUris = new Set<string>(indexedResults.map(s => s.location.uri));
+
             // Also search open documents (documentCache) to include files that
             // may not be in the workspace index yet
             for (const [uri, cached] of Array.from(documentCache.entries())) {
-                // Skip URIs already in results to avoid duplicates
-                const alreadyIncluded = allSymbols.some(s => s.location.uri === uri);
+                // PERF-109: Use Set.has() instead of Array.some() for O(1) lookup
+                if (indexedUris.has(uri)) {
+                    continue;
+                }
 
                 for (const symbol of cached.symbols) {
                     // Skip symbols with null names
                     if (!symbol.name) continue;
-
-                    // Skip if we already have symbols from this URI via workspace index
-                    if (alreadyIncluded) continue;
 
                     if (!query || symbol.name.toLowerCase().includes(queryLower)) {
                         const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
