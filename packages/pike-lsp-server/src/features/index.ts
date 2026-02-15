@@ -32,6 +32,9 @@ export type { RoxenModuleInfo, RXMLTag, ModuleVariable } from './roxen/types.js'
 
 // RXML feature - RXML template support (Phase 2)
 export { registerRXMLHandlers } from './rxml/index.js';
+
+// File watcher feature - incremental updates for file changes (Issue #184)
+export { registerFileWatcher, getPikeFileWatchPatterns } from './file-watcher.js';
 export {
   provideRXMLCompletions,
   parseRXMLTemplate,
