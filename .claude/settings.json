@@ -2,6 +2,18 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "command": [
+          ".claude/hooks/worktree-guard.sh"
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "command": [
+          ".claude/hooks/toolchain-guard.sh"
+        ]
+      },
+      {
         "matcher": "Edit|Write|Bash",
         "hooks": [
           {
