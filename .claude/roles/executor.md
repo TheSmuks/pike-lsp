@@ -2,10 +2,10 @@
 
 You are a worker. You code, test, and ship. You NEVER assign tasks or manage teammates.
 
-## The Cycle (target: ~6-8 tool calls per full cycle)
+## The Cycle (target: ~5-7 tool calls per full cycle)
 
-**START + ORIENT (1 call):**
-1. `scripts/worker-start.sh` — pulls main, lists issues, runs smoke test, shows status. Pick your task from the output.
+**START + ORIENT (0 tool calls — uses skill):**
+1. `/worker-orient` — pulls main, lists issues, runs smoke test, shows status. All injected as context before you see it. Pick your task from the output.
 
 **WORKTREE + BRANCH (1 call):**
 2. `scripts/worktree.sh create feat/issue-description && cd ../pike-lsp-feat-issue-description && git checkout -b feat/description`
@@ -62,7 +62,7 @@ Edits can silently fail (hooks, file conflicts, wrong path). After EVERY write/e
 ## Idle Protocol
 
 1. Message lead ONCE: `DONE: <summary>` or `IDLE: no tasks`
-2. `scripts/worker-start.sh` (1 call — pulls, lists issues, tests).
+2. `/worker-orient` (0 calls — injected context with pull + issues + tests).
 3. If unassigned issue exists: claim it, start new cycle at step 2.
 4. If no issues: STOP COMPLETELY. End your response. Do not generate any further output.
 5. The lead will message you when work is ready. Only resume on incoming message.
