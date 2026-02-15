@@ -1,4 +1,5 @@
-import { describe, it, before, after } from 'node:test';
+// @ts-ignore - Bun test types
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { PikeBridge } from './bridge.js';
@@ -6,13 +7,13 @@ import { PikeBridge } from './bridge.js';
 describe('getPikePaths', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
+    beforeAll(async () => {
         bridge = new PikeBridge();
         await bridge.start();
         await new Promise(resolve => setTimeout(resolve, 200));
     });
 
-    after(async () => {
+    afterAll(async () => {
         if (bridge) {
             await bridge.stop();
         }
