@@ -1,0 +1,32 @@
+#!/bin/bash
+# pre-push hook - Enforce worker-submit.sh protocol
+# Blocks direct pushes from feature branches - must use worker-submit.sh
+
+# Get the branch being pushed
+while read local_ref local_sha remote_ref remote_sha; do
+  BRANCH=$(echo "$remote_ref" | sed 's|refs/heads/||')
+
+  # Skip main and master
+  if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+    exit 0
+  fi
+
+  # Check for protocol marker (set by worker-submit.sh)
+  MARKER_FILE="$(git rev-parse --show-toplevel)/.git/.worker-submit-marker"
+  if [[ -f "$MARKER_FILE" ]]; then
+    rm -f "$MARKER_FILE"
+    exit 0
+  fi
+
+  # No marker - reject push
+  echo "ERROR: Direct push blocked for branch '$BRANCH'"
+  echo "ERROR: You MUST use worker-submit.sh to submit changes"
+  echo ""
+  echo "Usage:"
+  echo "  scripts/worker-submit.sh --dir <worktree> <issue_number> \"<commit message>\""
+  echo ""
+  echo "Or from within the worktree:"
+  echo "  cd <worktree_path>"
+  echo "  scripts/worker-submit.sh <issue_number> \"<commit message>\""
+  exit 1
+done

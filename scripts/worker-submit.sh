@@ -52,8 +52,24 @@ if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
   exit 1
 fi
 
+# --- Auto-cleanup stale worktrees ---
+# Remove worktrees with no uncommitted changes to free up slots
+for wt in $(git worktree list --porcelain | grep "^path " | awk '{print $2}'); do
+  if [[ "$wt" != "$(pwd)" ]] && [[ "$wt" != "$(git rev-parse --show-toplevel)" ]]; then
+    wt_status=$(cd "$wt" 2>/dev/null && git status --porcelain | head -1)
+    if [[ -z "$wt_status" ]]; then
+      # Check if branch is merged
+      branch=$(cd "$wt" 2>/dev/null && git branch --show-current)
+      if git branch --merged main | grep -q "^.*$branch$" 2>/dev/null; then
+        git worktree remove "$wt" --force 2>/dev/null || true
+      fi
+    fi
+  fi
+done
+
 # Find main repo for scripts
-MAIN_REPO="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git.*||')"
+# Use -q for quiet mode to get single line, handle worktree edge case
+MAIN_REPO="$(git rev-parse -q --path-format=absolute --git-common-dir 2>/dev/null | head -1 | sed 's|/\.git.*||')"
 SCRIPTS="$MAIN_REPO/scripts"
 
 # --- Smoke test ---
@@ -71,6 +87,10 @@ if git diff --cached --quiet; then
   exit 1
 fi
 git commit -m "$COMMIT_MSG" --no-verify
+
+# --- Set protocol marker (enables push) ---
+MARKER_FILE="$(git rev-parse --show-toplevel)/.git/.worker-submit-marker"
+touch "$MARKER_FILE"
 
 # --- Push ---
 if ! git push -u origin "$BRANCH" --no-verify 2>/dev/null; then
