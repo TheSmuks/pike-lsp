@@ -139,4 +139,46 @@ describe('Roxen Symbols - enhanceRoxenSymbols', () => {
         const var2 = variablesGroup.children.find((c: any) => c.name === 'var2');
         assert.strictEqual(var2.range.start.line, 9, 'var2 should be at LSP line 9');
     });
+
+    test('selectionRange is contained in range for all generated symbols', () => {
+        const moduleInfo: RoxenModuleInfo = {
+            is_roxen_module: 1,
+            module_type: ['module'],
+            module_name: 'TestModule',
+            inherits: [],
+            variables: [{ name: 'var1', type: 'string', position: { line: 5, column: 4 } }],
+            tags: [{ name: 'tag1', has_container: 0, position: { line: 8, column: 10 } }],
+            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+        };
+
+        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+
+        const positionGte = (
+            left: { line: number; character: number },
+            right: { line: number; character: number }
+        ): boolean => {
+            return (
+                left.line > right.line || (left.line === right.line && left.character >= right.character)
+            );
+        };
+
+        const validateRanges = (symbols: ReturnType<typeof enhanceRoxenSymbols>): void => {
+            for (const symbol of symbols) {
+                assert.ok(
+                    positionGte(symbol.selectionRange.start, symbol.range.start),
+                    `${symbol.name}: selectionRange.start must be >= range.start`
+                );
+                assert.ok(
+                    positionGte(symbol.range.end, symbol.selectionRange.end),
+                    `${symbol.name}: selectionRange.end must be <= range.end`
+                );
+
+                if (symbol.children) {
+                    validateRanges(symbol.children);
+                }
+            }
+        };
+
+        validateRanges(result);
+    });
 });

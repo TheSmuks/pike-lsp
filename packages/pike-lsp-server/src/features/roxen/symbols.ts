@@ -12,7 +12,7 @@ export function enhanceRoxenSymbols(
   const roxenContainer: DocumentSymbol = {
     name: 'Roxen Module',
     kind: 2, // Module
-    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
     selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
     children: []
   };
@@ -21,7 +21,7 @@ export function enhanceRoxenSymbols(
     const variablesGroup: DocumentSymbol = {
       name: 'Module Variables',
       kind: 2, // Module
-      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 17 } },
       selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 17 } },
       children: moduleInfo.variables.map((v) => {
         // Convert 1-based Pike line/column to 0-based LSP
@@ -31,8 +31,14 @@ export function enhanceRoxenSymbols(
         return {
           name: v.name,
           kind: 12, // Variable
-          range: { start: { line, character: column }, end: { line, character: column } },
-          selectionRange: { start: { line, character: column }, end: { line, character: column + v.name.length } },
+          range: {
+            start: { line, character: column },
+            end: { line, character: column + v.name.length },
+          },
+          selectionRange: {
+            start: { line, character: column },
+            end: { line, character: column + v.name.length },
+          },
           detail: v.type
         };
       })
@@ -44,7 +50,7 @@ export function enhanceRoxenSymbols(
     const tagsGroup: DocumentSymbol = {
       name: 'RXML Tags',
       kind: 2, // Module
-      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
       selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
       children: moduleInfo.tags.map((t) => {
         // Convert 1-based Pike line/column to 0-based LSP
@@ -54,8 +60,14 @@ export function enhanceRoxenSymbols(
         return {
           name: t.name,
           kind: 5, // Function
-          range: { start: { line, character: column }, end: { line, character: column } },
-          selectionRange: { start: { line, character: column }, end: { line, character: column + t.name.length } },
+          range: {
+            start: { line, character: column },
+            end: { line, character: column + t.name.length },
+          },
+          selectionRange: {
+            start: { line, character: column },
+            end: { line, character: column + t.name.length },
+          },
           detail: t.type
         };
       })
