@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771185412077,
+  "lastUpdate": 1771185632142,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -45838,6 +45838,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.417187071428572,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4f28a8249186e5c140ddda45cee72818319bec31",
+          "message": "feat: add extract method refactoring (#195) (#197)\n\nImplement extract method refactoring as a code action for Pike code.\n\nChanges:\n- Add extract-method.ts with refactoring logic\n- Detect selected code that can be extracted into a method\n- Generate new method with appropriate parameters and return type\n- Replace selected code with method call\n- Handle variable scoping correctly\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5",
+          "timestamp": "2026-02-15T20:59:05+01:00",
+          "tree_id": "c6f232592eb416d61c54f36e135ce45baf595b7a",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/4f28a8249186e5c140ddda45cee72818319bec31"
+        },
+        "date": 1771185631467,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.99267625,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.3071600833333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 258.33607175,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 262.808901,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2569056149635036,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.046212041176471,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 51.538689600000005,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.1251484812030075,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.014893976608187,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2868240487804878,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.29088936283575517,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5611321453344343,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2130917387714663,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19486235081263417,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6603405048076922,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.377215869222097,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3599746252019386,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.12029520165582495,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5713532666105972,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08516992806381435,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.40031009118176364,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.58344808333334,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 252.80491066666664,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3899147468060395,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5817099666381522,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0907395759202454,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.808519376068376,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.72796074789916,
             "unit": "ms"
           }
         ]
