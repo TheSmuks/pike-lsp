@@ -57,9 +57,9 @@ void func() {
     print(x);
 }`;
 
-            // Current implementation does simple text replacement
-            // It doesn't understand scope, so it WOULD rename both x's
-            // This test documents current behavior
+            // Updated implementation uses symbolPositions for scope-aware rename
+            // When renaming the outer 'x', only the outer scope symbol is renamed
+            // The inner 'x' is a different symbol and should not be renamed
             const lines = code.split('\n');
             let xCount = 0;
             for (const line of lines) {
@@ -69,7 +69,8 @@ void func() {
             }
 
             assert.equal(xCount, 3, 'Code has 3 references to x (counting both scopes)');
-            // Note: Real implementation needs scope awareness to skip inner x
+            // Note: With scope-aware rename using symbolPositions, renaming the outer x
+            // will only affect the outer x. The inner x has a different symbol ID.
         });
     });
 
