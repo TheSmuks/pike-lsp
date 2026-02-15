@@ -155,6 +155,7 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
     const indentStack: number[] = [0];
     let pendingIndent = false;
     let inMultilineComment = false;
+    let inMultilineString = false; // Issue #102: Handle Pike's #"..."# multi-line strings
     let switchBaseLevel: number | null = null; // Store the level of the switch's opening brace
     let caseExtraIndent = false; // Track if we need extra indent after a case label
 
@@ -168,6 +169,18 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
             if (pendingIndent) {
                 pendingIndent = false;
             }
+            continue;
+        }
+
+        // Issue #102: Handle Pike multi-line strings (#" ... "#)
+        if (trimmed.startsWith('#"') && !trimmed.endsWith('"#')) {
+            inMultilineString = true;
+        } else if (trimmed.endsWith('"#')) {
+            inMultilineString = false;
+        }
+
+        // Skip formatting for multi-line string content (preserve as-is)
+        if (inMultilineString) {
             continue;
         }
 
