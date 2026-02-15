@@ -20,6 +20,7 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { getGenerateGetterSetterActions } from './getters-setters.js';
+import { getExtractMethodAction } from './extract-method.js';
 
 /**
  * Register code actions handler.
@@ -186,6 +187,18 @@ export function registerCodeActionsHandler(
                 onlyKinds  // Pass filter to getter/setter generator
             );
             actions.push(...getterSetterActions);
+
+            // Extract Method Refactoring
+            const extractMethodAction = getExtractMethodAction(
+                document,
+                uri,
+                params.range,
+                text,
+                onlyKinds  // Pass filter for consistency
+            );
+            if (extractMethodAction) {
+                actions.push(extractMethodAction);
+            }
 
             return actions;
         } catch (err) {
