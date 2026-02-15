@@ -472,12 +472,22 @@ export function registerCompletionHandlers(
         // General completion - suggest all symbols from current document
         const prefix = getWordAtPosition(text, offset);
 
+        // PERF-096: Pre-compute lowercase prefix once for case-insensitive comparison
+        const prefixLower = prefix.toLowerCase();
+
+        // PERF-096: Build Set of local symbol names for O(1) duplicate checking
+        // This avoids O(n*m) complexity from repeated some() calls in nested loops
+        const localSymbolNames = new Set<string>();
+        for (const s of cached.symbols) {
+            if (s.name) localSymbolNames.add(s.name);
+        }
+
         // Add local symbols
         if (cached) {
             for (const symbol of cached.symbols) {
                 if (!symbol.name) continue;
 
-                if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
                     const item = buildCompletionItem(symbol.name, symbol, 'Local symbol', cached.symbols, completionContext);
                     item.data = { uri, name: symbol.name };
                     completions.push(item);
@@ -499,12 +509,12 @@ export function registerCompletionHandlers(
                     for (const symbol of waterfallResult.symbols) {
                         if (!symbol.name) continue;
 
-                        // Skip if already suggested from local symbols
-                        if (cached.symbols.some(s => s.name === symbol.name)) {
+                        // PERF-096: Use Set.has() instead of Array.some() for O(1) lookup
+                        if (localSymbolNames.has(symbol.name)) {
                             continue;
                         }
 
-                        if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                        if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
                             const provenance = symbol.provenance_file
                                 ? `From ${symbol.provenance_file}`
                                 : 'Imported symbol';
@@ -524,12 +534,12 @@ export function registerCompletionHandlers(
                     for (const symbol of include.symbols) {
                         if (!symbol.name) continue;
 
-                        // Skip if already suggested from local symbols
-                        if (cached.symbols.some(s => s.name === symbol.name)) {
+                        // PERF-096: Use Set.has() for O(1) duplicate check
+                        if (localSymbolNames.has(symbol.name)) {
                             continue;
                         }
 
-                        if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                        if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
                             const item = buildCompletionItem(symbol.name, symbol, `From ${include.originalPath}`, undefined, completionContext);
                             item.data = { uri: include.resolvedPath, name: symbol.name };
                             completions.push(item);
@@ -547,12 +557,12 @@ export function registerCompletionHandlers(
                             const moduleInfo = await services.stdlibIndex.getModule(imp.modulePath);
                             if (moduleInfo?.symbols) {
                                 for (const [name, symbol] of moduleInfo.symbols) {
-                                    // Skip if already suggested
-                                    if (cached.symbols.some(s => s.name === name)) {
+                                    // PERF-096: Use Set.has() for O(1) duplicate check
+                                    if (localSymbolNames.has(name)) {
                                         continue;
                                     }
 
-                                    if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                                    if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
                                         completions.push(buildCompletionItem(name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
                                     }
                                 }
@@ -570,12 +580,12 @@ export function registerCompletionHandlers(
                         for (const symbol of imp.symbols) {
                             if (!symbol.name) continue;
 
-                            // Skip if already suggested
-                            if (cached.symbols.some(s => s.name === symbol.name)) {
+                            // PERF-096: Use Set.has() for O(1) duplicate check
+                            if (localSymbolNames.has(symbol.name)) {
                                 continue;
                             }
 
-                            if (!prefix || symbol.name.toLowerCase().startsWith(prefix.toLowerCase())) {
+                            if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
                                 completions.push(buildCompletionItem(symbol.name, symbol, `From ${imp.modulePath}`, undefined, completionContext));
                             }
                         }
