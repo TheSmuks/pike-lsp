@@ -887,6 +887,60 @@ export class PikeBridge extends EventEmitter {
     }
 
     /**
+     * Find all positions where a symbol can be renamed.
+     *
+     * Uses Pike's Rename.pike module for accurate tokenization and position tracking.
+     *
+     * @param code - Pike source code to analyze
+     * @param symbolName - The symbol name to find
+     * @param line - Line number where the symbol is referenced (1-based)
+     * @param character - Optional character position for precise matching (0-based)
+     * @param filename - Optional filename for error reporting
+     * @returns Positions where the symbol occurs
+     */
+    async findRenamePositions(
+        code: string,
+        symbolName: string,
+        line: number,
+        character?: number,
+        filename?: string
+    ): Promise<import('./types.js').FindRenamePositionsResult> {
+        return this.sendRequest<import('./types.js').FindRenamePositionsResult>('find_rename_positions', {
+            code,
+            symbolName,
+            line,
+            character,
+            filename,
+        });
+    }
+
+    /**
+     * Prepare rename - get the symbol range at the given position.
+     *
+     * Used to validate that rename is allowed at position and get the range
+     * of the symbol to be renamed.
+     *
+     * @param code - Pike source code
+     * @param line - Line number (1-based)
+     * @param character - Character position (0-based)
+     * @param filename - Optional filename
+     * @returns Symbol range info or null if not renamable
+     */
+    async prepareRename(
+        code: string,
+        line: number,
+        character: number,
+        filename?: string
+    ): Promise<import('./types.js').PrepareRenameResult | null> {
+        return this.sendRequest<import('./types.js').PrepareRenameResult | null>('prepare_rename', {
+            code,
+            line,
+            character,
+            filename,
+        });
+    }
+
+    /**
      * Parse multiple files in a single batch request.
      *
      * Reduces IPC overhead during workspace indexing by processing
@@ -928,6 +982,32 @@ export class PikeBridge extends EventEmitter {
         });
 
         return result;
+    }
+
+    /**
+     * Evaluate a constant Pike expression and return its value.
+     *
+     * Compiles and evaluates a constant expression to get its runtime value.
+     * Used for inline values feature to display variable values in the editor.
+     *
+     * @param expression - The Pike expression to evaluate.
+     * @param filename - Optional filename for error messages.
+     * @returns Evaluation result with value, type, and success status.
+     * @example
+     * ```ts
+     * const result = await bridge.evaluateConstant('42');
+     * console.log(result.value); // 42
+     * console.log(result.type); // 'int'
+     * ```
+     */
+    async evaluateConstant(
+        expression: string,
+        filename?: string
+    ): Promise<{ success: number; value?: unknown; type?: string; error?: string }> {
+        return this.sendRequest<{ success: number; value?: unknown; type?: string; error?: string }>('evaluate_constant', {
+            expression,
+            filename: filename ?? 'inline.pike',
+        });
     }
 
     /**

@@ -335,8 +335,78 @@ int main(int argc, array(string) argv) {
         "get_inherited": lambda(mapping params, object ctx) {
             return ctx->intelligence->handle_get_inherited(params);
         },
+        "evaluate_constant": lambda(mapping params, object ctx) {
+            // Evaluate a constant expression and return its value
+            string expr = params->expression || "";
+            string filename = params->filename || "inline.pike";
+
+            if (sizeof(expr) == 0) {
+                return (["error": (["code": -32602, "message": "Missing expression parameter"])]);
+            }
+
+            // Try to compile and evaluate the expression
+            program p;
+            mixed err = catch {
+                // Wrap expression in a lambda to get its value
+                string wrapped = "mixed __eval() { return " + expr + "; }";
+                p = compile_string(wrapped);
+            };
+
+            if (err) {
+                return (["success": 0, "error": "Cannot evaluate expression"]);
+            }
+
+            if (!p) {
+                return (["success": 0, "error": "Compilation failed"]);
+            }
+
+            // Create an instance and call the lambda
+            mixed result;
+            err = catch {
+                object o = p();
+                result = o->__eval();
+            };
+
+            if (err) {
+                return (["success": 0, "error": "Evaluation failed"]);
+            }
+
+            // Determine the type
+            string type = "unknown";
+            if (intp(result)) type = "int";
+            else if (floatp(result)) type = "float";
+            else if (stringp(result)) type = "string";
+            else if (arrayp(result)) type = "array";
+            else if (mappingp(result)) type = "mapping";
+            else if (multisetp(result)) type = "multiset";
+
+            // Convert result to JSON-safe format
+            mixed jsonResult = result;
+            if (mappingp(result)) {
+                // Convert mapping to object for JSON
+                jsonResult = (["_mapping": result]);
+            }
+
+            return (["success": 1, "value": jsonResult, "type": type]);
+        },
         "find_occurrences": lambda(mapping params, object ctx) {
             return ctx->analysis->handle_find_occurrences(params);
+        },
+        "find_rename_positions": lambda(mapping params, object ctx) {
+            // Load Rename module dynamically to get find_rename_positions function
+            program RenameModule = master()->resolv("LSP.Rename");
+            if (!RenameModule) {
+                return (["error": "LSP.Rename module not available"]);
+            }
+            return RenameModule->find_rename_positions_request(params);
+        },
+        "prepare_rename": lambda(mapping params, object ctx) {
+            // Load Rename module dynamically to get prepare_rename function
+            program RenameModule = master()->resolv("LSP.Rename");
+            if (!RenameModule) {
+                return (["error": "LSP.Rename module not available"]);
+            }
+            return RenameModule->prepare_rename_request(params);
         },
         "analyze_uninitialized": lambda(mapping params, object ctx) {
             // DEPRECATED: Use analyze with include: ["diagnostics"]

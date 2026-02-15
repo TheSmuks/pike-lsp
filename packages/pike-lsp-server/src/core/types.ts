@@ -24,6 +24,8 @@ export interface PikeSettings {
     diagnosticDelay: number;
     /** Inlay hints configuration (optional) */
     inlayHints?: InlayHintsSettings;
+    /** Inline values configuration (optional) */
+    inlineValues?: InlineValuesSettings;
 }
 
 /**
@@ -36,6 +38,14 @@ export interface InlayHintsSettings {
     parameterNames: boolean;
     /** Show type hints (not implemented yet) */
     typeHints: boolean;
+}
+
+/**
+ * Inline values configuration.
+ */
+export interface InlineValuesSettings {
+    /** Enable inline values */
+    enabled: boolean;
 }
 
 /**
@@ -121,5 +131,8 @@ export const defaultSettings: PikeSettings = {
         enabled: true,
         parameterNames: true,
         typeHints: false,
+    },
+    inlineValues: {
+        enabled: true,
     },
 };
