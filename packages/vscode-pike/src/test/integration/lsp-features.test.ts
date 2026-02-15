@@ -1264,8 +1264,8 @@ int nested_symbol
 
         // Get the document text to find a test function position
         const text = document.getText();
-        const funcMatch = text.match(/^void caller_function\s*\(/m);
-        assert.ok(funcMatch, 'Should find caller_function for code lens test');
+        const funcMatch = text.match(/^int test_function\s*\(/m);
+        assert.ok(funcMatch, 'Should find test_function for code lens test');
 
         // Calculate position for the function
         const funcOffset = text.indexOf(funcMatch![0]);
@@ -1280,8 +1280,8 @@ int nested_symbol
             funcPosition
         );
 
-        assert.ok(references, 'caller_function should have references');
-        assert.ok(references!.length > 0, 'caller_function should be referenced somewhere');
+        assert.ok(references, 'test_function should have references');
+        assert.ok(references!.length > 0, 'test_function should be referenced somewhere');
 
         // Now test that pike.showReferences command can be invoked without error
         // The command opens the Peek View UI - we verify it doesn't throw
