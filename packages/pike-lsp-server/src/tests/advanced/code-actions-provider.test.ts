@@ -240,7 +240,7 @@ int main() {
      * THEN: Return refactoring actions
      */
     describe('Scenario 19.3: Code Actions - Refactoring', () => {
-        it('should provide extract function refactoring', () => {
+        it('should provide extract function refactoring', async () => {
             const selectedCode = `int x = a + b;
 return x;`;
 
@@ -294,6 +294,136 @@ int main() {
             const newSig = 'void func(int a, int b, int c = 0)';
 
             assert.ok(newSig.includes('int c = 0'), 'Should add new parameter with default');
+        });
+
+        // Extract Method Refactoring - Real Implementation Tests
+        it('should extract method with no parameters', async () => {
+            // Import the extract method function
+            const { getExtractMethodAction } = await import('../../features/advanced/extract-method.js');
+
+            const code = `int main() {
+    int result = 1 + 2;
+    return result;
+}`;
+
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
+            const uri = 'file:///test.pike';
+
+            // Selection is line 1 (int result = 1 + 2;)
+            const range = {
+                start: { line: 1, character: 4 },
+                end: { line: 1, character: 19 }
+            };
+
+            const result = getExtractMethodAction(document, uri, range, code);
+
+            // Should return an action
+            assert.ok(result, 'Should return extract method action');
+            if (result) {
+                assert.equal(result.kind, CodeActionKind.RefactorExtract, 'Kind should be refactor.extract');
+                assert.ok(result.edit, 'Should have edit');
+            }
+        });
+
+        it('should extract method with parameters', async () => {
+            const { getExtractMethodAction } = await import('../../features/advanced/extract-method.js');
+
+            const code = `int main() {
+    int a = 5;
+    int b = 10;
+    int sum = a + b;
+    return sum;
+}`;
+
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
+            const uri = 'file:///test.pike';
+
+            // Selection is line 3 (int sum = a + b;)
+            const range = {
+                start: { line: 3, character: 4 },
+                end: { line: 3, character: 18 }
+            };
+
+            const result = getExtractMethodAction(document, uri, range, code);
+
+            // Should return an action with parameters
+            assert.ok(result, 'Should return extract method action');
+            if (result && result.edit) {
+                const changes = result.edit.changes as Record<string, any[]>;
+                const edits = changes[uri];
+                // Should have 2 edits: replace selection and add new function
+                assert.ok(edits && edits.length >= 2, 'Should have replace and insert edits');
+            }
+        });
+
+        it('should return null for invalid selection', async () => {
+            const { getExtractMethodAction } = await import('../../features/advanced/extract-method.js');
+
+            const code = `int main() { return 0; }`;
+
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
+            const uri = 'file:///test.pike';
+
+            // Invalid range - end before start
+            const range = {
+                start: { line: 5, character: 0 },
+                end: { line: 0, character: 0 }
+            };
+
+            const result = getExtractMethodAction(document, uri, range, code);
+
+            assert.equal(result, null, 'Should return null for invalid selection');
+        });
+
+        it('should filter extract method by context.only', async () => {
+            const { getExtractMethodAction } = await import('../../features/advanced/extract-method.js');
+
+            const code = `int main() {
+    int result = 1 + 2;
+    return result;
+}`;
+
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
+            const uri = 'file:///test.pike';
+
+            const range = {
+                start: { line: 1, character: 4 },
+                end: { line: 1, character: 19 }
+            };
+
+            // Filter that excludes refactor.extract
+            const onlyKinds = [CodeActionKind.QuickFix];
+
+            const result = getExtractMethodAction(document, uri, range, code, onlyKinds);
+
+            assert.equal(result, null, 'Should return null when filter excludes refactor');
+        });
+
+        it('should include refactor.extract when filter includes Refactor', async () => {
+            const { getExtractMethodAction } = await import('../../features/advanced/extract-method.js');
+
+            const code = `int main() {
+    int result = 1 + 2;
+    return result;
+}`;
+
+            const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
+            const uri = 'file:///test.pike';
+
+            const range = {
+                start: { line: 1, character: 4 },
+                end: { line: 1, character: 19 }
+            };
+
+            // Filter that includes Refactor
+            const onlyKinds = [CodeActionKind.Refactor];
+
+            const result = getExtractMethodAction(document, uri, range, code, onlyKinds);
+
+            assert.ok(result, 'Should return action when filter includes Refactor');
+            if (result) {
+                assert.equal(result.kind, CodeActionKind.RefactorExtract, 'Kind should be refactor.extract');
+            }
         });
     });
 
