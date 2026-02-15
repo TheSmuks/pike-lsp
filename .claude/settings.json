@@ -3,22 +3,10 @@
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|Bash",
-        "command": [
-          ".claude/hooks/worktree-guard.sh"
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "command": [
-          ".claude/hooks/toolchain-guard.sh"
-        ]
-      },
-      {
-        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/toolchain-guard.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/worktree-guard.sh"
           }
         ]
       },
@@ -27,33 +15,29 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/git-workflow-gate.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/toolchain-guard.sh"
           }
         ]
       },
       {
-        "matcher": "Edit",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/test-integrity-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/type-safety-gate.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/git-workflow-gate.sh"
           }
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/test-integrity-gate.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/test-integrity-gate.sh"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/type-safety-gate.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/type-safety-gate.sh"
           }
         ]
       }
@@ -63,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/decisions-inject.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/decisions-inject.sh"
           }
         ]
       }
