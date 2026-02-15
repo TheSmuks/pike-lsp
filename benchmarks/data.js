@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771144360777,
+  "lastUpdate": 1771145925502,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -38690,6 +38690,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.637651760330578,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d0cab8dbd1a2058db2a69e508700e5b501ccd97c",
+          "message": "feat: add auto-cleanup merged worktrees in worktree.sh (#112)\n\n* feat: add multi-line string folding for Pike (fixes #107)\n\nEnhanced folding range provider for Pike code:\n\nChanges:\n- Add inMultilineString flag to track Pike's #\"...\"# strings\n- Track multilineStringStart to capture the opening line\n- Create FoldingRange when multi-line string closes\n\nPike multi-line strings (#\"...\"#) are now collapsible regions.\n\nExisting folding support (already implemented):\n- Classes (class keyword) → FoldingRangeKind.Region\n- Inherit statements → FoldingRangeKind.Region\n- Methods/Functions (brace matching)\n- Multi-line comments (/* */)\n- Autodoc comment sequences (//!)\n\nGenerated with AI\n\nCo-Authored-By: GLM-5\n\n* feat: add auto-cleanup and prune to worktree.sh\n\nAdd auto-cleanup merged worktrees before creating new ones to avoid hitting max limit.\nAdd prune command for manual cleanup of merged worktrees.\nShow merge status in list command.\n\n- Add cmd_prune() function to auto-remove merged worktrees\n- Add is_branch_merged() helper for checking merge status\n- Call cmd_prune() before checking worktree limit in cmd_create()\n- Show [merged] marker in cmd_list() for merged branches\n- Add prune command to main dispatch\n\nFixes #110\n\nGenerated with AI\n\nCo-Authored-By: GLM-5",
+          "timestamp": "2026-02-15T09:57:25+01:00",
+          "tree_id": "3e538bb16d4e85186580c0d07fbab41c3ffa2ba7",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/d0cab8dbd1a2058db2a69e508700e5b501ccd97c"
+        },
+        "date": 1771145925141,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.86303458333333,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.01519341666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 256.61666391666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 262.74818633333336,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.2755516085343228,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.062060443786982,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 51.3231112,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.067463229629629,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.24025,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2936715086705202,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2968367176840216,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5668075610367893,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2147913072847682,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.1929254390909091,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6410986095238096,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3793727551020408,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.383329807890223,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.11240533327109783,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5723555934343435,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08553593263494834,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.4064967993939394,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.04273133333334,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.9471775,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.4263221547241598,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.583488539914163,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.09969798465643762,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.65554075630252,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.596938737704918,
             "unit": "ms"
           }
         ]
