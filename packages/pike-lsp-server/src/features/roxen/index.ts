@@ -64,5 +64,17 @@ export { getRequestIDCompletions } from './completion.js';
 // Re-export diagnostics helper
 export { provideRoxenDiagnostics } from './diagnostics.js';
 
+// Re-export config helpers
+export {
+    parseRoxenConfig,
+    validateRoxenConfig,
+    getRoxenConfigCompletions,
+    getDefvarCompletions,
+    isInDefvarContext,
+    type DefvarDeclaration,
+    type RoxenConfig,
+    type ConfigError
+} from './config.js';
+
 // Re-export types
 export * from './types.js';
