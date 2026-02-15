@@ -6,6 +6,7 @@
 2. **ALWAYS use the scripts.** Submit with `scripts/worker-submit.sh`. Merge with `scripts/ci-wait.sh`. Orient with `/worker-orient`. No manual git add/commit/push/pr-create sequences.
 3. **ALWAYS close issues.** `scripts/worker-submit.sh` includes `fixes #N` in the PR body. If you create a PR manually, you MUST include `fixes #<issue_number>` in the body. No exceptions.
 4. **ALWAYS use templates.** Handoffs go in `.omc/handoffs/<branch>.md` using the format in `.claude/templates/handoff.md`. PRs follow `.claude/templates/pr.md`.
+5. **NEVER use regex to parse Pike code.** Use `Parser.Pike.split()`, `Parser.Pike.tokenize()`, `Parser.C.split()`, `master()->resolv()`. See the table in CLAUDE.md. If you're about to write a regex that matches Pike syntax: STOP. Check the stdlib first with `pike -e 'indices(Parser)'`.
 
 If you catch yourself about to violate any of these: STOP. Re-read this section.
 
