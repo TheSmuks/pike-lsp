@@ -11,6 +11,7 @@
 #   scripts/worktree.sh remove feat/hover-support
 #   scripts/worktree.sh cleanup          # remove worktrees for merged branches
 #   scripts/worktree.sh cleanup --all    # remove ALL worktrees
+#   scripts/worktree.sh prune            # auto-remove merged worktrees
 
 set -euo pipefail
 
@@ -46,6 +47,56 @@ count_worktrees() {
   git -C "$REPO_ROOT" worktree list --porcelain | grep -c "^worktree " || echo 0
 }
 
+is_branch_merged() {
+  local branch="$1"
+  git -C "$REPO_ROOT" branch --merged main 2>/dev/null | grep -q "$branch"
+}
+
+cmd_prune() {
+  echo -e "${BLUE}Pruning merged worktrees...${NC}"
+
+  local removed=0
+  git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | while read -r wt_path; do
+    # Skip main repo
+    if [ "$wt_path" = "$REPO_ROOT" ]; then
+      continue
+    fi
+
+    local branch
+    branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
+
+    if is_branch_merged "$branch"; then
+      # Check for uncommitted changes
+      if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+        echo -e "  ${YELLOW}SKIP${NC} $wt_path (uncommitted changes)"
+        continue
+      fi
+
+      echo -e "  ${BLUE}PRUNE${NC} $wt_path ($branch) [merged]"
+      git -C "$REPO_ROOT" worktree remove "$wt_path" 2>/dev/null || true
+
+      # Delete merged branch
+      git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
+
+      # Delete remote branch if it exists
+      if git -C "$REPO_ROOT" ls-remote --heads origin "$branch" 2>/dev/null | grep -q "$branch"; then
+        git -C "$REPO_ROOT" push origin --delete "$branch" --no-verify 2>/dev/null || true
+      fi
+
+      removed=$((removed + 1))
+    fi
+  done
+
+  # Prune stale worktree references
+  git -C "$REPO_ROOT" worktree prune
+
+  if [ "$removed" -gt 0 ]; then
+    echo -e "${GREEN}Pruned $removed merged worktree(s)${NC}"
+  else
+    echo -e "${GREEN}No merged worktrees to prune${NC}"
+  fi
+}
+
 cmd_create() {
   local branch="${1:-}"
   local base_branch="main"
@@ -65,6 +116,9 @@ cmd_create() {
     esac
   done
 
+  # Auto-cleanup merged worktrees before checking limit
+  cmd_prune
+
   # Validate branch naming convention
   if ! echo "$branch" | grep -qP '^(feat|fix|docs|refactor|test|chore|release)/[a-z0-9][a-z0-9-]+$'; then
     echo -e "${RED}Error: Branch name '$branch' doesn't follow convention${NC}"
@@ -77,7 +131,7 @@ cmd_create() {
   current=$(count_worktrees)
   if [ "$current" -gt "$MAX_WORKTREES" ]; then
     echo -e "${RED}Error: Maximum $MAX_WORKTREES worktrees reached (current: $((current - 1)))${NC}"
-    echo "Run '$0 cleanup' to remove merged worktrees"
+    echo "Run '$0 prune' to remove merged worktrees manually"
     exit 1
   fi
 
@@ -122,10 +176,18 @@ cmd_list() {
     local branch
     branch=$(echo "$branch_info" | tr -d '[]')
     local marker=""
+    local status_marker=""
+
     if [ "$path" = "$REPO_ROOT" ]; then
       marker=" (main repo)"
+    else
+      # Check if branch is merged for non-main worktrees
+      if is_branch_merged "$branch"; then
+        status_marker="${YELLOW}[merged]${NC} "
+      fi
     fi
-    printf "  %-50s %s %s%s\n" "$path" "$commit" "$branch" "$marker"
+
+    printf "  %-50s %s %s%s%s%s\n" "$path" "$commit" "$status_marker" "$branch" "$marker"
   done
 
   echo ""
@@ -278,6 +340,7 @@ case "${1:-help}" in
   status)  cmd_status ;;
   remove)  shift; cmd_remove "$@" ;;
   cleanup) shift; cmd_cleanup "$@" ;;
+  prune)   cmd_prune ;;
   help|*)
     echo "Usage: $0 <command> [args]"
     echo ""
@@ -287,6 +350,7 @@ case "${1:-help}" in
     echo "  status                            Detailed worktree status"
     echo "  remove <branch>                   Remove a worktree"
     echo "  cleanup [--all]                   Remove merged (or all) worktrees"
+    echo "  prune                             Remove merged worktrees automatically"
     echo ""
     echo "Examples:"
     echo "  $0 create feat/hover-support"
@@ -294,5 +358,6 @@ case "${1:-help}" in
     echo "  $0 list"
     echo "  $0 remove feat/hover-support"
     echo "  $0 cleanup"
+    echo "  $0 prune"
     ;;
 esac
