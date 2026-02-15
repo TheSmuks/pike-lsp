@@ -283,6 +283,46 @@ export interface FindOccurrencesResult {
 }
 
 /**
+ * Rename position - location of a symbol that can be renamed
+ */
+export interface RenamePosition {
+    /** Line number (0-based) */
+    line: number;
+    /** Character position (0-based) */
+    character: number;
+    /** End line (0-based) */
+    endLine: number;
+    /** End character position */
+    endCharacter: number;
+}
+
+/**
+ * Result of find_rename_positions request
+ */
+export interface FindRenamePositionsResult {
+    /** All positions where the symbol occurs */
+    edits: RenamePosition[];
+    /** Number of occurrences found */
+    count: number;
+}
+
+/**
+ * Result of prepare_rename request
+ */
+export interface PrepareRenameResult {
+    /** The symbol name */
+    name: string;
+    /** Line number (0-based) */
+    line: number;
+    /** Character position (0-based) */
+    character: number;
+    /** End line (0-based) */
+    endLine: number;
+    /** End character position */
+    endCharacter: number;
+}
+
+/**
  * PERF-002: Input for batch parse request
  */
 export interface BatchParseInput {

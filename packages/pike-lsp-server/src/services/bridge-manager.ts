@@ -278,6 +278,28 @@ export class BridgeManager {
     }
 
     /**
+     * Find all rename positions for a symbol using Pike's Rename module.
+     */
+    async findRenamePositions(
+        code: string,
+        symbolName: string,
+        line: number,
+        character?: number,
+        filename?: string
+    ) {
+        if (!this.bridge) throw new Error('Bridge not available');
+        return this.bridge.findRenamePositions(code, symbolName, line, character, filename);
+    }
+
+    /**
+     * Prepare rename - get symbol range at position.
+     */
+    async prepareRename(code: string, line: number, character: number, filename?: string) {
+        if (!this.bridge) throw new Error('Bridge not available');
+        return this.bridge.prepareRename(code, line, character, filename);
+    }
+
+    /**
      * PERF-003: Get completion context at a specific position.
      *
      * @param code - Source code to analyze
@@ -363,5 +385,13 @@ export class BridgeManager {
      */
     on(event: string, handler: (...args: any[]) => void): void {
         this.bridge?.on(event, handler);
+    }
+
+    /**
+     * Evaluate a constant Pike expression.
+     */
+    async evaluateConstant(expression: string, filename?: string) {
+        if (!this.bridge) throw new Error('Bridge not available');
+        return this.bridge.evaluateConstant(expression, filename);
     }
 }
