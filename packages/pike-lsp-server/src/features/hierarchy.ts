@@ -19,6 +19,7 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
+import { promises as fs } from 'node:fs';
 
 import type { Services } from '../services/index.js';
 import type { PikeSymbol, PikeSymbolKind } from '@pike-lsp/pike-bridge';
@@ -563,8 +564,12 @@ export function registerHierarchyHandlers(
      * Phase 5: Diagnostic filtering
      * - Only clears type-hierarchy diagnostics (d.code !== 'type-hierarchy')
      * - All type hierarchy diagnostics include code: 'type-hierarchy'
+     *
+     * Phase 6: Workspace file search for cross-file inheritance
+     * - Uses workspaceScanner to find uncached files
+     * - Reads and searches uncached files for class/inherit patterns
      */
-    connection.languages.typeHierarchy.onSupertypes((params) => {
+    connection.languages.typeHierarchy.onSupertypes(async (params) => {
         log.debug('Type hierarchy supertypes', { item: params.item.name });
         try {
             const results: TypeHierarchyItem[] = [];
@@ -623,14 +628,52 @@ export function registerHierarchyHandlers(
                 cyclePath.push(current.name);
 
                 const currentCached = documentCache.get(current.uri);
+
+                // Phase 6: If not in cache, search workspace files
                 if (!currentCached) {
-                    // Parent class file not in cache - skip for now
-                    // Cross-file cycle detection: NOT IMPLEMENTED in Phase 2
-                    // TODO: Phase 6 will add workspace file search for cross-file inheritance
-                    log.debug(`Parent class not in cache: ${current.name}`, {
-                        uri: current.uri,
-                        note: 'Cross-file inheritance not supported in Phase 2'
-                    });
+                    // Check if workspace scanner is available and ready
+                    if (services.workspaceScanner?.isReady()) {
+                        const cachedUris = new Set(documentCache.keys());
+                        const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+                        // Search uncached files for the class definition
+                        for (const fileInfo of uncachedFiles) {
+                            try {
+                                // Read file content
+                                const filePath = fileInfo.uri.replace('file://', '');
+                                const content = await fs.readFile(filePath, 'utf-8');
+                                const lines = content.split('\n');
+
+                                // Search for class definition pattern
+                                const classPattern = new RegExp(`^\\s*class\\s+${current.name}\\b`);
+                                for (let i = 0; i < lines.length; i++) {
+                                    if (classPattern.test(lines[i]!)) {
+                                        const parentLine = i;
+                                        results.push({
+                                            name: current.name,
+                                            kind: SymbolKind.Class,
+                                            uri: fileInfo.uri,
+                                            range: {
+                                                start: { line: parentLine, character: 0 },
+                                                end: { line: parentLine, character: current.name.length }
+                                            },
+                                            selectionRange: {
+                                                start: { line: parentLine, character: 0 },
+                                                end: { line: parentLine, character: current.name.length }
+                                            }
+                                        });
+                                        // Add to queue for multi-level traversal
+                                        queue.push({ uri: fileInfo.uri, name: current.name });
+                                        break; // Found in this file
+                                    }
+                                }
+                            } catch (err) {
+                                log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
+                                    error: err instanceof Error ? err.message : String(err)
+                                });
+                            }
+                        }
+                    }
                     continue;
                 }
 
@@ -700,6 +743,50 @@ export function registerHierarchyHandlers(
                             }
                         }
 
+                        // Phase 6: If not found in cached documents, search workspace files
+                        if (!foundInOtherFile && services.workspaceScanner?.isReady()) {
+                            const cachedUris = new Set(documentCache.keys());
+                            const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+                            for (const fileInfo of uncachedFiles) {
+                                try {
+                                    const filePath = fileInfo.uri.replace('file://', '');
+                                    const content = await fs.readFile(filePath, 'utf-8');
+                                    const lines = content.split('\n');
+
+                                    // Search for class definition pattern
+                                    const classPattern = new RegExp(`^\\s*class\\s+${inheritedName}\\b`);
+                                    for (let i = 0; i < lines.length; i++) {
+                                        if (classPattern.test(lines[i]!)) {
+                                            const parentLine = i;
+                                            results.push({
+                                                name: inheritedName,
+                                                kind: SymbolKind.Class,
+                                                uri: fileInfo.uri,
+                                                range: {
+                                                    start: { line: parentLine, character: 0 },
+                                                    end: { line: parentLine, character: inheritedName.length }
+                                                },
+                                                selectionRange: {
+                                                    start: { line: parentLine, character: 0 },
+                                                    end: { line: parentLine, character: inheritedName.length }
+                                                }
+                                            });
+                                            // Add to queue for multi-level traversal
+                                            queue.push({ uri: fileInfo.uri, name: inheritedName });
+                                            foundInOtherFile = true;
+                                            break; // Found in this file
+                                        }
+                                    }
+                                    if (foundInOtherFile) break; // Found, stop searching other files
+                                } catch (err) {
+                                    log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
+                                        error: err instanceof Error ? err.message : String(err)
+                                    });
+                                }
+                            }
+                        }
+
                         if (!foundInOtherFile) {
                             log.debug(`Parent class not found in any document: ${inheritedName}`);
                         }
@@ -740,8 +827,12 @@ export function registerHierarchyHandlers(
      * Phase 5: Diagnostic filtering
      * - Only clears type-hierarchy diagnostics (d.code !== 'type-hierarchy')
      * - All type hierarchy diagnostics include code: 'type-hierarchy'
+     *
+     * Phase 6: Workspace file search for cross-file inheritance
+     * - Uses workspaceScanner to find uncached files
+     * - Reads and searches uncached files for inherit patterns
      */
-    connection.languages.typeHierarchy.onSubtypes((params) => {
+    connection.languages.typeHierarchy.onSubtypes(async (params) => {
         log.debug('Type hierarchy subtypes', { item: params.item.name });
         try {
             const results: TypeHierarchyItem[] = [];
@@ -804,6 +895,69 @@ export function registerHierarchyHandlers(
                 }
             }
 
+            // Phase 6: Search workspace files not in cache
+            if (services.workspaceScanner?.isReady()) {
+                const cachedUris = new Set(documentCache.keys());
+                const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+                for (const fileInfo of uncachedFiles) {
+                    try {
+                        const filePath = fileInfo.uri.replace('file://', '');
+                        const content = await fs.readFile(filePath, 'utf-8');
+                        const lines = content.split('\n');
+
+                        // Search for inherit pattern matching the class name
+                        const inheritPattern = new RegExp(`^\\s*inherit\\s+${className}\\s*;`);
+
+                        for (let i = 0; i < lines.length; i++) {
+                            if (inheritPattern.test(lines[i]!)) {
+                                const inheritLine = i;
+
+                                // Find the containing class (search backwards for class declaration)
+                                let containingClassName: string | null = null;
+                                let classLine = 0;
+
+                                for (let j = inheritLine; j >= 0; j--) {
+                                    const classMatch = lines[j]?.match(/^\s*class\s+(\w+)\b/);
+                                    if (classMatch) {
+                                        containingClassName = classMatch[1]!;
+                                        classLine = j;
+                                        break;
+                                    }
+                                }
+
+                                if (containingClassName) {
+                                    // Check if we already added this class (avoid duplicates)
+                                    const alreadyAdded = results.some(r =>
+                                        r.uri === fileInfo.uri && r.name === containingClassName
+                                    );
+
+                                    if (!alreadyAdded) {
+                                        results.push({
+                                            name: containingClassName,
+                                            kind: SymbolKind.Class,
+                                            uri: fileInfo.uri,
+                                            range: {
+                                                start: { line: classLine, character: 0 },
+                                                end: { line: classLine, character: containingClassName.length },
+                                            },
+                                            selectionRange: {
+                                                start: { line: classLine, character: 0 },
+                                                end: { line: classLine, character: containingClassName.length },
+                                            },
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
+                            error: err instanceof Error ? err.message : String(err)
+                        });
+                    }
+                }
+            }
+
             // Phase 5: Clear only type-hierarchy diagnostics, preserve others
             const nonTypeHierarchyDiagnostics = cached.diagnostics.filter(d =>
                 d.source !== 'pike-lsp' || d.code !== 'type-hierarchy'
@@ -831,4 +985,3 @@ export function registerHierarchyHandlers(
         }
     });
 }
-
