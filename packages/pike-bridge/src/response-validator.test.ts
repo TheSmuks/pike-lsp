@@ -1,4 +1,5 @@
-import { describe, it } from 'node:test';
+// @ts-ignore - Bun test types
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import {
     BridgeResponseError,

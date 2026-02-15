@@ -286,6 +286,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 documentLinkProvider: { resolveProvider: true },
                 codeLensProvider: { resolveProvider: true },
                 linkedEditingRangeProvider: true,
+                workspace: {
+                    workspaceFolders: {
+                        supported: true,
+                        changeNotifications: true,
+                    },
+                },
             },
         };
     } catch (err) {
@@ -417,6 +423,8 @@ features.registerAdvancedHandlers(connection, services, documents, globalSetting
 features.registerRoxenHandlers(connection, services, documents);
 // Phase 2: Register RXML feature handlers
 features.registerRXMLHandlers(connection, services, documents);
+// Issue #184: Register file watcher for incremental updates
+features.registerFileWatcher(connection, services, documents);
 
 // ============================================================================
 // Shutdown Handlers

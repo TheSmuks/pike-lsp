@@ -11,7 +11,8 @@
  * Run with: cd packages/pike-bridge && bun run test:corpus
  */
 
-import { describe, it, before, after } from 'node:test';
+// @ts-ignore - Bun test types
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 import * as path from 'node:path';
@@ -236,7 +237,7 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
     let pikeFiles: string[] = []; // Initialize empty for environments without Pike source
     const results: CorpusResult[] = [];
 
-    before(async () => {
+    beforeAll(async () => {
         // 1. Check that Pike source tree exists
         if (!fs.existsSync(PIKE_SOURCE_ROOT)) {
             console.log('\nSKIP: Pike source tree not found at', PIKE_SOURCE_ROOT);
@@ -259,7 +260,7 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
         console.log('Bridge started\n');
     });
 
-    after(async () => {
+    afterAll(async () => {
         if (bridge) {
             console.log('\nStopping bridge...');
             await bridge.stop();
