@@ -22,10 +22,12 @@ import type { Services } from '../../services/index.js';
 import { registerHoverHandler } from './hover.js';
 import { registerDefinitionHandlers } from './definition.js';
 import { registerReferencesHandlers } from './references.js';
+import { registerImplementationHandler } from './implementation.js';
 
 export { registerHoverHandler } from './hover.js';
 export { registerDefinitionHandlers } from './definition.js';
 export { registerReferencesHandlers } from './references.js';
+export { registerImplementationHandler } from './implementation.js';
 export { extractExpressionAtPosition } from './expression-utils.js';
 
 /**
@@ -43,4 +45,5 @@ export function registerNavigationHandlers(
     registerHoverHandler(connection, services, documents);
     registerDefinitionHandlers(connection, services, documents);
     registerReferencesHandlers(connection, services, documents);
+    registerImplementationHandler(connection, services, documents);
 }
