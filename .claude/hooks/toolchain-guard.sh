@@ -12,6 +12,7 @@
 
 INPUT=$(cat)
 TOOL=$(echo "$INPUT" | jq -r '.tool_name // empty')
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 
 # Only check Bash commands
 if [[ "$TOOL" != "Bash" ]]; then
@@ -19,6 +20,21 @@ if [[ "$TOOL" != "Bash" ]]; then
 fi
 
 CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# --- Block commits on main branch ---
+if echo "$CMD" | grep -qE "git commit"; then
+  BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null || echo "")
+  if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+    echo "BLOCKED: Cannot commit on main. Create a worktree first: scripts/worktree.sh create feat/description" >&2
+    exit 2
+  fi
+fi
+
+# --- Block manual gh pr create (must use worker-submit.sh to ensure fixes #N) ---
+if echo "$CMD" | grep -qE "^gh pr create"; then
+  echo "BLOCKED: Use 'scripts/worker-submit.sh <issue_number> \"<message>\"' instead of manual gh pr create. This ensures 'fixes #N' is included and the issue auto-closes." >&2
+  exit 2
+fi
 
 # --- Forbidden package managers ---
 if echo "$CMD" | grep -qE "^(npm|npx|yarn|pnpm) "; then
