@@ -164,19 +164,19 @@ export class RXMLTagCatalogCache {
     }
 
     /**
-     * Create a cache key from server identifier and timestamp
+     * Create a cache key from server identifier
      *
-     * The key combines server info with timestamp to enable
-     * automatic expiration and change detection.
+     * The key combines PID and server name for unique identification.
+     * TTL expiration is handled separately via the entry timestamp.
      *
      * @param serverPid - Server process ID
      * @param serverName - Server identifier string
      * @returns Unique cache key
      */
     private createCacheKey(serverPid: number | string, serverName: string): string {
-        // Combine PID and name with timestamp for cache invalidation
-        // Format: "{serverName}:{serverPid}:{timestamp}"
-        return `${serverName}:${serverPid}:${Date.now()}`;
+        // Combine PID and name for unique identification
+        // TTL is handled via entry.timestamp in isExpired()
+        return `${serverName}:${serverPid}`;
     }
 
     /**
