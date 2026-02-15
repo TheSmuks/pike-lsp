@@ -1,7 +1,7 @@
 /**
  * Code Lens Handler
  *
- * Provides reference counts and quick actions in code.
+ * Provides reference counts in code.
  */
 
 import {
@@ -30,7 +30,7 @@ export function registerCodeLensHandlers(
     // Prevents regenerating lenses when switching tabs if document hasn't changed
     const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
 
-    // Resolved code lens cache: URI -> { version, commands: Map<symbolName, refCount> }
+    // Resolved code lens cache: URI -> { version, refCounts: Map<symbolName, refCount> }
     // Prevents re-resolving lenses on window focus changes
     const resolvedLensCache = new Map<string, { version: number; refCounts: Map<string, number> }>();
 
