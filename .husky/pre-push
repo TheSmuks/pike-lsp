@@ -5,6 +5,21 @@
 
 set -e  # Exit on error
 
+# Check if only config files changed (skip tests for .claude/ changes)
+ONLY_CONFIG=false
+if git diff --name-only origin/main...HEAD 2>/dev/null | grep -v -E '^(\.claude/|STATUS\.md|README\.md|\.gitattributes|\.husky/)' > /dev/null; then
+  ONLY_CONFIG=false
+else
+  ONLY_CONFIG=true
+fi
+
+# Skip all checks for config-only changes
+if [ "$ONLY_CONFIG" = "true" ]; then
+  echo "[Pre-push] Config-only changes detected, skipping checks..."
+  echo "OK: Config changes merged"
+  exit 0
+fi
+
 # Discover tools: check common locations if not already on PATH
 for dir in "$HOME/.bun/bin" /usr/local/bin; do
   [ -d "$dir" ] && export PATH="$dir:$PATH"

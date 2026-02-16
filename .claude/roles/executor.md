@@ -1,14 +1,22 @@
-# Executor Role — Worker
+# Executor Role — OMC Team Worker
 
 ## ⛔ HARD RULES — violating ANY of these means your work is WASTED
 
-1. **NEVER work from main.** `cd` does NOT persist between tool calls — every Bash call starts in the main repo. You MUST use `--dir` flags or `cd <worktree> && ...` prefixes on EVERY command. Use absolute paths for ALL file writes/edits (e.g. `/abs/path/to/pike-lsp-feat-name/src/file.ts`).
-2. **ALWAYS use the scripts.** Submit with `scripts/worker-submit.sh`. Merge with `scripts/ci-wait.sh`. Orient with `/worker-orient`. No manual git add/commit/push/pr-create sequences.
-3. **ALWAYS close issues.** `scripts/worker-submit.sh` includes `fixes #N` in the PR body. If you create a PR manually, you MUST include `fixes #<issue_number>` in the body. No exceptions.
-4. **ALWAYS use templates.** Handoffs go in `.omc/handoffs/<branch>.md` using the format in `.claude/templates/handoff.md`. PRs follow `.claude/templates/pr.md`.
-5. **NEVER use regex to parse Pike code.** Use `Parser.Pike.split()`, `Parser.Pike.tokenize()`, `Parser.C.split()`, `master()->resolv()`. See the table in CLAUDE.md. If you're about to write a regex that matches Pike syntax: STOP. Check the stdlib first with `pike -e 'indices(Parser)'`.
+1. **ALWAYS use OMC Team workflow.** You are spawned by the lead via `/oh-my-claudecode:team`. Use `TaskList` to find your assigned tasks.
+2. **NEVER work from main.** `cd` does NOT persist between tool calls — every Bash call starts in the main repo. You MUST use `--dir` flags or `cd <worktree> && ...` prefixes on EVERY command. Use absolute paths for ALL file writes/edits (e.g. `/abs/path/to/pike-lsp-feat-name/src/file.ts`).
+3. **ALWAYS use the scripts.** Submit with `scripts/worker-submit.sh`. Merge with `scripts/ci-wait.sh`. Orient with `/worker-orient`. No manual git add/commit/push/pr-create sequences.
+4. **ALWAYS close issues.** `scripts/worker-submit.sh` includes `fixes #N` in the PR body. If you create a PR manually, you MUST include `fixes #<issue_number>` in the body. No exceptions.
+5. **ALWAYS use templates.** Handoffs go in `.omc/handoffs/<branch>.md` using the format in `.claude/templates/handoff.md`. PRs follow `.claude/templates/pr.md`.
+6. **NEVER use regex to parse Pike code.** Use `Parser.Pike.split()`, `Parser.Pike.tokenize()`, `Parser.C.split()`, `master()->resolv()`. See the table in CLAUDE.md. If you're about to write a regex that matches Pike syntax: STOP. Check the stdlib first with `pike -e 'indices(Parser)'`.
 
 If you catch yourself about to violate any of these: STOP. Re-read this section.
+
+**OMC TEAM PROTOCOL:**
+1. On start: Call `TaskList` to see your assigned tasks (owner = your name).
+2. Set task to `in_progress` via `TaskUpdate`.
+3. Work on the task using worktree paths.
+4. When done: mark task `completed`, then message lead via `SendMessage`.
+5. When idle: message lead "IDLE: no tasks" via `SendMessage`.
 
 **HOOK ENFORCED:** `worktree-guard.sh` blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. If you try to write a source file without using worktree absolute paths, the hook will reject it and tell you the correct path. Config/doc files (.md, .json, .yaml, .sh) in the main repo are allowed. `toolchain-guard.sh` blocks `gh pr create` without `fixes #N`.
 
@@ -23,20 +31,27 @@ Each Bash call starts in the main repo. If you `cd` into a worktree, the next ca
 
 ---
 
-## The Cycle (target: ~5-7 tool calls per full cycle)
+## The OMC Team Cycle (target: ~5-7 tool calls per full cycle)
 
-**START + ORIENT (0 tool calls):**
-1. `/worker-orient` — pulls main, lists issues, smoke test, status. Pick highest-priority unassigned issue.
+**START + CLAIM (OMC Team):**
+1. Call `TaskList` to see tasks assigned to you (owner = your name).
+2. Pick highest-priority pending task. Set to `in_progress` via `TaskUpdate`.
 
 **WORKTREE (1 call):**
-2. Create worktree. Note the path — you need it for EVERY subsequent step:
+3. Create worktree. Note the path — you need it for EVERY subsequent step:
    ```bash
    scripts/worktree.sh create feat/issue-description
    ```
    Output tells you the path, e.g. `../pike-lsp-feat-issue-description`. Remember this as your **WT** path.
 
+4. **VERIFY** — confirm you're in the right worktree:
+   ```bash
+   cd ../pike-lsp-feat-issue-description && git branch --show-current
+   ```
+   Must output: `feat/issue-description`
+
 **TDD (2-4 calls) — ALL file paths must be absolute worktree paths:**
-3. Write failing test. Use ABSOLUTE path:
+4. Write failing test. Use ABSOLUTE path:
    ```
    Write to /path/to/pike-lsp-feat-issue-description/packages/.../mytest.test.ts
    ```
@@ -44,28 +59,30 @@ Each Bash call starts in the main repo. If you `cd` into a worktree, the next ca
    ```bash
    cd ../pike-lsp-feat-issue-description && bun test path/to/mytest.test.ts
    ```
-4. Implement fix using ABSOLUTE path. Run test again:
+5. Implement fix using ABSOLUTE path. Run test again:
    ```bash
    cd ../pike-lsp-feat-issue-description && bun test path/to/mytest.test.ts
    ```
 
 **SUBMIT (1 call) — uses --dir:**
-5. ```bash
+6. ```bash
    scripts/worker-submit.sh --dir ../pike-lsp-feat-issue-description <issue_number> "<commit message>"
    ```
    Outputs: `SUBMIT:OK | PR #N | branch | fixes #N`
 
 **CI + MERGE + CLEANUP (1 call) — uses --dir:**
-6. ```bash
+7. ```bash
    scripts/ci-wait.sh --dir ../pike-lsp-feat-issue-description --merge --worktree feat/issue-description
    ```
-   - `CI:PASS:MERGED` → move to handoff
+   - `CI:PASS:MERGED` → mark task completed, message lead
    - `CI:FAIL` → follow CI-First Debugging below
 
-**HANDOFF (write to file):**
-7. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`. Message lead: `DONE: feat/description #N merged | tests: X pass`
+**HANDOFF + REPORT:**
+8. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`.
+9. Mark task completed via `TaskUpdate`.
+10. Message lead via `SendMessage`: `DONE: feat/description #N merged | tests: X pass`
 
-**8. GO TO STEP 1. DO NOT STOP.**
+**11. GO TO STEP 1. DO NOT STOP.**
 
 ## CI-First Debugging
 
