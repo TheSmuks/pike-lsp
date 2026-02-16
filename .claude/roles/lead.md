@@ -174,6 +174,32 @@ When using `/oh-my-claudecode:team N:executor`:
 - Use `TaskList` to see all tasks and their status
 - Use `state_write(mode="team", ...)` to persist phase
 
+## Worker Cap (HARD LIMIT)
+
+**Maximum workers = N × 1.5 (rounded down).** N is the initial worker count from the `/team N:executor` invocation.
+
+| Initial N | Hard cap |
+|-----------|----------|
+| 2 | 3 |
+| 3 | 4 |
+| 4 | 6 |
+| 5 | 7 |
+
+**Rules:**
+1. Track the initial N in team state (`agent_count`). The cap is `floor(N * 1.5)`.
+2. Before spawning ANY new worker, count active (non-shutdown) workers. If count >= cap, you MUST shut down idle workers first.
+3. When workers finish their tasks and go idle, if total active workers exceeds N, shut down idle workers until you are back at or below N.
+4. Temporary bursts above N (up to the cap) are allowed ONLY when there are more ready tasks than active workers. Once tasks drain, shrink back to N.
+
+**Enforcement sequence (every cycle):**
+```
+active_workers = count non-shutdown workers
+if active_workers > N and any worker is idle:
+    shutdown idle workers until active_workers <= N
+if need to spawn and active_workers >= cap:
+    BLOCK spawn — shutdown an idle worker first
+```
+
 ## Idle Worker Management (CRITICAL)
 
 **NEVER spawn new workers while idle workers exist:**
@@ -181,6 +207,7 @@ When using `/oh-my-claudecode:team N:executor`:
 2. Check for `SendMessage` from idle workers
 3. Before spawning: `TaskList` must show all workers busy or no workers idle
 4. If worker reports IDLE: reassign task OR send shutdown via `SendMessage(type="shutdown_request")` IMMEDIATELY
+5. If active workers > N (initial count) and worker is idle: shutdown IMMEDIATELY — do not wait for new tasks
 
 **Shutdown Protocol (individual workers only — NOT the session):**
 When a worker is idle and no tasks are pending FOR THAT WORKER:
