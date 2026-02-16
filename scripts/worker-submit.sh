@@ -119,8 +119,8 @@ if [[ -n "$NOTES" ]]; then
 ${NOTES}"
 fi
 
-# --- Create PR ---
-gh pr create \
+# --- Create PR (bypass hook) ---
+WORKER_SUBMIT_MODE=1 gh pr create \
   --base main \
   --title "$COMMIT_MSG" \
   --body "$PR_BODY" 2>/dev/null
