@@ -1,0 +1,26 @@
+{
+  "id": "troubleshooting",
+  "title": "Troubleshooting",
+  "description": "Common issues and solutions for Pike LSP",
+  "source": "@site/docs/troubleshooting.md",
+  "sourceDirName": ".",
+  "slug": "/troubleshooting",
+  "permalink": "/pike-lsp/docs/troubleshooting",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/troubleshooting.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": null,
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "id": "troubleshooting",
+    "title": "Troubleshooting",
+    "description": "Common issues and solutions for Pike LSP"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Welcome",
+    "permalink": "/pike-lsp/docs/"
+  }
+}

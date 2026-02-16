@@ -1,0 +1,127 @@
+/* Custom styles for Pike LSP Docusaurus site */
+
+/* Root variables for Pike LSP brand colors */
+:root {
+  --ifm-color-primary: #e67e22;
+  --ifm-color-primary-dark: #d35400;
+  --ifm-color-primary-darker: #a04000;
+  --ifm-color-primary-darkest: #8b4000;
+  --ifm-color-primary-light: #f39c12;
+  --ifm-color-primary-lighter: #f1c40f;
+  --ifm-color-primary-lightest: #f7dc6f;
+  --ifm-code-font-size: 95%;
+  --ifm-navbar-background-color: #1a1a2e;
+  --ifm-navbar-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode adjustments */
+[data-theme='dark'] {
+  --ifm-color-primary: #f39c12;
+  --ifm-color-primary-dark: #e67e22;
+  --ifm-color-primary-darker: #d35400;
+  --ifm-color-primary-darkest: #a04000;
+  --ifm-color-primary-light: #f1c40f;
+  --ifm-color-primary-lighter: #f7dc6f;
+  --ifm-color-primary-lightest: #f9e79f;
+  --ifm-background-color: #1a1a2e;
+  --ifm-background-surface-color: #16213e;
+}
+
+/* Navbar styling */
+.navbar {
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.navbar__title {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+}
+
+/* Sidebar styling */
+.menu {
+  font-size: 0.95rem;
+}
+
+.menu__link {
+  border-radius: 4px;
+}
+
+.menu__link--active {
+  background-color: var(--ifm-color-primary-lightest);
+  color: var(--ifm-color-primary-darkest);
+}
+
+[data-theme='dark'] .menu__link--active {
+  background-color: rgba(243, 156, 18, 0.2);
+  color: var(--ifm-color-primary-light);
+}
+
+/* Code block styling */
+pre {
+  border-radius: 8px;
+}
+
+code {
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* Feature card styling */
+.featureCard {
+  padding: 1.5rem;
+  border-radius: 8px;
+  background-color: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.featureCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Announcement bar styling */
+.announcementBar_node_modules-\@docusaurus-theme-common-lib-components-AnnouncementBar-styles-module {
+  font-weight: 500;
+}
+
+/* Footer styling */
+.footer {
+  padding: 2rem 0;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.footer__title {
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+/* Heading styling */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+}
+
+h1 {
+  color: var(--ifm-color-primary);
+}
+
+/* Table styling */
+table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th, table td {
+  padding: 0.75rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Link styling */
+a {
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}

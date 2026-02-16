@@ -16,6 +16,7 @@
     "build": "bun run build:tsc",
     "build:tsc": "bunx tsc --build",
     "build:packages": "bun run --filter '*' build",
+    "build:docs": "docusaurus build",
     "clean": "bun run --filter '*' clean",
     "test": "bun run test:packages",
     "test:packages": "bun run --filter '*' test",
@@ -26,11 +27,20 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
     "prepare": "husky",
-    "postinstall": "bash scripts/setup-workspace-links.sh"
+    "postinstall": "bash scripts/setup-workspace-links.sh",
+    "docusaurus": "docusaurus",
+    "start": "docusaurus start",
+    "swizzle": "docusaurus swizzle",
+    "deploy": "docusaurus deploy",
+    "clear": "docusaurus clear"
   },
   "devDependencies": {
+    "@docusaurus/core": "3",
+    "@docusaurus/preset-classic": "3",
     "@eslint/js": "^9.39.0",
     "@types/node": "^20.10.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "eslint": "^9.0.0",
     "globals": "^17.3.0",
     "husky": "^9.1.7",
@@ -44,5 +54,17 @@
   },
   "trustedDependencies": [
     "esbuild"
-  ]
+  ],
+  "dependencies": {
+    "@docusaurus/module-type-aliases": "3",
+    "@docusaurus/tsconfig": "3",
+    "@docusaurus/types": "3",
+    "@mdx-js/react": "^3.1.1",
+    "clsx": "^2.1.1",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router": "^7.13.0",
+    "react-router-dom": "^7.13.0"
+  }
 }
