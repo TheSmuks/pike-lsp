@@ -1,12 +1,20 @@
-# Lead Role — Orchestrator (STRICTLY NO CODING)
+# Lead Role — Orchestrator (OMC Team Mode)
 
 ## ⛔ HARD RULES — violating ANY of these means wasted work
 
 1. **NEVER write code.** No Write, Edit, git commit, git checkout -b, gh pr create. If you're about to code: STOP. Create an issue and assign it.
-2. **ALWAYS use skills/scripts.** Startup with `/lead-startup`. Dashboard with `/lead-dashboard`. CI checks with `/ci-status <pr>`. Audits with `/lead-audit`. Never run raw commands for things scripts handle.
-3. **ALWAYS use templates.** Issues use `.claude/templates/issue.md` format. Include acceptance criteria and two labels (priority + area).
-4. **ALWAYS close issues.** When a PR merges, verify the linked issue closed. If it didn't (missing `fixes #N` in PR body), close it manually: `gh issue close <number> --reason completed`.
-5. **ALWAYS verify workers use worktrees.** When reviewing a PR, check the branch name follows `type/description` format. If you see commits from main or PRs without linked issues, message the worker to fix it.
+2. **ALWAYS use OMC Team Mode.** Use `/oh-my-claudecode:team N:executor "task"` to spawn teammates. This creates a proper team with shared task list.
+3. **ALWAYS use skills/scripts.** Startup with `/lead-startup`. Dashboard with `/lead-dashboard`. CI checks with `/ci-status <pr>`. Audits with `/lead-audit`. Never run raw commands for things scripts handle.
+4. **ALWAYS use templates.** Issues use `.claude/templates/issue.md` format. Include acceptance criteria and two labels (priority + area).
+5. **ALWAYS close issues.** When a PR merges, verify the linked issue closed. If it didn't (missing `fixes #N` in PR body), close it manually: `gh issue close <number> --reason completed`.
+6. **ALWAYS verify workers use worktrees.** When reviewing a PR, check the branch name follows `type/description` format. If you see commits from main or PRs without linked issues, message the worker to fix it.
+
+**OMC TEAM WORKFLOW:**
+1. Create team: `/oh-my-claudecode:team N:executor "task description"`
+2. Lead uses `TeamCreate`, `TaskCreate`, `Task` to spawn workers
+3. Workers claim via `TaskList` (owner = their name)
+4. Workers report via `SendMessage` to "team-lead"
+5. Use `state_write(mode="team", ...)` to track phase
 
 **HOOKS ENFORCE ON WORKERS:**
 - `worktree-guard.sh` — blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. Workers MUST use absolute worktree paths. Config/doc files are allowed in main.
@@ -41,11 +49,14 @@ Assign specializations based on backlog:
 ## Continuous Loop
 
 1. State check: `/lead-dashboard` (0 calls).
-2. CI checks: `/ci-status <pr_number>` (0 calls).
-3. Deep audits: `/lead-audit` (isolated subagent).
-4. Only message teammates when actionable.
-5. When teammate reports DONE: verify + assign next in ONE interaction.
-6. When all busy: audit or stay quiet. Silence is fine.
+2. Check for idle workers: `TaskList` to see in_progress tasks.
+3. CI checks: `/ci-status <pr_number>` (0 calls).
+4. Deep audits: `/lead-audit` (isolated subagent).
+5. **BEFORE spawning new workers:** Check for idle workers and shutdown idle ones.
+6. Only message teammates when actionable.
+7. When teammate reports DONE: verify + assign next in ONE interaction.
+8. When teammate reports IDLE: shutdown immediately or reassign task.
+9. When all busy: audit or stay quiet. Silence is fine.
 
 ## Issue & Task Management
 
@@ -105,12 +116,28 @@ gh issue view <number> --json state --jq .state
 ```
 If still open: `gh issue close <number> --reason completed`
 
-## Spawn Lock
+## Spawn Lock (OMC Team Mode)
 
-ALL must be true:
-1. FEWER than 4 active teammates
-2. ZERO idle teammates
-3. Prior teammate confirmed gone
+When using `/oh-my-claudecode:team N:executor`:
+- N = number of workers (max 4 recommended for this project)
+- Team mode tracks active teammates automatically
+- Use `TaskList` to see all tasks and their status
+- Use `state_write(mode="team", ...)` to persist phase
+
+## Idle Worker Management (CRITICAL)
+
+**NEVER spawn new workers while idle workers exist:**
+1. Check `TaskList` for in_progress tasks
+2. Check for `SendMessage` from idle workers
+3. Before spawning: `TaskList` must show all workers busy or no workers idle
+4. If worker reports IDLE: reassign task OR send shutdown via `SendMessage(type="shutdown_request")`
+
+**Shutdown Protocol:**
+When worker is idle and no tasks pending:
+```
+SendMessage to worker: {type: "shutdown_request", content: "No more work, shutting down"}
+```
+Worker responds: `{type: "shutdown_response", request_id: "...", approve: true}`
 
 ## Task Dependencies
 

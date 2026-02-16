@@ -1,7 +1,6 @@
 ---
 name: worker-orient
 description: Orient at cycle start. Pulls main, shows issues, runs smoke test, shows status. Use at the start of every work cycle.
-disable-model-invocation: true
 ---
 
 # Worker Orientation

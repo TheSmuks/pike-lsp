@@ -1,7 +1,6 @@
 ---
 name: lead-startup
 description: Full lead startup sequence. Pulls, bootstraps labels, dumps all state. Use only at session start.
-disable-model-invocation: true
 ---
 
 # Lead Startup
