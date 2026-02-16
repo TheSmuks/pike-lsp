@@ -3,6 +3,7 @@
         "target": "ES2022",
         "module": "ES2022",
         "moduleResolution": "node",
+        "types": ["node"],
         "lib": [
             "ES2022"
         ],
