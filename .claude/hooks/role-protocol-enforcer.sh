@@ -150,4 +150,29 @@ if [[ "$TOOL" == "Bash" && "$ROLE" == "executor" ]]; then
   fi
 fi
 
+# --- Workers cannot go IDLE without submitting PR ---
+# Block SendMessage if worker tries to go idle without PR number
+if [[ "$TOOL" == "SendMessage" && "$ROLE" == "executor" ]]; then
+  MSG_CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.message // empty' 2>/dev/null)
+
+  # Check if worker is trying to go idle or report completion
+  if echo "$MSG_CONTENT" | grep -qiE "(IDLE|completed|done|all tasks complete|standing by)"; then
+    # Check for PR number in the message - if no PR number, block
+    if ! echo "$MSG_CONTENT" | grep -qE "PR #|pr #|#[0-9]+"; then
+      echo "⛔ BLOCKED: Cannot go IDLE without submitting PR." >&2
+      echo "" >&2
+      echo "Your message indicates task completion but has no PR number." >&2
+      echo "" >&2
+      echo "You MUST:" >&2
+      echo "  1. Create worktree: scripts/worktree.sh create <branch>" >&2
+      echo "  2. Do the work" >&2
+      echo "  3. Submit PR: scripts/worker-submit.sh --dir <path> <issue> \"msg\"" >&2
+      echo "  4. Get SUBMIT:OK output" >&2
+      echo "" >&2
+      echo "Your DONE message must include the PR number." >&2
+      exit 2
+    fi
+  fi
+fi
+
 exit 0
