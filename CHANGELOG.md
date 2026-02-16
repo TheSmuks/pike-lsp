@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.20] - 2026-02-16
+
+### Added
+- **Pike autodoc** - Add Pike autodoc parsing and extraction for documentation support
+- **Parser error recovery** - Add tokenization fallback for error recovery in parser
+- **On-type formatting** - Add on-type formatting support with color provider
+- **Inline value provider** - Add debug mode inline values for variable display
+- **Local module symbol extraction** - Extract symbols from local modules for completion
+- **Roxen module skeleton generator** - Generate Roxen module skeletons
+- **Smart rename** - Smart rename for Pike modules
+- **Semantic tokens delta** - Implement incremental semantic token updates
+- **Document changes format** - Use documentChanges format for workspaceEdit in rename
+- **Docusaurus docs** - Add documentation website setup
+- **Lead autonomous mode** - Make Lead fully autonomous
+- **Roxen E2E tests** - Add Roxen framework test coverage
+- **Multi-line string folding** - Add multi-line string folding for Pike
+- **Deprecated symbol diagnostics** - Add deprecated symbol diagnostic detection
+- **Workspace import caching** - Cache workspace import symbols
+
+### Fixed
+- **E2E test stability** - Improve headless script stability
+- **Code lens reference counts** - Add variable and constant to reference counts
+- **TypeScript cleanup** - Remove @ts-ignore from production code
+- **Lead/executor protocol** - Various protocol fixes for autonomous operation
+- **Worktree workflow** - Enforce worktree workflow for workers
+
+### Optimization
+- **LRU cache** - Add Pike-side LRU cache for symbol introspection
+- **Symbol indexing** - Optimize symbol indexing for large Pike projects
+- **Hover lookups** - Index symbols for O(1) hover lookups
+- **Completion caching** - Cache waterfall symbols for completion
+- **RXML providers** - Cache glob results in RXML providers
+
 ## [0.1.0-alpha.19] - 2026-02-09
 
 ### Added

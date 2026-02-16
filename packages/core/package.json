@@ -1,6 +1,6 @@
 {
   "name": "@pike-lsp/core",
-  "version": "0.1.0-alpha.19",
+  "version": "0.1.0-alpha.20",
   "description": "Shared utilities for Pike LSP packages",
   "repository": {
     "type": "git",
