@@ -45,29 +45,31 @@ if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
       # File IS in the main repo. Check if it's a source file.
       REL_PATH="${FILE_PATH#$MAIN_REPO/}"
 
-      # Allow only .omc/, .claude/, scripts/ in main repo (workers must use worktrees)
+      # Allow config/doc files by extension in main repo
       case "$REL_PATH" in
         .omc/*|.claude/*|scripts/*)
           exit 0  # config/scripts are fine in main repo
           ;;
       esac
 
-      # Check if main repo IS a worktree (git-common-dir differs from .git)
-      GIT_COMMON=$(git -C "$MAIN_REPO" rev-parse --git-common-dir 2>/dev/null || echo ".git")
-      if [[ "$GIT_COMMON" != ".git" ]]; then
-        exit 0  # CWD is actually a worktree, allow
-      fi
+      # Check if it's a source file (block these)
+      case "$REL_PATH" in
+        *.ts|*.tsx|*.js|*.jsx|*.pike|*.pmod|*.pikei)
+          # It's a source file in the main repo — BLOCK
+          echo "BLOCKED: Cannot write source files in main repo. You're editing:" >&2
+          echo "  $FILE_PATH" >&2
+          echo "" >&2
+          echo "Create a worktree first, then use ABSOLUTE paths to the worktree:" >&2
+          echo "  scripts/worktree.sh create feat/description" >&2
+          echo "  Then write to: $(dirname $MAIN_REPO)/pike-lsp-feat-description/${REL_PATH}" >&2
+          echo "" >&2
+          echo "Remember: cd does NOT persist between tool calls." >&2
+          exit 2
+          ;;
+      esac
 
-      # It's a source file in the main repo — BLOCK
-      echo "BLOCKED: Cannot write source files in main repo. You're editing:" >&2
-      echo "  $FILE_PATH" >&2
-      echo "" >&2
-      echo "Create a worktree first, then use ABSOLUTE paths to the worktree:" >&2
-      echo "  scripts/worktree.sh create feat/description" >&2
-      echo "  Then write to: $(dirname $MAIN_REPO)/pike-lsp-feat-description/${REL_PATH}" >&2
-      echo "" >&2
-      echo "Remember: cd does NOT persist between tool calls." >&2
-      exit 2
+      # Allow all other files (config/doc files like .md, .json, .yaml, .sh, .log)
+      exit 0
       ;;
   esac
 
