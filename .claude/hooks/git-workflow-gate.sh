@@ -169,7 +169,12 @@ fi
 
 if [ "$should_block" = true ]; then
   echo "$block_message"
+  echo ""
+  echo "DEBUG: Command was: $COMMAND"
+  echo "DEBUG: Current branch: $CURRENT_BRANCH"
   exit 2
 fi
 
+# Debug output for allowed commands
+echo "[git-workflow-gate] ALLOWED: $COMMAND (branch: $CURRENT_BRANCH)"
 exit 0
