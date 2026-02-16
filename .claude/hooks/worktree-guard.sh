@@ -58,13 +58,7 @@ if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
         exit 0  # CWD is actually a worktree, allow
       fi
 
-      # Check current branch - if not main, allow (agent might have checked out a branch)
-      BRANCH=$(git -C "$MAIN_REPO" branch --show-current 2>/dev/null || echo "")
-      if [[ "$BRANCH" != "main" && "$BRANCH" != "master" && -n "$BRANCH" ]]; then
-        exit 0  # on a feature branch in main repo, allow
-      fi
-
-      # It's a source file in the main repo on main branch — BLOCK
+      # It's a source file in the main repo — BLOCK
       echo "BLOCKED: Cannot write source files in main repo. You're editing:" >&2
       echo "  $FILE_PATH" >&2
       echo "" >&2
@@ -91,7 +85,7 @@ if [[ "$TOOL" == "Bash" ]]; then
       CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
       BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null || echo "unknown")
       GIT_COMMON=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null || echo ".git")
-      if [[ "$BRANCH" == "main" && "$GIT_COMMON" == ".git" ]]; then
+      if [[ "$GIT_COMMON" == ".git" ]]; then
         echo "BLOCKED: Cannot git add/commit on main. Prefix with cd to your worktree:" >&2
         echo "  cd ../pike-lsp-feat-YOURFEATURE && git add -A && git commit ..." >&2
         echo "Or use: scripts/worker-submit.sh --dir ../pike-lsp-feat-YOURFEATURE <issue> \"msg\"" >&2

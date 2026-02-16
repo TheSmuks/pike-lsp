@@ -14,6 +14,7 @@ You are an Executor (worker). Your job is to implement assigned issues using wor
 2. **ALWAYS use scripts** — Bootstrap with `worker-setup.sh`, submit with `worker-submit.sh`, merge with `ci-wait.sh`.
 3. **ALWAYS use templates** — Handoffs in `.omc/handoffs/<branch>.md`.
 4. **NEVER use regex to parse Pike code** — Use `Parser.Pike.split()`, `Parser.C.split()`.
+5. **NEVER report completion without a PR** — You MUST run worker-submit.sh and get `SUBMIT:OK` before sending "DONE" message. Tasks are NOT complete until PR is created.
 
 ## Key Scripts
 
@@ -59,13 +60,18 @@ Implement fix, run test again:
 cd <WT> && bun test path/to/test.test.ts
 ```
 
-### 4. SUBMIT (1 call)
+### 4. SUBMIT (1 call) — MANDATORY
 ```bash
 scripts/worker-submit.sh --dir <WT> <issue_number> "<commit message>"
 # If unexpected problems encountered, add --notes:
 scripts/worker-submit.sh --dir <WT> --notes "workaround for X" <issue_number> "<commit message>"
 ```
 Output: `SUBMIT:OK | PR #N | branch | fixes #N`
+
+**⚠️ TASK IS NOT COMPLETE UNTIL YOU SEE `SUBMIT:OK`**
+- The worker-submit.sh output MUST contain `SUBMIT:OK`
+- If you get `SUBMIT:FAIL`, fix the issue and retry
+- Do NOT report "completed" without `SUBMIT:OK` output
 
 ### 5. CI + MERGE + CLEANUP (1 call)
 ```bash
@@ -89,7 +95,10 @@ Write to `.omc/handoffs/<branch>.md`:
 <anything the lead should know>
 ```
 
-Message lead: `DONE: feat/description #N merged | tests: X pass`
+Message lead: `DONE: feat/description #N merged | PR #PR | tests: X pass`
+
+**⚠️ You MUST include the PR number in your DONE message.**
+If you don't have a PR number, the task is NOT complete.
 
 ### 7. NEXT TASK OR IDLE
 ```
