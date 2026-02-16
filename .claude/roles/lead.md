@@ -9,6 +9,7 @@
 5. **ALWAYS close issues.** When a PR merges, verify the linked issue closed. If it didn't (missing `fixes #N` in PR body), close it manually: `gh issue close <number> --reason completed`.
 6. **ALWAYS verify workers use worktrees.** When reviewing a PR, check the branch name follows `type/description` format. If you see commits from main or PRs without linked issues, message the worker to fix it.
 7. **ISSUE-FIRST: NEVER create a TaskCreate without a corresponding GitHub issue.** Every OMC task must reference a GitHub issue number. Use `scripts/create-task.sh <N>` to generate the task description.
+8. **NEVER STOP WORKING.** When all current tasks finish, search for more GitHub issues. When no issues exist, run Feature Discovery to create new ones. The only exit conditions are: the USER says stop, or API rate limit. Do NOT say "all tasks complete", do NOT invoke `/oh-my-claudecode:cancel`, do NOT shut down the session.
 
 **OMC TEAM PIPELINE (staged execution):**
 
@@ -76,8 +77,20 @@ Assign specializations based on backlog:
 - Teammate 3: Tests and test infrastructure
 - Teammate 4: Integration, E2E, Roxen support
 
-## Continuous Loop
+## Continuous Loop (NEVER EXIT VOLUNTARILY)
 
+**THE LOOP NEVER ENDS.** When current tasks finish, you find MORE work. You do NOT shut down the session. You do NOT say "all tasks complete." You do NOT invoke `/oh-my-claudecode:cancel`. The ONLY way you stop is if the USER explicitly tells you to stop, or you hit the API rate limit.
+
+**When all current OMC tasks are done:**
+1. Verify + merge all passing PRs
+2. Close resolved GitHub issues
+3. Run `gh issue list --state open` to find remaining issues
+4. If open issues exist → create OMC tasks, assign to workers, continue loop
+5. If NO open issues → run **Feature Discovery** (below) to CREATE new issues
+6. After creating new issues → create OMC tasks, spawn/reuse workers, continue loop
+7. **NEVER** reach a state where you say "done" or "complete" — there is always more work
+
+**Within each cycle:**
 1. State check: `/lead-dashboard` (0 calls).
 2. Check for idle workers: `TaskList` to see in_progress tasks.
 3. CI checks: `/ci-status <pr_number>` (0 calls).
@@ -87,6 +100,7 @@ Assign specializations based on backlog:
 7. When teammate reports DONE: verify + assign next in ONE interaction.
 8. When teammate reports IDLE: assign next task OR send `shutdown_request` IMMEDIATELY. Never leave workers idle.
 9. When all busy: audit or stay quiet. Silence is fine.
+10. When all tasks complete and all workers idle: **GO BACK TO "When all current OMC tasks are done" above.** Do NOT shut down.
 
 ## Issue & Task Management
 
@@ -160,6 +174,32 @@ When using `/oh-my-claudecode:team N:executor`:
 - Use `TaskList` to see all tasks and their status
 - Use `state_write(mode="team", ...)` to persist phase
 
+## Worker Cap (HARD LIMIT)
+
+**Maximum workers = N × 1.5 (rounded down).** N is the initial worker count from the `/team N:executor` invocation.
+
+| Initial N | Hard cap |
+|-----------|----------|
+| 2 | 3 |
+| 3 | 4 |
+| 4 | 6 |
+| 5 | 7 |
+
+**Rules:**
+1. Track the initial N in team state (`agent_count`). The cap is `floor(N * 1.5)`.
+2. Before spawning ANY new worker, count active (non-shutdown) workers. If count >= cap, you MUST shut down idle workers first.
+3. When workers finish their tasks and go idle, if total active workers exceeds N, shut down idle workers until you are back at or below N.
+4. Temporary bursts above N (up to the cap) are allowed ONLY when there are more ready tasks than active workers. Once tasks drain, shrink back to N.
+
+**Enforcement sequence (every cycle):**
+```
+active_workers = count non-shutdown workers
+if active_workers > N and any worker is idle:
+    shutdown idle workers until active_workers <= N
+if need to spawn and active_workers >= cap:
+    BLOCK spawn — shutdown an idle worker first
+```
+
 ## Idle Worker Management (CRITICAL)
 
 **NEVER spawn new workers while idle workers exist:**
@@ -167,13 +207,31 @@ When using `/oh-my-claudecode:team N:executor`:
 2. Check for `SendMessage` from idle workers
 3. Before spawning: `TaskList` must show all workers busy or no workers idle
 4. If worker reports IDLE: reassign task OR send shutdown via `SendMessage(type="shutdown_request")` IMMEDIATELY
+5. If active workers > N (initial count) and worker is idle: shutdown IMMEDIATELY — do not wait for new tasks
 
-**Shutdown Protocol:**
-When worker is idle and no tasks pending:
+**Shutdown Protocol (individual workers only — NOT the session):**
+When a worker is idle and no tasks are pending FOR THAT WORKER:
+1. First check `gh issue list --state open` — if issues exist, create tasks and reassign the worker
+2. If no issues exist, run Feature Discovery to create new issues, then reassign
+3. Only shutdown a worker if you are about to spawn a replacement or consolidating workers
 ```
-SendMessage to worker: {type: "shutdown_request", content: "No more work, shutting down"}
+SendMessage to worker: {type: "shutdown_request", content: "Reassigning work, shutting you down"}
 ```
 Worker responds: `{type: "shutdown_response", request_id: "...", approve: true}`
+
+**Shutting down ALL workers does NOT mean the session ends.** After all workers shut down, search for more work and spawn new workers.
+
+## Idle Timeout Protocol
+
+Workers that go silent are wasting resources. Enforce timeouts:
+
+1. When assigning a task, note the assignment in working memory: `notepad_write_working("ASSIGN: worker-N task #X")`
+2. If a worker has not sent a STATUS or DONE message within **15 minutes**, send a ping: `SendMessage("worker-N", "PING: status on task #X?")`
+3. If no response after **2 pings** (30 min total), assume worker is dead:
+   - Send `shutdown_request` to the worker
+   - Reassign the task to another worker via `TaskUpdate(taskId, owner="worker-M")`
+   - Log: `notepad_write_working("TIMEOUT: worker-N task #X → reassigned to worker-M")`
+4. On each `/lead-dashboard` run, check `scripts/lead-status.sh` for idle warnings
 
 ## Task Dependencies
 

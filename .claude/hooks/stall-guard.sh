@@ -44,6 +44,12 @@ elif echo "$CMD" | grep -qE "while.*sleep|until.*sleep"; then
   REASON="poll-loop"
 fi
 
+# --- Check for bare cd (anti-pattern) ---
+if echo "$CMD" | grep -qE "^\s*cd\s+[^\s;&&|]+$"; then
+  echo "WARN: stall-guard | bare 'cd' without && | Use 'cd X &&' for safer chaining" >&2
+  # Not blocking - just a warning
+fi
+
 if [[ -n "$REASON" ]]; then
   echo "BLOCKED: stall-guard | ${REASON} | Use SendMessage instead" >&2
   exit 2

@@ -116,6 +116,15 @@ cmd_create() {
     esac
   done
 
+  # Acquire lock to prevent race conditions between parallel agents
+  LOCK_FILE="/tmp/pike-lsp-worktree.lock"
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    echo -e "${RED}Error: Another worktree creation in progress. Retry shortly.${NC}"
+    exit 1
+  fi
+  # Lock auto-releases when this subshell/process exits (fd 9 closes)
+
   # Auto-cleanup merged worktrees before checking limit
   cmd_prune
 

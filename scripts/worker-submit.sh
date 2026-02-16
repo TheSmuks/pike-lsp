@@ -75,6 +75,12 @@ done
 MAIN_REPO="$(git rev-parse -q --path-format=absolute --git-common-dir 2>/dev/null | head -1 | sed 's|/\.git.*||')"
 SCRIPTS="$MAIN_REPO/scripts"
 
+# --- Handoff check ---
+HANDOFF_FILE="$MAIN_REPO/.omc/handoffs/${BRANCH//\//-}.md"
+if [[ ! -f "$HANDOFF_FILE" ]]; then
+  echo "SUBMIT:WARN | No handoff file at .omc/handoffs/${BRANCH//\//-}.md — consider creating one"
+fi
+
 # --- Smoke test ---
 if [[ -f "$SCRIPTS/test-agent.sh" ]]; then
   if ! "$SCRIPTS/test-agent.sh" --fast >/dev/null 2>&1; then

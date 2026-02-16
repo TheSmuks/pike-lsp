@@ -22,10 +22,15 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 should_block=false
 block_message=""
 
-# --- RELEASE BYPASS: Allow pike-lsp-release skill to tag/push ---
+# --- RELEASE BYPASS: Allow pike-lsp-release skill to tag/push (TTL: 1 hour) ---
 if [ -f ".omc/state/pike-lsp-release.json" ]; then
-  # Release skill is active - bypass all workflow restrictions
-  exit 0
+  # Check marker age - bypass only valid for 1 hour
+  MARKER_AGE=$(($(date +%s) - $(stat -c %Y ".omc/state/pike-lsp-release.json" 2>/dev/null || echo 0)))
+  if [ "$MARKER_AGE" -lt 3600 ]; then
+    # Release skill is active and marker is fresh - bypass all workflow restrictions
+    exit 0
+  fi
+  # Marker expired (>1 hour) - treat as if not present
 fi
 
 # --- 0. Block --no-verify and --admin bypass attempts ---
