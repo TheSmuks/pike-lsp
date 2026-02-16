@@ -52,6 +52,36 @@ is_branch_merged() {
   git -C "$REPO_ROOT" branch --merged main 2>/dev/null | grep -q "$branch"
 }
 
+# Check if a worktree is "abandoned" - merged branch with uncommitted changes for >7 days
+is_worktree_abandoned() {
+  local wt_path="$1"
+  local branch="$2"
+
+  # Must be merged
+  if ! is_branch_merged "$branch"; then
+    return 1
+  fi
+
+  # Must have uncommitted changes
+  if [ -z "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+    return 1
+  fi
+
+  # Check last commit date on this branch
+  local last_commit_timestamp
+  last_commit_timestamp=$(git -C "$wt_path" log -1 --format=%ct 2>/dev/null || echo "0")
+  if [ "$last_commit_timestamp" = "0" ]; then
+    return 1
+  fi
+
+  local now
+  now=$(date +%s)
+  local days_since_commit=$(( (now - last_commit_timestamp) / 86400 ))
+
+  # Abandoned if no commit for >7 days
+  [ "$days_since_commit" -gt 7 ]
+}
+
 cmd_prune() {
   echo -e "${BLUE}Pruning merged worktrees...${NC}"
 
@@ -68,7 +98,15 @@ cmd_prune() {
     if is_branch_merged "$branch"; then
       # Check for uncommitted changes
       if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
-        echo -e "  ${YELLOW}SKIP${NC} $wt_path (uncommitted changes)"
+        # Check if abandoned (merged + uncommitted changes for >7 days)
+        if is_worktree_abandoned "$wt_path" "$branch"; then
+          echo -e "  ${RED}FORCE-PRUNE${NC} $wt_path ($branch) [abandoned - merged with stale changes]"
+          git -C "$REPO_ROOT" worktree remove "$wt_path" --force 2>/dev/null || true
+          git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
+          removed=$((removed + 1))
+        else
+          echo -e "  ${YELLOW}SKIP${NC} $wt_path (uncommitted changes - not abandoned)"
+        fi
         continue
       fi
 
@@ -207,6 +245,17 @@ cmd_list() {
 }
 
 cmd_remove() {
+<<<<<<< HEAD
+  local branch="${1:-}"
+  local force=false
+
+  # Parse --force flag
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=true; shift ;;
+      *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
+=======
   local branch=""
   local force=false
 
@@ -216,6 +265,7 @@ cmd_remove() {
       --force) force=true; shift ;;
       -*) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
       *) branch="$1"; shift ;;
+>>>>>>> origin/main
     esac
   done
 
@@ -234,7 +284,11 @@ cmd_remove() {
   fi
 
   # Check for uncommitted changes (skip if --force)
+<<<<<<< HEAD
+  if [ "$force" != true ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+=======
   if [ "$force" = false ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+>>>>>>> origin/main
     echo -e "${RED}Warning: Worktree has uncommitted changes!${NC}"
     echo "Path: $wt_path"
     git -C "$wt_path" status --short
@@ -291,17 +345,23 @@ cmd_cleanup() {
     if [ "$remove_all" = true ] || [ "$is_merged" = true ]; then
       # Check for uncommitted changes
       if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
-        echo -e "  ${YELLOW}SKIP${NC} $wt_path (uncommitted changes)"
-        continue
-      fi
+        # Check if abandoned (merged + uncommitted changes for >7 days)
+        if [ "$remove_all" = true ] || is_worktree_abandoned "$wt_path" "$branch"; then
+          echo -e "  ${RED}FORCE-REMOVE${NC} $wt_path ($branch) [abandoned]"
+          git -C "$REPO_ROOT" worktree remove "$wt_path" --force 2>/dev/null || true
+        else
+          echo -e "  ${YELLOW}SKIP${NC} $wt_path (uncommitted changes - not abandoned)"
+          continue
+        fi
+      else
+        local reason="merged"
+        if [ "$remove_all" = true ] && [ "$is_merged" = false ]; then
+          reason="force-all"
+        fi
 
-      local reason="merged"
-      if [ "$remove_all" = true ] && [ "$is_merged" = false ]; then
-        reason="force-all"
+        echo -e "  ${RED}REMOVE${NC} $wt_path ($branch) [$reason]"
+        git -C "$REPO_ROOT" worktree remove "$wt_path" 2>/dev/null || true
       fi
-
-      echo -e "  ${RED}REMOVE${NC} $wt_path ($branch) [$reason]"
-      git -C "$REPO_ROOT" worktree remove "$wt_path" 2>/dev/null || true
 
       if [ "$is_merged" = true ]; then
         git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
@@ -376,7 +436,11 @@ case "${1:-help}" in
     echo "  create <branch> [--from <base>]  Create worktree with branch"
     echo "  list                              List all worktrees"
     echo "  status                            Detailed worktree status"
+<<<<<<< HEAD
+    echo "  remove <branch> [--force]         Remove a worktree (use --force for uncommitted changes)"
+=======
     echo "  remove <branch> [--force]         Remove a worktree"
+>>>>>>> origin/main
     echo "  cleanup [--all]                   Remove merged (or all) worktrees"
     echo "  prune                             Remove merged worktrees automatically"
     echo ""

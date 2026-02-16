@@ -100,3 +100,4 @@ t_v7.txt
 scripts/act
 .git/.worker-submit-marker
 .claude/.current_role
+patches/

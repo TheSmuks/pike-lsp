@@ -86,8 +86,21 @@ if [[ "$TOOL" == "Bash" ]]; then
     if ! echo "$CMD" | grep -qE "(cd |git -C )"; then
       CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
       BRANCH=$(git -C "$CWD" branch --show-current 2>/dev/null || echo "unknown")
-      GIT_COMMON=$(git -C "$CWD" rev-parse --git-common-dir 2>/dev/null || echo ".git")
-      if [[ "$GIT_COMMON" == ".git" ]]; then
+
+      # Check if this is the main repo (not a worktree)
+      # Use git worktree list to detect - main repo has worktrees as siblings
+      IS_MAIN=false
+      if git -C "$CWD" rev-parse --is-inside-work-tree 2>/dev/null | grep -q "true"; then
+        # We're in a git repo - check if it's the main one
+        if git -C "$CWD" worktree list --porcelain 2>/dev/null | head -1 | grep -q "^worktree $CWD$"; then
+          # First worktree is the current directory - check if it's main repo
+          if git -C "$CWD" branch --show-current 2>/dev/null | grep -qE "^(main|master)$"; then
+            IS_MAIN=true
+          fi
+        fi
+      fi
+
+      if [[ "$IS_MAIN" == "true" ]]; then
         echo "BLOCKED: Cannot git add/commit on main. Prefix with cd to your worktree:" >&2
         echo "  cd ../pike-lsp-feat-YOURFEATURE && git add -A && git commit ..." >&2
         echo "Or use: scripts/worker-submit.sh --dir ../pike-lsp-feat-YOURFEATURE <issue> \"msg\"" >&2
