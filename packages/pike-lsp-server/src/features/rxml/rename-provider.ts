@@ -16,6 +16,10 @@ import { OptionalVersionedTextDocumentIdentifier } from 'vscode-languageserver';
 import { findTagReferences, escapeRegExp } from './references-provider.js';
 import { glob } from 'glob';
 import { readFile } from 'fs/promises';
+import { GlobCache } from './glob-cache.js';
+
+// Shared glob cache - 30 second TTL
+const pikeGlobCache = new GlobCache<string[]>(30);
 
 /**
  * Prepare rename for RXML tag
@@ -181,12 +185,22 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
   const files: string[] = [];
 
   for (const folder of workspaceFolders) {
+    // Check cache first
+    const cached = pikeGlobCache.get('**/*.pike', folder);
+    if (cached) {
+      files.push(...cached);
+      continue;
+    }
+
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
       ignore: ['**/node_modules/**', '**/.git/**']
     });
     files.push(...matches);
+
+    // Cache the result
+    pikeGlobCache.set('**/*.pike', folder, matches);
   }
 
   return files;
