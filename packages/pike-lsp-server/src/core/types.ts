@@ -104,6 +104,8 @@ export interface DocumentCacheEntry {
     diagnostics: Diagnostic[];
     /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
     symbolPositions: Map<string, Position[]>;
+    /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
+    symbolNames: Map<string, PikeSymbol>;
     /** Include and import dependencies (optional, populated lazily) */
     dependencies?: DocumentDependencies;
     /** Inheritance information from introspection */

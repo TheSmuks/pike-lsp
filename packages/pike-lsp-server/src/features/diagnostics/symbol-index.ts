@@ -13,6 +13,55 @@ import { Logger } from '@pike-lsp/core';
 const log = new Logger('symbol-index');
 
 /**
+ * Build symbol name index for O(1) lookups.
+ * Maps symbol names to their PikeSymbol objects.
+ * Prioritizes non-variant symbols over variant symbols.
+ */
+export function buildSymbolNameIndex(symbols: PikeSymbol[]): Map<string, PikeSymbol> {
+    const index = new Map<string, PikeSymbol>();
+
+    // First pass: index non-variant symbols
+    indexSymbolsRecursive(symbols, index, false);
+
+    // Second pass: add variant symbols only if name not already present
+    indexSymbolsRecursive(symbols, index, true);
+
+    return index;
+}
+
+/**
+ * Recursively index symbols into the map.
+ * @param symbols - Array of symbols to index
+ * @param index - Map to populate
+ * @param variantsOnly - If true, only index variant symbols; if false, only non-variants
+ */
+function indexSymbolsRecursive(
+    symbols: PikeSymbol[],
+    index: Map<string, PikeSymbol>,
+    variantsOnly: boolean
+): void {
+    for (const symbol of symbols) {
+        if (!symbol.name) continue;
+
+        const isVariant = symbol.modifiers?.includes('variant') ?? false;
+
+        // Skip if not matching the variant filter
+        if (variantsOnly && !isVariant) continue;
+        if (!variantsOnly && isVariant) continue;
+
+        // Only add if not already present (first pass takes precedence)
+        if (!index.has(symbol.name)) {
+            index.set(symbol.name, symbol);
+        }
+
+        // Recursively index children
+        if (symbol.children && symbol.children.length > 0) {
+            indexSymbolsRecursive(symbol.children, index, variantsOnly);
+        }
+    }
+}
+
+/**
  * Flatten nested symbol tree into a single-level array.
  * This ensures all class members are indexed at the document level.
  */

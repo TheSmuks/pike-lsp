@@ -28,6 +28,7 @@ import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 
 // Import from split modules
 export { convertDiagnostic, isDeprecatedSymbolDiagnostic, extractDeprecatedFromSymbols } from './utils.js';
+export { buildSymbolNameIndex } from './symbol-index.js';
 export { buildSymbolPositionIndex, buildSymbolPositionIndexRegex, flattenSymbols } from './symbol-index.js';
 export { classifyChange, stripLineComments, type ChangeClassification } from './change-detection.js';
 
@@ -45,7 +46,7 @@ export function registerDiagnosticsHandlers(
 ): void {
     // Import functions from split modules
     const { convertDiagnostic, isDeprecatedSymbolDiagnostic, extractDeprecatedFromSymbols } = require('./utils.js');
-    const { buildSymbolPositionIndex, flattenSymbols } = require('./symbol-index.js');
+    const { buildSymbolPositionIndex, buildSymbolNameIndex, flattenSymbols } = require('./symbol-index.js');
     const { classifyChange } = require('./change-detection.js');
 
     // NOTE: We access services.bridge dynamically instead of destructuring,
@@ -373,6 +374,8 @@ export function registerDiagnosticsHandlers(
                     symbols: hierarchicalSymbols,  // Use hierarchical symbols with children preserved
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData, bridge),
+                    // PERF-005: Build symbol name index for O(1) hover lookups
+                    symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,
@@ -411,6 +414,8 @@ export function registerDiagnosticsHandlers(
                     symbols: symbolsWithDeprecated,  // Use symbols with deprecated extracted from source
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData, bridge),
+                    // PERF-005: Build symbol name index for O(1) hover lookups
+                    symbolNames: buildSymbolNameIndex(symbolsWithDeprecated),
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,

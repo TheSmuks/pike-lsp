@@ -25,6 +25,7 @@ import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/index.js';
 import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../features/roxen/index.js';
+import { buildSymbolNameIndex } from './diagnostics/symbol-index.js';
 
 /**
  * Extract deprecated status from parsed symbols recursively.
@@ -887,6 +888,8 @@ export function registerDiagnosticsHandlers(
                     symbols: hierarchicalSymbols,  // Use hierarchical symbols with children preserved
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, legacySymbols, tokenizeData),  // Use flat for indexing
+                    // PERF-005: Build symbol name index for O(1) hover lookups
+                    symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,
@@ -925,6 +928,8 @@ export function registerDiagnosticsHandlers(
                     symbols: symbolsWithDeprecated,  // Use symbols with deprecated extracted from source
                     diagnostics,
                     symbolPositions: await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData),
+                    // PERF-005: Build symbol name index for O(1) hover lookups
+                    symbolNames: buildSymbolNameIndex(symbolsWithDeprecated),
                     // INC-002: Store hashes for incremental change detection
                     contentHash,
                     lineHashes,

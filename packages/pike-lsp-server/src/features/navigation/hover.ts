@@ -57,8 +57,8 @@ export function registerHoverHandler(
 
             const { word, range } = wordResult;
 
-            // 1. Try to find symbol in local document
-            let symbol = findSymbolInCollection(cached.symbols, word);
+            // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
+            let symbol = cached.symbolNames?.get(word) ?? null;
             let parentScope: string | undefined;
 
             // 2. If not found, try to find in stdlib
@@ -245,36 +245,4 @@ function hasDocumentation(symbol: PikeSymbol): boolean {
     }
 
     return false;
-}
-
-/**
- * Find symbol with matching name in collection.
- * Prioritizes non-variant symbols over variant symbols.
- */
-function findSymbolInCollection(symbols: PikeSymbol[], name: string): PikeSymbol | null {
-    // First pass: find non-variant symbols
-    for (const symbol of symbols) {
-        if (symbol.name === name && !symbol.modifiers?.includes('variant')) {
-            return symbol;
-        }
-        if (symbol.children) {
-            const found = findSymbolInCollection(symbol.children, name);
-            if (found && !found.modifiers?.includes('variant')) {
-                return found;
-            }
-        }
-    }
-
-    // Second pass: if no non-variant found, return variant (for completeness)
-    for (const symbol of symbols) {
-        if (symbol.name === name) {
-            return symbol;
-        }
-        if (symbol.children) {
-            const found = findSymbolInCollection(symbol.children, name);
-            if (found) return found;
-        }
-    }
-
-    return null;
 }
