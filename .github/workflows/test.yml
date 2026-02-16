@@ -3,8 +3,28 @@ name: Test
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/**'
+      - '.omc/**'
+      - 'docusaurus.config.ts'
+      - 'sidebars.ts'
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/**'
+      - '.omc/**'
+      - 'docusaurus.config.ts'
+      - 'sidebars.ts'
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -22,6 +42,14 @@ jobs:
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install dependencies
         run: bun install
@@ -100,7 +128,7 @@ jobs:
           else
             # Install latest Pike from repository
             sudo apt-get update
-            # Try to get latest from pike的开发 PPA or build from latest
+            # Try to get latest from pike PPA or build from latest
             sudo apt-get install -y pike8.0 || {
               # If pike8.0 fails, try to build latest from git
               sudo apt-get install -y build-essential libgmp-dev bison flex make git
@@ -135,13 +163,9 @@ jobs:
   build-extension:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
-      - name: Skip for PRs
-        if: |
-          github.event_name != 'push' ||
-          (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
-        run: echo "Skipping build-extension (only runs on main/master pushes)"
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -149,6 +173,14 @@ jobs:
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install Pike
         run: |
@@ -185,6 +217,14 @@ jobs:
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install system dependencies
         run: |

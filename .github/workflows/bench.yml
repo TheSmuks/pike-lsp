@@ -3,8 +3,28 @@ name: Performance Benchmarks
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/**'
+      - '.omc/**'
+      - 'docusaurus.config.ts'
+      - 'sidebars.ts'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/**'
+      - '.omc/**'
+      - 'docusaurus.config.ts'
+      - 'sidebars.ts'
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   benchmark:
@@ -17,6 +37,14 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
 
       - name: Install Pike
         run: |
