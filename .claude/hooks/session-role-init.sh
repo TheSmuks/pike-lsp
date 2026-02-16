@@ -34,8 +34,8 @@ if [[ -n "$CWD" ]]; then
     # Check if this is the main repo
     if [[ "$CWD" =~ /pike-lsp$ ]] || [[ "$CWD" == *"pike-lsp" && "$CWD" != *"pike-lsp-"* ]]; then
         # In main repo - could be lead or just checking
-        # Default to executor (safer default)
-        echo "executor" > "$ROLE_FILE"
+        # Default to unknown (permissive — worktree-guard still blocks source writes)
+        echo "unknown" > "$ROLE_FILE"
         exit 0
     fi
 fi

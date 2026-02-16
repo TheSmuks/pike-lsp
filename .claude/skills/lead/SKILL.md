@@ -13,14 +13,16 @@ You are the Lead (orchestrator). Your job is to coordinate, not code.
 ## ⛔ HARD RULES
 
 1. **NEVER write code** — No Write, Edit, git commit, gh pr create. If you need to fix something, create an issue and assign it.
-2. **ALWAYS use skills/scripts:**
+2. **ISSUE-FIRST: NEVER create a TaskCreate without a corresponding GitHub issue.** Every OMC task must reference a GitHub issue number.
+3. **ALWAYS use skills/scripts:**
    - `/lead-startup` — Full startup sequence (pull, bootstrap labels, dump state)
    - `/lead-dashboard` — Quick status check
    - `/ci-status <pr>` — Check CI for a PR
    - `/lead-audit` — Deep repo audit
-3. **ALWAYS use issue templates** — See `.claude/templates/issue.md`
-4. **ALWAYS close issues** — After PR merges, verify linked issue closed
-5. **ALWAYS verify workers use worktrees** — Check branch names follow `type/description`
+   - `scripts/create-task.sh <N>` — Generate OMC task description from GitHub issue
+4. **ALWAYS use issue templates** — See `.claude/templates/issue.md`
+5. **ALWAYS close issues** — After PR merges, verify linked issue closed
+6. **ALWAYS verify workers use worktrees** — Check branch names follow `type/description`
 
 ## Key Scripts
 
@@ -31,6 +33,7 @@ You are the Lead (orchestrator). Your job is to coordinate, not code.
 | `/ci-status <pr>` | Check CI status for a PR |
 | `/lead-audit` | Deep audit of repo hygiene |
 | `scripts/lead-startup.sh` | Bootstraps GitHub labels |
+| `scripts/create-task.sh <N>` | Generate structured OMC task from GitHub issue |
 
 ## Workflow
 
@@ -50,6 +53,19 @@ This pulls main, creates missing labels, and shows:
 2. Assign failing PRs to teammates
 3. Assign open issues to available teammates
 4. Create NEW issues only for untracked work
+5. **Check for orphaned OMC tasks** — tasks in TaskList that reference non-existent or closed GitHub issues. Delete them.
+
+### Issue-First Task Creation (MANDATORY)
+
+```
+FOR EACH UNTRACKED WORK ITEM:
+1. gh issue create (with template + 2 labels) → #N
+2. scripts/create-task.sh <N> → structured task description
+3. TaskCreate with that description (subject includes "#N")
+4. Assign to available worker
+```
+
+**NEVER skip step 1.** Workers need the issue number for `fixes #N` in their PRs.
 
 ### Issue Format (REQUIRED)
 ```bash
@@ -134,7 +150,7 @@ Assign based on backlog:
 - Teammates will message you with: `DONE:`, `BLOCKED:`, `IDLE:`
 - Parse these and take action automatically
 - If BLOCKED: try to resolve, if can't, note in retrospective
-- If IDLE: check for more issues to assign
+- If IDLE: assign next task OR send `shutdown_request` IMMEDIATELY. Never leave workers idle.
 
 ### Continuous Loop
 While open issues exist:
@@ -143,14 +159,9 @@ While open issues exist:
 3. Wait for teammates to report DONE/IDLE
 4. For each DONE: verify PR, merge if passing
 5. For each BLOCKED: attempt resolution
-6. When all done: run `/lead-retrospective`
-7. Repeat
-
-### When to Run Retrospective
-Run `/lead-retrospective` when:
-- All teammates report DONE or IDLE
-- A wave of PRs has been merged
-- Backlog is empty or nearly empty
+6. For each IDLE: assign next task or shutdown
+7. When all done: run `/lead-retrospective`
+8. Repeat
 
 ### Iteration Counter
 Track iterations in `.omc/state/iteration`:

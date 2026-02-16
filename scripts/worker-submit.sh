@@ -4,6 +4,7 @@ set -euo pipefail
 #
 # Usage:
 #   scripts/worker-submit.sh --dir <worktree_path> <issue_number> "<commit_message>"
+#   scripts/worker-submit.sh --dir <path> --notes "hit X during Y" <issue_number> "<msg>"
 #   cd <worktree_path> && scripts/worker-submit.sh <issue_number> "<commit_message>"
 #
 # Output (grep-friendly):
@@ -14,11 +15,13 @@ set -euo pipefail
 WORK_DIR=""
 ISSUE_NUM=""
 COMMIT_MSG=""
+NOTES=""
 
 # Parse flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dir) WORK_DIR="$2"; shift 2 ;;
+    --notes) NOTES="$2"; shift 2 ;;
     *)
       if [[ -z "$ISSUE_NUM" ]]; then
         ISSUE_NUM="$1"; shift
@@ -98,11 +101,8 @@ if ! git push -u origin "$BRANCH" --no-verify 2>/dev/null; then
   exit 1
 fi
 
-# --- Create PR ---
-gh pr create \
-  --base main \
-  --title "$COMMIT_MSG" \
-  --body "fixes #${ISSUE_NUM}
+# --- Build PR body ---
+PR_BODY="fixes #${ISSUE_NUM}
 
 ## What
 ${COMMIT_MSG}
@@ -110,7 +110,20 @@ ${COMMIT_MSG}
 ## Checklist
 - [x] TDD: failing test → implementation → passing test
 - [x] Smoke test passed pre-submit
-- [ ] CI passes" 2>/dev/null
+- [ ] CI passes"
+
+if [[ -n "$NOTES" ]]; then
+  PR_BODY="${PR_BODY}
+
+## Notes
+${NOTES}"
+fi
+
+# --- Create PR ---
+gh pr create \
+  --base main \
+  --title "$COMMIT_MSG" \
+  --body "$PR_BODY" 2>/dev/null
 
 PR_NUM=$(gh pr view "$BRANCH" --json number --jq '.number' 2>/dev/null || echo "?")
 
