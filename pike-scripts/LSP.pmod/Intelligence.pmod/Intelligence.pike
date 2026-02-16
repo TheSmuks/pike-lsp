@@ -136,27 +136,10 @@ mapping introspect_program(program prog) {
 //! Extract import/include/inherit/require directives from Pike code
 //! Delegates to ModuleResolution class in Intelligence.pmod/
 mapping handle_extract_imports(mapping params) {
-    // DEBUG: Force resolution to avoid caching issues
-    if (!module_resolution_handler) {
-        werror("DEBUG: Attempting to resolve LSP.Intelligence.ModuleResolution\n");
-        mixed mod_class = master()->resolv("LSP.Intelligence.ModuleResolution");
-        werror("DEBUG: mod_class = %O\n", mod_class);
-        werror("DEBUG: programp(mod_class) = %d\n", programp(mod_class));
-
-        if (mod_class && programp(mod_class)) {
-            werror("DEBUG: Creating ModuleResolution instance\n");
-            module_resolution_handler = mod_class(0);
-            werror("DEBUG: module_resolution_handler = %O\n", module_resolution_handler);
-        } else {
-            werror("DEBUG: Failed to resolve or not a program\n");
-        }
+    object handler = get_module_resolution_handler();
+    if (handler) {
+        return handler->handle_extract_imports(params);
     }
-
-    if (module_resolution_handler) {
-        werror("DEBUG: Calling handler->handle_extract_imports\n");
-        return module_resolution_handler->handle_extract_imports(params);
-    }
-    werror("DEBUG: Handler is NULL, returning error\n");
     return make_error_response(-32000, "ModuleResolution handler not available");
 }
 
