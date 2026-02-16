@@ -44,7 +44,7 @@ void create(object ctx) {
 
 //! Resolve module path to file system location
 //! @param params Mapping with "module" and "currentFile" keys
-//! @returns Mapping with "result" containing "path" and "exists"
+//! @returns Mapping with "result" containing "path", "exists", and optionally "symbols"
 mapping handle_resolve(mapping params) {
     mixed err = catch {
         string module_path = params->module || "";
@@ -70,8 +70,10 @@ mapping handle_resolve(mapping params) {
                 string pike_file = combine_path(current_dir, local_name + ".pike");
                 LSP.debug("  Trying: %s -> %s\n", pike_file, file_stat(pike_file) ? "EXISTS" : "NOT FOUND");
                 if (file_stat(pike_file)) {
+                    // Extract symbols from the local module for completion
+                    array symbols = extract_local_module_symbols(pike_file);
                     return ([
-                        "result": ([ "path": pike_file, "exists": 1 ])
+                        "result": ([ "path": pike_file, "exists": 1, "symbols": symbols ])
                     ]);
                 }
 
@@ -79,8 +81,10 @@ mapping handle_resolve(mapping params) {
                 string pmod_file = combine_path(current_dir, local_name + ".pmod");
                 LSP.debug("  Trying: %s -> %s\n", pmod_file, file_stat(pmod_file) ? "EXISTS" : "NOT FOUND");
                 if (file_stat(pmod_file) && !file_stat(pmod_file)->isdir) {
+                    // Extract symbols from the local module for completion
+                    array symbols = extract_local_module_symbols(pmod_file);
                     return ([
-                        "result": ([ "path": pmod_file, "exists": 1 ])
+                        "result": ([ "path": pmod_file, "exists": 1, "symbols": symbols ])
                     ]);
                 }
 
@@ -90,8 +94,10 @@ mapping handle_resolve(mapping params) {
                 if (file_stat(pmod_dir) && file_stat(pmod_dir)->isdir) {
                     string module_file = combine_path(pmod_dir, "module.pmod");
                     if (file_stat(module_file)) {
+                        // Extract symbols from the module.pmod for completion
+                        array symbols = extract_local_module_symbols(module_file);
                         return ([
-                            "result": ([ "path": module_file, "exists": 1 ])
+                            "result": ([ "path": module_file, "exists": 1, "symbols": symbols ])
                         ]);
                     }
                     return ([
@@ -386,6 +392,41 @@ protected string get_module_path(mixed resolved) {
     }
 
     return "";
+}
+
+//! Extract symbols from a local module file for completion caching.
+//! Uses the Parser class to extract symbols from .pike or .pmod files.
+//! @param file_path Path to the local module file
+//! @returns Array of symbol mappings
+protected array extract_local_module_symbols(string file_path) {
+    // Check if file exists
+    if (!file_stat(file_path)) {
+        return ({});
+    }
+
+    // Read the source file
+    string code = read_source_file(file_path);
+    if (!code || sizeof(code) == 0) {
+        return ({});
+    }
+
+    // Use Parser to extract symbols
+    mixed err = catch {
+        program ParserClass = master()->resolv("LSP.Parser");
+        if (ParserClass) {
+            object parser = ParserClass();
+            mapping parse_params = ([ "code": code, "filename": file_path ]);
+            mapping parse_response = parser->parse_request(parse_params);
+
+            if (parse_response && parse_response->result &&
+                parse_response->result->symbols && sizeof(parse_response->result->symbols) > 0) {
+                return parse_response->result->symbols;
+            }
+        }
+    };
+
+    // Return empty array on error
+    return ({});
 }
 
 //! Safely read a source file without triggering module resolution recursion.
