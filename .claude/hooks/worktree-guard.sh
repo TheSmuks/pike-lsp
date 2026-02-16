@@ -45,10 +45,10 @@ if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
       # File IS in the main repo. Check if it's a source file.
       REL_PATH="${FILE_PATH#$MAIN_REPO/}"
 
-      # Allow non-source files in main repo
+      # Allow only .omc/, .claude/, scripts/ in main repo (workers must use worktrees)
       case "$REL_PATH" in
-        .omc/*|.claude/*|scripts/*|STATUS.md|CLAUDE.md|*.md|*.json|*.yaml|*.yml|*.sh|*.log|.gitignore|.eslintrc*|tsconfig*|.husky/*)
-          exit 0  # config/doc files are fine in main repo
+        .omc/*|.claude/*|scripts/*)
+          exit 0  # config/scripts are fine in main repo
           ;;
       esac
 

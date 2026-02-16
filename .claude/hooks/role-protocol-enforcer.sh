@@ -18,6 +18,43 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 ROLE_FILE="$(dirname "$0")/../.current_role"
 ROLE="${CLAUDE_ROLE:-$(cat "$ROLE_FILE" 2>/dev/null || echo "unknown")}"
 
+# --- Workers NEVER edit main repo directly ---
+# Detect if executor is in main repo (not a worktree)
+if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
+  FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // empty')
+
+  # Only check for workers (executors)
+  if [[ "$ROLE" == "executor" || "$ROLE" == "unknown" ]]; then
+    # Check if file is in main repo (not worktree)
+    if [[ -n "$FILE_PATH" && -n "$CWD" ]]; then
+      # Resolve to absolute path
+      if [[ "$FILE_PATH" != /* ]]; then
+        FILE_PATH="$CWD/$FILE_PATH"
+      fi
+
+      # Check if in main repo
+      MAIN_REPO=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+      if [[ -n "$MAIN_REPO" ]]; then
+        GIT_COMMON=$(git -C "$MAIN_REPO" rev-parse --git-common-dir 2>/dev/null || echo ".git")
+        BRANCH=$(git -C "$MAIN_REPO" branch --show-current 2>/dev/null || echo "")
+
+        # If in main repo on main branch, block all edits from workers
+        if [[ "$FILE_PATH" == "$MAIN_REPO/"* || "$FILE_PATH" == "$MAIN_REPO" ]] && [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+          echo "⛔ BLOCKED: Workers cannot edit files in main repo." >&2
+          echo "" >&2
+          echo "You're in main repo: $FILE_PATH" >&2
+          echo "" >&2
+          echo "Create a worktree first:" >&2
+          echo "  scripts/worktree.sh create fix/description" >&2
+          echo "" >&2
+          echo "Then write to the worktree, NOT main." >&2
+          exit 2
+        fi
+      fi
+    fi
+  fi
+fi
+
 # --- Lead NEVER writes code ---
 if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
   FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // empty')
