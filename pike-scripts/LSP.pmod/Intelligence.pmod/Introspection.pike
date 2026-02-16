@@ -29,6 +29,23 @@ constant BOOTSTRAP_MODULES = (<
     "Mapping",   // Core type used throughout
 >);
 
+//! PERF-XXX: LRU cache for introspected programs
+//! Caches introspection results to avoid re-introspecting the same programs
+//! Key: program identifier (from Program.defined), Value: introspection result
+private mapping(string:mapping) introspect_cache = ([]);
+private int cache_hits = 0;
+private int cache_misses = 0;
+private int CACHE_MAX_SIZE = 100;  // Maximum cached programs
+
+//! PERF-XXX: Known Pike stdlib modules that don't need deep parent introspection
+//! These modules have well-known symbols and parent introspection is wasteful
+constant SKIP_PARENT_INTROSPECT_MODULES = (<
+    "Standards", "Stdio", "String", "Array", "Mapping", "Multiset",
+    "Calendar", "Crypto", "Filesystem", "Gdbm", "Gmp", "GL", "GTK2",
+    "Image", "Math", "Parser", "Process", "Protocols", "Sql", "Standards",
+    "Threads", "Tools", "Yp"
+>);
+
 private object context;
 
 //! Create a new Introspection instance
@@ -553,6 +570,28 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits, in
     // Initialize depth parameter
     if (!depth) depth = 0;
 
+    // PERF-XXX: Get program identifier for caching
+    string prog_id = "";
+    catch { prog_id = Program.defined(prog) || ""; };
+
+    // PERF-XXX: Check cache first (only for depth 0, i.e., top-level calls)
+    if (depth == 0 && sizeof(prog_id) > 0) {
+        if (introspect_cache[prog_id]) {
+            cache_hits++;
+            // Return a copy to prevent mutation of cached data
+            mapping cached = introspect_cache[prog_id];
+            return ([
+                "symbols": cached->symbols + ({}),
+                "functions": cached->functions + ({}),
+                "variables": cached->variables + ({}),
+                "classes": cached->classes + ({}),
+                "inherits": cached->inherits + ({}),
+                "cached": 1  // Flag indicating this was cached
+            ]);
+        }
+        cache_misses++;
+    }
+
     mapping result = ([
         "symbols": ({}),
         "functions": ({}),
@@ -872,6 +911,17 @@ mapping introspect_program(program prog, array(mapping)|void source_inherits, in
         } else if (kind == "class") {
             result->classes += ({ symbol });
         }
+    }
+
+    // PERF-XXX: Cache the result (only for top-level calls at depth 0)
+    if (depth == 0 && sizeof(prog_id) > 0) {
+        // Evict old entries if cache is full (simple LRU: remove first entry)
+        if (sizeof(introspect_cache) >= CACHE_MAX_SIZE) {
+            // Remove oldest entry (first key)
+            string first_key = indices(introspect_cache)[0];
+            m_delete(introspect_cache, first_key);
+        }
+        introspect_cache[prog_id] = result;
     }
 
     return result;
