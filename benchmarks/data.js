@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771269045786,
+  "lastUpdate": 1771269248828,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -61218,6 +61218,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.58910375409836,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "169d88d972b3d1016e621f23ffaf41d99f6e0ea2",
+          "message": "fix: prevent lead from exiting when tasks complete (#271)\n\n* fix: prevent lead from exiting when tasks complete\n\nThe lead role was following the Team skill's Phase 7 completion logic\n(shut down all workers → delete team → exit) instead of continuing to\nsearch for more GitHub issues and running Feature Discovery.\n\nThree changes:\n- Add hard rule #8 \"NEVER STOP WORKING\" to make continuous loop mandatory\n- Rewrite Continuous Loop section with explicit \"when all tasks done\"\n  procedure that loops back to finding more work\n- Clarify Shutdown Protocol: shutting down workers does NOT end session,\n  lead must search for more work before and after worker shutdown\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: add worker cap at 150% of initial count\n\nLead must never exceed floor(N * 1.5) active workers where N is the\ninitial worker count. When workers go idle and total exceeds N, idle\nworkers must be shut down immediately. Temporary bursts up to the cap\nare only allowed when ready tasks exceed active workers.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: add hooks to enforce merge script and worker cap\n\n- Block `gh pr merge` in toolchain-guard, redirect to scripts/pr-merge.sh\n- Add worker-cap-guard.sh hook on Task tool: blocks spawns when active\n  workers >= floor(N * 1.5) where N is initial agent_count\n- Register worker-cap-guard (Task matcher) and SendMessage matcher for\n  role-protocol-enforcer in settings.json\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* feat: implement 10-step autonomous system fixes\n\nSteps 1-6 (from earlier commits):\n- PR body validation (pr-merge.sh)\n- Issue state validation (create-task.sh)\n- Idle timeout (lead.md + lead-status.sh)\n- Worktree flock (worktree.sh)\n- Message format guard (message-format-guard.sh)\n- Version sync gate (version-sync-gate.sh)\n\nSteps 7-10 (this commit):\n- Add handoff file check in worker-submit.sh\n- Add release marker TTL (1h) in git-workflow-gate.sh\n- Add cd detection warning in stall-guard.sh\n- Add watchdog integration in test-agent.sh\n\nAlso registers new hooks in settings.json and makes them executable.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5",
+          "timestamp": "2026-02-16T20:12:46+01:00",
+          "tree_id": "77fef5475ba744907b4b372df83a32356b3da7f3",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/169d88d972b3d1016e621f23ffaf41d99f6e0ea2"
+        },
+        "date": 1771269248514,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.06008541666665,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 259.1007895833333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 258.9377098333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 263.8600431666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.3107150305343513,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.449091876623377,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 55.742475666666664,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.541793008130081,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.310718666666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2543073794435858,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.26366317543155354,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5586128866832092,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.21193964072249588,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18342349476744185,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.634123028503563,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.3645224306768559,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3591811378567582,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.09812727960848287,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.560179905707196,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0770212920069621,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3528169413938754,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.27129275,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.91414,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.383739082616179,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5705725944350759,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08357054594594596,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.6663772,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.634207504132232,
             "unit": "ms"
           }
         ]
