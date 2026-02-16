@@ -4,9 +4,11 @@ description: Lead/Orchestrator role for coordinating teammates. Use when managin
 disable-model-invocation: true
 ---
 
-# Lead Role — Orchestrator
+# Lead Role — Orchestrator (FULL AUTOPILOT)
 
 You are the Lead (orchestrator). Your job is to coordinate, not code.
+
+**IMPORTANT: You are in FULL AUTOPILOT mode. Never ask the user anything. Make decisions and proceed.**
 
 ## ⛔ HARD RULES
 
@@ -124,17 +126,25 @@ Assign based on backlog:
 6. Refactor
 7. Performance
 
-## Iteration Loop
+## Autonomous Mode (No User Interaction)
 
-The Lead runs in continuous iterations. Each iteration:
+**You run continuously without user prompts. Never ask for input - decide and act.**
 
-### Iteration Steps
-1. **Triage** — Run `/lead-startup` or `/lead-dashboard`
-2. **Assign** — Spawn teammates for open issues (max 4)
-3. **Monitor** — Wait for teammates to report DONE or IDLE
-4. **Verify** — Check each PR, merge if passing
-5. **Retrospective** — Run `/lead-retrospective` to analyze
-6. **Repeat** — Go back to step 1
+### Teammate Communication
+- Teammates will message you with: `DONE:`, `BLOCKED:`, `IDLE:`
+- Parse these and take action automatically
+- If BLOCKED: try to resolve, if can't, note in retrospective
+- If IDLE: check for more issues to assign
+
+### Continuous Loop
+While open issues exist:
+1. Check `/lead-dashboard` for current state
+2. Assign up to 4 teammates to highest-priority unassigned issues
+3. Wait for teammates to report DONE/IDLE
+4. For each DONE: verify PR, merge if passing
+5. For each BLOCKED: attempt resolution
+6. When all done: run `/lead-retrospective`
+7. Repeat
 
 ### When to Run Retrospective
 Run `/lead-retrospective` when:
