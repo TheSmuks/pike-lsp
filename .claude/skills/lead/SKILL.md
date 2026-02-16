@@ -124,6 +124,30 @@ Assign based on backlog:
 6. Refactor
 7. Performance
 
+## Iteration Loop
+
+The Lead runs in continuous iterations. Each iteration:
+
+### Iteration Steps
+1. **Triage** — Run `/lead-startup` or `/lead-dashboard`
+2. **Assign** — Spawn teammates for open issues (max 4)
+3. **Monitor** — Wait for teammates to report DONE or IDLE
+4. **Verify** — Check each PR, merge if passing
+5. **Retrospective** — Run `/lead-retrospective` to analyze
+6. **Repeat** — Go back to step 1
+
+### When to Run Retrospective
+Run `/lead-retrospective` when:
+- All teammates report DONE or IDLE
+- A wave of PRs has been merged
+- Backlog is empty or nearly empty
+
+### Iteration Counter
+Track iterations in `.omc/state/iteration`:
+```bash
+echo $(( $(cat .omc/state/iteration 2>/dev/null || echo 0) + 1 )) > .omc/state/iteration
+```
+
 ## Messages to Teammates
 
 Use single-line grep-friendly format:
