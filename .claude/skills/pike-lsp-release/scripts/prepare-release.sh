@@ -21,10 +21,32 @@ if [ "$2" = "--dry-run" ] || [ "$1" = "--dry-run" ]; then
     echo ""
 fi
 
-# Get project root
+# Get project root (script is at .claude/skills/pike-lsp-release/scripts/prepare-release.sh)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 cd "$PROJECT_ROOT"
+
+# Edge case: Check if we're in a git repo (either .git directory or .git file for worktrees)
+if [ ! -d ".git" ] && [ ! -f ".git" ]; then
+    echo -e "${RED}❌ Not in a git repository${NC}" >&2
+    exit 1
+fi
+
+# Edge case: Check for required files
+for f in package.json packages/vscode-pike/package.json CHANGELOG.md; do
+    if [ ! -f "$f" ]; then
+        echo -e "${RED}❌ Missing required file: $f${NC}" >&2
+        exit 1
+    fi
+done
+
+# Edge case: Check for required commands
+for cmd in node git jq; do
+    if ! command -v "$cmd" &> /dev/null; then
+        echo -e "${RED}❌ Required command not found: $cmd${NC}" >&2
+        exit 1
+    fi
+done
 
 # Get current version
 CURRENT=$(node -p "require('./packages/vscode-pike/package.json').version")

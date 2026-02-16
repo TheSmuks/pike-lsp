@@ -19,6 +19,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+echo "[git-workflow-gate] DEBUG: Current branch: $CURRENT_BRANCH"
 should_block=false
 block_message=""
 
@@ -26,11 +27,14 @@ block_message=""
 if [ -f ".omc/state/pike-lsp-release.json" ]; then
   # Check marker age - bypass only valid for 1 hour
   MARKER_AGE=$(($(date +%s) - $(stat -c %Y ".omc/state/pike-lsp-release.json" 2>/dev/null || echo 0)))
+  echo "[git-workflow-gate] DEBUG: Release marker age: ${MARKER_AGE}s"
   if [ "$MARKER_AGE" -lt 3600 ]; then
     # Release skill is active and marker is fresh - bypass all workflow restrictions
+    echo "[git-workflow-gate] RELEASE BYPASS: Release skill active, allowing command"
     exit 0
   fi
   # Marker expired (>1 hour) - treat as if not present
+  echo "[git-workflow-gate] DEBUG: Release marker expired, continuing gate checks"
 fi
 
 # --- 0. Block --no-verify and --admin bypass attempts ---
@@ -172,6 +176,8 @@ if [ "$should_block" = true ]; then
   echo ""
   echo "DEBUG: Command was: $COMMAND"
   echo "DEBUG: Current branch: $CURRENT_BRANCH"
+  echo "DEBUG: Script location: $(pwd)/${BASH_SOURCE[0]}"
+  echo "DEBUG: Timestamp: $(date -Iseconds)"
   exit 2
 fi
 
