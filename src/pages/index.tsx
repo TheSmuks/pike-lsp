@@ -21,7 +21,7 @@ export default function Home(): React.JSX.Element {
           <div style={{marginTop: '2rem'}}>
             <Link
               className="button button--primary button--lg"
-              to="/docs/intro"
+              to="/docs"
               style={{marginRight: '1rem'}}>
               Get Started
             </Link>
