@@ -44,6 +44,12 @@ Each Bash call starts in the main repo. If you `cd` into a worktree, the next ca
    ```
    Output tells you the path, e.g. `../pike-lsp-feat-issue-description`. Remember this as your **WT** path.
 
+4. **VERIFY** — confirm you're in the right worktree:
+   ```bash
+   cd ../pike-lsp-feat-issue-description && git branch --show-current
+   ```
+   Must output: `feat/issue-description`
+
 **TDD (2-4 calls) — ALL file paths must be absolute worktree paths:**
 4. Write failing test. Use ABSOLUTE path:
    ```
