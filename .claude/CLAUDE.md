@@ -1,10 +1,29 @@
 # Pike LSP Project Guidelines
 
-## Role Detection
+## Role Detection (ENFORCED)
 
-**Read your role file NOW before doing anything else.**
-- If you are the **lead/orchestrator**: read `.claude/roles/lead.md`
-- If you are an **executor/worker**: read `.claude/roles/executor.md`
+**Read your role skill NOW before doing anything else.**
+- If you are the **lead/orchestrator**: use `/lead` or read `.claude/roles/lead.md`
+- If you are an **executor/worker**: use `/executor` or read `.claude/roles/executor.md`
+
+### Role Enforcement
+
+The project uses hooks to enforce role protocols:
+
+| Hook | Enforces |
+|------|----------|
+| `session-role-init.sh` | Sets role on session start (lead/executor) |
+| `role-protocol-enforcer.sh` | Blocks Lead from writing code, git commit, gh pr create |
+| `worktree-guard.sh` | Blocks source file writes in main repo |
+| `toolchain-guard.sh` | Blocks forbidden commands |
+
+**To set your role manually:**
+```bash
+export CLAUDE_ROLE=lead   # For orchestrator
+export CLAUDE_ROLE=executor  # For worker
+```
+
+Role is auto-detected from working directory (worktrees → executor).
 
 ## Shared Rules (ALL AGENTS)
 
