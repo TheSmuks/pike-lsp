@@ -286,6 +286,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 documentLinkProvider: { resolveProvider: true },
                 codeLensProvider: { resolveProvider: true },
                 linkedEditingRangeProvider: true,
+                inlineValueProvider: true,
                 workspace: {
                     workspaceFolders: {
                         supported: true,
