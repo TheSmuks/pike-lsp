@@ -276,7 +276,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 inlayHintProvider: true,
                 semanticTokensProvider: {
                     legend: { tokenTypes, tokenModifiers },
-                    full: true,
+                    full: { delta: true },
                 },
                 codeActionProvider: {
                     codeActionKinds: ['quickfix', 'source.organizeImports'],
