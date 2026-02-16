@@ -207,11 +207,21 @@ cmd_list() {
 }
 
 cmd_remove() {
-  local branch="${1:-}"
+  local branch=""
+  local force=false
+
+  # Parse arguments
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=true; shift ;;
+      -*) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
+      *) branch="$1"; shift ;;
+    esac
+  done
 
   if [ -z "$branch" ]; then
     echo -e "${RED}Error: Branch name required${NC}"
-    echo "Usage: $0 remove <branch-name>"
+    echo "Usage: $0 remove <branch-name> [--force]"
     exit 1
   fi
 
@@ -223,18 +233,26 @@ cmd_remove() {
     exit 1
   fi
 
-  # Check for uncommitted changes
-  if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+  # Check for uncommitted changes (skip if --force)
+  if [ "$force" = false ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
     echo -e "${RED}Warning: Worktree has uncommitted changes!${NC}"
     echo "Path: $wt_path"
     git -C "$wt_path" status --short
     echo ""
-    echo "Use --force to remove anyway (not implemented - clean up manually)"
+    echo "Use --force to remove anyway"
     exit 1
   fi
 
+  if [ "$force" = true ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+    echo -e "${YELLOW}Warning: Force-removing worktree with uncommitted changes${NC}"
+  fi
+
   echo -e "${BLUE}Removing worktree: $wt_path${NC}"
-  git -C "$REPO_ROOT" worktree remove "$wt_path"
+  if [ "$force" = true ]; then
+    git -C "$REPO_ROOT" worktree remove --force "$wt_path"
+  else
+    git -C "$REPO_ROOT" worktree remove "$wt_path"
+  fi
 
   # Optionally delete the branch if it's been merged
   if git -C "$REPO_ROOT" branch --merged main | grep -q "$branch"; then
@@ -358,7 +376,7 @@ case "${1:-help}" in
     echo "  create <branch> [--from <base>]  Create worktree with branch"
     echo "  list                              List all worktrees"
     echo "  status                            Detailed worktree status"
-    echo "  remove <branch>                   Remove a worktree"
+    echo "  remove <branch> [--force]         Remove a worktree"
     echo "  cleanup [--all]                   Remove merged (or all) worktrees"
     echo "  prune                             Remove merged worktrees automatically"
     echo ""
