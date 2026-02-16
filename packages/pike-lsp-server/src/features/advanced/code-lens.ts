@@ -57,7 +57,9 @@ export function registerCodeLensHandlers(
             const lenses: CodeLens[] = [];
 
             for (const symbol of cache.symbols) {
-                if (symbol.kind === 'method' || symbol.kind === 'class') {
+                // Show reference counts for classes, methods, variables, and constants
+                if (symbol.kind === 'method' || symbol.kind === 'class' ||
+                    symbol.kind === 'variable' || symbol.kind === 'constant') {
                     const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
                     const char = Math.max(0, (symbol.position?.column ?? 1) - 1);
                     const symbolName = symbol.name ?? '';
