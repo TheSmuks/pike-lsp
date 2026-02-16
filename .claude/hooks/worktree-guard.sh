@@ -47,7 +47,7 @@ if [[ "$TOOL" == "Write" || "$TOOL" == "Edit" || "$TOOL" == "MultiEdit" ]]; then
 
       # Allow non-source files in main repo
       case "$REL_PATH" in
-        .omc/*|.claude/*|scripts/*|STATUS.md|CLAUDE.md|*.md|*.json|*.yaml|*.yml|*.sh|*.log|.gitignore|.eslintrc*|tsconfig*)
+        .omc/*|.claude/*|scripts/*|STATUS.md|CLAUDE.md|*.md|*.json|*.yaml|*.yml|*.sh|*.log|.gitignore|.eslintrc*|tsconfig*|.husky/*)
           exit 0  # config/doc files are fine in main repo
           ;;
       esac
