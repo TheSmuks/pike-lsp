@@ -1,0 +1,58 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/pike-lsp/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/pike-lsp/docs",
+          "mainDocId": "index",
+          "docs": [
+            {
+              "id": "configuration",
+              "path": "/pike-lsp/docs/configuration",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "contributing",
+              "path": "/pike-lsp/docs/contributing",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "features",
+              "path": "/pike-lsp/docs/features",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started",
+              "path": "/pike-lsp/docs/getting-started",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "index",
+              "path": "/pike-lsp/docs/",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "troubleshooting",
+              "path": "/pike-lsp/docs/troubleshooting",
+              "sidebar": "docsSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docsSidebar": {
+              "link": {
+                "path": "/pike-lsp/docs/configuration",
+                "label": "configuration"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

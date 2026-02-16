@@ -1,0 +1,30 @@
+{
+  "id": "contributing",
+  "title": "Contributing",
+  "description": "How to contribute to Pike LSP",
+  "source": "@site/docs/contributing.md",
+  "sourceDirName": ".",
+  "slug": "/contributing",
+  "permalink": "/pike-lsp/docs/contributing",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/contributing.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": null,
+  "lastUpdatedAt": null,
+  "frontMatter": {
+    "id": "contributing",
+    "title": "Contributing",
+    "description": "How to contribute to Pike LSP"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Configuration",
+    "permalink": "/pike-lsp/docs/configuration"
+  },
+  "next": {
+    "title": "Features",
+    "permalink": "/pike-lsp/docs/features"
+  }
+}
