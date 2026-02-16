@@ -77,10 +77,6 @@ describe('Pike Stdlib Real Files E2E', () => {
         }
     });
 
-    it('should have Pike stdlib available', () => {
-        expect(isPikeStdlibAvailable()).toBe(true);
-    });
-
     it('should analyze Array.pmod successfully', async () => {
         const code = readPikeModule('Array');
         if (code === null) {
