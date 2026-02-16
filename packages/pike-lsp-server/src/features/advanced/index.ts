@@ -30,6 +30,7 @@ import { registerFormattingHandlers } from './formatting.js';
 import { registerDocumentLinksHandler } from './document-links.js';
 import { registerCodeLensHandlers } from './code-lens.js';
 import { registerOnTypeFormattingHandler } from './on-type-formatting.js';
+import { registerInlineValuesHandler } from './inline-values.js';
 
 export { registerFoldingRangeHandler } from './folding.js';
 export { registerSemanticTokensHandler } from './semantic-tokens.js';
@@ -40,6 +41,7 @@ export { registerFormattingHandlers } from './formatting.js';
 export { registerDocumentLinksHandler } from './document-links.js';
 export { registerCodeLensHandlers } from './code-lens.js';
 export { registerOnTypeFormattingHandler } from './on-type-formatting.js';
+export { registerInlineValuesHandler } from './inline-values.js';
 
 /**
  * Register all advanced feature handlers with the LSP connection.
@@ -66,4 +68,5 @@ export function registerAdvancedHandlers(
     registerDocumentLinksHandler(connection, services, documents, _globalSettings, includePaths);
     registerCodeLensHandlers(connection, services, documents);
     registerOnTypeFormattingHandler(connection, services, documents);
+    registerInlineValuesHandler(connection, services, documents);
 }
