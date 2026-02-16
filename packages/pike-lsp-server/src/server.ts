@@ -81,10 +81,10 @@ function findAnalyzerPath(): string | undefined {
     let resolvedDirname: string;
 
     // Check if running in CJS mode (bundled with esbuild)
-    // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
+    // __filename and __dirname are available in CJS but not in strict ESM
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (typeof __filename !== 'undefined') {
-        // @ts-ignore - __dirname is not defined in strict ESM but exists in CJS
-        resolvedDirname = path.dirname(__filename);
+        resolvedDirname = path.dirname(__filename as string);
     } else {
         // ESM mode
         const modulePath = fileURLToPath(import.meta.url);

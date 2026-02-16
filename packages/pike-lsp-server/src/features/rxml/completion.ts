@@ -109,15 +109,14 @@ function detectCompletionContext(content: string, offset: number): CompletionCon
       // Extract tag name and attribute name
       const tagAndAttrs = tagContent.substring(0, lastEq);
       const tagParts = tagAndAttrs.split(/\s+/);
-      const tagName = tagParts[0];
+      const tagName = tagParts[0] ?? '';
 
       // Find the attribute name before '='
       const attrMatch = tagAndAttrs.match(/(\w+)\s*=\s*[^=]*$/);
-      if (attrMatch) {
+      if (attrMatch && attrMatch[1] !== undefined) {
         const attrName = attrMatch[1];
         const prefix = afterEq.replace(/^['"]|['"]$/g, '');
-        // @ts-ignore - tagName is non-null due to split on non-empty string
-        return { type: 'value', tagName: tagName!, attrName, prefix };
+        return { type: 'value', tagName, attrName, prefix };
       }
     }
   }
@@ -125,13 +124,13 @@ function detectCompletionContext(content: string, offset: number): CompletionCon
   // We're in attribute name context
   // Extract tag name
   const parts = tagContent.split(/\s+/);
-  const tagName = parts[0];
+  const tagName = parts[0] ?? '';
 
   // Get the current prefix (partial attribute name)
   const lastPart = parts[parts.length - 1] || '';
   const prefix = lastPart.includes('=') ? '' : lastPart;
 
-  return { type: 'attribute', tagName: tagName!, prefix };
+  return { type: 'attribute', tagName, prefix };
 }
 
 /**

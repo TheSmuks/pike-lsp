@@ -33,11 +33,10 @@
  * ============================================================================
  */
 
-import type {
+import {
     Position,
     Range,
     DocumentSymbol,
-    // @ts-ignore - SymbolKind imported but not used yet (Phase 4)
     SymbolKind
 } from 'vscode-languageserver/node.js';
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
@@ -365,7 +364,7 @@ export function mergeSymbolTrees(
         // Create a "RXML Content" symbol at the string literal location
         const rxmlSymbol: DocumentSymbol = {
             name: 'RXML Template',
-            kind: 16, // SymbolKind.Namespace (container for RXML symbols)
+            kind: SymbolKind.Namespace,
             range: rxmlString.range,
             selectionRange: rxmlString.range,
             detail: `${rxmlString.markers.length} RXML markers`,
