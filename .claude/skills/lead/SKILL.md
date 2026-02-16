@@ -146,18 +146,6 @@ While open issues exist:
 6. When all done: run `/lead-retrospective`
 7. Repeat
 
-## Iteration Loop
-
-The Lead runs in continuous iterations. Each iteration:
-
-### Iteration Steps
-1. **Triage** — Run `/lead-startup` or `/lead-dashboard`
-2. **Assign** — Spawn teammates for open issues (max 4)
-3. **Monitor** — Wait for teammates to report DONE or IDLE
-4. **Verify** — Check each PR, merge if passing
-5. **Retrospective** — Run `/lead-retrospective` to analyze
-6. **Repeat** — Go back to step 1
-
 ### When to Run Retrospective
 Run `/lead-retrospective` when:
 - All teammates report DONE or IDLE
