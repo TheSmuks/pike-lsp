@@ -183,9 +183,50 @@ mapping parse_request(mapping params) {
                 decl = parser->parseDecl();
             };
 
-            if (parse_err) {
+            if (parse_err || !decl) {
                 autodoc_buffer = ({});
-                parser->readToken();
+
+                // Only generate diagnostic if there was an actual error (not just no decl)
+                if (parse_err) {
+                    string error_msg = describe_error(parse_err);
+                    // Get current position from parser
+                    int error_line = line;
+                    if (parser->current_line) {
+                        error_line = parser->current_line;
+                    }
+                    // Add diagnostic for this error
+                    if (!has_value(error_msg, "expected identifier")) {
+                        diagnostics += ({
+                            ([
+                                "message": "Syntax error: " + error_msg,
+                                "severity": "error",
+                                "position": ([
+                                    "file": filename,
+                                    "line": error_line
+                                ])
+                            ])
+                        });
+                    }
+                }
+                // Try to recover by skipping to next statement boundary
+                // Note: skipUntil may need multiple calls due to newline handling quirks
+                int recovery_attempts = 0;
+                while (recovery_attempts < 10) {
+                    parser->skipUntil((<";", "{", "}", "">));
+                    string tok = parser->peekToken();
+                    if (tok == "" || (tok != ";" && tok != "{" && tok != "}" && tok != "}")) {
+                        // EOF or not at statement boundary - try to skip one token
+                        parser->readToken();
+                        recovery_attempts++;
+                        if (parser->peekToken() == "") {
+                            break;  // EOF
+                        }
+                    } else {
+                        // At statement boundary - consume and continue
+                        parser->readToken();
+                        break;
+                    }
+                }
                 continue;
             }
 
@@ -355,6 +396,94 @@ mapping parse_request(mapping params) {
                 ])
             });
         }
+    }
+
+    // STEP 2b: If we found fewer symbols than expected, use tokenization fallback
+    // to find any remaining declarations that the parser missed
+    // This helps with error recovery - we can still provide partial results
+    array(mapping) tokenized_symbols = ({});
+    mixed tok_err = catch {
+        array(string) tokens = Parser.Pike.split(code);
+        array tok = Parser.Pike.tokenize(tokens);
+
+        // Track what's already found
+        multiset(string) found_names = (< >);
+        foreach(symbols, mapping s) {
+            if (s->name) found_names[s->name] = 1;
+        }
+
+        // Type keywords for detection
+        multiset(string) type_kw = (<
+            "int", "string", "float", "mixed", "void", "array",
+            "mapping", "multiset", "object", "program", "function"
+        >);
+
+        // Walk tokens looking for additional declarations
+        int i = 0;
+        while (i < sizeof(tok)) {
+            object t = tok[i];
+            string txt = t->text;
+
+            // Look for type keywords followed by identifiers
+            if (type_kw[txt]) {
+                // Check next token for identifier
+                int next_idx = i + 1;
+                while (next_idx < sizeof(tok)) {
+                    string next_txt = tok[next_idx]->text;
+                    // Skip whitespace and comments
+                    if (sizeof(next_txt) == 0 || next_txt[0] == ' ' || has_prefix(next_txt, "//")) {
+                        next_idx++;
+                        continue;
+                    }
+                    if (has_prefix(next_txt, "/*")) {
+                        // Skip to end of comment
+                        while (next_idx < sizeof(tok) && !has_prefix(tok[next_idx]->text, "*/")) {
+                            next_idx++;
+                        }
+                        next_idx += 2;
+                        continue;
+                    }
+                    break;
+                }
+
+                if (next_idx < sizeof(tok)) {
+                    string name = tok[next_idx]->text;
+                    // Skip if already found or not an identifier
+                    if (!found_names[name] && sizeof(name) > 0 &&
+                        !type_kw[name] && name[0] >= 'a' && name[0] <= 'z') {
+                        // Add as additional symbol
+                        tokenized_symbols += ({
+                            ([
+                                "name": name,
+                                "kind": "variable",
+                                "position": ([
+                                    "file": filename,
+                                    "line": t->line
+                                ])
+                            ])
+                        });
+                        found_names[name] = 1;
+                    }
+                }
+            }
+            i++;
+        }
+    };
+
+    // Add any tokenized symbols to results
+    if (sizeof(tokenized_symbols) > 0) {
+        symbols += tokenized_symbols;
+        // Add a diagnostic noting we used fallback extraction
+        diagnostics += ({
+            ([
+                "message": "Partial parsing - some symbols extracted via fallback",
+                "severity": "warning",
+                "position": ([
+                    "file": filename,
+                    "line": 1
+                ])
+            ])
+        });
     }
 
     // STEP 3: Extract symbols from preprocessor conditional branches
