@@ -19,6 +19,9 @@ import {
     TextEdit,
     TextDocuments,
     Position,
+    WorkspaceEdit,
+    TextDocumentEdit,
+    OptionalVersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
@@ -119,7 +122,7 @@ export function registerRenameHandlers(
      *
      * Falls back to text-based search for uncached workspace files.
      */
-    connection.onRenameRequest(async (params): Promise<{ changes: { [uri: string]: TextEdit[] } } | null> => {
+    connection.onRenameRequest(async (params): Promise<WorkspaceEdit | null> => {
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
 
@@ -156,9 +159,8 @@ export function registerRenameHandlers(
                         log.debug('Rename: using Pike Rename module', { symbol: symbolName, count: result.edits.length });
 
                         const newName = params.newName;
-                        const changes: { [uri: string]: TextEdit[] } = {};
 
-                        // Convert Pike positions to LSP edits
+                        // Convert Pike positions to LSP edits using documentChanges format
                         const edits: TextEdit[] = result.edits.map(pos => ({
                             range: {
                                 start: { line: pos.line, character: pos.character },
@@ -167,8 +169,13 @@ export function registerRenameHandlers(
                             newText: newName,
                         }));
 
-                        changes[uri] = edits;
-                        return { changes };
+                        // Use documentChanges format (LSP 3.16+) for better LSP compliance
+                        const textDocumentEdit: TextDocumentEdit = {
+                            textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
+                            edits: edits,
+                        };
+
+                        return { documentChanges: [textDocumentEdit] };
                     }
                 }
             } catch (err) {
@@ -338,6 +345,18 @@ export function registerRenameHandlers(
             totalEdits: Object.values(changes).reduce((sum, edits) => sum + edits.length, 0)
         });
 
-        return { changes };
+        // Convert changes to documentChanges format (LSP 3.16+) for better LSP compliance
+        const documentChanges: TextDocumentEdit[] = [];
+
+        for (const [uri, edits] of Object.entries(changes)) {
+            if (edits.length > 0) {
+                documentChanges.push({
+                    textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
+                    edits: edits,
+                });
+            }
+        }
+
+        return { documentChanges };
     });
 }
