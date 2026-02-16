@@ -334,6 +334,14 @@ else
   fi
 fi
 
+# --- Watchdog: cleanup after full suite ---
+if [ "$MODE" = "full" ] && [ "$SUITE" = "all" ]; then
+  if [ -x "$REPO_ROOT/.claude/hooks/watchdog.sh" ]; then
+    echo "  Running watchdog cleanup..."
+    "$REPO_ROOT/.claude/hooks/watchdog.sh" || true
+  fi
+fi
+
 echo ""
 
 # --- Summary ---

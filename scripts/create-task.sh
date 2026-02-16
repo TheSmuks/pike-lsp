@@ -17,10 +17,17 @@ REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
 REPO_NAME=$(basename "$REPO_ROOT")
 
 # Fetch issue
-ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json number,title,labels,body 2>&1) || {
+ISSUE_JSON=$(gh issue view "$ISSUE_NUM" --json number,title,labels,body,state 2>&1) || {
   echo "ERROR: Issue #${ISSUE_NUM} not found: ${ISSUE_JSON}" >&2
   exit 1
 }
+
+# Validate issue is open
+ISSUE_STATE=$(echo "$ISSUE_JSON" | jq -r '.state')
+if [[ "$ISSUE_STATE" != "OPEN" ]]; then
+  echo "ERROR: Issue #${ISSUE_NUM} is ${ISSUE_STATE} — cannot create task for closed/merged issue" >&2
+  exit 1
+fi
 
 TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
 LABELS=$(echo "$ISSUE_JSON" | jq -r '[.labels[].name] | join(", ")')

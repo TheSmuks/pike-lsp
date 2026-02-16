@@ -221,6 +221,18 @@ Worker responds: `{type: "shutdown_response", request_id: "...", approve: true}`
 
 **Shutting down ALL workers does NOT mean the session ends.** After all workers shut down, search for more work and spawn new workers.
 
+## Idle Timeout Protocol
+
+Workers that go silent are wasting resources. Enforce timeouts:
+
+1. When assigning a task, note the assignment in working memory: `notepad_write_working("ASSIGN: worker-N task #X")`
+2. If a worker has not sent a STATUS or DONE message within **15 minutes**, send a ping: `SendMessage("worker-N", "PING: status on task #X?")`
+3. If no response after **2 pings** (30 min total), assume worker is dead:
+   - Send `shutdown_request` to the worker
+   - Reassign the task to another worker via `TaskUpdate(taskId, owner="worker-M")`
+   - Log: `notepad_write_working("TIMEOUT: worker-N task #X → reassigned to worker-M")`
+4. On each `/lead-dashboard` run, check `scripts/lead-status.sh` for idle warnings
+
 ## Task Dependencies
 
 NEVER linear chains. MAXIMIZE parallelism.

@@ -36,6 +36,22 @@ fi
 BRANCH=$(gh pr view "$PR_NUM" --json headRefName -q '.headRefName' 2>/dev/null)
 WT_PATH="../pike-lsp-${BRANCH//\//-}"
 
+# Validate PR body contains "fixes #N" or "closes #N"
+PR_BODY=$(gh pr view "$PR_NUM" --json body -q '.body' 2>/dev/null || echo "")
+if ! echo "$PR_BODY" | grep -qiE "(fixes|closes)\s+#[0-9]+"; then
+  # Try auto-fix: look up linked issues from PR metadata
+  LINKED_ISSUE=$(gh pr view "$PR_NUM" --json closingIssuesReferences -q '.closingIssuesReferences[0].number' 2>/dev/null || echo "")
+  if [[ -n "$LINKED_ISSUE" && "$LINKED_ISSUE" != "null" ]]; then
+    echo "Auto-fixing PR body: adding 'fixes #${LINKED_ISSUE}'..."
+    gh pr edit "$PR_NUM" --body "${PR_BODY}
+
+fixes #${LINKED_ISSUE}" 2>/dev/null
+  else
+    echo "MERGE:FAIL | PR #$PR_NUM | missing 'fixes #N' in body — add it or link an issue" >&2
+    exit 1
+  fi
+fi
+
 # Try merge first
 echo "Merging PR #$PR_NUM (branch: $BRANCH)..."
 gh pr merge "$PR_NUM" --squash --delete-branch 2>/dev/null && {
