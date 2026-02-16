@@ -35,6 +35,21 @@ if echo "$CMD" | grep -qE "^gh pr create"; then
   fi
 fi
 
+# --- Block manual gh pr merge - must use pr-merge.sh ---
+# Allow if PR_MERGE_MODE is set (set by pr-merge.sh)
+if echo "$CMD" | grep -qE "gh pr merge"; then
+  if [[ "${PR_MERGE_MODE:-}" != "1" ]]; then
+    echo "BLOCKED: Direct 'gh pr merge' is not allowed. Use scripts/pr-merge.sh instead:" >&2
+    echo "  scripts/pr-merge.sh <pr_number>" >&2
+    echo "" >&2
+    echo "pr-merge.sh ensures:" >&2
+    echo "  - Automatic worktree cleanup before merge" >&2
+    echo "  - Squash merge with branch deletion" >&2
+    echo "  - Retry on worktree conflicts" >&2
+    exit 2
+  fi
+fi
+
 # --- Forbidden package managers ---
 if echo "$CMD" | grep -qE "^(npm|npx|yarn|pnpm) "; then
   echo "BLOCKED: Use bun, not npm/yarn/pnpm. Examples: 'bun install', 'bun run test', 'bunx prettier'." >&2
