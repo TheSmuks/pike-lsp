@@ -37,6 +37,8 @@ export interface ModuleImportData {
 export class ModuleContext {
     private cache = new Map<string, ModuleImportData>();
     private pending = new Map<string, Promise<ModuleImportData>>();
+    private waterfallCache = new Map<string, { contentHash: string; symbols: WaterfallSymbolsResult; timestamp: number }>();
+    private waterfallPending = new Map<string, Promise<{ contentHash: string; symbols: WaterfallSymbolsResult }>>();
 
     /**
      * Get imports for a document.
@@ -112,8 +114,59 @@ export class ModuleContext {
         },
         maxDepth: number = 5
     ): Promise<WaterfallSymbolsResult> {
+        // Create content hash for cache key (simple hash for change detection)
+        const contentHash = this.hashContent(content);
+        const cacheKey = `${uri}:${maxDepth}`;
+
+        // Check cache first
+        const cached = this.waterfallCache.get(cacheKey);
+        const cacheAge = Date.now() - (cached?.timestamp ?? 0);
+        const CACHE_TTL = 5000; // 5 seconds
+
+        if (cached && cached.contentHash === contentHash && cacheAge < CACHE_TTL) {
+            return cached.symbols;
+        }
+
+        // Check for pending request
+        const pending = this.waterfallPending.get(cacheKey);
+        if (pending) {
+            const result = await pending;
+            return result.symbols;
+        }
+
+        // Fetch waterfall symbols
         const filename = this.uriToFilename(uri);
-        return bridge.getWaterfallSymbols(content, filename, maxDepth);
+        const promise = (async () => {
+            const symbols = await bridge.getWaterfallSymbols(content, filename, maxDepth);
+            return { contentHash, symbols };
+        })();
+
+        this.waterfallPending.set(cacheKey, promise);
+
+        try {
+            const result = await promise;
+            this.waterfallCache.set(cacheKey, {
+                contentHash: result.contentHash,
+                symbols: result.symbols,
+                timestamp: Date.now(),
+            });
+            return result.symbols;
+        } finally {
+            this.waterfallPending.delete(cacheKey);
+        }
+    }
+
+    /**
+     * Simple hash function for content change detection.
+     */
+    private hashContent(content: string): string {
+        // Simple DJB2 hash for fast content fingerprinting
+        let hash = 5381;
+        for (let i = 0; i < content.length; i++) {
+            hash = ((hash << 5) + hash) + content.charCodeAt(i);
+            hash |= 0; // Convert to 32-bit integer
+        }
+        return hash.toString(36);
     }
 
     /**
@@ -141,6 +194,17 @@ export class ModuleContext {
     invalidate(uri: string): void {
         this.cache.delete(uri);
         this.pending.delete(uri);
+        // Invalidate waterfall cache entries for this URI
+        for (const key of this.waterfallCache.keys()) {
+            if (key.startsWith(uri + ':')) {
+                this.waterfallCache.delete(key);
+            }
+        }
+        for (const key of this.waterfallPending.keys()) {
+            if (key.startsWith(uri + ':')) {
+                this.waterfallPending.delete(key);
+            }
+        }
     }
 
     /**
@@ -149,13 +213,15 @@ export class ModuleContext {
     clear(): void {
         this.cache.clear();
         this.pending.clear();
+        this.waterfallCache.clear();
+        this.waterfallPending.clear();
     }
 
     /**
      * Get the number of cached documents.
      */
     get size(): number {
-        return this.cache.size;
+        return this.cache.size + this.waterfallCache.size;
     }
 
     /**
