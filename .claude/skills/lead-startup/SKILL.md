@@ -1,7 +1,6 @@
 ---
 name: lead-startup
 description: Full lead startup sequence. Pulls, bootstraps labels, dumps all state. Use only at session start.
-disable-model-invocation: true
 ---
 
 # Lead Startup
@@ -23,3 +22,5 @@ You are the lead starting a new session. From the data above:
 3. Assign teammates by specialization (see role file).
 4. Ensure at least 8 open issues exist for the team.
 5. Only create NEW issues for work not already tracked.
+6. **Check for orphaned OMC tasks:** Run `TaskList` and verify each task references a valid open GitHub issue. Delete tasks for closed/non-existent issues.
+7. **Issue-first workflow:** For every new task, create a GitHub issue FIRST, then run `scripts/create-task.sh <N>` to generate the OMC task description. NEVER create a TaskCreate without a corresponding GitHub issue.

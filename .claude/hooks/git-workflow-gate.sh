@@ -112,7 +112,7 @@ fi
 if [ "$should_block" = false ] && echo "$COMMAND" | grep -qP 'git\s+(checkout\s+-b|switch\s+-c)\s+'; then
   BRANCH_NAME=$(echo "$COMMAND" | grep -oP 'git\s+(checkout\s+-b|switch\s+-c)\s+\K[^\s;|&]+' || true)
   if [ -n "$BRANCH_NAME" ]; then
-    if ! echo "$BRANCH_NAME" | grep -qP '^(feat|fix|docs|refactor|test|chore|release)/[a-z0-9][a-z0-9-]+$'; then
+    if ! echo "$BRANCH_NAME" | grep -qP '^(feat|fix|docs|refactor|test|chore|release|perf)/[a-z0-9][a-z0-9-]+$'; then
       should_block=true
       block_message="[WORKFLOW] BLOCKED: Branch name '$BRANCH_NAME' doesn't follow the naming convention.
 
@@ -123,9 +123,10 @@ Valid prefixes:
   fix/      - Bug fixes             (fix/tokenizer-crash)
   docs/     - Documentation         (docs/readme-update)
   refactor/ - Code refactoring      (refactor/symbol-resolver)
-  test/     - Test additions        (test/bridge-coverage)
+  test/     - Test additions       (test/bridge-coverage)
   chore/    - Maintenance tasks     (chore/bump-dependencies)
-  release/  - Release prep          (release/v0.2.0)"
+  release/  - Release prep         (release/v0.2.0)
+  perf/     - Performance work      (perf/indexing)"
     fi
   fi
 fi

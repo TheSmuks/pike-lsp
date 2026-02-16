@@ -238,6 +238,7 @@ export function makeCacheEntry(overrides: Partial<DocumentCacheEntry> & { symbol
         version: 1,
         diagnostics: [],
         symbolPositions: new Map(),
+        symbolNames: new Map(),
         ...overrides,
     };
 }

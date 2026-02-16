@@ -120,9 +120,10 @@ cmd_create() {
   cmd_prune
 
   # Validate branch naming convention
-  if ! echo "$branch" | grep -qP '^(feat|fix|docs|refactor|test|chore|release)/[a-z0-9][a-z0-9-]+$'; then
+  if ! echo "$branch" | grep -qP '^(feat|fix|docs|refactor|test|chore|release|perf)/[a-z0-9][a-z0-9-]+$'; then
     echo -e "${RED}Error: Branch name '$branch' doesn't follow convention${NC}"
-    echo "Required: type/description (e.g., feat/hover-support, fix/tokenizer-crash)"
+    echo "Allowed prefixes: feat, fix, docs, refactor, test, chore, release, perf"
+    echo "Required format: type/description (e.g., feat/hover-support, perf/indexing)"
     exit 1
   fi
 

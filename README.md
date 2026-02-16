@@ -23,6 +23,7 @@
 - [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
+- [API Reference](API.md)
 
 ---
 

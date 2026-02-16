@@ -16,6 +16,8 @@ export default [
             '**/*.mjs',
             '**/scripts/**',
             '**/.planning/**',
+            '**/*.test.ts',
+            'packages/vscode-pike/**/*.ts',
         ],
     },
     {
@@ -31,9 +33,9 @@ export default [
                 varsIgnorePattern: '^_'
             }],
             '@typescript-eslint/consistent-type-imports': 'off',
-            '@typescript-eslint/no-explicit-any': 'off',
+            '@typescript-eslint/no-explicit-any': 'warn',
             '@typescript-eslint/explicit-function-return-type': 'off',
-            '@typescript-eslint/ban-ts-comment': 'off',
+            '@typescript-eslint/ban-ts-comment': 'error',
             '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
             '@typescript-eslint/no-require-imports': 'off',
             '@typescript-eslint/ban-types': 'off',

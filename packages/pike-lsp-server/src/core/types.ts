@@ -24,6 +24,8 @@ export interface PikeSettings {
     diagnosticDelay: number;
     /** Inlay hints configuration (optional) */
     inlayHints?: InlayHintsSettings;
+    /** Inline values configuration (optional) */
+    inlineValues?: InlineValuesSettings;
 }
 
 /**
@@ -36,6 +38,14 @@ export interface InlayHintsSettings {
     parameterNames: boolean;
     /** Show type hints (not implemented yet) */
     typeHints: boolean;
+}
+
+/**
+ * Inline values configuration.
+ */
+export interface InlineValuesSettings {
+    /** Enable inline values */
+    enabled: boolean;
 }
 
 /**
@@ -94,6 +104,8 @@ export interface DocumentCacheEntry {
     diagnostics: Diagnostic[];
     /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
     symbolPositions: Map<string, Position[]>;
+    /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
+    symbolNames: Map<string, PikeSymbol>;
     /** Include and import dependencies (optional, populated lazily) */
     dependencies?: DocumentDependencies;
     /** Inheritance information from introspection */
@@ -121,5 +133,8 @@ export const defaultSettings: PikeSettings = {
         enabled: true,
         parameterNames: true,
         typeHints: false,
+    },
+    inlineValues: {
+        enabled: true,
     },
 };

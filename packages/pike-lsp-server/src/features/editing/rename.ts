@@ -8,6 +8,9 @@
  * - Variables with same name in different scopes
  * - Class/function/variable renaming without text collision
  * - Cross-file rename with symbol-level precision
+ *
+ * Smart rename: Uses Pike's Rename.pike module via bridge for accurate
+ * tokenization and module-aware rename across import/inherit statements.
  */
 
 import {
@@ -16,6 +19,9 @@ import {
     TextEdit,
     TextDocuments,
     Position,
+    WorkspaceEdit,
+    TextDocumentEdit,
+    OptionalVersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fs from 'fs';
@@ -30,15 +36,15 @@ export function registerRenameHandlers(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache } = services;
+    const { documentCache, bridge } = services;
     const log = new Logger('Rename');
 
     /**
      * Prepare rename handler - validate that rename is allowed at position
      * Returns the range of the symbol to be renamed, or null if not renamable.
-     * Enhanced to check if the position is on a known symbol.
+     * Uses Pike's Rename module via bridge for accurate tokenization.
      */
-    connection.onPrepareRename((params): Range | null => {
+    connection.onPrepareRename(async (params): Promise<Range | null> => {
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
 
@@ -46,8 +52,31 @@ export function registerRenameHandlers(
             return null;
         }
 
-        const cached = documentCache.get(uri);
         const text = document.getText();
+        const line = params.position.line + 1; // Convert to 1-based
+        const character = params.position.character;
+
+        // Try using Pike's prepare_rename via bridge for accurate results
+        if (bridge?.bridge) {
+            try {
+                const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+                const result = await bridge.prepareRename(text, line, character, filePath);
+
+                if (result && !('error' in result) && result.name) {
+                    log.debug('Prepare rename: using Pike Rename module', { name: result.name });
+                    return {
+                        start: { line: result.line, character: result.character },
+                        end: { line: result.endLine, character: result.endCharacter },
+                    };
+                }
+            } catch (err) {
+                log.debug('Prepare rename: bridge unavailable, using text fallback', {
+                    error: err instanceof Error ? err.message : String(err)
+                });
+            }
+        }
+
+        // Fallback: text-based word detection
         const offset = document.offsetAt(params.position);
 
         // Find word boundaries
@@ -67,7 +96,7 @@ export function registerRenameHandlers(
         const word = text.slice(start, end);
 
         // Check if this word is a known symbol (scope-aware check)
-        // If we have cached document with symbols, verify the word is tracked
+        const cached = documentCache.get(uri);
         if (cached && cached.symbols.length > 0) {
             const isKnownSymbol = cached.symbols.some(s => s.name === word);
             if (!isKnownSymbol) {
@@ -93,7 +122,7 @@ export function registerRenameHandlers(
      *
      * Falls back to text-based search for uncached workspace files.
      */
-    connection.onRenameRequest(async (params): Promise<{ changes: { [uri: string]: TextEdit[] } } | null> => {
+    connection.onRenameRequest(async (params): Promise<WorkspaceEdit | null> => {
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
 
@@ -105,6 +134,58 @@ export function registerRenameHandlers(
         const cached = documentCache.get(uri);
         const text = document.getText();
         const offset = document.offsetAt(params.position);
+        const line = params.position.line + 1; // Convert to 1-based
+
+        // Try using Pike's find_rename_positions via bridge for accurate results
+        if (bridge?.bridge) {
+            try {
+                const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+                // First find the word at position
+                let start = offset;
+                let end = offset;
+                while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+                    start--;
+                }
+                while (end < text.length && /\w/.test(text[end] ?? '')) {
+                    end++;
+                }
+                const symbolName = text.slice(start, end);
+
+                if (symbolName) {
+                    const result = await bridge.findRenamePositions(text, symbolName, line, params.position.character, filePath);
+
+                    if (result && !('error' in result) && result.edits && result.edits.length > 0) {
+                        log.debug('Rename: using Pike Rename module', { symbol: symbolName, count: result.edits.length });
+
+                        const newName = params.newName;
+
+                        // Convert Pike positions to LSP edits using documentChanges format
+                        const edits: TextEdit[] = result.edits.map(pos => ({
+                            range: {
+                                start: { line: pos.line, character: pos.character },
+                                end: { line: pos.endLine, character: pos.endCharacter },
+                            },
+                            newText: newName,
+                        }));
+
+                        // Use documentChanges format (LSP 3.16+) for better LSP compliance
+                        const textDocumentEdit: TextDocumentEdit = {
+                            textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
+                            edits: edits,
+                        };
+
+                        return { documentChanges: [textDocumentEdit] };
+                    }
+                }
+            } catch (err) {
+                log.debug('Rename: bridge rename failed, using fallback', {
+                    error: err instanceof Error ? err.message : String(err)
+                });
+            }
+        }
+
+        // Continue with existing fallback logic...
 
         // Find the word to rename
         let start = offset;
@@ -264,6 +345,18 @@ export function registerRenameHandlers(
             totalEdits: Object.values(changes).reduce((sum, edits) => sum + edits.length, 0)
         });
 
-        return { changes };
+        // Convert changes to documentChanges format (LSP 3.16+) for better LSP compliance
+        const documentChanges: TextDocumentEdit[] = [];
+
+        for (const [uri, edits] of Object.entries(changes)) {
+            if (edits.length > 0) {
+                documentChanges.push({
+                    textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
+                    edits: edits,
+                });
+            }
+        }
+
+        return { documentChanges };
     });
 }

@@ -1,23 +1,20 @@
 #!/bin/bash
 set -euo pipefail
-# ci-wait.sh — Push current branch, wait for CI, report result.
-# Grep-friendly output. Can optionally auto-merge on success.
+# ci-wait.sh — Push, wait for CI, optionally merge and clean up.
 #
 # Usage:
-#   scripts/ci-wait.sh                    # push + wait
-#   scripts/ci-wait.sh --merge            # push + wait + merge on success
-#   scripts/ci-wait.sh --merge --pr 42    # wait for specific PR + merge
+#   scripts/ci-wait.sh --dir <worktree_path>                          # push + wait
+#   scripts/ci-wait.sh --dir <worktree_path> --merge                  # push + wait + merge
+#   scripts/ci-wait.sh --dir <worktree_path> --merge --worktree feat/name  # + cleanup
+#   scripts/ci-wait.sh --pr 42 --merge                                # wait for specific PR
 #
-# Output format (grep-friendly):
+# Output (grep-friendly):
 #   CI:PASS | PR #42 | feat/hover-fix | 3m22s
-#   CI:FAIL | PR #42 | feat/hover-fix | test (20.x): build failed
-#   CI:SKIP | no remote branch | feat/hover-fix
+#   CI:FAIL | PR #42 | feat/hover-fix | 2m15s | test (20.x): build failed
+#   CI:PASS:MERGED | PR #42 | feat/hover-fix | 3m22s
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || cd "$(dirname "$0")/.." && pwd)"
-BRANCH="$(git branch --show-current)"
 START_TIME=$(date +%s)
-
-# Defaults
+WORK_DIR=""
 DO_MERGE=false
 PR_NUM=""
 WORKTREE_NAME=""
@@ -25,6 +22,7 @@ WORKTREE_NAME=""
 # Parse flags
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --dir) WORK_DIR="$2"; shift 2 ;;
     --merge) DO_MERGE=true; shift ;;
     --pr) PR_NUM="$2"; shift 2 ;;
     --worktree) WORKTREE_NAME="$2"; shift 2 ;;
@@ -32,16 +30,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$BRANCH" == "main" ]]; then
-  echo "CI:ERROR | cannot push from main branch"
+# If --dir given, cd into it
+if [[ -n "$WORK_DIR" ]]; then
+  if [[ ! -d "$WORK_DIR" ]]; then
+    echo "CI:ERROR | directory not found: $WORK_DIR"
+    exit 1
+  fi
+  cd "$WORK_DIR"
+fi
+
+BRANCH="$(git branch --show-current 2>/dev/null || echo "unknown")"
+
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
+  echo "CI:ERROR | on $BRANCH, not a feature branch (pwd: $(pwd))"
+  echo "CI:HINT | use: scripts/ci-wait.sh --dir ../pike-lsp-feat-name [--merge]"
   exit 1
 fi
+
+# Find main repo for worktree cleanup
+MAIN_REPO="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git.*||')"
 
 # --- Push if not already pushed ---
 REMOTE_EXISTS=$(git ls-remote --heads origin "$BRANCH" 2>/dev/null | wc -l)
 if [[ "$REMOTE_EXISTS" -eq 0 ]]; then
-  git push -u origin "$BRANCH" --no-verify 2>/dev/null
-  if [[ $? -ne 0 ]]; then
+  if ! git push -u origin "$BRANCH" --no-verify 2>/dev/null; then
     echo "CI:ERROR | push failed | $BRANCH"
     exit 1
   fi
@@ -55,47 +67,40 @@ if [[ -z "$PR_NUM" ]]; then
 fi
 
 if [[ -z "$PR_NUM" ]]; then
-  echo "CI:SKIP | no PR found | $BRANCH | create one first with gh pr create"
+  echo "CI:SKIP | no PR found | $BRANCH | create one first with worker-submit.sh"
   exit 1
 fi
 
 # --- Wait for CI checks ---
 echo "CI:WAIT | PR #${PR_NUM} | $BRANCH | waiting for checks..." >&2
 
-# gh pr checks --watch blocks until checks complete, exits 0 if all pass
-if gh pr checks "$PR_NUM" --watch --fail-fast 2>/dev/null; then
-  ELAPSED=$(( $(date +%s) - START_TIME ))
-  MINUTES=$(( ELAPSED / 60 ))
-  SECONDS_R=$(( ELAPSED % 60 ))
+elapsed_str() {
+  local e=$(( $(date +%s) - START_TIME ))
+  echo "$(( e / 60 ))m$(( e % 60 ))s"
+}
 
+if gh pr checks "$PR_NUM" --watch --fail-fast 2>/dev/null; then
   if [[ "$DO_MERGE" == true ]]; then
-    # Merge
     if gh pr merge "$PR_NUM" --squash --delete-branch 2>/dev/null; then
-      echo "CI:PASS:MERGED | PR #${PR_NUM} | $BRANCH | ${MINUTES}m${SECONDS_R}s"
+      echo "CI:PASS:MERGED | PR #${PR_NUM} | $BRANCH | $(elapsed_str)"
 
       # Cleanup worktree if specified
       if [[ -n "$WORKTREE_NAME" ]]; then
-        MAIN_REPO="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed 's|/\.git$||')"
-        cd "$MAIN_REPO" 2>/dev/null || cd "$REPO_ROOT"
-        "$REPO_ROOT/scripts/worktree.sh" remove "$WORKTREE_NAME" 2>/dev/null && \
+        cd "$MAIN_REPO" 2>/dev/null || true
+        "$MAIN_REPO/scripts/worktree.sh" remove "$WORKTREE_NAME" 2>/dev/null && \
           echo "CI:CLEANUP | worktree $WORKTREE_NAME removed" || \
           echo "CI:CLEANUP:WARN | worktree $WORKTREE_NAME removal failed"
-        git checkout main && git pull --quiet
+        git checkout main 2>/dev/null && git pull --quiet 2>/dev/null
       fi
     else
-      echo "CI:PASS:MERGE_FAILED | PR #${PR_NUM} | $BRANCH | ${MINUTES}m${SECONDS_R}s | merge blocked (protection rules?)"
+      echo "CI:PASS:MERGE_FAILED | PR #${PR_NUM} | $BRANCH | $(elapsed_str) | merge blocked"
       exit 1
     fi
   else
-    echo "CI:PASS | PR #${PR_NUM} | $BRANCH | ${MINUTES}m${SECONDS_R}s"
+    echo "CI:PASS | PR #${PR_NUM} | $BRANCH | $(elapsed_str)"
   fi
 else
-  ELAPSED=$(( $(date +%s) - START_TIME ))
-  MINUTES=$(( ELAPSED / 60 ))
-  SECONDS_R=$(( ELAPSED % 60 ))
-
-  # Collect failure details
-  FAILURES=$(gh pr checks "$PR_NUM" 2>/dev/null | grep -i "fail\|error" | head -5 | tr '\n' '; ' | sed 's/; $//')
-  echo "CI:FAIL | PR #${PR_NUM} | $BRANCH | ${MINUTES}m${SECONDS_R}s | $FAILURES"
+  FAILURES=$(gh pr checks "$PR_NUM" 2>/dev/null | grep -iE "fail|error" | head -5 | tr '\n' '; ' | sed 's/; $//')
+  echo "CI:FAIL | PR #${PR_NUM} | $BRANCH | $(elapsed_str) | $FAILURES"
   exit 1
 fi

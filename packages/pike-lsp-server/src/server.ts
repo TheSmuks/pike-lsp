@@ -81,10 +81,10 @@ function findAnalyzerPath(): string | undefined {
     let resolvedDirname: string;
 
     // Check if running in CJS mode (bundled with esbuild)
-    // @ts-ignore - __filename is not defined in strict ESM but exists in CJS
+    // __filename and __dirname are available in CJS but not in strict ESM
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (typeof __filename !== 'undefined') {
-        // @ts-ignore - __dirname is not defined in strict ESM but exists in CJS
-        resolvedDirname = path.dirname(__filename);
+        resolvedDirname = path.dirname(__filename as string);
     } else {
         // ESM mode
         const modulePath = fileURLToPath(import.meta.url);
@@ -276,7 +276,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 inlayHintProvider: true,
                 semanticTokensProvider: {
                     legend: { tokenTypes, tokenModifiers },
-                    full: true,
+                    full: { delta: true },
                 },
                 codeActionProvider: {
                     codeActionKinds: ['quickfix', 'source.organizeImports'],
@@ -286,6 +286,13 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                 documentLinkProvider: { resolveProvider: true },
                 codeLensProvider: { resolveProvider: true },
                 linkedEditingRangeProvider: true,
+                inlineValueProvider: true,
+                workspace: {
+                    workspaceFolders: {
+                        supported: true,
+                        changeNotifications: true,
+                    },
+                },
             },
         };
     } catch (err) {
@@ -417,6 +424,8 @@ features.registerAdvancedHandlers(connection, services, documents, globalSetting
 features.registerRoxenHandlers(connection, services, documents);
 // Phase 2: Register RXML feature handlers
 features.registerRXMLHandlers(connection, services, documents);
+// Issue #184: Register file watcher for incremental updates
+features.registerFileWatcher(connection, services, documents);
 
 // ============================================================================
 // Shutdown Handlers

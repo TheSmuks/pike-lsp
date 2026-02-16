@@ -92,6 +92,14 @@ export class WorkspaceIndex {
     // Enables fast prefix matching AND O(1) removal
     private symbolLookup = new Map<string, Map<string, SymbolEntry>>();
 
+    // PERF-XXX: Reverse index for O(1) URI removal
+    // URI -> Set of symbol names (lowercase) for that URI
+    private uriToSymbols = new Map<string, Set<string>>();
+
+    // PERF-XXX: Prefix index for O(1) prefix matching
+    // Maps each prefix (2+ chars) to set of symbol names that have that prefix
+    private prefixIndex = new Map<string, Set<string>>();
+
     // Pike bridge for parsing
     private bridge: PikeBridge | null = null;
 
@@ -243,6 +251,7 @@ export class WorkspaceIndex {
      * Search for symbols across the workspace
      * Returns symbols matching the query string (case-insensitive prefix match)
      * WS-012 through WS-017: Implements result ranking and sorting
+     * PERF-XXX: Uses prefix index for O(1) prefix lookups instead of O(n) scan
      */
     searchSymbols(query: string, limit: number = LSP.MAX_WORKSPACE_SYMBOLS): SymbolInformation[] {
         const results: SymbolInformation[] = [];
@@ -267,30 +276,62 @@ export class WorkspaceIndex {
         // Collect all matching results
         const matched: Array<{ result: SymbolInformation; score: number }> = [];
 
-        // Search by prefix in the lookup index
-        for (const [name, entriesByUri] of this.symbolLookup) {
-            if (name.startsWith(queryLower) || name.includes(queryLower)) {
-                for (const entry of entriesByUri.values()) {
-                    const result: SymbolInformation = {
-                        name: entry.name,
-                        kind: this.convertSymbolKind(entry.kind),
-                        location: {
-                            uri: entry.uri,
-                            range: {
-                                start: { line: Math.max(0, entry.line - 1), character: 0 },
-                                end: { line: Math.max(0, entry.line - 1), character: entry.name.length },
-                            },
-                        },
-                    };
-                    // WS-001: Add containerName if parent exists
-                    if (entry.parentName) {
-                        result.containerName = entry.parentName;
-                    }
+        // PERF-XXX: Use prefix index for O(1) lookup instead of O(n) scan
+        // Collect unique symbol names that match the query
+        const matchingNames = new Set<string>();
 
-                    // WS-012 through WS-017: Calculate relevance score
-                    const score = this.scoreResult(result, queryLower);
-                    matched.push({ result, score });
+        if (queryLower.length >= 2) {
+            // Use prefix index for prefix matching (O(1) lookup)
+            const prefixSet = this.prefixIndex.get(queryLower);
+            if (prefixSet) {
+                for (const name of prefixSet) {
+                    matchingNames.add(name);
                 }
+            }
+        }
+
+        // Also check for exact/substring matches in symbolLookup (for shorter queries)
+        // This handles the case where query is 1 character
+        if (queryLower.length < 2 || matchingNames.size === 0) {
+            // Fall back to scanning for short queries or when prefix index misses
+            for (const name of this.symbolLookup.keys()) {
+                if (name.startsWith(queryLower) || name.includes(queryLower)) {
+                    matchingNames.add(name);
+                }
+            }
+        }
+
+        // Now get entries for all matching names
+        for (const name of matchingNames) {
+            const entriesByUri = this.symbolLookup.get(name);
+            if (!entriesByUri) continue;
+
+            for (const entry of entriesByUri.values()) {
+                // Skip if this entry doesn't match (substring check)
+                if (!entry.name.toLowerCase().startsWith(queryLower) &&
+                    !entry.name.toLowerCase().includes(queryLower)) {
+                    continue;
+                }
+
+                const result: SymbolInformation = {
+                    name: entry.name,
+                    kind: this.convertSymbolKind(entry.kind),
+                    location: {
+                        uri: entry.uri,
+                        range: {
+                            start: { line: Math.max(0, entry.line - 1), character: 0 },
+                            end: { line: Math.max(0, entry.line - 1), character: entry.name.length },
+                        },
+                    },
+                };
+                // WS-001: Add containerName if parent exists
+                if (entry.parentName) {
+                    result.containerName = entry.parentName;
+                }
+
+                // WS-012 through WS-017: Calculate relevance score
+                const score = this.scoreResult(result, queryLower);
+                matched.push({ result, score });
             }
         }
 
@@ -613,6 +654,8 @@ export class WorkspaceIndex {
     clear(): void {
         this.documents.clear();
         this.symbolLookup.clear();
+        this.uriToSymbols.clear();
+        this.prefixIndex.clear();
     }
 
     /**
@@ -651,14 +694,40 @@ export class WorkspaceIndex {
     }
 
     private removeFromLookup(uri: string): void {
-        // O(1) removal using nested Map structure
-        for (const [name, entriesByUri] of this.symbolLookup) {
-            entriesByUri.delete(uri);
-            // Clean up empty name entries
-            if (entriesByUri.size === 0) {
-                this.symbolLookup.delete(name);
+        // PERF-XXX: O(1) removal using reverse index
+        const symbolNames = this.uriToSymbols.get(uri);
+        if (!symbolNames) {
+            return; // Nothing to remove
+        }
+
+        // Remove each symbol entry for this URI
+        for (const nameLower of symbolNames) {
+            const entriesByUri = this.symbolLookup.get(nameLower);
+            if (entriesByUri) {
+                entriesByUri.delete(uri);
+                // Clean up empty name entries
+                if (entriesByUri.size === 0) {
+                    this.symbolLookup.delete(nameLower);
+                }
+            }
+
+            // PERF-XXX: Remove from prefix index
+            if (nameLower.length >= 2) {
+                for (let i = 2; i <= nameLower.length; i++) {
+                    const prefix = nameLower.slice(0, i);
+                    const prefixSet = this.prefixIndex.get(prefix);
+                    if (prefixSet) {
+                        prefixSet.delete(nameLower);
+                        if (prefixSet.size === 0) {
+                            this.prefixIndex.delete(prefix);
+                        }
+                    }
+                }
             }
         }
+
+        // Clean up reverse index
+        this.uriToSymbols.delete(uri);
     }
 
     /**

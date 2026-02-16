@@ -98,3 +98,5 @@ t_v7.txt
 
 # Large binaries - install via package manager
 scripts/act
+.git/.worker-submit-marker
+.claude/.current_role

@@ -2,6 +2,8 @@
  * References and Implementation Handlers
  *
  * Provides find all references, implementation, and document highlight.
+ *
+ * Note: The class inheritance implementation handler is in implementation.ts
  */
 
 import {
@@ -27,8 +29,8 @@ export function registerReferencesHandlers(
     const log = new Logger('Navigation');
 
     /**
-     * Implementation handler - find where a symbol is used
-     * When on a definition, shows where it's used; otherwise behaves like references
+     * Implementation handler - find where a symbol is used (usages excluding definition)
+     * This is different from the class inheritance handler in implementation.ts
      */
     connection.onImplementation(async (params): Promise<Location[]> => {
         log.debug('Implementation request', { uri: params.textDocument.uri });

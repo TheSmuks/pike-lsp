@@ -939,7 +939,7 @@ describe('Document Symbol Provider', () => {
             // Find the RXML Template container
             const rxmlContainer = result!.find(s => s.name === 'RXML Template');
             expect(rxmlContainer).toBeDefined();
-            expect(rxmlContainer!.kind).toBe(16); // SymbolKind.Namespace
+            expect(rxmlContainer!.kind).toBe(SymbolKind.Namespace);
             expect(rxmlContainer!.detail).toContain('2 RXML markers');
         });
 

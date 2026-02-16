@@ -24,7 +24,7 @@
 ## Low (nice to have)
 - [x] **LSP Feature Coverage Audit** - COMPLETED (worker-3, 2026-02-14). All LSP 3.17 features implemented.
 - [ ] **Performance improvements**
-- [ ] **Pike Source E2E Testing** - Add tests against real stdlib modules (/usr/local/pike/8.0.1116/lib/modules/)
+- [x] **Pike Source E2E Testing** - COMPLETED (2026-02-16). Tests exist at packages/pike-lsp-server/src/tests/stdlib-e2e.test.ts and packages/vscode-pike/src/test/integration/stdlib-e2e.test.ts. 21 tests pass.
 
 ---
 

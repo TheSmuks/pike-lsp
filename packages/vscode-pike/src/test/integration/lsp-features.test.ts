@@ -2033,4 +2033,135 @@ suite('Waterfall Loading E2E Tests', () => {
         assert.ok(text.includes('test_waterfall_completion'), 'Should define "test_waterfall_completion"');
         assert.ok(text.includes('test_stdlib_import_waterfall'), 'Should define "test_stdlib_import_waterfall"');
     });
+
+    /**
+     * Roxen Module E2E Test - Document Symbols
+     *
+     * Tests that a Roxen module file can be analyzed by the LSP.
+     * Note: Full symbol extraction for Roxen patterns (defvar, simpletag_*)
+     * depends on Pike analyzer support - this test verifies the file is processed.
+     */
+    test('Roxen module: Document can be opened and analyzed without crash', async function() {
+        this.timeout(45000);
+
+        logServerOutput('Starting Roxen module test...');
+
+        // Open the Roxen test fixture
+        const roxenUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-roxen-module.pike');
+        const roxenDoc = await vscode.workspace.openTextDocument(roxenUri);
+        await vscode.window.showTextDocument(roxenDoc);
+
+        // Wait for LSP to analyze the Roxen file - give it more time
+        await new Promise(resolve => setTimeout(resolve, 15000));
+
+        // Check diagnostics - file should be parseable
+        const diagnostics = vscode.languages.getDiagnostics(roxenUri);
+        logServerOutput(`Roxen module diagnostics: ${diagnostics.length}`);
+
+        // Try to get document symbols - may be null but shouldn't crash
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            roxenUri
+        );
+
+        logServerOutput(`Roxen symbols result: ${symbols ? `${symbols.length} symbols` : 'null'}`);
+
+        // Clean up
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+        // File should open without causing LSP to crash
+        assertWithLogs(roxenDoc.languageId === 'pike', 'Roxen file should be recognized as Pike');
+    });
+
+    /**
+     * Roxen Module E2E Test - Diagnostics
+     *
+     * Tests that Roxen module diagnostics work - valid modules should have no errors.
+     */
+    test('Roxen module: Valid module has no diagnostic errors', async function() {
+        this.timeout(45000);
+
+        logServerOutput('Starting Roxen module diagnostics test...');
+
+        // Open a valid Roxen module
+        const roxenUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-roxen-module.pike');
+        const roxenDoc = await vscode.workspace.openTextDocument(roxenUri);
+        await vscode.window.showTextDocument(roxenDoc);
+
+        // Wait for LSP to analyze
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // Get diagnostics
+        const diagnostics = vscode.languages.getDiagnostics(roxenUri);
+
+        logServerOutput(`Roxen diagnostics: ${diagnostics.length} issues found`);
+
+        // Clean up
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+        // Valid Roxen module should have no critical errors
+        // (Some warnings may be acceptable)
+        const hasErrors = diagnostics.some(d => d.severity === vscode.DiagnosticSeverity.Error);
+        assert.ok(!hasErrors, 'Valid Roxen module should have no error-level diagnostics');
+    });
+
+    /**
+     * Roxen Location Module E2E Test
+     *
+     * Tests MODULE_LOCATION pattern - file can be opened and analyzed.
+     */
+    test('Roxen location module: File opens without crash', async function() {
+        this.timeout(45000);
+
+        logServerOutput('Starting Roxen location module test...');
+
+        // Open the Roxen location test fixture
+        const locationUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-roxen-location.pike');
+        const locationDoc = await vscode.workspace.openTextDocument(locationUri);
+        await vscode.window.showTextDocument(locationDoc);
+
+        // Wait for LSP to analyze
+        await new Promise(resolve => setTimeout(resolve, 15000));
+
+        // Check diagnostics
+        const diagnostics = vscode.languages.getDiagnostics(locationUri);
+        logServerOutput(`Location module diagnostics: ${diagnostics.length}`);
+
+        // Clean up
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+        // File should open without causing LSP to crash
+        assertWithLogs(locationDoc.languageId === 'pike', 'Location module should be recognized as Pike');
+    });
+
+    /**
+     * RXML Mixed Content E2E Test
+     *
+     * Tests that RXML tags inside Pike strings are handled.
+     */
+    test('RXML mixed content: File with RXML parses without errors', async function() {
+        this.timeout(45000);
+
+        logServerOutput('Starting RXML mixed content test...');
+
+        // Open the RXML test fixture
+        const rxmlUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-roxen-rxml.pike');
+        const rxmlDoc = await vscode.workspace.openTextDocument(rxmlUri);
+        await vscode.window.showTextDocument(rxmlDoc);
+
+        // Wait for LSP to analyze
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        // Get diagnostics - RXML in strings should not cause parsing errors
+        const diagnostics = vscode.languages.getDiagnostics(rxmlUri);
+
+        logServerOutput(`RXML diagnostics: ${diagnostics.length} issues found`);
+
+        // Clean up
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+        // RXML in strings should not cause critical errors
+        const hasErrors = diagnostics.some(d => d.severity === vscode.DiagnosticSeverity.Error);
+        assert.ok(!hasErrors, 'RXML mixed content should not cause parse errors');
+    });
 });
