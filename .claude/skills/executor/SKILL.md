@@ -11,7 +11,7 @@ You are an Executor (worker). Your job is to implement assigned issues using wor
 ## ⛔ HARD RULES
 
 1. **NEVER work from main** — Use worktrees. `cd` does NOT persist between tool calls.
-2. **ALWAYS use scripts** — Submit with `worker-submit.sh`, merge with `ci-wait.sh`.
+2. **ALWAYS use scripts** — Bootstrap with `worker-setup.sh`, submit with `worker-submit.sh`, merge with `ci-wait.sh`.
 3. **ALWAYS use templates** — Handoffs in `.omc/handoffs/<branch>.md`.
 4. **NEVER use regex to parse Pike code** — Use `Parser.Pike.split()`, `Parser.C.split()`.
 
@@ -19,57 +19,57 @@ You are an Executor (worker). Your job is to implement assigned issues using wor
 
 | Script | Purpose |
 |--------|---------|
-| `/worker-orient` | Start cycle: pull main, list issues, smoke test |
-| `scripts/worktree.sh create <branch>` | Create worktree |
+| `scripts/worker-setup.sh <issue_number>` | Bootstrap: issue → worktree (single call) |
+| `/worker-orient` | Orient: pull main, list issues, smoke test |
 | `scripts/worker-submit.sh --dir <path> <issue> "<msg>"` | Submit PR |
 | `scripts/ci-wait.sh --dir <path> --merge --worktree <name>` | Wait CI + merge |
 | `scripts/test-agent.sh --fast` | Smoke test |
 
 ## The Cycle (~5-7 tool calls)
 
-### 1. START + ORIENT
+### 1. CLAIM (OMC Team)
 ```
-/worker-orient
+TaskList → find task assigned to you (owner = your name)
+Parse issue number from subject (e.g. "Fix hover crash (#42)" → 42)
+TaskUpdate → set to in_progress
 ```
-- Pulls main
-- Lists open issues
-- Runs smoke test
-- Shows worktrees
 
-**Pick highest-priority unassigned issue.**
-
-### 2. WORKTREE (1 call)
+### 2. BOOTSTRAP (1 call)
 ```bash
-scripts/worktree.sh create feat/issue-description
+scripts/worker-setup.sh <issue_number>
 ```
-Output: `../pike-lsp-feat-issue-description` — **Remember this path!**
+Output: `SETUP:OK | WT:<abs_path> | BRANCH:<branch> | ISSUE:#<N>`
+
+**Store the WT path — use it for EVERYTHING.**
 
 ### 3. TDD (2-4 calls)
 
 Write failing test using ABSOLUTE path:
 ```
-Write to /path/to/pike-lsp-feat-issue-description/packages/.../test.test.ts
+Write to <WT>/packages/.../test.test.ts
 ```
 
 Run test from worktree:
 ```bash
-cd ../pike-lsp-feat-issue-description && bun test path/to/test.test.ts
+cd <WT> && bun test path/to/test.test.ts
 ```
 
 Implement fix, run test again:
 ```bash
-cd ../pike-lsp-feat-issue-description && bun test path/to/test.test.ts
+cd <WT> && bun test path/to/test.test.ts
 ```
 
 ### 4. SUBMIT (1 call)
 ```bash
-scripts/worker-submit.sh --dir ../pike-lsp-feat-issue-description <issue_number> "<commit message>"
+scripts/worker-submit.sh --dir <WT> <issue_number> "<commit message>"
+# If unexpected problems encountered, add --notes:
+scripts/worker-submit.sh --dir <WT> --notes "workaround for X" <issue_number> "<commit message>"
 ```
 Output: `SUBMIT:OK | PR #N | branch | fixes #N`
 
 ### 5. CI + MERGE + CLEANUP (1 call)
 ```bash
-scripts/ci-wait.sh --dir ../pike-lsp-feat-issue-description --merge --worktree feat/issue-description
+scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>
 ```
 - `CI:PASS:MERGED` → done
 - `CI:FAIL` → debug, fix, amend, push
@@ -91,7 +91,13 @@ Write to `.omc/handoffs/<branch>.md`:
 
 Message lead: `DONE: feat/description #N merged | tests: X pass`
 
-### 7. REPEAT — GO TO STEP 1
+### 7. NEXT TASK OR IDLE
+```
+TaskList → if tasks remain: GO TO STEP 1
+         → if none: send "IDLE: no tasks" and END RESPONSE
+```
+
+**DO NOT LOOP.** If no tasks, send one IDLE message and stop.
 
 ## CRITICAL: cd does NOT persist
 
@@ -114,15 +120,15 @@ gh run view <run_id> --log-failed | tail -80
 
 After fix:
 ```bash
-cd ../pike-lsp-feat-name && git add -A && git commit --amend --no-edit && git push --force-with-lease
-scripts/ci-wait.sh --dir ../pike-lsp-feat-name --merge --worktree feat/name
+cd <WT> && git add -A && git commit --amend --no-edit && git push --force-with-lease
+scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>
 ```
 
 ## Verification
 
 After EVERY write/edit, verify in worktree:
 ```bash
-grep -n "key_line" ../pike-lsp-feat-name/path/to/file | head -5
+grep -n "key_line" <WT>/path/to/file | head -5
 ```
 
 ## Messages to Lead
@@ -132,16 +138,17 @@ Single-line, grep-friendly:
 DONE: fix/hover-types #42 merged | 3 tests added | 0 regressions
 BLOCKED: fix/tokenizer #38 | bun install fails in worktree | need lead input
 IDLE: no tasks on the list
-STATUS: fix/hover-types | step 8/16 | tests passing | CI pending
-CLAIM: #55 hover-provider placeholder conversion
 ```
 
-## Idle Protocol
+## Idle Protocol (STRICT)
 
-1. Message lead ONCE: `DONE: <summary>` or `IDLE: no tasks`
-2. `/worker-orient` — check for unassigned issues
-3. If unassigned: claim and work
-4. If none: STOP. End response. Wait for message.
+1. Message lead ONCE: `IDLE: no tasks`
+2. **END RESPONSE IMMEDIATELY.** Do NOT:
+   - Call TaskList again
+   - Run sleep or any wait
+   - Run any loop
+   - Send multiple messages
+3. Wait for incoming message from lead.
 
 ## Test Conversion Priority
 

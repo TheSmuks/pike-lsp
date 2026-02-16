@@ -30,6 +30,8 @@ description: Orient at cycle start. Pulls main, shows issues, runs smoke test, s
 You are a worker starting a new cycle. From the data above:
 1. Note the MAIN_REPO and WORKTREES_AT paths — you need these for the entire cycle.
 2. Identify the highest-priority unassigned issue (no assignee, lowest P-number label).
-3. Claim it and create a worktree: `scripts/worktree.sh create feat/description`
-4. The worktree path will be at WORKTREES_AT/pike-lsp-feat-description — use this ABSOLUTE path for ALL subsequent file operations.
-5. Start the TDD cycle. Remember: `cd` does not persist. Every command needs `cd <worktree> &&` or `--dir <worktree>`.
+3. **Use `scripts/worker-setup.sh <issue_number>`** to bootstrap the worktree from the issue. This handles branch naming and worktree creation in a single call.
+4. The output gives you `SETUP:OK | WT:<abs_path> | BRANCH:<branch> | ISSUE:#<N>`. Use the WT path for ALL subsequent file operations.
+5. Start the TDD cycle. Remember: `cd` does not persist. Every command needs `cd <WT> &&` or `--dir <WT>`.
+
+**DO NOT LOOP.** If there are no unassigned issues, send `IDLE: no tasks` to the lead and END YOUR RESPONSE. Do not poll or sleep.

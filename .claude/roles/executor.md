@@ -4,7 +4,7 @@
 
 1. **ALWAYS use OMC Team workflow.** You are spawned by the lead via `/oh-my-claudecode:team`. Use `TaskList` to find your assigned tasks.
 2. **NEVER work from main.** `cd` does NOT persist between tool calls — every Bash call starts in the main repo. You MUST use `--dir` flags or `cd <worktree> && ...` prefixes on EVERY command. Use absolute paths for ALL file writes/edits (e.g. `/abs/path/to/pike-lsp-feat-name/src/file.ts`).
-3. **ALWAYS use the scripts.** Submit with `scripts/worker-submit.sh`. Merge with `scripts/ci-wait.sh`. Orient with `/worker-orient`. No manual git add/commit/push/pr-create sequences.
+3. **ALWAYS use the scripts.** Bootstrap with `scripts/worker-setup.sh <N>`. Submit with `scripts/worker-submit.sh`. Merge with `scripts/ci-wait.sh`. Orient with `/worker-orient`. No manual git add/commit/push/pr-create sequences.
 4. **ALWAYS close issues.** `scripts/worker-submit.sh` includes `fixes #N` in the PR body. If you create a PR manually, you MUST include `fixes #<issue_number>` in the body. No exceptions.
 5. **ALWAYS use templates.** Handoffs go in `.omc/handoffs/<branch>.md` using the format in `.claude/templates/handoff.md`. PRs follow `.claude/templates/pr.md`.
 6. **NEVER use regex to parse Pike code.** Use `Parser.Pike.split()`, `Parser.Pike.tokenize()`, `Parser.C.split()`, `master()->resolv()`. See the table in CLAUDE.md. If you're about to write a regex that matches Pike syntax: STOP. Check the stdlib first with `pike -e 'indices(Parser)'`.
@@ -13,12 +13,14 @@ If you catch yourself about to violate any of these: STOP. Re-read this section.
 
 **OMC TEAM PROTOCOL:**
 1. On start: Call `TaskList` to see your assigned tasks (owner = your name).
-2. Set task to `in_progress` via `TaskUpdate`.
-3. Work on the task using worktree paths.
-4. When done: mark task `completed`, then message lead via `SendMessage`.
-5. When idle: message lead "IDLE: no tasks" via `SendMessage`.
+2. Parse issue number from task subject (e.g. "Fix hover crash (#42)" → issue 42).
+3. Run `scripts/worker-setup.sh <issue_number>` → get worktree path.
+4. Set task to `in_progress` via `TaskUpdate`.
+5. Work on the task using worktree paths.
+6. When done: mark task `completed`, then message lead via `SendMessage`.
+7. Call `TaskList` for next task. If none: send "IDLE: no tasks" and END RESPONSE.
 
-**HOOK ENFORCED:** `worktree-guard.sh` blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. If you try to write a source file without using worktree absolute paths, the hook will reject it and tell you the correct path. Config/doc files (.md, .json, .yaml, .sh) in the main repo are allowed. `toolchain-guard.sh` blocks `gh pr create` without `fixes #N`.
+**HOOK ENFORCED:** `worktree-guard.sh` blocks ALL source file writes (.ts, .pike, .tsx, .js) in the main repo. If you try to write a source file without using worktree absolute paths, the hook will reject it and tell you the correct path. Config/doc files (.md, .json, .yaml, .sh) in the main repo are allowed. `toolchain-guard.sh` blocks `gh pr create` without `fixes #N`. `stall-guard.sh` blocks `sleep`, `watch`, and poll loops.
 
 ---
 
@@ -35,54 +37,67 @@ Each Bash call starts in the main repo. If you `cd` into a worktree, the next ca
 
 **START + CLAIM (OMC Team):**
 1. Call `TaskList` to see tasks assigned to you (owner = your name).
-2. Pick highest-priority pending task. Set to `in_progress` via `TaskUpdate`.
+2. Pick highest-priority pending task. Parse issue number from subject (e.g. "#42").
 
-**WORKTREE (1 call):**
-3. Create worktree. Note the path — you need it for EVERY subsequent step:
+**BOOTSTRAP (1 call):**
+3. Run worker-setup.sh to create worktree from the issue:
    ```bash
-   scripts/worktree.sh create feat/issue-description
+   scripts/worker-setup.sh <issue_number>
    ```
-   Output tells you the path, e.g. `../pike-lsp-feat-issue-description`. Remember this as your **WT** path.
+   Output: `SETUP:OK | WT:<abs_path> | BRANCH:<branch> | ISSUE:#<N>`
+   **Store the WT path — you need it for EVERY subsequent step.**
 
-4. **VERIFY** — confirm you're in the right worktree:
-   ```bash
-   cd ../pike-lsp-feat-issue-description && git branch --show-current
-   ```
-   Must output: `feat/issue-description`
+4. Set task to `in_progress` via `TaskUpdate`.
 
 **TDD (2-4 calls) — ALL file paths must be absolute worktree paths:**
-4. Write failing test. Use ABSOLUTE path:
+5. Write failing test. Use ABSOLUTE path:
    ```
    Write to /path/to/pike-lsp-feat-issue-description/packages/.../mytest.test.ts
    ```
    Then run test FROM the worktree:
    ```bash
-   cd ../pike-lsp-feat-issue-description && bun test path/to/mytest.test.ts
+   cd <WT> && bun test path/to/mytest.test.ts
    ```
-5. Implement fix using ABSOLUTE path. Run test again:
+6. Implement fix using ABSOLUTE path. Run test again:
    ```bash
-   cd ../pike-lsp-feat-issue-description && bun test path/to/mytest.test.ts
+   cd <WT> && bun test path/to/mytest.test.ts
    ```
 
 **SUBMIT (1 call) — uses --dir:**
-6. ```bash
-   scripts/worker-submit.sh --dir ../pike-lsp-feat-issue-description <issue_number> "<commit message>"
+7. ```bash
+   scripts/worker-submit.sh --dir <WT> <issue_number> "<commit message>"
+   # If you hit unexpected problems during implementation, add --notes:
+   scripts/worker-submit.sh --dir <WT> --notes "had to work around X because Y" <issue_number> "<commit message>"
    ```
    Outputs: `SUBMIT:OK | PR #N | branch | fixes #N`
 
 **CI + MERGE + CLEANUP (1 call) — uses --dir:**
-7. ```bash
-   scripts/ci-wait.sh --dir ../pike-lsp-feat-issue-description --merge --worktree feat/issue-description
+8. ```bash
+   scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>
    ```
    - `CI:PASS:MERGED` → mark task completed, message lead
    - `CI:FAIL` → follow CI-First Debugging below
 
 **HANDOFF + REPORT:**
-8. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`.
-9. Mark task completed via `TaskUpdate`.
-10. Message lead via `SendMessage`: `DONE: feat/description #N merged | tests: X pass`
+9. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`.
+10. Mark task completed via `TaskUpdate`.
+11. Message lead via `SendMessage`: `DONE: feat/description #N merged | tests: X pass`
 
-**11. GO TO STEP 1. DO NOT STOP.**
+**12. Call `TaskList`. If tasks remain: GO TO STEP 2. If none: IDLE protocol.**
+
+## Idle Protocol (STRICT — no exceptions)
+
+When no tasks remain after completing work:
+1. `SendMessage` to lead: `IDLE: no tasks`
+2. **END YOUR RESPONSE IMMEDIATELY.** Do NOT:
+   - Call `TaskList` again
+   - Run `sleep` or any wait command
+   - Run any loop
+   - Send multiple messages
+   - Call `/worker-orient`
+3. Wait for incoming message from lead (lead will assign a new task or send `shutdown_request`).
+
+When you receive a `shutdown_request`: respond with `shutdown_response(approve=true)`.
 
 ## CI-First Debugging
 
@@ -97,15 +112,15 @@ Read the output. Identify the ACTUAL failure. Only THEN fix the specific issue.
 
 After fixing (use absolute worktree paths for edits):
 ```bash
-cd ../pike-lsp-feat-name && git add -A && git commit --amend --no-edit && git push --force-with-lease
+cd <WT> && git add -A && git commit --amend --no-edit && git push --force-with-lease
 ```
-Then: `scripts/ci-wait.sh --dir ../pike-lsp-feat-name --merge --worktree feat/name`
+Then: `scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>`
 
 ## Edit Verification
 
 After EVERY write/edit, verify the change landed in the WORKTREE, not main:
 ```bash
-grep -n "key_line" ../pike-lsp-feat-name/path/to/file | head -5
+grep -n "key_line" <WT>/path/to/file | head -5
 ```
 - Hook rejection? Read the error, fix the code to satisfy it.
 - `--no-verify` ONLY for non-code files (STATUS.md, handoffs, configs).
@@ -115,13 +130,6 @@ grep -n "key_line" ../pike-lsp-feat-name/path/to/file | head -5
 - NEVER use sleep/watch/poll/loops. Message lead or teammates directly.
 - Only message on: DONE, BLOCKED, or IDLE. No progress updates mid-task.
 - After sending a message that doesn't need follow-up, END YOUR RESPONSE.
-
-## Idle Protocol
-
-1. Message lead ONCE: `DONE: <summary>` or `IDLE: no tasks`
-2. `/worker-orient` — check for unassigned issues.
-3. If unassigned issue: claim it, GO TO step 2 of the cycle.
-4. If no issues: STOP COMPLETELY. End your response. Wait for incoming message.
 
 ## Test Conversion Priority
 
