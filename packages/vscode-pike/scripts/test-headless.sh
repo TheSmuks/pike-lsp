@@ -16,6 +16,9 @@ is_ci() {
 # Build tests first
 bun run build:test
 
+# Build bundled server (required for LSP to work)
+bun run bundle-server
+
 # Check platform
 case "$(uname -s)" in
     Linux*)

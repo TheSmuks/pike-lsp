@@ -332,11 +332,14 @@ async function restartClient(showMessage: boolean): Promise<void> {
 
     // Determine the analyzer path relative to the server module
     // When bundled: server/server.js with pike-scripts in same directory
-    // When developing: dist/server.js with pike-scripts in monorepo root
+    // When developing: dist/server.js with pike-scripts in monorepo root (3 levels up)
     if (!serverModulePath) {
         throw new Error('Server module path not set');
     }
-    const analyzerPath = path.join(path.dirname(serverModulePath), 'pike-scripts', 'analyzer.pike');
+    // Go up 3 levels from dist/ to monorepo root, then find pike-scripts
+    const serverDir = path.dirname(serverModulePath);
+    const monorepoRoot = path.resolve(serverDir, '..', '..', '..');
+    const analyzerPath = path.join(monorepoRoot, 'pike-scripts', 'analyzer.pike');
 
     const clientOptions: LanguageClientOptions = {
         documentSelector: [
