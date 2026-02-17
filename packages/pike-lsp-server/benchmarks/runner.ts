@@ -64,14 +64,14 @@ async function runBenchmarks() {
     if (result?._perf?.pike_total_ms) {
       pikeMetrics[name].push(result._perf.pike_total_ms);
     } else if (Array.isArray(result)) {
-        // Handle batch results if needed, but here we usually have single objects
+      // Handle batch results if needed, but here we usually have single objects
     } else if (typeof result === 'object' && result !== null) {
-        // Check nested results (like in validation suite)
-        for (const key in result) {
-            if (result[key]?._perf?.pike_total_ms) {
-                pikeMetrics[name].push(result[key]._perf.pike_total_ms);
-            }
+      // Check nested results (like in validation suite)
+      for (const key in result) {
+        if (result[key]?._perf?.pike_total_ms) {
+          pikeMetrics[name].push(result[key]._perf.pike_total_ms);
         }
+      }
     }
   };
 
@@ -128,11 +128,7 @@ async function runBenchmarks() {
 
     // Consolidated: Single analyze() call with all include types
     bench('Validation Consolidated (1 call: analyze with all includes)', async () => {
-      const response = await bridge.analyze(
-        code,
-        ['parse', 'introspect', 'diagnostics'],
-        filename
-      );
+      const response = await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
       trackPikeTime('Validation Consolidated', response.result);
       return response;
     });
@@ -145,10 +141,7 @@ async function runBenchmarks() {
   // PERF-13-04: Compilation Cache benchmark group
   // Measures the speedup from caching compiled programs
   group('Compilation Cache (Warm)', async () => {
-    const cacheTestCode = fs.readFileSync(
-      path.join(__dirname, 'fixtures/cache-test.pike'),
-      'utf8'
-    );
+    const cacheTestCode = fs.readFileSync(path.join(__dirname, 'fixtures/cache-test.pike'), 'utf8');
     const cacheTestFilename = 'cache-test.pike';
 
     // Warm up: First request always compiles (cache miss)
@@ -160,7 +153,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        1  // Same version = cache hit
+        1 // Same version = cache hit
       );
       return response;
     });
@@ -171,7 +164,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        999  // Different version = cache miss
+        999 // Different version = cache miss
       );
       return response;
     });
@@ -182,7 +175,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        undefined  // No version = stat-based key
+        undefined // No version = stat-based key
       );
       return response;
     });
@@ -194,10 +187,7 @@ async function runBenchmarks() {
       path.join(__dirname, 'fixtures/cross-file/lib/utils.pike'),
       'utf8'
     );
-    const mainCode = fs.readFileSync(
-      path.join(__dirname, 'fixtures/cross-file/main.pike'),
-      'utf8'
-    );
+    const mainCode = fs.readFileSync(path.join(__dirname, 'fixtures/cross-file/main.pike'), 'utf8');
 
     // First compile utils.pike directly to establish baseline
     await bridge.analyze(utilsCode, ['introspect'], 'lib/utils.pike', 1);
@@ -366,9 +356,10 @@ async function runBenchmarks() {
         console.log(`Misses:      ${cacheStats.misses || 0}`);
         console.log(`Evictions:   ${cacheStats.evictions || 0}`);
         console.log(`Size:        ${cacheStats.size || 0} / ${cacheStats.max_files || 0} files`);
-        const hitRate = cacheStats.hits > 0
-          ? (cacheStats.hits / (cacheStats.hits + cacheStats.misses) * 100).toFixed(1)
-          : '0.0';
+        const hitRate =
+          cacheStats.hits > 0
+            ? ((cacheStats.hits / (cacheStats.hits + cacheStats.misses)) * 100).toFixed(1)
+            : '0.0';
         console.log(`Hit Rate:    ${hitRate}%`);
       }
     } catch (e) {

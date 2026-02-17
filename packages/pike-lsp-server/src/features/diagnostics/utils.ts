@@ -5,10 +5,7 @@
  * Extracted from diagnostics.ts for maintainability (Issue #136).
  */
 
-import type {
-    Diagnostic,
-    DiagnosticSeverity,
-} from 'vscode-languageserver/node.js';
+import type { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import { DiagnosticTag } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
@@ -23,40 +20,40 @@ import { PatternHelpers } from '../../utils/regex-patterns.js';
  * @returns Symbols with deprecated field set where applicable
  */
 export function extractDeprecatedFromSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
-    function processSymbol(sym: PikeSymbol): PikeSymbol {
-        let result = sym;
+  function processSymbol(sym: PikeSymbol): PikeSymbol {
+    let result = sym;
 
-        // Check if Pike parser already extracted @deprecated into documentation
-        if (sym.documentation?.deprecated) {
-            result = { ...sym, deprecated: true };
-        }
-
-        // Recursively process children (for class members)
-        if (sym.children && sym.children.length > 0) {
-            const processedChildren = sym.children.map(child => processSymbol(child));
-            result = { ...result, children: processedChildren };
-        }
-
-        return result;
+    // Check if Pike parser already extracted @deprecated into documentation
+    if (sym.documentation?.deprecated) {
+      result = { ...sym, deprecated: true };
     }
 
-    return symbols.map(processSymbol);
+    // Recursively process children (for class members)
+    if (sym.children && sym.children.length > 0) {
+      const processedChildren = sym.children.map(child => processSymbol(child));
+      result = { ...result, children: processedChildren };
+    }
+
+    return result;
+  }
+
+  return symbols.map(processSymbol);
 }
 
 /**
  * Convert Pike severity to LSP severity
  */
 export function convertSeverity(severity: string): DiagnosticSeverity {
-    switch (severity) {
-        case 'error':
-            return 1; // DiagnosticSeverity.Error
-        case 'warning':
-            return 2; // DiagnosticSeverity.Warning
-        case 'info':
-            return 3; // DiagnosticSeverity.Information
-        default:
-            return 1; // DiagnosticSeverity.Error
-    }
+  switch (severity) {
+    case 'error':
+      return 1; // DiagnosticSeverity.Error
+    case 'warning':
+      return 2; // DiagnosticSeverity.Warning
+    case 'info':
+      return 3; // DiagnosticSeverity.Information
+    default:
+      return 1; // DiagnosticSeverity.Error
+  }
 }
 
 /**
@@ -67,81 +64,81 @@ export function convertSeverity(severity: string): DiagnosticSeverity {
  * - tags: DiagnosticTag.Deprecated for deprecated symbol usage
  */
 export function convertDiagnostic(
-    pikeDiag: PikeDiagnostic,
-    document: TextDocument,
-    options?: { deprecated?: boolean; code?: string }
+  pikeDiag: PikeDiagnostic,
+  document: TextDocument,
+  options?: { deprecated?: boolean; code?: string }
 ): Diagnostic {
-    const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
+  const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
 
-    // Get the line text to determine range
-    const text = document.getText();
-    const lines = text.split('\n');
-    const lineText = lines[line] ?? '';
+  // Get the line text to determine range
+  const text = document.getText();
+  const lines = text.split('\n');
+  const lineText = lines[line] ?? '';
 
-    // Find meaningful range within the line (skip whitespace and comments)
-    let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
-    let endChar = lineText.length;
+  // Find meaningful range within the line (skip whitespace and comments)
+  let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
+  let endChar = lineText.length;
 
-    // If no specific column, find the first non-whitespace character
-    if (!pikeDiag.position.column) {
-        const trimmedStart = lineText.search(/\S/);
-        if (trimmedStart >= 0) {
-            startChar = trimmedStart;
-        }
+  // If no specific column, find the first non-whitespace character
+  if (!pikeDiag.position.column) {
+    const trimmedStart = lineText.search(/\S/);
+    if (trimmedStart >= 0) {
+      startChar = trimmedStart;
     }
+  }
 
-    // Check if the line is a comment - if so, try to find the actual error line
-    const trimmedLine = lineText.trim();
-    if (PatternHelpers.isCommentLine(trimmedLine)) {
-        // This line is a comment, look for the next non-comment line for highlighting
-        // Or just use a minimal range to avoid confusing the user
-        for (let i = line + 1; i < lines.length && i < line + 5; i++) {
-            const nextLine = lines[i]?.trim() ?? '';
-            if (nextLine && PatternHelpers.isNotCommentLine(nextLine)) {
-                // Found a code line, but don't change the position - just use minimal highlight
-                break;
-            }
-        }
-        // For comment lines, only highlight a small portion (first 10 chars after whitespace)
-        endChar = Math.min(startChar + 10, lineText.length);
+  // Check if the line is a comment - if so, try to find the actual error line
+  const trimmedLine = lineText.trim();
+  if (PatternHelpers.isCommentLine(trimmedLine)) {
+    // This line is a comment, look for the next non-comment line for highlighting
+    // Or just use a minimal range to avoid confusing the user
+    for (let i = line + 1; i < lines.length && i < line + 5; i++) {
+      const nextLine = lines[i]?.trim() ?? '';
+      if (nextLine && PatternHelpers.isNotCommentLine(nextLine)) {
+        // Found a code line, but don't change the position - just use minimal highlight
+        break;
+      }
     }
+    // For comment lines, only highlight a small portion (first 10 chars after whitespace)
+    endChar = Math.min(startChar + 10, lineText.length);
+  }
 
-    // Ensure endChar is reasonable (highlight at least 1 char, at most the line length)
-    if (endChar <= startChar) {
-        endChar = Math.min(startChar + Math.max(1, lineText.trim().length), lineText.length);
+  // Ensure endChar is reasonable (highlight at least 1 char, at most the line length)
+  if (endChar <= startChar) {
+    endChar = Math.min(startChar + Math.max(1, lineText.trim().length), lineText.length);
+  }
+
+  // Build diagnostic
+  const diagnostic: Diagnostic = {
+    severity: convertSeverity(pikeDiag.severity),
+    range: {
+      start: { line, character: startChar },
+      end: { line, character: endChar },
+    },
+    message: pikeDiag.message,
+    source: 'pike',
+  };
+
+  // Add diagnostic code if provided
+  if (options?.code) {
+    diagnostic.code = options.code;
+  } else {
+    // Infer code from message
+    if (pikeDiag.message.includes('uninitialized') || pikeDiag.message.includes('used before')) {
+      diagnostic.code = 'uninitialized-var';
+    } else if (pikeDiag.message.includes('syntax') || pikeDiag.message.includes('parse')) {
+      diagnostic.code = 'syntax-error';
+    } else if (pikeDiag.message.includes('type') || pikeDiag.message.includes('mismatch')) {
+      diagnostic.code = 'type-mismatch';
     }
+  }
 
-    // Build diagnostic
-    const diagnostic: Diagnostic = {
-        severity: convertSeverity(pikeDiag.severity),
-        range: {
-            start: { line, character: startChar },
-            end: { line, character: endChar },
-        },
-        message: pikeDiag.message,
-        source: 'pike',
-    };
+  // Add tags for deprecated symbols
+  if (options?.deprecated) {
+    diagnostic.tags = [DiagnosticTag.Deprecated];
+  }
 
-    // Add diagnostic code if provided
-    if (options?.code) {
-        diagnostic.code = options.code;
-    } else {
-        // Infer code from message
-        if (pikeDiag.message.includes('uninitialized') || pikeDiag.message.includes('used before')) {
-            diagnostic.code = 'uninitialized-var';
-        } else if (pikeDiag.message.includes('syntax') || pikeDiag.message.includes('parse')) {
-            diagnostic.code = 'syntax-error';
-        } else if (pikeDiag.message.includes('type') || pikeDiag.message.includes('mismatch')) {
-            diagnostic.code = 'type-mismatch';
-        }
-    }
-
-    // Add tags for deprecated symbols
-    if (options?.deprecated) {
-        diagnostic.tags = [DiagnosticTag.Deprecated];
-    }
-
-    return diagnostic;
+  return diagnostic;
 }
 
 /**
@@ -152,21 +149,21 @@ export function convertDiagnostic(
  * @returns true if the message mentions a deprecated symbol
  */
 export function isDeprecatedSymbolDiagnostic(
-    message: string,
-    introspectSymbols: readonly { name: string; deprecated?: boolean | number }[]
+  message: string,
+  introspectSymbols: readonly { name: string; deprecated?: boolean | number }[]
 ): boolean {
-    const deprecatedNames = new Set<string>();
-    for (const sym of introspectSymbols) {
-        if (sym.deprecated === true || sym.deprecated === 1) {
-            deprecatedNames.add(sym.name);
-        }
+  const deprecatedNames = new Set<string>();
+  for (const sym of introspectSymbols) {
+    if (sym.deprecated === true || sym.deprecated === 1) {
+      deprecatedNames.add(sym.name);
     }
+  }
 
-    for (const name of deprecatedNames) {
-        if (message.includes(name)) {
-            return true;
-        }
+  for (const name of deprecatedNames) {
+    if (message.includes(name)) {
+      return true;
     }
+  }
 
-    return false;
+  return false;
 }

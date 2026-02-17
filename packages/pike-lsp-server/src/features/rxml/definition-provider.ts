@@ -97,9 +97,9 @@ export async function findTagDefinition(
           functionName: `simpletag_${tagName}`,
           location: Location.create(fileToUri(file), {
             start: position,
-            end: { line: position.line, character: position.character + 10 }
+            end: { line: position.line, character: position.character + 10 },
           }),
-          tagType: 'simple'
+          tagType: 'simple',
         };
       }
     }
@@ -113,7 +113,7 @@ export async function findTagDefinition(
       tagName,
       functionName: `builtin:${tagName}`,
       location: Location.create('builtin:tag-catalog', Range.create(0, 0, 0, 0)),
-      tagType: tagInfo.type
+      tagType: tagInfo.type,
     };
   }
 
@@ -141,7 +141,10 @@ export async function findDefvarDefinition(
     const content = await readFile(file, 'utf-8');
 
     // Look for defvar statements
-    const pattern = new RegExp(`defvar\\s+("${escapeRegExp(defvarName)}"\\s*;|'${escapeRegExp(defvarName)}'\\s*;|\\w+\\s*=)`, 'm');
+    const pattern = new RegExp(
+      `defvar\\s+("${escapeRegExp(defvarName)}"\\s*;|'${escapeRegExp(defvarName)}'\\s*;|\\w+\\s*=)`,
+      'm'
+    );
     const match = pattern.exec(content);
 
     if (match) {
@@ -152,8 +155,8 @@ export async function findDefvarDefinition(
         documentation: `Defvar: ${defvarName}`,
         location: Location.create(fileToUri(file), {
           start: position,
-          end: { line: position.line, character: position.character + defvarName.length }
-        })
+          end: { line: position.line, character: position.character + defvarName.length },
+        }),
       };
     }
   }
@@ -198,7 +201,10 @@ export async function provideRXMLDefinition(
 /**
  * Find tag at given offset
  */
-function findTagAtPosition(content: string, offset: number): { tagName: string; range: Range } | null {
+function findTagAtPosition(
+  content: string,
+  offset: number
+): { tagName: string; range: Range } | null {
   // Find the tag we're in
   const before = content.substring(Math.max(0, offset - 100), offset);
 
@@ -214,7 +220,10 @@ function findTagAtPosition(content: string, offset: number): { tagName: string; 
 /**
  * Find attribute at given offset
  */
-function findAttributeAtPosition(content: string, offset: number): { attrName: string; tagName: string } | null {
+function findAttributeAtPosition(
+  content: string,
+  offset: number
+): { attrName: string; tagName: string } | null {
   // Simple implementation - could be enhanced
   const before = content.substring(Math.max(0, offset - 200), offset);
   const attrMatch = before.match(/(\w+)\s*=\s*["']?[^"']*$/);
@@ -246,7 +255,7 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -285,6 +294,6 @@ function findPositionForMatch(content: string, match: RegExpExecArray): Position
 
   return {
     line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length
+    character: (lines[lines.length - 1] || '').length,
   };
 }

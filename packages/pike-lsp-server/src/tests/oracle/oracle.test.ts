@@ -180,8 +180,8 @@ class Bar {
     assert.ok(
       parseSymbols.length <= introspectSymbols.length,
       `Parser found ${parseSymbols.length} symbols, introspect found ${introspectSymbols.length}. ` +
-      `Parser should not hallucinate symbols. Parse: [${parseSymbols.join(', ')}], ` +
-      `Introspect: [${introspectSymbols.join(', ')}]`
+        `Parser should not hallucinate symbols. Parse: [${parseSymbols.join(', ')}], ` +
+        `Introspect: [${introspectSymbols.join(', ')}]`
     );
 
     // Every parser symbol should exist in introspect (no hallucinations)
@@ -189,7 +189,7 @@ class Bar {
       assert.ok(
         introspectSymbols.includes(symbol),
         `Parser found '${symbol}' but introspect did not. This is a hallucination. ` +
-        `Introspect symbols: [${introspectSymbols.join(', ')}]`
+          `Introspect symbols: [${introspectSymbols.join(', ')}]`
       );
     }
   });

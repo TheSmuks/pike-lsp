@@ -29,6 +29,24 @@ if [[ "$STATE" == "CLOSED" ]]; then
   exit 1
 fi
 
+# Step 1.5: Verify issue wasn't already solved by merged PR
+EXISTING_PR=$(gh pr list --state merged --search "fixes #${ISSUE_NUM}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+if [[ -n "$EXISTING_PR" ]]; then
+  echo "SETUP:FAIL | Issue #${ISSUE_NUM} already solved by PR #${EXISTING_PR}" >&2
+  exit 1
+fi
+
+# Step 1.6: Check for existing worktree with this issue
+for wt in $(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep "^worktree " | sed 's/^worktree //'); do
+  if [[ -f "$wt/.omc/current-issue" ]]; then
+    WT_ISSUE=$(head -1 "$wt/.omc/current-issue" 2>/dev/null || echo "")
+    if [[ "$WT_ISSUE" == "$ISSUE_NUM" ]]; then
+      echo "SETUP:FAIL | Issue #${ISSUE_NUM} already being worked on in: $wt" >&2
+      exit 1
+    fi
+  fi
+done
+
 TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
 
 # Step 2: Derive branch name from issue title

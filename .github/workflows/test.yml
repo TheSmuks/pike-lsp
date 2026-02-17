@@ -21,6 +21,32 @@ on:
       - '.omc/**'
       - 'docusaurus.config.ts'
       - 'sidebars.ts'
+  workflow_dispatch:
+    inputs:
+      force_full_ci:
+        description: 'Force full CI including all tests'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_tests:
+        description: 'Skip test and pike-test jobs'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_e2e:
+        description: 'Skip E2E tests'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 concurrency:
   group: test-${{ github.ref }}
@@ -29,10 +55,15 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.force_full_ci == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.skip_tests != 'true')
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [20.x, 22.x]
 
     steps:
       - name: Checkout code
@@ -46,18 +77,26 @@ jobs:
       - name: Cache bun dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.bun/install/cache
+          path: |
+            ~/.bun/install/cache
+            node_modules
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Install Pike
         run: |
           sudo apt-get update
           sudo apt-get install -y pike8.0
+
+      - name: Cache Pike
+        uses: actions/cache@v4
+        with:
+          path: /usr/bin/pike*
+          key: pike-${{ runner.os }}-8.0
 
       - name: Verify Pike installation
         run: |
@@ -81,6 +120,11 @@ jobs:
 
   pike-test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.force_full_ci == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.skip_tests != 'true')
 
     strategy:
       matrix:
@@ -162,6 +206,7 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     needs: [test, pike-test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
@@ -207,7 +252,12 @@ jobs:
 
   vscode-e2e:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     needs: [test, pike-test]
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.force_full_ci == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.skip_e2e != 'true')
 
     steps:
       - name: Checkout code

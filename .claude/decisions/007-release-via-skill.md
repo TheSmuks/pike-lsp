@@ -28,5 +28,6 @@ A PreToolUse hook blocks all direct `git push` to main and `git tag` creation. T
 ## Challenge Conditions
 
 Revisit if:
+
 - The release skill becomes a bottleneck for rapid iteration
 - CI validation becomes robust enough to catch all issues post-push

@@ -139,8 +139,7 @@ function detectCompletionContext(content: string, offset: number): CompletionCon
 export function getTagCompletions(prefix: string): CompletionItem[] {
   const lowerPrefix = prefix.toLowerCase();
 
-  return RXML_TAG_CATALOG
-    .filter(tag => tag.name.toLowerCase().startsWith(lowerPrefix))
+  return RXML_TAG_CATALOG.filter(tag => tag.name.toLowerCase().startsWith(lowerPrefix))
     .map(tag => ({
       label: tag.name,
       kind: CompletionItemKind.Function,
@@ -218,14 +217,12 @@ export function getAttributeValueCompletions(
   // For 'variable' attribute, suggest scope variables
   if (attrName === 'variable' || attrName === 'from') {
     const lowerPrefix = prefix.toLowerCase();
-    return SCOPE_VARIABLES
-      .filter(v => v.toLowerCase().startsWith(lowerPrefix))
-      .map(variable => ({
-        label: variable,
-        kind: CompletionItemKind.Variable,
-        detail: 'Scope variable',
-        insertText: variable,
-      }));
+    return SCOPE_VARIABLES.filter(v => v.toLowerCase().startsWith(lowerPrefix)).map(variable => ({
+      label: variable,
+      kind: CompletionItemKind.Variable,
+      detail: 'Scope variable',
+      insertText: variable,
+    }));
   }
 
   // For boolean type, suggest true/false

@@ -12,6 +12,7 @@
 If you catch yourself about to violate any of these: STOP. Re-read this section.
 
 **OMC TEAM PROTOCOL:**
+
 1. On start: Call `TaskList` to see your assigned tasks (owner = your name).
 2. Parse issue number from task subject (e.g. "Fix hover crash (#42)" → issue 42).
 3. Run `scripts/worker-setup.sh <issue_number>` → get worktree path.
@@ -27,6 +28,7 @@ If you catch yourself about to violate any of these: STOP. Re-read this section.
 ## ⚠️ CRITICAL: `cd` does NOT persist between tool calls
 
 Each Bash call starts in the main repo. If you `cd` into a worktree, the next call is back in main. You MUST either:
+
 - Use `--dir <path>` flags on scripts
 - Prefix commands with `cd <worktree_path> && ...`
 - Use absolute paths for all file edits
@@ -36,58 +38,64 @@ Each Bash call starts in the main repo. If you `cd` into a worktree, the next ca
 ## The OMC Team Cycle (target: ~5-7 tool calls per full cycle)
 
 **START + CLAIM (OMC Team):**
+
 1. Call `TaskList` to see tasks assigned to you (owner = your name).
 2. Pick highest-priority pending task. Parse issue number from subject (e.g. "#42").
 
-**BOOTSTRAP (1 call):**
-3. Run worker-setup.sh to create worktree from the issue:
-   ```bash
-   scripts/worker-setup.sh <issue_number>
-   ```
-   Output: `SETUP:OK | WT:<abs_path> | BRANCH:<branch> | ISSUE:#<N>`
-   **Store the WT path — you need it for EVERY subsequent step.**
+**BOOTSTRAP (1 call):** 3. Run worker-setup.sh to create worktree from the issue:
+
+```bash
+scripts/worker-setup.sh <issue_number>
+```
+
+Output: `SETUP:OK | WT:<abs_path> | BRANCH:<branch> | ISSUE:#<N>`
+**Store the WT path — you need it for EVERY subsequent step.**
 
 4. Set task to `in_progress` via `TaskUpdate`.
 
-**TDD (2-4 calls) — ALL file paths must be absolute worktree paths:**
-5. Write failing test. Use ABSOLUTE path:
-   ```
-   Write to /path/to/pike-lsp-feat-issue-description/packages/.../mytest.test.ts
-   ```
-   Then run test FROM the worktree:
-   ```bash
-   cd <WT> && bun test path/to/mytest.test.ts
-   ```
+**TDD (2-4 calls) — ALL file paths must be absolute worktree paths:** 5. Write failing test. Use ABSOLUTE path:
+
+```
+Write to /path/to/pike-lsp-feat-issue-description/packages/.../mytest.test.ts
+```
+
+Then run test FROM the worktree:
+
+```bash
+cd <WT> && bun test path/to/mytest.test.ts
+```
+
 6. Implement fix using ABSOLUTE path. Run test again:
    ```bash
    cd <WT> && bun test path/to/mytest.test.ts
    ```
 
-**SUBMIT (1 call) — uses --dir:**
-7. ```bash
-   scripts/worker-submit.sh --dir <WT> <issue_number> "<commit message>"
-   # If you hit unexpected problems during implementation, add --notes:
-   scripts/worker-submit.sh --dir <WT> --notes "had to work around X because Y" <issue_number> "<commit message>"
-   ```
-   Outputs: `SUBMIT:OK | PR #N | branch | fixes #N`
+**SUBMIT (1 call) — uses --dir:** 7. ```bash
+scripts/worker-submit.sh --dir <WT> <issue_number> "<commit message>"
+
+# If you hit unexpected problems during implementation, add --notes:
+
+scripts/worker-submit.sh --dir <WT> --notes "had to work around X because Y" <issue_number> "<commit message>"
+
+````
+Outputs: `SUBMIT:OK | PR #N | branch | fixes #N`
 
 **CI + MERGE + CLEANUP (1 call) — uses --dir:**
 8. ```bash
-   scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>
-   ```
-   - `CI:PASS:MERGED` → mark task completed, message lead
-   - `CI:FAIL` → follow CI-First Debugging below
+scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>
+````
 
-**HANDOFF + REPORT:**
-9. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`.
-10. Mark task completed via `TaskUpdate`.
-11. Message lead via `SendMessage`: `DONE: feat/description #N merged | tests: X pass`
+- `CI:PASS:MERGED` → mark task completed, message lead
+- `CI:FAIL` → follow CI-First Debugging below
+
+**HANDOFF + REPORT:** 9. Write to `.omc/handoffs/<branch>.md` following `.claude/templates/handoff.md`. 10. Mark task completed via `TaskUpdate`. 11. Message lead via `SendMessage`: `DONE: feat/description #N merged | tests: X pass`
 
 **12. Call `TaskList`. If tasks remain: GO TO STEP 2. If none: IDLE protocol.**
 
 ## Idle Protocol (STRICT — no exceptions)
 
 When no tasks remain after completing work:
+
 1. `SendMessage` to lead: `IDLE: no tasks`
 2. **END YOUR RESPONSE IMMEDIATELY.** Do NOT:
    - Call `TaskList` again
@@ -102,26 +110,33 @@ When you receive a `shutdown_request`: respond with `shutdown_response(approve=t
 ## CI-First Debugging
 
 When `ci-wait.sh` outputs `CI:FAIL`, diagnose BEFORE touching code:
+
 ```bash
 gh run view <run_id> --log-failed | tail -80
 ```
+
 Read the output. Identify the ACTUAL failure. Only THEN fix the specific issue.
+
 - Do NOT guess and randomly edit files.
 - Do NOT rewrite the test — fix the implementation.
 - Do NOT re-run CI hoping it passes.
 
 After fixing (use absolute worktree paths for edits):
+
 ```bash
 cd <WT> && git add -A && git commit --amend --no-edit && git push --force-with-lease
 ```
+
 Then: `scripts/ci-wait.sh --dir <WT> --merge --worktree <branch_name>`
 
 ## Edit Verification
 
 After EVERY write/edit, verify the change landed in the WORKTREE, not main:
+
 ```bash
 grep -n "key_line" <WT>/path/to/file | head -5
 ```
+
 - Hook rejection? Read the error, fix the code to satisfy it.
 - `--no-verify` ONLY for non-code files (STATUS.md, handoffs, configs).
 

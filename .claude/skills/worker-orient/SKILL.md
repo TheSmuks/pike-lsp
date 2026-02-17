@@ -8,26 +8,33 @@ description: Orient at cycle start. Pulls main, shows issues, runs smoke test, s
 ## Current State (live)
 
 ### Main branch
+
 !`git checkout main && git pull --quiet 2>&1 && echo "PULL:OK" || echo "PULL:FAIL"`
 
 ### Repo Path (use this to build worktree paths)
+
 !`echo "MAIN_REPO: $(pwd)" && echo "WORKTREES_AT: $(dirname $(pwd))"`
 
 ### Open Issues
+
 !`gh issue list --state open --json number,title,assignees,labels --limit 20 2>/dev/null || echo "ISSUES:ERROR"`
 
 ### Smoke Test
+
 !`scripts/test-agent.sh --fast 2>&1 | tail -5`
 
 ### Status
+
 !`head -30 STATUS.md 2>/dev/null || echo "(no STATUS.md)"`
 
 ### Active Worktrees
+
 !`git worktree list 2>/dev/null`
 
 ## Instructions
 
 You are a worker starting a new cycle. From the data above:
+
 1. Note the MAIN_REPO and WORKTREES_AT paths — you need these for the entire cycle.
 2. Identify the highest-priority unassigned issue (no assignee, lowest P-number label).
 3. **Use `scripts/worker-setup.sh <issue_number>`** to bootstrap the worktree from the issue. This handles branch naming and worktree creation in a single call.

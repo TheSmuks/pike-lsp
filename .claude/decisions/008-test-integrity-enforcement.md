@@ -13,12 +13,14 @@ Agents cheat on tests in predictable ways: adding `.skip`, weakening assertions 
 A PreToolUse hook (`test-integrity-gate.sh`) guards all Edit and Write operations on test files. It blocks hard cheats and warns on soft cheats.
 
 **Hard blocks (exit 2):**
+
 - Adding `.skip` or `.only` to tests
 - Adding `xit`, `xdescribe`, `xtest`
 - Adding `@ts-ignore` or `@ts-expect-error` in test files
 - Writing test files with zero `expect()` assertions
 
 **Soft warnings (exit 0 with message):**
+
 - Weakening assertions (strong -> weak matchers)
 - Reducing assertion count in existing tests
 - Commenting out test code
@@ -40,6 +42,7 @@ A PreToolUse hook (`test-integrity-gate.sh`) guards all Edit and Write operation
 ## Challenge Conditions
 
 Revisit if:
+
 - False positive rate exceeds 20% of test edits
 - Hook becomes a bottleneck for legitimate test refactoring
 - A better approach (e.g., assertion coverage tracking) becomes feasible

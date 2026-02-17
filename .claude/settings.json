@@ -11,6 +11,18 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre-tool-use-safe-label.sh",
+            "statusMessage": "Checking for safe label on gh issue commands",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

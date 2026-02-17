@@ -7,5 +7,5 @@ export type {
   LifecycleInfo,
   RoxenDiagnostic,
   RoxenValidationResult,
-  RoxenModuleInfo
+  RoxenModuleInfo,
 } from '@pike-lsp/pike-bridge';

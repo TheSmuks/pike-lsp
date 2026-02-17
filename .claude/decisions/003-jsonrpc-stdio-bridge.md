@@ -29,6 +29,7 @@ Use JSON-RPC 2.0 protocol over stdin/stdout pipes. The Pike subprocess (`analyze
 ## Challenge Conditions
 
 Revisit if:
+
 - Round-trip latency exceeds 50ms for common operations
 - Need bidirectional streaming (Pike pushing events to TS)
 - Pike FFI for Node.js becomes stable

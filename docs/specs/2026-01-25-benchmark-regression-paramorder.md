@@ -8,10 +8,10 @@
 
 CI benchmarks report a regression on two stdlib resolution operations:
 
-| Benchmark | Current | Previous | Regression |
-|-----------|---------|----------|------------|
+| Benchmark                                        | Current   | Previous  | Regression       |
+| ------------------------------------------------ | --------- | --------- | ---------------- |
 | `resolveStdlib("String.SplitIterator") - nested` | 0.0857 ms | 0.0553 ms | **1.55x slower** |
-| `Hover: resolveModule("Stdio.File")` | 0.0915 ms | 0.0537 ms | **1.70x slower** |
+| `Hover: resolveModule("Stdio.File")`             | 0.0915 ms | 0.0537 ms | **1.70x slower** |
 
 ## Root Cause Analysis
 
@@ -20,6 +20,7 @@ CI benchmarks report a regression on two stdlib resolution operations:
 **Commit**: `702ea1a fix(hover): preserve parameter order in documentation`
 
 **Files Changed**:
+
 - `pike-scripts/LSP.pmod/Parser.pike` (+2 lines)
 - `packages/pike-lsp-server/src/features/utils/hover-builder.ts` (+7 lines)
 
@@ -147,6 +148,7 @@ const paramOrder = extractParamOrder(rawDocString);
 **Implement Option A**: Build the array once at the end.
 
 This is the simplest fix with minimal code change. The local array is still appended to O(n) times, but:
+
 1. The result mapping is only modified once (not n times)
 2. Pike's optimizer may handle local array growth more efficiently
 3. The pattern is clearer and easier to maintain
@@ -163,6 +165,7 @@ If Option A doesn't restore performance, consider Option D (lazy evaluation) as 
 ## Testing Plan
 
 1. Run local benchmarks before fix:
+
    ```bash
    cd packages/pike-lsp-server && bun run bench
    ```
@@ -170,6 +173,7 @@ If Option A doesn't restore performance, consider Option D (lazy evaluation) as 
 2. Apply fix and run benchmarks again
 
 3. Verify hover still shows params in correct order:
+
    ```bash
    cd packages/vscode-pike && bun run test:features
    ```
