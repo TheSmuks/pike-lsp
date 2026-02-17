@@ -444,18 +444,38 @@ class TestClass {
      * Test: Verify Pike stdlib path is accessible
      * Category: Environment Validation
      *
-     * Validates that /usr/local/pike/8.0.1116/lib/modules/ exists
-     * and contains expected modules.
+     * Validates that Pike stdlib exists and contains expected modules.
+     * Dynamically detects Pike path via `pike --show-paths`.
      */
     test('Pike stdlib path exists and contains modules', async function() {
         this.timeout(10000);
 
-        const stdlibPath = '/usr/local/pike/8.0.1116/lib/modules';
+        // Dynamically detect Pike's module path
+        const { execSync } = await import('child_process');
+        let stdlibPath: string;
 
-        // Verify stdlib directory exists (for test documentation)
-        // This test documents the environment, not LSP behavior
+        try {
+            const pikeShowPathsOutput = execSync('pike --show-paths', { encoding: 'utf8' });
+            const modulePathMatch = pikeShowPathsOutput.match(/Module path\.\.\.:\s*(\S+)/);
+            const extractedPath = modulePathMatch?.[1];
+            if (extractedPath) {
+                stdlibPath = extractedPath;
+            } else {
+                throw new Error('Could not parse module path from pike --show-paths');
+            }
+        } catch {
+            // Fallback: try common locations
+            const possiblePaths = [
+                '/usr/local/pike/8.0.1116/lib/modules',
+                '/usr/lib/pike/8.0/lib/modules',
+                '/usr/share/pike/8.0/lib/modules'
+            ];
+            const found = possiblePaths.find(p => fs.existsSync(p));
+            stdlibPath = found ?? possiblePaths[0] ?? '/usr/local/pike/8.0.1116/lib/modules';
+        }
+
+        // Verify stdlib directory exists
         const stdlibExists = fs.existsSync(stdlibPath);
-
         assert.ok(stdlibExists, `Pike stdlib should exist at ${stdlibPath}`);
 
         // List some expected modules
