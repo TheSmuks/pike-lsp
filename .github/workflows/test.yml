@@ -24,7 +24,15 @@ on:
   workflow_dispatch:
     inputs:
       force_full_ci:
-        description: 'Force full CI including E2E tests'
+        description: 'Force full CI including all tests'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_tests:
+        description: 'Skip test and pike-test jobs'
         required: false
         default: 'false'
         type: choice
@@ -32,7 +40,7 @@ on:
           - 'false'
           - 'true'
       skip_e2e:
-        description: 'Skip E2E tests (faster)'
+        description: 'Skip E2E tests'
         required: false
         default: 'false'
         type: choice
@@ -48,6 +56,10 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.force_full_ci == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.skip_tests != 'true')
 
     strategy:
       matrix:
@@ -109,6 +121,10 @@ jobs:
   pike-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.force_full_ci == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.inputs.skip_tests != 'true')
 
     strategy:
       matrix:
