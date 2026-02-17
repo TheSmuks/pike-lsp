@@ -354,3 +354,4 @@ A full-featured Language Server Protocol implementation for Pike.
 [0.1.0-alpha.4]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.4
 [0.1.0-alpha.2]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.1
+
