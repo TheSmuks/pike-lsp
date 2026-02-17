@@ -241,7 +241,10 @@ fi
 # ============================================================================
 log_step "Step 5: Checking PROGRESS.md..."
 
-PROGRESS_MD="$REPO_ROOT/PROGRESS.md"
+PROGRESS_MD="$REPO_ROOT/docs/progress.md"
+if [ ! -f "$PROGRESS_MD" ]; then
+  PROGRESS_MD="$REPO_ROOT/PROGRESS.md"
+fi
 if [ -f "$PROGRESS_MD" ]; then
   if [ -r "$PROGRESS_MD" ]; then
     log_success "PROGRESS.md exists and is readable"
@@ -257,7 +260,10 @@ fi
 # ============================================================================
 log_step "Step 6: Checking KNOWN_BUGS.md..."
 
-KNOWN_BUGS_MD="$REPO_ROOT/KNOWN_BUGS.md"
+KNOWN_BUGS_MD="$REPO_ROOT/docs/known-bugs.md"
+if [ ! -f "$KNOWN_BUGS_MD" ]; then
+  KNOWN_BUGS_MD="$REPO_ROOT/KNOWN_BUGS.md"
+fi
 if [ -f "$KNOWN_BUGS_MD" ]; then
   if [ -r "$KNOWN_BUGS_MD" ]; then
     log_success "KNOWN_BUGS.md exists and is readable"
@@ -273,8 +279,11 @@ fi
 # ============================================================================
 log_step "Step 7: Checking ARCHITECTURE.md..."
 
-# ARCHITECTURE.md might be in .planning/ or root
-ARCH_MD="$REPO_ROOT/.planning/codebase/ARCHITECTURE.md"
+# ARCHITECTURE.md might be in docs/, .planning/, or root
+ARCH_MD="$REPO_ROOT/docs/architecture.md"
+if [ ! -f "$ARCH_MD" ]; then
+  ARCH_MD="$REPO_ROOT/.planning/codebase/ARCHITECTURE.md"
+fi
 if [ ! -f "$ARCH_MD" ]; then
   ARCH_MD="$REPO_ROOT/ARCHITECTURE.md"
 fi
