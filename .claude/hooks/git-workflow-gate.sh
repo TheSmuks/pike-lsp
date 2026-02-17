@@ -18,8 +18,51 @@ if [ -z "$COMMAND" ]; then
   exit 0
 fi
 
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-echo "[git-workflow-gate] DEBUG: Current branch: $CURRENT_BRANCH"
+# Get actual working directory from the tool input
+CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+
+# Detect worktree context: check if we're in a worktree (not main repo)
+# Worktrees are siblings like pike-lsp-feat-*, pike-lsp-fix-*, etc.
+detect_worktree_context() {
+  local workdir="${1:-$(pwd)}"
+  local git_dir branch
+
+  # Get the git common dir to find the main repo
+  git_dir=$(git -C "$workdir" rev-parse --git-common-dir 2>/dev/null || echo ".git")
+
+  # Get worktree list - check if current dir is a worktree
+  if git -C "$workdir" worktree list --porcelain 2>/dev/null | head -1 | grep -q "^worktree $workdir$"; then
+    # This is the main worktree - check branch
+    branch=$(git -C "$workdir" branch --show-current 2>/dev/null || echo "unknown")
+    echo "main:$branch"
+  else
+    # Check if it's a worktree (not the main repo)
+    local is_worktree
+    is_worktree=$(git -C "$workdir" rev-parse --is-inside-work-tree 2>/dev/null || echo "false")
+
+    if [ "$is_worktree" = "true" ]; then
+      # We're in a worktree - get the branch
+      branch=$(git -C "$workdir" branch --show-current 2>/dev/null || echo "unknown")
+      echo "worktree:$branch"
+    else
+      echo "unknown"
+    fi
+  fi
+}
+
+CONTEXT=$(detect_worktree_context "$CWD")
+IS_MAIN_REPO=false
+CURRENT_BRANCH="unknown"
+
+if [[ "$CONTEXT" == main:* ]]; then
+  IS_MAIN_REPO=true
+  CURRENT_BRANCH="${CONTEXT#main:}"
+elif [[ "$CONTEXT" == worktree:* ]]; then
+  IS_MAIN_REPO=false
+  CURRENT_BRANCH="${CONTEXT#worktree:}"
+fi
+
+echo "[git-workflow-gate] DEBUG: Context: $CONTEXT, IsMain: $IS_MAIN_REPO, Branch: $CURRENT_BRANCH"
 should_block=false
 block_message=""
 
@@ -53,9 +96,10 @@ if [ "$should_block" = false ] && echo "$COMMAND" | grep -qP 'gh\s+pr\s+merge\s+
 Branch protection rules exist for a reason. Wait for checks to pass."
 fi
 
-# --- 1. Block commits on main/master ---
+# --- 1. Block commits on main/master (only if in main repo, not worktrees) ---
 if echo "$COMMAND" | grep -qP '(^|\s|&&|\|)git\s+commit(\s|$)'; then
-  if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+  # Only block if we're in the main repo on main/master
+  if [ "$IS_MAIN_REPO" = true ] && ([ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]); then
     should_block=true
     block_message="[WORKFLOW] BLOCKED: Direct commits to $CURRENT_BRANCH are not allowed.
 
@@ -71,15 +115,16 @@ Then commit on the feature branch and create a PR to merge into main."
   fi
 fi
 
-# --- 2. Block push to main/master ---
+# --- 2. Block push to main/master (only in main repo, not worktrees) ---
 if [ "$should_block" = false ] && echo "$COMMAND" | grep -qP '(^|\s|&&|\|)git\s+push(\s|$)'; then
   # Always allow dry-run
   if echo "$COMMAND" | grep -qP '\s--dry-run\b'; then
     : # allowed
-  # Block: explicit push to main/master
+  # Block: explicit push to main/master (only if in main repo)
   elif echo "$COMMAND" | grep -qP 'git\s+push\s+\S+\s+(main|master)\b'; then
-    should_block=true
-    block_message="[RELEASE GATE] BLOCKED: Direct push to main/master is not allowed.
+    if [ "$IS_MAIN_REPO" = true ]; then
+      should_block=true
+      block_message="[RELEASE GATE] BLOCKED: Direct push to main/master is not allowed.
 
 Use the release skill to push to main:
   /pike-lsp-release
@@ -87,16 +132,17 @@ Use the release skill to push to main:
 Or push your feature branch and create a PR:
   git push -u origin $CURRENT_BRANCH
   gh pr create"
-  # Block: bare git push when on main/master
+    fi
+  # Block: bare git push when on main/master (only in main repo)
   elif echo "$COMMAND" | grep -qP 'git\s+push\s*($|&&|\||;|--tags)'; then
-    if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    if [ "$IS_MAIN_REPO" = true ] && ([ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]); then
       should_block=true
       block_message="[RELEASE GATE] BLOCKED: Direct push to $CURRENT_BRANCH is not allowed.
 
 Use the release skill:
   /pike-lsp-release"
     fi
-  # Block: git push --tags (pushes release tags)
+  # Block: git push --tags (pushes release tags) - always block this
   elif echo "$COMMAND" | grep -qP 'git\s+push\s+.*--tags'; then
     should_block=true
     block_message="[RELEASE GATE] BLOCKED: Direct tag push is not allowed.
@@ -175,8 +221,7 @@ if [ "$should_block" = true ]; then
   echo "$block_message"
   echo ""
   echo "DEBUG: Command was: $COMMAND"
-  echo "DEBUG: Current branch: $CURRENT_BRANCH"
-  echo "DEBUG: Script location: $(pwd)/${BASH_SOURCE[0]}"
+  echo "DEBUG: Context: $CONTEXT, IsMain: $IS_MAIN_REPO, Branch: $CURRENT_BRANCH"
   echo "DEBUG: Timestamp: $(date -Iseconds)"
   exit 2
 fi
