@@ -278,7 +278,10 @@ check_context_pollution() {
 check_progress() {
     echo "=== 6. Progress Check ===" | tee -a "${LOG_FILE}"
 
-    local progress_file="${PROJECT_ROOT}/PROGRESS.md"
+    local progress_file="${PROJECT_ROOT}/docs/progress.md"
+    if [[ ! -f "${progress_file}" ]]; then
+        progress_file="${PROJECT_ROOT}/PROGRESS.md"
+    fi
 
     if [[ ! -f "${progress_file}" ]]; then
         log_warn "No PROGRESS.md file found"

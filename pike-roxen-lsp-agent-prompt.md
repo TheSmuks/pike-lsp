@@ -191,11 +191,11 @@ This LSP has a history of agents shipping half-baked features that appear to wor
 
 4. [ ] Pull latest from upstream. Resolve conflicts if any.
 
-5. [ ] Read PROGRESS.md — understand current state.
+5. [ ] Read docs/progress.md — understand current state.
 
-6. [ ] Read KNOWN_BUGS.md — do not duplicate work on known issues.
+6. [ ] Read docs/known-bugs.md — do not duplicate work on known issues.
 
-7. [ ] Read ARCHITECTURE.md — understand the codebase structure.
+7. [ ] Read docs/architecture.md — understand the codebase structure.
 
 8. [ ] Run the full regression suite (fast mode):
        ./scripts/test.sh --fast --summary-only
@@ -221,12 +221,12 @@ Manages the overall system. Does not write code.
 - Maintain the **feature registry** with status, last-examined date, health score, and known issues.
 - **Randomly select features** for improvement using weighted randomness. Features with recent production failures get 3× weight. Features never examined get 2× weight. Recently-improved features get 0.5× weight.
 - **Spawn parallel pipelines.** Each pipeline gets one feature. Enforce: no two pipelines on the same feature.
-- **Maintain PROGRESS.md** — the single source of truth. Updated after every pipeline completes. Contains:
+- **Maintain docs/progress.md** — the single source of truth. Updated after every pipeline completes. Contains:
   - What was attempted
   - What succeeded (with before/after numbers)
   - What failed (with why)
   - Current overall health metrics
-- **Maintain KNOWN_BUGS.md** — living document of known issues, their severity, and whether someone is working on them.
+- **Maintain docs/known-bugs.md** — living document of known issues, their severity, and whether someone is working on them.
 - **Kill stale pipelines.** If a pipeline hasn't made a commit in 30 minutes of wall time, it's stuck. Terminate it, release the lock, log the failure.
 
 ### 2. Scout Agent (Adversarial Analysis)
@@ -558,7 +558,7 @@ grep -rn results for hardcoded paths in changed files: <CLEAN / list findings>
 - ROLLBACK: <reason>
 ```
 
-**Step 6: If SHIP → update PROGRESS.md and KNOWN_BUGS.md.**
+**Step 6: If SHIP → update docs/progress.md and docs/known-bugs.md.**
 
 ### 6. Watchdog Agent (Always Running)
 
@@ -566,7 +566,7 @@ You do not build features. You exist to catch regressions, context pollution, an
 
 **Continuous checks (run every 5 minutes):**
 
-1. **Regression scan:** Run `test.sh --fast`. Compare against last known good baseline. If pass rate dropped → identify which recent commit caused it → file a CRITICAL bug in KNOWN_BUGS.md → alert the Orchestrator.
+1. **Regression scan:** Run `test.sh --fast`. Compare against last known good baseline. If pass rate dropped → identify which recent commit caused it → file a CRITICAL bug in docs/known-bugs.md → alert the Orchestrator.
 
 2. **Path audit:** `grep -rn` the entire `src/` and `test/` directories for patterns that look like leaked paths:
    ```
@@ -581,7 +581,7 @@ You do not build features. You exist to catch regressions, context pollution, an
 
 5. **Context pollution check:** Review the last 5 agent log files. If any single command produced > 500 lines of output to stdout → log a warning. Excessive output kills agent effectiveness.
 
-6. **Progress check:** Compare PROGRESS.md from 1 hour ago to now. If nothing meaningful changed and pipelines are running → the system is spinning. Alert the Orchestrator to reassign work.
+6. **Progress check:** Compare docs/progress.md from 1 hour ago to now. If nothing meaningful changed and pipelines are running → the system is spinning. Alert the Orchestrator to reassign work.
 
 ---
 
@@ -599,7 +599,7 @@ Context pollution is what kills agent progress. These rules are mandatory for AL
 
 5. **When reading Pike or Roxen source, be surgical.** Don't read entire files. Grep for the specific function or symbol you need. Pike source files can be enormous.
 
-6. **Keep your working memory in files, not in your head.** If you discover something important, write it to PROGRESS.md, KNOWN_BUGS.md, or a task-specific notes file IMMEDIATELY. If your session dies, the next agent can pick up where you left off.
+6. **Keep your working memory in files, not in your head.** If you discover something important, write it to docs/progress.md, docs/known-bugs.md, or a task-specific notes file IMMEDIATELY. If your session dies, the next agent can pick up where you left off.
 
 7. **Commit messages are documentation.** Every commit message should let the next agent understand what was done and why without reading the diff:
    ```

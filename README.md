@@ -23,7 +23,7 @@
 - [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
-- [API Reference](API.md)
+- [API Reference](docs/api.md)
 
 ---
 
@@ -31,7 +31,7 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 
 > **Note:** This project is in alpha. While functional for everyday use, some features may be incomplete or subject to change. This software is provided "as is" without warranty. See [LICENSE](LICENSE) for details.
 
-![Pike LSP Demo](images/demo.gif)
+![Pike LSP Demo](docs/images/demo.gif)
 
 ## Features
 
@@ -131,7 +131,7 @@ All 6 phases of Roxen framework support are complete:
 
 **Total:** 223 Roxen-specific tests passing
 
-See [ROXEN_SUPPORT_ROADMAP.md](ROXEN_SUPPORT_ROADMAP.md) for complete implementation details.
+See [ROXEN_SUPPORT_ROADMAP.md](docs/roxen-roadmap.md) for complete implementation details.
 
 ## Requirements
 
