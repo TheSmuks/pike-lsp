@@ -12,21 +12,21 @@ Add these settings to your VS Code `settings.json`:
 
 ```json
 {
-    // Path to Pike executable (default: "pike")
-    "pike.pikePath": "/usr/local/bin/pike",
+  // Path to Pike executable (default: "pike")
+  "pike.pikePath": "/usr/local/bin/pike",
 
-    // LSP trace level for debugging
-    "pike.trace.server": "off"  // "off" | "messages" | "verbose"
+  // LSP trace level for debugging
+  "pike.trace.server": "off" // "off" | "messages" | "verbose"
 }
 ```
 
 ## Configuration Options
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `pike.pikePath` | string | `"pike"` | Path to the Pike executable |
-| `pike.trace.server` | string | `"off"` | LSP trace level: `"off"`, `"messages"`, or `"verbose"` |
-| `pike.enable` | boolean | `true` | Enable/disable the LSP server |
+| Setting             | Type    | Default  | Description                                            |
+| ------------------- | ------- | -------- | ------------------------------------------------------ |
+| `pike.pikePath`     | string  | `"pike"` | Path to the Pike executable                            |
+| `pike.trace.server` | string  | `"off"`  | LSP trace level: `"off"`, `"messages"`, or `"verbose"` |
+| `pike.enable`       | boolean | `true`   | Enable/disable the LSP server                          |
 
 ## Custom File Extensions
 
@@ -45,8 +45,8 @@ For non-standard extensions, add file associations in VSCode settings:
 
 Pike LSP respects the following environment variables:
 
-| Variable | Description |
-|----------|-------------|
-| `PIKE_PATH` | Pike module search path |
-| `PIKE_INCLUDE_PATH` | Pike include path |
-| `PIKE_MODULE_PATH` | Pike module path |
+| Variable            | Description             |
+| ------------------- | ----------------------- |
+| `PIKE_PATH`         | Pike module search path |
+| `PIKE_INCLUDE_PATH` | Pike include path       |
+| `PIKE_MODULE_PATH`  | Pike module path        |

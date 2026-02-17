@@ -25,9 +25,8 @@ function tagToSymbol(tag: RXMLTag): DocumentSymbol {
   const detail = buildTagDetail(tag);
 
   // Convert children recursively if they exist
-  const children = tag.children && tag.children.length > 0
-    ? tag.children.map(tagToSymbol)
-    : undefined;
+  const children =
+    tag.children && tag.children.length > 0 ? tag.children.map(tagToSymbol) : undefined;
 
   const result: DocumentSymbol = {
     name: tag.name,
@@ -37,8 +36,8 @@ function tagToSymbol(tag: RXMLTag): DocumentSymbol {
       start: tag.range.start,
       end: {
         line: tag.range.start.line,
-        character: tag.range.start.character + tag.name.length
-      }
+        character: tag.range.start.character + tag.name.length,
+      },
     },
     detail,
   };
@@ -63,9 +62,12 @@ function buildTagDetail(tag: RXMLTag): string {
   }
 
   // Show first 2-3 attributes as detail
-  const attrs = tag.attributes.slice(0, 3).map(attr => {
-    return `${attr.name}="${attr.value}"`;
-  }).join(' ');
+  const attrs = tag.attributes
+    .slice(0, 3)
+    .map(attr => {
+      return `${attr.name}="${attr.value}"`;
+    })
+    .join(' ');
 
   // Add ellipsis if there are more attributes
   const suffix = tag.attributes.length > 3 ? ' ...' : '';

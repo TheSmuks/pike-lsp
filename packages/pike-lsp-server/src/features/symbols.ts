@@ -7,10 +7,10 @@
 
 import type { Connection } from 'vscode-languageserver/node.js';
 import {
-    DocumentSymbol,
-    SymbolKind,
-    SymbolInformation,
-    WorkspaceSymbolParams,
+  DocumentSymbol,
+  SymbolKind,
+  SymbolInformation,
+  WorkspaceSymbolParams,
 } from 'vscode-languageserver/node.js';
 import type { TextDocuments } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -27,30 +27,30 @@ import { detectRXMLStrings, mergeSymbolTrees } from './rxml/mixed-content.js';
  * Exported for direct unit testing.
  */
 export function convertSymbolKind(kind: string): SymbolKind {
-    switch (kind) {
-        case 'class':
-            return SymbolKind.Class;
-        case 'method':
-            return SymbolKind.Method;
-        case 'variable':
-            return SymbolKind.Variable;
-        case 'constant':
-            return SymbolKind.Constant;
-        case 'typedef':
-            return SymbolKind.TypeParameter;
-        case 'enum':
-            return SymbolKind.Enum;
-        case 'enum_constant':
-            return SymbolKind.EnumMember;
-        case 'inherit':
-            return SymbolKind.Class;
-        case 'import':
-            return SymbolKind.Module;
-        case 'module':
-            return SymbolKind.Module;
-        default:
-            return SymbolKind.Variable;
-    }
+  switch (kind) {
+    case 'class':
+      return SymbolKind.Class;
+    case 'method':
+      return SymbolKind.Method;
+    case 'variable':
+      return SymbolKind.Variable;
+    case 'constant':
+      return SymbolKind.Constant;
+    case 'typedef':
+      return SymbolKind.TypeParameter;
+    case 'enum':
+      return SymbolKind.Enum;
+    case 'enum_constant':
+      return SymbolKind.EnumMember;
+    case 'inherit':
+      return SymbolKind.Class;
+    case 'import':
+      return SymbolKind.Module;
+    case 'module':
+      return SymbolKind.Module;
+    default:
+      return SymbolKind.Variable;
+  }
 }
 
 /**
@@ -59,38 +59,38 @@ export function convertSymbolKind(kind: string): SymbolKind {
  * Exported for direct unit testing.
  */
 export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
-    // Type info is in various fields depending on symbol kind
-    const sym = symbol as unknown as Record<string, unknown>;
-    let detail: string | undefined;
+  // Type info is in various fields depending on symbol kind
+  const sym = symbol as unknown as Record<string, unknown>;
+  let detail: string | undefined;
 
-    if (sym['returnType']) {
-        const returnType = sym['returnType'] as { name?: string };
-        const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
-        const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
-        detail = `${returnType.name ?? 'mixed'}(${args})`;
-    } else if (sym['type']) {
-        const type = sym['type'] as { name?: string };
-        detail = type.name;
-    }
+  if (sym['returnType']) {
+    const returnType = sym['returnType'] as { name?: string };
+    const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
+    const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
+    detail = `${returnType.name ?? 'mixed'}(${args})`;
+  } else if (sym['type']) {
+    const type = sym['type'] as { name?: string };
+    detail = type.name;
+  }
 
-    // Add inheritance info
-    if (sym['inherited']) {
-        const from = sym['inheritedFrom'] as string | undefined;
-        const inheritInfo = from ? `(from ${from})` : '(inherited)';
-        detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
-    }
+  // Add inheritance info
+  if (sym['inherited']) {
+    const from = sym['inheritedFrom'] as string | undefined;
+    const inheritInfo = from ? `(from ${from})` : '(inherited)';
+    detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
+  }
 
-    // Add conditional compilation info
-    // Pike returns: conditional: 1 (flag), condition: string, branch: number
-    if (sym['conditional']) {
-        const branch = sym['branch'] as number | undefined;
-        const condition = sym['condition'] as string | undefined;
-        const conditionPrefix = branch === 0 ? '#if' : '#elif';
-        const conditionalInfo = `[${conditionPrefix} ${condition || ''}]`;
-        detail = detail ? `${detail}  ${conditionalInfo}` : conditionalInfo;
-    }
+  // Add conditional compilation info
+  // Pike returns: conditional: 1 (flag), condition: string, branch: number
+  if (sym['conditional']) {
+    const branch = sym['branch'] as number | undefined;
+    const condition = sym['condition'] as string | undefined;
+    const conditionPrefix = branch === 0 ? '#if' : '#elif';
+    const conditionalInfo = `[${conditionPrefix} ${condition || ''}]`;
+    detail = detail ? `${detail}  ${conditionalInfo}` : conditionalInfo;
+  }
 
-    return detail;
+  return detail;
 }
 
 /**
@@ -101,196 +101,204 @@ export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
  * @param documents - Text document manager
  */
 export function registerSymbolsHandlers(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache, workspaceIndex } = services;
-    const log = new Logger('symbols');
+  const { documentCache, workspaceIndex } = services;
+  const log = new Logger('symbols');
 
-    /**
-     * Convert Pike symbol to LSP DocumentSymbol
-     */
-    function convertSymbol(pikeSymbol: PikeSymbol): DocumentSymbol {
-        const line = Math.max(0, (pikeSymbol.position?.line ?? 1) - 1);
-        const name = pikeSymbol.name || 'unknown';
+  /**
+   * Convert Pike symbol to LSP DocumentSymbol
+   */
+  function convertSymbol(pikeSymbol: PikeSymbol): DocumentSymbol {
+    const line = Math.max(0, (pikeSymbol.position?.line ?? 1) - 1);
+    const name = pikeSymbol.name || 'unknown';
 
-        const detail = getSymbolDetail(pikeSymbol);
+    const detail = getSymbolDetail(pikeSymbol);
 
-        const result: DocumentSymbol = {
-            name,
-            kind: convertSymbolKind(pikeSymbol.kind),
-            range: {
-                start: { line, character: 0 },
-                end: { line, character: 1000 }, // Full line range
-            },
-            selectionRange: {
-                start: { line, character: 0 },
-                end: { line, character: name.length },
-            },
-        };
+    const result: DocumentSymbol = {
+      name,
+      kind: convertSymbolKind(pikeSymbol.kind),
+      range: {
+        start: { line, character: 0 },
+        end: { line, character: 1000 }, // Full line range
+      },
+      selectionRange: {
+        start: { line, character: 0 },
+        end: { line, character: name.length },
+      },
+    };
 
-        if (detail) {
-            result.detail = detail;
-        }
-
-        // Recursively convert children (nested class members)
-        if (pikeSymbol.children && pikeSymbol.children.length > 0) {
-            result.children = pikeSymbol.children.map(convertSymbol);
-        }
-
-        return result;
+    if (detail) {
+      result.detail = detail;
     }
 
-    /**
-     * Document symbols handler - provides outline view
-     */
-    connection.onDocumentSymbol(async (params): Promise<DocumentSymbol[] | null> => {
-        const uri = params.textDocument.uri;
+    // Recursively convert children (nested class members)
+    if (pikeSymbol.children && pikeSymbol.children.length > 0) {
+      result.children = pikeSymbol.children.map(convertSymbol);
+    }
 
-        log.debug('Document symbol request', { uri });
+    return result;
+  }
 
-        try {
-            let cached = documentCache.get(uri);
+  /**
+   * Document symbols handler - provides outline view
+   */
+  connection.onDocumentSymbol(async (params): Promise<DocumentSymbol[] | null> => {
+    const uri = params.textDocument.uri;
 
-            if (!cached) {
-                // Wait for any pending validation
-                await documentCache.waitFor(uri);
+    log.debug('Document symbol request', { uri });
 
-                // Race condition check: wait a tick
-                await new Promise(resolve => setTimeout(resolve, 50));
+    try {
+      let cached = documentCache.get(uri);
 
-                cached = documentCache.get(uri);
-            }
+      if (!cached) {
+        // Wait for any pending validation
+        await documentCache.waitFor(uri);
 
-            if (!cached || !cached.symbols) {
-                connection.console.log(`[SYMBOLS] No cached symbols for ${uri}`);
-                return null;
-            }
+        // Race condition check: wait a tick
+        await new Promise(resolve => setTimeout(resolve, 50));
 
-            // Filter out invalid symbols and convert
-            const filtered = cached.symbols.filter((s): s is PikeSymbol => s != null && s.name != null);
-            connection.console.log(`[SYMBOLS] Returning ${filtered.length} symbols (from ${cached.symbols.length} cached)`);
+        cached = documentCache.get(uri);
+      }
 
-            // Log first few symbols for debugging
-            for (let i = 0; i < Math.min(5, filtered.length); i++) {
-                const sym = filtered[i]!;
-                connection.console.log(`[SYMBOLS]   ${i}: name="${sym.name}", kind=${sym.kind}`);
-            }
+      if (!cached || !cached.symbols) {
+        connection.console.log(`[SYMBOLS] No cached symbols for ${uri}`);
+        return null;
+      }
 
-            // --- Roxen symbols integration ---
-            const symbolsToConvert = filtered;
-            try {
-                const document = documents.get(uri);
-                if (document && services.bridge?.bridge) {
-                    const text = document.getText();
-                    const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
-                    if (roxenInfo && roxenInfo.is_roxen_module === 1) {
-                        const baseConverted = filtered.map(convertSymbol);
-                        const enhanced = enhanceRoxenSymbols(baseConverted, roxenInfo);
-                        connection.console.log(`[SYMBOLS] Enhanced ${filtered.length} symbols with Roxen data -> ${enhanced.length} total`);
-                        return enhanced;
-                    }
+      // Filter out invalid symbols and convert
+      const filtered = cached.symbols.filter((s): s is PikeSymbol => s != null && s.name != null);
+      connection.console.log(
+        `[SYMBOLS] Returning ${filtered.length} symbols (from ${cached.symbols.length} cached)`
+      );
 
-                    // --- Mixed RXML content integration ---
-                    // Detect RXML strings in Pike multiline strings
-                    const rxmlStrings = await detectRXMLStrings(text, uri, services.bridge.bridge);
-                    if (rxmlStrings.length > 0) {
-                        connection.console.log(`[SYMBOLS] Found ${rxmlStrings.length} RXML strings in Pike code`);
-                        const baseConverted = filtered.map(convertSymbol);
-                        const merged = mergeSymbolTrees(baseConverted, rxmlStrings);
-                        connection.console.log(`[SYMBOLS] Merged ${filtered.length} Pike symbols + ${rxmlStrings.length} RXML strings -> ${merged.length} total`);
-                        return merged;
-                    }
-                    // --- End mixed content integration ---
-                }
-            } catch (err) {
-                connection.console.log(`[SYMBOLS] Roxen enhancement failed: ${err}`);
-            }
-            // --- End Roxen integration ---
+      // Log first few symbols for debugging
+      for (let i = 0; i < Math.min(5, filtered.length); i++) {
+        const sym = filtered[i]!;
+        connection.console.log(`[SYMBOLS]   ${i}: name="${sym.name}", kind=${sym.kind}`);
+      }
 
-            const converted = symbolsToConvert.map(convertSymbol);
-            return converted;
-        } catch (err) {
-            log.error('Document symbol failed', {
-                error: err instanceof Error ? err.message : String(err)
-            });
-            return null;
+      // --- Roxen symbols integration ---
+      const symbolsToConvert = filtered;
+      try {
+        const document = documents.get(uri);
+        if (document && services.bridge?.bridge) {
+          const text = document.getText();
+          const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
+          if (roxenInfo && roxenInfo.is_roxen_module === 1) {
+            const baseConverted = filtered.map(convertSymbol);
+            const enhanced = enhanceRoxenSymbols(baseConverted, roxenInfo);
+            connection.console.log(
+              `[SYMBOLS] Enhanced ${filtered.length} symbols with Roxen data -> ${enhanced.length} total`
+            );
+            return enhanced;
+          }
+
+          // --- Mixed RXML content integration ---
+          // Detect RXML strings in Pike multiline strings
+          const rxmlStrings = await detectRXMLStrings(text, uri, services.bridge.bridge);
+          if (rxmlStrings.length > 0) {
+            connection.console.log(
+              `[SYMBOLS] Found ${rxmlStrings.length} RXML strings in Pike code`
+            );
+            const baseConverted = filtered.map(convertSymbol);
+            const merged = mergeSymbolTrees(baseConverted, rxmlStrings);
+            connection.console.log(
+              `[SYMBOLS] Merged ${filtered.length} Pike symbols + ${rxmlStrings.length} RXML strings -> ${merged.length} total`
+            );
+            return merged;
+          }
+          // --- End mixed content integration ---
         }
-    });
+      } catch (err) {
+        connection.console.log(`[SYMBOLS] Roxen enhancement failed: ${err}`);
+      }
+      // --- End Roxen integration ---
 
-    /**
-     * Workspace symbol handler - search symbols across workspace (Ctrl+T)
-     *
-     * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
-     * NOTE: Current LSP version is 3.17 (vscode-languageserver 9.0.1).
-     * WorkspaceSymbolParams.limit was added in LSP 3.18.
-     * We implement server-side limiting to avoid overwhelming the client.
-     * Upgrade tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
-     */
-    connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
-        const query = params.query;
-        const limit = LSP.MAX_WORKSPACE_SYMBOLS;
+      const converted = symbolsToConvert.map(convertSymbol);
+      return converted;
+    } catch (err) {
+      log.error('Document symbol failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  });
 
-        log.debug('Workspace symbol request', { query, limit });
+  /**
+   * Workspace symbol handler - search symbols across workspace (Ctrl+T)
+   *
+   * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
+   * NOTE: Current LSP version is 3.17 (vscode-languageserver 9.0.1).
+   * WorkspaceSymbolParams.limit was added in LSP 3.18.
+   * We implement server-side limiting to avoid overwhelming the client.
+   * Upgrade tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
+   */
+  connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
+    const query = params.query;
+    const limit = LSP.MAX_WORKSPACE_SYMBOLS;
 
-        try {
-            const allSymbols: SymbolInformation[] = [];
-            const queryLower = query?.toLowerCase() ?? '';
+    log.debug('Workspace symbol request', { query, limit });
 
-            // Search the workspace index first
-            const indexedResults = workspaceIndex.searchSymbols(query, limit);
-            allSymbols.push(...indexedResults);
+    try {
+      const allSymbols: SymbolInformation[] = [];
+      const queryLower = query?.toLowerCase() ?? '';
 
-            // PERF-109: Build Set of indexed URIs for O(1) duplicate checking
-            // This avoids O(n*m) complexity from repeated some() calls
-            const indexedUris = new Set<string>(indexedResults.map(s => s.location.uri));
+      // Search the workspace index first
+      const indexedResults = workspaceIndex.searchSymbols(query, limit);
+      allSymbols.push(...indexedResults);
 
-            // Also search open documents (documentCache) to include files that
-            // may not be in the workspace index yet
-            for (const [uri, cached] of Array.from(documentCache.entries())) {
-                // PERF-109: Use Set.has() instead of Array.some() for O(1) lookup
-                if (indexedUris.has(uri)) {
-                    continue;
-                }
+      // PERF-109: Build Set of indexed URIs for O(1) duplicate checking
+      // This avoids O(n*m) complexity from repeated some() calls
+      const indexedUris = new Set<string>(indexedResults.map(s => s.location.uri));
 
-                for (const symbol of cached.symbols) {
-                    // Skip symbols with null names
-                    if (!symbol.name) continue;
-
-                    if (!query || symbol.name.toLowerCase().includes(queryLower)) {
-                        const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
-                        allSymbols.push({
-                            name: symbol.name,
-                            kind: convertSymbolKind(symbol.kind),
-                            location: {
-                                uri,
-                                range: {
-                                    start: { line, character: 0 },
-                                    end: { line, character: symbol.name.length },
-                                },
-                            },
-                        });
-
-                        if (allSymbols.length >= limit) {
-                            log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
-                            return allSymbols;
-                        }
-                    }
-                }
-            }
-
-            log.debug('Workspace symbol search complete', {
-                query,
-                indexedCount: indexedResults.length,
-                totalCount: allSymbols.length
-            });
-            return allSymbols;
-        } catch (err) {
-            log.error('Workspace symbol failed', {
-                error: err instanceof Error ? err.message : String(err)
-            });
-            return [];
+      // Also search open documents (documentCache) to include files that
+      // may not be in the workspace index yet
+      for (const [uri, cached] of Array.from(documentCache.entries())) {
+        // PERF-109: Use Set.has() instead of Array.some() for O(1) lookup
+        if (indexedUris.has(uri)) {
+          continue;
         }
-    });
+
+        for (const symbol of cached.symbols) {
+          // Skip symbols with null names
+          if (!symbol.name) continue;
+
+          if (!query || symbol.name.toLowerCase().includes(queryLower)) {
+            const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+            allSymbols.push({
+              name: symbol.name,
+              kind: convertSymbolKind(symbol.kind),
+              location: {
+                uri,
+                range: {
+                  start: { line, character: 0 },
+                  end: { line, character: symbol.name.length },
+                },
+              },
+            });
+
+            if (allSymbols.length >= limit) {
+              log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
+              return allSymbols;
+            }
+          }
+        }
+      }
+
+      log.debug('Workspace symbol search complete', {
+        query,
+        indexedCount: indexedResults.length,
+        totalCount: allSymbols.length,
+      });
+      return allSymbols;
+    } catch (err) {
+      log.error('Workspace symbol failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }
+  });
 }

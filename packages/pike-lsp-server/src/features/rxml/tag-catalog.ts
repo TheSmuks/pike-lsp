@@ -38,28 +38,76 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'simple',
     description: 'Display variable values. Outputs the value of a variable to the page.',
     attributes: [
-      { name: 'var', type: 'string', required: true, description: 'Variable to display (e.g., form.username, page.title)' },
-      { name: 'encoding', type: 'string', required: false, description: 'Encoding to apply (e.g., html, url, none)', values: ['html', 'url', 'none'] },
-      { name: 'default', type: 'string', required: false, description: 'Default value if variable is undefined' },
+      {
+        name: 'var',
+        type: 'string',
+        required: true,
+        description: 'Variable to display (e.g., form.username, page.title)',
+      },
+      {
+        name: 'encoding',
+        type: 'string',
+        required: false,
+        description: 'Encoding to apply (e.g., html, url, none)',
+        values: ['html', 'url', 'none'],
+      },
+      {
+        name: 'default',
+        type: 'string',
+        required: false,
+        description: 'Default value if variable is undefined',
+      },
     ],
   },
   {
     name: 'insert',
     type: 'simple',
-    description: 'Insert content from various sources (files, variables, scopes). Can insert file contents, variable values, or scope data.',
+    description:
+      'Insert content from various sources (files, variables, scopes). Can insert file contents, variable values, or scope data.',
     attributes: [
-      { name: 'variable', type: 'string', required: false, description: 'Variable path to insert (e.g., config.message, user.name)' },
-      { name: 'file', type: 'string', required: false, description: 'Path to file to insert (relative to site root)' },
-      { name: 'from', type: 'string', required: false, description: 'Source scope for variable insertion' },
-      { name: 'default', type: 'string', required: false, description: 'Default value if variable is undefined' },
-      { name: 'htmlencode', type: 'boolean', required: false, description: 'Whether to HTML-encode the output' },
-      { name: 'scope', type: 'string', required: false, description: 'Scope to read variable from' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: false,
+        description: 'Variable path to insert (e.g., config.message, user.name)',
+      },
+      {
+        name: 'file',
+        type: 'string',
+        required: false,
+        description: 'Path to file to insert (relative to site root)',
+      },
+      {
+        name: 'from',
+        type: 'string',
+        required: false,
+        description: 'Source scope for variable insertion',
+      },
+      {
+        name: 'default',
+        type: 'string',
+        required: false,
+        description: 'Default value if variable is undefined',
+      },
+      {
+        name: 'htmlencode',
+        type: 'boolean',
+        required: false,
+        description: 'Whether to HTML-encode the output',
+      },
+      {
+        name: 'scope',
+        type: 'string',
+        required: false,
+        description: 'Scope to read variable from',
+      },
     ],
   },
   {
     name: 'output',
     type: 'container',
-    description: 'Output content with optional processing. Similar to insert but as a container tag.',
+    description:
+      'Output content with optional processing. Similar to insert but as a container tag.',
     attributes: [
       { name: 'variable', type: 'string', required: false, description: 'Variable to output' },
       { name: 'format', type: 'string', required: false, description: 'Format string for output' },
@@ -70,7 +118,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'XML-escape content to prevent XSS. Converts special characters to HTML entities.',
     attributes: [
-      { name: 'encoding', type: 'string', required: false, description: 'Type of encoding to apply', values: ['html', 'xml', 'url', 'none'] },
+      {
+        name: 'encoding',
+        type: 'string',
+        required: false,
+        description: 'Type of encoding to apply',
+        values: ['html', 'xml', 'url', 'none'],
+      },
     ],
   },
 
@@ -80,10 +134,25 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Conditional rendering. Displays content only if condition is true.',
     attributes: [
-      { name: 'variable', type: 'string', required: false, description: 'Variable to test (e.g., form.show_details)' },
-      { name: 'matches', type: 'string', required: false, description: 'Pattern to match against (uses ~ operator)' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: false,
+        description: 'Variable to test (e.g., form.show_details)',
+      },
+      {
+        name: 'matches',
+        type: 'string',
+        required: false,
+        description: 'Pattern to match against (uses ~ operator)',
+      },
       { name: 'not', type: 'boolean', required: false, description: 'Invert the condition' },
-      { name: 'prestate', type: 'string', required: false, description: 'Check for prestate (| for multiple)' },
+      {
+        name: 'prestate',
+        type: 'string',
+        required: false,
+        description: 'Check for prestate (| for multiple)',
+      },
       { name: 'expr', type: 'string', required: false, description: 'Expression to evaluate' },
     ],
   },
@@ -140,9 +209,24 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Iterate over arrays. Loop through each item in an array.',
     attributes: [
-      { name: 'variable', type: 'string', required: true, description: 'Variable name for each item' },
-      { name: 'index', type: 'string', required: false, description: 'Variable name for loop index (0-based)' },
-      { name: 'in', type: 'string', required: true, description: 'Array to iterate over (e.g., &page.items;)' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: true,
+        description: 'Variable name for each item',
+      },
+      {
+        name: 'index',
+        type: 'string',
+        required: false,
+        description: 'Variable name for loop index (0-based)',
+      },
+      {
+        name: 'in',
+        type: 'string',
+        required: true,
+        description: 'Array to iterate over (e.g., &page.items;)',
+      },
     ],
   },
   {
@@ -150,7 +234,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Alternative loop syntax. Iterate over data from emit tags.',
     attributes: [
-      { name: 'iterator', type: 'string', required: true, description: 'Iterator variable name from emit' },
+      {
+        name: 'iterator',
+        type: 'string',
+        required: true,
+        description: 'Iterator variable name from emit',
+      },
     ],
   },
 
@@ -161,15 +250,27 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Set variables in scopes. Create or modify variables.',
     attributes: [
       { name: 'variable', type: 'string', required: true, description: 'Variable name to set' },
-      { name: 'value', type: 'string', required: false, description: 'Value to assign (use content if omitted)' },
-      { name: 'scope', type: 'string', required: false, description: 'Target scope (form, page, var, etc.)', values: ['form', 'page', 'var', 'cookie', 'roxen', 'request'] },
+      {
+        name: 'value',
+        type: 'string',
+        required: false,
+        description: 'Value to assign (use content if omitted)',
+      },
+      {
+        name: 'scope',
+        type: 'string',
+        required: false,
+        description: 'Target scope (form, page, var, etc.)',
+        values: ['form', 'page', 'var', 'cookie', 'roxen', 'request'],
+      },
       { name: 'from', type: 'string', required: false, description: 'Source scope to copy from' },
     ],
   },
   {
     name: 'let',
     type: 'container',
-    description: 'Create temporary variable (local to current scope). Variable is only available inside the container.',
+    description:
+      'Create temporary variable (local to current scope). Variable is only available inside the container.',
     attributes: [
       { name: 'variable', type: 'string', required: true, description: 'Variable name to define' },
       { name: 'value', type: 'string', required: false, description: 'Value to assign' },
@@ -180,7 +281,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'simple',
     description: 'Append content to a variable. Add text to the end of an existing variable.',
     attributes: [
-      { name: 'variable', type: 'string', required: true, description: 'Variable name to append to' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: true,
+        description: 'Variable name to append to',
+      },
       { name: 'value', type: 'string', required: true, description: 'Content to append' },
       { name: 'scope', type: 'string', required: false, description: 'Target scope' },
     ],
@@ -188,9 +294,15 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
   {
     name: 'prepend',
     type: 'simple',
-    description: 'Prepend content to a variable. Add text to the beginning of an existing variable.',
+    description:
+      'Prepend content to a variable. Add text to the beginning of an existing variable.',
     attributes: [
-      { name: 'variable', type: 'string', required: true, description: 'Variable name to prepend to' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: true,
+        description: 'Variable name to prepend to',
+      },
       { name: 'value', type: 'string', required: true, description: 'Content to prepend' },
       { name: 'scope', type: 'string', required: false, description: 'Target scope' },
     ],
@@ -216,7 +328,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'from', type: 'string', required: true, description: 'Text or pattern to find' },
       { name: 'to', type: 'string', required: true, description: 'Replacement text' },
-      { name: 'regex', type: 'boolean', required: false, description: 'Treat "from" as regular expression' },
+      {
+        name: 'regex',
+        type: 'boolean',
+        required: false,
+        description: 'Treat "from" as regular expression',
+      },
     ],
   },
   {
@@ -224,8 +341,18 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Formatted output using sprintf format string.',
     attributes: [
-      { name: 'format', type: 'string', required: true, description: 'Format string (e.g., "Hello, %s!")' },
-      { name: 'arg', type: 'string', required: false, description: 'Argument value (use multiple arg attributes)' },
+      {
+        name: 'format',
+        type: 'string',
+        required: true,
+        description: 'Format string (e.g., "Hello, %s!")',
+      },
+      {
+        name: 'arg',
+        type: 'string',
+        required: false,
+        description: 'Argument value (use multiple arg attributes)',
+      },
     ],
   },
   {
@@ -262,7 +389,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'simple',
     description: 'Set HTTP response headers. Add custom headers to the HTTP response.',
     attributes: [
-      { name: 'name', type: 'string', required: true, description: 'Header name (e.g., Content-Type)' },
+      {
+        name: 'name',
+        type: 'string',
+        required: true,
+        description: 'Header name (e.g., Content-Type)',
+      },
       { name: 'value', type: 'string', required: true, description: 'Header value' },
     ],
   },
@@ -272,11 +404,31 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Control caching behavior. Configure output caching for performance.',
     attributes: [
       { name: 'hours', type: 'number', required: false, description: 'Cache duration in hours' },
-      { name: 'minutes', type: 'number', required: false, description: 'Cache duration in minutes' },
-      { name: 'seconds', type: 'number', required: false, description: 'Cache duration in seconds' },
+      {
+        name: 'minutes',
+        type: 'number',
+        required: false,
+        description: 'Cache duration in minutes',
+      },
+      {
+        name: 'seconds',
+        type: 'number',
+        required: false,
+        description: 'Cache duration in seconds',
+      },
       { name: 'no', type: 'boolean', required: false, description: 'Disable caching' },
-      { name: 'until', type: 'string', required: false, description: 'Cache until specific date/time' },
-      { name: 'vary', type: 'string', required: false, description: 'Cache variation key (e.g., cookie:session)' },
+      {
+        name: 'until',
+        type: 'string',
+        required: false,
+        description: 'Cache until specific date/time',
+      },
+      {
+        name: 'vary',
+        type: 'string',
+        required: false,
+        description: 'Cache variation key (e.g., cookie:session)',
+      },
     ],
   },
   {
@@ -298,7 +450,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Use content from files or packages. Include external RXML packages.',
     attributes: [
-      { name: 'package', type: 'string', required: false, description: 'Path to RXML package file' },
+      {
+        name: 'package',
+        type: 'string',
+        required: false,
+        description: 'Path to RXML package file',
+      },
       { name: 'container', type: 'string', required: false, description: 'Container name to use' },
       { name: 'file', type: 'string', required: false, description: 'File path to include' },
     ],
@@ -334,12 +491,39 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Generate content from various sources. Query databases, list directories, etc.',
     attributes: [
-      { name: 'source', type: 'string', required: true, description: 'Data source type', values: ['sql', 'dir', 'custom', 'files', 'users'] },
-      { name: 'query', type: 'string', required: false, description: 'SQL query or source-specific query' },
-      { name: 'directory', type: 'string', required: false, description: 'Directory path (for dir source)' },
-      { name: 'plugin', type: 'string', required: false, description: 'Plugin name (for custom source)' },
+      {
+        name: 'source',
+        type: 'string',
+        required: true,
+        description: 'Data source type',
+        values: ['sql', 'dir', 'custom', 'files', 'users'],
+      },
+      {
+        name: 'query',
+        type: 'string',
+        required: false,
+        description: 'SQL query or source-specific query',
+      },
+      {
+        name: 'directory',
+        type: 'string',
+        required: false,
+        description: 'Directory path (for dir source)',
+      },
+      {
+        name: 'plugin',
+        type: 'string',
+        required: false,
+        description: 'Plugin name (for custom source)',
+      },
       { name: 'sort', type: 'string', required: false, description: 'Sort field or expression' },
-      { name: 'order', type: 'string', required: false, description: 'Sort order', values: ['asc', 'desc'] },
+      {
+        name: 'order',
+        type: 'string',
+        required: false,
+        description: 'Sort order',
+        values: ['asc', 'desc'],
+      },
     ],
   },
 
@@ -349,9 +533,25 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'simple',
     description: 'Display formatted dates. Format and display timestamps.',
     attributes: [
-      { name: 'format', type: 'string', required: false, description: 'strftime format string (e.g., "%Y-%m-%d")' },
-      { name: 'time', type: 'string', required: false, description: 'Timestamp to format (default: now)' },
-      { name: 'type', type: 'string', required: false, description: 'Special date type', values: ['relative', 'weekday', 'month'] },
+      {
+        name: 'format',
+        type: 'string',
+        required: false,
+        description: 'strftime format string (e.g., "%Y-%m-%d")',
+      },
+      {
+        name: 'time',
+        type: 'string',
+        required: false,
+        description: 'Timestamp to format (default: now)',
+      },
+      {
+        name: 'type',
+        type: 'string',
+        required: false,
+        description: 'Special date type',
+        values: ['relative', 'weekday', 'month'],
+      },
       { name: 'second', type: 'number', required: false, description: 'Unix timestamp' },
       { name: 'minute', type: 'number', required: false, description: 'Minute value' },
       { name: 'hour', type: 'number', required: false, description: 'Hour value' },
@@ -393,7 +593,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Generate form fields. Output form input fields preserving values.',
     attributes: [
-      { name: 'project', type: 'string', required: false, description: 'Form variables to project' },
+      {
+        name: 'project',
+        type: 'string',
+        required: false,
+        description: 'Form variables to project',
+      },
     ],
   },
   {
@@ -402,7 +607,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Form input field.',
     attributes: [
       { name: 'name', type: 'string', required: true, description: 'Field name' },
-      { name: 'type', type: 'string', required: false, description: 'Input type', values: ['text', 'password', 'hidden', 'submit', 'checkbox', 'radio'] },
+      {
+        name: 'type',
+        type: 'string',
+        required: false,
+        description: 'Input type',
+        values: ['text', 'password', 'hidden', 'submit', 'checkbox', 'radio'],
+      },
       { name: 'value', type: 'string', required: false, description: 'Field value' },
       { name: 'default', type: 'string', required: false, description: 'Default value' },
     ],
@@ -412,7 +623,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Cryptographic hashing. Hash content for passwords.',
     attributes: [
-      { name: 'method', type: 'string', required: false, description: 'Hash method', values: ['crypt', 'md5', 'sha1', 'sha256'] },
+      {
+        name: 'method',
+        type: 'string',
+        required: false,
+        description: 'Hash method',
+        values: ['crypt', 'md5', 'sha1', 'sha256'],
+      },
     ],
   },
 
@@ -424,7 +641,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'to', type: 'string', required: true, description: 'Destination URL or path' },
       { name: 'seconds', type: 'number', required: false, description: 'Delay before redirect' },
-      { name: 'code', type: 'number', required: false, description: 'HTTP status code', values: ['301', '302', '303', '307', '308'] },
+      {
+        name: 'code',
+        type: 'number',
+        required: false,
+        description: 'HTTP status code',
+        values: ['301', '302', '303', '307', '308'],
+      },
       { name: 'post', type: 'boolean', required: false, description: 'Preserve POST data' },
     ],
   },
@@ -446,7 +669,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'text', type: 'string', required: true, description: 'Tab label text' },
       { name: 'url', type: 'string', required: true, description: 'Tab link URL' },
-      { name: 'selected', type: 'boolean', required: false, description: 'Whether this tab is selected' },
+      {
+        name: 'selected',
+        type: 'boolean',
+        required: false,
+        description: 'Whether this tab is selected',
+      },
     ],
   },
   {
@@ -455,16 +683,20 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Styled content box. Display content in a bordered box.',
     attributes: [
       { name: 'title', type: 'string', required: false, description: 'Box title' },
-      { name: 'style', type: 'string', required: false, description: 'Box style variant', values: ['info', 'warning', 'error', 'success'] },
+      {
+        name: 'style',
+        type: 'string',
+        required: false,
+        description: 'Box style variant',
+        values: ['info', 'warning', 'error', 'success'],
+      },
     ],
   },
   {
     name: 'obox',
     type: 'simple',
     description: 'Output box variant.',
-    attributes: [
-      { name: 'title', type: 'string', required: false, description: 'Box title' },
-    ],
+    attributes: [{ name: 'title', type: 'string', required: false, description: 'Box title' }],
   },
 
   // ==================== DATABASE TAGS ====================
@@ -472,9 +704,7 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     name: 'sqloutput',
     type: 'container',
     description: 'SQL query output container. Deprecated: Use emit source="sql" instead.',
-    attributes: [
-      { name: 'query', type: 'string', required: true, description: 'SQL query' },
-    ],
+    attributes: [{ name: 'query', type: 'string', required: true, description: 'SQL query' }],
     deprecated: true,
   },
   {
@@ -530,9 +760,7 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     name: 'fsize',
     type: 'simple',
     description: 'File size. Display human-readable file size.',
-    attributes: [
-      { name: 'file', type: 'string', required: true, description: 'Path to file' },
-    ],
+    attributes: [{ name: 'file', type: 'string', required: true, description: 'Path to file' }],
   },
   {
     name: 'page-size',
@@ -551,7 +779,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'simple',
     description: 'Print all variables in a scope. Debugging tool.',
     attributes: [
-      { name: 'scope', type: 'string', required: false, description: 'Scope to print', values: ['form', 'cookie', 'roxen', 'page', 'var', 'request'] },
+      {
+        name: 'scope',
+        type: 'string',
+        required: false,
+        description: 'Scope to print',
+        values: ['form', 'cookie', 'roxen', 'page', 'var', 'request'],
+      },
     ],
   },
   {
@@ -584,7 +818,12 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Catch and handle errors. Prevents RXML errors from stopping page rendering.',
     attributes: [
-      { name: 'variable', type: 'string', required: false, description: 'Variable to store error message' },
+      {
+        name: 'variable',
+        type: 'string',
+        required: false,
+        description: 'Variable to store error message',
+      },
     ],
   },
   {
@@ -618,9 +857,7 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     name: 'sed',
     type: 'container',
     description: 'Stream editor. Transform content using sed-like expressions.',
-    attributes: [
-      { name: 'command', type: 'string', required: true, description: 'Sed command' },
-    ],
+    attributes: [{ name: 'command', type: 'string', required: true, description: 'Sed command' }],
   },
   {
     name: 'cvar',
@@ -628,7 +865,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Complex variable operations. Advanced variable manipulation.',
     attributes: [
       { name: 'name', type: 'string', required: true, description: 'Variable name' },
-      { name: 'operation', type: 'string', required: true, description: 'Operation to perform', values: ['set', 'get', 'delete', 'exists'] },
+      {
+        name: 'operation',
+        type: 'string',
+        required: true,
+        description: 'Operation to perform',
+        values: ['set', 'get', 'delete', 'exists'],
+      },
     ],
   },
   {
@@ -668,7 +911,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
       { name: 'alt', type: 'string', required: false, description: 'Alternative text' },
       { name: 'width', type: 'number', required: false, description: 'Display width' },
       { name: 'height', type: 'number', required: false, description: 'Display height' },
-      { name: 'align', type: 'string', required: false, description: 'Alignment', values: ['left', 'right', 'center', 'top', 'middle', 'bottom'] },
+      {
+        name: 'align',
+        type: 'string',
+        required: false,
+        description: 'Alignment',
+        values: ['left', 'right', 'center', 'top', 'middle', 'bottom'],
+      },
       { name: 'border', type: 'number', required: false, description: 'Border width' },
     ],
   },
@@ -683,7 +932,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
       { name: 'size', type: 'number', required: false, description: 'Font size in pixels' },
       { name: 'bold', type: 'boolean', required: false, description: 'Bold text' },
       { name: 'italic', type: 'boolean', required: false, description: 'Italic text' },
-      { name: 'align', type: 'string', required: false, description: 'Text alignment', values: ['left', 'center', 'right'] },
+      {
+        name: 'align',
+        type: 'string',
+        required: false,
+        description: 'Text alignment',
+        values: ['left', 'center', 'right'],
+      },
       { name: 'border', type: 'number', required: false, description: 'Border width' },
       { name: 'spacing', type: 'number', required: false, description: 'Letter spacing' },
       { name: 'href', type: 'string', required: false, description: 'Link URL' },
@@ -699,8 +954,20 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'directory', type: 'string', required: true, description: 'Directory path' },
       { name: 'pattern', type: 'string', required: false, description: 'File glob pattern' },
-      { name: 'sort', type: 'string', required: false, description: 'Sort field', values: ['name', 'size', 'mtime'] },
-      { name: 'order', type: 'string', required: false, description: 'Sort order', values: ['asc', 'desc'] },
+      {
+        name: 'sort',
+        type: 'string',
+        required: false,
+        description: 'Sort field',
+        values: ['name', 'size', 'mtime'],
+      },
+      {
+        name: 'order',
+        type: 'string',
+        required: false,
+        description: 'Sort order',
+        values: ['asc', 'desc'],
+      },
     ],
   },
 
@@ -711,8 +978,18 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     description: 'Define RXML macro or container. Create reusable content blocks.',
     attributes: [
       { name: 'name', type: 'string', required: true, description: 'Macro/container name' },
-      { name: 'parameter', type: 'string', required: false, description: 'Parameter names (comma-separated)' },
-      { name: 'container', type: 'boolean', required: false, description: 'Define as container vs macro' },
+      {
+        name: 'parameter',
+        type: 'string',
+        required: false,
+        description: 'Parameter names (comma-separated)',
+      },
+      {
+        name: 'container',
+        type: 'boolean',
+        required: false,
+        description: 'Define as container vs macro',
+      },
     ],
   },
 
@@ -722,7 +999,13 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     type: 'container',
     description: 'Client capability checks. Test browser features.',
     attributes: [
-      { name: 'supports', type: 'string', required: true, description: 'Feature to test', values: ['frames', 'tables', 'javascript', 'css', 'ssl'] },
+      {
+        name: 'supports',
+        type: 'string',
+        required: true,
+        description: 'Feature to test',
+        values: ['frames', 'tables', 'javascript', 'css', 'ssl'],
+      },
     ],
   },
 
@@ -734,11 +1017,21 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     attributes: [
       { name: 'name', type: 'string', required: true, description: 'Cookie name' },
       { name: 'value', type: 'string', required: true, description: 'Cookie value' },
-      { name: 'lifetime', type: 'string', required: false, description: 'Cookie lifetime (e.g., "1 day", "1 year")' },
+      {
+        name: 'lifetime',
+        type: 'string',
+        required: false,
+        description: 'Cookie lifetime (e.g., "1 day", "1 year")',
+      },
       { name: 'path', type: 'string', required: false, description: 'Cookie path (default: /)' },
       { name: 'domain', type: 'string', required: false, description: 'Cookie domain' },
       { name: 'secure', type: 'boolean', required: false, description: 'HTTPS-only cookie' },
-      { name: 'httponly', type: 'boolean', required: false, description: 'HTTP-only cookie (no JS access)' },
+      {
+        name: 'httponly',
+        type: 'boolean',
+        required: false,
+        description: 'HTTP-only cookie (no JS access)',
+      },
     ],
   },
 
@@ -747,9 +1040,7 @@ export const RXML_TAG_CATALOG: RXMLTag[] = [
     name: 'prestate',
     type: 'container',
     description: 'Check for prestate. Conditionally show content based on URL prestate.',
-    attributes: [
-      { name: 'name', type: 'string', required: true, description: 'Prestate name' },
-    ],
+    attributes: [{ name: 'name', type: 'string', required: true, description: 'Prestate name' }],
   },
 ];
 
@@ -815,9 +1106,8 @@ export function getTagsByType(type: RXMLTagType): RXMLTag[] {
  */
 export function searchTags(query: string): RXMLTag[] {
   const lowerQuery = query.toLowerCase();
-  return RXML_TAG_CATALOG.filter(tag =>
-    tag.name.includes(lowerQuery) ||
-    tag.description.toLowerCase().includes(lowerQuery)
+  return RXML_TAG_CATALOG.filter(
+    tag => tag.name.includes(lowerQuery) || tag.description.toLowerCase().includes(lowerQuery)
   );
 }
 

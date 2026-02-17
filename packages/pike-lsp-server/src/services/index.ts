@@ -23,28 +23,28 @@ import type { PikeSettings } from '../core/types.js';
  * server services without needing to know their initialization.
  */
 export interface Services {
-    /** Bridge manager for Pike subprocess communication (null until initialized) */
-    bridge: BridgeManager | null;
-    /** Logger for diagnostic output */
-    logger: Logger;
-    /** Document cache for parsed document state */
-    documentCache: DocumentCache;
-    /** Module context for import resolution and waterfall loading (null until initialized) */
-    moduleContext: ModuleContext | null;
-    /** Type database for compiled program information */
-    typeDatabase: TypeDatabase;
-    /** Workspace index for symbol search across files */
-    workspaceIndex: WorkspaceIndex;
-    /** Stdlib index manager for standard library symbols */
-    stdlibIndex: StdlibIndexManager | null;
-    /** Include resolver for #include dependency tracking (null until initialized) */
-    includeResolver: IncludeResolver | null;
-    /** Workspace scanner for finding all Pike files in the workspace */
-    workspaceScanner: WorkspaceScanner;
-    /** Global LSP settings (mutable, updated by configuration changes) */
-    globalSettings: PikeSettings;
-    /** Include paths for module resolution (mutable, updated by configuration changes) */
-    includePaths: string[];
+  /** Bridge manager for Pike subprocess communication (null until initialized) */
+  bridge: BridgeManager | null;
+  /** Logger for diagnostic output */
+  logger: Logger;
+  /** Document cache for parsed document state */
+  documentCache: DocumentCache;
+  /** Module context for import resolution and waterfall loading (null until initialized) */
+  moduleContext: ModuleContext | null;
+  /** Type database for compiled program information */
+  typeDatabase: TypeDatabase;
+  /** Workspace index for symbol search across files */
+  workspaceIndex: WorkspaceIndex;
+  /** Stdlib index manager for standard library symbols */
+  stdlibIndex: StdlibIndexManager | null;
+  /** Include resolver for #include dependency tracking (null until initialized) */
+  includeResolver: IncludeResolver | null;
+  /** Workspace scanner for finding all Pike files in the workspace */
+  workspaceScanner: WorkspaceScanner;
+  /** Global LSP settings (mutable, updated by configuration changes) */
+  globalSettings: PikeSettings;
+  /** Include paths for module resolution (mutable, updated by configuration changes) */
+  includePaths: string[];
 }
 
 // Re-export for convenience

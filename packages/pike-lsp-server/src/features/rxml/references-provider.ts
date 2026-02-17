@@ -52,7 +52,7 @@ export async function findTagReferences(
     for (const tag of foundTags) {
       locations.push({
         uri: fileToUri(file),
-        range: tag.range
+        range: tag.range,
       });
     }
   }
@@ -78,8 +78,8 @@ export async function findTagReferences(
             uri: fileToUri(file),
             range: {
               start: position,
-              end: { line: position.line, character: position.character + tagName.length }
-            }
+              end: { line: position.line, character: position.character + tagName.length },
+            },
           });
         }
       }
@@ -128,8 +128,8 @@ export async function findDefvarReferences(
           uri: fileToUri(file),
           range: {
             start: position,
-            end: { line: position.line, character: position.character + defvarName.length }
-          }
+            end: { line: position.line, character: position.character + defvarName.length },
+          },
         });
       }
     }
@@ -237,7 +237,7 @@ async function findTemplateFiles(workspaceFolders: string[]): Promise<string[]> 
     const matches = await glob('**/*.{rxml,roxen}', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -262,7 +262,7 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -291,7 +291,7 @@ function findPositionForMatch(content: string, match: RegExpExecArray): Position
 
   return {
     line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length
+    character: (lines[lines.length - 1] || '').length,
   };
 }
 
@@ -304,7 +304,10 @@ function findTagAtPosition(content: string, offset: number): { tagName: string }
   return null;
 }
 
-function findAttributeAtPosition(content: string, offset: number): { attrName: string; tagName: string } | null {
+function findAttributeAtPosition(
+  content: string,
+  offset: number
+): { attrName: string; tagName: string } | null {
   const before = content.substring(Math.max(0, offset - 200), offset);
   const attrMatch = before.match(/(\w+)\s*=\s*["']?[^"']*$/);
   if (attrMatch && attrMatch[1]) {

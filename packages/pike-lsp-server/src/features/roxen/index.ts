@@ -36,11 +36,11 @@ export function registerRoxenHandlers(
   documents: TextDocuments<TextDocument>
 ): void {
   // Invalidate Roxen detection cache when documents change
-  documents.onDidChangeContent((change) => {
+  documents.onDidChangeContent(change => {
     invalidateCache(change.document.uri);
   });
 
-  documents.onDidClose((event) => {
+  documents.onDidClose(event => {
     invalidateCache(event.document.uri);
   });
 
@@ -66,14 +66,14 @@ export { provideRoxenDiagnostics } from './diagnostics.js';
 
 // Re-export config helpers
 export {
-    parseRoxenConfig,
-    validateRoxenConfig,
-    getRoxenConfigCompletions,
-    getDefvarCompletions,
-    isInDefvarContext,
-    type DefvarDeclaration,
-    type RoxenConfig,
-    type ConfigError
+  parseRoxenConfig,
+  validateRoxenConfig,
+  getRoxenConfigCompletions,
+  getDefvarCompletions,
+  isInDefvarContext,
+  type DefvarDeclaration,
+  type RoxenConfig,
+  type ConfigError,
 } from './config.js';
 
 // Re-export types

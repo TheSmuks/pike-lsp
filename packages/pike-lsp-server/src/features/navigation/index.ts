@@ -13,9 +13,7 @@
  * Each handler includes try/catch with logging fallback (SRV-12).
  */
 
-import {
-    Connection,
-} from 'vscode-languageserver/node.js';
+import { Connection } from 'vscode-languageserver/node.js';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
@@ -38,12 +36,12 @@ export { extractExpressionAtPosition } from './expression-utils.js';
  * @param documents - TextDocuments manager for LSP document synchronization
  */
 export function registerNavigationHandlers(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    registerHoverHandler(connection, services, documents);
-    registerDefinitionHandlers(connection, services, documents);
-    registerReferencesHandlers(connection, services, documents);
-    registerImplementationHandler(connection, services, documents);
+  registerHoverHandler(connection, services, documents);
+  registerDefinitionHandlers(connection, services, documents);
+  registerReferencesHandlers(connection, services, documents);
+  registerImplementationHandler(connection, services, documents);
 }

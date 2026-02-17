@@ -3,6 +3,7 @@
 ## Role Detection (ENFORCED)
 
 **Read your role skill NOW before doing anything else.**
+
 - If you are the **lead/orchestrator**: use `/lead` or read `.claude/roles/lead.md`
 - If you are an **executor/worker**: use `/executor` or read `.claude/roles/executor.md`
 
@@ -10,14 +11,15 @@
 
 The project uses hooks to enforce role protocols:
 
-| Hook | Enforces |
-|------|----------|
-| `session-role-init.sh` | Sets role on session start (lead/executor) |
+| Hook                        | Enforces                                                |
+| --------------------------- | ------------------------------------------------------- |
+| `session-role-init.sh`      | Sets role on session start (lead/executor)              |
 | `role-protocol-enforcer.sh` | Blocks Lead from writing code, git commit, gh pr create |
-| `worktree-guard.sh` | Blocks source file writes in main repo |
-| `toolchain-guard.sh` | Blocks forbidden commands |
+| `worktree-guard.sh`         | Blocks source file writes in main repo                  |
+| `toolchain-guard.sh`        | Blocks forbidden commands                               |
 
 **To set your role manually:**
+
 ```bash
 export CLAUDE_ROLE=lead   # For orchestrator
 export CLAUDE_ROLE=executor  # For worker
@@ -32,6 +34,7 @@ Role is auto-detected from working directory (worktrees → executor).
 All messages, status updates, and logs MUST be grep-friendly and scannable. Agents read these — not humans.
 
 **Messages to teammates/lead:** Single-line, prefixed, parseable.
+
 ```
 DONE: fix/hover-types #42 merged | 3 tests added | 0 regressions
 BLOCKED: fix/tokenizer #38 | bun install fails in worktree | need lead input
@@ -43,6 +46,7 @@ CLAIM: #55 hover-provider placeholder conversion
 **Never:** Write paragraphs in messages. Use vague summaries like "made good progress." Dump full command output in messages.
 
 **Log files** (`.omc/logs/`) for verbose detail:
+
 - `.omc/logs/agent-{N}.log` — append full command output, stack traces, debug info here
 - Format: `YYYY-MM-DD HH:MM | LEVEL | message`
 - Levels: `INFO`, `WARN`, `ERROR`, `DEBUG`
@@ -52,15 +56,16 @@ CLAIM: #55 hover-provider placeholder conversion
 
 ### Toolchain (non-negotiable)
 
-| Tool | Use | NEVER use |
-|---|---|---|
-| **bun** | Package manager, test runner, scripts | npm, yarn, pnpm, npx |
-| **TypeScript strict** | `strict: true` in all tsconfig | loosening strict flags, `skipLibCheck` as a fix |
-| **Pike 8.0.1116** | `pike` binary at `/usr/local/pike/8.0.1116/` | Newer Pike APIs, `String.trim()`, unverified builtins |
-| **ESLint** | Linting with `no-explicit-any: error` | Disabling rules, `eslint-disable` without justification |
-| **Bun test** | `bun run test`, `bun run test:features` | jest, vitest, mocha, or running test files directly |
+| Tool                  | Use                                          | NEVER use                                               |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| **bun**               | Package manager, test runner, scripts        | npm, yarn, pnpm, npx                                    |
+| **TypeScript strict** | `strict: true` in all tsconfig               | loosening strict flags, `skipLibCheck` as a fix         |
+| **Pike 8.0.1116**     | `pike` binary at `/usr/local/pike/8.0.1116/` | Newer Pike APIs, `String.trim()`, unverified builtins   |
+| **ESLint**            | Linting with `no-explicit-any: error`        | Disabling rules, `eslint-disable` without justification |
+| **Bun test**          | `bun run test`, `bun run test:features`      | jest, vitest, mocha, or running test files directly     |
 
 If a command starts with `npm`, `npx`, `yarn`, or `pnpm` — **stop and replace with `bun`**. Examples:
+
 - `npm install` → `bun install`
 - `npm run test` → `bun run test`
 - `npx prettier` → `bunx prettier`
@@ -70,11 +75,13 @@ If a command starts with `npm`, `npx`, `yarn`, or `pnpm` — **stop and replace 
 We have ~300 requests per 5 hours across ALL agents. That's ~12 requests/agent/hour. Every tool call counts.
 
 **Batching rules:**
+
 - Combine shell commands with `&&` or `;` into ONE Bash call. Never run `git status` then `git branch` then `git log` as 3 calls — run `git status && git branch && git log` as 1 call.
 - Combine verification: `gh pr checks 42 && gh pr view 42 --json state && gh run list --branch main -L 1 --json status,conclusion` = ONE call, not three.
 - Combine git operations: `git checkout main && git pull && gh issue list --state open` = ONE call.
 
 **Reduction rules:**
+
 - Run `scripts/test-agent.sh --fast` ONCE before commit, not after every edit.
 - Full test suite (`scripts/test-agent.sh`) only before push — never mid-development.
 - Do NOT repeatedly check CI. Use `gh pr checks <number> --watch` to block until checks finish, then merge immediately. One call, not a polling loop.
@@ -93,17 +100,17 @@ We have ~300 requests per 5 hours across ALL agents. That's ~12 requests/agent/h
 
 Regex for parsing Pike code is FORBIDDEN unless no stdlib alternative exists. Pike 8.0.1116 has proper parsers — use them. This is non-negotiable.
 
-| Task | USE | NEVER |
-|---|---|---|
-| Tokenize Pike | `Parser.Pike.split()`, `Parser.Pike.tokenize()` | Regex on source strings |
-| Parse C-like | `Parser.C.split()`, `Parser.C.tokenize()` | Regex for braces/parens |
-| Resolve modules | `master()->resolv()` | Regex on import paths |
-| Trim whitespace | `String.trim_all_whites()` | `String.trim()` (not in 8.0.1116) |
-| Extract identifiers | `Parser.Pike.split()` then filter | `sscanf()` or regex |
-| Extract strings | `Parser.Pike.split()` returns literals | Regex for quotes |
-| Parse RXML/HTML | `Parser.HTML` | Regex on markup |
+| Task                | USE                                             | NEVER                             |
+| ------------------- | ----------------------------------------------- | --------------------------------- |
+| Tokenize Pike       | `Parser.Pike.split()`, `Parser.Pike.tokenize()` | Regex on source strings           |
+| Parse C-like        | `Parser.C.split()`, `Parser.C.tokenize()`       | Regex for braces/parens           |
+| Resolve modules     | `master()->resolv()`                            | Regex on import paths             |
+| Trim whitespace     | `String.trim_all_whites()`                      | `String.trim()` (not in 8.0.1116) |
+| Extract identifiers | `Parser.Pike.split()` then filter               | `sscanf()` or regex               |
+| Extract strings     | `Parser.Pike.split()` returns literals          | Regex for quotes                  |
+| Parse RXML/HTML     | `Parser.HTML`                                   | Regex on markup                   |
 
-**When regex IS acceptable:** grep-style file searches, log filtering, CI output parsing, plain text matching. Rule of thumb: matching Pike *syntax* → use parser. Matching *text* → regex is fine.
+**When regex IS acceptable:** grep-style file searches, log filtering, CI output parsing, plain text matching. Rule of thumb: matching Pike _syntax_ → use parser. Matching _text_ → regex is fine.
 
 **Before writing parsing code:** `pike -e 'indices(Parser)'` to list parsers. Search `/usr/local/pike/8.0.1116/lib/`. Read `$PIKE_SRC` for patterns. The stdlib almost certainly has what you need.
 
@@ -126,7 +133,7 @@ All work on feature branches inside worktrees. Format: `type/description` (feat/
 
 **Worktree limit: 5.** `scripts/worktree.sh create` auto-prunes merged worktrees before creating. If still at capacity, the lead should audit `scripts/worktree.sh list` and remove stale ones with `scripts/worktree.sh cleanup`.
 
-**`--no-verify` rule:** Only acceptable for non-code files (STATUS.md, handoffs, configs, .omc/*). NEVER for skipping type-safety or test-integrity checks on source code. If a hook blocks a legitimate change, fix the code to satisfy the hook.
+**`--no-verify` rule:** Only acceptable for non-code files (STATUS.md, handoffs, configs, .omc/\*). NEVER for skipping type-safety or test-integrity checks on source code. If a hook blocks a legitimate change, fix the code to satisfy the hook.
 
 Enforced by hooks and GitHub rulesets (required checks: `test (20.x)`, `pike-test (8.1116)`, `vscode-e2e`).
 

@@ -16,7 +16,7 @@ import { createHash } from 'crypto';
  * @returns Hex-encoded SHA-256 hash
  */
 export function computeContentHash(content: string): string {
-    return createHash('sha256').update(content).digest('hex');
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**
@@ -27,17 +27,17 @@ export function computeContentHash(content: string): string {
  * @returns Array of hash codes for each line
  */
 export function computeLineHashes(content: string): number[] {
-    const lines = content.split('\n');
-    const hashes: number[] = [];
+  const lines = content.split('\n');
+  const hashes: number[] = [];
 
-    for (const line of lines) {
-        // Remove comments and normalize whitespace
-        const semantic = stripComments(line.trim());
-        // Simple hash for quick comparison
-        hashes.push(simpleHash(semantic));
-    }
+  for (const line of lines) {
+    // Remove comments and normalize whitespace
+    const semantic = stripComments(line.trim());
+    // Simple hash for quick comparison
+    hashes.push(simpleHash(semantic));
+  }
 
-    return hashes;
+  return hashes;
 }
 
 /**
@@ -45,12 +45,12 @@ export function computeLineHashes(content: string): number[] {
  * Handles both line comments (//) and removes whitespace.
  */
 function stripComments(line: string): string {
-    // Find line comment position
-    const commentPos = line.indexOf('//');
-    if (commentPos >= 0) {
-        line = line.substring(0, commentPos);
-    }
-    return line.trim();
+  // Find line comment position
+  const commentPos = line.indexOf('//');
+  if (commentPos >= 0) {
+    line = line.substring(0, commentPos);
+  }
+  return line.trim();
 }
 
 /**
@@ -58,12 +58,12 @@ function stripComments(line: string): string {
  * Uses FNV-1a algorithm for fast hashing.
  */
 function simpleHash(str: string): number {
-    let hash = 2166136261; // FNV offset basis
-    for (let i = 0; i < str.length; i++) {
-        hash ^= str.charCodeAt(i);
-        hash = Math.imul(hash, 16777619); // FNV prime
-    }
-    return hash >>> 0; // Convert to unsigned 32-bit
+  let hash = 2166136261; // FNV offset basis
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619); // FNV prime
+  }
+  return hash >>> 0; // Convert to unsigned 32-bit
 }
 
 /**
@@ -73,104 +73,103 @@ function simpleHash(str: string): number {
  * to document information by URI.
  */
 export class DocumentCache {
-    private cache = new Map<string, DocumentCacheEntry>();
-    private pending = new Map<string, Promise<void>>();
+  private cache = new Map<string, DocumentCacheEntry>();
+  private pending = new Map<string, Promise<void>>();
 
-    /**
-     * Get cached document information.
-     * @param uri - Document URI
-     * @returns Cached entry or undefined if not cached
-     */
-    get(uri: string): DocumentCacheEntry | undefined {
-        return this.cache.get(uri);
+  /**
+   * Get cached document information.
+   * @param uri - Document URI
+   * @returns Cached entry or undefined if not cached
+   */
+  get(uri: string): DocumentCacheEntry | undefined {
+    return this.cache.get(uri);
+  }
+
+  /**
+   * Set cached document information.
+   * @param uri - Document URI
+   * @param entry - Document cache entry to store
+   */
+  set(uri: string, entry: DocumentCacheEntry): void {
+    this.cache.set(uri, entry);
+  }
+
+  /**
+   * Mark a document as being validated.
+   * @param uri - Document URI
+   * @param promise - Validation promise
+   */
+  setPending(uri: string, promise: Promise<void>): void {
+    this.pending.set(uri, promise);
+    promise.finally(() => {
+      if (this.pending.get(uri) === promise) {
+        this.pending.delete(uri);
+      }
+    });
+  }
+
+  /**
+   * Wait for any pending validation for the document.
+   * @param uri - Document URI
+   * @returns Promise that resolves when validation is complete (or immediately if none pending)
+   */
+  async waitFor(uri: string): Promise<void> {
+    const pending = this.pending.get(uri);
+    if (pending) {
+      try {
+        await pending;
+      } catch (e) {
+        // Ignore errors, caller will check cache
+      }
     }
+  }
 
-    /**
-     * Set cached document information.
-     * @param uri - Document URI
-     * @param entry - Document cache entry to store
-     */
-    set(uri: string, entry: DocumentCacheEntry): void {
-        this.cache.set(uri, entry);
-    }
+  /**
+   * Remove document from cache.
+   * @param uri - Document URI to remove
+   * @returns true if document was in cache, false otherwise
+   */
+  delete(uri: string): boolean {
+    return this.cache.delete(uri);
+  }
 
-    /**
-     * Mark a document as being validated.
-     * @param uri - Document URI
-     * @param promise - Validation promise
-     */
-    setPending(uri: string, promise: Promise<void>): void {
-        this.pending.set(uri, promise);
-        promise.finally(() => {
-            if (this.pending.get(uri) === promise) {
-                this.pending.delete(uri);
-            }
-        });
-    }
+  /**
+   * Check if document is in cache.
+   * @param uri - Document URI
+   * @returns true if document is cached
+   */
+  has(uri: string): boolean {
+    return this.cache.has(uri);
+  }
 
-    /**
-     * Wait for any pending validation for the document.
-     * @param uri - Document URI
-     * @returns Promise that resolves when validation is complete (or immediately if none pending)
-     */
-    async waitFor(uri: string): Promise<void> {
-        const pending = this.pending.get(uri);
-        if (pending) {
-            try {
-                await pending;
-            } catch (e) {
-                // Ignore errors, caller will check cache
-            }
-        }
-    }
+  /**
+   * Clear all cached documents.
+   */
+  clear(): void {
+    this.cache.clear();
+  }
 
+  /**
+   * Get all cached document entries.
+   * @returns Iterable of [uri, entry] tuples
+   */
+  entries(): IterableIterator<[string, DocumentCacheEntry]> {
+    return this.cache.entries();
+  }
 
-    /**
-     * Remove document from cache.
-     * @param uri - Document URI to remove
-     * @returns true if document was in cache, false otherwise
-     */
-    delete(uri: string): boolean {
-        return this.cache.delete(uri);
-    }
+  /**
+   * Get all cached document URIs.
+   * @returns Iterable of document URIs
+   */
+  keys(): IterableIterator<string> {
+    return this.cache.keys();
+  }
 
-    /**
-     * Check if document is in cache.
-     * @param uri - Document URI
-     * @returns true if document is cached
-     */
-    has(uri: string): boolean {
-        return this.cache.has(uri);
-    }
-
-    /**
-     * Clear all cached documents.
-     */
-    clear(): void {
-        this.cache.clear();
-    }
-
-    /**
-     * Get all cached document entries.
-     * @returns Iterable of [uri, entry] tuples
-     */
-    entries(): IterableIterator<[string, DocumentCacheEntry]> {
-        return this.cache.entries();
-    }
-
-    /**
-     * Get all cached document URIs.
-     * @returns Iterable of document URIs
-     */
-    keys(): IterableIterator<string> {
-        return this.cache.keys();
-    }
-
-    /**
-     * Get the number of cached documents.
-     * @returns Cache size
-     */
-    get size(): number {
-        return this.cache.size;
-    }
+  /**
+   * Get the number of cached documents.
+   * @returns Cache size
+   */
+  get size(): number {
+    return this.cache.size;
+  }
 }

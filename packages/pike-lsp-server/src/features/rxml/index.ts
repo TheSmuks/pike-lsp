@@ -23,7 +23,6 @@ export function registerRXMLHandlers(
   // RXML feature integration follows the same pattern as Roxen feature
   // Instead of registering separate LSP handlers, we provide helper functions
   // that existing providers call for RXML-specific enhancements.
-
   // The actual RXML handlers are registered in the main feature modules:
   // - Completion: EditingFeature calls provideRXMLCompletions() for rxml files
   // - Symbols: SymbolsFeature calls provideRXMLSymbols() for rxml files
@@ -31,7 +30,6 @@ export function registerRXMLHandlers(
   //
   // These providers detect RXML files by checking document.languageId === 'rxml'
   // and then apply RXML-specific logic.
-
   // Future: Set up document change listeners for cache invalidation
   // _documents.onDidChangeContent((change) => {
   //   if (change.document.languageId === 'rxml') {
@@ -40,7 +38,12 @@ export function registerRXMLHandlers(
   // });
 }
 
-export { provideRXMLCompletions, getTagCompletions, getAttributeCompletions, getAttributeValueCompletions } from './completion.js';
+export {
+  provideRXMLCompletions,
+  getTagCompletions,
+  getAttributeCompletions,
+  getAttributeValueCompletions,
+} from './completion.js';
 export {
   RXML_TAG_CATALOG,
   getTagInfo,
@@ -52,7 +55,13 @@ export {
   type RXMLTagType,
   type RXMLAttribute,
 } from './tag-catalog.js';
-export { validateRXMLDocument, checkUnknownTags, checkMissingRequiredAttributes, checkUnclosedContainerTags, checkInvalidAttributeValues } from './diagnostics.js';
+export {
+  validateRXMLDocument,
+  checkUnknownTags,
+  checkMissingRequiredAttributes,
+  checkUnclosedContainerTags,
+  checkInvalidAttributeValues,
+} from './diagnostics.js';
 export { parseRXMLTemplate, isContainerTag, getTagAttributes } from './parser.js';
 export { provideRXMLSymbols } from './symbols.js';
 export type { RXMLTagInfo, RXMLTagCatalogEntry } from './types.js';
@@ -68,25 +77,18 @@ export {
   findDefvarDefinition,
   type RoxenTagInfo,
   type RoxenDefvarInfo,
-  type RoxenModuleInfo
+  type RoxenModuleInfo,
 } from './definition-provider.js';
 export {
   provideRXMLReferences,
   findTagReferences,
   findDefvarReferences,
-  findModulesUsingTag
+  findModulesUsingTag,
 } from './references-provider.js';
-export {
-  prepareRXMLRename,
-  provideRXMLRename
-} from './rename-provider.js';
-export {
-  provideRXMLHover,
-  getModuleConstantHover,
-  getDefvarHover
-} from './hover-provider.js';
+export { prepareRXMLRename, provideRXMLRename } from './rename-provider.js';
+export { provideRXMLHover, getModuleConstantHover, getDefvarHover } from './hover-provider.js';
 export {
   provideRXMLCodeActions,
   provideRXMLQuickFix,
-  type ExtendedModuleInfo
+  type ExtendedModuleInfo,
 } from './code-actions-provider.js';

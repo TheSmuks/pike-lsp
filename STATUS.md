@@ -12,12 +12,12 @@ Build: PASSING | Tests: PASSING | Pike compile: PASSING | **Roxen: PRODUCTION RE
 
 Run `scripts/test-agent.sh --quality` for live numbers. Last audit (2026-02-14):
 
-| Package | Real | Placeholder | Real % |
-|---------|------|-------------|--------|
-| pike-bridge | 216 | 0 | **100%** |
-| vscode-pike | 307 | 4 | **98%** |
-| pike-lsp-server | 1792 | 2 | **99%** |
-| **OVERALL** | **2315** | **6** | **99%** |
+| Package         | Real     | Placeholder | Real %   |
+| --------------- | -------- | ----------- | -------- |
+| pike-bridge     | 216      | 0           | **100%** |
+| vscode-pike     | 307      | 4           | **98%**  |
+| pike-lsp-server | 1792     | 2           | **99%**  |
+| **OVERALL**     | **2315** | **6**       | **99%**  |
 
 ## Failing Tests
 

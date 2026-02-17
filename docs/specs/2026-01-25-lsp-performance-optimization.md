@@ -12,16 +12,16 @@ Initial benchmarks showed `getCompletionContext` taking 4.69ms. Investigation re
 
 ### Benchmark Results (2026-01-25)
 
-| Operation | Avg Latency | Pike Internal | Status |
-|-----------|-------------|--------------|--------|
-| Pike Startup | 0.057 ms | <500ms | ✅ Excellent |
-| Small Validation (15 lines) | 0.154 ms | - | ✅ Good |
-| Medium Validation (100 lines) | 0.636 ms | - | ✅ Good |
-| Large Validation (1000 lines) | 7.510 ms | <10ms | ✅ Good |
+| Operation                            | Avg Latency | Pike Internal        | Status                        |
+| ------------------------------------ | ----------- | -------------------- | ----------------------------- |
+| Pike Startup                         | 0.057 ms    | <500ms               | ✅ Excellent                  |
+| Small Validation (15 lines)          | 0.154 ms    | -                    | ✅ Good                       |
+| Medium Validation (100 lines)        | 0.636 ms    | -                    | ✅ Good                       |
+| Large Validation (1000 lines)        | 7.510 ms    | <10ms                | ✅ Good                       |
 | **Completion: getCompletionContext** | **5.57 ms** | **~0.02ms (cached)** | ✅ **Pike already optimized** |
-| Hover (resolveModule) | 20.95 µs | <100µs | ✅ Excellent |
-| Stdlib resolution | 20-300 µs | <500ms | ✅ Excellent |
-| Cache hit rate | 84% | >80% | ✅ Good |
+| Hover (resolveModule)                | 20.95 µs    | <100µs               | ✅ Excellent                  |
+| Stdlib resolution                    | 20-300 µs   | <500ms               | ✅ Excellent                  |
+| Cache hit rate                       | 84%         | >80%                 | ✅ Good                       |
 
 ### Critical Path Analysis
 
@@ -39,23 +39,25 @@ Completion trigger:      ~100ms after last keystroke
 ## Root Cause Analysis
 
 ### Initial Hypothesis (INCORRECT)
+
 **Assumption:** `getCompletionContext` tokenizes the entire file on every request.
 
 **Reality:** Pike internally caches tokenization results:
+
 - First call on document: ~1ms (tokenizes once)
 - Subsequent calls: ~0.02ms (uses cached tokens)
 - Speedup: ~50x already built into Pike
 
 ### Actual Bottleneck: IPC + TypeScript
 
-| Step | Estimated Time | Notes |
-|------|----------------|-------|
-| TypeScript function call overhead | ~1ms | V8 engine, promises |
-| JSON serialization of request | ~1ms | `code` string is large |
-| IPC to Pike subprocess | ~0.5ms | Pipe write/read |
-| Pike processing (cached) | ~0.02ms | Already fast |
-| JSON deserialization | ~1ms | Result parsing |
-| **Total** | **~3.5ms** | **Remaining overhead** |
+| Step                              | Estimated Time | Notes                  |
+| --------------------------------- | -------------- | ---------------------- |
+| TypeScript function call overhead | ~1ms           | V8 engine, promises    |
+| JSON serialization of request     | ~1ms           | `code` string is large |
+| IPC to Pike subprocess            | ~0.5ms         | Pipe write/read        |
+| Pike processing (cached)          | ~0.02ms        | Already fast           |
+| JSON deserialization              | ~1ms           | Result parsing         |
+| **Total**                         | **~3.5ms**     | **Remaining overhead** |
 
 ## Implementation Attempt (PERF-003)
 
@@ -95,15 +97,18 @@ Completion trigger:      ~100ms after last keystroke
 To reduce completion latency below 2ms, we need to address IPC overhead:
 
 **Option A: Batched Requests**
+
 - Combine multiple operations (tokenize + complete) in single IPC call
 - Estimated savings: ~1-2ms
 
 **Option B: WebSocket instead of stdio**
+
 - Faster communication channel
 - Estimated savings: ~0.5-1ms
 - Higher complexity
 
 **Option C: Inline tokenization in TypeScript**
+
 - Port `Parser.Pike.split()` logic to TypeScript
 - Eliminates IPC for simple completion
 - High maintenance burden
@@ -121,12 +126,12 @@ To reduce completion latency below 2ms, we need to address IPC overhead:
 
 ### Final Measurements (Direct Profiling)
 
-| Component | Latency | Notes |
-|-----------|---------|-------|
-| Pike internal (large file, cached) | 0.133 ms | Tokenization is cached |
-| IPC round-trip | 0.041 ms | Very fast |
-| JSON stringify/parse | <0.001 ms | Negligible |
-| **Total getCompletionContext** | **0.162-0.231 ms** | ✅ **Target exceeded** |
+| Component                          | Latency            | Notes                  |
+| ---------------------------------- | ------------------ | ---------------------- |
+| Pike internal (large file, cached) | 0.133 ms           | Tokenization is cached |
+| IPC round-trip                     | 0.041 ms           | Very fast              |
+| JSON stringify/parse               | <0.001 ms          | Negligible             |
+| **Total getCompletionContext**     | **0.162-0.231 ms** | ✅ **Target exceeded** |
 
 ### Why Mitata Benchmark Showed 5.5ms
 
@@ -136,11 +141,11 @@ The mitata benchmark framework adds ~5ms of measurement overhead. Direct profili
 
 Direct profiling of the IPC call path reveals:
 
-| Step | Latency |
-|------|---------|
-| sendRequest raw | 0.231 ms |
-| getCompletionContext with cache | 0.162 ms (faster due to optimization) |
-| Wrapper overhead | -0.069 ms (negative = cache provides benefit) |
+| Step                            | Latency                                       |
+| ------------------------------- | --------------------------------------------- |
+| sendRequest raw                 | 0.231 ms                                      |
+| getCompletionContext with cache | 0.162 ms (faster due to optimization)         |
+| Wrapper overhead                | -0.069 ms (negative = cache provides benefit) |
 
 **Key Finding:** The TypeScript wrapper with caching is actually FASTER than raw sendRequest, confirming the cache infrastructure provides value despite Pike's internal caching.
 
@@ -149,6 +154,7 @@ Direct profiling of the IPC call path reveals:
 ## Implementation Notes
 
 The PERF-003 TypeScript cache:
+
 - Stores `splitTokens` returned by Pike for reuse
 - LRU eviction with 50-entry limit
 - Provides ~0.07ms speedup when cache hits
