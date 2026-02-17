@@ -80,6 +80,24 @@ constant MODULE_SECURITY = 1 << 30;        // Security module
 constant MODULE_EXPERIMENTAL = 1 << 31;    // Experimental module
 constant MODULE_TYPE_MASK = (1 << 27) - 1; // Lower 27 bits for module type
 
+//! module - Base class for Roxen modules
+//! Roxen modules inherit from this to register with the Roxen framework
+class module {
+    //! Stub implementation - actual Roxen modules inherit this
+    constant module_type = 0;
+    constant module_name = "";
+    constant module_doc = "";
+
+    //! Module configuration variables
+    mapping(string:mixed) configuration = ([]);
+
+    //! Called when the module is loaded
+    void create() {}
+
+    //! Register a configuration variable (simplified stub)
+    void defvar(string name, mixed default_val, int type, string|void doc) {}
+}
+
 //! Common Roxen type constants (matching Roxen 6.1 module.h)
 constant TYPE_STRING = 1;            // String variable
 constant TYPE_FILE = 2;              // File path variable
