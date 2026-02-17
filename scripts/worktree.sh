@@ -23,7 +23,8 @@ done
 REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
 REPO_NAME=$(basename "$REPO_ROOT")
 PARENT_DIR=$(dirname "$REPO_ROOT")
-MAX_WORKTREES=5
+MAX_WORKTREES=10
+INACTIVITY_DAYS=30
 
 # Colors
 RED='\033[0;31m'
@@ -82,6 +83,90 @@ is_worktree_abandoned() {
   [ "$days_since_commit" -gt 7 ]
 }
 
+# Check if a worktree is inactive based on last commit
+is_worktree_inactive() {
+  local wt_path="$1"
+
+  # Check last commit date on this branch
+  local last_commit_timestamp
+  last_commit_timestamp=$(git -C "$wt_path" log -1 --format=%ct 2>/dev/null || echo "0")
+  if [ "$last_commit_timestamp" = "0" ]; then
+    # No commits yet - check when the worktree was created
+    if [ -d "$wt_path/.git" ]; then
+      local created_timestamp
+      created_timestamp=$(stat -c %Y "$wt_path" 2>/dev/null || echo "0")
+      if [ "$created_timestamp" = "0" ]; then
+        return 1
+      fi
+      local now
+      now=$(date +%s)
+      local days_since_created=$(( (now - created_timestamp) / 86400 ))
+      [ "$days_since_created" -gt "$INACTIVITY_DAYS" ]
+      return
+    fi
+    return 1
+  fi
+
+  local now
+  now=$(date +%s)
+  local days_since_commit=$(( (now - last_commit_timestamp) / 86400 ))
+
+  [ "$days_since_commit" -gt "$INACTIVITY_DAYS" ]
+}
+
+# Remove inactive worktrees automatically
+cleanup_inactive() {
+  local force=false
+  if [ "${1:-}" = "--force" ]; then
+    force=true
+  fi
+
+  echo -e "${BLUE}Checking for inactive worktrees (>${INACTIVITY_DAYS} days)...${NC}"
+
+  local removed=0
+  git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | while read -r wt_path; do
+    # Skip main repo
+    if [ "$wt_path" = "$REPO_ROOT" ]; then
+      continue
+    fi
+
+    if ! is_worktree_inactive "$wt_path"; then
+      continue
+    fi
+
+    local branch
+    branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
+
+    # Check for uncommitted changes
+    if [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
+      if [ "$force" = true ]; then
+        echo -e "  ${YELLOW}FORCE REMOVE${NC} $wt_path ($branch) [inactive + changes]"
+        git -C "$REPO_ROOT" worktree remove --force "$wt_path" 2>/dev/null || true
+        removed=$((removed + 1))
+      else
+        echo -e "  ${YELLOW}SKIP${NC} $wt_path ($branch) [inactive but has uncommitted changes, use --force]"
+      fi
+      continue
+    fi
+
+    echo -e "  ${BLUE}REMOVE${NC} $wt_path ($branch) [inactive ${INACTIVITY_DAYS}+ days]"
+    git -C "$REPO_ROOT" worktree remove "$wt_path" 2>/dev/null || true
+
+    # Delete branch if it exists and is fully merged
+    if git -C "$REPO_ROOT" branch --merged main 2>/dev/null | grep -q "$branch"; then
+      git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
+    fi
+
+    removed=$((removed + 1))
+  done
+
+  if [ "$removed" -gt 0 ]; then
+    echo -e "${GREEN}Removed $removed inactive worktree(s)${NC}"
+  else
+    echo -e "${GREEN}No inactive worktrees to remove${NC}"
+  fi
+}
+
 cmd_prune() {
   echo -e "${BLUE}Pruning merged worktrees...${NC}"
 
@@ -138,21 +223,112 @@ cmd_prune() {
 cmd_create() {
   local branch="${1:-}"
   local base_branch="main"
+  local issue_num=""
 
   if [ -z "$branch" ]; then
     echo -e "${RED}Error: Branch name required${NC}"
-    echo "Usage: $0 create <branch-name> [--from <base-branch>]"
+    echo "Usage: $0 create <branch-name> [--from <base-branch>] [--issue <number>]"
+    echo "       $0 create #<issue-number>   # Quick create from issue"
     exit 1
   fi
 
-  # Parse --from flag
+  # Handle quick issue lookup: #42 -> find issue, suggest branch
+  if [[ "$branch" =~ ^#([0-9]+)$ ]]; then
+    issue_num="${BASH_REMATCH[1]}"
+    echo -e "${BLUE}Looking up issue #$issue_num...${NC}"
+
+    # Search for existing worktree with this issue
+    local found_branch=""
+    local found_path=""
+    for wt in $(git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //'); do
+      if [ "$wt" = "$REPO_ROOT" ]; then
+        continue
+      fi
+      local b
+      b=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || continue)
+      # Check if branch name contains the issue number
+      if [[ "$b" =~ (#|_-)${issue_num}($|_) ]] || [[ "$b" =~ ^feat-${issue_num} ]] || [[ "$b" =~ ^fix-${issue_num} ]]; then
+        found_branch="$b"
+        found_path="$wt"
+        break
+      fi
+    done
+
+    if [ -n "$found_branch" ]; then
+      echo -e "${YELLOW}Worktree already exists for issue #$issue_num${NC}"
+      echo "  Branch: $found_branch"
+      echo "  Path:   $found_path"
+      echo ""
+      echo "To work on it:"
+      echo "  cd $found_path"
+      exit 0
+    fi
+
+    # Try to get issue title from gh
+    local issue_title
+    issue_title=$(gh issue view "$issue_num" --json title --jq '.title' 2>/dev/null || echo "")
+    if [ -n "$issue_title" ]; then
+      echo "Issue #$issue_num: $issue_title"
+      # Convert title to branch-friendly format
+      local slug
+      slug=$(echo "$issue_title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g' | tr ' ' '-' | cut -c1-50)
+      echo ""
+      echo "Suggested branch: fix/$issue_num-$slug"
+      echo ""
+      read -p "Create this branch? [y/N] " -n 1 -r
+      echo
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 0
+      fi
+      branch="fix/$issue_num-$slug"
+    else
+      echo -e "${RED}Could not fetch issue #$issue_num${NC}"
+      echo "Make sure you're authenticated with GitHub CLI"
+      exit 1
+    fi
+  fi
+
+  # Parse flags
   shift
   while [ $# -gt 0 ]; do
     case "$1" in
       --from) base_branch="$2"; shift 2 ;;
+      --issue) issue_num="$2"; shift 2 ;;
       *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
     esac
   done
+
+  # Append issue number to branch if provided
+  if [ -n "$issue_num" ] && [[ ! "$branch" =~ \#${issue_num} ]]; then
+    branch="${branch}-#${issue_num}"
+  fi
+
+  # Check if worktree already exists (by branch name or issue number)
+  local existing_wt_path
+  existing_wt_path=$(worktree_path "$branch")
+  if [ -d "$existing_wt_path" ]; then
+    echo -e "${YELLOW}Worktree already exists: $existing_wt_path${NC}"
+    echo -e "Branch: $branch"
+    echo "Use 'worktree.sh list' to see all worktrees"
+    exit 0
+  fi
+
+  # Also check if any worktree has this issue number
+  if [ -n "$issue_num" ]; then
+    for wt in $(git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //'); do
+      if [ "$wt" = "$REPO_ROOT" ]; then
+        continue
+      fi
+      local b
+      b=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || continue)
+      if [[ "$b" =~ \#${issue_num} ]]; then
+        echo -e "${YELLOW}Worktree already exists for issue #$issue_num${NC}"
+        echo "  Branch: $b"
+        echo "  Path:   $wt"
+        exit 0
+      fi
+    done
+  fi
 
   # Acquire lock to prevent race conditions between parallel agents
   LOCK_FILE="/tmp/pike-lsp-worktree.lock"
@@ -178,9 +354,18 @@ cmd_create() {
   local current
   current=$(count_worktrees)
   if [ "$current" -gt "$MAX_WORKTREES" ]; then
-    echo -e "${RED}Error: Maximum $MAX_WORKTREES worktrees reached (current: $((current - 1)))${NC}"
-    echo "Run '$0 prune' to remove merged worktrees manually"
-    exit 1
+    echo -e "${YELLOW}Worktree limit reached ($MAX_WORKTREES), attempting to clean inactive worktrees...${NC}"
+    cleanup_inactive
+
+    # Re-check after cleanup
+    current=$(count_worktrees)
+    if [ "$current" -gt "$MAX_WORKTREES" ]; then
+      echo -e "${RED}Error: Maximum $MAX_WORKTREES worktrees reached (current: $((current - 1)))${NC}"
+      echo "Run '$0 prune' or '$0 cleanup' to remove merged worktrees manually"
+      echo "Run '$0 inactive' to see inactive worktrees"
+      exit 1
+    fi
+    echo -e "${GREEN}Space available after cleanup, proceeding...${NC}"
   fi
 
   local wt_path
@@ -245,17 +430,6 @@ cmd_list() {
 }
 
 cmd_remove() {
-<<<<<<< HEAD
-  local branch="${1:-}"
-  local force=false
-
-  # Parse --force flag
-  shift
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --force) force=true; shift ;;
-      *) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
-=======
   local branch=""
   local force=false
 
@@ -265,7 +439,6 @@ cmd_remove() {
       --force) force=true; shift ;;
       -*) echo -e "${RED}Unknown option: $1${NC}"; exit 1 ;;
       *) branch="$1"; shift ;;
->>>>>>> origin/main
     esac
   done
 
@@ -284,11 +457,7 @@ cmd_remove() {
   fi
 
   # Check for uncommitted changes (skip if --force)
-<<<<<<< HEAD
-  if [ "$force" != true ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
-=======
   if [ "$force" = false ] && [ -n "$(git -C "$wt_path" status --porcelain 2>/dev/null)" ]; then
->>>>>>> origin/main
     echo -e "${RED}Warning: Worktree has uncommitted changes!${NC}"
     echo "Path: $wt_path"
     git -C "$wt_path" status --short
@@ -428,21 +597,19 @@ case "${1:-help}" in
   status)  cmd_status ;;
   remove)  shift; cmd_remove "$@" ;;
   cleanup) shift; cmd_cleanup "$@" ;;
-  prune)   cmd_prune ;;
+  prune)     cmd_prune ;;
+  inactive)  shift; cleanup_inactive "$@" ;;
   help|*)
     echo "Usage: $0 <command> [args]"
     echo ""
     echo "Commands:"
-    echo "  create <branch> [--from <base>]  Create worktree with branch"
-    echo "  list                              List all worktrees"
-    echo "  status                            Detailed worktree status"
-<<<<<<< HEAD
-    echo "  remove <branch> [--force]         Remove a worktree (use --force for uncommitted changes)"
-=======
-    echo "  remove <branch> [--force]         Remove a worktree"
->>>>>>> origin/main
-    echo "  cleanup [--all]                   Remove merged (or all) worktrees"
-    echo "  prune                             Remove merged worktrees automatically"
+    echo "  create <branch> [--from <base>]   Create worktree with branch"
+    echo "  list                               List all worktrees"
+    echo "  status                             Detailed worktree status"
+    echo "  remove <branch> [--force]          Remove a worktree"
+    echo "  cleanup [--all]                    Remove merged (or all) worktrees"
+    echo "  prune                              Remove merged worktrees automatically"
+    echo "  inactive [--force]                 Remove inactive worktrees (>${INACTIVITY_DAYS} days)"
     echo ""
     echo "Examples:"
     echo "  $0 create feat/hover-support"
@@ -451,5 +618,6 @@ case "${1:-help}" in
     echo "  $0 remove feat/hover-support"
     echo "  $0 cleanup"
     echo "  $0 prune"
+    echo "  $0 inactive"
     ;;
 esac
