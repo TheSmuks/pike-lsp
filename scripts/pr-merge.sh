@@ -52,6 +52,16 @@ fixes #${LINKED_ISSUE}" 2>/dev/null
   fi
 fi
 
+# Wait for CI to pass before merging
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -x "$SCRIPT_DIR/ci-wait.sh" ]]; then
+  echo "Waiting for CI..."
+  if ! "$SCRIPT_DIR/ci-wait.sh" "$PR_NUM" 600; then
+    echo "MERGE:FAIL | PR #$PR_NUM | CI failed or timed out" >&2
+    exit 1
+  fi
+fi
+
 # Try merge first
 echo "Merging PR #$PR_NUM (branch: $BRANCH)..."
 gh pr merge "$PR_NUM" --squash --delete-branch 2>/dev/null && {
