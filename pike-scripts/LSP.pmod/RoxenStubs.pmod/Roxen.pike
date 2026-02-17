@@ -87,6 +87,7 @@ constant TYPE_INT = 3;               // Integer variable
 constant TYPE_DIR = 4;               // Directory path variable
 constant TYPE_STRING_LIST = 5;       // String array variable
 constant TYPE_MULTIPLE_STRING = 5;   // Alias for TYPE_STRING_LIST
+constant TYPE_ARRAY = 5;              // Generic array variable (alias)
 constant TYPE_INT_LIST = 6;          // Integer array variable
 constant TYPE_MULTIPLE_INT = 6;      // Alias for TYPE_INT_LIST
 constant TYPE_FLAG = 7;              // Boolean flag variable
