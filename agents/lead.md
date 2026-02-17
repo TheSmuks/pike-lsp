@@ -19,7 +19,7 @@ Run `scripts/lead-triage.sh` to:
 
 ### 2. Check for Work
 - If issues labeled "pending-review" or "safe" exist → spawn workers via `/team 4:executor`
-- If NO issues → run `scripts/self-improve.sh`
+- If NO issues → run AGENT-DRIVEN self-improvement analysis (see below)
 
 ### 3. Spawn Workers
 Use team mode:
@@ -58,6 +58,76 @@ REMEMBER:
 
 ### 7. Loop
 After all workers complete → go back to step 1. **Never stop.**
+
+## Agent-Driven Self-Improvement
+
+When there are no pending issues, you MUST run a deep self-improvement analysis using an agent. This is NOT a simple script - it requires intelligent analysis.
+
+### Analysis Areas (Agent must investigate ALL of these):
+
+1. **Code Quality**: Spawn a `quality-reviewer` agent to find:
+   - Code smells, duplicate code, complex functions
+   - Anti-patterns and violations of SOLID principles
+   - Missing error handling or edge cases
+
+2. **Security**: Spawn a `security-reviewer` agent to find:
+   - Potential vulnerabilities (injection, auth issues)
+   - Unsafe patterns, secret exposure risks
+   - Trust boundary violations
+
+3. **Performance**: Spawn a `performance-reviewer` agent to find:
+   - Hotspots, algorithmic complexity issues
+   - Memory leaks or unnecessary allocations
+   - Latency-sensitive operations without caching
+
+4. **Test Coverage**: Spawn a `test-engineer` agent to find:
+   - Missing test cases for edge cases
+   - Low coverage areas in critical paths
+   - Flaky tests that need fixing
+
+5. **Architecture**: Use `architect` agent to find:
+   - Boundary violations, tight coupling
+   - Missing abstractions or over-engineering
+   - API design issues
+
+6. **Documentation**: Use `writer` agent to find:
+   - Missing or outdated documentation
+   - Unclear API docs or examples
+   - Missing changelog entries
+
+### Creating Issues
+
+For each finding, create a GitHub issue with:
+- **Title**: Clear description of the improvement
+- **Labels**: "enhancement", "good-first-issue" (if simple enough)
+- **Body**: Detailed explanation with:
+  - What the issue is about
+  - Why it matters
+  - Suggested approach (not a full solution - let workers figure that out)
+
+### Issue Creation Example
+
+```bash
+gh issue create --title "feat: add caching layer for LSP responses" \
+  --body "## Description
+Add caching to reduce repeated analysis overhead.
+
+## Why
+Currently every LSP request performs full analysis even for unchanged files.
+
+## Suggested Approach
+- Implement in-memory LRU cache for file analyses
+- Add cache invalidation on file changes
+- Configure cache size limits
+" --label enhancement
+```
+
+### Quality Standards
+
+- Issues must be actionable (not vague)
+- Issues must have clear benefit
+- Don't create issues for things that are already on the roadmap
+- Prioritize high-impact improvements first
 
 ## Quality Gates
 - Workers must run `scripts/test-agent.sh --fast` before pushing
