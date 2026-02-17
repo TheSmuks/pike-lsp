@@ -23,7 +23,7 @@ done
 REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
 REPO_NAME=$(basename "$REPO_ROOT")
 PARENT_DIR=$(dirname "$REPO_ROOT")
-MAX_WORKTREES=10
+MAX_WORKTREES=5
 INACTIVITY_DAYS=30
 
 # Colors
@@ -375,6 +375,18 @@ cmd_create() {
     echo -e "${YELLOW}Worktree already exists: $wt_path${NC}"
     echo -e "Branch: $branch"
     exit 0
+  fi
+
+  # Check if this issue was already solved by a merged PR
+  if [[ "$branch" =~ ([0-9]+) ]]; then
+    local issue_num="${BASH_REMATCH[1]}"
+    local merged_pr
+    merged_pr=$(gh pr list --state merged --search "fixes #${issue_num}" --json number --jq '.[0].number' 2>/dev/null || echo "")
+    if [ -n "$merged_pr" ]; then
+      echo -e "${RED}Error: Issue #${issue_num} already solved by PR #${merged_pr}${NC}"
+      echo "This issue has been fixed. Do not create a new worktree."
+      exit 1
+    fi
   fi
 
   echo -e "${BLUE}Creating worktree...${NC}"
