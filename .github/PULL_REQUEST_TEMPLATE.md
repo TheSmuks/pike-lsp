@@ -6,32 +6,25 @@ Fixes #<!-- Issue number -->
 
 ## Acceptance Criteria
 
-<!-- Copy acceptance criteria from issue - ALL must be checked -->
-- [ ] Test fails before fix
-- [ ] Test passes after fix
-- [ ] No regressions in smoke test
-- [ ] CI passes
+<!-- Copy from issue or define specific criteria - ALL must be checked -->
+- [ ]
+- [ ]
+- [ ]
 
 ## Test Plan
 
-- [ ] Local tests pass: `bun run test`
-- [ ] TypeScript compiles: `bun run typecheck`
-- [ ] Smoke tests pass: `scripts/test-agent.sh --fast`
-
-## Requirements from Issue #<!-- Issue number -->
-
-<!-- Copy acceptance criteria from issue -->
-
-- [ ]
+<!-- How was this tested? -->
+- [ ] Local tests pass
+- [ ] TypeScript compiles
+- [ ] Smoke tests pass
 
 ## Breaking Changes
 
 <!-- Any breaking changes? Yes/No -->
-<!-- If yes, describe migration path -->
 
 ## Self-Review
 
-- [ ] No debug statements left (console.log, etc.)
+- [ ] No debug statements left
 - [ ] No placeholder tests
 - [ ] Error handling added where needed
 - [ ] Code follows project conventions
