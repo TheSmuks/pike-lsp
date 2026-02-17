@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771363510146,
+  "lastUpdate": 1771363921089,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -68630,6 +68630,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.281623914728683,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "242420972546d00162ce489ef0760ae333b7c6c7",
+          "message": "chore: CI updates, autonomous workflow, and various improvements (#306)\n\n* chore: reorganize root folder - move docs to docs/\n\nMoved documentation files to docs/ directory:\n- AGENTS.md, API.md, ARCHITECTURE.md -> docs/\n- FEATURE_REGISTRY.md, KNOWN_BUGS.md, PROGRESS.md -> docs/\n- ROXEN_IMPLEMENTATION.md, ROXEN_SUPPORT_ROADMAP.md -> docs/\n- images/ -> docs/images/\n\nReduces root folder clutter and improves project organization.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: update broken references after docs reorganization\n\nFixed broken references in:\n- README.md: Updated links to docs/api.md, docs/roxen-roadmap.md, docs/images/demo.gif\n- scripts/boot-check.sh: Added docs/ fallback paths for PROGRESS.md, KNOWN_BUGS.md, ARCHITECTURE.md\n- scripts/watchdog.sh: Added docs/ fallback path for PROGRESS.md\n- pike-roxen-lsp-agent-prompt.md: Updated all references to docs/ paths\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* feat: implement autonomous improvement workflow with safe label system\n\n- Add PreToolUse hook to enforce --label safe on all gh issue commands\n- Add GitHub Actions for auto-labeling issues (safe/pending-review)\n- Add GitHub Action to enforce PR acceptance criteria checklist\n- Fix scripts: worktree.sh (MAX_WORKTREES=5, issue solved check),\n  worker-setup.sh (merged PR check, worktree conflict check),\n  worker-submit.sh (auto-merge + auto-delete)\n- Add Autonomous Improvement Mode to /lead skill with investigation,\n  issue creation, worker assignment, and continuous loop\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* ci: improve GitHub Actions with timeouts, caching, and manual triggers\n\n- Add timeout-minutes to all jobs (30min test, 45min pike-test, 20min build, 45min e2e)\n- Add Node 22.x to test matrix for early detection\n- Improve caching: node_modules, Pike binaries\n- Add workflow_dispatch for manual runs with:\n  - force_full_ci: force E2E on docs-only changes\n  - skip_e2e: skip E2E for faster feedback\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* ci: add skip_tests option to workflow dispatch\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* chore: update codebase with various improvements\n\n- Various test updates and improvements\n- Configuration updates\n- Documentation improvements\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: add Acceptance Criteria section to PR template\n\nThis aligns with the enforce-acceptance-criteria GitHub Action.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: make PR template dynamic with blank acceptance criteria\n\nAcceptance criteria should be filled per-PR, not hardcoded.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5",
+          "timestamp": "2026-02-17T22:30:20+01:00",
+          "tree_id": "5152efaf4c5238cfcf499291ef7343705da14380",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/242420972546d00162ce489ef0760ae333b7c6c7"
+        },
+        "date": 1771363920392,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.85582841666667,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 257.47499058333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 257.50596766666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 263.55418433333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.3299795115830115,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.4366432532467535,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 55.753998,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.484009951612903,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.342530436708861,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.27920138917089676,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.28278701885983715,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5526807032520326,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.22900076320453738,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.20116208383422968,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.6587414639423077,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.380367268707483,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.36732872298409214,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10742001645435244,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5893375953206239,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0799733769367887,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.40644914859926917,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.04925625,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.22617391666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3894447401392111,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.5811617102564103,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.07900806350929569,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.691016408333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.709196588235295,
             "unit": "ms"
           }
         ]
