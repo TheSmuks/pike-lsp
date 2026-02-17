@@ -102,8 +102,59 @@ export function registerDefinitionHandlers(
             }
 
             // Fallback to local symbol lookup
-            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+            let symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+
+            // If not found locally, search in included files
             if (!symbol || !symbol.position) {
+                // Ensure dependencies are resolved (on-demand resolution)
+                if (!cached.dependencies && services.includeResolver) {
+                    try {
+                        cached.dependencies = await services.includeResolver.resolveDependencies(uri, cached.symbols || []);
+                    } catch (err) {
+                        log.debug('Definition: failed to resolve dependencies', {
+                            error: err instanceof Error ? err.message : String(err),
+                        });
+                    }
+                }
+
+                // Extract the word at cursor position
+                const text = document.getText();
+                const offset = document.offsetAt(params.position);
+                let start = offset;
+                let end = offset;
+                while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+                    start--;
+                }
+                while (end < text.length && /\w/.test(text[end] ?? '')) {
+                    end++;
+                }
+                const word = text.slice(start, end);
+
+                if (word) {
+                    const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
+                    if (includedSymbol) {
+                        // Found symbol in included file - return its location
+                        const targetUri = includedSymbol.filePath.startsWith('file://')
+                            ? includedSymbol.filePath
+                            : `file://${includedSymbol.filePath}`;
+                        const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
+
+                        log.debug('Definition: navigating to symbol from included file', {
+                            symbolName: word,
+                            filePath: includedSymbol.filePath,
+                            line,
+                        });
+
+                        return {
+                            uri: targetUri,
+                            range: {
+                                start: { line, character: 0 },
+                                end: { line, character: (includedSymbol.symbol.name || "").length },
+                            },
+                        };
+                    }
+                }
+
                 return null;
             }
 
@@ -701,6 +752,39 @@ function findSymbolAtPosition(
             // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
             if (classname === word || (classname && classname.includes(word))) {
                 return symbol;
+            }
+        }
+    }
+
+    return null;
+}
+
+
+/**
+ * Find a symbol by name in included file symbols.
+ * Used for go-to-definition when the symbol is defined in an included header file.
+ */
+function findSymbolInIncludedFiles(
+    symbolName: string,
+    cached: any,
+    services: Services,
+    log: Logger
+): { symbol: PikeSymbol; filePath: string } | null {
+    // Check if we have dependencies with included symbols
+    if (!cached.dependencies?.includes || !services.includeResolver) {
+        return null;
+    }
+
+    for (const include of cached.dependencies.includes) {
+        if (!include.symbols) continue;
+
+        for (const symbol of include.symbols) {
+            if (symbol.name === symbolName && symbol.position) {
+                log.debug('Definition: found symbol in included file', {
+                    symbolName,
+                    filePath: include.resolvedPath,
+                });
+                return { symbol, filePath: include.resolvedPath };
             }
         }
     }
