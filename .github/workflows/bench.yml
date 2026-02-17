@@ -83,7 +83,7 @@ jobs:
           git stash --include-untracked || true
 
       - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v2
+        uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Pike LSP Performance
           tool: 'customSmallerIsBetter'

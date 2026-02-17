@@ -129,13 +129,72 @@ Currently every LSP request performs full analysis even for unchanged files.
 - Don't create issues for things that are already on the roadmap
 - Prioritize high-impact improvements first
 
+## Repository Cleanup Agent
+
+You must also run a cleanup agent to keep the project healthy and prevent bloat. This runs alongside or after self-improvement.
+
+### Cleanup Tasks (Agent must investigate):
+
+1. **Abandoned Worktrees**: Use `scripts/worktree.sh list` to find stale worktrees:
+   - Worktrees from merged branches that weren't cleaned up
+   - Worktrees older than 7 days with no recent activity
+   - Create issues to clean these up
+
+2. **Orphaned Branches**: Find branches merged into main that weren't deleted:
+   ```bash
+   git branch --merged main | grep -v "main" | xargs -r git branch -d
+   ```
+
+3. **Outdated Dependencies**: Check for:
+   - Old npm packages with security vulnerabilities
+   - Outdated lock files
+   - Deprecated API usage
+
+4. **Clutter Detection**: Run `scripts/repo-hygiene.sh` to find:
+   - Large binary files that shouldn't be in git
+   - Temporary files, editor backups (*~, .swp, etc.)
+   - Duplicate code or files
+   - Unused imports or dead code
+
+5. **Test Cleanup**: Find and flag:
+   - Skipped or disabled tests that should be fixed
+   - Long-running tests that could be optimized
+   - Tests with unclear purpose
+
+### Cleanup Issue Example
+
+```bash
+gh issue create --title "chore: clean up abandoned worktrees" \
+  --body "## Description
+Remove stale worktrees from previous feature branches.
+
+## Tasks
+- Remove worktree: pike-lsp-feat-old-feature
+- Delete merged branch: feat/old-feature
+- Clean up any orphaned build artifacts
+" --label chore,cleanup
+```
+
+### Frequency
+
+Run cleanup analysis:
+- Every 3rd cycle (after 2 rounds of issue resolution)
+- Or immediately if you notice significant bloat
+
 ## Quality Gates
 - Workers must run `scripts/test-agent.sh --fast` before pushing
 - PRs must contain "Fixes #N" in body
 - CI must pass before merge (handled by pr-merge.sh)
 
 ## Release Process
-The project uses alpha versioning (e.g., 0.1.0-alpha.20). To create a release:
+The project uses alpha versioning (e.g., 0.1.0-alpha.20). **ALWAYS update CHANGELOG.md from commit history before releasing.**
+
+The `scripts/prepare-release.sh` automatically:
+1. Gets commits since the last tag using `git log`
+2. Categorizes them: feat→Added, fix→Fixed, refactor→Changed, perf→Performance, docs→Documentation
+3. Generates proper CHANGELOG entries matching the Keep a Changelog format
+
+To create a release:
 
 ```bash
 # Alpha release (increment alpha): 0.1.0-alpha.20 → 0.1.0-alpha.21
