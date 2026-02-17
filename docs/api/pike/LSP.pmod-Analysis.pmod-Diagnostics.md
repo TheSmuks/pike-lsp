@@ -98,9 +98,8 @@ assignments, and usage across all control flow paths.
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `create` | function | 20 |
-| `handle_analyze_uninitialized` | function | 31 |
-| `definitions` | function | 94 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `create`                       | function | 20   |
+| `handle_analyze_uninitialized` | function | 31   |
+| `definitions`                  | function | 94   |

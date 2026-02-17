@@ -24,6 +24,7 @@ import { registerNavigationHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerHoverHandler` - Hover provider for type info and documentation
 - `registerDefinitionHandlers` - Go-to-definition support
 - `registerReferencesHandlers` - Find all symbol references
@@ -38,6 +39,7 @@ import { registerEditingHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerCompletionHandlers` - Code completion with snippets
 - `registerRenameHandler` - Safe symbol renaming
 - `registerSignatureHelpHandler` - Parameter hints
@@ -52,6 +54,7 @@ import { registerAdvancedHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerFormattingHandlers` - Document and range formatting
 - `registerFoldingHandlers` - Code folding regions
 - `registerSemanticTokensHandler` - Semantic syntax highlighting
@@ -127,6 +130,7 @@ Provides code completion suggestions with context awareness.
 **Returns:** `CompletionList` with items
 
 **Features:**
+
 - Keyword completion
 - Symbol completion (variables, functions, classes)
 - Snippet completion
@@ -206,6 +210,7 @@ Formats documents and code ranges.
 **Location:** `features/advanced/formatting.ts`
 
 **Handlers:**
+
 - `connection.onDocumentFormatting`
 - `connection.onDocumentRangeFormatting`
 
@@ -376,7 +381,7 @@ const services = {
   bridge: new PikeBridge(),
   documentCache: new Map(),
   logger: new Logger(),
-  config: new ServerConfig()
+  config: new ServerConfig(),
 };
 
 registerNavigationHandlers(connection, services, documents);

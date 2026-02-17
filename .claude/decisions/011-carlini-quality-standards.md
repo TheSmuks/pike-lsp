@@ -76,6 +76,7 @@ All new code, tests, scripts, and agent output MUST follow these principles:
 ## Challenge Conditions
 
 Revisit if:
+
 - Hooks are too slow (>5s per tool call) and need optimization
 - Standards are too strict for rapid prototyping phases
 - A new Carlini-style insight suggests different principles

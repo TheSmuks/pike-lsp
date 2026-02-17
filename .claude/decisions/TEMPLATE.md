@@ -25,5 +25,6 @@ What this decision means for the codebase. Trade-offs accepted.
 ## Challenge Conditions
 
 Revisit this decision if:
+
 - Condition 1
 - Condition 2

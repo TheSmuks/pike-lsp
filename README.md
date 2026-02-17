@@ -37,35 +37,35 @@ A comprehensive Language Server Protocol (LSP) implementation for the [Pike prog
 
 ### Core Language Features
 
-| Feature | Description |
-|---------|-------------|
-| **Syntax Highlighting** | Full semantic token-based highlighting |
-| **Code Completion** | Intelligent autocomplete with snippets |
-| **Go to Definition** | Navigate to symbol definitions (F12) |
-| **Find References** | Find all usages of a symbol |
-| **Hover Information** | Type info, documentation, deprecation warnings |
-| **Diagnostics** | Real-time syntax error detection |
-| **Signature Help** | Parameter hints while typing |
+| Feature                 | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| **Syntax Highlighting** | Full semantic token-based highlighting         |
+| **Code Completion**     | Intelligent autocomplete with snippets         |
+| **Go to Definition**    | Navigate to symbol definitions (F12)           |
+| **Find References**     | Find all usages of a symbol                    |
+| **Hover Information**   | Type info, documentation, deprecation warnings |
+| **Diagnostics**         | Real-time syntax error detection               |
+| **Signature Help**      | Parameter hints while typing                   |
 
 ### Advanced Features
 
-| Feature | Description |
-|---------|-------------|
-| **Rename Symbol** | Safely rename across files (F2) |
-| **Call Hierarchy** | View incoming/outgoing calls |
-| **Type Hierarchy** | Explore class inheritance |
-| **Code Lens** | Reference counts above functions |
-| **Document Links** | Clickable paths in comments |
-| **Inlay Hints** | Parameter name hints |
-| **Workspace Symbols** | Search symbols project-wide |
-| **Code Actions** | Quick fixes and organize imports |
-| **Formatting** | Document and range formatting |
-| **Smart Completion** | Scope operator (`::`, `->`) completion with deprecated tag support |
-| **Linked Editing** | Multi-cursor editing for linked ranges |
-| **Rate Limiting** | Configurable rate limiter for LSP requests |
-| **AutoDoc Rendering** | Full AutoDoc tag support (@returns, @mapping, @member) |
-| **Nested Classes** | Recursive extraction up to depth 5 with full symbol resolution |
-| **Preprocessor Extraction** | Token-based symbol extraction from conditional blocks |
+| Feature                     | Description                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| **Rename Symbol**           | Safely rename across files (F2)                                    |
+| **Call Hierarchy**          | View incoming/outgoing calls                                       |
+| **Type Hierarchy**          | Explore class inheritance                                          |
+| **Code Lens**               | Reference counts above functions                                   |
+| **Document Links**          | Clickable paths in comments                                        |
+| **Inlay Hints**             | Parameter name hints                                               |
+| **Workspace Symbols**       | Search symbols project-wide                                        |
+| **Code Actions**            | Quick fixes and organize imports                                   |
+| **Formatting**              | Document and range formatting                                      |
+| **Smart Completion**        | Scope operator (`::`, `->`) completion with deprecated tag support |
+| **Linked Editing**          | Multi-cursor editing for linked ranges                             |
+| **Rate Limiting**           | Configurable rate limiter for LSP requests                         |
+| **AutoDoc Rendering**       | Full AutoDoc tag support (@returns, @mapping, @member)             |
+| **Nested Classes**          | Recursive extraction up to depth 5 with full symbol resolution     |
+| **Preprocessor Extraction** | Token-based symbol extraction from conditional blocks              |
 
 ### Performance
 
@@ -85,25 +85,25 @@ Pike LSP provides comprehensive LSP support for the [Roxen WebServer](https://ro
 
 #### Supported File Types
 
-| File Type | Extension | Support Level |
-|-----------|-----------|---------------|
-| Pike Modules | `.pike` | ✅ Full LSP |
-| RXML Templates | `.inc`, `.html`, `.xml` | ✅ Full LSP |
-| Roxen JavaScript | `.rjs` | ✅ Full LSP |
-| Mixed Content | `.pike` with embedded RXML | ✅ Full LSP |
+| File Type        | Extension                  | Support Level |
+| ---------------- | -------------------------- | ------------- |
+| Pike Modules     | `.pike`                    | ✅ Full LSP   |
+| RXML Templates   | `.inc`, `.html`, `.xml`    | ✅ Full LSP   |
+| Roxen JavaScript | `.rjs`                     | ✅ Full LSP   |
+| Mixed Content    | `.pike` with embedded RXML | ✅ Full LSP   |
 
 #### Roxen-Specific Features
 
-| Feature | Description |
-|---------|-------------|
-| **Module Detection** | Auto-detects Roxen modules via `inherit "module"`, `#include <module.h>`, or `constant module_type` |
-| **defvar Extraction** | Extracts and groups module variables (defvars) in document outline |
-| **RXML Tag Detection** | Identifies `simpletag_*`, `container_*`, and `RXML.Tag` class-based tags |
-| **Lifecycle Callbacks** | Detects `create()`, `start()`, `stop()`, and other lifecycle methods |
-| **Validation Diagnostics** | Warns about missing required callbacks (e.g., `query_location` for `MODULE_LOCATION`) |
-| **Constant Completions** | Auto-completes `MODULE_*`, `TYPE_*`, `VAR_*` constants with correct bit-shifted values |
-| **RequestID Completions** | Provides 23+ RequestID member completions (properties, methods) |
-| **Tag Catalog Integration** | Integrates with Roxen's tag catalog for enhanced RXML support |
+| Feature                     | Description                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Module Detection**        | Auto-detects Roxen modules via `inherit "module"`, `#include <module.h>`, or `constant module_type` |
+| **defvar Extraction**       | Extracts and groups module variables (defvars) in document outline                                  |
+| **RXML Tag Detection**      | Identifies `simpletag_*`, `container_*`, and `RXML.Tag` class-based tags                            |
+| **Lifecycle Callbacks**     | Detects `create()`, `start()`, `stop()`, and other lifecycle methods                                |
+| **Validation Diagnostics**  | Warns about missing required callbacks (e.g., `query_location` for `MODULE_LOCATION`)               |
+| **Constant Completions**    | Auto-completes `MODULE_*`, `TYPE_*`, `VAR_*` constants with correct bit-shifted values              |
+| **RequestID Completions**   | Provides 23+ RequestID member completions (properties, methods)                                     |
+| **Tag Catalog Integration** | Integrates with Roxen's tag catalog for enhanced RXML support                                       |
 
 #### Custom File Extensions
 
@@ -143,11 +143,11 @@ See [ROXEN_SUPPORT_ROADMAP.md](docs/roxen-roadmap.md) for complete implementatio
 
 ### Supported Pike Versions
 
-| Version | Status | Notes |
-|---------|--------|-------|
-| Pike 8.1116 | Required | Primary development target |
-| Pike 8.x latest | Best-effort | Forward compatibility tested in CI |
-| Pike 7.x | Not supported | Use Pike 8.1116 or later |
+| Version         | Status        | Notes                              |
+| --------------- | ------------- | ---------------------------------- |
+| Pike 8.1116     | Required      | Primary development target         |
+| Pike 8.x latest | Best-effort   | Forward compatibility tested in CI |
+| Pike 7.x        | Not supported | Use Pike 8.1116 or later           |
 
 ### Version Testing
 
@@ -169,17 +169,20 @@ The analyzer detects and reports the Pike version at runtime. This information i
 ## Installation
 
 ### From VS Code Marketplace
+
 1. Open VS Code
 2. Go to Extensions (Ctrl+Shift+X)
 3. Search for "Pike Language Support"
 4. Click Install
 
 ### From VSIX File
+
 ```bash
 code --install-extension vscode-pike-1.0.0.vsix
 ```
 
 ### Build from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/TheSmuks/pike-lsp.git
@@ -199,15 +202,15 @@ pnpm package
 
 ## Keyboard Shortcuts
 
-| Action | Shortcut |
-|--------|----------|
-| Go to Definition | `F12` |
-| Find References | `Shift+F12` |
-| Rename Symbol | `F2` |
-| Trigger Completion | `Ctrl+Space` |
-| Signature Help | `Ctrl+Shift+Space` |
-| Go to Symbol | `Ctrl+Shift+O` |
-| Workspace Symbol | `Ctrl+T` |
+| Action             | Shortcut           |
+| ------------------ | ------------------ |
+| Go to Definition   | `F12`              |
+| Find References    | `Shift+F12`        |
+| Rename Symbol      | `F2`               |
+| Trigger Completion | `Ctrl+Space`       |
+| Signature Help     | `Ctrl+Shift+Space` |
+| Go to Symbol       | `Ctrl+Shift+O`     |
+| Workspace Symbol   | `Ctrl+T`           |
 
 ## Configuration
 
@@ -215,11 +218,11 @@ Add these settings to your VS Code `settings.json`:
 
 ```json
 {
-    // Path to Pike executable (default: "pike")
-    "pike.pikePath": "/usr/local/bin/pike",
+  // Path to Pike executable (default: "pike")
+  "pike.pikePath": "/usr/local/bin/pike",
 
-    // LSP trace level for debugging
-    "pike.trace.server": "off"  // "off" | "messages" | "verbose"
+  // LSP trace level for debugging
+  "pike.trace.server": "off" // "off" | "messages" | "verbose"
 }
 ```
 
@@ -324,27 +327,31 @@ pnpm package
 
 While Pike LSP provides comprehensive IDE support, there are some known limitations:
 
-| Limitation | Description | Impact |
-|------------|-------------|--------|
+| Limitation                  | Description                                                                                                                                                | Impact                                                                                                                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Preprocessor Directives** | Symbols inside `#if`/`#else`/`#endif` blocks are now indexed using token-based extraction. Conditional symbols appear with metadata (e.g., `[#if DEBUG]`). | **Improved**: Conditional symbols are now visible in outline, completion, and hover. Limitation: Syntactically incomplete branches use best-effort token extraction (may miss complex patterns). |
-| **Nested Classes** | Nested class declarations and their members are now recursively extracted up to depth 5. Document outline shows full hierarchy. | **Improved**: Go-to-definition, hover, and completion work for nested class members at all levels. Limitation: Very deep nesting (>5 levels) is capped for performance. |
-| **Type Inference** | Basic types from literals and signatures work. Flow-sensitive analysis and generic type resolution are not implemented. | Explicit types show correctly. Complex scenarios like `if (cond) x = 1; else x = "str"` show `mixed` instead of a narrowed type. |
-| **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Completion won't show symbols from dynamically loaded code. |
-| **Deep Nesting** | Nested classes deeper than 5 levels are capped for performance. | Very deep nesting (>5 levels) may have limited symbol extraction. |
+| **Nested Classes**          | Nested class declarations and their members are now recursively extracted up to depth 5. Document outline shows full hierarchy.                            | **Improved**: Go-to-definition, hover, and completion work for nested class members at all levels. Limitation: Very deep nesting (>5 levels) is capped for performance.                          |
+| **Type Inference**          | Basic types from literals and signatures work. Flow-sensitive analysis and generic type resolution are not implemented.                                    | Explicit types show correctly. Complex scenarios like `if (cond) x = 1; else x = "str"` show `mixed` instead of a narrowed type.                                                                 |
+| **Dynamic Modules**         | Runtime-loaded modules cannot be analyzed.                                                                                                                 | Completion won't show symbols from dynamically loaded code.                                                                                                                                      |
+| **Deep Nesting**            | Nested classes deeper than 5 levels are capped for performance.                                                                                            | Very deep nesting (>5 levels) may have limited symbol extraction.                                                                                                                                |
 
 ## Troubleshooting
 
 **Pike not found:**
+
 ```
 Pike executable not found at "pike"
 ```
+
 Ensure Pike 8.0+ is installed and in your PATH, or configure `pike.pikePath` in VS Code settings.
 
 **Extension not activating:**
+
 - Check that you have a `.pike` or `.pmod` file open
 - Check the Output panel (View > Output > Pike Language Server) for errors
 
 **Slow indexing on large projects:**
+
 - Workspace indexing runs in the background and shouldn't block editing
 - Initial indexing of large projects may take a few seconds
 
@@ -369,4 +376,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) - LSP framework
 - [Pike](https://pike.lysator.liu.se/) - The Pike programming language
 - [Tools.AutoDoc](https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/Tools/AutoDoc.html) - Pike's documentation parser
+
 # test

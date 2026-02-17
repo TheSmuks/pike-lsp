@@ -18,6 +18,8 @@ export default [
             '**/.planning/**',
             '**/*.test.ts',
             'packages/vscode-pike/**/*.ts',
+            'node_modules/**',
+            'packages/vscode-pike/server/server.js',
         ],
     },
     {

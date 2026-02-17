@@ -18,6 +18,7 @@ Located at `src/services/module-context.ts`, this service manages:
 Extracts all import directives from a Pike document.
 
 **Parameters:**
+
 - `uri` - Document URI
 - `content` - Document source code
 - `bridge` - PikeBridge instance
@@ -30,6 +31,7 @@ Extracts all import directives from a Pike document.
 Resolves an import target to its file system path.
 
 **Parameters:**
+
 - `importType` - Type of import: `'include' | 'import' | 'inherit' | 'require'`
 - `target` - Import target path
 - `currentFile` - Current file URI for relative resolution
@@ -42,6 +44,7 @@ Resolves an import target to its file system path.
 Performs transitive symbol loading across all dependencies.
 
 **Parameters:**
+
 - `uri` - Document URI
 - `content` - Document source code
 - `bridge` - PikeBridge instance
@@ -54,6 +57,7 @@ Performs transitive symbol loading across all dependencies.
 Checks for circular dependencies in the import graph.
 
 **Parameters:**
+
 - `uri` - Document URI
 - `content` - Document source code
 - `bridge` - PikeBridge instance
@@ -81,10 +85,6 @@ The ModuleContext is registered in the Services bundle and accessible to all fea
 ```typescript
 const { moduleContext } = services;
 if (moduleContext && services.bridge?.bridge) {
-    const imports = await moduleContext.getImportsForDocument(
-        uri,
-        content,
-        services.bridge.bridge
-    );
+  const imports = await moduleContext.getImportsForDocument(uri, content, services.bridge.bridge);
 }
 ```

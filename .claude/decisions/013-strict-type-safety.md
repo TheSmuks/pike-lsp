@@ -28,13 +28,13 @@ The codebase currently has zero explicit `any` annotations and only 6 `@ts-ignor
 
 ## Enforcement
 
-| Layer | Mechanism | What It Catches |
-|-------|-----------|----------------|
-| Real-time | `type-safety-gate.sh` Claude hook | Blocks agents from writing `any` or `@ts-ignore` |
-| Pre-push | `bun run lint -- --max-warnings 0` | Catches any lint warning/error before push |
-| ESLint | `no-explicit-any: error` | Flags `any` in all TS files |
-| ESLint | `ban-ts-comment: error` | Flags `@ts-ignore` and `@ts-nocheck` |
-| CI | GitHub required status checks | Build must pass (includes type checking) |
+| Layer     | Mechanism                          | What It Catches                                  |
+| --------- | ---------------------------------- | ------------------------------------------------ |
+| Real-time | `type-safety-gate.sh` Claude hook  | Blocks agents from writing `any` or `@ts-ignore` |
+| Pre-push  | `bun run lint -- --max-warnings 0` | Catches any lint warning/error before push       |
+| ESLint    | `no-explicit-any: error`           | Flags `any` in all TS files                      |
+| ESLint    | `ban-ts-comment: error`            | Flags `@ts-ignore` and `@ts-nocheck`             |
+| CI        | GitHub required status checks      | Build must pass (includes type checking)         |
 
 ## Alternatives Rejected
 
@@ -53,6 +53,7 @@ The codebase currently has zero explicit `any` annotations and only 6 `@ts-ignor
 ## Challenge Conditions
 
 Revisit this decision if:
+
 - A third-party library genuinely requires `any` at the boundary (add a typed wrapper instead)
 - TypeScript introduces a better alternative to `unknown` for untyped boundaries
 - The rule causes more than 10% development slowdown on typical tasks

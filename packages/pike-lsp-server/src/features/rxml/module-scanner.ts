@@ -20,9 +20,9 @@ import type { RXMLTagCatalogEntry } from './types.js';
  * Tag function detected in Pike source code
  */
 interface DetectedTagFunction {
-    name: string;
-    type: 'simple' | 'container';
-    description?: string;
+  name: string;
+  type: 'simple' | 'container';
+  description?: string;
 }
 
 /**
@@ -35,16 +35,18 @@ interface DetectedTagFunction {
  * @returns Array of detected tag definitions
  */
 export async function extractTagsFromPikeCode(pikeCode: string): Promise<RXMLTagCatalogEntry[]> {
-    const detectedTags = detectTagFunctions(pikeCode);
+  const detectedTags = detectTagFunctions(pikeCode);
 
-    // Convert detected functions to catalog entries
-    return detectedTags.map((tag): RXMLTagCatalogEntry => ({
-        name: tag.name,
-        type: tag.type,
-        requiredAttributes: [],
-        optionalAttributes: [],
-        ...(tag.description !== undefined && { description: tag.description })
-    }));
+  // Convert detected functions to catalog entries
+  return detectedTags.map(
+    (tag): RXMLTagCatalogEntry => ({
+      name: tag.name,
+      type: tag.type,
+      requiredAttributes: [],
+      optionalAttributes: [],
+      ...(tag.description !== undefined && { description: tag.description }),
+    })
+  );
 }
 
 /**
@@ -58,65 +60,65 @@ export async function extractTagsFromPikeCode(pikeCode: string): Promise<RXMLTag
  * @returns Array of detected tag functions
  */
 function detectTagFunctions(code: string): DetectedTagFunction[] {
-    const tags: DetectedTagFunction[] = [];
+  const tags: DetectedTagFunction[] = [];
 
-    // Split into lines for analysis
-    const lines = code.split('\n');
+  // Split into lines for analysis
+  const lines = code.split('\n');
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line) continue;
-        const trimmed = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+    const trimmed = line.trim();
 
-        // Check for simpletag pattern
-        const simpletagMatch = trimmed.match(
-            /(?:void|mapping|string)\s+simpletag_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
-        );
+    // Check for simpletag pattern
+    const simpletagMatch = trimmed.match(
+      /(?:void|mapping|string)\s+simpletag_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
+    );
 
-        if (simpletagMatch) {
-            const tagName = simpletagMatch[1];
-            const desc = extractDescription(lines, i);
+    if (simpletagMatch) {
+      const tagName = simpletagMatch[1];
+      const desc = extractDescription(lines, i);
 
-            if (desc !== undefined) {
-                tags.push({
-                    name: tagName,
-                    type: 'simple',
-                    description: desc
-                } as DetectedTagFunction);
-            } else {
-                tags.push({
-                    name: tagName,
-                    type: 'simple'
-                } as DetectedTagFunction);
-            }
-            continue;
-        }
-
-        // Check for container pattern
-        const containerMatch = trimmed.match(
-            /(?:void|mapping|string)\s+container_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
-        );
-
-        if (containerMatch) {
-            const tagName = containerMatch[1];
-            const desc = extractDescription(lines, i);
-
-            if (desc !== undefined) {
-                tags.push({
-                    name: tagName,
-                    type: 'container',
-                    description: desc
-                } as DetectedTagFunction);
-            } else {
-                tags.push({
-                    name: tagName,
-                    type: 'container'
-                } as DetectedTagFunction);
-            }
-        }
+      if (desc !== undefined) {
+        tags.push({
+          name: tagName,
+          type: 'simple',
+          description: desc,
+        } as DetectedTagFunction);
+      } else {
+        tags.push({
+          name: tagName,
+          type: 'simple',
+        } as DetectedTagFunction);
+      }
+      continue;
     }
 
-    return tags;
+    // Check for container pattern
+    const containerMatch = trimmed.match(
+      /(?:void|mapping|string)\s+container_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
+    );
+
+    if (containerMatch) {
+      const tagName = containerMatch[1];
+      const desc = extractDescription(lines, i);
+
+      if (desc !== undefined) {
+        tags.push({
+          name: tagName,
+          type: 'container',
+          description: desc,
+        } as DetectedTagFunction);
+      } else {
+        tags.push({
+          name: tagName,
+          type: 'container',
+        } as DetectedTagFunction);
+      }
+    }
+  }
+
+  return tags;
 }
 
 /**
@@ -129,27 +131,27 @@ function detectTagFunctions(code: string): DetectedTagFunction[] {
  * @returns Concatenated doc comment text
  */
 function extractDescription(lines: string[], functionLine: number): string | undefined {
-    const comments: string[] = [];
+  const comments: string[] = [];
 
-    // Scan backwards from function line
-    for (let i = functionLine - 1; i >= 0; i--) {
-        const line = lines[i];
-        if (!line) break;
-        const trimmed = line.trim();
+  // Scan backwards from function line
+  for (let i = functionLine - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line) break;
+    const trimmed = line.trim();
 
-        // Stop at non-comment line
-        if (!trimmed.startsWith('//!')) {
-            break;
-        }
-
-        // Extract comment content (remove //! prefix)
-        const comment = trimmed.replace(/^\/\/!\s*/, '');
-        comments.unshift(comment);
+    // Stop at non-comment line
+    if (!trimmed.startsWith('//!')) {
+      break;
     }
 
-    if (comments.length === 0) {
-        return undefined;
-    }
+    // Extract comment content (remove //! prefix)
+    const comment = trimmed.replace(/^\/\/!\s*/, '');
+    comments.unshift(comment);
+  }
 
-    return comments.join(' ');
+  if (comments.length === 0) {
+    return undefined;
+  }
+
+  return comments.join(' ');
 }

@@ -22,47 +22,47 @@ export interface RXMLAttribute {
  * RXML tag information extracted from templates
  */
 export interface RXMLTagInfo {
-    /** Tag name (e.g., "set", "emit", "if") */
-    name: string;
-    /** Tag type - container or simple (self-closing) */
-    type: 'simple' | 'container';
-    /** Position in source code */
-    position: {
-        line: number;
-        column: number;
-    };
-    /** Tag attributes (key-value pairs) */
-    attributes: Record<string, string>;
-    /** Whether tag is self-closing (e.g., <tag />) */
-    isSelfClosing?: boolean;
-    /** Whether container tag is missing closing tag */
-    isUnclosed?: boolean;
+  /** Tag name (e.g., "set", "emit", "if") */
+  name: string;
+  /** Tag type - container or simple (self-closing) */
+  type: 'simple' | 'container';
+  /** Position in source code */
+  position: {
+    line: number;
+    column: number;
+  };
+  /** Tag attributes (key-value pairs) */
+  attributes: Record<string, string>;
+  /** Whether tag is self-closing (e.g., <tag />) */
+  isSelfClosing?: boolean;
+  /** Whether container tag is missing closing tag */
+  isUnclosed?: boolean;
 }
 
 /**
  * RXML tag catalog entry (known valid tags)
  */
 export interface RXMLTagCatalogEntry {
-    /** Tag name */
-    name: string;
-    /** Tag type */
-    type: 'simple' | 'container';
-    /** Required attributes */
-    requiredAttributes: string[];
-    /** Optional attributes */
-    optionalAttributes: string[];
-    /** Attributes with enumerated values */
-    enumeratedAttributes?: Record<string, string[]>;
-    /** Tag description */
-    description?: string;
+  /** Tag name */
+  name: string;
+  /** Tag type */
+  type: 'simple' | 'container';
+  /** Required attributes */
+  requiredAttributes: string[];
+  /** Optional attributes */
+  optionalAttributes: string[];
+  /** Attributes with enumerated values */
+  enumeratedAttributes?: Record<string, string[]>;
+  /** Tag description */
+  description?: string;
 }
 
 /**
  * RXML diagnostic (error/warning in RXML content)
  */
 export interface RXMLDiagnostic {
-    severity: 'error' | 'warning' | 'info';
-    message: string;
-    range: any; // Uses LSP Range type (Range from vscode-languageserver)
-    code?: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  range: any; // Uses LSP Range type (Range from vscode-languageserver)
+  code?: string;
 }

@@ -8,13 +8,13 @@
  */
 
 import {
-    createConnection,
-    ProposedFeatures,
-    InitializeParams,
-    InitializeResult,
-    TextDocumentSyncKind,
-    TextDocuments,
-    DidChangeConfigurationNotification,
+  createConnection,
+  ProposedFeatures,
+  InitializeParams,
+  InitializeResult,
+  TextDocumentSyncKind,
+  TextDocuments,
+  DidChangeConfigurationNotification,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fsSync from 'fs';
@@ -35,16 +35,41 @@ import * as features from './features/index.js';
 
 // Semantic tokens legend (defined here for capabilities)
 const tokenTypes = [
-    'namespace', 'type', 'class', 'enum', 'interface',
-    'struct', 'typeParameter', 'parameter', 'variable', 'property',
-    'enumMember', 'event', 'function', 'method', 'macro',
-    'keyword', 'modifier', 'comment', 'string', 'number',
-    'regexp', 'operator', 'decorator'
+  'namespace',
+  'type',
+  'class',
+  'enum',
+  'interface',
+  'struct',
+  'typeParameter',
+  'parameter',
+  'variable',
+  'property',
+  'enumMember',
+  'event',
+  'function',
+  'method',
+  'macro',
+  'keyword',
+  'modifier',
+  'comment',
+  'string',
+  'number',
+  'regexp',
+  'operator',
+  'decorator',
 ];
 const tokenModifiers = [
-    'declaration', 'definition', 'readonly', 'static',
-    'deprecated', 'abstract', 'async', 'modification',
-    'documentation', 'defaultLibrary'
+  'declaration',
+  'definition',
+  'readonly',
+  'static',
+  'deprecated',
+  'abstract',
+  'async',
+  'modification',
+  'documentation',
+  'defaultLibrary',
 ];
 
 // ============================================================================
@@ -76,34 +101,34 @@ let includePaths: string[] = [];
 // ============================================================================
 
 function findAnalyzerPath(): string | undefined {
-    // Determine the current module's directory
-    // Handle both ESM (import.meta.url) and CJS (__filename) cases
-    let resolvedDirname: string;
+  // Determine the current module's directory
+  // Handle both ESM (import.meta.url) and CJS (__filename) cases
+  let resolvedDirname: string;
 
-    // Check if running in CJS mode (bundled with esbuild)
-    // __filename and __dirname are available in CJS but not in strict ESM
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    if (typeof __filename !== 'undefined') {
-        resolvedDirname = path.dirname(__filename as string);
-    } else {
-        // ESM mode
-        const modulePath = fileURLToPath(import.meta.url);
-        resolvedDirname = path.dirname(modulePath);
+  // Check if running in CJS mode (bundled with esbuild)
+  // __filename and __dirname are available in CJS but not in strict ESM
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (typeof __filename !== 'undefined') {
+    resolvedDirname = path.dirname(__filename as string);
+  } else {
+    // ESM mode
+    const modulePath = fileURLToPath(import.meta.url);
+    resolvedDirname = path.dirname(modulePath);
+  }
+
+  const possiblePaths = [
+    path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
+    path.resolve(resolvedDirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
+    path.resolve(resolvedDirname, '..', 'pike-scripts', 'analyzer.pike'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fsSync.existsSync(p)) {
+      return p;
     }
+  }
 
-    const possiblePaths = [
-        path.resolve(resolvedDirname, 'pike-scripts', 'analyzer.pike'),
-        path.resolve(resolvedDirname, '..', '..', '..', 'pike-scripts', 'analyzer.pike'),
-        path.resolve(resolvedDirname, '..', 'pike-scripts', 'analyzer.pike'),
-    ];
-
-    for (const p of possiblePaths) {
-        if (fsSync.existsSync(p)) {
-            return p;
-        }
-    }
-
-    return undefined;
+  return undefined;
 }
 
 // NOTE: Document validation is handled by features/diagnostics.ts
@@ -114,19 +139,19 @@ function findAnalyzerPath(): string | undefined {
 // ============================================================================
 
 function createServices(): features.Services {
-    return {
-        bridge: bridgeManager, // Will be null initially, updated after onInitialize
-        logger,
-        documentCache,
-        moduleContext,
-        typeDatabase,
-        workspaceIndex,
-        stdlibIndex,
-        includeResolver, // Will be null initially, updated after onInitialize
-        workspaceScanner,
-        globalSettings,
-        includePaths,
-    };
+  return {
+    bridge: bridgeManager, // Will be null initially, updated after onInitialize
+    logger,
+    documentCache,
+    moduleContext,
+    typeDatabase,
+    workspaceIndex,
+    stdlibIndex,
+    includeResolver, // Will be null initially, updated after onInitialize
+    workspaceScanner,
+    globalSettings,
+    includePaths,
+  };
 }
 
 // ============================================================================
@@ -134,18 +159,18 @@ function createServices(): features.Services {
 // ============================================================================
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
-    // DEBUG: Safe file logging
-    const logFile = '/tmp/pike-lsp-debug.log';
-    const log = (msg: string) => {
-        try {
-            fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-        } catch (e) {
-            // ignore
-        }
-    };
-
+  // DEBUG: Safe file logging
+  const logFile = '/tmp/pike-lsp-debug.log';
+  const log = (msg: string) => {
     try {
-        log('onInitialize started');
+      fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  try {
+    log('onInitialize started');
 
     // Do NOT override connection.console methods as it causes issues with 'this' context
     connection.console.log('Pike LSP Server initializing...');
@@ -153,49 +178,51 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
 
     const analyzerPath = findAnalyzerPath();
     if (analyzerPath) {
-        connection.console.log(`Found analyzer.pike at: ${analyzerPath}`);
-        log(`Found analyzer.pike at: ${analyzerPath}`);
+      connection.console.log(`Found analyzer.pike at: ${analyzerPath}`);
+      log(`Found analyzer.pike at: ${analyzerPath}`);
     } else {
-        connection.console.warn('Could not find analyzer.pike script');
-        log('Could not find analyzer.pike script');
+      connection.console.warn('Could not find analyzer.pike script');
+      log('Could not find analyzer.pike script');
     }
 
-    const initOptions = params.initializationOptions as {
-        pikePath?: string;
-        diagnosticDelay?: number;
-        analyzerPath?: string;
-        env?: NodeJS.ProcessEnv
-    } | undefined;
+    const initOptions = params.initializationOptions as
+      | {
+          pikePath?: string;
+          diagnosticDelay?: number;
+          analyzerPath?: string;
+          env?: NodeJS.ProcessEnv;
+        }
+      | undefined;
 
     log(`Init options: ${JSON.stringify(initOptions)}`);
 
     const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv } = {
-        pikePath: initOptions?.pikePath ?? 'pike',
-        env: initOptions?.env ?? {},
+      pikePath: initOptions?.pikePath ?? 'pike',
+      env: initOptions?.env ?? {},
     };
 
     // Update global settings with initialization options
     if (initOptions?.diagnosticDelay !== undefined) {
-        globalSettings = {
-            ...globalSettings,
-            diagnosticDelay: initOptions.diagnosticDelay,
-        };
+      globalSettings = {
+        ...globalSettings,
+        diagnosticDelay: initOptions.diagnosticDelay,
+      };
     }
 
     includePaths = (initOptions?.env?.['PIKE_INCLUDE_PATH'] ?? '')
-        .split(':')
-        .map(entry => entry.trim())
-        .filter(entry => entry.length > 0);
+      .split(':')
+      .map(entry => entry.trim())
+      .filter(entry => entry.length > 0);
 
     // Use analyzer path from init options if provided, otherwise use findAnalyzerPath()
     if (initOptions?.analyzerPath) {
-        bridgeOptions.analyzerPath = initOptions.analyzerPath;
-        log(`Using analyzer path from init options: ${initOptions.analyzerPath}`);
+      bridgeOptions.analyzerPath = initOptions.analyzerPath;
+      log(`Using analyzer path from init options: ${initOptions.analyzerPath}`);
     } else if (analyzerPath) {
-        bridgeOptions.analyzerPath = analyzerPath;
-        log(`Using analyzer path from findAnalyzerPath: ${analyzerPath}`);
+      bridgeOptions.analyzerPath = analyzerPath;
+      log(`Using analyzer path from findAnalyzerPath: ${analyzerPath}`);
     } else {
-        log('WARNING: No analyzer path found, Pike bridge will try to auto-detect');
+      log('WARNING: No analyzer path found, Pike bridge will try to auto-detect');
     }
 
     log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);
@@ -208,204 +235,213 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     (services as features.Services).includeResolver = includeResolver;
 
     try {
-        log('Checking Pike availability...');
-        const available = await bridge.checkPike();
-        log(`Pike available: ${available}`);
+      log('Checking Pike availability...');
+      const available = await bridge.checkPike();
+      log(`Pike available: ${available}`);
 
-        if (!available) {
-            connection.console.warn('Pike executable not found. Some features may not work.');
-            log('Pike executable not found');
-        } else {
-            stdlibIndex = new StdlibIndexManager(bridge);
+      if (!available) {
+        connection.console.warn('Pike executable not found. Some features may not work.');
+        log('Pike executable not found');
+      } else {
+        stdlibIndex = new StdlibIndexManager(bridge);
 
-            // Update services.stdlibIndex now that stdlibIndex is initialized
-            (services as features.Services).stdlibIndex = stdlibIndex;
+        // Update services.stdlibIndex now that stdlibIndex is initialized
+        (services as features.Services).stdlibIndex = stdlibIndex;
 
-            bridge.on('stderr', (msg: string) => {
-                connection.console.log(`[Pike] ${msg}`);
-                log(`[Pike STDERR] ${msg}`);
-            });
+        bridge.on('stderr', (msg: string) => {
+          connection.console.log(`[Pike] ${msg}`);
+          log(`[Pike STDERR] ${msg}`);
+        });
 
-            log('Starting bridge...');
-            await bridgeManager.start();
-            log('Bridge started successfully');
-            connection.console.log(`Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`);
-        }
+        log('Starting bridge...');
+        await bridgeManager.start();
+        log('Bridge started successfully');
+        connection.console.log(
+          `Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`
+        );
+      }
     } catch (err) {
-        const errorMsg = `Failed to start Pike bridge: ${err}`;
-        connection.console.error(errorMsg);
-        log(errorMsg);
+      const errorMsg = `Failed to start Pike bridge: ${err}`;
+      connection.console.error(errorMsg);
+      log(errorMsg);
     }
 
     workspaceIndex.setBridge(bridge);
     workspaceIndex.setErrorCallback((message, uri) => {
-        connection.console.warn(message + (uri ? ` (${uri})` : ''));
-        log(`[WorkspaceIndex Error] ${message} (${uri})`);
+      connection.console.warn(message + (uri ? ` (${uri})` : ''));
+      log(`[WorkspaceIndex Error] ${message} (${uri})`);
     });
 
     log('onInitialize completing');
 
     return {
-        capabilities: {
-                textDocumentSync: TextDocumentSyncKind.Incremental,
-                documentSymbolProvider: true,
-                workspaceSymbolProvider: true,
-                hoverProvider: true,
-                definitionProvider: true,
-                declarationProvider: true,
-                typeDefinitionProvider: true,
-                referencesProvider: true,
-                implementationProvider: true,
-                completionProvider: {
-                    resolveProvider: true,
-                    triggerCharacters: ['.', ':', '>', '-', '!'],
-                },
-                signatureHelpProvider: {
-                    triggerCharacters: ['(', ','],
-                },
-                renameProvider: {
-                    prepareProvider: true,
-                    // renameProvider is missing in capabilities interface for some reason, check version?
-                    // Wait, renameProvider can be boolean or RenameOptions.
-                },
-                callHierarchyProvider: true,
-                typeHierarchyProvider: true,
-                documentHighlightProvider: true,
-                foldingRangeProvider: true,
-                selectionRangeProvider: true,
-                inlayHintProvider: true,
-                semanticTokensProvider: {
-                    legend: { tokenTypes, tokenModifiers },
-                    full: { delta: true },
-                },
-                codeActionProvider: {
-                    codeActionKinds: ['quickfix', 'source.organizeImports'],
-                },
-                documentFormattingProvider: true,
-                documentRangeFormattingProvider: true,
-                documentLinkProvider: { resolveProvider: true },
-                codeLensProvider: { resolveProvider: true },
-                linkedEditingRangeProvider: true,
-                inlineValueProvider: true,
-                workspace: {
-                    workspaceFolders: {
-                        supported: true,
-                        changeNotifications: true,
-                    },
-                },
-            },
-        };
-    } catch (err) {
-        connection.console.error(`CRITICAL ERROR in onInitialize: ${err instanceof Error ? err.stack : String(err)}`);
-        throw err;
-    }
+      capabilities: {
+        textDocumentSync: TextDocumentSyncKind.Incremental,
+        documentSymbolProvider: true,
+        workspaceSymbolProvider: true,
+        hoverProvider: true,
+        definitionProvider: true,
+        declarationProvider: true,
+        typeDefinitionProvider: true,
+        referencesProvider: true,
+        implementationProvider: true,
+        completionProvider: {
+          resolveProvider: true,
+          triggerCharacters: ['.', ':', '>', '-', '!'],
+        },
+        signatureHelpProvider: {
+          triggerCharacters: ['(', ','],
+        },
+        renameProvider: {
+          prepareProvider: true,
+          // renameProvider is missing in capabilities interface for some reason, check version?
+          // Wait, renameProvider can be boolean or RenameOptions.
+        },
+        callHierarchyProvider: true,
+        typeHierarchyProvider: true,
+        documentHighlightProvider: true,
+        foldingRangeProvider: true,
+        selectionRangeProvider: true,
+        inlayHintProvider: true,
+        semanticTokensProvider: {
+          legend: { tokenTypes, tokenModifiers },
+          full: { delta: true },
+        },
+        codeActionProvider: {
+          codeActionKinds: ['quickfix', 'source.organizeImports'],
+        },
+        documentFormattingProvider: true,
+        documentRangeFormattingProvider: true,
+        documentLinkProvider: { resolveProvider: true },
+        codeLensProvider: { resolveProvider: true },
+        linkedEditingRangeProvider: true,
+        inlineValueProvider: true,
+        workspace: {
+          workspaceFolders: {
+            supported: true,
+            changeNotifications: true,
+          },
+        },
+      },
+    };
+  } catch (err) {
+    connection.console.error(
+      `CRITICAL ERROR in onInitialize: ${err instanceof Error ? err.stack : String(err)}`
+    );
+    throw err;
+  }
 });
 
 connection.onInitialized(async () => {
-    connection.console.log('Pike LSP Server initialized');
-    connection.client.register(DidChangeConfigurationNotification.type, undefined);
+  connection.console.log('Pike LSP Server initialized');
+  connection.client.register(DidChangeConfigurationNotification.type, undefined);
 
-    // Register health check command handler
-    connection.onExecuteCommand(async (params) => {
-        if (params.command === 'pike.lsp.showDiagnostics') {
-            const health = await bridgeManager?.getHealth();
+  // Register health check command handler
+  connection.onExecuteCommand(async params => {
+    if (params.command === 'pike.lsp.showDiagnostics') {
+      const health = await bridgeManager?.getHealth();
 
-            // Format health status as readable output
-            const lines: string[] = [];
-            lines.push('=== Pike LSP Server Health ===');
-            lines.push('');
+      // Format health status as readable output
+      const lines: string[] = [];
+      lines.push('=== Pike LSP Server Health ===');
+      lines.push('');
 
-            if (health) {
-                const uptime = Math.floor(health.serverUptime / 1000);
-                const uptimeStr = uptime > 60
-                    ? `${Math.floor(uptime / 60)}m ${uptime % 60}s`
-                    : `${uptime}s`;
+      if (health) {
+        const uptime = Math.floor(health.serverUptime / 1000);
+        const uptimeStr =
+          uptime > 60 ? `${Math.floor(uptime / 60)}m ${uptime % 60}s` : `${uptime}s`;
 
-                lines.push(`Server Uptime: ${uptimeStr}`);
-                lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
-                lines.push(`Pike PID: ${health.pikePid ?? 'N/A'}`);
-                lines.push(`Pike Version: ${health.pikeVersion?.version ?? 'Unknown'} (${health.pikeVersion?.display ?? 'N/A'})`);
-                lines.push(`Pike Path: ${health.pikeVersion?.pikePath ?? 'Unknown'}`);
+        lines.push(`Server Uptime: ${uptimeStr}`);
+        lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
+        lines.push(`Pike PID: ${health.pikePid ?? 'N/A'}`);
+        lines.push(
+          `Pike Version: ${health.pikeVersion?.version ?? 'Unknown'} (${health.pikeVersion?.display ?? 'N/A'})`
+        );
+        lines.push(`Pike Path: ${health.pikeVersion?.pikePath ?? 'Unknown'}`);
 
-                if (health.recentErrors.length > 0) {
-                    lines.push('');
-                    lines.push('Recent Errors:');
-                    for (const err of health.recentErrors) {
-                        lines.push(`  - ${err}`);
-                    }
-                } else {
-                    lines.push('');
-                    lines.push('No recent errors');
-                }
-            } else {
-                lines.push('Health status unavailable');
-            }
-
-            lines.push('');
-            lines.push('============================');
-
-            return lines.join('\n');
+        if (health.recentErrors.length > 0) {
+          lines.push('');
+          lines.push('Recent Errors:');
+          for (const err of health.recentErrors) {
+            lines.push(`  - ${err}`);
+          }
+        } else {
+          lines.push('');
+          lines.push('No recent errors');
         }
+      } else {
+        lines.push('Health status unavailable');
+      }
 
-        return null;
-    });
+      lines.push('');
+      lines.push('============================');
 
-    if (bridgeManager?.bridge && !bridgeManager.bridge.isRunning()) {
+      return lines.join('\n');
+    }
+
+    return null;
+  });
+
+  if (bridgeManager?.bridge && !bridgeManager.bridge.isRunning()) {
+    try {
+      await bridgeManager.bridge.start();
+    } catch {
+      // Continue
+    }
+  }
+
+  // NOTE: Stdlib preloading disabled due to Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping).
+  // These modules are used internally by the resolver and cannot be safely introspected.
+  // Modules will be loaded lazily on-demand instead.
+  connection.console.log('Stdlib preloading skipped - modules will load on-demand');
+
+  // Index workspace
+  const workspaceFolders = await connection.workspace.getWorkspaceFolders();
+  if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
+    connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
+    setImmediate(async () => {
+      let totalIndexed = 0;
+      const folderPaths: string[] = [];
+      for (const folder of workspaceFolders) {
         try {
-            await bridgeManager.bridge.start();
+          const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+          folderPaths.push(folderPath);
+          const indexed = await workspaceIndex.indexDirectory(folderPath, true);
+          totalIndexed += indexed;
+          connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
         } catch {
-            // Continue
+          // Continue
         }
-    }
+      }
+      const stats = workspaceIndex.getStats();
+      connection.console.log(
+        `Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`
+      );
 
-    // NOTE: Stdlib preloading disabled due to Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping).
-    // These modules are used internally by the resolver and cannot be safely introspected.
-    // Modules will be loaded lazily on-demand instead.
-    connection.console.log('Stdlib preloading skipped - modules will load on-demand');
+      // Initialize workspace scanner for workspace-wide references
+      try {
+        await workspaceScanner.initialize(folderPaths);
+        const scannerStats = workspaceScanner.getStats();
+        connection.console.log(
+          `Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`
+        );
+      } catch (err) {
+        connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
+      }
+    });
+  }
 
-    // Index workspace
-    const workspaceFolders = await connection.workspace.getWorkspaceFolders();
-    if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
-        connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
-        setImmediate(async () => {
-            let totalIndexed = 0;
-            const folderPaths: string[] = [];
-            for (const folder of workspaceFolders) {
-                try {
-                    const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-                    folderPaths.push(folderPath);
-                    const indexed = await workspaceIndex.indexDirectory(folderPath, true);
-                    totalIndexed += indexed;
-                    connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
-                } catch {
-                    // Continue
-                }
-            }
-            const stats = workspaceIndex.getStats();
-            connection.console.log(`Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`);
-
-            // Initialize workspace scanner for workspace-wide references
-            try {
-                await workspaceScanner.initialize(folderPaths);
-                const scannerStats = workspaceScanner.getStats();
-                connection.console.log(`Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`);
-            } catch (err) {
-                connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
-            }
-        });
-    }
-
-    // NOTE: Open documents will be validated by diagnostics.ts onDidOpen handlers
-    // which are triggered when documents.listen(connection) starts
+  // NOTE: Open documents will be validated by diagnostics.ts onDidOpen handlers
+  // which are triggered when documents.listen(connection) starts
 });
 
-connection.onDidChangeConfiguration((change) => {
-    const settings = change.settings as { pike?: Partial<PikeSettings> } | undefined;
-    globalSettings = {
-        ...defaultSettings,
-        ...(settings?.pike ?? {}),
-    };
-    // NOTE: Document revalidation is handled by diagnostics.ts onDidChangeConfiguration
+connection.onDidChangeConfiguration(change => {
+  const settings = change.settings as { pike?: Partial<PikeSettings> } | undefined;
+  globalSettings = {
+    ...defaultSettings,
+    ...(settings?.pike ?? {}),
+  };
+  // NOTE: Document revalidation is handled by diagnostics.ts onDidChangeConfiguration
 });
 
 // ============================================================================
@@ -432,14 +468,14 @@ features.registerFileWatcher(connection, services, documents);
 // ============================================================================
 
 connection.onShutdown(async () => {
-    connection.console.log('Pike LSP Server shutting down...');
-    await bridgeManager?.stop();
+  connection.console.log('Pike LSP Server shutting down...');
+  await bridgeManager?.stop();
 });
 
 connection.onExit(() => {
-    bridgeManager?.stop().catch(() => {
-        // Ignore errors during exit
-    });
+  bridgeManager?.stop().catch(() => {
+    // Ignore errors during exit
+  });
 });
 
 // ============================================================================

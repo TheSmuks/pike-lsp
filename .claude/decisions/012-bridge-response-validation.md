@@ -12,6 +12,7 @@ Pike's type system silently returns `0` for undefined object properties instead 
 This created a class of bugs where Pike returns wrong types (e.g., `master()->include_path` returns `0` instead of an array), the `0` gets serialized as JSON, TypeScript deserializes it, and the code proceeds with corrupted data because the TypeScript type annotation says it's an `array`.
 
 The `master()->include_path` vs `master()->pike_include_path` bug (PR #23) shipped because:
+
 1. Pike returned `0` instead of `string[]` — no Pike-side error
 2. TypeScript trusted the `as T` cast on `sendRequest<T>` — no TS-side error
 3. Tests checked "returns data" but not "returns correct type of data"
@@ -21,12 +22,14 @@ The `master()->include_path` vs `master()->pike_include_path` bug (PR #23) shipp
 Add optional runtime response validation to `PikeBridge.sendRequest()`. Each bridge method can attach a validator function that asserts the response shape before returning to callers.
 
 **Design principles:**
+
 - **Opt-in per method** — gradual adoption, no big-bang rewrite
 - **Fail loud** — throw `BridgeResponseError` with method name, field name, expected type, and actual value
 - **Validators are simple assertion functions** — no schema library dependency
 - **Critical methods validated first** — start with methods that query Pike master() properties
 
 **Implementation:**
+
 ```typescript
 // sendRequest gains optional validator parameter
 private async sendRequest<T>(
@@ -48,6 +51,7 @@ async getPikePaths(): Promise<PikePathsResult> {
 ```
 
 **Priority order for validation:**
+
 1. `getPikePaths` — queries master() properties (the bug that prompted this)
 2. `resolveInclude` — returns path/exists from Pike filesystem checks
 3. `resolveImport` — returns path/exists from Pike module resolution
@@ -70,6 +74,7 @@ async getPikePaths(): Promise<PikePathsResult> {
 ## Challenge Conditions
 
 Revisit this decision if:
+
 - The number of bridge methods exceeds 50 and per-method validators become tedious (consider a schema registry)
 - A schema validation library is added for other purposes (consolidate)
 - Pike adds runtime type checking that makes bridge-side validation redundant

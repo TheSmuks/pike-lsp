@@ -16,29 +16,34 @@ Define 5 project-specific agent roles for pike-lsp. These are personas agents ad
 ### Role Definitions
 
 **1. Builder** (default role)
+
 - Implements features and fixes bugs
 - Follows TDD, uses test-agent.sh for regression checks
 - Locks tasks before starting, unlocks when done
 
 **2. Quality Guardian**
+
 - Finds and coalesces duplicate code
 - Ensures consistent patterns across TypeScript and Pike
 - Reviews for anti-patterns defined in CLAUDE.md
 - Trigger: run periodically or after large feature merges
 
 **3. Documentation Keeper**
+
 - Keeps README.md, STATUS.md, CHANGELOG.md in sync with code
 - Updates CLAUDE.md when patterns change
 - Ensures ADRs are current (challenges outdated ones)
 - Trigger: before releases or after significant changes
 
 **4. Performance Agent**
+
 - Runs benchmarks, profiles bottlenecks
 - Optimizes Pike subprocess round-trips
 - Tracks performance in CHANGELOG.md Optimization sections
 - Trigger: after feature completion, before releases
 
 **5. Pike Critic**
+
 - Reviews code from a Pike developer's perspective
 - Ensures Pike stdlib is used (not reinvented)
 - Validates Pike 8.0.1116 compatibility
@@ -60,6 +65,7 @@ Define 5 project-specific agent roles for pike-lsp. These are personas agents ad
 ## Challenge Conditions
 
 Revisit if:
+
 - Roles overlap too much (merge them)
 - A role is never used (remove it)
 - New domain needs arise (add roles)

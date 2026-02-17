@@ -29,5 +29,6 @@ Exempt: documentation, config changes, pure refactoring with existing coverage.
 ## Challenge Conditions
 
 Revisit if:
+
 - TDD overhead exceeds 40% of development time
 - Test infrastructure becomes unreliable

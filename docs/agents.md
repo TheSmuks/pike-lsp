@@ -55,6 +55,7 @@ pike -e 'compile_file("pike-scripts/analyzer.pike");'  # Pike compiles check
 **TypeScript:** Strict mode, no `any`, type guards from `utils/validation.ts`, TSDoc for public APIs.
 
 **Pike (target: 8.0.1116):**
+
 - `snake_case` functions/variables, `PascalCase` classes, `UPPER_SNAKE` constants
 - Use `String.trim_all_whites()` not `String.trim()` (unavailable in 8.0)
 - Use `Parser.Pike.split()`/`tokenize()` not regex for code parsing
@@ -90,13 +91,13 @@ Max 5 concurrent worktrees. Each worktree = one branch = one PR.
 
 When spawning parallel agents, assign a role. Prompt templates: `.claude/agent-roles/`
 
-| Role | Focus | When |
-|------|-------|------|
-| **Builder** | Implement features, fix bugs, TDD | Default for all implementation |
-| **Quality Guardian** | Find duplicate code, enforce patterns | After large merges |
-| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs | Before releases |
-| **Performance Agent** | Benchmark, profile, optimize | After feature completion |
-| **Pike Critic** | Review Pike code, validate stdlib usage, 8.0 compat | After Pike changes |
+| Role                     | Focus                                               | When                           |
+| ------------------------ | --------------------------------------------------- | ------------------------------ |
+| **Builder**              | Implement features, fix bugs, TDD                   | Default for all implementation |
+| **Quality Guardian**     | Find duplicate code, enforce patterns               | After large merges             |
+| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs                | Before releases                |
+| **Performance Agent**    | Benchmark, profile, optimize                        | After feature completion       |
+| **Pike Critic**          | Review Pike code, validate stdlib usage, 8.0 compat | After Pike changes             |
 
 ## State Management
 
@@ -112,11 +113,11 @@ grep "bun" .claude/status/agent-notes.log           # Search notes
 grep "2026-02" .claude/status/changes.log           # Search by date
 ```
 
-| File | Format |
-|------|--------|
-| `.claude/status/changes.log` | `YYYY-MM-DD \| type \| description` |
+| File                                   | Format                                                      |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `.claude/status/changes.log`           | `YYYY-MM-DD \| type \| description`                         |
 | `.claude/status/failed-approaches.log` | `YYYY-MM-DD \| agent \| tried \| why failed \| alternative` |
-| `.claude/status/agent-notes.log` | `YYYY-MM-DD \| agent \| note` |
+| `.claude/status/agent-notes.log`       | `YYYY-MM-DD \| agent \| note`                               |
 
 ## Workflow Rules
 
@@ -129,6 +130,7 @@ grep "2026-02" .claude/status/changes.log           # Search by date
 ## Architectural Decisions
 
 Read `.claude/decisions/INDEX.md` before working. Key decisions:
+
 - **ADR-001:** Use Parser.Pike over regex for code parsing
 - **ADR-002:** Target Pike 8.0.1116 (no String.trim(), use String.trim_all_whites())
 

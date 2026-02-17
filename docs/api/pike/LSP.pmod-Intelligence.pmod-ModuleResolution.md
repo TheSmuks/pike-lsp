@@ -92,13 +92,13 @@ mapping result = parse_require_directive("#require \"my_module.pike\";", 1);
 
 // result: ([
 
-//   "type": "require",
+// "type": "require",
 
-//   "path": "my_module.pike",
+// "path": "my_module.pike",
 
-//   "resolution_type": "string_literal",
+// "resolution_type": "string_literal",
 
-//   "skip": 0
+// "skip": 0
 
 // ])
 
@@ -106,15 +106,15 @@ mapping result2 = parse_require_directive("#require constant(MyModule);", 2);
 
 // result2: ([
 
-//   "type": "require",
+// "type": "require",
 
-//   "path": "MyModule",
+// "path": "MyModule",
 
-//   "resolution_type": "constant_identifier",
+// "resolution_type": "constant_identifier",
 
-//   "identifier": "MyModule",
+// "identifier": "MyModule",
 
-//   "skip": 0
+// "skip": 0
 
 // ])
 
@@ -122,13 +122,13 @@ mapping result3 = parse_require_directive("#require some_func() + \".pike\";", 3
 
 // result3: ([
 
-//   "type": "require",
+// "type": "require",
 
-//   "path": "some_func() + \".pike\";",
+// "path": "some_func() + \".pike\";",
 
-//   "resolution_type": "complex_require",
+// "resolution_type": "complex_require",
 
-//   "skip": 1
+// "skip": 1
 
 // ])
 
@@ -166,9 +166,9 @@ mapping result = handle_extract_imports(params);
 
 // (\{ (["type": "import", "target": "Stdio", "raw": "import Stdio"]),
 
-//   (["type": "include", "target": "unistd.h", "raw": "#include &lt;unistd.h&gt;"]),
+// (["type": "include", "target": "unistd.h", "raw": "#include &lt;unistd.h&gt;"]),
 
-//   (["type": "inherit", "target": "Thread.Thread", "raw": "inherit Thread.Thread"]) \})
+// (["type": "inherit", "target": "Thread.Thread", "raw": "inherit Thread.Thread"]) \})
 
 @endcode
 
@@ -446,31 +446,30 @@ array result = merge_symbols_with_precedence((\{
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `INCLUDE` | constant | 22 |
-| `IMPORT` | constant | 25 |
-| `INHERIT` | constant | 28 |
-| `REQUIRE` | constant | 31 |
-| `create` | function | 36 |
-| `trim_whites` | function | 44 |
-| `is_file` | function | 62 |
-| `parse_require_directive` | function | 108 |
-| `handle_extract_imports` | function | 177 |
-| `handle_resolve_import` | function | 376 |
-| `resolve_include` | function | 496 |
-| `resolve_import_module` | function | 542 |
-| `if` | function | 545 |
-| `resolve_require` | function | 566 |
-| `resolve_inherit` | function | 587 |
-| `resolve_inherit_strategy_introspection` | function | 612 |
-| `resolve_inherit_strategy_qualified` | function | 640 |
-| `resolve_inherit_strategy_workspace` | function | 675 |
-| `resolve_inherit_strategy_stdlib` | function | 716 |
-| `get_dirname` | function | 732 |
-| `handle_check_circular` | function | 760 |
-| `build_dependency_graph_from_code` | function | 818 |
-| `handle_get_waterfall_symbols` | function | 915 |
-| `load_waterfall_symbols` | function | 982 |
-| `merge_symbols_with_precedence` | function | 1081 |
-
+| Symbol                                   | Type     | Line |
+| ---------------------------------------- | -------- | ---- |
+| `INCLUDE`                                | constant | 22   |
+| `IMPORT`                                 | constant | 25   |
+| `INHERIT`                                | constant | 28   |
+| `REQUIRE`                                | constant | 31   |
+| `create`                                 | function | 36   |
+| `trim_whites`                            | function | 44   |
+| `is_file`                                | function | 62   |
+| `parse_require_directive`                | function | 108  |
+| `handle_extract_imports`                 | function | 177  |
+| `handle_resolve_import`                  | function | 376  |
+| `resolve_include`                        | function | 496  |
+| `resolve_import_module`                  | function | 542  |
+| `if`                                     | function | 545  |
+| `resolve_require`                        | function | 566  |
+| `resolve_inherit`                        | function | 587  |
+| `resolve_inherit_strategy_introspection` | function | 612  |
+| `resolve_inherit_strategy_qualified`     | function | 640  |
+| `resolve_inherit_strategy_workspace`     | function | 675  |
+| `resolve_inherit_strategy_stdlib`        | function | 716  |
+| `get_dirname`                            | function | 732  |
+| `handle_check_circular`                  | function | 760  |
+| `build_dependency_graph_from_code`       | function | 818  |
+| `handle_get_waterfall_symbols`           | function | 915  |
+| `load_waterfall_symbols`                 | function | 982  |
+| `merge_symbols_with_precedence`          | function | 1081 |

@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
@@ -29,10 +29,7 @@ const config: Config = {
           // Only include markdown files directly in the docs folder
           includeCurrentVersion: true,
           // Exclude planning docs from the build
-          exclude: [
-            '**/plans/**',
-            '**/specs/**',
-          ],
+          exclude: ['**/plans/**', '**/specs/**'],
         },
         theme: {
           customCss: './src/css/custom.css',

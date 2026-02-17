@@ -30,9 +30,9 @@ This design accepts the **Infrastructure-First architecture** to solve the speci
 
 **v1:** Rich error chains crossing TypeScript and Pike with full context.
 
-**v2:** TypeScript maintains the chain to track *path*. Pike returns flat, simple data.
+**v2:** TypeScript maintains the chain to track _path_. Pike returns flat, simple data.
 
-**Rationale:** Pike lacks stack context - pretending otherwise creates "leaky abstractions." We keep debuggability (knowing *where* it failed) without over-engineering Pike's error responses.
+**Rationale:** Pike lacks stack context - pretending otherwise creates "leaky abstractions." We keep debuggability (knowing _where_ it failed) without over-engineering Pike's error responses.
 
 ### 2. Capability-Based Grouping (Handler Compromise)
 
@@ -127,12 +127,21 @@ if (compilation_failed) {
 **TypeScript - `packages/pike-lsp-server/src/core/logging.ts`:**
 
 ```typescript
-enum LogLevel { OFF, ERROR, WARN, INFO, DEBUG, TRACE }
+enum LogLevel {
+  OFF,
+  ERROR,
+  WARN,
+  INFO,
+  DEBUG,
+  TRACE,
+}
 
 class Logger {
   private static level: LogLevel = LogLevel.WARN;
 
-  static setLevel(level: LogLevel) { this.level = level; }
+  static setLevel(level: LogLevel) {
+    this.level = level;
+  }
 
   constructor(private component: string) {}
 
@@ -143,11 +152,21 @@ class Logger {
     console.error(`[${timestamp}][${levelName}][${this.component}] ${msg}${context}`);
   }
 
-  error(msg: string, ctx?: object) { this.log(LogLevel.ERROR, 'ERROR', msg, ctx); }
-  warn(msg: string, ctx?: object) { this.log(LogLevel.WARN, 'WARN', msg, ctx); }
-  info(msg: string, ctx?: object) { this.log(LogLevel.INFO, 'INFO', msg, ctx); }
-  debug(msg: string, ctx?: object) { this.log(LogLevel.DEBUG, 'DEBUG', msg, ctx); }
-  trace(msg: string, ctx?: object) { this.log(LogLevel.TRACE, 'TRACE', msg, ctx); }
+  error(msg: string, ctx?: object) {
+    this.log(LogLevel.ERROR, 'ERROR', msg, ctx);
+  }
+  warn(msg: string, ctx?: object) {
+    this.log(LogLevel.WARN, 'WARN', msg, ctx);
+  }
+  info(msg: string, ctx?: object) {
+    this.log(LogLevel.INFO, 'INFO', msg, ctx);
+  }
+  debug(msg: string, ctx?: object) {
+    this.log(LogLevel.DEBUG, 'DEBUG', msg, ctx);
+  }
+  trace(msg: string, ctx?: object) {
+    this.log(LogLevel.TRACE, 'TRACE', msg, ctx);
+  }
 }
 ```
 
@@ -155,7 +174,7 @@ class Logger {
 
 ```typescript
 // In bridge - capture and wrap Pike stderr
-pikeProcess.stderr.on('data', (data) => {
+pikeProcess.stderr.on('data', data => {
   const msg = data.toString().trim();
   if (msg) {
     this.logger.debug('Pike stderr', { raw: msg });
@@ -236,7 +255,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest  # Adapt to Rocky Linux as needed
+    runs-on: ubuntu-latest # Adapt to Rocky Linux as needed
     steps:
       - uses: actions/checkout@v4
 
@@ -329,28 +348,28 @@ export class PikeProcess extends EventEmitter {
 
   spawn(pikeScriptPath: string): void {
     this.process = spawn('pike', [pikeScriptPath], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     // Line-by-line reading (prevents the stdin bug)
     this.rl = readline.createInterface({
       input: this.process.stdout!,
-      crlfDelay: Infinity
+      crlfDelay: Infinity,
     });
 
-    this.rl.on('line', (line) => {
+    this.rl.on('line', line => {
       this.emit('message', line);
     });
 
-    this.process.stderr!.on('data', (data) => {
+    this.process.stderr!.on('data', data => {
       this.emit('stderr', data.toString());
     });
 
-    this.process.on('exit', (code) => {
+    this.process.on('exit', code => {
       this.emit('exit', code);
     });
 
-    this.process.on('error', (err) => {
+    this.process.on('error', err => {
       this.emit('error', err);
     });
   }
@@ -402,10 +421,10 @@ export class PikeBridge {
     this.logger.info('Starting Pike process');
     this.process.spawn('pike-scripts/analyzer.pike');
 
-    this.process.on('message', (line) => this.handleMessage(line));
-    this.process.on('stderr', (msg) => this.logger.debug('Pike stderr', { raw: msg }));
-    this.process.on('exit', (code) => this.handleExit(code));
-    this.process.on('error', (err) => this.handleError(err));
+    this.process.on('message', line => this.handleMessage(line));
+    this.process.on('stderr', msg => this.logger.debug('Pike stderr', { raw: msg }));
+    this.process.on('exit', code => this.handleExit(code));
+    this.process.on('error', err => this.handleError(err));
   }
 
   private async call(method: string, params: object): Promise<any> {
@@ -460,6 +479,7 @@ export class PikeBridge {
 ```
 
 **Why this split matters:**
+
 - `process.ts` can be tested in isolation (does IPC work?)
 - `bridge.ts` can be tested with a mock process (does policy work?)
 - The stdin bug would be caught by `process.ts` tests alone
@@ -498,12 +518,12 @@ packages/pike-lsp-server/src/
 
 **Capability grouping rationale:**
 
-| Feature File | Contains | Why Together |
-|--------------|----------|--------------|
-| `navigation.ts` | hover, definition, references, highlight | All about "what is this symbol?" |
-| `editing.ts` | completion, rename | All about "change this code" |
-| `symbols.ts` | documentSymbol, workspaceSymbol | All about "show me symbols" |
-| `diagnostics.ts` | publishDiagnostics | Error/warning generation |
+| Feature File     | Contains                                 | Why Together                     |
+| ---------------- | ---------------------------------------- | -------------------------------- |
+| `navigation.ts`  | hover, definition, references, highlight | All about "what is this symbol?" |
+| `editing.ts`     | completion, rename                       | All about "change this code"     |
+| `symbols.ts`     | documentSymbol, workspaceSymbol          | All about "show me symbols"      |
+| `diagnostics.ts` | publishDiagnostics                       | Error/warning generation         |
 
 **server.ts becomes wiring only:**
 
@@ -537,14 +557,11 @@ connection.listen();
 import { Connection } from 'vscode-languageserver/node';
 import { Services } from '../services';
 
-export function registerNavigationHandlers(
-  connection: Connection,
-  services: Services
-) {
+export function registerNavigationHandlers(connection: Connection, services: Services) {
   const { bridge, logger, documentCache } = services;
   const log = logger.child('navigation');
 
-  connection.onHover(async (params) => {
+  connection.onHover(async params => {
     log.debug('Hover request', { uri: params.textDocument.uri });
     try {
       const doc = documentCache.get(params.textDocument.uri);
@@ -556,16 +573,16 @@ export function registerNavigationHandlers(
     }
   });
 
-  connection.onDefinition(async (params) => {
+  connection.onDefinition(async params => {
     log.debug('Definition request', { uri: params.textDocument.uri });
     // ... similar pattern
   });
 
-  connection.onReferences(async (params) => {
+  connection.onReferences(async params => {
     // ... similar pattern
   });
 
-  connection.onDocumentHighlight(async (params) => {
+  connection.onDocumentHighlight(async params => {
     // ... similar pattern
   });
 }
@@ -606,6 +623,7 @@ pike-scripts/LSP.pmod/
 ```
 
 **Why 3-4 files, not 8:**
+
 - Avoids micro-modules that hurt grep-ability
 - Related logic stays together (StdlibResolver with Resolution, Occurrences with Variables)
 - Still splits the 1,660-line Intelligence.pike into ~400-500 line files
@@ -709,14 +727,14 @@ async getHealth(): Promise<HealthStatus> {
 
 ## Summary: What Changed from v1
 
-| Aspect | v1 | v2 |
-|--------|----|----|
-| Error handling | Rich cross-language chains | TS chains, Pike flat dicts |
-| Handler structure | 11 files (one per verb) | 4 files (by capability) |
-| Git discipline | Pre-commit hooks | Pre-push hooks |
-| Pike logging | Symmetric logging library | Just `werror()`, TS wraps |
-| Pike modules | 8 files | 3-4 files per .pmod |
-| Phases | 6 | 5 |
+| Aspect            | v1                         | v2                         |
+| ----------------- | -------------------------- | -------------------------- |
+| Error handling    | Rich cross-language chains | TS chains, Pike flat dicts |
+| Handler structure | 11 files (one per verb)    | 4 files (by capability)    |
+| Git discipline    | Pre-commit hooks           | Pre-push hooks             |
+| Pike logging      | Symmetric logging library  | Just `werror()`, TS wraps  |
+| Pike modules      | 8 files                    | 3-4 files per .pmod        |
+| Phases            | 6                          | 5                          |
 
 ## What Stayed the Same
 

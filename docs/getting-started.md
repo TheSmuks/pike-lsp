@@ -49,11 +49,11 @@ bun run package
 
 ### Supported Pike Versions
 
-| Version | Status | Notes |
-|---------|--------|-------|
-| Pike 8.1116 | Required | Primary development target |
-| Pike 8.x latest | Best-effort | Forward compatibility tested in CI |
-| Pike 7.x | Not supported | Use Pike 8.1116 or later |
+| Version         | Status        | Notes                              |
+| --------------- | ------------- | ---------------------------------- |
+| Pike 8.1116     | Required      | Primary development target         |
+| Pike 8.x latest | Best-effort   | Forward compatibility tested in CI |
+| Pike 7.x        | Not supported | Use Pike 8.1116 or later           |
 
 ### Version Detection
 
@@ -70,12 +70,12 @@ After installation, verify that Pike LSP is working:
 
 ## Keyboard Shortcuts
 
-| Action | Shortcut |
-|--------|----------|
-| Go to Definition | `F12` |
-| Find References | `Shift+F12` |
-| Rename Symbol | `F2` |
-| Trigger Completion | `Ctrl+Space` |
-| Signature Help | `Ctrl+Shift+Space` |
-| Go to Symbol | `Ctrl+Shift+O` |
-| Workspace Symbol | `Ctrl+T` |
+| Action             | Shortcut           |
+| ------------------ | ------------------ |
+| Go to Definition   | `F12`              |
+| Find References    | `Shift+F12`        |
+| Rename Symbol      | `F2`               |
+| Trigger Completion | `Ctrl+Space`       |
+| Signature Help     | `Ctrl+Shift+Space` |
+| Go to Symbol       | `Ctrl+Shift+O`     |
+| Workspace Symbol   | `Ctrl+T`           |

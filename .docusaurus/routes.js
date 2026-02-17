@@ -18,48 +18,48 @@ export default [
                 path: '/pike-lsp/docs/',
                 component: ComponentCreator('/pike-lsp/docs/', 'edb'),
                 exact: true,
-                sidebar: "docsSidebar"
+                sidebar: 'docsSidebar',
               },
               {
                 path: '/pike-lsp/docs/configuration',
                 component: ComponentCreator('/pike-lsp/docs/configuration', '797'),
                 exact: true,
-                sidebar: "docsSidebar"
+                sidebar: 'docsSidebar',
               },
               {
                 path: '/pike-lsp/docs/contributing',
                 component: ComponentCreator('/pike-lsp/docs/contributing', 'dbe'),
                 exact: true,
-                sidebar: "docsSidebar"
+                sidebar: 'docsSidebar',
               },
               {
                 path: '/pike-lsp/docs/features',
                 component: ComponentCreator('/pike-lsp/docs/features', '676'),
                 exact: true,
-                sidebar: "docsSidebar"
+                sidebar: 'docsSidebar',
               },
               {
                 path: '/pike-lsp/docs/getting-started',
                 component: ComponentCreator('/pike-lsp/docs/getting-started', '855'),
                 exact: true,
-                sidebar: "docsSidebar"
+                sidebar: 'docsSidebar',
               },
               {
                 path: '/pike-lsp/docs/troubleshooting',
                 component: ComponentCreator('/pike-lsp/docs/troubleshooting', '945'),
                 exact: true,
-                sidebar: "docsSidebar"
-              }
-            ]
-          }
-        ]
-      }
-    ]
+                sidebar: 'docsSidebar',
+              },
+            ],
+          },
+        ],
+      },
+    ],
   },
   {
     path: '/pike-lsp/',
     component: ComponentCreator('/pike-lsp/', 'c70'),
-    exact: true
+    exact: true,
   },
   {
     path: '*',

@@ -26,6 +26,7 @@ Use `Parser.Pike.split()` and `Parser.Pike.tokenize()` for all Pike code analysi
 ## Challenge Conditions
 
 Revisit if:
+
 - Parser.Pike proves too slow for real-time LSP use (>100ms per parse)
 - A tree-sitter Pike grammar becomes available
 - Pike 9.x changes the Parser.Pike API

@@ -11,19 +11,19 @@
  * Pike version information.
  */
 export interface PikeVersionInfo {
-    major: number;
-    minor: number;
-    build: number;
-    string: string;
+  major: number;
+  minor: number;
+  build: number;
+  string: string;
 }
 
 /**
  * Result of a compatibility check.
  */
 export interface CompatibilityResult {
-    compatible: boolean;
-    version: string;
-    issues: string[];
+  compatible: boolean;
+  version: string;
+  issues: string[];
 }
 
 /**
@@ -35,16 +35,16 @@ const featureCache = new Map<string, boolean>();
  * Known Pike stdlib modules that should be available.
  */
 const KNOWN_MODULES = new Set([
-    'Parser.Pike',
-    'Stdio',
-    'Stdio.File',
-    'Array',
-    'String',
-    'Mapping',
-    'Multiset',
-    'Tools.AutoDoc',
-    'SSL.Cipher',
-    'Protocols.HTTP',
+  'Parser.Pike',
+  'Stdio',
+  'Stdio.File',
+  'Array',
+  'String',
+  'Mapping',
+  'Multiset',
+  'Tools.AutoDoc',
+  'SSL.Cipher',
+  'Protocols.HTTP',
 ]);
 
 /**
@@ -54,20 +54,18 @@ const KNOWN_MODULES = new Set([
  * @returns Parsed version info or null if parsing fails
  */
 export function parseVersion(versionString: string): PikeVersionInfo | null {
-    // Handle both "Pike v8.0.1116" and "8.0.1116" formats
-    const match = versionString.match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!match) {
-        return null;
-    }
+  // Handle both "Pike v8.0.1116" and "8.0.1116" formats
+  const match = versionString.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return null;
+  }
 
-    return {
-        major: parseInt(match[1]!, 10),
-        minor: parseInt(match[2]!, 10),
-        build: parseInt(match[3]!, 10),
-        string: versionString.includes('Pike')
-            ? versionString
-            : `Pike v${versionString}`,
-    };
+  return {
+    major: parseInt(match[1]!, 10),
+    minor: parseInt(match[2]!, 10),
+    build: parseInt(match[3]!, 10),
+    string: versionString.includes('Pike') ? versionString : `Pike v${versionString}`,
+  };
 }
 
 /**
@@ -77,18 +75,18 @@ export function parseVersion(versionString: string): PikeVersionInfo | null {
  * @returns true if the module is known to be available
  */
 export function detectModule(moduleName: string): boolean {
-    // Check cache first
-    if (featureCache.has(moduleName)) {
-        return featureCache.get(moduleName)!;
-    }
+  // Check cache first
+  if (featureCache.has(moduleName)) {
+    return featureCache.get(moduleName)!;
+  }
 
-    // Check against known modules list
-    const isAvailable = KNOWN_MODULES.has(moduleName);
+  // Check against known modules list
+  const isAvailable = KNOWN_MODULES.has(moduleName);
 
-    // Cache the result
-    featureCache.set(moduleName, isAvailable);
+  // Cache the result
+  featureCache.set(moduleName, isAvailable);
 
-    return isAvailable;
+  return isAvailable;
 }
 
 /**
@@ -114,7 +112,7 @@ export function detectModule(moduleName: string): boolean {
  * ```
  */
 export function handleMissingModule(moduleName: string): never {
-    throw new Error(`Module ${moduleName} not available`);
+  throw new Error(`Module ${moduleName} not available`);
 }
 
 /**
@@ -124,17 +122,17 @@ export function handleMissingModule(moduleName: string): never {
  * @returns Object with availability status and optional error message
  */
 export function checkModuleAvailability(moduleName: string): {
-    available: boolean;
-    error?: string;
+  available: boolean;
+  error?: string;
 } {
-    if (detectModule(moduleName)) {
-        return { available: true };
-    }
+  if (detectModule(moduleName)) {
+    return { available: true };
+  }
 
-    return {
-        available: false,
-        error: `Module ${moduleName} not available`,
-    };
+  return {
+    available: false,
+    error: `Module ${moduleName} not available`,
+  };
 }
 
 /**
@@ -144,25 +142,25 @@ export function checkModuleAvailability(moduleName: string): {
  * @returns true if the feature is available
  */
 export function detectFeature(featureName: string): boolean {
-    // Check cache first
-    if (featureCache.has(featureName)) {
-        return featureCache.get(featureName)!;
-    }
+  // Check cache first
+  if (featureCache.has(featureName)) {
+    return featureCache.get(featureName)!;
+  }
 
-    // Extract module from feature name (e.g., "Parser.Pike.split" -> "Parser.Pike")
-    const parts = featureName.split('.');
-    if (parts.length < 2) {
-        featureCache.set(featureName, false);
-        return false;
-    }
+  // Extract module from feature name (e.g., "Parser.Pike.split" -> "Parser.Pike")
+  const parts = featureName.split('.');
+  if (parts.length < 2) {
+    featureCache.set(featureName, false);
+    return false;
+  }
 
-    // For features, check if the parent module exists
-    // In a real implementation, this would check actual feature availability
-    const moduleName = parts.slice(0, 2).join('.');
-    const isAvailable = detectModule(moduleName);
+  // For features, check if the parent module exists
+  // In a real implementation, this would check actual feature availability
+  const moduleName = parts.slice(0, 2).join('.');
+  const isAvailable = detectModule(moduleName);
 
-    featureCache.set(featureName, isAvailable);
-    return isAvailable;
+  featureCache.set(featureName, isAvailable);
+  return isAvailable;
 }
 
 /**
@@ -170,12 +168,12 @@ export function detectFeature(featureName: string): boolean {
  * Useful for testing or when module availability may have changed.
  */
 export function clearFeatureCache(): void {
-    featureCache.clear();
+  featureCache.clear();
 }
 
 /**
  * Gets the current feature cache size (useful for diagnostics).
  */
 export function getFeatureCacheSize(): number {
-    return featureCache.size;
+  return featureCache.size;
 }

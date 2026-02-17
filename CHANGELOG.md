@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.20] - 2026-02-16
 
 ### Added
+
 - **Pike autodoc** - Add Pike autodoc parsing and extraction for documentation support
 - **Parser error recovery** - Add tokenization fallback for error recovery in parser
 - **On-type formatting** - Add on-type formatting support with color provider
@@ -36,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workspace import caching** - Cache workspace import symbols
 
 ### Fixed
+
 - **E2E test stability** - Improve headless script stability
 - **Code lens reference counts** - Add variable and constant to reference counts
 - **TypeScript cleanup** - Remove @ts-ignore from production code
@@ -43,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Worktree workflow** - Enforce worktree workflow for workers
 
 ### Optimization
+
 - **LRU cache** - Add Pike-side LRU cache for symbol introspection
 - **Symbol indexing** - Optimize symbol indexing for large Pike projects
 - **Hover lookups** - Index symbols for O(1) hover lookups
@@ -52,11 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.19] - 2026-02-09
 
 ### Added
+
 - **Runtime path discovery** - Replace hardcoded Pike lib paths with runtime discovery using `master()->pike_include_path` and `master()->pike_module_path`, making LSP work across different Pike installations
 - **Bridge response validation** - Add optional validator functions to `sendRequest()` to prevent silent type mismatches from Pike (which returns 0 for undefined properties)
 - **ADR-012** - Document the decision to enforce runtime response validation at bridge boundary
 
 ### Fixed
+
 - **Pike path APIs** - Use `master()->pike_include_path` and `pike_module_path` instead of `master()->include_path/module_path` (which return 0 in Pike 8.0)
 - **ModuleResolution.pike** - Replace hardcoded system paths with runtime discovery, fix off-by-one string slice
 - **Directive navigation** - Add `handleDirectiveNavigation()` to handle `#include`, `import`, `inherit`, and `#require` as whole-line directives before expression extraction
@@ -66,24 +71,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.18] - 2026-02-08
 
 ### Added
+
 - **Roxen module LSP support** - Phase 1: Complete LSP support for Roxen WebServer Pike modules
   - Roxen module detection (inherit "module", #include <module.h>)
   - defvar variable extraction and symbol grouping
-  - RXML tag function detection (simpletag_*, container_*, RXML.Tag classes)
+  - RXML tag function detection (simpletag*\*, container*\*, RXML.Tag classes)
   - Lifecycle callback detection (create(), start(), stop(), etc.)
   - Diagnostics: Missing required callbacks (e.g., query_location for MODULE_LOCATION)
   - Document symbols: "Roxen Module" container with variables, tags, and callbacks
-  - Completions: MODULE_*, TYPE_*, VAR_* constants with correct bit-shifted values
+  - Completions: MODULE*\*, TYPE*\_, VAR\_\_ constants with correct bit-shifted values
   - Real source positions (line/column tracking) instead of hardcoded values
   - 16 Roxen-specific tests (detect, defvar, tags, integration)
 
 - **Roadmap document** - ROXEN_SUPPORT_ROADMAP.md outlines Phases 2-7 for full framework support (RXML templates, .rjs files, embedded RXML, etc.)
 
 ### Fixed
+
 - TypeScript build errors in Roxen feature (null handling, import paths)
 - Removed unused imports and parameters in roxen/index.ts and symbols.ts
 
 ### Changed
+
 - Removed junk .md files (IMPLEMENTATION_COMPLETE.md, IMPORT_INHERIT_IMPLEMENTATION_SPEC.md, IMPORT_INHERIT_TEST_SUMMARY.md, MODULE_RESOLUTION_AUDIT.md)
 
 **Note:** This is Phase 1 of Roxen framework support, focusing on `.pike` Roxen modules only. Future phases will add RXML template support (.inc, .html, .xml files), Roxen JavaScript (.rjs) support, and advanced features. See ROXEN_SUPPORT_ROADMAP.md for the complete implementation plan.
@@ -91,25 +99,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.17] - 2026-02-07
 
 ### Optimization
+
 - **Hash-based cache eviction** - Replace LRU tracking with hash-based eviction for zero overhead (7.2% faster on cache-intensive workloads)
 
 ### Added
+
 - **Agent workflow automation** - Carlini Protocol for parallel agent coordination with worktrees
 - **Branch protection** - GitHub ruleset enforcing PR workflow and required status checks
 - **Seed-based test subsampling** - Deterministic test subset selection for parallel agent testing
 
 ### Fixed
+
 - **ParamOrder performance** - Replace O(n²) array append with O(1) mapping insert
 - **Benchmark accuracy** - Improve regression detection with rolling averages
 - **Test infrastructure** - Enhanced test-agent script with quality reporting
 
 ### Changed
+
 - **Test coverage** - Converted 286 placeholder tests to real assertions (symbols, config, hierarchy, diagnostics, advanced features)
 - **Agent protocols** - Standardized workflow, TDD, and Pike code style guidelines
 
 ## [0.1.0-alpha.16] - 2026-02-06
 
 ### Fixed
+
 - **Completion tests** - Fixed E2E test skips for scope operator features
 - **Signature help** - Added complex_function call test for signature help
 - **Test script path** - Corrected npm test script path in pike-lsp-server package
@@ -117,11 +130,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.15] - 2026-02-05
 
 ### Added
+
 - **Scope operator completion** - Implement `this_program::` and `this::` scope operator completion for class members
 - **Member access completion** - Implement `obj->` member access completion with deprecated tag support
 - **Module resolution** - Actual module resolution with waterfall loading for workspace symbols
 
 ### Fixed
+
 - **Completion fallbacks** - Improve completion heuristics for edge cases
 - **Rate limiter** - Make rate limiter opt-in (disabled by default)
 - **Code review findings** - Address codebase review findings and add pre-commit guards
@@ -129,12 +144,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.14] - 2026-02-03
 
 ### Added
+
 - **Linked editing** - VSCode linked ranges for multi-cursor editing
 - **Rate limiting** - Configurable rate limiter for LSP requests
 - **AutoDoc coverage** - 100% AutoDoc tag coverage with robust parsing
 - **AutoDoc tags** - Render `@returns`, `@mapping`, `@member` tags in hover
 
 ### Fixed
+
 - **Import/inherit resolution** - Improve with workspace symbol caching
 - **Import vs include** - Distinguish `#include` directives from module imports for proper navigation
 - **Reference counting** - Exclude definitions from reference counts and prioritize main signatures
@@ -143,24 +160,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Code review guards** - Add pre-commit hooks to enforce quality standards
 
 ### Changed
+
 - **Install script** - Make install script non-interactive and exclude bloat from VSIX
 - **Build warnings** - Suppress esbuild import.meta warnings when bundling to CJS
 
 ## [0.1.0-alpha.13] - 2026-02-01
 
 ### Optimization
+
 - **Benchmark regression detection** - Raise absolute diff floor to 2ms for fast benchmarks (<10ms average) to properly absorb CI timing jitter while still catching real regressions
 
 ### Added
+
 - **Smart Completion** - E2E tests for VSCode extension smart completion feature
 - **TDD Coverage** - 100% test coverage for smart completion implementation
 
 ### Fixed
+
 - **Benchmark thresholds** - Use proportional thresholds (50% for fast, 10% for medium benchmarks) instead of fixed percentage
 - **TDD workflow** - Enforce test-first development in project guidelines
 - **ESM compatibility** - Handle import.meta.url in bundled CJS code
 
 ### Test
+
 - **TDD Test Suites** - Complete Phases 7-10 with 100% passing tests (550+ tests total)
 - **Navigation Features** - Phase 1 TDD tests for go-to-definition, find references, hierarchy
 - **Include Resolution** - Detect and resolve #include directives by checking source line text
@@ -168,30 +190,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.12] - 2026-01-26
 
 ### Added
+
 - **Benchmark Automation** - Release workflow now automatically generates and deploys benchmark page to gh-pages
 - **generate-benchmark-page.js** - Script parses CHANGELOG Optimization sections and creates HTML dashboard with Chart.js visualizations
 
 ### Changed
+
 - Release workflow fetches gh-pages branch to retrieve historical benchmark data
 - pike-lsp-release skill converted from user scope to local project scope
 
 ### Removed
+
 - Obsolete benchmarks.html file (now auto-generated by release workflow)
 
 ## [0.1.0-alpha.11] - 2026-01-26
 
 ### Added
+
 - **Workspace References** - Find References now searches across the entire workspace, not just the current file
 - **Include Navigation** - IntelliSense and navigation support for `#include` statements and included symbols
 - **AutoDoc Support** - Template support for variable declarations in documentation
 - Detailed logging for document symbols debugging
 
 ### Fixed
+
 - **Diagnostics** - Resolved false positives for key-value pairs in `foreach` loops
 - **Formatter** - Corrected indentation for `switch`/`case` statements
 - **Testing** - E2E tests now prefer Xvfb over Weston for better headless stability
 
 ### Optimization
+
 - **Tokenization reuse** - Cache and reuse tokenized results across analysis pipeline
 - **Line splitting reuse** - Share computed line boundaries between operations
 - **Variables analysis buffering** - Use string buffering for variables analysis
@@ -200,11 +228,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.10] - 2026-01-26
 
 ### Fixed
+
 - CI smoke test path updated for refactored Intelligence module (now at `Intelligence.pmod/Intelligence.pike`)
 
 ## [0.1.0-alpha.9] - 2026-01-26
 
 ### Fixed
+
 - Constructor snippets for built-in classes (e.g. `Stdio.File`) now correctly include arguments by parsing program type signatures
 - `Intelligence.pike` refactored to resolve circular dependency issues during compilation
 - `Introspection.pike` dependencies made dynamic to prevent load-order issues
@@ -212,6 +242,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.8] - 2026-01-24
 
 ### Added
+
 - **Import IntelliSense** - Go-to-definition support for module paths (e.g., `Stdio.File`)
 - **Member access navigation** - Navigate to definitions via `->` operator (e.g., `file->read`)
 - **Expression utilities** - New `extractExpressionAtPosition()` for parsing Pike expressions at cursor
@@ -220,16 +251,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E2E tests for inlay hints, folding ranges, document links, and selection ranges
 
 ### Changed
+
 - Converted dynamic `require()` calls to static ES6 `import` statements for better module resolution
 - LSP server now sets proper working directory for correct module resolution
 - Selection ranges hierarchy fixed (parent now points to larger enclosing range)
 
 ### Fixed
+
 - Performance test assertions now count symbols recursively (including nested children)
 - E2E test stability improvements for server-side features
 - Benchmark false positives - Rolling average analysis replaces single-run comparison to reduce CI noise
 
 ### Technical
+
 - Added `expression-utils.ts` with comprehensive expression parsing for Pike syntax
 - Updated test infrastructure to run previously skipped E2E tests
 - Added `apply-rolling-average.js` for z-score based benchmark regression detection
@@ -237,6 +271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.7] - 2026-01-24
 
 ### Added
+
 - Code lens references now use standard VSCode peek view instead of custom QuickPick menu
 - CTRL+CLICK on symbol definition shows references peek view (context-aware navigation)
 - Comprehensive E2E LSP feature tests
@@ -244,12 +279,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stdlib index unit tests
 
 ### Changed
+
 - References navigation now uses VSCode's native `vscode.openLocations` command
 - Definition handler provides context-aware behavior (references when on definition, navigation when on usage)
 
 ## [0.1.0-alpha.6] - 2026-01-24
 
 ### Fixed
+
 - Build order issue where TypeScript test compilation was overwriting the esbuild-bundled extension.js
 - Extension activation failure caused by incomplete bundle (13KB instead of expected 785KB)
 - CI workflow bundle-server and benchmark configuration issues
@@ -257,10 +294,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript module resolution for CI builds
 
 ### Changed
+
 - Reversed build script order to build tests before main extension
 - Migrated from pnpm to bun package manager
 
 ### Refactor
+
 - Phase 3 code quality improvements
 - Split large feature files into modules
 - Simplified handleResponse implementation
@@ -268,6 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.5] - 2026-01-23
 
 ### Fixed
+
 - Server crash on syntax errors - LSP server no longer crashes when opening files with compilation errors
 - Diagnostics error handling - Improved graceful degradation when introspection fails
 - Duplicate validation code - Removed ~270 lines of duplicate validation logic from server.ts
@@ -275,6 +315,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bundle and integration test failures
 
 ### Added
+
 - Comprehensive test coverage for syntax error handling
 - Diagnostics from Pike compiler - Syntax errors now displayed via red squiggles
 - Version sync script for monorepo package management
@@ -282,20 +323,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0-alpha.4] - 2026-01-XX
 
 ### Performance
+
 - Responsiveness tuning with typing simulation benchmarks
 - Updated default diagnostic delay to 250ms
 - Improved stdlib introspection benchmarks
 
 ### Fixed
+
 - Builtin types handling without source path
 
 ### Changed
+
 - Completed v3.0 Performance Optimization milestone
 - Added benchmark regression checks with custom thresholds
 
 ## [0.1.0-alpha.2] - 2025-XX-XX
 
 ### Fixed
+
 - Resolved 'Parent lost' error by unwrapping delegating classes in Pike module introspection
 
 ## [0.1.0-alpha.1] - 2025-XX-XX
@@ -305,6 +350,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 A full-featured Language Server Protocol implementation for Pike.
 
 #### Core LSP Features
+
 - Document Symbols - Outline view with classes, methods, variables, constants
 - Workspace Symbols - Search symbols across entire project (Ctrl+T)
 - Hover - Type information and documentation on mouse hover
@@ -313,6 +359,7 @@ A full-featured Language Server Protocol implementation for Pike.
 - Diagnostics - Real-time syntax error detection via Pike compiler
 
 #### Navigation
+
 - Go to Definition (F12) - Jump to symbol definitions
 - Go to Declaration - Navigate to declarations
 - Go to Type Definition - Navigate to type definitions
@@ -320,14 +367,17 @@ A full-featured Language Server Protocol implementation for Pike.
 - Find Implementations - Find interface implementations
 
 #### Refactoring
+
 - Rename Symbol (F2) - Safely rename across files
 - Code Actions - Quick fixes and organize imports
 
 #### Hierarchy
+
 - Call Hierarchy - View incoming/outgoing function calls
 - Type Hierarchy - Explore class inheritance
 
 #### Advanced Features
+
 - Code Lens - Reference counts above functions/classes
 - Document Links - Clickable paths in inherit statements
 - Inlay Hints - Parameter name hints
@@ -337,12 +387,14 @@ A full-featured Language Server Protocol implementation for Pike.
 - Document Formatting - Format entire document or selection
 
 #### Performance
+
 - Batch Parsing - Process multiple files in single request
 - Stdlib Caching - Pre-warm cache for common Pike modules
 - Token-based Symbol Finding - 5x faster than regex approach
 - Conditional Debug Logging - Zero overhead in production
 
 #### Testing
+
 - 10 test suites with comprehensive coverage
 - 100% Pike stdlib compatibility - All 546+ files parse
 - Performance benchmarks with CI/CD integration

@@ -28,5 +28,6 @@ All 5 package.json files MUST have identical versions. The root `package.json` i
 ## Challenge Conditions
 
 Revisit if:
+
 - Packages need independent release cycles (e.g., core used by other projects)
 - Monorepo grows beyond 5 packages

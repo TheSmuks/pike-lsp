@@ -11,6 +11,7 @@ Multiple agents and developers work on the codebase. Direct commits to main crea
 ## Decision
 
 All changes go through feature branches with PRs. Enforced by git hooks:
+
 - Branch naming: `type/description` (feat/, fix/, docs/, refactor/, test/, chore/, release/)
 - No commits on main (blocked by hook)
 - No direct push to main (blocked by hook)
@@ -45,5 +46,6 @@ Step 5 requires GitHub branch protection checks to pass first. Agents MUST NOT u
 ## Challenge Conditions
 
 Revisit if:
+
 - Single-developer workflow makes PRs feel like overhead
 - CI is fast enough to trust trunk-based development

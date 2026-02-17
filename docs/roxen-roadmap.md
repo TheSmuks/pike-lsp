@@ -13,6 +13,7 @@
 **File Type:** `.pike` files (Roxen server-side modules), plus any extension mapped to Pike via `files.associations`
 
 **Detection Trigger:** Content-based patterns (6 fast-path markers)
+
 ```pike
 inherit "module";                   // Triggers Roxen module detection
 inherit 'module';                   // Single-quote variant
@@ -25,24 +26,27 @@ constant module_type = MODULE_;     // Direct module type declaration
 > **Note:** Both TS-side (`detector.ts:hasMarkers()`) and Pike-side (`has_fast_path_markers()`) check all 6 patterns for parity.
 
 **Features Implemented:**
+
 - Module type detection (MODULE_TAG, MODULE_LOCATION, MODULE_FILTER, etc.)
 - defvar variable extraction and symbol grouping
-- RXML tag function detection (simpletag_*, container_*)
+- RXML tag function detection (simpletag*\*, container*\*)
 - RXML.Tag class-based tag detection
 - Lifecycle callback detection (create(), start(), etc.)
 - Diagnostic validation (missing required callbacks, 500ms debounce)
-- MODULE_*/TYPE_*/VAR_* constant completions
+- MODULE*\*/TYPE*\_/VAR\_\_ constant completions
 - RequestID member completions (23 items: properties like `conf`, `variables`, `cookies`, `remoteaddr`; methods like `set_max_cache()`, `url_base()`)
 - Real source positions (line/column tracking)
 - Document symbols with "Roxen Module" container
 - Fast-path detection and caching (see note above about TS/Pike gap)
 
 **Test Coverage:** 74 tests across 3 layers
+
 - Pike-side: 21 tests (7 detect, 4 defvar, 5 module_detection, 5 tags)
 - Bridge: 14 tests (detect, parse tags, parse vars, callbacks, validate)
 - TS-side: 39 tests (8 completion, 10 constants, 5 diagnostics, 10 integration, 6 symbols)
 
 **Known Issues:**
+
 - TS-side fast-path checks fewer patterns than Pike-side (see Detection Trigger note)
 - Pike-side analysis uses `Parser.Pike.split()` (ADR-001 compliant); TS-side completion triggers use regex prefix matching (intentional for line-level triggering)
 
@@ -70,15 +74,15 @@ This tells VSCode to treat these files as Pike, enabling full LSP support includ
 
 ## Implementation Summary - ALL PHASES COMPLETE ✅
 
-| Phase | Status | Tests | PR | Description |
-|-------|--------|-------|-----|-------------|
-| Phase 1 | ✅ Complete | 74 | #18 | Pike Module Support |
-| Phase 2 | ✅ Complete | 92 | #20 | RXML Template Support |
-| Phase 3 | ✅ Complete | 10 | #21 | .rjs (Roxen JavaScript) Support |
-| Phase 4 | ✅ Complete | 31 | #21 | Mixed Pike + RXML Files |
-| Phase 5 | ✅ Complete | 16 | #21 | Tag Catalog Integration |
-| Phase 6 | ✅ Complete | - | #21 | Advanced LSP Features |
-| **TOTAL** | **✅ COMPLETE** | **223** | **#20, #21** | **Full Roxen Framework** |
+| Phase     | Status          | Tests   | PR           | Description                     |
+| --------- | --------------- | ------- | ------------ | ------------------------------- |
+| Phase 1   | ✅ Complete     | 74      | #18          | Pike Module Support             |
+| Phase 2   | ✅ Complete     | 92      | #20          | RXML Template Support           |
+| Phase 3   | ✅ Complete     | 10      | #21          | .rjs (Roxen JavaScript) Support |
+| Phase 4   | ✅ Complete     | 31      | #21          | Mixed Pike + RXML Files         |
+| Phase 5   | ✅ Complete     | 16      | #21          | Tag Catalog Integration         |
+| Phase 6   | ✅ Complete     | -       | #21          | Advanced LSP Features           |
+| **TOTAL** | **✅ COMPLETE** | **223** | **#20, #21** | **Full Roxen Framework**        |
 
 ---
 
@@ -101,13 +105,14 @@ These can be added in future maintenance releases.
 **File Types:** `.pike` files (Roxen server-side modules)
 
 **Features Implemented:**
+
 - Module type detection (MODULE_TAG, MODULE_LOCATION, MODULE_FILTER, etc.)
 - defvar variable extraction and symbol grouping
-- RXML tag function detection (simpletag_*, container_*)
+- RXML tag function detection (simpletag*\*, container*\*)
 - RXML.Tag class-based tag detection
 - Lifecycle callback detection (create(), start(), etc.)
 - Diagnostic validation (missing required callbacks)
-- MODULE_*/TYPE_*/VAR_* constant completions
+- MODULE*\*/TYPE*\_/VAR\_\_ constant completions
 - RequestID member completions
 - Document symbols with "Roxen Module" container
 
@@ -120,6 +125,7 @@ These can be added in future maintenance releases.
 **File Types:** `.rxml`, `.roxen`, `.html`, `.xml`, `.inc`
 
 **Features Implemented:**
+
 - Tag detection using htmlparser2 (78 RXML tags)
 - Completions for tags, attributes, and values
 - Diagnostics (unknown tags, missing attributes, unclosed tags)
@@ -135,6 +141,7 @@ These can be added in future maintenance releases.
 **File Types:** `.rjs` files
 
 **Features Implemented:**
+
 - JavaScript string extraction for RXML tags
 - Template literal, single-quoted, and double-quoted string support
 - RXML parsing within JavaScript context
@@ -149,6 +156,7 @@ These can be added in future maintenance releases.
 **File Types:** `.pike` files with embedded RXML
 
 **Features Implemented:**
+
 - RXML string detection in Pike multiline strings (#"..." and #'...')
 - Symbol tree merging (Pike + RXML)
 - Context-aware completions (Pike vs RXML regions)
@@ -161,8 +169,9 @@ These can be added in future maintenance releases.
 ### Phase 5: Tag Catalog Integration ✅ (COMPLETE - PR #21)
 
 **Features Implemented:**
+
 - Dynamic tag loading from running Roxen server
-- Custom module tag parsing (simpletag_*, container_*)
+- Custom module tag parsing (simpletag*\*, container*\*)
 - Server instance tracking with PID-based cache invalidation
 - Tag merging with priority (custom > built-in > server)
 - TTL-based cache expiration
@@ -174,6 +183,7 @@ These can be added in future maintenance releases.
 ### Phase 6: Advanced LSP Features ✅ (COMPLETE - PR #21)
 
 **Features Implemented:**
+
 - Go-to-definition (template tag → tag function)
 - Find references (cross-file tag usage)
 - Rename symbol (safe tag/defvar refactoring)
@@ -186,13 +196,13 @@ These can be added in future maintenance releases.
 
 ## Implementation Priority (UPDATED)
 
-| Phase | Effort | Value | Priority | Status |
-|-------|--------|-------|----------|--------|
-| Phase 2 (RXML Templates) | High | High | **P1** | ✅ Complete |
-| Phase 5 (Tag Catalog) | Medium | High | **P1** | ✅ Complete |
-| Phase 3 (.rjs Support) | Medium | Medium | P2 | ✅ Complete |
-| Phase 4 (Mixed Files) | High | Medium | P2 | ✅ Complete |
-| Phase 6 (Advanced) | High | High | P3 | ✅ Complete |
+| Phase                    | Effort | Value  | Priority | Status      |
+| ------------------------ | ------ | ------ | -------- | ----------- |
+| Phase 2 (RXML Templates) | High   | High   | **P1**   | ✅ Complete |
+| Phase 5 (Tag Catalog)    | Medium | High   | **P1**   | ✅ Complete |
+| Phase 3 (.rjs Support)   | Medium | Medium | P2       | ✅ Complete |
+| Phase 4 (Mixed Files)    | High   | Medium | P2       | ✅ Complete |
+| Phase 6 (Advanced)       | High   | High   | P3       | ✅ Complete |
 
 **ALL PHASES COMPLETE** 🎉
 
@@ -201,8 +211,9 @@ These can be added in future maintenance releases.
 ## Technical Considerations
 
 **Technical Approach:**
+
 - Bridge method: `roxenGetTagCatalog()` to fetch from server
-- Parse module files for simpletag_*/container_* definitions
+- Parse module files for simpletag*\*/container*\* definitions
 - Merge server tags with custom module tags
 
 **Dependencies:** Phase 2, running Roxen server instance
@@ -212,6 +223,7 @@ These can be added in future maintenance releases.
 ## Testing Strategy
 
 **Per-Phase Testing (Complete):**
+
 - ✅ Phase 1: 74 tests
 - ✅ Phase 2: 92 tests
 - ✅ Phase 3: 10 tests
@@ -222,6 +234,7 @@ These can be added in future maintenance releases.
 **Total:** 223 passing tests
 
 **Pending Test Tasks (Non-Blocking):**
+
 - Bridge tests for `roxenExtractRXMLStrings()`
 - E2E tests for mixed content integration
 - Pike-side tests for `MixedContent.pike`
@@ -233,6 +246,7 @@ These can be added in future maintenance releases.
 ### File Extension Registration (COMPLETED)
 
 **VSCode Extension (package.json) - current:**
+
 ```json
 "languages": [{
   "id": "pike",
@@ -268,6 +282,7 @@ bridge.roxenExtractRXMLStrings(code, filename): Promise<RXMLStringResult>;
 // Phase 5 methods
 bridge.roxenGetTagCatalog(serverPid?): Promise<RXMLTagCatalogEntry[]>;
 ```
+
 bridge.roxenParseVars(code, filename): Promise<RoxenVarResult>;
 bridge.roxenGetCallbacks(code, filename): Promise<RoxenCallbackResult>;
 bridge.roxenValidate(code, filename): Promise<RoxenValidationResult>;
@@ -276,6 +291,7 @@ bridge.roxenValidate(code, filename): Promise<RoxenValidationResult>;
 bridge.roxenParseTemplate(code, uri): Promise<RXMLTag[]>;
 bridge.roxenGetTagCatalog(): Promise<RoxenTagInfo[]>;
 bridge.roxenValidateTemplate(code): Promise<RoxenDiagnostic[]>;
+
 ```
 
 ---
@@ -334,3 +350,4 @@ bridge.roxenValidateTemplate(code): Promise<RoxenDiagnostic[]>;
 - Test Suite: `packages/pike-lsp-server/src/tests/features/roxen/`
 - Pike Bridge: `packages/pike-bridge/src/roxen.test.ts`
 - Correctness Review: `.omc/plans/roxen-roadmap-review.md`
+```
