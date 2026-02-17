@@ -30,6 +30,28 @@ suite('Stdlib E2E Tests', () => {
     suiteSetup(async function() {
         this.timeout(60000);
 
+        // Check if Pike is available and has stdlib
+        const { execSync } = await import('child_process');
+        const { default: fs } = await import('fs');
+        let stdlibAvailable = false;
+        try {
+            const pikeShowPathsOutput = execSync('pike --show-paths', { encoding: 'utf8' });
+            const modulePathMatch = pikeShowPathsOutput.match(/Module path\.\.\.:\s*(\S+)/);
+            const extractedPath = modulePathMatch?.[1];
+            if (extractedPath) {
+                stdlibAvailable = fs.existsSync(extractedPath);
+            }
+        } catch {
+            // Pike not available
+            stdlibAvailable = false;
+        }
+
+        if (!stdlibAvailable) {
+            console.log('Skipping stdlib E2E tests: Pike stdlib not available');
+            this.skip();
+            return;
+        }
+
         workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
         assert.ok(workspaceFolder, 'Workspace folder should exist');
 

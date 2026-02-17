@@ -247,9 +247,9 @@ jobs:
         working-directory: packages/vscode-pike
         run: bun test src/test/mockOutputChannel.test.ts
 
-      - name: Run VSCode LSP Feature Tests
+      - name: Run VSCode E2E Tests (full suite)
         working-directory: packages/vscode-pike
-        run: xvfb-run --auto-servernum bun run test:features
+        run: xvfb-run --auto-servernum bun run test:e2e
 
       - name: LSP Feature Test Summary
         if: always()
