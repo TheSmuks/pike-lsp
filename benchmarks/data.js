@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771344588949,
+  "lastUpdate": 1771345876465,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -67182,6 +67182,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.660374067226891,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "03e69ac239551851e71276eb299bac020bbe10c2",
+          "message": "feat: add automated team development workflow (#305)\n\n* feat: add automated team development workflow\n\n- Add lead-triage.sh for issue labeling (TheSmuks→safe, others→pending-review)\n- Add self-improve.sh for codebase analysis\n- Add ci-wait.sh for CI polling with exponential backoff\n- Add release.sh for deterministic versioning\n- Add lead.md agent prompt for orchestration\n- Add .claude/settings.json with TaskCompleted hooks for quality gates\n- Add .github/ISSUE_TEMPLATE/improvement.md\n- Add .github/PULL_REQUEST_TEMPLATE.md\n- Modify pr-merge.sh to wait for CI before merge\n- Modify worker-setup.sh to add verification requirements\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: add repository rules to lead agent\n\n- Add rule that repo prohibits direct pushes to main\n- Add rule that all changes require PR via gh pr create\n- Include worker instructions with PR creation commands\n- Add error handling for PR merge failures\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: upgrade Gitleaks action v2 to v3\n\nThe v2 action has a bug causing internal errors.\nUpgrade to v3 to resolve the false positive failure.\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* chore: upgrade GitHub Actions to latest versions\n\n- oven-sh/setup-bun: v1 → v2\n- softprops/action-gh-release: v1 → v2\n- benchmark-action/github-action-benchmark: v1 → v2\n- gitleaks/gitleaks-action: v2 → v3 (from previous fix)\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* feat: add agent-driven self-improvement analysis to lead workflow\n\n- Lead now uses specialized agents for deep analysis instead of simple script\n- Spawns quality-reviewer, security-reviewer, performance-reviewer, test-engineer, architect, writer\n- Each agent covers specific improvement areas\n- Creates actionable GitHub issues with proper labels\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5\n\n* fix: revert benchmark action to v1, enhance lead with cleanup agent\n\n- Revert benchmark-action to v1 (v2 doesn't exist)\n- Add repository cleanup agent section to lead workflow\n- Document CHANGELOG update requirement in release process\n\nGenerated with AI\n\nCo-Authored-By: MiniMax-M2.5",
+          "timestamp": "2026-02-17T16:29:31Z",
+          "tree_id": "ac3769c3ee256158205cb2183e4ca462eff20ff0",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/03e69ac239551851e71276eb299bac020bbe10c2"
+        },
+        "date": 1771345875639,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 200.99665425,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 256.88698575,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 257.7519965,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 262.26079183333337,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.3589969487179487,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.564135093333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 57.503086,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.6672248,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.517319756578948,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2890764518810149,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2728136256198347,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.55707526272578,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20892477558290154,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19050825591848966,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 1.637050191943128,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.39553370064820276,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.3833640954831332,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.10946772211209226,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.5970604587719298,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.08509422727272728,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.38696903259604193,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.04620566666665,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 254.29574775,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.4015471291866029,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.6095927093023256,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.08685765523332842,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.7638324067796605,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.749237403361345,
             "unit": "ms"
           }
         ]
