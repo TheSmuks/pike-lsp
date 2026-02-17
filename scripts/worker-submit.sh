@@ -133,4 +133,10 @@ WORKER_SUBMIT_MODE=1 gh pr create \
 
 PR_NUM=$(gh pr view "$BRANCH" --json number --jq '.number' 2>/dev/null || echo "?")
 
-echo "SUBMIT:OK | PR #${PR_NUM} | $BRANCH | fixes #${ISSUE_NUM}"
+# Enable auto-merge with squash and auto-delete branch
+if gh pr merge --auto --squash --delete-branch "$PR_NUM" 2>/dev/null; then
+  echo "SUBMIT:OK | PR #${PR_NUM} | $BRANCH | fixes #${ISSUE_NUM} | AUTO-MERGE:enabled"
+else
+  echo "SUBMIT:WARN | PR #${PR_NUM} requires manual merge"
+  echo "SUBMIT:OK | PR #${PR_NUM} | $BRANCH | fixes #${ISSUE_NUM}"
+fi
