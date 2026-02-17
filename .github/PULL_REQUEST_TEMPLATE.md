@@ -4,6 +4,14 @@
 
 Fixes #<!-- Issue number -->
 
+## Acceptance Criteria
+
+<!-- Copy acceptance criteria from issue - ALL must be checked -->
+- [ ] Test fails before fix
+- [ ] Test passes after fix
+- [ ] No regressions in smoke test
+- [ ] CI passes
+
 ## Test Plan
 
 - [ ] Local tests pass: `bun run test`
