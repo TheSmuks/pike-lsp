@@ -68,4 +68,21 @@ fi
 
 ABS_PATH=$(cd "$WT_PATH" && pwd)
 
+# Write issue info for worker verification
+echo "$ISSUE_NUM" > "$WT_PATH/.omc/current-issue"
+echo "$TITLE" >> "$WT_PATH/.omc/current-issue"
+
+echo ""
+echo "=== WORKER VERIFICATION REQUIRED ==="
+echo "You are assigned to work on issue #$ISSUE_NUM: $TITLE"
+echo ""
+echo "REQUIRED: Before pushing, run: scripts/test-agent.sh --fast"
+echo "REQUIRED: PR body must contain: Fixes #$ISSUE_NUM"
+echo ""
+echo "To confirm, you must:"
+echo "  1. cd $ABS_PATH"
+echo "  2. Verify issue number: $ISSUE_NUM"
+echo "  3. Run: scripts/test-agent.sh --fast (before any commit)"
+echo "  4. Create PR with 'Fixes #$ISSUE_NUM' in body"
+echo ""
 echo "SETUP:OK | WT:${ABS_PATH} | BRANCH:${BRANCH} | ISSUE:#${ISSUE_NUM}"
