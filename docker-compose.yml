@@ -9,7 +9,8 @@ services:
       - "3033:3033"  # LSP server port
     volumes:
       - .:/workspace
-      - ${HOME}:/home/developer
+      - claude_data:/home/developer/.claude
+      - omc_data:/home/developer/.omc
     environment:
       - CI=true
       - NODE_ENV=development
@@ -49,3 +50,7 @@ services:
     profiles:
       - prod
     restart: unless-stopped
+
+volumes:
+  claude_data:
+  omc_data:
