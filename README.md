@@ -342,6 +342,8 @@ While Pike LSP provides comprehensive IDE support, there are some known limitati
 
 ## Troubleshooting
 
+For more detailed solutions, see [Troubleshooting Guide](docs/troubleshooting.md).
+
 **Pike not found:**
 ```
 Pike executable not found at "pike"
