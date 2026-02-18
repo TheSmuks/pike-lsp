@@ -14,7 +14,8 @@ description: Complete list of LSP features provided by Pike LSP
 | **Code Completion** | Intelligent autocomplete with snippets |
 | **Go to Definition** | Navigate to symbol definitions (F12) |
 | **Find References** | Find all usages of a symbol |
-| **Hover Information** | Type info, documentation, deprecation warnings |
+| **Hover Information** | Type info, documentation, deprecation warnings, Pike keyword help |
+| **Keyword Hover** | Hover over Pike keywords (`if`, `else`, `while`, `for`, `foreach`, types, modifiers, etc.) to see descriptions |
 | **Diagnostics** | Real-time syntax error detection |
 | **Signature Help** | Parameter hints while typing |
 
