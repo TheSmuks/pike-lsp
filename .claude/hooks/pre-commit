@@ -1,3 +1,9 @@
 #!/bin/sh
-# Empty stderr content for git-workflow-gate hook
-echo "" >&2
+# Pre-commit hook for git-workflow-gate integration
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+echo "[pre-commit] Branch: $CURRENT_BRANCH"
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  UNCOMMITTED=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  echo "[pre-commit] Uncommitted: $UNCOMMITTED files"
+fi
+echo "[pre-commit] Ready" >&2
