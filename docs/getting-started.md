@@ -70,12 +70,12 @@ After installation, verify that Pike LSP is working:
 
 ## Keyboard Shortcuts
 
-| Action | Shortcut |
-|--------|----------|
-| Go to Definition | `F12` |
-| Find References | `Shift+F12` |
-| Rename Symbol | `F2` |
-| Trigger Completion | `Ctrl+Space` |
-| Signature Help | `Ctrl+Shift+Space` |
-| Go to Symbol | `Ctrl+Shift+O` |
-| Workspace Symbol | `Ctrl+T` |
+| Action | Shortcut | Description |
+|--------|----------|-------------|
+| Go to Definition | `F12` | Jump to symbol definition |
+| Find References | `Shift+F12` | Find all usages of symbol |
+| Rename Symbol | `F2` | Rename symbol across workspace |
+| Trigger Completion | `Ctrl+Space` | Show autocomplete suggestions |
+| Signature Help | `Ctrl+Shift+Space` | Show function parameter hints |
+| Go to Symbol | `Ctrl+Shift+O` | Go to symbol in current file |
+| Workspace Symbol | `Ctrl+T` | Search symbols across workspace |
