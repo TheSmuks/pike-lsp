@@ -23,6 +23,7 @@
 - [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
+- [Architecture](docs/architecture.md)
 - [API Reference](docs/api.md)
 
 ---
