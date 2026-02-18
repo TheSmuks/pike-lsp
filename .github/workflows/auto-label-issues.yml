@@ -15,13 +15,6 @@ jobs:
           AUTHOR="${{ github.event.issue.user.login }}"
           ISSUE="${{ github.event.issue.number }}"
 
-          # Skip if already labeled (agent-created issues arrive pre-labeled)
-          EXISTING=$(gh issue view $ISSUE --json labels --jq '.labels[].name' 2>/dev/null)
-          if echo "$EXISTING" | grep -qE "safe|pending-review"; then
-            echo "Issue #$ISSUE already labeled, skipping"
-            exit 0
-          fi
-
           if [ "$AUTHOR" = "TheSmuks" ]; then
             gh issue edit $ISSUE --add-label safe
           else
