@@ -356,7 +356,8 @@ describe('Diagnostics Provider', () => {
 
             const lspDiagnostic = convertDiagnostic(pikeDiagnostic, document);
 
-            assert.equal(lspDiagnostic.message, 'Test diagnostic');
+            // Error messages now include line:column prefix for better debugging
+            assert.equal(lspDiagnostic.message, '[Line 1:1] Test diagnostic');
             assert.equal(lspDiagnostic.severity, DiagnosticSeverity.Error);
         });
 

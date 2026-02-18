@@ -194,11 +194,16 @@ mapping parse_request(mapping params) {
                     if (parser->current_line) {
                         error_line = parser->current_line;
                     }
-                    // Add diagnostic for this error
+                    // Get current token for context
+                    string current_token = "";
+                    catch { current_token = parser->peekToken(); };
+                    // Add diagnostic for this error - improved message
                     if (!has_value(error_msg, "expected identifier")) {
+                        // Improve error message with more context
+                        string improved_msg = improve_syntax_error_message(error_msg, current_token, filename, error_line);
                         diagnostics += ({
                             ([
-                                "message": "Syntax error: " + error_msg,
+                                "message": improved_msg,
                                 "severity": "error",
                                 "position": ([
                                     "file": filename,
@@ -1332,6 +1337,70 @@ protected mapping symbol_to_json(object symbol, string|void documentation) {
     }
 
     return result;
+}
+
+//! Improve syntax error messages with more helpful context
+//! @param error_msg Raw error message from Pike parser
+//! @param current_token The token the parser is currently on
+//! @param filename Source filename
+//! @param error_line Line number where error occurred
+//! @returns Improved error message with context and suggestions
+protected string improve_syntax_error_message(string error_msg, string current_token, string filename, int error_line) {
+    string improved = "Syntax error";
+
+    // Extract key information from the raw error
+    string lower_msg = lower_case(error_msg);
+
+    // Handle common parsing errors with helpful messages
+    if (has_value(lower_msg, "unexpected")) {
+        // "Unexpected token" - explain what was found
+        if (sizeof(current_token) > 0) {
+            improved = sprintf("Unexpected token '%s' at line %d", current_token, error_line);
+            // Add suggestions based on what was found
+            if (current_token == "(") {
+                improved += ". Did you forget to close a parenthesis or bracket?";
+            } else if (current_token == ")") {
+                improved += ". There is an unmatched closing parenthesis.";
+            } else if (current_token == "}") {
+                improved += ". There is an unmatched closing brace.";
+            } else if (current_token == "{") {
+                improved += ". There is an unmatched opening brace.";
+            } else if (current_token == ";") {
+                improved += ". Unexpected semicolon - check for missing statements before this.";
+            } else if (has_prefix(current_token, "\"") || has_prefix(current_token, "'")) {
+                improved += ". Unclosed string or character literal.";
+            }
+        } else {
+            improved = sprintf("Unexpected end of input at line %d - missing closing bracket or semicolon?", error_line);
+        }
+    }
+    else if (has_value(lower_msg, "expected")) {
+        // "Expected X but found Y"
+        improved = sprintf("Syntax error at line %d: %s", error_line, error_msg);
+        // Add helpful suggestions
+        if (has_value(lower_msg, "identifier")) {
+            improved += ". Expected an identifier - check for typos or missing variable names.";
+        } else if (has_value(lower_msg, "(") || has_value(lower_msg, ")")) {
+            improved += ". Check for unmatched parentheses.";
+        } else if (has_value(lower_msg, ";")) {
+            improved += ". Statement may be missing a semicolon.";
+        }
+    }
+    else if (has_value(lower_msg, "unmatched") || has_value(lower_msg, "mismatch")) {
+        improved = sprintf("Bracket mismatch at line %d: %s", error_line, error_msg);
+    }
+    else if (has_value(lower_msg, "unknown")) {
+        improved = sprintf("Unknown syntax at line %d: %s. Check for typos in keywords.", error_line, error_msg);
+    }
+    else if (has_value(lower_msg, "illegal")) {
+        improved = sprintf("Illegal syntax at line %d: %s", error_line, error_msg);
+    }
+    else {
+        // Generic improvement for other errors
+        improved = sprintf("Syntax error at line %d: %s", error_line, error_msg);
+    }
+
+    return improved;
 }
 
 protected mapping|int type_to_json(object|void type) {

@@ -451,11 +451,17 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             }
 
             if (is_read && var_info->needs_init && var_info->state != STATE_INITIALIZED) {
-                // Generate diagnostic
+                // Generate diagnostic with improved message
                 string severity = var_info->state == STATE_MAYBE_INIT ? "warning" : "warning";
-                string message = var_info->state == STATE_MAYBE_INIT
-                    ? sprintf("Variable '%s' may be uninitialized", text)
-                    : sprintf("Variable '%s' is used before being initialized", text);
+                string message;
+                if (var_info->state == STATE_MAYBE_INIT) {
+                    // More helpful message with suggestion
+                    message = sprintf("Variable '%s' may be uninitialized - consider initializing at declaration", text);
+                } else {
+                    // Improved message with more context
+                    int decl_line = var_info->decl_line || line;
+                    message = sprintf("Variable '%s' is used at line %d but may not be initialized (declared at line %d)", text, line, decl_line);
+                }
 
                 diagnostics += ({
                     ([

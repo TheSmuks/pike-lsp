@@ -23,8 +23,8 @@ jobs:
             // Get PR body
             const body = pr.body || '';
 
-            // Look for Acceptance Criteria section
-            const acSection = body.match(/##\s*Acceptance Criteria\s*([\s\S]*?)(?=##\s*|$)/i);
+            // Look for Acceptance Criteria OR Test plan section
+            const acSection = body.match(/##\s*(Acceptance Criteria|Test plan)\s*([\s\S]*?)(?=##\s*|$)/i);
 
             if (!acSection) {
               // No acceptance criteria section - add needs-acceptance-criteria label
