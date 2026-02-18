@@ -57,8 +57,8 @@ ENV PATH="$BUN_INSTALL/bin:$PATH"
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="$HOME/.local/bin:$PATH"
 
-# Install oh-my-claude-sisyphus
-RUN npm install -g oh-my-claude-sisyphus
+# Install oh-my-claude-sisyphus using bun
+RUN bun add -g oh-my-claude-sisyphus
 
 # Clone Pike and Roxen source trees
 ENV PIKE_SRC=/workspace/pike
