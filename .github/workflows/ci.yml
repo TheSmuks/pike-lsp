@@ -29,5 +29,14 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Test
-        run: bun test
+      - name: Run Pike Bridge tests
+        run: cd packages/pike-bridge && bun test
+
+      - name: Run LSP Server tests
+        run: cd packages/pike-lsp-server && bun test
+
+      - name: Run LSP smoke tests
+        run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
+
+      - name: Run integration tests
+        run: cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js
