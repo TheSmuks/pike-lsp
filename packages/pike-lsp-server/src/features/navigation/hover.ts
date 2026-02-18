@@ -15,7 +15,7 @@ import type { Services } from '../../services/index.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { buildHoverContent } from '../utils/hover-builder.js';
 import { Logger } from '@pike-lsp/core';
-import { isPikeKeyword, getKeywordInfo } from './keywords.js';
+import { getKeywordInfo } from './keywords.js';
 
 /**
  * Result from getWordRangeAtPosition
@@ -58,20 +58,18 @@ export function registerHoverHandler(
 
             const { word, range } = wordResult;
 
-            // 0. Check if it's a Pike keyword first
-            if (isPikeKeyword(word)) {
-                const keywordInfo = getKeywordInfo(word);
-                if (keywordInfo) {
-                    const categoryLabel = keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
-                    const hoverContent = `**${keywordInfo.name}** (${categoryLabel})\n\n${keywordInfo.description}`;
-                    return {
-                        contents: {
-                            kind: MarkupKind.Markdown,
-                            value: hoverContent,
-                        },
-                        range,
-                    };
-                }
+            // 0. Check if it's a Pike keyword first (single lookup)
+            const keywordInfo = getKeywordInfo(word);
+            if (keywordInfo) {
+                const categoryLabel = keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
+                const hoverContent = `**${keywordInfo.name}** (${categoryLabel})\n\n${keywordInfo.description}`;
+                return {
+                    contents: {
+                        kind: MarkupKind.Markdown,
+                        value: hoverContent,
+                    },
+                    range,
+                };
             }
 
             // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
