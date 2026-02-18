@@ -1,16 +1,16 @@
 #!/bin/bash
 set -e
 
-# Generate SSH host keys if they don't exist
+# Generate SSH host keys if they don't exist (requires root)
 if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
     echo "Generating SSH host keys..."
-    ssh-keygen -A
+    sudo ssh-keygen -A
 fi
 
 # Fix permissions for developer user home if mounted
 if [ -d /home/developer ]; then
-    chown -R developer:developer /home/developer 2>/dev/null || true
+    sudo chown -R developer:developer /home/developer 2>/dev/null || true
 fi
 
-# Start SSH daemon
-exec /usr/sbin/sshd -D
+# Start SSH daemon (requires root)
+exec sudo /usr/sbin/sshd -D
