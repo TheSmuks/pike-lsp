@@ -57,6 +57,9 @@ ENV PATH="$BUN_INSTALL/bin:$PATH"
 RUN curl -fsSL https://claude.ai/install.sh | bash
 ENV PATH="$HOME/.local/bin:$PATH"
 
+# Install oh-my-claudecode
+RUN npm install -g oh-my-claudecode
+
 # Clone Pike and Roxen source trees
 ENV PIKE_SRC=/workspace/pike
 ENV ROXEN_SRC=/workspace/roxen
