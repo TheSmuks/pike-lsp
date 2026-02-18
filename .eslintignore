@@ -1,0 +1,10 @@
+# Generated documentation
+docs/api/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Node modules
+node_modules/
