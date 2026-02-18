@@ -54,9 +54,8 @@ ENV BUN_INSTALL="/root/.bun"
 ENV PATH="$BUN_INSTALL/bin:$PATH"
 
 # Install Claude CLI and oh-my-claudecode
-RUN curl -fsSL https://claude.ai/install.sh | bash && \
-    export PATH="$HOME/.local/bin:$PATH" && \
-    bunx install -g @anthropic-ai/claude-code
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="$HOME/.local/bin:$PATH"
 
 # Clone Pike and Roxen source trees
 ENV PIKE_SRC=/workspace/pike
@@ -89,9 +88,10 @@ WORKDIR /workspace
 COPY package.json bun.lock* ./
 COPY tsconfig*.json ./
 COPY packages packages/
+COPY scripts scripts/
 
-# Install dependencies
-RUN bun install
+# Install dependencies (skip postinstall for Docker - we'll run it after build)
+RUN bun install --ignore-scripts
 
 # Copy source
 COPY . .
