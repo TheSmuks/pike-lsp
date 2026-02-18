@@ -14,7 +14,7 @@ Please be respectful and constructive in all interactions. We welcome contributo
 
 1. **Pike 8.1116 or later** - The Pike programming language
 2. **Node.js 18+** - JavaScript runtime
-3. **pnpm** - Package manager (install with `npm install -g pnpm`)
+3. **bun** - Package manager (install from https://bun.sh)
 4. **VS Code** - For extension development and testing
 
 ### Setting Up the Development Environment
@@ -25,10 +25,10 @@ git clone https://github.com/TheSmuks/pike-lsp.git
 cd pike-lsp
 
 # Install dependencies
-pnpm install
+bun install
 
 # Build all packages
-pnpm build
+bun build
 
 # Run tests to verify setup
 ./scripts/run-tests.sh
@@ -189,14 +189,14 @@ Before submitting any pull request, complete these steps.
   - CI must pass on Pike 8.1116 (required)
 
 - [ ] **If changing Pike scripts**: Rebundle extension
-  - Run: `pnpm build` (calls bundle-server.sh)
+  - Run: `bun build` (calls bundle-server.sh)
   - Verify extension bundle includes updated pike-scripts
 
 ### Required for LSP Feature Changes
 
 For any PR that affects LSP behavior, manual testing is required:
 
-- [ ] **Manual extension test**: `cd packages/vscode-pike && pnpm package && code --install-extension pike-language-server-*.vsix --force`
+- [ ] **Manual extension test**: `cd packages/vscode-pike && bun package && code --install-extension pike-language-server-*.vsix --force`
 
 Then in VS Code with a Pike test file:
   - [ ] Open Pike file -> no crash
@@ -223,7 +223,7 @@ All checks must pass before merging.
 | compile_file() fails | Syntax error or missing import | Check Pike syntax, verify imports |
 | master()->resolv() fails | Module path not set or wrong name | Call add_module_path() first, check module name |
 | Handler returns error | Missing dependency or exception | Check handler logic, verify cache/parser available |
-| Tests pass but extension fails | Bundle not rebuilt | Run `pnpm build` to rebundle |
+| Tests pass but extension fails | Bundle not rebuilt | Run `bun build` to rebundle |
 | LSP features don't work | Handler logic broken | Verify handler returns correct JSON-RPC structure |
 
 ## Code Style
@@ -315,7 +315,7 @@ Describe:
 3. Run full test suite
 4. Create release commit: `git commit -m "release: v1.x.x"`
 5. Tag: `git tag v1.x.x`
-6. Build and package: `pnpm build && cd packages/vscode-pike && pnpm package`
+6. Build and package: `bun build && cd packages/vscode-pike && bun package`
 7. Push with tags: `git push origin main --tags`
 8. Create GitHub release with .vsix file
 
