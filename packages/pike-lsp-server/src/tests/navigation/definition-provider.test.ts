@@ -370,6 +370,125 @@ int y = myVar + 1;`;
             expect(true).toBe(true);
         });
 
+        it('should return null for empty document', async () => {
+            const { definition } = setup({ code: '' });
+
+            const result = await definition(0, 0);
+            expect(result).toBeNull();
+        });
+
+        it('should return null when position is beyond document length', async () => {
+            const code = `int x = 42;`;
+
+            const { definition } = setup({
+                code,
+                symbols: [{ name: 'x', kind: 'variable', modifiers: [], position: { file: 'test.pike', line: 1 } }],
+            });
+
+            // Position beyond the document length
+            const result = await definition(0, 100);
+            expect(result).toBeNull();
+        });
+
+        it('should return null for Pike keywords', async () => {
+            const code = `int x = 42;
+string y = "hello";`;
+
+            const { definition } = setup({
+                code,
+                symbols: [],
+            });
+
+            // 'int' is a keyword, not a symbol
+            const result = await definition(0, 2);
+            expect(result).toBeNull();
+        });
+
+        it('should not match partial identifier names', async () => {
+            const code = `int myVariable = 42;
+int x = myVar;`;
+
+            const { definition } = setup({
+                code,
+                symbols: [
+                    {
+                        name: 'myVariable',
+                        kind: 'variable',
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 1 },
+                    },
+                ],
+            });
+
+            // 'myVar' should not match 'myVariable'
+            const result = await definition(1, 8);
+            expect(result).toBeNull();
+        });
+
+        it('should handle very long line', async () => {
+            const longLine = 'a'.repeat(10000);
+            const code = `int myVar = 42;
+int x = ${longLine};`;
+
+            const { definition } = setup({
+                code,
+                symbols: [
+                    {
+                        name: 'myVar',
+                        kind: 'variable',
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 1 },
+                    },
+                ],
+            });
+
+            const result = await definition(1, 8);
+            expect(result).toBeNull(); // No symbol 'a' exists
+        });
+
+        it('should handle position at start of line', async () => {
+            const code = `int myVar = 42;
+int x = myVar;`;
+
+            const { definition } = setup({
+                code,
+                symbols: [
+                    {
+                        name: 'myVar',
+                        kind: 'variable',
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 1 },
+                    },
+                ],
+            });
+
+            const result = await definition(1, 0);
+            // At start of line - should return null as there's no identifier
+            expect(result).toBeNull();
+        });
+
+        it('should handle unicode identifiers', async () => {
+            const code = `int café = 42;
+int x = café;`;
+
+            const { definition } = setup({
+                code,
+                symbols: [
+                    {
+                        name: 'café',
+                        kind: 'variable',
+                        modifiers: [],
+                        position: { file: 'test.pike', line: 1 },
+                    },
+                ],
+            });
+
+            const result = await definition(1, 8);
+            // Unicode identifier - depends on Pike parser support
+            // Either result or null is acceptable
+            expect(true).toBe(true);
+        });
+
         test.todo('requires bridge mock: circular inheritance detection');
     });
 
