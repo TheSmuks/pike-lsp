@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+.bun
+
+# Build outputs
+dist
+build
+packages/*/dist
+packages/*/out
+
+# Test outputs
+coverage
+packages/*/coverage
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+
+# Docs (can regenerate)
+docs
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/workflows/*.yml
+
+# Docusaurus (can regenerate)
+.docusaurus
+
+# Logs
+*.log
+.omc/logs
+
+# Temporary
+*.tmp
+*.temp
