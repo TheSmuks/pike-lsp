@@ -18,8 +18,25 @@ export default [
             '**/.planning/**',
             '**/*.test.ts',
             'packages/vscode-pike/**/*.ts',
-            'docs/api/typescript/**',
         ],
+    },
+    // TypeDoc generated files need browser globals
+    {
+        files: ['docs/api/typescript/**/*.js'],
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+            },
+        },
+        rules: {
+            '@typescript-eslint/no-unused-vars': 'off',
+            '@typescript-eslint/no-explicit-any': 'off',
+            'no-undef': 'warn',
+            '@typescript-eslint/no-unused-expressions': 'off',
+            '@typescript-eslint/no-this-alias': 'off',
+            'no-redeclare': 'off',
+            'no-prototype-builtins': 'off',
+        },
     },
     {
         languageOptions: {

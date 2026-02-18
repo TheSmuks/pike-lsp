@@ -102,7 +102,7 @@ export function registerDefinitionHandlers(
             }
 
             // Fallback to local symbol lookup
-            let symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
 
             // If not found locally, search in included files
             if (!symbol || !symbol.position) {
