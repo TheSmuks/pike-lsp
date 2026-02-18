@@ -77,5 +77,48 @@ After installation, verify that Pike LSP is working:
 | Rename Symbol | `F2` |
 | Trigger Completion | `Ctrl+Space` |
 | Signature Help | `Ctrl+Shift+Space` |
+
+## Code Examples
+
+Here are examples of Pike code with LSP features:
+
+### Hover Information
+
+Hover over any symbol to see its type:
+
+```pike
+// Hover over "greet" to see: "function(string):string"
+string greet(string name) {
+    return "Hello, " + name + "!";
+}
+```
+
+### Code Completion
+
+Start typing to get context-aware completions:
+
+```pike
+// Type "Ar" to see Array.* methods
+array(string) names = ({ "Alice", "Bob" });
+
+// Type "M" to see Mapping.* methods
+mapping(string:int) ages = ([ "Alice": 30, "Bob": 25 ]);
+```
+
+### Go to Definition
+
+Press F12 on any symbol to jump to its definition:
+
+```pike
+// In my_module.pike
+public class Calculator {
+    public int add(int a, int b) {
+        return a + b;
+    }
+}
+
+// In main.pike
+// Press F12 on "Calculator" to jump to its definition
+Calculator calc = Calculator();
 | Go to Symbol | `Ctrl+Shift+O` |
 | Workspace Symbol | `Ctrl+T` |
