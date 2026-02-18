@@ -290,6 +290,101 @@ describe('Hover Provider', () => {
     });
 
     /**
+     * Keyword Hover Tests
+     * Tests for the keyword hover feature added in #329
+     */
+    describe('Keyword Hover Feature', () => {
+        // Import the keyword functions to test
+        const { isPikeKeyword, getKeywordInfo, PIKE_KEYWORDS } = require('../../features/navigation/keywords.js');
+
+        it('should identify Pike keywords', () => {
+            // Test type keywords
+            assert.ok(isPikeKeyword('int'), 'int should be a keyword');
+            assert.ok(isPikeKeyword('string'), 'string should be a keyword');
+            assert.ok(isPikeKeyword('float'), 'float should be a keyword');
+            assert.ok(isPikeKeyword('array'), 'array should be a keyword');
+
+            // Test control flow keywords
+            assert.ok(isPikeKeyword('if'), 'if should be a keyword');
+            assert.ok(isPikeKeyword('else'), 'else should be a keyword');
+            assert.ok(isPikeKeyword('while'), 'while should be a keyword');
+            assert.ok(isPikeKeyword('for'), 'for should be a keyword');
+            assert.ok(isPikeKeyword('foreach'), 'foreach should be a keyword');
+
+            // Test modifier keywords
+            assert.ok(isPikeKeyword('static'), 'static should be a keyword');
+            assert.ok(isPikeKeyword('private'), 'private should be a keyword');
+            assert.ok(isPikeKeyword('public'), 'public should be a keyword');
+        });
+
+        it('should return undefined for non-keywords', () => {
+            assert.ok(!isPikeKeyword('myVariable'), 'myVariable should not be a keyword');
+            assert.ok(!isPikeKeyword('foo'), 'foo should not be a keyword');
+            assert.ok(!isPikeKeyword('Array'), 'Array (capitalized) should not be a keyword');
+        });
+
+        it('should get keyword info for type keywords', () => {
+            const intKw = getKeywordInfo('int');
+            assert.ok(intKw, 'int keyword info should exist');
+            assert.strictEqual(intKw?.name, 'int');
+            assert.strictEqual(intKw?.category, 'type');
+            assert.ok(intKw?.description, 'int should have a description');
+
+            const stringKw = getKeywordInfo('string');
+            assert.ok(stringKw, 'string keyword info should exist');
+            assert.strictEqual(stringKw?.category, 'type');
+        });
+
+        it('should get keyword info for control flow keywords', () => {
+            const ifKw = getKeywordInfo('if');
+            assert.ok(ifKw, 'if keyword info should exist');
+            assert.strictEqual(ifKw?.category, 'control');
+            assert.ok(ifKw?.description, 'if should have a description');
+
+            const foreachKw = getKeywordInfo('foreach');
+            assert.ok(foreachKw, 'foreach keyword info should exist');
+            assert.strictEqual(foreachKw?.category, 'control');
+        });
+
+        it('should get keyword info for modifier keywords', () => {
+            const privateKw = getKeywordInfo('private');
+            assert.ok(privateKw, 'private keyword info should exist');
+            assert.strictEqual(privateKw?.category, 'modifier');
+            assert.ok(privateKw?.description, 'private should have a description');
+
+            const staticKw = getKeywordInfo('static');
+            assert.ok(staticKw, 'static keyword info should exist');
+            assert.strictEqual(staticKw?.category, 'modifier');
+        });
+
+        it('should have descriptions for all keywords', () => {
+            for (const kw of PIKE_KEYWORDS) {
+                assert.ok(kw.name, `Keyword ${kw.name} should have a name`);
+                assert.ok(kw.category, `Keyword ${kw.name} should have a category`);
+                assert.ok(kw.description, `Keyword ${kw.name} should have a description`);
+                assert.ok(
+                    ['type', 'modifier', 'control', 'other'].includes(kw.category),
+                    `Keyword ${kw.name} should have valid category`
+                );
+            }
+        });
+
+        it('should handle keywords with special names', () => {
+            // Test typeof (a keyword that could be confused with a type)
+            const typeofKw = getKeywordInfo('typeof');
+            assert.ok(typeofKw, 'typeof keyword info should exist');
+
+            // Test this (special keyword)
+            const thisKw = getKeywordInfo('this');
+            assert.ok(thisKw, 'this keyword info should exist');
+
+            // Test new (operator keyword)
+            const newKw = getKeywordInfo('new');
+            assert.ok(newKw, 'new keyword info should exist');
+        });
+    });
+
+    /**
      * Edge Cases
      */
     describe('Edge Cases', () => {
