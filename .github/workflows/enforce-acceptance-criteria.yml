@@ -3,7 +3,6 @@ name: Enforce acceptance criteria
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  pull_request_target:
 
 jobs:
   check-acceptance-criteria:
@@ -38,7 +37,7 @@ jobs:
               process.exit(1);
             }
 
-            const acContent = acSection[1];
+            const acContent = acSection[2];
 
             // Check for unchecked boxes: - [ ]
             const uncheckedMatch = acContent.match(/- \[\s+\]/g);
