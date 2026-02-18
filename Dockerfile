@@ -48,18 +48,19 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Bun
+# Install Bun system-wide
 RUN curl -fsSL https://bun.sh/install | bash
-ENV BUN_INSTALL="/root/.bun"
-ENV PATH="$BUN_INSTALL/bin:$PATH"
+RUN cp /root/.bun/bin/bun /usr/local/bin/bun
 
-# Install Claude CLI
+# Install Claude CLI system-wide
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV CLAUDE_INSTALL_DIR="/root/.local/share/claude"
-ENV PATH="$CLAUDE_INSTALL_DIR/bin:$HOME/.local/bin:$PATH"
+RUN cp /root/.local/bin/claude /usr/local/bin/claude
 
-# Install oh-my-claude-sisyphus using bun
-RUN bun add -g oh-my-claude-sisyphus
+# Install oh-my-claude-sisyphus system-wide using bun
+RUN /usr/local/bin/bun add -g oh-my-claude-sisyphus
+# Copy bun and global packages to developer home
+RUN cp -r /root/.bun /home/developer/ && \
+    cp -r /root/.local /home/developer/
 
 # Clone Pike and Roxen source trees
 ENV PIKE_SRC=/workspace/pike
