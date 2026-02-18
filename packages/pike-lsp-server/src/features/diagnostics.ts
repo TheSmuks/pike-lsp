@@ -9,7 +9,6 @@ import type {
     Connection,
     TextDocuments,
     Diagnostic,
-    DiagnosticSeverity,
     DidChangeConfigurationParams,
     Position,
     Range,
@@ -26,51 +25,7 @@ import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../constants/ind
 import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../features/roxen/index.js';
 import { buildSymbolNameIndex } from './diagnostics/symbol-index.js';
-
-/**
- * Extract deprecated status from parsed symbols recursively.
- * Pike parser already extracts @deprecated into documentation.deprecated field.
- * This promotes that to a top-level deprecated boolean for easier access.
- *
- * @param symbols - Parse symbols to annotate
- * @returns Symbols with deprecated field set where applicable
- */
-function extractDeprecatedFromSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
-    function processSymbol(sym: PikeSymbol): PikeSymbol {
-        let result = sym;
-
-        // Check if Pike parser already extracted @deprecated into documentation
-        if (sym.documentation?.deprecated) {
-            result = { ...sym, deprecated: true };
-        }
-
-        // Recursively process children (for class members)
-        if (sym.children && sym.children.length > 0) {
-            const processedChildren = sym.children.map(child => processSymbol(child));
-            result = { ...result, children: processedChildren };
-        }
-
-        return result;
-    }
-
-    return symbols.map(processSymbol);
-}
-
-/**
- * Convert Pike severity to LSP severity
- */
-function convertSeverity(severity: string): DiagnosticSeverity {
-    switch (severity) {
-        case 'error':
-            return 1; // DiagnosticSeverity.Error
-        case 'warning':
-            return 2; // DiagnosticSeverity.Warning
-        case 'info':
-            return 3; // DiagnosticSeverity.Information
-        default:
-            return 1; // DiagnosticSeverity.Error
-    }
-}
+import { extractDeprecatedFromSymbols, convertSeverity } from './diagnostics/utils.js';
 
 /**
  * Convert Pike diagnostic to LSP diagnostic
