@@ -9,6 +9,7 @@ services:
       - "3033:3033"  # LSP server port
     volumes:
       - .:/workspace
+      - ${HOME}:/home/developer
     environment:
       - CI=true
       - NODE_ENV=development
