@@ -324,13 +324,21 @@ pnpm package
 
 While Pike LSP provides comprehensive IDE support, there are some known limitations:
 
-| Limitation | Status | Description |
-|------------|--------|-------------|
-| **Preprocessor Directives** | ✅ Improved | Token-based extraction. Symbols visible with metadata (e.g., `[#if DEBUG]`). May miss complex patterns in syntactically incomplete branches. |
-| **Nested Classes** | ✅ Supported | Recursive extraction up to depth 5. Full hierarchy in outline. Go-to-definition, hover, and completion work. |
-| **Type Inference** | ⚠️ Partial | Basic types from literals/signatures work. Flow-sensitive analysis not implemented. |
-| **Dynamic Modules** | ⚠️ Inherent | Runtime-loaded modules cannot be analyzed. |
-| **Deep Nesting** | ⚠️ Capped | Classes deeper than 5 levels are capped for performance. |
+### Analysis
+
+| Limitation | Status | Description | Technical Details |
+|------------|--------|-------------|-------------------|
+| **Preprocessor Directives** | ✅ Improved | Token-based extraction for symbols in `#if`/`#else`/`#endif` blocks. | Implemented in `Parser.pike:parse_preprocessor_blocks()`. Uses `Parser.Pike.tokenize()` to extract symbols from conditional branches. Symbols include metadata like `[#if DEBUG]`. May miss complex patterns in syntactically incomplete branches. |
+| **Nested Classes** | ✅ Supported | Recursive extraction up to depth 5. Full hierarchy in outline. | Implemented in `Parser.pike:get_symbols_recursive()` and `Introspection.pike:introspect_class_members()`. Go-to-definition, hover, and completion work at all levels. Depth is capped at 5 for performance. |
+| **Type Inference** | ⚠️ Partial | Basic types from literals and function signatures. | Uses `Introspection.pike:get_type_from_value()` for literal inference. Flow-sensitive analysis (tracking variable types across conditional branches) is not implemented. |
+| **Dynamic Modules** | ⚠️ Inherent | Runtime-loaded modules cannot be analyzed. | Uses `compile_string()` and `compile_file()` for static analysis. Patterns like `load_module(path)` or `compile_file(dynamic_path)` cannot be resolved statically. This is an inherent limitation of static analysis. |
+| **Deep Nesting** | ⚠️ Configurable | Classes deeper than 5 levels are capped for performance. | Default depth is 5, configurable via `maxDepth` parameter in `getWaterfallSymbols()`. Set to 0 for unlimited depth (may impact performance). |
+
+### Performance Considerations
+
+- **Large workspaces**: Initial indexing may take several seconds. Background indexing avoids blocking editing.
+- **Deep class hierarchies**: Exceeding 5 levels of nesting caps symbol extraction. Use `maxDepth` parameter to increase if needed.
+- **Complex preprocessor blocks**: Nested `#if` chains are parsed but may have reduced accuracy in syntactically invalid branches.
 
 ## Troubleshooting
 
