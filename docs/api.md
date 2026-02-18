@@ -2,6 +2,12 @@
 
 This document provides detailed API documentation for the Pike LSP server implementation.
 
+## Auto-Generated TypeScript API Docs
+
+The TypeScript API documentation is auto-generated from source code using [TypeDoc](https://typedoc.org/).
+
+- **[TypeScript API Docs](./api/typescript/)** - Auto-generated API reference for `@pike-lsp/core`, `@pike-lsp/pike-bridge`, and `@pike-lsp/pike-lsp-server`
+
 ## Table of Contents
 
 - [Feature Modules](#feature-modules)

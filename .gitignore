@@ -87,6 +87,9 @@ pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
 .planning/
 .agent/
 
+# Docusaurus build cache
+.docusaurus/
+
 # Agent config (local overrides)
 agent.config.local
 

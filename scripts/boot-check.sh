@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # boot-check.sh - Pre-session boot sequence validation for all agents
 #
-# Enforces the 10-step boot sequence from pike-roxen-lsp-agent-prompt.md
+# Enforces the 10-step boot sequence from docs/agent-prompt.md
 # Every agent MUST run this before starting work.
 #
 # Usage:

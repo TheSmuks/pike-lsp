@@ -65,6 +65,11 @@ const config: Config = {
           label: 'Docs',
         },
         {
+          to: '/api/typescript/',
+          label: 'API',
+          position: 'left',
+        },
+        {
           to: '/',
           label: 'Home',
           position: 'left',
