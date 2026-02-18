@@ -46,6 +46,8 @@ export class IncludeResolver {
         uri: string,
         symbols: PikeSymbol[]
     ): Promise<DocumentDependencies> {
+        this.logger.debug('IncludeResolver: resolving dependencies', { uri, symbolCount: symbols.length });
+
         const dependencies: DocumentDependencies = {
             includes: [],
             imports: [],
