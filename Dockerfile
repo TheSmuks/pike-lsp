@@ -53,9 +53,10 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV BUN_INSTALL="/root/.bun"
 ENV PATH="$BUN_INSTALL/bin:$PATH"
 
-# Install Claude CLI and oh-my-claudecode
+# Install Claude CLI
 RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV PATH="$HOME/.local/bin:$PATH"
+ENV CLAUDE_INSTALL_DIR="/root/.local/share/claude"
+ENV PATH="$CLAUDE_INSTALL_DIR/bin:$HOME/.local/bin:$PATH"
 
 # Install oh-my-claude-sisyphus using bun
 RUN bun add -g oh-my-claude-sisyphus
