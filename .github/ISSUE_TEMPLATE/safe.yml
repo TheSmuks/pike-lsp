@@ -7,14 +7,27 @@ assignees: ''
 ---
 
 ## Description
-<!-- What needs to be done -->
+<!-- Required: What needs to be done. Be specific — vague descriptions produce vague fixes. -->
+
+## Problem
+<!-- Required: What is wrong or missing right now? Include error messages, logs, or
+     observed behavior if applicable. -->
 
 ## Expected Behavior
-<!-- What should happen -->
+<!-- Required: What should happen after this is fixed? -->
 
 ## Suggested Approach
-<!-- How to approach the fix -->
+<!-- Required: Concrete steps or pointers to relevant files/functions.
+     If unsure, explain what you have investigated so far. -->
+
+## Affected Files
+<!-- Required: List files or packages likely involved. Agents must read these before starting. -->
+
+## Acceptance
+<!-- Required: How will we know this is fixed? What should pass or be observable? -->
 
 ## Environment
-- [ ] $PIKE_SRC is set and accessible
-- [ ] $ROXEN_SRC is set and accessible
+- Pike binary: <!-- output of: pike --version -->
+- Bun version: <!-- output of: bun --version -->
+- $PIKE_SRC set: <!-- YES/NO -->
+- $ROXEN_SRC set: <!-- YES/NO -->

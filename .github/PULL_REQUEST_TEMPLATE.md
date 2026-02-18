@@ -1,22 +1,28 @@
 ## Summary
-<!-- What does this PR do? -->
+<!-- Required: What does this PR do? 1-3 sentences. Not a list — write prose.
+     Bad: "fixes stuff"
+     Good: "Fixes hover type resolution for inherited Pike methods by correcting
+            the symbol table lookup order in packages/pike-lsp-server/src/hover.ts" -->
 
 ## Linked Issue
+<!-- Required: must be Closes #N, Fixes #N, or Resolves #N -->
 Closes #
 
-## Changes
-<!-- List key changes made -->
+## Root Cause
+<!-- Required: What was the underlying cause of the problem?
+     Agents: do not skip this. It proves you understood the issue, not just patched it. -->
 
-## Acceptance Criteria
-- [ ] `bun run lint` passes
-- [ ] `bun run typecheck` passes
-- [ ] `bun run build` passes
-- [ ] `cd packages/pike-bridge && bun test` passes
-- [ ] `cd packages/pike-lsp-server && bun test` passes
-- [ ] Smoke tests pass
-- [ ] Integration tests pass
-- [ ] Pike cross-version tests pass
-- [ ] VSCode e2e passes (`xvfb-run --auto-servernum bun run test:e2e`)
-- [ ] New Pike files include `#pragma strict_types`
-- [ ] No regex used for Pike parsing — Parser.Pike used instead
-- [ ] Linked issue will be closed on merge
+## Changes
+<!-- Required: One bullet per file changed. Explain WHY not just WHAT.
+     Bad: "- hover.ts: fixed bug"
+     Good: "- packages/pike-lsp-server/src/hover.ts: corrected symbol lookup to
+              check inherited scope chain before returning null" -->
+
+## Verification
+<!-- Required: What did you run locally and what was the result?
+     List the actual commands and their outcomes.
+     CI will verify independently — this is for human reviewers to understand
+     what you checked and how. -->
+
+## Notes for Reviewer
+<!-- Optional: Anything unusual, tradeoffs made, follow-up issues created, etc. -->

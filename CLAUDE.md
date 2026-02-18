@@ -17,35 +17,48 @@ If U >= N → Go to Step 3 (enough work exists)
 If U < N → Go to Step 2a (create N - U new issues)
 
 ### Step 2a: Identify improvements
-- Analyze codebase for bugs, gaps, tech debt, missing tests
-- Create exactly (N - U) new issues by copying this command exactly, filling in `<...>` fields:
+
+Analyze the codebase thoroughly before creating issues. Each issue must have
+enough context for a worker to implement correctly without asking questions.
+
+Create each issue with this exact format — fill every section:
 
 ```bash
 gh issue create \
   --label safe \
-  --title "<clear title describing the improvement>" \
+  --title "<specific, actionable title — not 'fix bug'>" \
   --body "## Description
-<what needs to be done>
+<what needs to be done — specific, not vague>
+
+## Problem
+<what is wrong right now — include file paths, function names, error messages>
 
 ## Expected Behavior
 <what should happen after the fix>
 
 ## Suggested Approach
-<concrete steps or pointers to relevant code>
+<concrete steps: which files to read, which functions to change, what pattern to follow>
+
+## Affected Files
+- <package/path/to/file.ts>: <why it is relevant>
+- <package/path/to/other.pike>: <why it is relevant>
+
+## Acceptance
+<how to verify the fix worked — specific observable outcome>
 
 ## Environment
-- [x] PIKE_SRC is set and accessible
-- [x] ROXEN_SRC is set and accessible"
+- Pike binary: $(pike --version 2>&1 | head -1)
+- Bun version: $(bun --version)
+- \$PIKE_SRC set: YES
+- \$ROXEN_SRC set: YES"
 ```
 
-- After creating each issue, immediately add exactly one type label:
+After creating, immediately add one type label:
 ```bash
 gh issue edit <number> --add-label "type:bug"
 ```
-Available types: type:bug, type:feature, type:performance, type:test, type:tech-debt, type:docs
+Available: type:bug, type:feature, type:performance, type:test, type:tech-debt, type:docs
 When in doubt → type:tech-debt
-- Wait 30 seconds for auto-labeling workflow to complete
-- Then go to Step 3
 
 ### Step 3: Assign workers
 - Pick unassigned issues with label "safe" only
@@ -105,29 +118,69 @@ bun run lint && bun test && bun run build
 Fix any failures before proceeding.
 
 ### Step 5: Push and Create PR
+
+Run the full local verify sequence first. Do NOT skip any step:
+```bash
+bun run lint && \
+bun run typecheck && \
+bun run build && \
+cd packages/pike-bridge && bun test && cd ../.. && \
+cd packages/pike-lsp-server && bun test && cd ../.. && \
+cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts && cd ../.. && \
+cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js && cd ../.. && \
+pike test/tests/cross-version-tests.pike && \
+./scripts/run-pike-tests.sh && \
+cd packages/vscode-pike && bun run bundle-server && cd ../.. && \
+cd packages/vscode-pike && bun run build:test && cd ../.. && \
+cd packages/vscode-pike && bun test src/test/mockOutputChannel.test.ts && cd ../.. && \
+cd packages/vscode-pike && xvfb-run --auto-servernum bun run test:e2e && cd ../..
+```
+
+If anything fails → fix it before creating the PR.
+CI will catch failures and block merge but fixing locally is faster.
+
+Then create the PR. Every section is required. The hook will block
+creation if any section is missing:
+
 ```bash
 git add -A
-git commit -m "fix: <description> (closes #<number>)"
+git commit -m "fix: <short description> (closes #<number>)"
 git push origin fix/issue-<number>
 gh pr create \
   --title "fix: <short description>" \
   --base main \
   --body "## Summary
-<what this PR does>
+<what this PR does — 1-3 sentences of prose. Not a list.>
 
 ## Linked Issue
 Closes #<number>
 
+## Root Cause
+<what caused the problem — be specific. Proves understanding, not just patching.>
+
 ## Changes
-<bullet list of what changed>
+- <file>: <why it changed, not just what>
+- <file>: <why it changed, not just what>
 
 ## Verification
-- [x] bun run lint passes
-- [x] bun test passes
-- [x] bun run build passes
-- [x] All Pike files have #pragma strict_types
-- [x] No regex used for Pike parsing"
+<commands you ran and their outcomes. Example:>
+bun run lint → PASS
+bun run typecheck → PASS
+bun run build → PASS
+cd packages/pike-bridge && bun test → PASS (12 tests)
+cd packages/pike-lsp-server && bun test → PASS (47 tests)
+smoke tests → PASS
+integration tests → PASS
+pike cross-version tests → PASS
+vscode e2e → PASS
+
+## Notes for Reviewer
+<optional: tradeoffs, follow-up issues, anything unusual>"
 ```
+
+⚠️ Do NOT add checkboxes. CI is the acceptance gate.
+⚠️ The hook blocks PR creation if Summary, Root Cause, Changes,
+   or Verification sections are missing.
 
 ### Step 6: Report and Wait
 - Report PR URL to lead

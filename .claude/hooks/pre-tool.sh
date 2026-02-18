@@ -45,62 +45,19 @@ EOF
   exit 1
 fi
 
-# --- Block gh issue create without required body sections ---
+# --- Block gh issue create without --label safe ---
 if echo "$INPUT" | grep -qE "gh issue create"; then
-  if ! echo "$INPUT" | grep -qE "(##|Description|Expected Behavior)"; then
+  if ! echo "$INPUT" | grep -q "\-\-label safe"; then
     cat >&2 <<EOF
-[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_BODY
-REASON: Issues must follow the required template format.
+[HOOK:BLOCK] ISSUE_CREATE_MISSING_SAFE_LABEL
+REASON: All agent-created issues must have the 'safe' label.
 YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Your --body must contain these sections:
-  ## Description
-  ## Expected Behavior
-  ## Suggested Approach
-  ## Environment
-Example:
-  gh issue create --label safe --title "Fix X" --body "## Description
-Describe the issue here.
-
-## Expected Behavior
-What should happen.
-
-## Suggested Approach
-How to fix it.
-
-## Environment
-- [x] PIKE_SRC is set
-- [x] ROXEN_SRC is set"
+FIX: Add --label safe to your create command.
 EOF
     exit 1
   fi
 fi
 
-# --- Block gh pr create without Closes # and verification ---
-if echo "$INPUT" | grep -qE "gh pr create"; then
-  if ! echo "$INPUT" | grep -qE "Closes #[0-9]+"; then
-    cat >&2 <<EOF
-[HOOK:BLOCK] PR_MISSING_LINKED_ISSUE
-REASON: All PRs must reference a safe issue. The safe-label-check CI job will also fail without this.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
-FIX: Include "Closes #<number>" in your --body:
-  gh pr create --title "fix: description" --base main --body "## Summary
-What this PR does.
-
-## Linked Issue
-Closes #<number>
-
-## Changes
-List key changes.
-
-## Verification
-- [x] bun run lint passes
-- [x] bun test passes
-- [x] bun run build passes
-- [x] Pike files have #pragma strict_types"
-EOF
-    exit 1
-  fi
-fi
 if echo "$INPUT" | grep -qE "gh issue list"; then
   if ! echo "$INPUT" | grep -q "\-\-label safe"; then
     cat >&2 <<EOF
@@ -124,19 +81,6 @@ YOU_RAN: $(echo "$INPUT" | grep -oE "gh search issues[^\"']*")
 FIX: Use gh issue list --label safe instead.
 EOF
   exit 1
-fi
-
-# --- Block issue create without --label safe ---
-if echo "$INPUT" | grep -qE "gh issue create"; then
-  if ! echo "$INPUT" | grep -q "\-\-label safe"; then
-    cat >&2 <<EOF
-[HOOK:BLOCK] ISSUE_CREATE_MISSING_SAFE_LABEL
-REASON: All agent-created issues must have the 'safe' label.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Add --label safe to your create command.
-EOF
-    exit 1
-  fi
 fi
 
 # --- Block all issue interaction on non-safe issues ---
@@ -166,35 +110,103 @@ for pattern in "gh issue view" "gh issue edit" "gh issue comment" "gh issue clos
   fi
 done
 
-# --- Block gh pr create without required body fields ---
+# --- Block gh pr create without required format ---
 if echo "$INPUT" | grep -qE "gh pr create"; then
-  if ! echo "$INPUT" | grep -q "Closes #"; then
+
+  # Must have linked issue
+  if ! echo "$INPUT" | grep -qiE "(closes|fixes|resolves) #[0-9]+"; then
     cat >&2 <<EOF
 [HOOK:BLOCK] PR_MISSING_LINKED_ISSUE
-REASON: All PRs must link to a safe issue. Required in body: "Closes #<number>"
+REASON: All PRs must reference a safe issue. check-safe-label CI will fail without this.
 YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
-FIX: Include "Closes #<number>" in your --body argument.
-  The CI safe-label-check will also fail without this.
+FIX: Include one of these in your --body:
+  Closes #<number>
+  Fixes #<number>
+  Resolves #<number>
 EOF
     exit 1
   fi
+
+  # Must have non-empty Summary section
+  if ! echo "$INPUT" | grep -q "## Summary"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_SUMMARY
+REASON: PR body must contain a ## Summary section with prose description.
+  The check-acceptance-criteria CI job will fail without this.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Add to your --body:
+  ## Summary
+  <what this PR does — 1-3 sentences of prose, not a list>
+EOF
+    exit 1
+  fi
+
+  # Must have Root Cause section
+  if ! echo "$INPUT" | grep -q "## Root Cause"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_ROOT_CAUSE
+REASON: PR body must explain the root cause. This proves understanding,
+  not just patching. Reviewers and future agents need this context.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Add to your --body:
+  ## Root Cause
+  <what caused the problem — be specific>
+EOF
+    exit 1
+  fi
+
+  # Must have Changes section
+  if ! echo "$INPUT" | grep -q "## Changes"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_CHANGES
+REASON: PR body must list what changed and why, per file.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Add to your --body:
+  ## Changes
+  - <file>: <why it changed, not just what>
+EOF
+    exit 1
+  fi
+
+  # Must have Verification section
+  if ! echo "$INPUT" | grep -q "## Verification"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_VERIFICATION
+REASON: PR body must describe what you ran locally and the results.
+  CI verifies independently — this section is for human reviewers.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Add to your --body:
+  ## Verification
+  <list of commands run and their outcomes>
+EOF
+    exit 1
+  fi
+
 fi
 
-# --- Block gh issue create without required body sections ---
+# --- Block gh issue create without required sections ---
 if echo "$INPUT" | grep -qE "gh issue create"; then
-  if ! echo "$INPUT" | grep -q "## Description"; then
-    cat >&2 <<EOF
-[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_BODY
-REASON: Issues must follow the template format with required sections.
+  for section in "## Description" "## Problem" "## Expected Behavior" \
+                 "## Suggested Approach" "## Affected Files" "## Acceptance"; do
+    if ! echo "$INPUT" | grep -q "$section"; then
+      cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_SECTION
+REASON: Issue body is missing required section: $section
+  Lazy issue descriptions produce lazy fixes. All sections are required
+  so that workers have enough context to implement correctly.
 YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Include these sections in --body:
+FIX: Your --body must contain ALL of these sections with real content:
   ## Description
+  ## Problem
   ## Expected Behavior
   ## Suggested Approach
+  ## Affected Files
+  ## Acceptance
   ## Environment
 EOF
-    exit 1
-  fi
+      exit 1
+    fi
+  done
 fi
 
 exit 0
