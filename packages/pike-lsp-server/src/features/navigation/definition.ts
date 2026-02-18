@@ -13,6 +13,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCache } from '../../services/document-cache.js';
+import type { DocumentCacheEntry } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -546,7 +547,7 @@ async function handleDirectiveNavigation(
     position: { line: number; character: number },
     uri: string,
     services: Services,
-    cached: any,
+    cached: DocumentCacheEntry,
     log: Logger
 ): Promise<Location | null> {
     const lineText = document.getText({
@@ -766,7 +767,7 @@ function findSymbolAtPosition(
  */
 function findSymbolInIncludedFiles(
     symbolName: string,
-    cached: any,
+    cached: DocumentCacheEntry,
     services: Services,
     log: Logger
 ): { symbol: PikeSymbol; filePath: string } | null {
@@ -800,7 +801,7 @@ function findReferencesForSymbol(
     symbolName: string,
     currentUri: string,
     currentDocument: TextDocument,
-    cached: any,
+    cached: DocumentCacheEntry,
     documentCache: DocumentCache,
     documents: TextDocuments<TextDocument>
 ): Location[] {
@@ -988,7 +989,7 @@ async function resolveModulePath(
 async function resolveMemberAccess(
     services: Services,
     expr: ExpressionInfo,
-    cached: any,
+    cached: DocumentCacheEntry,
     _currentUri: string
 ): Promise<Location | null> {
     const { stdlibIndex } = services;
