@@ -130,19 +130,23 @@ function createServices(): features.Services {
 }
 
 // ============================================================================
+// Debug Logging
+// ============================================================================
+
+const logFile = '/tmp/pike-lsp-debug.log';
+const log = (msg: string) => {
+    try {
+        fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch {
+        // Silently ignore logging failures to prevent cascading errors
+    }
+};
+
+// ============================================================================
 // LSP Lifecycle Handlers
 // ============================================================================
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
-    // DEBUG: Safe file logging
-    const logFile = '/tmp/pike-lsp-debug.log';
-    const log = (msg: string) => {
-        try {
-            fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-        } catch (e) {
-            // ignore
-        }
-    };
 
     try {
         log('onInitialize started');
@@ -353,8 +357,9 @@ connection.onInitialized(async () => {
     if (bridgeManager?.bridge && !bridgeManager.bridge.isRunning()) {
         try {
             await bridgeManager.bridge.start();
-        } catch {
-            // Continue
+        } catch (err) {
+            connection.console.warn(`Failed to start bridge: ${err}`);
+            log(`Bridge start error: ${err}`);
         }
     }
 
@@ -377,8 +382,9 @@ connection.onInitialized(async () => {
                     const indexed = await workspaceIndex.indexDirectory(folderPath, true);
                     totalIndexed += indexed;
                     connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
-                } catch {
-                    // Continue
+                } catch (err) {
+                    connection.console.warn(`Failed to index folder ${folder.name}: ${err}`);
+                    log(`Indexing error for folder ${folder.name}: ${err}`);
                 }
             }
             const stats = workspaceIndex.getStats();
