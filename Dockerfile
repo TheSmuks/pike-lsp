@@ -53,13 +53,16 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV BUN_INSTALL="/root/.bun"
 ENV PATH="$BUN_INSTALL/bin:$PATH"
 
-# Install Claude CLI
-RUN curl -fsSL https://claude.ai/install.sh | bash
-ENV CLAUDE_HOME="/root/.claude"
-ENV PATH="$CLAUDE_HOME/bin:$PATH"
+# Install Claude CLI and oh-my-claudecode
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    export PATH="$HOME/.local/bin:$PATH" && \
+    bunx install -g @anthropic-ai/claude-code
 
-# Install oh-my-claudecode using bun
-RUN bunx install -g @anthropic-ai/claude-code
+# Clone Pike and Roxen source trees
+ENV PIKE_SRC=/workspace/pike
+ENV ROXEN_SRC=/workspace/roxen
+RUN git clone --depth 1 --branch v8.0.1116 https://github.com/pikelang/Pike.git ${PIKE_SRC} && \
+    git clone --depth 1 --branch rxnpatch/6.1 https://github.com/pikelang/Roxen.git ${ROXEN_SRC}
 
 # Note: oh-my-claudecode setup should be done inside container with claude --setup
 
@@ -85,7 +88,7 @@ WORKDIR /workspace
 # Copy dependency files first for better caching
 COPY package.json bun.lock* ./
 COPY tsconfig*.json ./
-COPY packages/*/package.json packages/ 2>/dev/null || true
+COPY packages packages/
 
 # Install dependencies
 RUN bun install

@@ -5,12 +5,15 @@ services:
       dockerfile: Dockerfile
     container_name: pike-lsp-dev
     ports:
-      - "2222:22"
+      - "2222:22"    # SSH
+      - "3033:3033"  # LSP server port
     volumes:
       - .:/workspace
     environment:
       - CI=true
       - NODE_ENV=development
+      - PIKE_SRC=/workspace/pike
+      - ROXEN_SRC=/workspace/roxen
     working_dir: /workspace
     tty: true
     stdin_open: true
@@ -27,3 +30,21 @@ services:
     command: bun run test
     profiles:
       - test
+
+  # Production LSP server (headless)
+  pike-lsp-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pike-lsp-prod
+    ports:
+      - "3033:3033"
+    environment:
+      - PIKE_SRC=/workspace/pike
+      - ROXEN_SRC=/workspace/roxen
+    volumes:
+      - .:/workspace
+    command: ["bun", "run", "packages/pike-lsp-server/src/server.ts"]
+    profiles:
+      - prod
+    restart: unless-stopped
