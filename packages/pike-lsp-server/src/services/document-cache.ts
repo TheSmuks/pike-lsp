@@ -95,6 +95,24 @@ export class DocumentCache {
     }
 
     /**
+     * Get existing entry or set a new one atomically.
+     * Avoids double lookup when entry might need to be computed.
+     *
+     * @param uri - Document URI
+     * @param factory - Function to create entry if not cached
+     * @returns Existing or newly created entry
+     */
+    getOrSet(uri: string, factory: () => DocumentCacheEntry): DocumentCacheEntry {
+        const existing = this.cache.get(uri);
+        if (existing !== undefined) {
+            return existing;
+        }
+        const entry = factory();
+        this.cache.set(uri, entry);
+        return entry;
+    }
+
+    /**
      * Mark a document as being validated.
      * @param uri - Document URI
      * @param promise - Validation promise
