@@ -78,7 +78,6 @@ RUN useradd -m -s /bin/bash developer && \
 
 # Setup SSH
 RUN mkdir /var/run/sshd && \
-    ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PermitUserEnvironment no/PermitUserEnvironment yes/' /etc/ssh/sshd_config
@@ -103,9 +102,13 @@ RUN bun run build
 # Fix permissions for developer user
 RUN chown -R developer:developer /workspace
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
 USER developer
 
 # SSH port
 EXPOSE 22
 
-CMD ["/usr/sbin/sshd", "-D"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
