@@ -78,6 +78,7 @@ RUN useradd -m -s /bin/bash developer && \
 
 # Setup SSH
 RUN mkdir /var/run/sshd && \
+    ssh-keygen -A && \
     sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PermitUserEnvironment no/PermitUserEnvironment yes/' /etc/ssh/sshd_config
