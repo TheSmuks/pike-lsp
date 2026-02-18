@@ -7,7 +7,7 @@
 # 3. No direct tag creation (must use pike-lsp-release skill)
 # 4. Branch naming must follow type/description convention
 #
-# Allowed branch prefixes: feat/, fix/, docs/, refactor/, test/, chore/, release/
+# Allowed branch prefixes: feat/, fix/, docs/, refactor/, test/, chore/, release/, perf/
 
 set -uo pipefail
 
@@ -19,7 +19,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-echo "[git-workflow-gate] DEBUG: Current branch: $CURRENT_BRANCH"
+echo "[git-workflow-gate] INFO: Current branch: $CURRENT_BRANCH"
 should_block=false
 block_message=""
 
@@ -40,34 +40,19 @@ fi
 # --- 0. Block --no-verify and --admin bypass attempts ---
 if echo "$COMMAND" | grep -qP '\s--no-verify\b'; then
   should_block=true
-  block_message="[WORKFLOW] BLOCKED: --no-verify is not allowed.
-
-Git hooks exist to protect code quality. Bypassing them defeats the purpose.
-Fix the underlying issue that's causing the hook to fail."
+  block_message="[WORKFLOW] BLOCKED: --no-verify bypasses code quality hooks. Fix the underlying issue causing hook failure instead."
 fi
 
 if [ "$should_block" = false ] && echo "$COMMAND" | grep -qP 'gh\s+pr\s+merge\s+.*--admin'; then
   should_block=true
-  block_message="[WORKFLOW] BLOCKED: --admin bypass of branch protection is not allowed.
-
-Branch protection rules exist for a reason. Wait for checks to pass."
+  block_message="[WORKFLOW] BLOCKED: --admin bypasses branch protection. Wait for CI checks to pass."
 fi
 
 # --- 1. Block commits on main/master ---
 if echo "$COMMAND" | grep -qP '(^|\s|&&|\|)git\s+commit(\s|$)'; then
   if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
     should_block=true
-    block_message="[WORKFLOW] BLOCKED: Direct commits to $CURRENT_BRANCH are not allowed.
-
-Create a feature branch first:
-  git checkout -b feat/your-feature-name
-  git checkout -b fix/bug-description
-  git checkout -b docs/what-changed
-  git checkout -b refactor/what-changed
-  git checkout -b test/what-testing
-  git checkout -b chore/maintenance-task
-
-Then commit on the feature branch and create a PR to merge into main."
+    block_message="[WORKFLOW] BLOCKED: Direct commits to $CURRENT_BRANCH not allowed. Create a feature branch: git checkout -b feat/your-feature-name"
   fi
 fi
 
