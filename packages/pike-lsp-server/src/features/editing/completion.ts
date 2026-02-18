@@ -15,7 +15,7 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
-import { buildCompletionItem, extractTypeName as extractTypeNameHelper } from './completion-helpers.js';
+import { buildCompletionItem, extractTypeName } from './completion-helpers.js';
 import { getAutoDocCompletion } from './autodoc.js';
 import { buildHoverContent } from '../utils/hover-builder.js';
 import { provideRoxenCompletions } from '../roxen/index.js';
@@ -837,13 +837,6 @@ function getCompletionContext(lineText: string): 'type' | 'expression' {
     }
 
     return 'type';
-}
-
-/**
- * Extract a class/module name from a Pike type object
- */
-function extractTypeName(typeObj: unknown): string | null {
-    return extractTypeNameHelper(typeObj);
 }
 
 /**
