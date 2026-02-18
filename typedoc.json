@@ -1,0 +1,25 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/core/src",
+    "packages/pike-bridge/src",
+    "packages/pike-lsp-server/src"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "docs/api/typescript",
+  "name": "Pike LSP TypeScript API",
+  "includeVersion": true,
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "exclude": ["**/*.test.ts", "**/*.spec.ts", "**/tests/**"],
+  "plugin": [],
+  "theme": "default",
+  "markdownItOptions": {},
+  "treatWarningsAsErrors": false,
+  "treatValidationWarningsAsErrors": false,
+  "visibilityFilters": {
+    "protected": true,
+    "private": false
+  }
+}

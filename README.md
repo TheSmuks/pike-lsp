@@ -324,13 +324,13 @@ pnpm package
 
 While Pike LSP provides comprehensive IDE support, there are some known limitations:
 
-| Limitation | Description | Impact |
-|------------|-------------|--------|
-| **Preprocessor Directives** | Symbols inside `#if`/`#else`/`#endif` blocks are now indexed using token-based extraction. Conditional symbols appear with metadata (e.g., `[#if DEBUG]`). | **Improved**: Conditional symbols are now visible in outline, completion, and hover. Limitation: Syntactically incomplete branches use best-effort token extraction (may miss complex patterns). |
-| **Nested Classes** | Nested class declarations and their members are now recursively extracted up to depth 5. Document outline shows full hierarchy. | **Improved**: Go-to-definition, hover, and completion work for nested class members at all levels. Limitation: Very deep nesting (>5 levels) is capped for performance. |
-| **Type Inference** | Basic types from literals and signatures work. Flow-sensitive analysis and generic type resolution are not implemented. | Explicit types show correctly. Complex scenarios like `if (cond) x = 1; else x = "str"` show `mixed` instead of a narrowed type. |
-| **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Completion won't show symbols from dynamically loaded code. |
-| **Deep Nesting** | Nested classes deeper than 5 levels are capped for performance. | Very deep nesting (>5 levels) may have limited symbol extraction. |
+| Limitation | Status | Description |
+|------------|--------|-------------|
+| **Preprocessor Directives** | ✅ Improved | Token-based extraction. Symbols visible with metadata (e.g., `[#if DEBUG]`). May miss complex patterns in syntactically incomplete branches. |
+| **Nested Classes** | ✅ Supported | Recursive extraction up to depth 5. Full hierarchy in outline. Go-to-definition, hover, and completion work. |
+| **Type Inference** | ⚠️ Partial | Basic types from literals/signatures work. Flow-sensitive analysis not implemented. |
+| **Dynamic Modules** | ⚠️ Inherent | Runtime-loaded modules cannot be analyzed. |
+| **Deep Nesting** | ⚠️ Capped | Classes deeper than 5 levels are capped for performance. |
 
 ## Troubleshooting
 
