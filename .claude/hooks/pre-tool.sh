@@ -45,7 +45,62 @@ EOF
   exit 1
 fi
 
-# --- Block gh issue list without --label safe ---
+# --- Block gh issue create without required body sections ---
+if echo "$INPUT" | grep -qE "gh issue create"; then
+  if ! echo "$INPUT" | grep -qE "(##|Description|Expected Behavior)"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_BODY
+REASON: Issues must follow the required template format.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+FIX: Your --body must contain these sections:
+  ## Description
+  ## Expected Behavior
+  ## Suggested Approach
+  ## Environment
+Example:
+  gh issue create --label safe --title "Fix X" --body "## Description
+Describe the issue here.
+
+## Expected Behavior
+What should happen.
+
+## Suggested Approach
+How to fix it.
+
+## Environment
+- [x] PIKE_SRC is set
+- [x] ROXEN_SRC is set"
+EOF
+    exit 1
+  fi
+fi
+
+# --- Block gh pr create without Closes # and verification ---
+if echo "$INPUT" | grep -qE "gh pr create"; then
+  if ! echo "$INPUT" | grep -qE "Closes #[0-9]+"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_LINKED_ISSUE
+REASON: All PRs must reference a safe issue. The safe-label-check CI job will also fail without this.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Include "Closes #<number>" in your --body:
+  gh pr create --title "fix: description" --base main --body "## Summary
+What this PR does.
+
+## Linked Issue
+Closes #<number>
+
+## Changes
+List key changes.
+
+## Verification
+- [x] bun run lint passes
+- [x] bun test passes
+- [x] bun run build passes
+- [x] Pike files have #pragma strict_types"
+EOF
+    exit 1
+  fi
+fi
 if echo "$INPUT" | grep -qE "gh issue list"; then
   if ! echo "$INPUT" | grep -q "\-\-label safe"; then
     cat >&2 <<EOF
