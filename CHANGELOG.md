@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.21] - 2026-02-18
+
+### Added
+- **Hover provider for Pike keywords** - Add hover provider with keyword documentation (if, else, while, for, foreach, etc.)
+
+### Fixed
+- **Invalid Pike syntax error messages** - Improve error messages for invalid Pike syntax to be more descriptive
+- **ESLint configuration** - Add proper ESLint config for generated TypeScript API docs with browser globals
+- **VSCode command registration test** - Fix failing VSCode command registration test
+- **showReferences test** - Read source file instead of dist in showReferences test
+- **CI scripts** - Restore scripts directory for CI
+- **Autonomous loop** - Improve autonomous loop with issue closure verification
+
 ## [0.1.0-alpha.20] - 2026-02-16
 
 ### Added
