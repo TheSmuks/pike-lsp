@@ -18,9 +18,22 @@ If U < N → Go to Step 2a (create N - U new issues)
 
 ### Step 2a: Identify improvements
 - Analyze codebase for bugs, gaps, tech debt, missing tests
-- Create exactly (N - U) new issues:
+- Create exactly (N - U) new issues using this exact format:
   ```
-  gh issue create --label safe --title "..." --body "..."
+  gh issue create --label safe \
+    --title "..." \
+    --body "## Description
+  <what needs to be done>
+
+  ## Expected Behavior
+  <what should happen>
+
+  ## Suggested Approach
+  <how to approach the fix>
+
+  ## Environment
+  - [x] \$PIKE_SRC is set and accessible
+  - [x] \$ROXEN_SRC is set and accessible"
   ```
 - After creating each issue, immediately add exactly one type label:
   ```
@@ -38,9 +51,14 @@ If U < N → Go to Step 2a (create N - U new issues)
 
 ### Step 4: Monitor and loop
 - Wait for PRs from workers
+- A task is NOT complete until BOTH conditions are true:
+  1. PR is merged into main
+  2. Linked issue is closed
+- Verify both: `gh issue view <number> --json state,closedAt`
+  - If `state` is not `CLOSED` after PR merge → something failed, investigate
 - If a worker reports CI failure → re-assign to next idle worker
-- Worker handles branch cleanup after merge
-- When all PRs merged → Return to Step 1
+- Worker handles branch cleanup after confirmed close
+- When ALL issues are closed AND all PRs merged → Return to Step 1
 
 ### FORBIDDEN (Lead):
 - ❌ Do NOT implement code yourself
@@ -93,15 +111,39 @@ Fix any failures before proceeding.
 git add -A
 git commit -m "fix: <description> (closes #<number>)"
 git push origin fix/issue-<number>
-gh pr create --title "fix: <description>" --body "Closes #<number>" --base main
+gh pr create \
+  --title "fix: <description>" \
+  --body "## Summary
+<what this PR does>
+
+## Linked Issue
+Closes #<number>
+
+## Changes
+<list key changes>
+
+## Verification
+- [x] \`bun run lint\` passes
+- [x] \`bun test\` passes
+- [x] \`bun run build\` passes
+- [x] New Pike files include \`#pragma strict_types\`
+- [x] No regex used for Pike parsing" \
+  --base main
 ```
 
 ### Step 6: Report and Wait
 - Report PR URL to lead
-- Wait for CI
+- Wait for CI to pass and PR to merge
+- After merge confirmation, verify the issue was automatically closed:
+  ```bash
+  gh issue view <number> --json state --jq '.state'
+  ```
+  Expected output: `CLOSED`
+- If output is `OPEN` → report to lead: "PR merged but issue #<number> still open"
+  Do NOT proceed to cleanup until issue is confirmed closed
 - Do NOT merge yourself
 
-### Step 7a: If CI passes and PR merges → Run cleanup
+### Step 7a: If PR merged AND issue closed → Run cleanup
 ```bash
 cd ../pike-lsp  # back to main repo FIRST
 git worktree remove ../pike-lsp-issue-<number>
@@ -124,3 +166,28 @@ Report failure details to lead, then run cleanup. Await re-assignment.
 - ❌ Do NOT interact with unlabeled issues
 - ❌ Do NOT develop outside worktree
 - ✅ ONLY work on issues with "safe" label
+
+---
+
+## Acceptance Criteria
+
+### End-to-End Loop
+- [ ] Full cycle completes: lead creates issue → assigns worker → worker pushes PR → CI passes → auto-merge fires → issue closes → worker verifies closure → worker cleans up → lead confirms all issues closed → lead loops back to Step 1
+
+### Task Completion Gate
+- [ ] After PR merges, linked issue state transitions to CLOSED within 60 seconds
+- [ ] `gh issue view <number> --json state --jq '.state'` returns `CLOSED` after merge
+- [ ] Worker does not proceed to Step 7a cleanup while issue state is `OPEN`
+- [ ] Lead does not return to Step 1 while any assigned issue remains `OPEN`
+- [ ] If auto-close fails (issue stays OPEN after merge), close-issue-on-merge.yml fires and closes it with a comment
+- [ ] A task where the PR was merged but issue remains open is flagged as incomplete by both worker and lead
+- [ ] The loop never starts a new cycle with any issue from the previous cycle still in `OPEN` state
+
+### Issue and PR Templates
+- [ ] Agent-created issues contain all four sections: Description, Expected Behavior, Suggested Approach, Environment
+- [ ] `gh issue create` without `## Description` in body → blocked with `ISSUE_MISSING_REQUIRED_BODY`
+- [ ] Agent-created PRs contain `Closes #<number>` in body
+- [ ] `gh pr create` without `Closes #` → blocked with `PR_MISSING_LINKED_ISSUE`
+- [ ] Human contributors opening issues via web UI see the pre-filled template sections
+- [ ] Human contributors opening PRs via web UI see the pre-filled template with verification checklist
+- [ ] auto-merge.yml completes without `fatal: not a git repository` error

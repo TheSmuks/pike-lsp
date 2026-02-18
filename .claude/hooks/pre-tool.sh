@@ -111,4 +111,35 @@ for pattern in "gh issue view" "gh issue edit" "gh issue comment" "gh issue clos
   fi
 done
 
+# --- Block gh pr create without required body fields ---
+if echo "$INPUT" | grep -qE "gh pr create"; then
+  if ! echo "$INPUT" | grep -q "Closes #"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] PR_MISSING_LINKED_ISSUE
+REASON: All PRs must link to a safe issue. Required in body: "Closes #<number>"
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
+FIX: Include "Closes #<number>" in your --body argument.
+  The CI safe-label-check will also fail without this.
+EOF
+    exit 1
+  fi
+fi
+
+# --- Block gh issue create without required body sections ---
+if echo "$INPUT" | grep -qE "gh issue create"; then
+  if ! echo "$INPUT" | grep -q "## Description"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_BODY
+REASON: Issues must follow the template format with required sections.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+FIX: Include these sections in --body:
+  ## Description
+  ## Expected Behavior
+  ## Suggested Approach
+  ## Environment
+EOF
+    exit 1
+  fi
+fi
+
 exit 0
