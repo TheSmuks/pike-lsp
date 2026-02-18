@@ -10,27 +10,36 @@ permissions:
 jobs:
   close-issue:
     if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+
       - name: Close linked issue
         run: |
           ISSUE=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
             --json body --jq '.body' \
-            | grep -oE 'Closes #[0-9]+' \
-            | grep -oE '[0-9]+'
+            | grep -oiE '(closes|fixes|resolves) #[0-9]+' \
+            | grep -oE '[0-9]+' \
+            | head -1)
 
           if [ -z "$ISSUE" ]; then
             echo "No linked issue found, skipping"
             exit 0
           fi
 
-          STATE=$(gh issue view $ISSUE --json state --jq '.state')
+          STATE=$(gh issue view $ISSUE \
+            --repo ${{ github.repository }} \
+            --json state --jq '.state')
+
           if [ "$STATE" = "CLOSED" ]; then
-            echo "Issue #$ISSUE already closed, skipping"
+            echo "Issue #$ISSUE already closed"
             exit 0
           fi
 
-          gh issue close $ISSUE --comment "Closed automatically: PR #${{ github.event.pull_request.number }} merged."
+          gh issue close $ISSUE \
+            --repo ${{ github.repository }} \
+            --comment "Closed automatically: PR #${{ github.event.pull_request.number }} merged."
           echo "Closed issue #$ISSUE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

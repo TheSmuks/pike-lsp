@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   auto-label:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Label by author
         run: |
@@ -16,9 +16,13 @@ jobs:
           ISSUE="${{ github.event.issue.number }}"
 
           if [ "$AUTHOR" = "TheSmuks" ]; then
-            gh issue edit $ISSUE --add-label safe
+            gh issue edit $ISSUE \
+              --repo ${{ github.repository }} \
+              --add-label safe
           else
-            gh issue edit $ISSUE --add-label pending-review
+            gh issue edit $ISSUE \
+              --repo ${{ github.repository }} \
+              --add-label pending-review
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
