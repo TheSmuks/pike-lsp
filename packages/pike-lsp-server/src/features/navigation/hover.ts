@@ -58,7 +58,7 @@ export function registerHoverHandler(
 
             const { word, range } = wordResult;
 
-            // 0. Check if it's a Pike keyword first (single lookup)
+            // FAST PATH: Check if word is a keyword - avoids expensive symbol lookups
             const keywordInfo = getKeywordInfo(word);
             if (keywordInfo) {
                 const categoryLabel = keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
