@@ -164,14 +164,14 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
         });
 
         test('33.4 should register pike.showReferences command', async () => {
-            // Verify command is registered in extension code
-            const extensionJsPath = path.join(__dirname, '..', '..', 'dist', 'extension.js');
-            const extensionJs = fs.readFileSync(extensionJsPath, 'utf-8');
+            // Verify command is registered in extension source code
+            const extensionTsPath = path.join(__dirname, '..', 'extension.ts');
+            const extensionTs = fs.readFileSync(extensionTsPath, 'utf-8');
 
             // Check for showReferences command registration
             expect(
-                extensionJs.includes('pike.showReferences') &&
-                extensionJs.includes('registerCommand')
+                extensionTs.includes('pike.showReferences') &&
+                extensionTs.includes('registerCommand')
             ).toBe(true);
         });
     });
