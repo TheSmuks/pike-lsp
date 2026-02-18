@@ -54,10 +54,18 @@ View live benchmarks: [thesmuks.github.io/pike-lsp](https://thesmuks.github.io/p
 
 ## Known Limitations
 
-| Limitation | Description | Impact |
-|------------|-------------|--------|
-| **Preprocessor Directives** | Symbols inside `#if`/`#else`/`#endif` blocks are now indexed using token-based extraction. | Conditional symbols are now visible in outline, completion, and hover. |
-| **Nested Classes** | Nested class declarations are recursively extracted up to depth 5. | Go-to-definition, hover, and completion work for nested class members at all levels. |
-| **Type Inference** | Basic types from literals and signatures work. | Complex flow-sensitive analysis is not implemented. |
-| **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Completion won't show symbols from dynamically loaded code. |
-| **Deep Nesting** | Nested classes deeper than 5 levels are capped for performance. | Very deep nesting (>5 levels) may have limited symbol extraction. |
+### Analysis Limitations
+
+| Limitation | Description | Technical Details |
+|------------|-------------|------------------|
+| **Preprocessor Directives** | Token-based extraction for symbols in `#if`/`#else`/`#endif` blocks. | Uses `Parser.Pike.tokenize()` for symbol extraction. Symbols include branch metadata (e.g., `[#if DEBUG]`). |
+| **Nested Classes** | Recursive extraction up to depth 5. | Implemented in `Parser.pike:get_symbols_recursive()` and `Introspection.pike:introspect_class_members()`. Depth capped for performance. |
+| **Type Inference** | Basic types from literals and function signatures. | Uses `Introspection.pike:get_type_from_value()`. Flow-sensitive analysis not implemented. |
+| **Dynamic Modules** | Runtime-loaded modules cannot be analyzed. | Uses `compile_string()`/`compile_file()`. Dynamic patterns like `load_module(path)` are inherently unresolvable. |
+| **Deep Nesting** | Classes deeper than 5 levels capped for performance. | Configurable via `maxDepth` parameter in `getWaterfallSymbols()`. |
+
+### Performance Notes
+
+- Large workspaces: Initial indexing runs in background, may take several seconds
+- Deep hierarchies: Exceeding 5 levels caps symbol extraction; use `maxDepth` to adjust
+- Complex preprocessors: Nested `#if` chains may have reduced accuracy in syntactically invalid branches
