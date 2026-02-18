@@ -1,0 +1,20 @@
+---
+name: Safe Improvement
+about: A safe, low-risk improvement for pike-lsp
+title: '[improvement] '
+labels: ''
+assignees: ''
+---
+
+## Description
+<!-- What needs to be done -->
+
+## Expected Behavior
+<!-- What should happen -->
+
+## Suggested Approach
+<!-- How to approach the fix -->
+
+## Environment
+- [ ] $PIKE_SRC is set and accessible
+- [ ] $ROXEN_SRC is set and accessible

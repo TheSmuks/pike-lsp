@@ -1,0 +1,27 @@
+name: Check Safe Label
+on: [pull_request]
+
+permissions:
+  issues: read
+  pull-requests: write
+  contents: write
+
+jobs:
+  check-safe-label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check safe label on linked issue
+        run: |
+          ISSUE=$(gh pr view ${{ github.event.pull_request.number }} --json body --jq '.body' | grep -oP 'Closes #\K[0-9]+' | head -1)
+
+          if [ -z "$ISSUE" ]; then
+            echo "ERROR: No linked issue found in PR body (expected 'Closes #N')"
+            exit 1
+          fi
+
+          LABELS=$(gh issue view $ISSUE --json labels --jq '.labels[].name')
+          echo "Issue #$ISSUE labels: $LABELS"
+          echo "$LABELS" | grep -q "safe" || (echo "PR linked issue missing 'safe' label" && exit 1)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

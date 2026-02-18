@@ -1,0 +1,31 @@
+name: Auto-label Issues
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  auto-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Label by author
+        run: |
+          AUTHOR="${{ github.event.issue.user.login }}"
+          ISSUE="${{ github.event.issue.number }}"
+
+          # Skip if already labeled (agent-created issues arrive pre-labeled)
+          EXISTING=$(gh issue view $ISSUE --json labels --jq '.labels[].name' 2>/dev/null)
+          if echo "$EXISTING" | grep -qE "safe|pending-review"; then
+            echo "Issue #$ISSUE already labeled, skipping"
+            exit 0
+          fi
+
+          if [ "$AUTHOR" = "TheSmuks" ]; then
+            gh issue edit $ISSUE --add-label safe
+          else
+            gh issue edit $ISSUE --add-label pending-review
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
