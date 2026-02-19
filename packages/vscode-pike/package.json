@@ -14,6 +14,9 @@
     "type": "git",
     "url": "https://github.com/TheSmuks/pike-lsp.git"
   },
+  "bugs": {
+    "url": "https://github.com/TheSmuks/pike-lsp/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
