@@ -45,6 +45,71 @@ bun run package
 - [Node.js](https://nodejs.org/) 18 or higher
 - [VS Code](https://code.visualstudio.com/) 1.85+
 
+## Installing Pike
+
+Pike 8.1116 or later is required. Choose your platform:
+
+### Linux (Debian/Ubuntu)
+
+```bash
+# Option 1: Install from repository (may be outdated)
+sudo apt update
+sudo apt install pike
+
+# Option 2: Install latest from Lysator (recommended)
+# Download from https://pike.lysator.liu.se/download/
+wget https://pike.lysator.liu.se/pub/pike/latest/Pike-v8.0.1116-linux-x64.tar.bz2
+tar -xjf Pike-v8.0.1116-linux-x64.tar.bz2
+cd Pike-v8.0.1116-linux-x64
+sudo ./install.sh
+```
+
+### Linux (Fedora/RHEL)
+
+```bash
+# Build from source or use containers
+# See: https://pike.lysator.liu.se/docs/
+```
+
+### macOS
+
+```bash
+# Option 1: Homebrew
+brew install pike
+
+# Option 2: Download from https://pike.lysator.liu.se/download/
+# Pike-v8.0.1116-mac-x64.tar.bz2
+```
+
+### Windows (WSL)
+
+```bash
+# Install Pike inside WSL
+wget https://pike.lysator.liu.se/pub/pike/latest/Pike-v8.0.1116-linux-x64.tar.bz2
+tar -xjf Pike-v8.0.1116-linux-x64.tar.bz2
+cd Pike-v8.0.1116-linux-x64
+./install.sh
+```
+
+### Verifying Pike Installation
+
+```bash
+pike --version
+```
+
+Expected output: `Pike v8.0.1116` or later.
+
+### Setting PIKE_SRC (Development)
+
+For development or running tests, set the environment variable to your Pike source directory:
+
+```bash
+export PIKE_SRC=/path/to/Pike-v8.0.1116
+export ROXEN_SRC=/path/to/Roxen
+```
+
+Add these to your `.bashrc` or `.zshrc` for persistence.
+
 ## Compatibility
 
 ### Supported Pike Versions
