@@ -320,6 +320,24 @@ function getExpandedIncludePaths(): string[] {
     return expandedPaths;
 }
 
+function getExpandedProgramPaths(): string[] {
+    const config = workspace.getConfiguration('pike');
+    const pikeProgramPath = config.get<string[]>('pikeProgramPath', []);
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        for (const p of pikeProgramPath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeProgramPath;
+    }
+
+    outputChannel.appendLine(`Pike program path: ${JSON.stringify(pikeProgramPath)}`);
+    return expandedPaths;
+}
+
 async function restartClient(showMessage: boolean): Promise<void> {
     if (!serverOptions) {
         return;
@@ -337,6 +355,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const pikePath = config.get<string>('pikePath', 'pike');
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
+    const expandedProgramPaths = getExpandedProgramPaths();
 
     // Windows uses semicolon as PATH separator, Unix uses colon
     // Pike on Windows also expects forward slashes, not backslashes
@@ -344,6 +363,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const normalizePath = (p: string) => process.platform === 'win32' ? p.replace(/\\/g, '/') : p;
     const normalizedModulePaths = expandedPaths.map(normalizePath);
     const normalizedIncludePaths = expandedIncludePaths.map(normalizePath);
+    const normalizedProgramPaths = expandedProgramPaths.map(normalizePath);
 
     // Determine the analyzer path relative to the server module
     // The server is at: extension-root/server/server.js
@@ -369,6 +389,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
             env: {
                 'PIKE_MODULE_PATH': normalizedModulePaths.join(pathSeparator),
                 'PIKE_INCLUDE_PATH': normalizedIncludePaths.join(pathSeparator),
+                'PIKE_PROGRAM_PATH': normalizedProgramPaths.join(pathSeparator),
             },
         },
         outputChannel,

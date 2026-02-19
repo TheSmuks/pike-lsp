@@ -213,11 +213,20 @@ Add these settings to your VS Code `settings.json`:
 
 ```json
 {
-    // Path to Pike executable (default: "pike")
-    "pike.pikePath": "/usr/local/bin/pike",
+  // Path to Pike executable (default: "pike")
+  "pike.pikePath": "/usr/local/bin/pike",
 
-    // LSP trace level for debugging
-    "pike.trace.server": "off"  // "off" | "messages" | "verbose"
+  // Module search paths
+  "pike.pikeModulePath": ["${workspaceFolder}/lib", "/usr/local/pike/modules"],
+
+  // Include file search paths
+  "pike.pikeIncludePath": ["${workspaceFolder}/include", "/usr/local/pike/include"],
+
+  // Program search paths
+  "pike.pikeProgramPath": ["${workspaceFolder}/bin", "/usr/local/pike/programs"],
+
+  // LSP trace level for debugging
+  "pike.trace.server": "off" // "off" | "messages" | "verbose"
 }
 ```
 
