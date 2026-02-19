@@ -27,7 +27,7 @@ export function registerOnTypeFormattingHandler(
     const log = new Logger('OnTypeFormatting');
 
     // Check if the connection supports on-type formatting
-    if (typeof connection.onTypeFormat !== 'function') {
+    if (typeof connection.languages.onTypeFormatting !== 'function') {
         log.debug('On-type formatting support not available in this LSP connection version');
         return;
     }
@@ -36,7 +36,7 @@ export function registerOnTypeFormattingHandler(
     const triggerCharacters = ['\n', ';', '}'];
 
     // Register the handler
-    connection.onTypeFormat(async (params): Promise<TextEdit[]> => {
+    connection.languages.onTypeFormatting(async (params): Promise<TextEdit[]> => {
         log.debug('On-type format request', {
             uri: params.textDocument.uri,
             trigger: params.ch[0],
