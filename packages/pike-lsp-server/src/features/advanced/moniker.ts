@@ -61,8 +61,8 @@ export function registerMonikerHandler(
         return {
             scheme: scheme,
             identifier: uniqueId,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            unique: uniqueId as any,
+            // @ts-expect-error - unique is optional in older LSP versions
+            unique: uniqueId,
         };
     }
 
