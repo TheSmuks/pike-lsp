@@ -917,7 +917,8 @@ protected array(string) tokenize_preprocessor_branch(string code) {
         }
 
         // Handle whitespace - token boundary
-        if (String.is_whitespace(char)) {
+        // Use trim_whites check instead of non-existent String.is_whitespace
+        if (sizeof(String.trim_whites(char)) == 0) {
             if (sizeof(current_token) > 0) {
                 tokens += ({current_token});
                 current_token = "";
