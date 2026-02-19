@@ -19,6 +19,10 @@ export default [
             '**/*.test.ts',
             'packages/vscode-pike/**/*.ts',
             'docs/**',
+            'build/**',
+            'out/**',
+            'packages/vscode-pike/server/**',
+            'node_modules/**',
         ],
     },
     // TypeDoc generated files need browser globals
