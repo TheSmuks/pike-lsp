@@ -1235,3 +1235,126 @@ mapping introspect_object(object obj, int|void depth) {
 
     return result;
 }
+
+//! Resolve dynamic module paths (load_module, compile_file)
+//! This handler attempts to resolve paths from dynamic module loading patterns.
+//! While full dynamic resolution is impossible (paths can be computed at runtime),
+//! we can provide best-effort analysis for common patterns with literal path arguments.
+//!
+//! @param params Mapping with "path" and "currentFile" keys
+//! @returns Mapping with "result" containing resolved path info
+mapping handle_resolve_dynamic_module(mapping params) {
+    mixed err = catch {
+        string module_path = params->path || "";
+        string current_file = params->currentFile || "";
+
+        if (sizeof(module_path) == 0) {
+            return ([ "result": ([ "path": 0, "exists": 0 ]) ]);
+        }
+
+        // Try to resolve as an absolute path first
+        if (file_stat(module_path)) {
+            return ([
+                "result": ([
+                    "path": module_path,
+                    "exists": 1,
+                    "resolved": "absolute"
+                ])
+            ]);
+        }
+
+        // Try relative to current file's directory
+        if (sizeof(current_file) > 0) {
+            string current_dir = dirname(current_file);
+            string relative_path = combine_path(current_dir, module_path);
+            if (file_stat(relative_path)) {
+                return ([
+                    "result": ([
+                        "path": relative_path,
+                        "exists": 1,
+                        "resolved": "relative_to_file"
+                    ])
+                ]);
+            }
+
+            // Try as .pike file
+            string pike_path = relative_path;
+            if (!has_suffix(pike_path, ".pike")) {
+                pike_path += ".pike";
+            }
+            if (file_stat(pike_path)) {
+                return ([
+                    "result": ([
+                        "path": pike_path,
+                        "exists": 1,
+                        "resolved": "relative_to_file",
+                        "note": "Added .pike extension"
+                    ])
+                ]);
+            }
+
+            // Try as .pmod file
+            string pmod_path = relative_path;
+            if (!has_suffix(pmod_path, ".pmod")) {
+                pmod_path += ".pmod";
+            }
+            if (file_stat(pmod_path)) {
+                return ([
+                    "result": ([
+                        "path": pmod_path,
+                        "exists": 1,
+                        "resolved": "relative_to_file",
+                        "note": "Added .pmod extension"
+                    ])
+                ]);
+            }
+        }
+
+        // Try using Pike's master()->resolv for module paths
+        // This handles cases like "Stdio" or "Crypto"
+        if (!has_prefix(module_path, "/") && !has_prefix(module_path, ".")) {
+            mixed resolved = master()->resolv(module_path);
+            if (resolved) {
+                string source_path = "";
+                catch {
+                    if (programp(resolved)) {
+                        source_path = Program.defined(resolved) || "";
+                    } else if (objectp(resolved)) {
+                        source_path = Program.defined(object_program(resolved)) || "";
+                    }
+                };
+                if (sizeof(source_path) > 0) {
+                    return ([
+                        "result": ([
+                            "path": source_path,
+                            "exists": file_stat(source_path) ? 1 : 0,
+                            "resolved": "module_resolv"
+                        ])
+                    ]);
+                }
+            }
+        }
+
+        // No resolution found
+        return ([
+            "result": ([
+                "path": 0,
+                "exists": 0,
+                "note": "Dynamic path could not be resolved - path may be computed at runtime"
+            ])
+        ]);
+    };
+
+    if (err) {
+        mixed LSPError = master()->resolv("LSP.module.LSPError");
+        if (LSPError) {
+            return LSPError(-32000, describe_error(err))->to_response();
+        }
+        return ([
+            "error": ([
+                "code": -32000,
+                "message": describe_error(err)
+            ])
+        ]);
+    }
+}
