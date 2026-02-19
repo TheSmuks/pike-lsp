@@ -27,14 +27,14 @@ beforeAll(async () => {
         // Suppress stderr noise during tests
         bridge.on('stderr', () => {});
     } catch (err) {
-        await bridge.stop().catch(() => {});
+        await bridge.stop().catch(e => console.error(`Failed to stop bridge: ${e}`));
         throw err;
     }
 });
 
 afterAll(async () => {
     if (bridge) {
-        await bridge.stop().catch(() => {});
+        await bridge.stop().catch(e => console.error(`Failed to stop bridge: ${e}`));
     }
 });
 

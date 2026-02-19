@@ -446,8 +446,8 @@ connection.onShutdown(async () => {
 });
 
 connection.onExit(() => {
-    bridgeManager?.stop().catch(() => {
-        // Ignore errors during exit
+    bridgeManager?.stop().catch(err => {
+        connection.console.error(`Error during shutdown: ${err}`);
     });
 });
 
