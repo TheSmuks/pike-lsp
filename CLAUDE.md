@@ -244,7 +244,7 @@ creation if any section is missing:
 
 ```bash
 git add -A
-git commit -m "fix: <short description> (closes #<number>)"
+git commit -m "fix: <short description> - Closes #<number>"
 git push origin fix/issue-<number>
 gh pr create \
   --title "fix: <short description>" \

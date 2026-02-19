@@ -77,7 +77,7 @@ git checkout -b fix/issue-<your-issue-number>
 ### Step 5: Push and open PR
 ```
 git add -A
-git commit -m "fix: <short description> (closes #<number>)"
+git commit -m "fix: <short description> - Closes #<number>"
 git push origin fix/issue-<your-issue-number>
 gh pr create --title "fix: <description>" --body "Closes #<your-issue-number>" --base main
 ```
