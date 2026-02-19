@@ -183,7 +183,8 @@ export function isBatchParseResult(obj: unknown): obj is BatchParseResult {
  */
 export function validatePikeResponse<T>(obj: unknown, typeGuard: (obj: unknown) => obj is T, typeName: string): T {
     if (!typeGuard(obj)) {
-        throw new Error(`Invalid Pike response: expected ${typeName}, got ${JSON.stringify(obj).slice(0, 200)}`);
+        const received = obj === null ? 'null' : obj === undefined ? 'undefined' : typeof obj;
+        throw new Error(`Invalid Pike response: expected type '${typeName}', but received ${received}. This may indicate a version mismatch between the Pike bridge and the LSP server, or the Pike subprocess crashed. Received data: ${JSON.stringify(obj).slice(0, 200)}`);
     }
     return obj;
 }

@@ -300,7 +300,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
             },
         };
     } catch (err) {
-        connection.console.error(`CRITICAL ERROR in onInitialize: ${err instanceof Error ? err.stack : String(err)}`);
+        const errMsg = err instanceof Error ? err.stack : String(err);
+        connection.console.error(`CRITICAL ERROR in onInitialize: ${errMsg}. This error occurred during LSP server initialization. Check that Pike is installed correctly and the analyzer.pike script exists.`);
+        log(`CRITICAL ERROR in onInitialize: ${errMsg}`);
         throw err;
     }
 });

@@ -164,7 +164,7 @@ export function registerFileWatcher(
             const content = await fs.promises.readFile(path, 'utf-8');
             await index.indexDocument(uri, content, 0);
         } catch (err) {
-            throw new Error(`Failed to read created file: ${err instanceof Error ? err.message : String(err)}`);
+            throw new Error(`Failed to read newly created file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`);
         }
     }
 
@@ -200,7 +200,7 @@ export function registerFileWatcher(
                 handleFileDeleted(uri, index, cache);
                 return;
             }
-            throw new Error(`Failed to read changed file: ${err instanceof Error ? err.message : String(err)}`);
+            throw new Error(`Failed to read changed file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`);
         }
     }
 
