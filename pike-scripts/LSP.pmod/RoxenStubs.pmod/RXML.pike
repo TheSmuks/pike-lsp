@@ -1,3 +1,4 @@
+#pragma strict_types
 //! RXML.pike - Stub module for RXML (Roxen XML) framework LSP support
 //!
 //! Provides minimal stub implementations of RXML classes to allow

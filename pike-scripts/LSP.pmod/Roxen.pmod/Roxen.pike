@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Roxen.pike - Roxen module analysis for LSP
 //! Per ADR-001: Uses Parser.Pike.split() for all code parsing
 //! Per ADR-002: Uses String.trim_all_whites() for whitespace handling

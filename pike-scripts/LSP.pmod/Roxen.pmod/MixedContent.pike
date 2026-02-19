@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Mixed Content.pike - RXML string detection in Pike multiline strings
 //! Per ADR-001: Uses Parser.Pike.split() for all code parsing
 //! Per ADR-002: Uses String.trim_all_whites() for whitespace handling

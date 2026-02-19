@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Roxen defvar parsing tests - TDD RED phase
 //! These tests MUST fail before implementing the fixes
 
