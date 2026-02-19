@@ -185,16 +185,15 @@ code --install-extension vscode-pike-1.0.0.vsix
 git clone https://github.com/TheSmuks/pike-lsp.git
 cd pike-lsp
 
-# Install dependencies (requires pnpm)
-npm install -g pnpm
-pnpm install
+# Install dependencies
+bun install
 
 # Build all packages
-pnpm build
+bun run build
 
 # Package the VS Code extension
 cd packages/vscode-pike
-pnpm package
+bun run package
 ```
 
 ## Keyboard Shortcuts
@@ -248,14 +247,14 @@ pike-lsp/
 ./scripts/run-tests.sh
 
 # Run specific test suites
-pnpm --filter @pike-lsp/pike-bridge test
-pnpm --filter @pike-lsp/pike-lsp-server test
+bun --filter @pike-lsp/pike-bridge test
+bun --filter @pike-lsp/pike-lsp-server test
 
 # Run smoke tests
-pnpm --filter @pike-lsp/pike-lsp-server test:smoke
+bun --filter @pike-lsp/pike-lsp-server test:smoke
 
 # Run VSCode E2E tests (requires display or xvfb)
-cd packages/vscode-pike && pnpm run test:e2e
+cd packages/vscode-pike && bun run test:e2e
 ```
 
 ### Pike Stdlib Source Paths
@@ -279,9 +278,6 @@ PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scr
 ### Prerequisites
 
 ```bash
-# Install pnpm globally
-npm install -g pnpm
-
 # Install Pike 8
 # Ubuntu/Debian:
 sudo apt-get install pike8.0
@@ -296,8 +292,8 @@ go install github.com/nektos/act@latest
 ### Building
 
 ```bash
-pnpm install
-pnpm build
+bun install
+bun run build
 ```
 
 ### Testing the Extension
@@ -313,9 +309,9 @@ pnpm build
 # 1. Update version in packages/vscode-pike/package.json
 # 2. Update CHANGELOG.md
 # 3. Build and package
-pnpm build
+bun run build
 cd packages/vscode-pike
-pnpm package
+bun run package
 
 # 4. The .vsix file is created in packages/vscode-pike/
 ```
