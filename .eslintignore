@@ -6,5 +6,8 @@ dist/
 build/
 out/
 
+# VSCode extension server (generated)
+packages/vscode-pike/server/
+
 # Node modules
 node_modules/
