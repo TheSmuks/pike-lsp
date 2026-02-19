@@ -6,6 +6,7 @@ import { CompletionItemKind } from 'vscode-languageserver/node.js';
 import type { CompletionItem } from 'vscode-languageserver/node.js';
 import type { Position } from 'vscode-languageserver-textdocument';
 import type { DocumentCacheEntry } from '../../core/types.js';
+import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { MODULE_CONSTANTS, TYPE_CONSTANTS, VAR_FLAGS } from './constants.js';
 
 // Re-export request-id completions (keep separate - useful)
@@ -20,7 +21,7 @@ export function isRoxenModule(cache: DocumentCacheEntry | undefined): boolean {
     return false;
   }
 
-  return cache.inherits.some((inh: any) =>
+  return cache.inherits.some((inh: InheritanceInfo) =>
     inh.path?.toLowerCase().includes('module') ||
     inh.path?.toLowerCase().includes('roxen')
   );

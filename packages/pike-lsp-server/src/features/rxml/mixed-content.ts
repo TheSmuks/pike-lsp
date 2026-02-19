@@ -149,6 +149,7 @@ export async function detectRXMLStrings(
     }
 
     // Transform Pike-side results to TypeScript types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return result.strings.map((s: any) => ({
         content: s.content,
         range: {

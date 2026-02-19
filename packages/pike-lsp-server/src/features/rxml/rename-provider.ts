@@ -10,7 +10,7 @@
  * Phase 6 of ROXEN_SUPPORT_ROADMAP.md
  */
 
-import { WorkspaceEdit, Position, TextDocumentEdit } from 'vscode-languageserver';
+import { WorkspaceEdit, Position, TextDocumentEdit, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { OptionalVersionedTextDocumentIdentifier } from 'vscode-languageserver';
 import { findTagReferences, escapeRegExp } from './references-provider.js';
@@ -87,7 +87,7 @@ async function prepareTagRename(
   const locations = await findTagReferences(oldTagName, workspaceFolders, true);
 
   // Group changes by file
-  const changesByFile = new Map<string, Array<{ range: any; newText: string }>>();
+  const changesByFile = new Map<string, Array<{ range: Range; newText: string }>>();
 
   for (const loc of locations) {
     if (!changesByFile.has(loc.uri)) {

@@ -19,6 +19,7 @@ import { Logger } from '@pike-lsp/core';
  * Register on-type formatting handler.
  */
 export function registerOnTypeFormattingHandler(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     connection: any,
     _services: Services,
     documents: TextDocuments<TextDocument>

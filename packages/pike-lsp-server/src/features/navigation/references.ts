@@ -336,6 +336,7 @@ export function registerReferencesHandlers(
                 const BATCH_SIZE = 15;
                 const YIELD_EVERY_N_BATCHES = 5;
 
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let progress: any = null;
 
                 // Create progress token for large workspace scans

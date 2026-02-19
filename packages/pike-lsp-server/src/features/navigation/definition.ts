@@ -16,7 +16,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
-import type { ExpressionInfo, PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 
 /**
  * Convert a file:// URI to a filesystem path.
@@ -165,8 +165,8 @@ export function registerDefinitionHandlers(
             const isOnDefinition = symbolLine === params.position.line;
 
             if (isOnDefinition) {
-                // If this is an import, include, inherit, or require, navigate to the target module/file
-                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit' || symbol.kind === 'require') {
+                // If this is an import, include, or inherit, navigate to the target module/file
+                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
                     // Use classname if available (usually contains the module path), otherwise name
                     const modulePath = symbol.classname || symbol.name;
                     if (modulePath) {
@@ -176,7 +176,7 @@ export function registerDefinitionHandlers(
                         // This handles macros and complex resolutions performed by the Pike compiler
                         if (symbol.kind === 'inherit' && cached.inherits) {
                             const normalizedPath = modulePath.replace(/['"]/g, "");
-                            const foundInherit = cached.inherits.find((h: any) => 
+                            const foundInherit = cached.inherits.find((h: InheritanceInfo) =>
                                 h.source_name === normalizedPath || 
                                 h.path === normalizedPath ||
                                 h.label === normalizedPath ||
@@ -623,7 +623,7 @@ async function handleDirectiveNavigation(
         // Try introspection data first (cached inherits from Pike compiler)
         if (cached.inherits) {
             const normalizedName = className.replace(/['"]/g, '');
-            const foundInherit = cached.inherits.find((h: any) =>
+            const foundInherit = cached.inherits.find((h: InheritanceInfo) =>
                 h.source_name === normalizedName ||
                 h.path === normalizedName ||
                 h.label === normalizedName ||
@@ -718,10 +718,10 @@ async function handleDirectiveNavigation(
  * Find symbol at given position in document.
  */
 function findSymbolAtPosition(
-    symbols: any[],
+    symbols: PikeSymbol[],
     position: { line: number; character: number },
     document: TextDocument
-): any | null {
+): PikeSymbol | null {
     const text = document.getText();
     const offset = document.offsetAt(position);
 
@@ -1000,7 +1000,7 @@ async function resolveMemberAccess(
 
     try {
         // Find the base variable in local symbols to get its type
-        const baseSymbol = cached.symbols?.find((s: any) => s.name === expr.base);
+        const baseSymbol = cached.symbols?.find((s: PikeSymbol) => s.name === expr.base);
         let typeName: string | null = null;
 
         if (baseSymbol) {
