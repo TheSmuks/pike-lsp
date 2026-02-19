@@ -8,6 +8,8 @@ export default [
     {
         ignores: [
             '**/dist/**',
+            '**/build/**',
+            '**/out/**',
             '**/*.tsbuildinfo',
             '**/coverage/**',
             '**/.nyc_output/**',
