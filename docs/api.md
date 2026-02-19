@@ -8,10 +8,17 @@ The TypeScript API documentation is auto-generated from source code using [TypeD
 
 - **[TypeScript API Docs](./api/typescript/)** - Auto-generated API reference for `@pike-lsp/core`, `@pike-lsp/pike-bridge`, and `@pike-lsp/pike-lsp-server`
 
+## Pike API Reference
+
+The Pike-side API documentation covers the core Pike modules that power the LSP analysis:
+
+- **[Pike API Docs](./api/pike/)** - Pike source code documentation for `LSP.pmod`, analysis, diagnostics, and Roxen support modules
+
 ## Table of Contents
 
 - [Feature Modules](#feature-modules)
 - [LSP Providers](#lsp-providers)
+- [Pike API Reference](#pike-api-reference)
 - [Services](#services)
 - [Type Definitions](#type-definitions)
 
