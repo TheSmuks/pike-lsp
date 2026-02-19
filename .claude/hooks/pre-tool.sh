@@ -45,35 +45,50 @@ EOF
   exit 1
 fi
 
-# --- Block gh issue create without --label safe ---
-if echo "$INPUT" | grep -qE "gh issue create"; then
-  if ! echo "$INPUT" | grep -q "\-\-label safe"; then
+# --- Block gh issue create without complete template ---
+if echo "$INPUT" | jq -e '.tool_input | tostring' 2>/dev/null | grep -qE "gh issue create" || \
+   echo "$INPUT" | grep -qE "gh issue create"; then
+
+  # Extract the full command being run for validation
+  # Body content arrives JSON-escaped — unescape for reliable parsing
+  # Extract command from INPUT_JSON - need to get the command field
+  COMMAND=$(echo "$INPUT_JSON" | jq -r '.tool_input.command // .tool_input // ""' 2>/dev/null)
+
+  # Use the extracted command as the raw body (already has real newlines from JSON parsing)
+  BODY="$COMMAND"
+
+  # Block missing safe label - use grep -F with -- to stop option parsing
+  if ! echo "$BODY" | grep -F -q -- "--label safe"; then
     cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_CREATE_MISSING_SAFE_LABEL
 REASON: All agent-created issues must have the 'safe' label.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
 FIX: Add --label safe to your create command.
 EOF
     exit 1
   fi
 
-  # Block npm references in issue title
-  if echo "$INPUT" | grep -qiE "\-\-title.*\bnpm\b|\-\-title.*node_modules"; then
+  # Block npm references in title
+  if echo "$BODY" | grep -F -qi -- "--title" && echo "$BODY" | grep -F -qi "npm"; then
     cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_REFERENCES_NPM
-REASON: This project uses bun exclusively. Issues referencing npm suggest
-  a toolchain misunderstanding. Do not create npm-related issues.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+REASON: This project uses bun exclusively. Do not reference npm in issues.
 FIX: Use bun terminology:
   'update npm packages' → 'update bun dependencies'
-  npm install → bun install
-  npx → bunx
 EOF
     exit 1
   fi
 
-  # Enforce all required sections with content
-  for section in \
+  # Enforce required sections with real content
+  # Extract body argument - use everything after --body " as the issue body
+  # Strip the leading --body " and trailing "
+  ISSUE_BODY=$(echo "$BODY" | sed 's/.*--body\s*"//' | sed 's/"$//')
+
+  # If we still can't extract body, use the full input for section checks
+  if [ -z "$ISSUE_BODY" ] || [ "$ISSUE_BODY" = "$BODY" ]; then
+    ISSUE_BODY="$BODY"
+  fi
+
+  for SECTION in \
     "## Description" \
     "## Problem" \
     "## Expected Behavior" \
@@ -81,32 +96,33 @@ EOF
     "## Affected Files" \
     "## Acceptance"; do
 
-    if ! echo "$INPUT" | grep -q "$section"; then
+    # Check section exists
+    if ! echo "$ISSUE_BODY" | grep -q "$SECTION"; then
       cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_MISSING_SECTION
-REASON: Issue body is missing required section: $section
-  Every section must exist with real content.
+REASON: Issue body is missing required section: $SECTION
+  Every section must exist with substantive content.
   Vague issues produce vague fixes and waste worker cycles.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Your --body must contain ALL of these sections with real content:
+FIX: Your --body must contain ALL of these sections with REAL content
+  (not placeholders, not HTML comments, not empty lines):
 
   ## Description
-  <specific description of what needs doing>
+  <specific description of what needs doing — file paths, function names>
 
   ## Problem
-  <what is wrong now — include file paths, error messages>
+  <what is wrong RIGHT NOW — include error messages, stack traces, logs>
 
   ## Expected Behavior
-  <what should happen after the fix>
+  <exactly what should happen after the fix>
 
   ## Suggested Approach
-  <which files, functions, patterns to use>
+  <specific files to read, functions to change, patterns to follow>
 
   ## Affected Files
-  - <package/path/file>: <why relevant>
+  - packages/<name>/src/<file>.ts: <why this file is involved>
 
   ## Acceptance
-  <how to verify the fix worked>
+  <specific observable outcome that proves the fix worked>
 
   ## Environment
   - Pike binary: <pike --version output>
@@ -117,31 +133,60 @@ EOF
       exit 1
     fi
 
-    # Verify section has non-empty content
-    SECTION_CONTENT=$(echo "$INPUT" | \
-      grep -A 3 "$section" | \
-      grep -v "^$section" | \
-      grep -v "^##" | \
+    # Extract content between this section and the next ## heading
+    # Use awk for reliable multi-line extraction from potentially escaped input
+    SECTION_CONTENT=$(echo "$ISSUE_BODY" | \
+      awk "/^$SECTION/{found=1; next} found && /^## /{exit} found{print}" | \
       grep -v "^[[:space:]]*$" | \
-      head -1)
+      grep -v "^<!--" | \
+      grep -v "^-->" | \
+      head -3)
 
     if [ -z "$SECTION_CONTENT" ]; then
       cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_EMPTY_SECTION
-REASON: Section '$section' exists but has no content.
-  Writing the heading without content is not acceptable.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Add substantive text under '$section'.
-  Not placeholder text. Not HTML comments. Not 'TBD'.
-  Write what you actually know about this issue.
+REASON: Section '$SECTION' exists but has no substantive content.
+  Empty sections are not acceptable. The section header alone gives
+  workers zero information to work with.
+FIX: Write real content under '$SECTION'.
+  NOT: HTML comments like <!-- what to write -->
+  NOT: Placeholder text like 'TBD' or 'N/A'
+  NOT: Empty lines
+  YES: Specific file paths, error messages, function names, observations
+EOF
+      exit 1
+    fi
+
+    # Reject placeholder content
+    if echo "$SECTION_CONTENT" | grep -qiE \
+      "^[[:space:]]*(TBD|N\/A|TODO|FIXME|placeholder|none|unknown)[[:space:]]*$"; then
+      cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_PLACEHOLDER_CONTENT
+REASON: Section '$SECTION' contains placeholder text.
+  Writing 'TBD', 'N/A', 'TODO', etc. is not acceptable.
+FIX: Replace placeholder text with real observations and findings.
 EOF
       exit 1
     fi
   done
+
+  # Enforce minimum body length — a complete issue cannot be under 200 chars
+  BODY_LENGTH=$(echo "$ISSUE_BODY" | wc -c)
+  if [ "$BODY_LENGTH" -lt 200 ]; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_BODY_TOO_SHORT
+REASON: Issue body is only $BODY_LENGTH characters. A properly filled
+  template with 7 sections cannot be this short.
+  This indicates most sections are empty or placeholder.
+FIX: Fill all sections with real, substantive content.
+  Minimum expected: 200 characters. A good issue is 400+.
+EOF
+    exit 1
+  fi
 fi
 
 if echo "$INPUT" | grep -qE "gh issue list"; then
-  if ! echo "$INPUT" | grep -q "\-\-label safe"; then
+  if ! echo "$INPUT" | grep -F -q -- "--label safe"; then
     cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_LIST_MISSING_SAFE_FILTER
 REASON: Agents must only see issues labeled 'safe'. Listing without this filter exposes
@@ -204,10 +249,11 @@ EOF
 
 for pattern in "gh issue view" "gh issue edit" "gh issue comment" "gh issue close" "gh issue assign" "gh issue develop"; do
   if echo "$INPUT" | grep -qE "$pattern"; then
-    ISSUE_NUM=$(echo "$INPUT" | grep -oE 'gh issue [a-z]+ [0-9]+' | grep -oE '[0-9]+$')
+    ISSUE_NUM=$(echo "$INPUT" | grep -oE "gh issue [a-z]+ [0-9]+" | grep -oE "[0-9]+$")
     check_issue_safe "$ISSUE_NUM" "$pattern"
   fi
 done
+
 
 # --- Block gh pr create without required format ---
 if echo "$INPUT" | grep -qE "gh pr create"; then
@@ -230,7 +276,7 @@ EOF
   if ! echo "$INPUT" | grep -q "## Summary"; then
     cat >&2 <<EOF
 [HOOK:BLOCK] PR_MISSING_SUMMARY
-REASON: PR body must contain a ## Summary section with prose description.
+REASON: PR body must contain a ## Summary section with proper description.
   The check-acceptance-criteria CI job will fail without this.
 YOU_RAN: $(echo "$INPUT" | grep -oE "gh pr create[^\"']*")
 FIX: Add to your --body:
