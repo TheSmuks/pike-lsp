@@ -9,6 +9,7 @@ import {
     Connection,
     SemanticTokensBuilder,
     SemanticTokens,
+    SemanticTokensDelta,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
@@ -207,6 +208,35 @@ export function registerSemanticTokensHandler(
         } catch (err) {
             log.error(`Semantic tokens request failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return { data: [] };
+        }
+    });
+
+    /**
+     * Semantic Tokens - Delta request handler
+     *
+     * Handles incremental semantic token updates. Since we don't maintain token state
+     * for delta computation, we return all tokens as a delta edit that replaces
+     * everything from position 0. This triggers a full refresh on the client side.
+     */
+    connection.languages.semanticTokens.onDelta((params): SemanticTokensDelta => {
+        log.debug('Semantic tokens delta request', { uri: params.textDocument.uri });
+        try {
+            const uri = params.textDocument.uri;
+            const document = documents.get(uri);
+
+            if (!document) {
+                return { resultId: '0', edits: [] };
+            }
+
+            // Build full tokens and return as delta replacing all
+            const tokens = buildTokens(uri, document);
+            return {
+                resultId: '0',
+                edits: [{ start: 0, deleteCount: tokens.data.length, data: tokens.data }],
+            };
+        } catch (err) {
+            log.error('Semantic tokens delta request failed', { error: err instanceof Error ? err.message : String(err) });
+            return { resultId: '0', edits: [] };
         }
     });
 }
