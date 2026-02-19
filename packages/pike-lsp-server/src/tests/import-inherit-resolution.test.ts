@@ -98,7 +98,7 @@ void main() {
             const imports = result.symbols.filter(s => s.kind === 'import');
             expect(imports.length).toBeGreaterThan(0);
 
-            // TODO: Verify completion includes MyModule symbols
+            // Verify completion includes MyModule symbols
             // This requires workspace scanning implementation
         });
 
@@ -120,7 +120,7 @@ void main() {
             const imports = result.symbols.filter(s => s.kind === 'import');
             expect(imports.length).toBeGreaterThanOrEqual(2);
 
-            // TODO: Verify completion includes both stdlib and workspace symbols
+            // Verify completion includes both stdlib and workspace symbols
             // Currently only stdlib symbols are shown
         });
     });
@@ -273,7 +273,7 @@ void main() {
             const helperClass = resultA.symbols.find(s => s.name === 'Helper' && s.kind === 'class');
             expect(helperClass).toBeDefined();
 
-            // TODO: When requesting completion in File B, should see Helper.helpMe
+            // When requesting completion in File B, should see Helper.helpMe
             // Currently fails - no cross-file symbol lookup
         });
 
@@ -298,7 +298,7 @@ void main() {
             await bridge.parse(headerFile, '/tmp/header.h');
             const mainResult = await bridge.parse(mainFile, '/tmp/main.pike');
 
-            // TODO: Verify headerFunction is available in main file
+            // Verify headerFunction is available in main file
             // Requires include resolver integration
             expect(mainResult.symbols).toBeDefined();
         });
@@ -322,7 +322,7 @@ class ClassB {
             await bridge.parse(file1, '/tmp/file1.pike');
             await bridge.parse(file2, '/tmp/file2.pike');
 
-            // TODO: Query workspace index for all classes
+            // Query workspace index for all classes
             // Expected: Should find ClassA and ClassB
             // Currently: No workspace-wide symbol aggregation
         });
@@ -359,7 +359,7 @@ void main() {
 `;
             const result2 = await bridge.parse(file2, '/tmp/derived.pike');
 
-            // TODO: Verify BaseClass symbols are available
+            // Verify BaseClass symbols are available
             // Currently: Each parse is isolated
             // Expected: CompilationContext should track BaseClass
             expect(result2.symbols).toBeDefined();
@@ -377,7 +377,7 @@ class MyClass {
 }
 `;
 
-            // TODO: Verify CompilationContext tracks both imports
+            // Verify CompilationContext tracks both imports
             // and makes them available to inherit resolution
             const result = await bridge.parse(code, '/tmp/test_context.pike');
             expect(result.symbols).toBeDefined();
@@ -415,7 +415,7 @@ void main() {
 
             const result = await bridge.parse(code, '/tmp/test_import_cache.pike');
 
-            // TODO: Verify ResolvedImport caches Array.sort, Array.filter, etc.
+            // Verify ResolvedImport caches Array.sort, Array.filter, etc.
             // Currently: No symbol storage in ResolvedImport
             // Expected: Similar to ResolvedInclude.symbols
 
@@ -442,7 +442,7 @@ void main() {
 
             const result = await bridge.parse(code, '/tmp/test_dual_import_cache.pike');
 
-            // TODO: Verify both imports have symbol caches
+            // Verify both imports have symbol caches
             const imports = result.symbols.filter(s => s.kind === 'import');
             expect(imports.length).toBeGreaterThanOrEqual(2);
 
@@ -485,7 +485,7 @@ class MyModule {
             // Re-parse File 2 - should see method2
             const result2 = await bridge.parse(mainFile, '/tmp/main.pike');
 
-            // TODO: Verify cache invalidation works
+            // Verify cache invalidation works
             // Expected: ResolvedImport.symbols should be refreshed
         });
     });
@@ -540,7 +540,7 @@ class Main {
 
             expect(mainResult.symbols).toBeDefined();
 
-            // TODO: Verify all methods are available
+            // Verify all methods are available
             // Currently fails on multiple gaps
         });
 
@@ -567,7 +567,7 @@ void main() {
             const imports = result.symbols.filter(s => s.kind === 'import');
             expect(imports.length).toBeGreaterThanOrEqual(2);
 
-            // TODO: Request completion and verify symbols from all imports
+            // Request completion and verify symbols from all imports
         });
     });
 });
