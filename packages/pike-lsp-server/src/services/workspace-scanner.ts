@@ -8,6 +8,7 @@
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import type { PikeSettings } from '../core/types.js';
+import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 
 /**
@@ -21,7 +22,7 @@ export interface WorkspaceFileInfo {
     /** Last modified time */
     lastModified: number;
     /** Cached symbols (lazy-loaded) */
-    symbols?: any[] | undefined;
+    symbols?: IntrospectedSymbol[] | undefined;
     /** Cached symbol positions */
     symbolPositions?: Map<string, Array<{ line: number; character: number }>> | undefined;
 }
@@ -220,7 +221,7 @@ export class WorkspaceScanner {
     /**
      * Update cached data for a file.
      */
-    updateFileData(uri: string, data: { symbols?: any[]; symbolPositions?: Map<string, Array<{ line: number; character: number }>> }): void {
+    updateFileData(uri: string, data: { symbols?: IntrospectedSymbol[]; symbolPositions?: Map<string, Array<{ line: number; character: number }>> }): void {
         const file = this.files.get(uri);
         if (file) {
             if (data.symbols) {
@@ -255,7 +256,7 @@ export class WorkspaceScanner {
         for (const [uri, file] of this.files) {
             // If we have cached symbols, check those first
             if (file.symbols) {
-                const hasSymbol = file.symbols.some((s: any) => s.name === symbolName);
+                const hasSymbol = file.symbols.some((s: IntrospectedSymbol) => s.name === symbolName);
                 if (hasSymbol) {
                     matchingFiles.push(uri);
                 }

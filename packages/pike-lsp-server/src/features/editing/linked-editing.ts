@@ -8,6 +8,7 @@ import type {
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 export function registerLinkedEditingHandler(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     connection: any,
     services: Services,
     documents: TextDocuments<TextDocument>

@@ -383,7 +383,7 @@ export class BridgeManager {
     /**
      * Register event handler on the underlying bridge.
      */
-    on(event: string, handler: (...args: any[]) => void): void {
+    on(event: string, handler: (...args: unknown[]) => void): void {
         this.bridge?.on(event, handler);
     }
 

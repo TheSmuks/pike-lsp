@@ -2,6 +2,8 @@
  * RXML feature types
  */
 
+import type { Range } from 'vscode-languageserver/node.js';
+
 /**
  * RXML tag type - simple tags don't have closing tags, container tags do
  */
@@ -63,6 +65,6 @@ export interface RXMLTagCatalogEntry {
 export interface RXMLDiagnostic {
     severity: 'error' | 'warning' | 'info';
     message: string;
-    range: any; // Uses LSP Range type (Range from vscode-languageserver)
+    range: Range;
     code?: string;
 }
