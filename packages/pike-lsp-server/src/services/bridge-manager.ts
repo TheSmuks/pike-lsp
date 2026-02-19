@@ -218,7 +218,7 @@ export class BridgeManager {
      * @returns Analyze response with result/failures structure and performance timing.
      */
     async analyze(code: string, include: AnalysisOperation[], filename?: string, documentVersion?: number): Promise<AnalyzeResponse> {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: analyze() called before bridge was initialized. Ensure onInitialize has completed before calling analyze.');
 
         // LOG-14-01: Track analyze call entry with full parameters
         const startTime = performance.now();
@@ -265,7 +265,7 @@ export class BridgeManager {
      * Parse Pike source code and extract symbols.
      */
     async parse(code: string, filename: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.parse(code, filename);
     }
 
@@ -273,7 +273,7 @@ export class BridgeManager {
      * Find all identifier occurrences using Pike tokenization.
      */
     async findOccurrences(text: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.findOccurrences(text);
     }
 
@@ -287,7 +287,7 @@ export class BridgeManager {
         character?: number,
         filename?: string
     ) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.findRenamePositions(code, symbolName, line, character, filename);
     }
 
@@ -295,7 +295,7 @@ export class BridgeManager {
      * Prepare rename - get symbol range at position.
      */
     async prepareRename(code: string, line: number, character: number, filename?: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.prepareRename(code, line, character, filename);
     }
 
@@ -315,7 +315,7 @@ export class BridgeManager {
         documentUri?: string,
         documentVersion?: number
     ) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.getCompletionContext(code, line, character, documentUri, documentVersion);
     }
 
@@ -323,7 +323,7 @@ export class BridgeManager {
      * Resolve a module path to a file location.
      */
     async resolveModule(modulePath: string, fromFile: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.resolveModule(modulePath, fromFile);
     }
 
@@ -339,7 +339,7 @@ export class BridgeManager {
      * Analyze uninitialized variable usage.
      */
     async analyzeUninitialized(text: string, filename: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.analyzeUninitialized(text, filename);
     }
 
@@ -354,7 +354,7 @@ export class BridgeManager {
      * @returns Roxen module information
      */
     async roxenDetect(code: string, filename?: string): Promise<import('../features/roxen/types.js').RoxenModuleInfo> {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
 
         // Call the roxen_detect RPC handler
         return this.bridge.roxenDetect(code, filename);
@@ -375,7 +375,7 @@ export class BridgeManager {
      * @returns Validation diagnostics
      */
     async roxenValidate(code: string, filename: string, moduleInfo?: Record<string, unknown>) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
 
         return this.bridge.roxenValidate(code, filename, moduleInfo);
     }
@@ -391,7 +391,7 @@ export class BridgeManager {
      * Evaluate a constant Pike expression.
      */
     async evaluateConstant(expression: string, filename?: string) {
-        if (!this.bridge) throw new Error('Bridge not available');
+        if (!this.bridge) throw new Error('Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.');
         return this.bridge.evaluateConstant(expression, filename);
     }
 }

@@ -114,7 +114,7 @@ export function detectModule(moduleName: string): boolean {
  * ```
  */
 export function handleMissingModule(moduleName: string): never {
-    throw new Error(`Module ${moduleName} not available`);
+    throw new Error(`Module '${moduleName}' is not available in this Pike version. This feature requires Pike 8.0 or higher. Check that your Pike installation includes this module and that PIKE_PATH is correctly configured.`);
 }
 
 /**
@@ -133,7 +133,7 @@ export function checkModuleAvailability(moduleName: string): {
 
     return {
         available: false,
-        error: `Module ${moduleName} not available`,
+        error: `Module '${moduleName}' is not available. This feature requires Pike 8.0 or higher. Verify that PIKE_PATH is set correctly and your Pike installation includes this module.`,
     };
 }
 
