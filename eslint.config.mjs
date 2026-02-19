@@ -61,6 +61,10 @@ export default [
             'no-console': 'off',
             'no-unused-labels': 'off',
             'no-useless-escape': 'off',
+            // ESLint 10 new rules - disable errors
+            'no-useless-assignment': 'off',
+            'preserve-caught-error': 'off',
+            'no-unassigned-vars': 'off',
         },
     },
 ];
