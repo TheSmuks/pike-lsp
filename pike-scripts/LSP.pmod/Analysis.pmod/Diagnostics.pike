@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Diagnostics.pike - Uninitialized variable analysis
 //!
 //! This file provides diagnostic analysis for Pike code, specifically

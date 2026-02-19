@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Parser.pike - Stateless parser class for Pike LSP
 //!
 //! Design per CONTEXT.md:

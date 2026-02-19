@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Introspection.pike - Symbol extraction and introspection handlers
 //!
 //! This file provides handlers for introspecting Pike code to extract

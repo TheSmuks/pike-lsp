@@ -1,4 +1,5 @@
 #!pike __REAL_VERSION__
+#pragma strict_types
 //! Test error recovery in Pike parser
 //!
 //! Tests that the parser can:

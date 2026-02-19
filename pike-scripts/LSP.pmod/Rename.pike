@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Rename.pike - Smart rename handler for Pike LSP
 //!
 //! Issue #194: Smart rename that handles Pike module structure.
