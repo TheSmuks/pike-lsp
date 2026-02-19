@@ -51,7 +51,19 @@ Never re-spawn workers from previous cycles who may still be running.
 When a cycle completes and all PRs are merged, recalculate before starting again.
 
 ### Step 2: Discover safe work
-Run: `gh issue list --label safe --state open --json number,title,assignees`
+Run: `gh issue list --label safe --state open --json number,title,assignees,labels`
+Filter out issues with needs-template label:
+```bash
+gh issue list \
+  --label safe \
+  --state open \
+  --json number,title,assignees,labels \
+  --repo TheSmuks/pike-lsp \
+  | jq '[.[] | select(
+      (.assignees | length == 0) and
+      ([.labels[].name] | contains(["needs-template"]) | not)
+    )]'
+```
 Count unassigned issues as U.
 If U >= N → Go to Step 3 (enough work exists)
 If U < N → Go to Step 2a (create N - U new issues)
@@ -61,10 +73,11 @@ If U < N → Go to Step 2a (create N - U new issues)
 Analyze the codebase thoroughly before creating issues. Each issue must have
 enough context for a worker to implement correctly without asking questions.
 
-Create each issue with this exact format — fill every section:
+Create each issue, then WAIT before doing anything else:
 
 ```bash
-gh issue create \
+# Create the issue
+ISSUE_NUM=$(gh issue create \
   --label safe \
   --title "<specific, actionable title — not 'fix bug'>" \
   --body "## Description
@@ -90,10 +103,28 @@ gh issue create \
 - Pike binary: $(pike --version 2>&1 | head -1)
 - Bun version: $(bun --version)
 - \$PIKE_SRC set: YES
-- \$ROXEN_SRC set: YES"
+- \$ROXEN_SRC set: YES" \
+  | grep -oE '[0-9]+')
+
+echo "Created issue #$ISSUE_NUM — waiting 60 seconds for validation workflow..."
+sleep 60
+
+# Verify it was not flagged as needs-template
+LABELS=$(gh issue view $ISSUE_NUM \
+  --repo TheSmuks/pike-lsp \
+  --json labels --jq '.labels[].name')
+
+if echo "$LABELS" | grep -q "needs-template"; then
+  echo "ERROR: Issue #$ISSUE_NUM was flagged as needs-template."
+  echo "Fix the issue body before proceeding:"
+  gh issue view $ISSUE_NUM --repo TheSmuks/pike-lsp
+  exit 1
+fi
+
+echo "Issue #$ISSUE_NUM validated successfully."
 ```
 
-After creating, immediately add one type label:
+After validation passes, add the type label:
 ```bash
 gh issue edit <number> --add-label "type:bug"
 ```
@@ -141,6 +172,30 @@ echo "PIKE_SRC: $PIKE_SRC"
 echo "ROXEN_SRC: $ROXEN_SRC"
 ```
 If exit code is 1 → report to lead: "Cannot proceed: $PIKE_SRC or ROXEN_SRC not set"
+
+### Step 1b: Verify issue is valid before starting
+```bash
+# Confirm the issue has safe label and NOT needs-template
+LABELS=$(gh issue view <number> \
+  --repo TheSmuks/pike-lsp \
+  --json labels --jq '.labels[].name')
+
+if ! echo "$LABELS" | grep -q "^safe$"; then
+  echo "ERROR: Issue #<number> does not have safe label. Aborting."
+  exit 1
+fi
+
+if echo "$LABELS" | grep -q "^needs-template$"; then
+  echo "ERROR: Issue #<number> has needs-template label."
+  echo "The issue body is incomplete. Do not work on it."
+  echo "Report to lead: Issue #<number> flagged needs-template, cannot proceed."
+  exit 1
+fi
+
+echo "Issue #<number> validated — safe to proceed."
+```
+If either check fails → report to lead and await reassignment.
+Do NOT proceed with a needs-template issue under any circumstances.
 
 ### Step 2: Create Worktree (from main repo directory)
 ```bash
