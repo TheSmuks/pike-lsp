@@ -423,30 +423,4 @@ describe('Navigation Edge Cases', { timeout: 30000 }, () => {
             }
         });
     });
-
-    describe('Test Summary', () => {
-        it('documents navigation edge case test coverage', () => {
-            console.log('\n═══════════════════════════════════════════════════');
-            console.log('       ISSUE #440: NAVIGATION EDGE CASES SUMMARY');
-            console.log('═══════════════════════════════════════════════════');
-
-            console.log('\n  Test Categories:');
-            console.log('    • Word Boundary Detection (4 tests)');
-            console.log('    • Document Highlight Logic (2 tests)');
-            console.log('    • Position Offset Conversion (3 tests)');
-            console.log('    • Include Declaration Filtering (3 tests)');
-            console.log('    • Symbol Position Matching (3 tests)');
-            console.log('    • Multi-Document Search (1 test)');
-            console.log('    • Text Processing Edge Cases (5 tests)');
-            console.log('    • Error Handling (3 tests)');
-
-            console.log('\n  Total: 24 additional edge case tests');
-
-            console.log('\n═══════════════════════════════════════════════════\n');
-
-            // Verify test count
-            const testCount = 24 + 1; // 24 edge case tests + 1 summary test
-            assert.ok(testCount >= 24, 'Should have sufficient test coverage');
-        });
-    });
 });
