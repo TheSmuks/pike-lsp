@@ -181,8 +181,12 @@ export class WorkspaceScanner {
                                 path: uri,
                                 lastModified: stat.mtimeMs,
                             });
-                        } catch {
-                            // File might have been deleted, skip
+                        } catch (err) {
+                            // File might have been deleted, skip - log at debug level
+                            this.logger.debug('WorkspaceScanner: failed to stat file', {
+                                path: fullPath,
+                                error: err instanceof Error ? err.message : String(err),
+                            });
                         }
                     }
                 }

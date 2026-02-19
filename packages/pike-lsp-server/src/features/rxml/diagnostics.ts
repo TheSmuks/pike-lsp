@@ -119,7 +119,7 @@ export async function validateRXMLDocument(
                 resolve(diagnostics);
             } catch (error) {
                 // Log error and resolve with empty diagnostics to prevent Promise hang
-                console.error('[RXML Validation] Error during validation:', error);
+                console.warn(`[RXML Validation] Warning during validation for ${uri}:`, error);
                 resolve([]);
             }
         }, debounceMs);

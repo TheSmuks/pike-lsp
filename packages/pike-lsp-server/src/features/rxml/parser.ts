@@ -113,7 +113,7 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
         return walkDOM(document.children, contentToParse);
     } catch (error) {
         // Log parsing errors but don't fail - return empty array
-        console.error(`Failed to parse RXML template in ${uri}:`, error);
+        console.warn(`[RXML Parser] Warning: failed to parse template in ${uri}:`, error);
         return [];
     }
 }
