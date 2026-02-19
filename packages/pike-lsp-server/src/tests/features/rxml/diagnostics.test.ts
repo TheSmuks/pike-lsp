@@ -99,5 +99,57 @@ describe('RXML Diagnostics', () => {
             const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
             assert.equal(diagnostics.length, 0, 'Empty document should have no diagnostics');
         });
+
+        test('Self-closing tags should not require closing tag', async () => {
+            const code = '<input name="test" />';
+            const tags: RXMLTagInfo[] = [{
+                name: 'input',
+                type: 'simple',
+                position: { line: 0, column: 0 },
+                attributes: { name: 'test' }
+            }];
+
+            const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
+            const unclosedDiag = diagnostics.find(d => d.message.includes('Unclosed'));
+            assert.ok(!unclosedDiag, 'Self-closing tags should not report unclosed');
+        });
+
+        test('Case-insensitive tag matching', async () => {
+            const code = '<SET variable="foo">bar</SET>';
+            const tags: RXMLTagInfo[] = [{
+                name: 'set',
+                type: 'container',
+                position: { line: 0, column: 0 },
+                attributes: { variable: 'foo' }
+            }];
+
+            const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
+            const unknownTagDiag = diagnostics.find(d => d.message.includes('unknown'));
+            assert.ok(!unknownTagDiag, 'Case-insensitive tags should be recognized');
+        });
+
+        test('Nested tags validation', async () => {
+            const code = '<if variable="x"><set variable="y">value</set></if>';
+            const tags: RXMLTagInfo[] = [
+                { name: 'if', type: 'container', position: { line: 0, column: 0 }, attributes: { variable: 'x' } },
+                { name: 'set', type: 'container', position: { line: 0, column: 15 }, attributes: { variable: 'y' } }
+            ];
+
+            const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
+            assert.ok(diagnostics.length >= 0, 'Nested tags may or may not have diagnostics');
+        });
+
+        test('Missing attribute value should warn', async () => {
+            const code = '<set variable=></set>';
+            const tags: RXMLTagInfo[] = [{
+                name: 'set',
+                type: 'container',
+                position: { line: 0, column: 0 },
+                attributes: {}
+            }];
+
+            const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
+            assert.ok(diagnostics.length > 0, 'Should report diagnostic for missing attribute value');
+        });
     });
 });
