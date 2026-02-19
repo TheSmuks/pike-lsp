@@ -166,73 +166,88 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
     });
     context.subscriptions.push(detectPikeDisposable);
 
-    // Auto-detect Pike on first activation if not configured
-    await autoDetectPikeConfigurationIfNeeded();
+    // Defer LSP startup until first Pike file is opened
+    // This improves extension activation time significantly
+    let lspStarted = false;
 
-    // Try multiple possible server locations
-    const possiblePaths = [
-        // Production: bundled server (check first for installed extensions)
-        context.asAbsolutePath(path.join('server', 'server.js')),
-        // Development: sibling package (monorepo structure)
-        context.asAbsolutePath(path.join('..', 'pike-lsp-server', 'dist', 'server.js')),
-        // Development: alternative path
-        path.join(context.extensionPath, '..', 'pike-lsp-server', 'dist', 'server.js'),
-    ];
+    async function ensureLspStarted(): Promise<void> {
+        if (lspStarted) return;
+        lspStarted = true;
 
-    let serverModule: string | null = null;
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-            serverModule = p;
-            serverModulePath = p;
-            break;
+        // Auto-detect Pike on first activation if not configured
+        await autoDetectPikeConfigurationIfNeeded();
+
+        // Try multiple possible server locations
+        const possiblePaths = [
+            // Production: bundled server (check first for installed extensions)
+            context.asAbsolutePath(path.join('server', 'server.js')),
+            // Development: sibling package (monorepo structure)
+            context.asAbsolutePath(path.join('..', 'pike-lsp-server', 'dist', 'server.js')),
+            // Development: alternative path
+            path.join(context.extensionPath, '..', 'pike-lsp-server', 'dist', 'server.js'),
+        ];
+
+        let serverModule: string | null = null;
+        for (const p of possiblePaths) {
+            if (fs.existsSync(p)) {
+                serverModule = p;
+                serverModulePath = p;
+                break;
+            }
         }
-    }
 
-    if (!serverModule) {
-        const msg = `Pike LSP server not found. Tried:\n${possiblePaths.join('\n')}`;
-        console.error(msg);
-        outputChannel.appendLine(msg);
-        window.showWarningMessage(
-            'Pike LSP server not found. Syntax highlighting will work but no IntelliSense.'
-        );
-        return {
-            getClient: () => undefined,
-            getOutputChannel: () => outputChannel,
-            getLogs: () => [],
+        if (!serverModule) {
+            const msg = `Pike LSP server not found. Tried:\n${possiblePaths.join('\n')}`;
+            console.error(msg);
+            outputChannel.appendLine(msg);
+            window.showWarningMessage(
+                'Pike LSP server not found. Syntax highlighting will work but no IntelliSense.'
+            );
+            return;
+        }
+
+        // Determine the server package root directory for proper module resolution
+        const serverDir = path.dirname(path.dirname(serverModule));
+
+        // Server options - run the server as a Node.js module
+        serverOptions = {
+            run: {
+                module: serverModule,
+                transport: TransportKind.ipc,
+                options: {
+                    cwd: serverDir,
+                },
+            },
+            debug: {
+                module: serverModule,
+                transport: TransportKind.ipc,
+                options: {
+                    execArgv: ['--nolazy', '--inspect=6009'],
+                    cwd: serverDir,
+                },
+            },
         };
+
+        await restartClient(true);
     }
 
-    // Determine the server package root directory for proper module resolution
-    // The server.js file is in dist/, but relative imports need the package root as cwd
-    const serverDir = path.dirname(path.dirname(serverModule));
+    // Register deferred activation on first Pike file open
+    const fileOpenDisposable = workspace.onDidOpenTextDocument(async (doc) => {
+        if (doc.languageId === 'pike' || doc.languageId === 'rxml' || doc.languageId === 'rjs') {
+            fileOpenDisposable.dispose();
+            await ensureLspStarted();
+        }
+    });
+    context.subscriptions.push(fileOpenDisposable);
 
-    // Server options - run the server as a Node.js module
-    serverOptions = {
-        run: {
-            module: serverModule,
-            transport: TransportKind.ipc,
-            options: {
-                cwd: serverDir,
-            },
-        },
-        debug: {
-            module: serverModule,
-            transport: TransportKind.ipc,
-            options: {
-                execArgv: ['--nolazy', '--inspect=6009'],
-                cwd: serverDir,
-            },
-        },
-    };
-
-    await restartClient(true);
-
+    // Also start LSP when configuration changes (if already opened a Pike file)
     context.subscriptions.push(
         workspace.onDidChangeConfiguration(async (event) => {
             if (
-                event.affectsConfiguration('pike.pikeModulePath') ||
+                lspStarted &&
+                (event.affectsConfiguration('pike.pikeModulePath') ||
                 event.affectsConfiguration('pike.pikeIncludePath') ||
-                event.affectsConfiguration('pike.pikePath')
+                event.affectsConfiguration('pike.pikePath'))
             ) {
                 await restartClient(false);
             }
