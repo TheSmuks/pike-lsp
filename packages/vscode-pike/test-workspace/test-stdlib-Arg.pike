@@ -1,3 +1,4 @@
+#pragma strict_types
 // Argument parser
 // By Martin Nilsson
 //

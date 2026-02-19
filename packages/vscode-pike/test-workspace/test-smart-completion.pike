@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Test fixture for Smart IntelliSense E2E tests
 //!
 //! This file exercises context-aware completion scenarios:

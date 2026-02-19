@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Test fixture for import/inherit resolution
 //! This module will be imported via import statement
 

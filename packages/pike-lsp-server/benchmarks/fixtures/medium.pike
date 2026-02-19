@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Medium fixture for benchmarking (~100 lines)
 import Stdio;
 

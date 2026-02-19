@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Test Roxen module detection
 //! TDD: These tests must fail before implementation
 

@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Simple test class for parser testing
 class TestClass {
     //! A test method that does nothing

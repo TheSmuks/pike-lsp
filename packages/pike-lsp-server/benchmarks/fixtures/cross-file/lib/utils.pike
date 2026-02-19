@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Utility base class for cross-file caching tests
 class Utils {
     string get_greeting() {

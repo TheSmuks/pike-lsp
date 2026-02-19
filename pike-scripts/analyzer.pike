@@ -1,4 +1,5 @@
 #!/usr/bin/env pike
+#pragma strict_types
 #pike __REAL_VERSION__
 
 //! Pike LSP Analyzer Script

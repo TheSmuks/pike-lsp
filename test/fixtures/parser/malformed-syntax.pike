@@ -1,3 +1,4 @@
+#pragma strict_types
 //! File with syntax errors for error recovery testing
 class BrokenClass {
     void missing_semicolon() {

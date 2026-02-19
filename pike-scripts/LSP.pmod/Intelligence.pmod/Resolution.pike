@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Resolution.pike - Module name resolution and stdlib introspection handlers
 //!
 //! This file provides handlers for resolving module paths to file locations,

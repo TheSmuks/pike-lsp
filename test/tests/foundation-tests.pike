@@ -1,4 +1,5 @@
 #!/usr/bin/env pike
+#pragma strict_types
 //! LSP Foundation Tests
 //!
 //! Unit tests for LSP.pmod foundation modules:

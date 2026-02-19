@@ -1,4 +1,5 @@
 #!/usr/bin/env pike
+#pragma strict_types
 //! E2E Foundation Tests for LSP.pmod
 //!
 //! End-to-end tests verifying foundation components work with real data:

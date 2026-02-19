@@ -1,4 +1,5 @@
 #!/usr/bin/env pike
+#pragma strict_types
 //! LSP Analysis Tests
 //!
 //! Integration tests for LSP.Analysis class:

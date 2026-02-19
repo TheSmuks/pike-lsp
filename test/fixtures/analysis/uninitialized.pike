@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Test fixture for uninitialized variable analysis
 
 // This should warn: s used before initialization

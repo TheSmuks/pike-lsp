@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Sample from Pike stdlib for integration testing
 //! This mimics common patterns found in Pike's standard library
 

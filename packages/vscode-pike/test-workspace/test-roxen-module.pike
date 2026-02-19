@@ -1,3 +1,4 @@
+#pragma strict_types
 // Test file for Roxen module detection and features
 // This file tests Roxen module patterns
 

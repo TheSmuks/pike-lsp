@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Intelligence.pike - Backward-compatible delegating class
 //!
 //! This class forwards all handler calls to the appropriate specialized class

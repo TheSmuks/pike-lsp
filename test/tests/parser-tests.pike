@@ -1,4 +1,5 @@
 #!/usr/bin/env pike
+#pragma strict_types
 //! LSP Parser Tests
 //!
 //! Unit and integration tests for LSP.Parser class:

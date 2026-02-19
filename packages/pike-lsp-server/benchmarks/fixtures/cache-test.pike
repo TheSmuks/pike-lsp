@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Cache test fixture - moderate complexity to show compilation benefit
 //!
 //! This file has enough complexity to make compilation measurable

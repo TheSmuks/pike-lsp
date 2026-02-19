@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Function with local variables for parser testing
 //!
 //! This function demonstrates local variable declarations

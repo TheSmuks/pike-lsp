@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Inheritance fixture for intelligence tests
 //! Tests inheritance traversal and get_inherited handler
 
