@@ -1,0 +1,88 @@
+name: Enforce Issue Template
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  check-issue-format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enforce issue template
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const body = issue.body || '';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Only enforce on safe issues
+            const labels = issue.labels.map(l => l.name);
+            if (!labels.includes('safe')) {
+              console.log(`Issue #${issue.number} not labeled safe, skipping`);
+              return;
+            }
+
+            const required = [
+              '## Description',
+              '## Problem',
+              '## Expected Behavior',
+              '## Suggested Approach',
+              '## Affected Files',
+              '## Acceptance'
+            ];
+
+            const missing = required.filter(section => {
+              const idx = body.indexOf(section);
+              if (idx === -1) return true;
+              const after = body.slice(idx + section.length).trim();
+              const nextSection = after.search(/^##\s/m);
+              const content = nextSection === -1
+                ? after
+                : after.slice(0, nextSection);
+              return !content.replace(/<!--[\s\S]*?-->/g, '').trim();
+            });
+
+            if (missing.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner, repo,
+                  issue_number: issue.number,
+                  labels: ['needs-template']
+                });
+              } catch (e) {}
+
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: issue.number,
+                body:
+                  `⚠️ This issue is missing required sections or has empty content:\n\n` +
+                  missing.map(s => `- \`${s}\``).join('\n') +
+                  `\n\nAll sections must have substantive content — not placeholders ` +
+                  `or HTML comments.\n\n` +
+                  `Agents will not pick up issues labeled \`needs-template\`. ` +
+                  `Update the issue body to remove this label.`
+              });
+
+              core.setFailed(
+                `Issue #${issue.number} missing sections: ${missing.join(', ')}`
+              );
+              return;
+            }
+
+            // All sections present — remove needs-template if exists
+            try {
+              await github.rest.issues.removeLabel({
+                owner, repo,
+                issue_number: issue.number,
+                name: 'needs-template'
+              });
+              console.log(`Issue #${issue.number}: template OK, removed needs-template`);
+            } catch (e) {}
+
+            console.log(`Issue #${issue.number}: template format OK`);
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

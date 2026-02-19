@@ -56,6 +56,88 @@ FIX: Add --label safe to your create command.
 EOF
     exit 1
   fi
+
+  # Block npm references in issue title
+  if echo "$INPUT" | grep -qiE "\-\-title.*\bnpm\b|\-\-title.*node_modules"; then
+    cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_REFERENCES_NPM
+REASON: This project uses bun exclusively. Issues referencing npm suggest
+  a toolchain misunderstanding. Do not create npm-related issues.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+FIX: Use bun terminology:
+  'update npm packages' → 'update bun dependencies'
+  npm install → bun install
+  npx → bunx
+EOF
+    exit 1
+  fi
+
+  # Enforce all required sections with content
+  for section in \
+    "## Description" \
+    "## Problem" \
+    "## Expected Behavior" \
+    "## Suggested Approach" \
+    "## Affected Files" \
+    "## Acceptance"; do
+
+    if ! echo "$INPUT" | grep -q "$section"; then
+      cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_MISSING_SECTION
+REASON: Issue body is missing required section: $section
+  Every section must exist with real content.
+  Vague issues produce vague fixes and waste worker cycles.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+FIX: Your --body must contain ALL of these sections with real content:
+
+  ## Description
+  <specific description of what needs doing>
+
+  ## Problem
+  <what is wrong now — include file paths, error messages>
+
+  ## Expected Behavior
+  <what should happen after the fix>
+
+  ## Suggested Approach
+  <which files, functions, patterns to use>
+
+  ## Affected Files
+  - <package/path/file>: <why relevant>
+
+  ## Acceptance
+  <how to verify the fix worked>
+
+  ## Environment
+  - Pike binary: <pike --version output>
+  - Bun version: <bun --version output>
+  - \$PIKE_SRC set: YES
+  - \$ROXEN_SRC set: YES
+EOF
+      exit 1
+    fi
+
+    # Verify section has non-empty content
+    SECTION_CONTENT=$(echo "$INPUT" | \
+      grep -A 3 "$section" | \
+      grep -v "^$section" | \
+      grep -v "^##" | \
+      grep -v "^[[:space:]]*$" | \
+      head -1)
+
+    if [ -z "$SECTION_CONTENT" ]; then
+      cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_EMPTY_SECTION
+REASON: Section '$section' exists but has no content.
+  Writing the heading without content is not acceptable.
+YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
+FIX: Add substantive text under '$section'.
+  Not placeholder text. Not HTML comments. Not 'TBD'.
+  Write what you actually know about this issue.
+EOF
+      exit 1
+    fi
+  done
 fi
 
 if echo "$INPUT" | grep -qE "gh issue list"; then
@@ -89,14 +171,31 @@ check_issue_safe() {
   local matched_command=$2
   local LABELS
   if [ -n "$issue_num" ]; then
-    LABELS=$(gh issue view "$issue_num" --json labels --jq '.labels[].name' 2>/dev/null)
-    if ! echo "$LABELS" | grep -q "safe"; then
+    LABELS=$(gh issue view "$issue_num" --repo TheSmuks/pike-lsp --json labels --jq '.labels[].name' 2>/dev/null)
+
+    if ! echo "$LABELS" | grep -q "^safe$"; then
       CURRENT_LABELS=$(echo "$LABELS" | tr '\n' ',' | sed 's/,$//')
       cat >&2 <<EOF
 [HOOK:BLOCK] ISSUE_NOT_SAFE
-REASON: Agents may only interact with issues labeled 'safe'. This issue has label(s): [${CURRENT_LABELS:-none}].
+REASON: Issue #$issue_num does not have the 'safe' label.
+  Current labels: [${CURRENT_LABELS:-none}]
 YOU_RAN: $matched_command #$issue_num
-FIX: Do not interact with this issue. Use: gh issue list --label safe --state open
+FIX: Only interact with issues labeled 'safe':
+  gh issue list --label safe --state open --json number,title,assignees
+EOF
+      exit 1
+    fi
+
+    if echo "$LABELS" | grep -q "^needs-template$"; then
+      cat >&2 <<EOF
+[HOOK:BLOCK] ISSUE_NEEDS_TEMPLATE
+REASON: Issue #$issue_num has the 'needs-template' label — its body
+  is incomplete or missing required sections. Working on it wastes
+  your cycle and produces a poor fix.
+YOU_RAN: $matched_command #$issue_num
+FIX: Do not work on this issue. Find a properly formatted one:
+  gh issue list --label safe --state open --json number,title,assignees
+  If all safe issues need-template, report to TheSmuks before proceeding.
 EOF
       exit 1
     fi
@@ -182,31 +281,6 @@ EOF
     exit 1
   fi
 
-fi
-
-# --- Block gh issue create without required sections ---
-if echo "$INPUT" | grep -qE "gh issue create"; then
-  for section in "## Description" "## Problem" "## Expected Behavior" \
-                 "## Suggested Approach" "## Affected Files" "## Acceptance"; do
-    if ! echo "$INPUT" | grep -q "$section"; then
-      cat >&2 <<EOF
-[HOOK:BLOCK] ISSUE_MISSING_REQUIRED_SECTION
-REASON: Issue body is missing required section: $section
-  Lazy issue descriptions produce lazy fixes. All sections are required
-  so that workers have enough context to implement correctly.
-YOU_RAN: $(echo "$INPUT" | grep -oE "gh issue create[^\"']*")
-FIX: Your --body must contain ALL of these sections with real content:
-  ## Description
-  ## Problem
-  ## Expected Behavior
-  ## Suggested Approach
-  ## Affected Files
-  ## Acceptance
-  ## Environment
-EOF
-      exit 1
-    fi
-  done
 fi
 
 exit 0

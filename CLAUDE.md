@@ -4,11 +4,51 @@ You are operating in an autonomous forever loop. Follow the protocol below based
 
 ---
 
+## ⚠️ TOOLCHAIN — READ BEFORE ANYTHING ELSE
+
+This project uses **bun** exclusively. This is non-negotiable.
+
+| WRONG | RIGHT |
+|---|---|
+| npm install | bun install |
+| npm run x | bun run x |
+| npx tool | bunx tool |
+| yarn | bun |
+| pnpm | bun |
+
+The hook blocks any npm/npx/yarn/pnpm command immediately.
+Do NOT create issues referencing npm — use bun terminology.
+Do NOT create issues titled 'update npm packages' — say 'update bun dependencies'.
+
+---
+
 ## IF YOU ARE THE LEAD AGENT → READ THIS SECTION
 
-### Step 1: Determine worker count
+### Step 1: Determine available workers
 N is provided in your launch instructions (e.g., "You are the LEAD of a team of 3 workers - N=3")
-If N == 0 → Skip to Step 4 (monitoring)
+N is the MAXIMUM number of workers — not how many to spawn each cycle.
+
+Calculate actually available workers before every cycle:
+
+```bash
+# Count workers currently assigned to open issues
+BUSY=$(gh issue list \
+  --label safe \
+  --state open \
+  --json number,assignees \
+  --repo TheSmuks/pike-lsp \
+  | jq '[.[] | select(.assignees | length > 0)] | length')
+
+AVAILABLE=$((N - BUSY))
+echo "N=$N BUSY=$BUSY AVAILABLE=$AVAILABLE"
+```
+
+If AVAILABLE == 0 → Skip to Step 4 (monitor only, do not spawn anything)
+If AVAILABLE > 0 → Proceed using AVAILABLE, not N
+
+Never spawn workers beyond AVAILABLE.
+Never re-spawn workers from previous cycles who may still be running.
+When a cycle completes and all PRs are merged, recalculate before starting again.
 
 ### Step 2: Discover safe work
 Run: `gh issue list --label safe --state open --json number,title,assignees`
@@ -79,6 +119,11 @@ When in doubt → type:tech-debt
 - ❌ Do NOT interact with issues labeled "pending-review"
 - ❌ Do NOT interact with unlabeled issues
 - ❌ Do NOT merge PRs yourself
+- ❌ Do NOT spawn workers without calculating AVAILABLE = N - BUSY first
+- ❌ Do NOT use N as the spawn count — it is a maximum cap
+- ❌ Do NOT spawn new workers if previous cycle workers are still assigned
+- ❌ Do NOT reference npm, npx, yarn, or pnpm in issue titles or bodies
+- ❌ Do NOT create issues with empty section content
 - ✅ ONLY pick issues with "safe" label
 
 ---
