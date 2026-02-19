@@ -125,7 +125,7 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
  * @param sourceCode - Original source code for position calculations
  * @returns Array of RXML tags found (with nested children)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function walkDOM(nodes: any[], sourceCode: string): RXMLTag[] {
     const tags: RXMLTag[] = [];
 
@@ -167,7 +167,7 @@ function walkDOM(nodes: any[], sourceCode: string): RXMLTag[] {
  * @param sourceCode - Original source code
  * @returns RXML tag info or null if extraction fails
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function extractTagInfo(node: any, sourceCode: string): RXMLTag | null {
     const tagName = node.name;
 
@@ -198,7 +198,7 @@ function extractTagInfo(node: any, sourceCode: string): RXMLTag | null {
  * @param sourceCode - Original source code
  * @returns Range covering the entire tag (open to close, or just open if self-closing)
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function calculateTagRange(node: any, sourceCode: string): Range {
     // htmlparser2 provides startIndex and endIndex for nodes
     // We need to convert these to line/column positions
@@ -241,7 +241,7 @@ function positionAt(offset: number, sourceCode: string): { line: number; charact
  * @param tagElement - DOM element node
  * @returns Array of attributes with ranges
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function getTagAttributes(tagElement: any): RXMLAttribute[] {
     const attributes: RXMLAttribute[] = [];
 

@@ -148,7 +148,7 @@ export function mergeTags(
     // Convert map back to array
     const result: RXMLTagCatalogEntry[] = [];
     for (const tag of tagMap.values()) {
-        const { source, ...entry } = tag;
+        const { source: _source, ...entry } = tag;
         result.push(entry);
     }
 

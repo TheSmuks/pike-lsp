@@ -438,14 +438,14 @@ export class PikeBridge extends EventEmitter {
      * Build the result object from a Pike response, attaching _perf metadata.
      */
     private buildResponseResult(response: PikeResponse): unknown {
-        const perf = (response as any)._perf || {};
+        const perf = (response as PikeResponse & { _perf?: Record<string, unknown> })._perf || {};
         const result = response.result;
 
         if (this.isAnalyzeResponse(response)) {
             // Return full response structure for analyze requests
             const fullResponse = {
                 result,
-                failures: (response as any).failures || {},
+                failures: (response as PikeResponse & { failures?: Record<string, unknown> }).failures || {},
                 _perf: perf,
             };
             // Copy _perf into result as well for backward compatibility
@@ -462,7 +462,7 @@ export class PikeBridge extends EventEmitter {
      * Check if response is an analyze response (contains failures object).
      */
     private isAnalyzeResponse(response: PikeResponse): boolean {
-        return 'failures' in response && typeof (response as any).failures === 'object';
+        return 'failures' in response && typeof (response as PikeResponse & { failures?: unknown }).failures === 'object';
     }
 
     /**

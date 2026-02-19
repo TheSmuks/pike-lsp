@@ -82,7 +82,7 @@ function findAnalyzerPath(): string | undefined {
 
     // Check if running in CJS mode (bundled with esbuild)
     // __filename and __dirname are available in CJS but not in strict ESM
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+     
     if (typeof __filename !== 'undefined') {
         resolvedDirname = path.dirname(__filename as string);
     } else {
@@ -375,14 +375,14 @@ connection.onInitialized(async () => {
     if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
         connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
         setImmediate(async () => {
-            let totalIndexed = 0;
+            let _totalIndexed = 0;
             const folderPaths: string[] = [];
             for (const folder of workspaceFolders) {
                 try {
                     const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
                     folderPaths.push(folderPath);
                     const indexed = await workspaceIndex.indexDirectory(folderPath, true);
-                    totalIndexed += indexed;
+                    _totalIndexed += indexed;
                     connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
                 } catch (err) {
                     connection.console.warn(`Failed to index folder ${folder.name}: ${err}`);

@@ -278,7 +278,7 @@ export function registerCompletionHandlers(
                                     }
                                     return toCompletionList(completions);
                                 }
-                            } catch (err) {
+                            } catch {
                                 logger.debug('Type not in stdlib (obj-> workaround)', { typeName });
                             }
                         }
@@ -387,7 +387,7 @@ export function registerCompletionHandlers(
                         typeName = objectRef;
                         logger.debug('Resolved as stdlib module', { typeName, count: testModule.symbols.size });
                     }
-                } catch (err) {
+                } catch {
                     logger.debug('Not a stdlib module', { objectRef });
                 }
             }
@@ -415,7 +415,7 @@ export function registerCompletionHandlers(
                         }
                         return toCompletionList(completions);
                     }
-                } catch (err) {
+                } catch {
                     logger.debug('Type not in stdlib', { typeName });
                 }
 
