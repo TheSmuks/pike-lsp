@@ -128,7 +128,7 @@ export function registerOnTypeFormattingHandler(
 /**
  * Calculate indentation for a new line based on previous line.
  */
-function calculateIndentation(lineText: string, fullText: string, lineNum: number): number {
+export function calculateIndentation(lineText: string, fullText: string, lineNum: number): number {
     const trimmed = lineText.trim();
     const currentIndent = lineText.search(/\S|$/);
 
@@ -157,20 +157,26 @@ function calculateIndentation(lineText: string, fullText: string, lineNum: numbe
 /**
  * Find the line containing the matching opening brace.
  */
-function findMatchingOpeningBrace(text: string, closingBraceLine: number): number | null {
+export function findMatchingOpeningBrace(text: string, closingBraceLine: number): number | null {
+    const lines = text.split('\n');
+
+    // Start at 0 - we'll find the first } and increment from there
     let braceCount = 0;
 
+    // Search backwards from the closing brace line
     for (let i = closingBraceLine; i >= 0; i--) {
-        const line = text.split('\n')[i] ?? '';
+        const line = lines[i] ?? '';
 
-        for (const char of line) {
-            if (char === '{') {
+        // Process line in reverse to find } before {
+        for (let j = line.length - 1; j >= 0; j--) {
+            const char = line[j]!;
+            if (char === '}') {
+                braceCount++;
+            } else if (char === '{') {
+                braceCount--;
                 if (braceCount === 0) {
                     return i;
                 }
-                braceCount--;
-            } else if (char === '}') {
-                braceCount++;
             }
         }
     }
