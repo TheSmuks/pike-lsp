@@ -84,7 +84,7 @@ export function registerImplementationHandler(
 
             return implementations;
         } catch (err) {
-            log.error('Implementation failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Implementation failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });

@@ -177,7 +177,7 @@ export function registerHierarchyHandlers(
                 },
             }];
         } catch (err) {
-            log.error('Call hierarchy prepare failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Call hierarchy prepare failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
@@ -307,7 +307,7 @@ export function registerHierarchyHandlers(
 
             return results;
         } catch (err) {
-            log.error('Call hierarchy incoming calls failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Call hierarchy incoming calls failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });
@@ -477,7 +477,7 @@ export function registerHierarchyHandlers(
 
             return results;
         } catch (err) {
-            log.error('Call hierarchy outgoing calls failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Call hierarchy outgoing calls failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });
@@ -549,7 +549,7 @@ export function registerHierarchyHandlers(
                 detail: formatInheritanceDetail(classSymbol, cached)
             }];
         } catch (err) {
-            log.error('Type hierarchy prepare failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Type hierarchy prepare failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
@@ -805,7 +805,7 @@ export function registerHierarchyHandlers(
 
             return results;  // Empty array = no parents found (valid)
         } catch (err) {
-            log.error('Type hierarchy supertypes failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Type hierarchy supertypes failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`);
             // Publish error diagnostic with code
             connection.sendDiagnostics({
                 uri: params.item.uri,
@@ -969,7 +969,7 @@ export function registerHierarchyHandlers(
 
             return results;  // Empty array = no children found (valid)
         } catch (err) {
-            log.error('Type hierarchy subtypes failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Type hierarchy subtypes failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`);
             // Publish error diagnostic with code
             connection.sendDiagnostics({
                 uri: params.item.uri,

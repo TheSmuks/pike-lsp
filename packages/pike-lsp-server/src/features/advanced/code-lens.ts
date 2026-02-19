@@ -87,7 +87,7 @@ export function registerCodeLensHandlers(
             connection.console.log(`[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`);
             return lenses;
         } catch (err) {
-            log.error('Code lens failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Code lens failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });
@@ -145,7 +145,7 @@ export function registerCodeLensHandlers(
             connection.console.log(`[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`);
             return lens;
         } catch (err) {
-            log.error('Code lens resolve failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Code lens resolve failed for symbol "${lens.data && (lens.data as any).symbolName}" in ${(lens.data as any)?.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return lens;
         }
     });

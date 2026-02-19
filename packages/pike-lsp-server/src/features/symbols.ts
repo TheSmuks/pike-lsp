@@ -212,9 +212,7 @@ export function registerSymbolsHandlers(
             const converted = symbolsToConvert.map(convertSymbol);
             return converted;
         } catch (err) {
-            log.error('Document symbol failed', {
-                error: err instanceof Error ? err.message : String(err)
-            });
+            log.error(`Document symbol failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
@@ -287,9 +285,7 @@ export function registerSymbolsHandlers(
             });
             return allSymbols;
         } catch (err) {
-            log.error('Workspace symbol failed', {
-                error: err instanceof Error ? err.message : String(err)
-            });
+            log.error(`Workspace symbol failed for query "${query}": ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });

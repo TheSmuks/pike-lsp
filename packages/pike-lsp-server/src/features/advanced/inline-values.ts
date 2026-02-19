@@ -196,7 +196,7 @@ export function registerInlineValuesHandler(
 
             return inlineValues.length > 0 ? inlineValues : null;
         } catch (err) {
-            log.error('Inline values failed', { error: err instanceof Error ? err.message: String(err) });
+            log.error(`Inline values failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message: String(err)}`);
             return null;
         }
     });

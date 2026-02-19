@@ -139,7 +139,7 @@ export function registerReferencesHandlers(
 
             return references;
         } catch (err) {
-            log.error('Implementation failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Implementation failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });
@@ -517,7 +517,7 @@ export function registerReferencesHandlers(
             log.debug('References found', { word, count: references.length, includeDeclaration });
             return references;
         } catch (err) {
-            log.error('References failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`References failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });
@@ -581,7 +581,7 @@ export function registerReferencesHandlers(
 
             return highlights.length > 0 ? highlights : null;
         } catch (err) {
-            log.error('Document highlight failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Document highlight failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });

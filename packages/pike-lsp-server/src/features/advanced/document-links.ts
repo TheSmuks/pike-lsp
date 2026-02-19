@@ -119,7 +119,7 @@ export function registerDocumentLinksHandler(
             connection.console.log(`[DOC_LINKS] Found ${links.length} links`);
             return links;
         } catch (err) {
-            log.error('Document links failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Document links failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });

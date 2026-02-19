@@ -115,7 +115,7 @@ export function registerHoverHandler(
 
             return hoverResult;
         } catch (err) {
-            log.error('Hover failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Hover failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
