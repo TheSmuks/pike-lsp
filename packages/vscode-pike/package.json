@@ -17,6 +17,8 @@
   "bugs": {
     "url": "https://github.com/TheSmuks/pike-lsp/issues"
   },
+  "homepage": "https://github.com/TheSmuks/pike-lsp#readme",
+  "qna": "marketplace",
   "engines": {
     "vscode": "^1.85.0"
   },
