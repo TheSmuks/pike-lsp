@@ -5,7 +5,7 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  check-pr-format:
+  check-acceptance-criteria:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
