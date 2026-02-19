@@ -96,6 +96,10 @@
         "title": "Add to Pike Module Path"
       },
       {
+        "command": "pike-program-path.add",
+        "title": "Add to Pike Program Path"
+      },
+      {
         "command": "pike.lsp.showDiagnostics",
         "title": "Show Diagnostics",
         "category": "Pike LSP"
@@ -111,6 +115,10 @@
         {
           "when": "explorerResourceIsFolder",
           "command": "pike-module-path.add"
+        },
+        {
+          "when": "explorerResourceIsFolder",
+          "command": "pike-program-path.add"
         }
       ]
     },
