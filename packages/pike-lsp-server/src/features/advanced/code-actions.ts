@@ -202,7 +202,7 @@ export function registerCodeActionsHandler(
 
             return actions;
         } catch (err) {
-            log.error('Code action failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Code action failed for ${params.textDocument.uri} at line ${params.range.start.line + 1}: ${err instanceof Error ? err.message : String(err)}`);
             return [];
         }
     });

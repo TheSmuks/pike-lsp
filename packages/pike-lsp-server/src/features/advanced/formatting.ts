@@ -89,7 +89,7 @@ export function registerFormattingHandlers(
                 // Re-throw ResponseError as-is (validation errors)
                 throw err;
             }
-            log.error('Document formatting failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Document formatting failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
             throw new ResponseError(
                 ErrorCodes.InternalError,
                 `Document formatting failed: ${err instanceof Error ? err.message : String(err)}`
@@ -135,7 +135,7 @@ export function registerFormattingHandlers(
                 // Re-throw ResponseError as-is (validation errors)
                 throw err;
             }
-            log.error('Range formatting failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Range formatting failed for ${uri} (lines ${params.range.start.line + 1}-${params.range.end.line + 1}): ${err instanceof Error ? err.message : String(err)}`);
             throw new ResponseError(
                 ErrorCodes.InternalError,
                 `Range formatting failed: ${err instanceof Error ? err.message : String(err)}`

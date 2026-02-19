@@ -205,7 +205,7 @@ export function registerSemanticTokensHandler(
 
             return buildTokens(uri, document);
         } catch (err) {
-            log.error('Semantic tokens request failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Semantic tokens request failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return { data: [] };
         }
     });

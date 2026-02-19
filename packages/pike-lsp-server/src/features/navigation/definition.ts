@@ -445,7 +445,7 @@ export function registerDefinitionHandlers(
                 },
             };
         } catch (err) {
-            log.error('Definition failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
@@ -479,7 +479,7 @@ export function registerDefinitionHandlers(
                 },
             };
         } catch (err) {
-            log.error('Declaration failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Declaration failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
@@ -531,7 +531,7 @@ export function registerDefinitionHandlers(
 
             return null;
         } catch (err) {
-            log.error('Type definition failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Type definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });

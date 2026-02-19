@@ -160,7 +160,7 @@ export function registerInlayHintsHandler(
 
             return hints.length > 0 ? hints : null;
         } catch (err) {
-            log.error('Inlay hints failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Inlay hints failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });

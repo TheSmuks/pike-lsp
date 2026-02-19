@@ -209,7 +209,7 @@ export function registerSelectionRangesHandler(
 
             return results.length > 0 ? results : null;
         } catch (err) {
-            log.error('Selection ranges failed', { error: err instanceof Error ? err.message : String(err) });
+            log.error(`Selection ranges failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
             return null;
         }
     });
