@@ -139,6 +139,14 @@
           "default": [],
           "description": "Include Path"
         },
+        "pike.pikeProgramPath": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Program Path"
+        },
         "pike.trace.server": {
           "type": "string",
           "enum": [
