@@ -34,18 +34,29 @@ import { extractDeprecatedFromSymbols, convertSeverity } from './diagnostics/uti
  * Adds Diagnostic.code and Diagnostic.tags:
  * - code: Error code identifier (e.g., "uninitialized-var", "syntax-error")
  * - tags: DiagnosticTag.Deprecated for deprecated symbol usage
+ *
+ * PERF-420: Optimized to accept pre-split lines instead of re-splitting document text
+ * for each diagnostic - significant improvement for large files with many diagnostics.
  */
 export function convertDiagnostic(
     pikeDiag: PikeDiagnostic,
     document: TextDocument,
-    options?: { deprecated?: boolean; code?: string }
+    options?: { deprecated?: boolean; code?: string },
+    linesArg?: string[]  // PREF-420: Optional pre-split lines for performance
 ): Diagnostic {
     const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
 
-    // Get the line text to determine range
-    const text = document.getText();
-    const lines = text.split('\n');
-    const lineText = lines[line] ?? '';
+    // PERF-420: Use pre-split lines if provided, otherwise split once
+    let lineText: string;
+    let lines: string[];
+    if (linesArg) {
+        lines = linesArg;
+        lineText = linesArg[line] ?? '';
+    } else {
+        const text = document.getText();
+        lines = text.split('\n');
+        lineText = lines[line] ?? '';
+    }
 
     // Find meaningful range within the line (skip whitespace and comments)
     let startChar = pikeDiag.position.column ? pikeDiag.position.column - 1 : 0;
@@ -646,6 +657,8 @@ export function registerDiagnosticsHandlers(
         }
 
         const text = document.getText();
+        // PERF-420: Split lines once for all diagnostic conversions
+        const lines = text.split('\n');
 
         connection.console.log(`[VALIDATE] Document version: ${version}, length: ${text.length} chars`);
 
@@ -728,7 +741,8 @@ export function registerDiagnosticsHandlers(
                     introspectData.symbols
                 );
 
-                diagnostics.push(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }));
+                // PERF-420: Pass pre-split lines for performance
+                diagnostics.push(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }, lines));
             }
 
             // Update type database with introspected symbols if compilation succeeded
