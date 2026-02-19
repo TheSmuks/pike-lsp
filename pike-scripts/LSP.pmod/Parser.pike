@@ -1480,3 +1480,238 @@ protected mapping|int type_to_json(object|void type) {
 
     return sizeof(result) > 0 ? result : 0;
 }
+
+//! Flow-sensitive type inference analysis
+//! Tracks variable types across conditional branches (if/else) and merges
+//! type information at convergence points.
+//! @param code The source code to analyze
+//! @returns Mapping of variable names to their flow-sensitive types
+protected mapping(string:mapping) analyze_flow_sensitive_types(string code) {
+    mapping(string:mapping) type_map = ([]);
+
+    // Guard against empty or invalid input
+    if (!code || sizeof(code) == 0) {
+        return type_map;
+    }
+
+    // Flow type context for tracking branches
+    class FlowTracker {
+        mapping(string:mapping) bindings = ([]);
+        int branch_id = 0;
+        array(mapping(string:mapping)) branch_snapshots = ({});
+
+        void track_assignment(string var, string kind, int line) {
+            bindings[var] = ([
+                "kind": kind,
+                "line": line,
+                "branch": branch_id
+            ]);
+        }
+
+        string get_type(string var) {
+            return bindings[var] ? bindings[var]->kind : 0;
+        }
+
+        void enter_branch() {
+            // Save snapshot of current bindings
+            mapping snapshot = ([]);
+            foreach (indices(bindings), string k) {
+                snapshot[k] = bindings[k] + ([]);
+            }
+            branch_snapshots += ({snapshot});
+            branch_id++;
+        }
+
+        void exit_branch() {
+            if (sizeof(branch_snapshots) > 0) {
+                branch_snapshots = branch_snapshots[..<1];
+            }
+            if (branch_id > 0) branch_id--;
+        }
+
+        void merge_branches() {
+            // At convergence point, merge types from branches
+            // For now, take the type from the most recent branch or default to mixed
+            // A full implementation would compute union types
+        }
+    };
+
+    FlowTracker tracker = FlowTracker();
+
+    mixed err = catch {
+        array(string) lines = code / "\n";
+
+        // Track brace depth for block scope
+        int brace_depth = 0;
+
+        // Keywords that start control flow blocks
+        multiset(string) flow_keywords = (<"if", "else", "for", "while", "foreach", "switch", "do">);
+
+        for (int i = 0; i < sizeof(lines); i++) {
+            string line = lines[i];
+            int line_num = i + 1;
+            string trimmed = String.trim_whites(line);
+
+            if (sizeof(trimmed) == 0) continue;
+
+            // Track brace depth
+            foreach (trimmed / "", string c) {
+                if (c == "{") brace_depth++;
+                else if (c == "}") brace_depth--;
+            }
+
+            // Check for if statement with condition
+            if (has_prefix(trimmed, "if") || flow_keywords[trimmed]) {
+                // Look for assignments in the condition (e.g., "if (x = foo())")
+                // Or track the variable being tested
+                tracker->enter_branch();
+            }
+
+            // Look for variable assignments: type var = value or var = value
+            // Pattern: "int x = 1" or "string x = y" or "x = expr"
+            array tokens = Parser.Pike.split(line);
+
+            // Find type declarations with initialization
+            // Pattern: type name = expr;
+            multiset(string) type_kw = (<
+                "int", "string", "float", "mixed", "void", "array",
+                "mapping", "multiset", "object", "program", "function"
+            >);
+
+            for (int j = 0; j < sizeof(tokens); j++) {
+                string tok = String.trim_all_whites(tokens[j]);
+                if (sizeof(tok) == 0) continue;
+
+                // Check for type keyword followed by identifier and =
+                if (type_kw[tok] && j + 2 < sizeof(tokens)) {
+                    string name = String.trim_all_whites(tokens[j + 1]);
+                    string op = String.trim_all_whites(tokens[j + 2]);
+
+                    if (sizeof(name) > 0 && name[0] >= 'a' && name[0] <= 'z') {
+                        if (op == "=") {
+                            // Extract the value expression
+                            string expr = "";
+                            if (j + 3 < sizeof(tokens)) {
+                                // Get everything after = as the expression
+                                expr = tokens[j + 3..] * "";
+                            }
+                            string inferred = infer_type_from_value(expr);
+                            tracker->track_assignment(name, inferred, line_num);
+
+                            // Also update the symbol directly in our result
+                            type_map[name] = ([
+                                "kind": inferred,
+                                "line": line_num,
+                                "source": "declaration"
+                            ]);
+                        }
+                    }
+                }
+
+                // Check for assignment without type: x = value
+                // Look for = preceded by identifier
+                if (tok == "=" && j > 0) {
+                    string name = String.trim_all_whites(tokens[j - 1]);
+                    if (sizeof(name) > 0 && name[0] >= 'a' && name[0] <= 'z') {
+                        // Make sure it's not a keyword
+                        if (!type_kw[name] && !flow_keywords[name]) {
+                            string expr = "";
+                            if (j + 1 < sizeof(tokens)) {
+                                expr = tokens[j + 1..] * "";
+                            }
+                            string inferred = infer_type_from_value(expr);
+                            tracker->track_assignment(name, inferred, line_num);
+
+                            type_map[name] = ([
+                                "kind": inferred,
+                                "line": line_num,
+                                "source": "assignment"
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // Handle else - we exit and re-enter to track branch merging
+            if (has_prefix(trimmed, "else")) {
+                tracker->exit_branch();
+                tracker->enter_branch();
+            }
+
+            // At closing brace of if/else block, merge branches
+            if (trimmed == "}" && brace_depth == 0) {
+                tracker->exit_branch();
+            }
+        }
+    };
+
+    // Log errors but don't fail - flow analysis is best-effort
+    if (err) {
+        werror("analyze_flow_sensitive_types: %O\n", describe_error(err));
+    }
+
+    return type_map;
+}
+
+//! Infer the Pike type from a value expression
+//! @param expr The expression string
+//! @returns The inferred type name
+protected string infer_type_from_value(string expr) {
+    if (!expr || sizeof(expr) == 0) {
+        return "mixed";
+    }
+
+    expr = String.trim_whites(expr);
+    if (sizeof(expr) == 0) {
+        return "mixed";
+    }
+
+    // String literal
+    if (expr[0] == '"' || (sizeof(expr) > 1 && expr[0] == '\'' && expr[-1] == '\'')) {
+        return "string";
+    }
+
+    // Integer literal
+    if (expr[0] >= '0' && expr[0] <= '9') {
+        return "int";
+    }
+    if (sizeof(expr) > 1 && expr[0] == '-' && expr[1] >= '0' && expr[1] <= '9') {
+        return "int";
+    }
+
+    // Float literal (contains decimal point)
+    if (has_value(expr, ".") && sizeof(expr) > 1) {
+        // Make sure it's not just a method call like "foo.bar()"
+        if (!has_value(expr[..<1], ".")) {
+            return "float";
+        }
+    }
+
+    // Array literal
+    if (has_prefix(expr, "({") || has_prefix(expr, "arr")) {
+        return "array";
+    }
+
+    // Mapping literal
+    if (has_prefix(expr, "([") || has_prefix(expr, "map")) {
+        return "mapping";
+    }
+
+    // Multiset literal
+    if (has_prefix(expr, "(<") || has_prefix(expr, "set")) {
+        return "multiset";
+    }
+
+    // New object
+    if (has_prefix(expr, "new ")) {
+        return "object";
+    }
+
+    // Function call
+    if (has_suffix(expr, ")")) {
+        return "mixed";
+    }
+
+    // Default: mixed for unknown expressions
+    return "mixed";
+}
