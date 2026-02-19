@@ -491,6 +491,12 @@ mapping parse_request(mapping params) {
         });
     }
 
+    // STEP 2c: Extract dynamic module loading patterns (load_module, compile_file)
+    // These patterns cannot be statically resolved, but we extract them for
+    // documentation/analysis purposes and potential IDE features
+    array(mapping) dynamic_modules = extract_dynamic_modules(code, filename);
+    symbols += dynamic_modules;
+
     // STEP 3: Extract symbols from preprocessor conditional branches
     // These are ADDITIVE to the base symbols - no existing symbols are modified
     int total_branches = 0;
@@ -1479,4 +1485,107 @@ protected mapping|int type_to_json(object|void type) {
     }
 
     return sizeof(result) > 0 ? result : 0;
+}
+
+//! Extract dynamic module loading patterns from Pike source code
+//! Detects load_module() and compile_file() calls with string literal arguments
+//! @param code The source code to analyze
+//! @param filename The filename for position tracking
+//! @returns Array of symbol mappings for dynamically loaded modules
+protected array(mapping) extract_dynamic_modules(string code, string filename) {
+    array(mapping) results = ({});
+
+    // Use tokenization to find patterns
+    mixed err = catch {
+        array(string) tokens = Parser.Pike.split(code);
+        array tok = Parser.Pike.tokenize(tokens);
+
+        // Look for load_module( and compile_file( patterns
+        for (int i = 0; i < sizeof(tok); i++) {
+            object t = tok[i];
+            string txt = t->text;
+
+            // Check for load_module or compile_file function calls
+            if (txt == "load_module" || txt == "compile_file") {
+                // Look for opening parenthesis after function name
+                int paren_idx = i + 1;
+                while (paren_idx < sizeof(tok)) {
+                    string next_txt = tok[paren_idx]->text;
+                    // Skip whitespace
+                    if (sizeof(next_txt) == 0 || next_txt[0] == ' ') {
+                        paren_idx++;
+                        continue;
+                    }
+                    if (next_txt == "(") {
+                        // Found opening paren, now look for string literal argument
+                        int arg_idx = paren_idx + 1;
+                        while (arg_idx < sizeof(tok)) {
+                            string arg_txt = tok[arg_idx]->text;
+                            // Skip whitespace
+                            if (sizeof(arg_txt) == 0 || arg_txt[0] == ' ') {
+                                arg_idx++;
+                                continue;
+                            }
+                            // Check for string literal
+                            if (has_prefix(arg_txt, "\"") || has_prefix(arg_txt, "'")) {
+                                // Extract the string content (strip quotes)
+                                string module_path = arg_txt;
+                                // Handle escaped quotes at the end
+                                if (sizeof(module_path) >= 2) {
+                                    // Find the ending quote (could be at position 0 or 1)
+                                    int end_pos = -1;
+                                    if (module_path[0] == '"' || module_path[0] == '\'') {
+                                        // Search for closing quote from position 1
+                                        int search_start = 1;
+                                        while (search_start < sizeof(module_path)) {
+                                            if (module_path[search_start] == module_path[0]) {
+                                                // Check if it's escaped
+                                                if (search_start == 0 || module_path[search_start - 1] != '\\') {
+                                                    end_pos = search_start;
+                                                    break;
+                                                }
+                                            }
+                                            search_start++;
+                                        }
+                                        if (end_pos > 0) {
+                                            module_path = module_path[1..end_pos - 1];
+                                        }
+                                    }
+                                }
+
+                                // Only add if we extracted a non-empty path
+                                if (sizeof(module_path) > 0) {
+                                    results += ({
+                                        ([
+                                            "name": module_path,
+                                            "kind": txt == "load_module" ? "load_module" : "compile_file",
+                                            "modifiers": ({}),
+                                            "position": ([
+                                                "file": filename,
+                                                "line": t->line
+                                            ]),
+                                            "classname": module_path
+                                        ])
+                                    });
+                                }
+                                break;
+                            }
+                            // If we hit something other than whitespace and not a string, stop
+                            break;
+                        }
+                        break;
+                    }
+                    // If not (, stop looking
+                    break;
+                }
+            }
+        }
+    };
+
+    // Log errors but continue - this is best-effort extraction
+    if (err) {
+        werror("extract_dynamic_modules: %O\n", describe_error(err));
+    }
+
+    return results;
 }
