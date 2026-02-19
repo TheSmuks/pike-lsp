@@ -1,11 +1,12 @@
 name: Close Linked Issue on Merge
 on:
-  pull_request:
+  pull_request_target:
     types: [closed]
     branches: [main]
 
 permissions:
   issues: write
+  contents: read
 
 jobs:
   close-issue:
