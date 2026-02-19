@@ -31,6 +31,7 @@ import { registerDocumentLinksHandler } from './document-links.js';
 import { registerCodeLensHandlers } from './code-lens.js';
 import { registerOnTypeFormattingHandler } from './on-type-formatting.js';
 import { registerInlineValuesHandler } from './inline-values.js';
+import { registerMonikerHandler } from './moniker.js';
 
 export { registerFoldingRangeHandler } from './folding.js';
 export { registerSemanticTokensHandler } from './semantic-tokens.js';
@@ -42,6 +43,7 @@ export { registerDocumentLinksHandler } from './document-links.js';
 export { registerCodeLensHandlers } from './code-lens.js';
 export { registerOnTypeFormattingHandler } from './on-type-formatting.js';
 export { registerInlineValuesHandler } from './inline-values.js';
+export { registerMonikerHandler } from './moniker.js';
 
 /**
  * Register all advanced feature handlers with the LSP connection.
@@ -69,4 +71,5 @@ export function registerAdvancedHandlers(
     registerCodeLensHandlers(connection, services, documents);
     registerOnTypeFormattingHandler(connection, services, documents);
     registerInlineValuesHandler(connection, services, documents);
+    registerMonikerHandler(connection, services, documents);
 }

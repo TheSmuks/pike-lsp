@@ -51,6 +51,7 @@ const IMPLEMENTED_CAPABILITIES: Record<string, boolean> = {
     codeLensProvider: true,
     linkedEditingRangeProvider: true,
     inlineValueProvider: true,
+    monikerProvider: true,
 
     // Workspace
     workspace: true,
@@ -62,7 +63,6 @@ const UNIMPLEMENTED_METHODS = [
     'textDocument/prepareRename', // prepareProvider exists but may fail edge cases
     'textDocument/linkedEditingRange', // Registered but may have edge cases
     'workspace/symbol', // Workspace symbol search may have limitations
-    'textDocument/moniker', // Moniker provider not implemented
     'textDocument/@cancel', // Cancelled may have edge cases
 ];
 
@@ -162,10 +162,10 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
     });
 
     describe('Unimplemented Methods Documentation', () => {
-        it('should document moniker provider as unimplemented', () => {
-            // textDocument/moniker is not in implemented capabilities
+        it('should document moniker provider as implemented', () => {
+            // textDocument/moniker is now implemented
             const hasMoniker = 'monikerProvider' in IMPLEMENTED_CAPABILITIES;
-            assert.strictEqual(hasMoniker, false, 'monikerProvider should not be implemented');
+            assert.strictEqual(hasMoniker, true, 'monikerProvider should be implemented');
         });
 
         it('should document which methods are known but not fully implemented', () => {
@@ -183,10 +183,6 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
                 'prepareRename should be in unimplemented list');
         });
 
-        it('should list moniker as unimplemented', () => {
-            assert.ok(UNIMPLEMENTED_METHODS.includes('textDocument/moniker'),
-                'moniker should be in unimplemented list');
-        });
     });
 
     describe('LSP Method Error Handling', () => {
