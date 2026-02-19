@@ -20,7 +20,6 @@
 - [Project Structure](#project-structure)
 - [Testing](#testing)
 - [Development](#development)
-- [Known Limitations](#known-limitations)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
 - [API Reference](docs/api.md)
@@ -185,16 +184,15 @@ code --install-extension vscode-pike-1.0.0.vsix
 git clone https://github.com/TheSmuks/pike-lsp.git
 cd pike-lsp
 
-# Install dependencies (requires pnpm)
-npm install -g pnpm
-pnpm install
+# Install dependencies (requires bun)
+bun install
 
 # Build all packages
-pnpm build
+bun run build
 
 # Package the VS Code extension
 cd packages/vscode-pike
-pnpm package
+bun run package
 ```
 
 ## Keyboard Shortcuts
@@ -248,14 +246,14 @@ pike-lsp/
 ./scripts/run-tests.sh
 
 # Run specific test suites
-pnpm --filter @pike-lsp/pike-bridge test
-pnpm --filter @pike-lsp/pike-lsp-server test
+bun run --filter @pike-lsp/pike-bridge test
+bun run --filter @pike-lsp/pike-lsp-server test
 
 # Run smoke tests
-pnpm --filter @pike-lsp/pike-lsp-server test:smoke
+bun run --filter @pike-lsp/pike-lsp-server test:smoke
 
 # Run VSCode E2E tests (requires display or xvfb)
-cd packages/vscode-pike && pnpm run test:e2e
+cd packages/vscode-pike && bun run test:e2e
 ```
 
 ### Pike Stdlib Source Paths
@@ -279,8 +277,8 @@ PIKE_STDLIB=/path/to/Pike/lib/modules PIKE_TOOLS=/path/to/Pike/lib/include ./scr
 ### Prerequisites
 
 ```bash
-# Install pnpm globally
-npm install -g pnpm
+# Install bun (required)
+# See https://bun.sh for installation instructions
 
 # Install Pike 8
 # Ubuntu/Debian:
@@ -296,8 +294,8 @@ go install github.com/nektos/act@latest
 ### Building
 
 ```bash
-pnpm install
-pnpm build
+bun install
+bun run build
 ```
 
 ### Testing the Extension
@@ -313,32 +311,12 @@ pnpm build
 # 1. Update version in packages/vscode-pike/package.json
 # 2. Update CHANGELOG.md
 # 3. Build and package
-pnpm build
+bun run build
 cd packages/vscode-pike
-pnpm package
+bun run package
 
 # 4. The .vsix file is created in packages/vscode-pike/
 ```
-
-## Known Limitations
-
-While Pike LSP provides comprehensive IDE support, there are some known limitations:
-
-### Analysis
-
-| Limitation | Status | Description | Technical Details |
-|------------|--------|-------------|-------------------|
-| **Preprocessor Directives** | ✅ Improved | Token-based extraction for symbols in `#if`/`#else`/`#endif` blocks. | Implemented in `Parser.pike:parse_preprocessor_blocks()`. Uses `Parser.Pike.tokenize()` to extract symbols from conditional branches. Symbols include metadata like `[#if DEBUG]`. May miss complex patterns in syntactically incomplete branches. |
-| **Nested Classes** | ✅ Supported | Recursive extraction up to depth 5. Full hierarchy in outline. | Implemented in `Parser.pike:get_symbols_recursive()` and `Introspection.pike:introspect_class_members()`. Go-to-definition, hover, and completion work at all levels. Depth is capped at 5 for performance. |
-| **Type Inference** | ⚠️ Partial | Basic types from literals and function signatures. | Uses `Introspection.pike:get_type_from_value()` for literal inference. Flow-sensitive analysis (tracking variable types across conditional branches) is not implemented. |
-| **Dynamic Modules** | ⚠️ Inherent | Runtime-loaded modules cannot be analyzed. | Uses `compile_string()` and `compile_file()` for static analysis. Patterns like `load_module(path)` or `compile_file(dynamic_path)` cannot be resolved statically. This is an inherent limitation of static analysis. |
-| **Deep Nesting** | ⚠️ Configurable | Classes deeper than 5 levels are capped for performance. | Default depth is 5, configurable via `maxDepth` parameter in `getWaterfallSymbols()`. Set to 0 for unlimited depth (may impact performance). |
-
-### Performance Considerations
-
-- **Large workspaces**: Initial indexing may take several seconds. Background indexing avoids blocking editing.
-- **Deep class hierarchies**: Exceeding 5 levels of nesting caps symbol extraction. Use `maxDepth` parameter to increase if needed.
-- **Complex preprocessor blocks**: Nested `#if` chains are parsed but may have reduced accuracy in syntactically invalid branches.
 
 ## Troubleshooting
 
@@ -377,4 +355,3 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) - LSP framework
 - [Pike](https://pike.lysator.liu.se/) - The Pike programming language
 - [Tools.AutoDoc](https://pike.lysator.liu.se/generated/manual/modref/ex/predef_3A_3A/Tools/AutoDoc.html) - Pike's documentation parser
-# test
