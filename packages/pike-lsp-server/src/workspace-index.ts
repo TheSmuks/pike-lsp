@@ -100,6 +100,14 @@ export class WorkspaceIndex {
     // Maps each prefix (2+ chars) to set of symbol names that have that prefix
     private prefixIndex = new Map<string, Set<string>>();
 
+    // PERF-430: LRU cache for search results
+    // Caches frequently accessed search results to avoid recomputation
+    private searchCache = new Map<string, { results: SymbolInformation[]; timestamp: number }>();
+    private searchCacheHits = 0;
+    private searchCacheMisses = 0;
+    private static readonly SEARCH_CACHE_MAX_SIZE = 100;
+    private static readonly SEARCH_CACHE_TTL_MS = 60000; // 60 seconds
+
     // Pike bridge for parsing
     private bridge: PikeBridge | null = null;
 
@@ -226,6 +234,9 @@ export class WorkspaceIndex {
             // Add to lookup
             this.addToLookup(uri, symbols);
 
+            // PERF-430: Invalidate search cache when document changes
+            this.searchCache.clear();
+
         } catch (err) {
             // Report error through callback for LSP connection visibility
             this.reportError(`[Pike LSP] Failed to index document: ${err instanceof Error ? err.message : String(err)}`, uri);
@@ -238,6 +249,8 @@ export class WorkspaceIndex {
     removeDocument(uri: string): void {
         this.removeFromLookup(uri);
         this.documents.delete(uri);
+        // PERF-430: Invalidate search cache when document is removed
+        this.searchCache.clear();
     }
 
     /**
@@ -252,10 +265,20 @@ export class WorkspaceIndex {
      * Returns symbols matching the query string (case-insensitive prefix match)
      * WS-012 through WS-017: Implements result ranking and sorting
      * PERF-XXX: Uses prefix index for O(1) prefix lookups instead of O(n) scan
+     * PERF-430: Uses LRU cache for search results
      */
     searchSymbols(query: string, limit: number = LSP.MAX_WORKSPACE_SYMBOLS): SymbolInformation[] {
         const results: SymbolInformation[] = [];
         const queryLower = query?.toLowerCase() ?? '';
+
+        // PERF-430: Check search result cache first
+        const cacheKey = `${queryLower}:${limit}`;
+        const cached = this.searchCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < WorkspaceIndex.SEARCH_CACHE_TTL_MS) {
+            this.searchCacheHits++;
+            return cached.results.slice(0, limit);
+        }
+        this.searchCacheMisses++;
 
         // If query is empty, return some symbols from each file (WS-016: unsorted)
         if (!queryLower) {
@@ -350,7 +373,26 @@ export class WorkspaceIndex {
         });
 
         // Return top results
-        return matched.slice(0, limit).map(m => m.result);
+        const finalResults = matched.slice(0, limit).map(m => m.result);
+
+        // PERF-430: Store in cache (with LRU eviction)
+        if (this.searchCache.size >= WorkspaceIndex.SEARCH_CACHE_MAX_SIZE) {
+            // Remove oldest entry
+            let oldestKey: string | null = null;
+            let oldestTime = Infinity;
+            for (const [key, entry] of this.searchCache) {
+                if (entry.timestamp < oldestTime) {
+                    oldestTime = entry.timestamp;
+                    oldestKey = key;
+                }
+            }
+            if (oldestKey) {
+                this.searchCache.delete(oldestKey);
+            }
+        }
+        this.searchCache.set(cacheKey, { results: finalResults, timestamp: Date.now() });
+
+        return finalResults;
     }
 
     /**
@@ -656,6 +698,9 @@ export class WorkspaceIndex {
         this.symbolLookup.clear();
         this.uriToSymbols.clear();
         this.prefixIndex.clear();
+        this.searchCache.clear();
+        this.searchCacheHits = 0;
+        this.searchCacheMisses = 0;
     }
 
     /**
