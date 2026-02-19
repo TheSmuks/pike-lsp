@@ -5,6 +5,22 @@ import { buildCompletionItem } from '../features/editing/completion-helpers.js';
 
 describe('Completion Helpers', () => {
 
+    it('handles symbol without kind', () => {
+        const symbol = { name: 'testFunc' };
+        const item = buildCompletionItem('testFunc', symbol as any, 'source');
+        assert.strictEqual(item.label, 'testFunc');
+    });
+
+    it('sets correct detail for function symbols', () => {
+        const symbol = {
+            kind: 'function',
+            name: 'myFunction',
+            type: { kind: 'function', returnType: { name: 'int' }, argTypes: [{ name: 'string' }] }
+        };
+        const item = buildCompletionItem('myFunction', symbol as any, 'source');
+        assert.ok(item.detail);
+    });
+
     it('prioritizes types in type context', () => {
         const classSymbol = { kind: 'class', name: 'MyClass' };
         const varSymbol = { kind: 'variable', name: 'myVar' };
