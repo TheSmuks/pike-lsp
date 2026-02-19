@@ -26,13 +26,13 @@ async function runBenchmarks() {
 
       // Fetch startup metrics if available
       try {
-        const metrics = await (bridge as any).sendRequest('get_startup_metrics', {});
+        const metrics = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_startup_metrics', {});
         // Metrics will be available in result.startup
         const startup = metrics?.startup;
         if (startup && !process.env.MITATA_JSON) {
           console.error('  Pike startup phases:', JSON.stringify(startup));
         }
-      } catch (e) {
+      } catch {
         // Handler may not be available in older versions
       }
 
@@ -59,7 +59,7 @@ async function runBenchmarks() {
 
   const pikeMetrics: Record<string, number[]> = {};
 
-  const trackPikeTime = (name: string, result: any) => {
+  const trackPikeTime = (name: string, result: Record<string, unknown>) => {
     if (!pikeMetrics[name]) pikeMetrics[name] = [];
     if (result?._perf?.pike_total_ms) {
       pikeMetrics[name].push(result._perf.pike_total_ms);
@@ -78,15 +78,15 @@ async function runBenchmarks() {
   // PERF-011: Fetch startup metrics once for reporting
   let startupPhases: Record<string, number> | null = null;
   try {
-    const startupResult = await (bridge as any).sendRequest('get_startup_metrics', {});
+    const startupResult = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_startup_metrics', {});
     startupPhases = startupResult?.startup || null;
-  } catch (e) {
+  } catch {
     // Handler may not be available
   }
 
   group('Validation Pipeline (Warm)', () => {
     const runValidation = async (code: string, filename: string, benchName: string) => {
-      const results: any = {};
+      const results: Record<string, unknown> = {};
       const response = await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
       results.introspect = response.result.introspect;
       results.parse = response.result.parse;
@@ -118,7 +118,7 @@ async function runBenchmarks() {
 
     // Legacy: 3 separate IPC calls (the old validation approach)
     bench('Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)', async () => {
-      const results: any = {};
+      const results: Record<string, unknown> = {};
       results.introspect = await bridge.analyze(code, ['introspect'], filename);
       results.parse = await bridge.parse(code, filename);
       results.analyze = await bridge.analyzeUninitialized(code, filename);
@@ -359,7 +359,7 @@ async function runBenchmarks() {
 
     // PERF-13-04: Report compilation cache statistics
     try {
-      const cacheStats = await (bridge as any).sendRequest('get_cache_stats', {});
+      const cacheStats = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_cache_stats', {});
       if (cacheStats && !process.env.MITATA_JSON) {
         console.log('\n--- Compilation Cache Statistics ---');
         console.log(`Hits:        ${cacheStats.hits || 0}`);
@@ -371,7 +371,7 @@ async function runBenchmarks() {
           : '0.0';
         console.log(`Hit Rate:    ${hitRate}%`);
       }
-    } catch (e) {
+    } catch {
       // Handler may not be available yet
     }
 
@@ -379,12 +379,12 @@ async function runBenchmarks() {
     if (!process.env.MITATA_JSON) {
       console.log('\n=== Cross-File Cache Verification ===');
       try {
-        const cacheStats = await (bridge as any).sendRequest('get_cache_stats', {});
+        const cacheStats = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_cache_stats', {});
         console.log(`Files in cache: ${cacheStats.size || 0}`);
         console.log('Verification: Check if both main.pike and lib/utils.pike are cached');
         console.log('Expected: 2+ files (main.pike + lib/utils.pike) for cross-file caching');
-      } catch (e) {
-        console.log('Cache stats not available:', e);
+      } catch {
+        console.log('Cache stats not available');
       }
     }
   }

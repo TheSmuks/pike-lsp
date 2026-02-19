@@ -136,7 +136,7 @@ export class DocumentCache {
         if (pending) {
             try {
                 await pending;
-            } catch (e) {
+            } catch {
                 // Ignore errors, caller will check cache
             }
         }

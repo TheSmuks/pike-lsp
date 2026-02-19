@@ -39,7 +39,7 @@ export async function provideRoxenDiagnostics(
             source: 'roxen', // Hardcoded - Pike doesn't return source
           };
         }));
-      } catch (error) {
+      } catch {
         resolve([]);
       }
     }, debounceMs);
