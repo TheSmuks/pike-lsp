@@ -49,10 +49,7 @@ describe('Hover Links', () => {
             modifiers: [],
             argNames: [],
             argTypes: [],
-            // @ts-ignore - 'documentation' property is not defined in the PikeMethod interface,
-            // but it's used here to test that buildHoverContent handles it dynamically at runtime
-            // (checked at hover-builder.ts:518). This allows extending symbol types without
-            // modifying the core interface.
+            // Note: documentation is inherited from PikeSymbol base interface
             documentation: {
                 text: 'Write data.',
                 seealso: ['Stdio.File', 'read']

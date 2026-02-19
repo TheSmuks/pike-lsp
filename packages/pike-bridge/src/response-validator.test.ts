@@ -1,4 +1,4 @@
-// @ts-ignore - Bun test types
+// @ts-expect-error - Bun test types not included in base tsconfig, used for runtime test execution
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import {
