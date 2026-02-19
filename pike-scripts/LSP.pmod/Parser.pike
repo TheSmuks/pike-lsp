@@ -1126,25 +1126,12 @@ protected mapping simple_parse_autodoc(string doc) {
 //! @param parser The PikeParser positioned after the opening {
 //! @param autodoc_by_line Mapping of line->autodoc documentation
 //! @param filename Source filename for position tracking
-//! @param max_depth Maximum recursion depth (default 5)
-//! @param current_depth Current depth (default 0)
 //! @returns Array of child symbol mappings
 protected array(mapping) parse_class_body(
     object parser,
     mapping autodoc_by_line,
-    string filename,
-    int|void max_depth,
-    int|void current_depth
+    string filename
 ) {
-    // Set defaults
-    if (!max_depth) max_depth = 5;
-    if (!current_depth) current_depth = 0;
-
-    // Guard against excessive recursion
-    if (current_depth >= max_depth) {
-        return ({});
-    }
-
     array(mapping) class_children = ({});
     array(string) member_autodoc_buffer = ({});
     int block_iter = 0;
@@ -1233,9 +1220,7 @@ protected array(mapping) parse_class_body(
                 array(mapping) nested_children = parse_class_body(
                     parser,
                     autodoc_by_line,
-                    filename,
-                    max_depth,
-                    current_depth + 1
+                    filename
                 );
 
                 // Attach nested children to the last class member
