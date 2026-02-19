@@ -16,6 +16,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.21] - 2026-02-19
+
+### Added
+- **Unlimited nested class depth** - Support unlimited nested class depth
+- **Dynamic module resolution** - Add support for dynamic module resolution via load_module and compile_file
+- **On-type formatting tests** - Add tests for on-type formatting feature
+- **Moniker provider tests** - Add moniker provider tests
+- **RXML hover provider tests** - Add RXML hover provider tests
+- **Document links tests** - Add document links tests
+- **Code actions tests** - Add code actions tests
+- **Symbol resolution tests** - Add symbol resolution tests
+- **Navigation edge case tests** - Add navigation edge case tests
+- **Completion feature tests** - Add completion feature tests
+- **Integration tests for document sync** - Add integration tests for document sync
+- **Unhandled LSP method tests** - Add tests for unhandled LSP methods
+- **Pike API reference documentation** - Add Pike API reference documentation
+- **Pike installation guide** - Add detailed Pike installation guide
+- **Docker support** - Add docker support for remote development and production
+- **Docker development environment** - Add Docker development environment
+- **CI workflow** - Add CI workflow with robust template enforcement
+
+### Fixed
+- **Preprocessor directive parsing** - Improve preprocessor directive parsing with custom tokenizer
+- **String.is_whitespace** - Replace non-existent String.is_whitespace with trim_whites check
+- **On-type formatting** - Use correct LSP method for on-type formatting
+- **ESLint migration** - Migrate from deprecated .eslintignore to eslint.config.mjs
+- **Stray backup files** - Remove stray backup files
+- **Stray .new files** - Remove stray .new files from test directories
+- **Legacy .eslintrc.js** - Remove legacy .eslintrc.js file
+- **Generated server.js** - Exclude generated server.js from ESLint
+- **VSCode extension activation** - Improve VSCode extension activation
+- **Issue template enforcement** - Enforce issue templates, block npm references
+- **Worker tracking** - Fix worker tracking issues
+- **Document sync** - Fix document sync optimization
+- **VSCode-pike root test** - Exclude vscode-pike from root bun test
+- **Hover provider** - Cache hasDocumentation results in hover provider
+- **Logging in LSP server** - Improve logging in LSP server
+- **Error messages** - Improve error messages in LSP server
+- **TypeScript any types** - Reduce 'any' type usage in pike-lsp-server
+- **Diagnostic performance** - Optimize diagnostic performance for large files
+- **Lint warnings** - Resolve lint warnings in pike-lsp-server
+- **Source file reading** - Read source file instead of dist in showReferences test
+- **Docker build** - Resolve Docker build failures
+- **SSH host keys** - Generate SSH host keys at container runtime
+- **Dockerfile** - Set correct Claude CLI PATH in Dockerfile
+- **Global package install** - Use bun instead of npm for global package install
+
+### Optimization
+- **LRU cache for workspace symbols** - Add LRU cache for workspace symbol search results
+- **Symbol cache** - Optimize symbol cache
+- **Hover provider** - Cache hasDocumentation results
+
+### Performance
+- **Diagnostic performance** - Optimize diagnostic performance for large files
+
+### Changed
+- **README.md** - Update README.md to use bun instead of pnpm
+- **CLAUDE.md** - Update CLAUDE.md
+- **VSCode marketplace metadata** - Add VSCode marketplace metadata
+- **Dependencies** - Update dependencies to latest versions
+- **GitHub Actions** - Upgrade GitHub Actions to latest versions
+- **Workflow triggers** - Remove duplicate workflow trigger
+
+### Removed
+- **Duplicate validation code** - Removed ~270 lines of duplicate validation logic from server.ts (alpha.5)
+
+### Refactor
+- **Server startup** - Clean up server startup
+- **Completion logic** - Simplify completion logic
+- **Diagnostic code** - Clean up diagnostic code
+- **Hover.ts** - Extract common utilities from hover.ts
+- **Keyword lookup** - Simplify keyword lookup in hover provider
+- **Type inference** - Improve type inference
+- **Error handling** - Improve error handling in server.ts
+
+### Documentation
+- **Pike API reference** - Add Pike API reference documentation
+- **Pike installation guide** - Add detailed Pike installation guide
+
 ## [0.1.0-alpha.20] - 2026-02-16
 
 ### Added
