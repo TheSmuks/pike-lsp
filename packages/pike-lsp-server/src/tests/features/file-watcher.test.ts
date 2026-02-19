@@ -5,7 +5,7 @@
  * Verifies that file changes trigger proper index updates.
  */
 
-// @ts-ignore - Bun test types
+// @ts-expect-error - Bun test types not included in base tsconfig, used for runtime test execution
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { WorkspaceIndex } from '../../workspace-index.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
