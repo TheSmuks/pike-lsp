@@ -51,6 +51,17 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
 
     context.subscriptions.push(disposable);
 
+    const addProgramPathDisposable = commands.registerCommand('pike-program-path.add', async (e) => {
+        const rv = await addProgramPathSetting(e.fsPath);
+
+        if (rv)
+            window.showInformationMessage('Folder has been added to the program path');
+        else
+            window.showInformationMessage('Folder was already on the program path');
+    });
+
+    context.subscriptions.push(addProgramPathDisposable);
+
     const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (uri, position, symbolName?: string) => {
         outputChannel.appendLine(`[pike.showReferences] Called with: ${JSON.stringify({ uri, position, symbolName })}`);
 
@@ -428,6 +439,26 @@ export async function addModulePathSetting(modulePath: string): Promise<boolean>
         updatedPath = pikeModulePath.slice();
         updatedPath.push(modulePath);
         await config.update('pikeModulePath', updatedPath, ConfigurationTarget.Workspace);
+        return true;
+    }
+
+    return false;
+}
+
+export async function addProgramPathSetting(programPath: string): Promise<boolean> {
+    const config = workspace.getConfiguration('pike');
+    const pikeProgramPath = config.get<string[]>('pikeProgramPath', []);
+    let updatedPath: string[] = [];
+
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        programPath = programPath.replace(f, "${workspaceFolder}");
+    }
+
+    if (!pikeProgramPath.includes(programPath)) {
+        updatedPath = pikeProgramPath.slice();
+        updatedPath.push(programPath);
+        await config.update('pikeProgramPath', updatedPath, ConfigurationTarget.Workspace);
         return true;
     }
 
