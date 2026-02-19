@@ -827,8 +827,131 @@ protected array(mapping) parse_preprocessor_blocks(string code) {
     return blocks;
 }
 
+//! Custom preprocessor tokenizer that handles incomplete syntax gracefully
+//! This tokenizer is specifically designed for extracting symbols from preprocessor
+//! branches, even when the code is syntactically incomplete.
+//! @param code Raw source code from a preprocessor branch
+//! @returns Array of tokens (strings)
+protected array(string) tokenize_preprocessor_branch(string code) {
+    array(string) tokens = ({});
+    if (!code || sizeof(code) == 0) {
+        return tokens;
+    }
+
+    // Track whether we're inside a multi-line string/comment
+    int in_string = 0;
+    int in_multiline_comment = 0;
+    string current_token = "";
+    int pos = 0;
+
+    while (pos < sizeof(code)) {
+        string char = code[pos..pos];
+
+        // Handle multi-line comments
+        if (in_multiline_comment) {
+            if (pos + 1 < sizeof(code) && code[pos..pos+1] == "*/") {
+                in_multiline_comment = 0;
+                pos += 2;
+            } else {
+                pos++;
+            }
+            continue;
+        }
+
+        // Handle strings (single and double quoted)
+        if (in_string) {
+            if (char == "\\" && pos + 1 < sizeof(code)) {
+                // Escaped character
+                current_token += char + code[pos+1..pos+1];
+                pos += 2;
+            } else if ((char == "\"" && in_string == 1) || (char == "'" && in_string == 2)) {
+                // End of string
+                current_token += char;
+                tokens += ({current_token});
+                current_token = "";
+                in_string = 0;
+                pos++;
+            } else {
+                current_token += char;
+                pos++;
+            }
+            continue;
+        }
+
+        // Handle single-line comments
+        if (char == "/" && pos + 1 < sizeof(code)) {
+            if (code[pos+1..pos+1] == "/") {
+                // Single-line comment - skip to end of line
+                while (pos < sizeof(code) && code[pos..pos] != "\n") {
+                    pos++;
+                }
+                continue;
+            } else if (code[pos+1..pos+1] == "*") {
+                // Multi-line comment start
+                in_multiline_comment = 1;
+                pos += 2;
+                continue;
+            }
+        }
+
+        // Handle string start
+        if (char == "\"") {
+            if (sizeof(current_token) > 0) {
+                tokens += ({current_token});
+                current_token = "";
+            }
+            in_string = 1;
+            current_token += char;
+            pos++;
+            continue;
+        }
+        if (char == "'") {
+            if (sizeof(current_token) > 0) {
+                tokens += ({current_token});
+                current_token = "";
+            }
+            in_string = 2;
+            current_token += char;
+            pos++;
+            continue;
+        }
+
+        // Handle whitespace - token boundary
+        if (String.is_whitespace(char)) {
+            if (sizeof(current_token) > 0) {
+                tokens += ({current_token});
+                current_token = "";
+            }
+            pos++;
+            continue;
+        }
+
+        // Handle punctuation - these are individual tokens
+        if (has_value("{}[]();:,.<>+=-*&|^!~?/%@", char)) {
+            if (sizeof(current_token) > 0) {
+                tokens += ({current_token});
+                current_token = "";
+            }
+            tokens += ({char});
+            pos++;
+            continue;
+        }
+
+        // Regular character - accumulate into token
+        current_token += char;
+        pos++;
+    }
+
+    // Don't forget the last token
+    if (sizeof(current_token) > 0) {
+        tokens += ({current_token});
+    }
+
+    return tokens;
+}
+
 //! Extract symbol declarations from potentially incomplete code using token-based analysis
-//! Uses Parser.Pike.split() which handles unbalanced braces gracefully
+//! Uses our custom tokenizer for better handling of incomplete syntax in preprocessor branches
 //! @param branch_code String of code from a single preprocessor branch
 //! @param filename Source filename for position tracking
 //! @param line_offset Line number offset for this branch within the file
@@ -847,10 +970,25 @@ protected array(mapping) extract_symbols_from_branch(string branch_code, string 
         "static", "local", "private", "protected", "public", "final", "optional"
     >);
 
+    // Additional Pike 8.0 keywords
+    multiset(string) pike_keywords = (<
+        "constant", "class", "enum", "typedef", "inherit", "import",
+        "lambda", "inline", "variant", "nomask", "static"
+    >);
+
     mixed err = catch {
-        // Tokenize using Parser.Pike.split() - handles incomplete code gracefully
-        program PikeParserModule = master()->resolv("Parser.Pike");
-        array(string) tokens = PikeParserModule->split(branch_code);
+        // Use custom tokenizer that handles incomplete code better
+        // Fall back to Parser.Pike.split() if custom tokenizer fails
+        array(string) tokens;
+        mixed tokenize_err = catch {
+            tokens = tokenize_preprocessor_branch(branch_code);
+        };
+
+        if (tokenize_err || !tokens || sizeof(tokens) == 0) {
+            // Fallback to Parser.Pike.split()
+            program PikeParserModule = master()->resolv("Parser.Pike");
+            tokens = PikeParserModule->split(branch_code);
+        }
 
         // Walk tokens looking for declaration patterns
         int i = 0;
