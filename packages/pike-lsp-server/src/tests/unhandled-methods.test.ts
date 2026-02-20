@@ -57,13 +57,10 @@ const IMPLEMENTED_CAPABILITIES: Record<string, boolean> = {
     workspace: true,
 };
 
-// Methods that are part of LSP but not currently implemented
+// Methods that are part of LSP but have known edge cases or limitations
+// Note: These methods ARE implemented via capabilities, but may have edge cases
 const UNIMPLEMENTED_METHODS = [
-    'textDocument/selectionRange', // Available via selectionRangeProvider but may have edge cases
-    'textDocument/prepareRename', // prepareProvider exists but may fail edge cases
-    'textDocument/linkedEditingRange', // Registered but may have edge cases
-    'workspace/symbol', // Workspace symbol search may have limitations
-    'textDocument/@cancel', // Cancelled may have edge cases
+    'textDocument/@cancel', // Cancellation token handling may have edge cases
 ];
 
 describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
@@ -173,14 +170,9 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
                 'Should document unimplemented methods');
         });
 
-        it('should list selection range as potentially unhandled', () => {
-            assert.ok(UNIMPLEMENTED_METHODS.includes('textDocument/selectionRange'),
-                'selectionRange should be in unimplemented list');
-        });
-
-        it('should list prepareRename as potentially unhandled', () => {
-            assert.ok(UNIMPLEMENTED_METHODS.includes('textDocument/prepareRename'),
-                'prepareRename should be in unimplemented list');
+        it('should list @cancel as potentially unhandled', () => {
+            assert.ok(UNIMPLEMENTED_METHODS.includes('textDocument/@cancel'),
+                '@cancel should be in unimplemented list');
         });
 
     });
@@ -462,7 +454,7 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
             assert.ok(implementedCount >= 20, `Should have at least 20 implemented capabilities, found ${implementedCount}`);
 
             // Verify unimplemented methods are documented
-            assert.ok(UNIMPLEMENTED_METHODS.length >= 5, 'Should document at least 5 unimplemented methods');
+            assert.ok(UNIMPLEMENTED_METHODS.length >= 1, 'Should document at least 1 unimplemented method');
         });
     });
 });
