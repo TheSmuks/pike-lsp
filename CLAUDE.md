@@ -746,7 +746,7 @@ gh pr create \
 <What this PR does — 1-3 sentences of prose. Not a list.>
 
 ## Linked Issue
-Closes #<number>
+closes #<number>
 
 ## Root Cause
 <What caused the problem — be specific. Proves understanding, not just patching.>
