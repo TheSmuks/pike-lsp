@@ -321,51 +321,57 @@ export function registerReferencesHandlers(
             }
 
             // Search in workspace files that are not currently open
+            // For .pike files, only search in the same file (skip workspace search)
+            // For .pmod files, search across the entire workspace
             if (services.workspaceScanner?.isReady()) {
-                const cachedUris = new Set(documentCache.keys());
-                const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+                const isPikeFile = uri.endsWith('.pike');
+                if (isPikeFile) {
+                    log.debug('References: .pike file - skipping workspace search, only searching current file');
+                } else {
+                    const cachedUris = new Set(documentCache.keys());
+                    const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
 
-                log.debug('References: searching workspace files', {
-                    uncachedFileCount: uncachedFiles.length,
-                    word
-                });
+                    log.debug('References: searching workspace files', {
+                        uncachedFileCount: uncachedFiles.length,
+                        word
+                    });
 
-                // Progress reporting configuration
-                const enableProgress = process.env['PIKE_LSP_REFERENCES_PROGRESS'] !== 'false';
-                const PROGRESS_THRESHOLD = 20; // Only show progress for searches of 20+ files
-                const BATCH_SIZE = 15;
-                const YIELD_EVERY_N_BATCHES = 5;
+                    // Progress reporting configuration
+                    const enableProgress = process.env['PIKE_LSP_REFERENCES_PROGRESS'] !== 'false';
+                    const PROGRESS_THRESHOLD = 20; // Only show progress for searches of 20+ files
+                    const BATCH_SIZE = 15;
+                    const YIELD_EVERY_N_BATCHES = 5;
 
-                 
-                let progress: any = null;
 
-                // Create progress token for large workspace scans
-                if (enableProgress && uncachedFiles.length > PROGRESS_THRESHOLD) {
-                    try {
-                        progress = await connection.window.createWorkDoneProgress();
-                        progress.begin('Searching workspace...', 0, uncachedFiles.length);
-                        log.debug('References: progress started', { totalFiles: uncachedFiles.length });
-                    } catch (err) {
-                        // Client may not support workDoneProgress
-                        log.debug('References: failed to create progress', { error: err instanceof Error ? err.message : String(err) });
-                        progress = null;
-                    }
-                }
+                    let progress: any = null;
 
-                // Process workspace files in batches with yielding
-                for (let i = 0; i < uncachedFiles.length; i += BATCH_SIZE) {
-                    const batch = uncachedFiles.slice(i, Math.min(i + BATCH_SIZE, uncachedFiles.length));
-
-                    for (const file of batch) {
+                    // Create progress token for large workspace scans
+                    if (enableProgress && uncachedFiles.length > PROGRESS_THRESHOLD) {
                         try {
-                            // Read file content
-                            const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                            const { readFile } = await import('node:fs/promises');
-                            const content = await readFile(filePath, 'utf-8');
+                            progress = await connection.window.createWorkDoneProgress();
+                            progress.begin('Searching workspace...', 0, uncachedFiles.length);
+                            log.debug('References: progress started', { totalFiles: uncachedFiles.length });
+                        } catch (err) {
+                            // Client may not support workDoneProgress
+                            log.debug('References: failed to create progress', { error: err instanceof Error ? err.message : String(err) });
+                            progress = null;
+                        }
+                    }
 
-                            // Check if the word appears in the file (quick text search first)
-                            if (!content.includes(word)) {
-                                continue;
+                    // Process workspace files in batches with yielding
+                    for (let i = 0; i < uncachedFiles.length; i += BATCH_SIZE) {
+                        const batch = uncachedFiles.slice(i, Math.min(i + BATCH_SIZE, uncachedFiles.length));
+
+                        for (const file of batch) {
+                            try {
+                                // Read file content
+                                const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+                                const { readFile } = await import('node:fs/promises');
+                                const content = await readFile(filePath, 'utf-8');
+
+                                // Check if the word appears in the file (quick text search first)
+                                if (!content.includes(word)) {
+                                    continue;
                             }
 
                             // Word appears in file, do proper search
@@ -426,6 +432,7 @@ export function registerReferencesHandlers(
                 log.debug('References: workspace search complete', {
                     workspaceReferencesFound: references.length,
                 });
+                } // end else: .pmod files search workspace
             }
 
             // Apply includeDeclaration filtering for parsed documents only

@@ -270,7 +270,7 @@ export function convertPikeDocToMarkdown(text: string): string {
                         else if (tag === 'rfc') currentContent += `[RFC ${innerContent}](https://tools.ietf.org/html/rfc${innerContent})`;
                         else if (tag === 'xml') currentContent += innerContent;
                         else if (tag === 'fixme') currentContent += `**FIXME** ${innerContent}`;
-                        else if (tag === 'pre') currentContent += `\`\`\`\n${innerContent}\n\`\`\``;
+                        else if (tag === 'pre') currentContent += `\`\`\`pike\n${innerContent}\n\`\`\``;
                         else if (tag === 'u') currentContent += `<u>${innerContent}</u>`;
                         else if (tag === 'sub') currentContent += `<sub>${innerContent}</sub>`;
                         else if (tag === 'sup') currentContent += `<sup>${innerContent}</sup>`;
