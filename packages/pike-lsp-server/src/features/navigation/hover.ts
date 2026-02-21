@@ -75,6 +75,27 @@ export function registerHoverHandler(
             let symbol = cached.symbolNames?.get(word) ?? null;
             let parentScope: string | undefined;
 
+            // 1a. For variables, check for scope-aware type
+            if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
+                try {
+                    const text = document.getText();
+                    const line = params.position.line + 1;
+                    const typeResult = await services.bridge.bridge.getTypeAtPosition(text, uri, line, word);
+
+                    if (typeResult.found === 1 && typeResult.type) {
+                        log.info(
+                            `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
+                        );
+                        symbol = {
+                            ...symbol,
+                            type: { kind: typeResult.type } as any,
+                        };
+                    }
+                } catch (err) {
+                    log.error(`Scope-aware type lookup FAILED for ${word}`, { error: err });
+                }
+            }
+
             // 2. If not found, try to find in stdlib
             let isStdlib = false;
             if (!symbol && stdlibIndex) {

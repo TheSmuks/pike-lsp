@@ -1043,6 +1043,17 @@ export interface RoxenValidationResult {
     };
 }
 
+export interface TypeAtPositionResult {
+    /** Whether the variable was found */
+    found: 0 | 1;
+    /** Variable type (if found) */
+    type?: string;
+    /** Scope depth where variable was declared */
+    scopeDepth?: number;
+    /** Line where variable was declared (1-indexed) */
+    declLine?: number;
+}
+
 /**
  * Preprocessor branch (if/elif/else) line range.
  */
