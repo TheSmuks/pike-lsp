@@ -109,6 +109,10 @@ export interface MockConnection {
             onSupertypes: (handler: any) => void;
             onSubtypes: (handler: any) => void;
         };
+        semanticTokens: {
+            on: (handler: any) => void;
+            onDelta: (handler: any) => void;
+        };
     };
     definitionHandler: DefinitionHandler;
     declarationHandler: DeclarationHandler;
@@ -121,6 +125,8 @@ export interface MockConnection {
     typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
     typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
     typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
+    semanticTokensHandler: any;
+    semanticTokensDeltaHandler: any;
 }
 
 /**
@@ -140,6 +146,8 @@ export function createMockConnection(): MockConnection {
     let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
     const _sentDiagnostics: Array<{ uri: string; diagnostics: any[] }> = [];
     let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
+    let _semanticTokensHandler: any = null;
+    let _semanticTokensDeltaHandler: any = null;
 
     return {
         onDefinition(handler: DefinitionHandler) { _definitionHandler = handler; },
@@ -163,6 +171,10 @@ export function createMockConnection(): MockConnection {
                 onPrepare(handler: TypeHierarchyPrepareHandler) { _typeHierarchyPrepareHandler = handler; },
                 onSupertypes(handler: TypeHierarchySupertypesHandler) { _typeHierarchySupertypesHandler = handler; },
                 onSubtypes(handler: TypeHierarchySubtypesHandler) { _typeHierarchySubtypesHandler = handler; },
+            },
+            semanticTokens: {
+                on(handler: any) { _semanticTokensHandler = handler; },
+                onDelta(handler: any) { _semanticTokensDeltaHandler = handler; },
             },
         },
         get definitionHandler(): DefinitionHandler {
@@ -208,6 +220,14 @@ export function createMockConnection(): MockConnection {
         get typeHierarchySubtypesHandler(): TypeHierarchySubtypesHandler {
             if (!_typeHierarchySubtypesHandler) throw new Error('No type hierarchy subtypes handler registered');
             return _typeHierarchySubtypesHandler;
+        },
+        get semanticTokensHandler(): any {
+            if (!_semanticTokensHandler) throw new Error('No semantic tokens handler registered');
+            return _semanticTokensHandler;
+        },
+        get semanticTokensDeltaHandler(): any {
+            if (!_semanticTokensDeltaHandler) throw new Error('No semantic tokens delta handler registered');
+            return _semanticTokensDeltaHandler;
         },
         getSentDiagnostics() { return _sentDiagnostics; },
     };
