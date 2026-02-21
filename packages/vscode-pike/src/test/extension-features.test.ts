@@ -131,6 +131,21 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
             expect(addModuleCmd?.title).toBe('Add to Pike Module Path');
         });
 
+        test('33.1b should register pike-program-path.add command', async () => {
+            // Read package.json to verify command contribution
+            const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+            // Find pike-program-path.add command
+            const addProgramCmd = packageJson.contributes?.commands?.find(
+                (c: { command: string }) => c.command === 'pike-program-path.add'
+            );
+
+            expect(addProgramCmd).toBeDefined();
+            expect(addProgramCmd?.command).toBe('pike-program-path.add');
+            expect(addProgramCmd?.title).toBe('Add to Pike Program Path');
+        });
+
         test('33.2 should register pike.lsp.showDiagnostics command', async () => {
             // Read package.json to verify command contribution
             const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
@@ -221,6 +236,20 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
             expect(includePathConfig?.items).toBeDefined();
             expect(includePathConfig?.items.type).toBe('string');
             expect(includePathConfig?.default.length).toBe(0);
+        });
+
+        test('34.3b should support pike.pikeProgramPath configuration', async () => {
+            // Read package.json to verify configuration schema
+            const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+            // Verify pike.pikeProgramPath configuration exists
+            const programPathConfig = packageJson.contributes?.configuration?.properties?.['pike.pikeProgramPath'];
+            expect(programPathConfig).toBeDefined();
+            expect(programPathConfig?.type).toBe('array');
+            expect(programPathConfig?.items).toBeDefined();
+            expect(programPathConfig?.items.type).toBe('string');
+            expect(programPathConfig?.default.length).toBe(0);
         });
 
         test('34.4 should support pike.trace.server configuration', async () => {
