@@ -51,6 +51,17 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
 
     context.subscriptions.push(disposable);
 
+    const addProgramPathDisposable = commands.registerCommand('pike-program-path.add', async (e) => {
+        const rv = await addProgramPathSetting(e.fsPath);
+
+        if (rv)
+            window.showInformationMessage('Folder has been added to the program path');
+        else
+            window.showInformationMessage('Folder was already on the program path');
+    });
+
+    context.subscriptions.push(addProgramPathDisposable);
+
     const showReferencesDisposable = commands.registerCommand('pike.showReferences', async (uri, position, symbolName?: string) => {
         outputChannel.appendLine(`[pike.showReferences] Called with: ${JSON.stringify({ uri, position, symbolName })}`);
 
@@ -247,6 +258,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
                 lspStarted &&
                 (event.affectsConfiguration('pike.pikeModulePath') ||
                 event.affectsConfiguration('pike.pikeIncludePath') ||
+                event.affectsConfiguration('pike.pikeProgramPath') ||
                 event.affectsConfiguration('pike.pikePath'))
             ) {
                 await restartClient(false);
@@ -320,6 +332,24 @@ function getExpandedIncludePaths(): string[] {
     return expandedPaths;
 }
 
+function getExpandedProgramPaths(): string[] {
+    const config = workspace.getConfiguration('pike');
+    const pikeProgramPath = config.get<string[]>('pikeProgramPath', []);
+    let expandedPaths: string[] = [];
+
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        for (const p of pikeProgramPath) {
+            expandedPaths.push(p.replace("${workspaceFolder}", f));
+        }
+    } else {
+        expandedPaths = pikeProgramPath;
+    }
+
+    outputChannel.appendLine(`Pike program path: ${JSON.stringify(pikeProgramPath)}`);
+    return expandedPaths;
+}
+
 async function restartClient(showMessage: boolean): Promise<void> {
     if (!serverOptions) {
         return;
@@ -337,6 +367,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const pikePath = config.get<string>('pikePath', 'pike');
     const expandedPaths = getExpandedModulePaths();
     const expandedIncludePaths = getExpandedIncludePaths();
+    const expandedProgramPaths = getExpandedProgramPaths();
 
     // Windows uses semicolon as PATH separator, Unix uses colon
     // Pike on Windows also expects forward slashes, not backslashes
@@ -344,6 +375,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
     const normalizePath = (p: string) => process.platform === 'win32' ? p.replace(/\\/g, '/') : p;
     const normalizedModulePaths = expandedPaths.map(normalizePath);
     const normalizedIncludePaths = expandedIncludePaths.map(normalizePath);
+    const normalizedProgramPaths = expandedProgramPaths.map(normalizePath);
 
     // Determine the analyzer path relative to the server module
     // The server is at: extension-root/server/server.js
@@ -369,6 +401,7 @@ async function restartClient(showMessage: boolean): Promise<void> {
             env: {
                 'PIKE_MODULE_PATH': normalizedModulePaths.join(pathSeparator),
                 'PIKE_INCLUDE_PATH': normalizedIncludePaths.join(pathSeparator),
+                'PIKE_PROGRAM_PATH': normalizedProgramPaths.join(pathSeparator),
             },
         },
         outputChannel,
@@ -407,6 +440,26 @@ export async function addModulePathSetting(modulePath: string): Promise<boolean>
         updatedPath = pikeModulePath.slice();
         updatedPath.push(modulePath);
         await config.update('pikeModulePath', updatedPath, ConfigurationTarget.Workspace);
+        return true;
+    }
+
+    return false;
+}
+
+export async function addProgramPathSetting(programPath: string): Promise<boolean> {
+    const config = workspace.getConfiguration('pike');
+    const pikeProgramPath = config.get<string[]>('pikeProgramPath', []);
+    let updatedPath: string[] = [];
+
+    if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+        const f = workspace.workspaceFolders[0]!.uri.fsPath;
+        programPath = programPath.replace(f, "${workspaceFolder}");
+    }
+
+    if (!pikeProgramPath.includes(programPath)) {
+        updatedPath = pikeProgramPath.slice();
+        updatedPath.push(programPath);
+        await config.update('pikeProgramPath', updatedPath, ConfigurationTarget.Workspace);
         return true;
     }
 
