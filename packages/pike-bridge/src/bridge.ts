@@ -1638,6 +1638,20 @@ export class PikeBridge extends EventEmitter {
         return this.sendRequest<import('./types.js').CacheStats>('get_cache_stats', {});
     }
 
+    async getTypeAtPosition(
+        code: string,
+        filename: string,
+        line: number,
+        variableName: string
+    ): Promise<import('./types.js').TypeAtPositionResult> {
+        return this.sendRequest<import('./types.js').TypeAtPositionResult>('get_type_at_position', {
+            code,
+            filename,
+            line,
+            variableName,
+        });
+    }
+
     /**
      * Invalidate compilation cache entries for testing or debugging.
      *

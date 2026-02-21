@@ -632,6 +632,53 @@ int main(int argc, array(string) argv) {
                 ])
             ]);
         },
+        "get_type_at_position": lambda(mapping params, object ctx) {
+            // Get scope-aware type of a variable at a specific position
+            string code = params->code || "";
+            string filename = params->filename || "inline.pike";
+            int line = params->line || 0;  // 1-indexed
+            string variable_name = params->variableName || "";
+
+            if (sizeof(code) == 0 || sizeof(variable_name) == 0 || line == 0) {
+                return ([
+                    "error": ([
+                        "code": -32602,
+                        "message": "Missing required parameters: code, filename, line, variableName"
+                    ])
+                ]);
+            }
+
+            // Load ScopeResolver module
+            program ScopeResolverClass = master()->resolv("LSP.Analysis.ScopeResolver");
+            if (!ScopeResolverClass) {
+                return ([
+                    "error": ([
+                        "code": -32601,
+                        "message": "ScopeResolver module not available"
+                    ])
+                ]);
+            }
+
+            mixed resolver = ScopeResolverClass();
+            mixed result = resolver->resolve_variable_type(code, filename, line, variable_name);
+
+            if (!result) {
+                return ([
+                    "result": ([
+                        "found": 0
+                    ])
+                ]);
+            }
+
+            return ([
+                "result": ([
+                    "found": 1,
+                    "type": result->type,
+                    "scopeDepth": result->scope_depth,
+                    "declLine": result->decl_line
+                ])
+            ]);
+        },
     ]);
 
     // PERF-011: Record handlers phase time
