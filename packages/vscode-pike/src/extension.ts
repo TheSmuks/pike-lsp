@@ -258,6 +258,7 @@ async function activateInternal(context: ExtensionContext, testOutputChannel?: O
                 lspStarted &&
                 (event.affectsConfiguration('pike.pikeModulePath') ||
                 event.affectsConfiguration('pike.pikeIncludePath') ||
+                event.affectsConfiguration('pike.pikeProgramPath') ||
                 event.affectsConfiguration('pike.pikePath'))
             ) {
                 await restartClient(false);
