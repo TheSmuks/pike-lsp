@@ -156,6 +156,15 @@ mapping handle_get_completion_context(mapping params) {
                 }
             }
 
+            // Check for range operator (..) - tokenized as .. (single token in Pike)
+            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
+            // Also used in case statements: case 1..10:
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+                break;
+            }
+
             // Check for ternary operator (? :)
             // Look for ? but not ?-> or ?[ (safe navigation)
             if (text == "?") {
@@ -243,6 +252,13 @@ mapping handle_get_completion_context(mapping params) {
             // Ternary operator - provide expression context
             result->context = "expression";
             result->operator = "?:";
+        } else if (found_operator == "..") {
+            // Range operator - provide expression context
+            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
+            // Also used in case statements: case 1..10:
+            // And as range expressions: 1..10
+            result->context = "expression";
+            result->operator = "..";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
@@ -387,6 +403,15 @@ mapping handle_get_completion_context_cached(mapping params) {
                 }
             }
 
+            // Check for range operator (..) - tokenized as .. (single token in Pike)
+            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
+            // Also used in case statements: case 1..10:
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+                break;
+            }
+
             // Check for ternary operator (? :)
             // Look for ? but not ?-> or ?[ (safe navigation)
             if (text == "?") {
@@ -474,6 +499,13 @@ mapping handle_get_completion_context_cached(mapping params) {
             // Ternary operator - provide expression context
             result->context = "expression";
             result->operator = "?:";
+        } else if (found_operator == "..") {
+            // Range operator - provide expression context
+            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
+            // Also used in case statements: case 1..10:
+            // And as range expressions: 1..10
+            result->context = "expression";
+            result->operator = "..";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
