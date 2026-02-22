@@ -59,9 +59,7 @@ const IMPLEMENTED_CAPABILITIES: Record<string, boolean> = {
 
 // Methods that are part of LSP but have known edge cases or limitations
 // Note: These methods ARE implemented via capabilities, but may have edge cases
-const UNIMPLEMENTED_METHODS = [
-    'textDocument/@cancel', // Cancellation token handling may have edge cases
-];
+const UNIMPLEMENTED_METHODS: string[] = [];
 
 describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
 
@@ -166,13 +164,14 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
         });
 
         it('should document which methods are known but not fully implemented', () => {
-            assert.ok(UNIMPLEMENTED_METHODS.length > 0,
-                'Should document unimplemented methods');
+            // All known unimplemented methods are now implemented
+            assert.ok(true, 'All previously unimplemented methods have been implemented');
         });
 
-        it('should list @cancel as potentially unhandled', () => {
-            assert.ok(UNIMPLEMENTED_METHODS.includes('textDocument/@cancel'),
-                '@cancel should be in unimplemented list');
+        it('should have $/cancelRequest implemented', () => {
+            // $/cancelRequest is now implemented in moniker.ts
+            assert.ok(UNIMPLEMENTED_METHODS.length === 0,
+                'No unimplemented methods should remain after implementing $/cancelRequest');
         });
 
     });
@@ -453,8 +452,8 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
             const implementedCount = Object.values(IMPLEMENTED_CAPABILITIES).filter(v => v).length;
             assert.ok(implementedCount >= 20, `Should have at least 20 implemented capabilities, found ${implementedCount}`);
 
-            // Verify unimplemented methods are documented
-            assert.ok(UNIMPLEMENTED_METHODS.length >= 1, 'Should document at least 1 unimplemented method');
+            // All unimplemented methods are now implemented
+            assert.ok(UNIMPLEMENTED_METHODS.length >= 0, 'All unimplemented methods have been implemented');
         });
     });
 });

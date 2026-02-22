@@ -165,4 +165,18 @@ export function registerMonikerHandler(
         log.debug('Log message request', params);
         return null;
     });
+
+    /**
+     * Handler for $/cancelRequest - cancel a pending request (protocol compliance)
+     *
+     * Per LSP spec, this allows clients to cancel long-running requests.
+     * The server acknowledges the cancellation request but doesn't actively
+     * track cancellable requests - the client simply won't wait for the response.
+     */
+    connection.onRequest('$/cancelRequest', async (params: { id: number | string }) => {
+        log.debug('Cancel request received', { requestId: params.id });
+        // Return null to acknowledge the cancellation request
+        // The actual request will complete but the client will ignore the response
+        return null;
+    });
 }
