@@ -177,6 +177,35 @@ describe('PikeBridge', () => {
         assert.ok(result.diagnostics.length > 0, 'Should find at least one error');
     });
 
+    it('should parse code with splat operator (@)', async () => {
+        // Test splat/spread operator in function calls
+        const code = `
+void foo(int a, int b, int c) {}
+array(int) args = ({1, 2, 3});
+foo(@args);
+`;
+
+        const result = await bridge.parse(code, 'test.pike');
+
+        assert.ok(result.symbols, 'Should return symbols');
+        assert.ok(Array.isArray(result.symbols), 'Symbols should be an array');
+
+        // Check function foo was parsed
+        const fooSymbol = result.symbols.find(s => s.name === 'foo');
+        assert.ok(fooSymbol, 'Should find foo function');
+        assert.equal(fooSymbol.kind, 'method', 'foo should be a method');
+
+        // Check args variable was parsed
+        const argsSymbol = result.symbols.find(s => s.name === 'args');
+        assert.ok(argsSymbol, 'Should find args variable');
+
+        // Should not have errors related to splat operator
+        const splatErrors = result.diagnostics.filter(d =>
+            d.severity === 'error' && d.message.includes('sprintf: Wrong type')
+        );
+        assert.equal(splatErrors.length, 0, 'Should not have splat-related errors');
+    });
+
     it('should tokenize Pike code', async () => {
         const code = `int x = 42;`;
 
