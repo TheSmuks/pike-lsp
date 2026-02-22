@@ -24,16 +24,34 @@
  */
 
 // @ts-nocheck - Integration tests use mocha types at runtime
+// These tests require vscode package to run - skip in standard test environment
 
-import * as vscode from 'vscode';
 import * as assert from 'assert';
+import { suite, test } from 'mocha';
+
+// Skip all tests in this file if vscode is not available
+let vscode: any;
+let vscodeAvailable = false;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vscode = require('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available - tests will be skipped
+}
+
+const itSkip = vscodeAvailable ? test : test.skip;
 
 suite('Performance Benchmark Tests', () => {
-    let workspaceFolder: vscode.WorkspaceFolder;
-    let testDocumentUri: vscode.Uri;
-    let document: vscode.TextDocument;
+    let workspaceFolder: any;
+    let testDocumentUri: any;
+    let document: any;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000);
 
         workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
@@ -72,7 +90,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Measure time to parse and provide symbols
      * Assert: Parsing completes within 5 seconds
      */
-    test('47.1 Large file parsing completes within time limit', async function() {
+    itSkip('47.1 Large file parsing completes within time limit', async function() {
         this.timeout(30000);
 
         // Create a large test file
@@ -119,7 +137,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Trigger workspace symbol search
      * Assert: Search completes within 30 seconds
      */
-    test('47.2 Workspace symbol search completes within time limit', async function() {
+    itSkip('47.2 Workspace symbol search completes within time limit', async function() {
         this.timeout(60000);
 
         const startTime = Date.now();
@@ -145,7 +163,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Trigger completion and measure response time
      * Assert: Response time < 500ms
      */
-    test('47.3 Code completion response time within threshold', async function() {
+    itSkip('47.3 Code completion response time within threshold', async function() {
         this.timeout(10000);
 
         const text = document.getText();
@@ -183,7 +201,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Execute find references and measure time
      * Assert: Response time < 2 seconds
      */
-    test('47.4 Find references response time within threshold', async function() {
+    itSkip('47.4 Find references response time within threshold', async function() {
         this.timeout(10000);
 
         const text = document.getText();
@@ -221,7 +239,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Execute workspace symbol search with query
      * Assert: Response time < 5 seconds
      */
-    test('47.5 Workspace search response time within threshold', async function() {
+    itSkip('47.5 Workspace search response time within threshold', async function() {
         this.timeout(30000);
 
         const startTime = Date.now();
@@ -247,7 +265,7 @@ suite('Performance Benchmark Tests', () => {
      * Act: Open file and measure time to show diagnostics
      * Assert: Diagnostics appear within 3 seconds
      */
-    test('47.6 Diagnostics processing within time limit', async function() {
+    itSkip('47.6 Diagnostics processing within time limit', async function() {
         this.timeout(15000);
 
         const errorUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-perf-error.pike');
@@ -296,7 +314,7 @@ function_with_error() {
      * Act: Monitor memory usage during operations
      * Assert: Memory usage stays reasonable
      */
-    test('47.7 Memory usage remains within bounds', async function() {
+    itSkip('47.7 Memory usage remains within bounds', async function() {
         this.timeout(30000);
 
         // This is a basic smoke test for memory leaks
@@ -342,7 +360,7 @@ function_with_error() {
      *
      * Tests that performance doesn't degrade with repeated calls
      */
-    test('Repeated operations maintain performance', async function() {
+    itSkip('Repeated operations maintain performance', async function() {
         this.timeout(30000);
 
         const times: number[] = [];
@@ -384,7 +402,7 @@ function_with_error() {
      *
      * Tests that multiple concurrent operations complete successfully
      */
-    test('Concurrent operations complete successfully', async function() {
+    itSkip('Concurrent operations complete successfully', async function() {
         this.timeout(30000);
 
         // Trigger multiple operations concurrently
@@ -418,7 +436,7 @@ function_with_error() {
      *
      * Tests completion response time in a large file
      */
-    test('Completion in large file responds quickly', async function() {
+    itSkip('Completion in large file responds quickly', async function() {
         this.timeout(30000);
 
         const largeFileUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-large-completion.pike');

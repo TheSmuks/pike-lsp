@@ -3,9 +3,24 @@
  */
 
 // @ts-nocheck
-import * as vscode from 'vscode';
+// These tests require vscode package to run - skip in standard test environment
+
 import * as assert from 'assert';
 import * as path from 'path';
+import { suite, test } from 'mocha';
+
+// Skip all tests in this file if vscode is not available
+let vscode: any;
+let vscodeAvailable = false;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vscode = require('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available - tests will be skipped
+}
+
+const itSkip = vscodeAvailable ? test : test.skip;
 
 let capturedLogs: string[] = [];
 
@@ -32,11 +47,15 @@ function assertWithLogs(condition: unknown, message: string): asserts condition 
 }
 
 suite('Include/Import/Inherit Navigation E2E Tests', () => {
-    let workspaceFolder: vscode.WorkspaceFolder;
-    let testDocumentUri: vscode.Uri;
-    let document: vscode.TextDocument;
+    let workspaceFolder: any;
+    let testDocumentUri: any;
+    let document: any;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000);
         capturedLogs = [];
 
@@ -95,7 +114,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         }
     });
 
-    test('Go-to-definition for constant from #include file', async function() {
+    itSkip('Go-to-definition for constant from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -146,7 +165,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to constant: ${uriPath}:${firstLocation.range.start.line}`);
     });
 
-    test('Go-to-definition for function from #include file', async function() {
+    itSkip('Go-to-definition for function from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -197,7 +216,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to function: ${uriPath}:${firstLocation.range.start.line}`);
     });
 
-    test('Go-to-definition for documented function from #include file', async function() {
+    itSkip('Go-to-definition for documented function from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -242,7 +261,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to documented symbol: ${uriPath}`);
     });
 
-    test('Go-to-definition on #include directive navigates to included file', async function() {
+    itSkip('Go-to-definition on #include directive navigates to included file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
