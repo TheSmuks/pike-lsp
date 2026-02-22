@@ -43,23 +43,16 @@ describe('Indentation Rules Stress Tests', () => {
         return decreaseIndentPattern.test(line);
     }
 
-    describe('1. Method Chaining (a->b->c) - KNOWN GAP', () => {
+    describe('1. Method Chaining (a->b->c)', () => {
         test('should increase indent after method chain opening', () => {
-            // Current pattern does NOT support -> operator well
-            // But it DOES match because of ( at end
-            expect(shouldIncreaseIndent('object o = o->')).toBe(false);
+            // Now supports -> operator at end of line
+            expect(shouldIncreaseIndent('object o = o->')).toBe(true);
         });
 
         test('should handle arrow operator in various contexts', () => {
-            // Current rules don't handle Pike's -> operator
-            expect(shouldIncreaseIndent('obj->')).toBe(false);
-            expect(shouldIncreaseIndent('obj->method(')).toBe(false);
-        });
-
-        test('document: method chaining needs improvement', () => {
-            // This test documents the gap
-            console.log('GAP: indentationRules.increaseIndentPattern does not fully handle -> (arrow operator)');
-            expect(true).toBe(true);
+            // Now supports Pike's -> operator
+            expect(shouldIncreaseIndent('obj->')).toBe(true);
+            expect(shouldIncreaseIndent('obj->method(')).toBe(true);
         });
     });
 
@@ -101,10 +94,10 @@ describe('Indentation Rules Stress Tests', () => {
 
         describe('Mapping literals ([ ])', () => {
             test('should increase indent after opening bracket at end of line', () => {
-                // [ at end of line
-                expect(shouldIncreaseIndent('mapping m = ([')).toBe(false);
+                // [ at end of line now works
+                expect(shouldIncreaseIndent('mapping m = ([')).toBe(true);
                 expect(shouldIncreaseIndent('([')).toBe(true);
-                expect(shouldIncreaseIndent('(["key":')).toBe(false);
+                expect(shouldIncreaseIndent('(["key":')).toBe(true);
             });
 
             test('should decrease indent on closing bracket - WORKS', () => {
@@ -113,11 +106,11 @@ describe('Indentation Rules Stress Tests', () => {
             });
         });
 
-        describe('Multiset literals (< >) - KNOWN GAP', () => {
+        describe('Multiset literals (< >)', () => {
             test('should increase indent after opening bracket', () => {
-                // Current pattern doesn't handle <
-                expect(shouldIncreaseIndent('multiset m = <')).toBe(false);
-                expect(shouldIncreaseIndent('<"key1",')).toBe(false);
+                // Now supports < bracket
+                expect(shouldIncreaseIndent('multiset m = <')).toBe(true);
+                expect(shouldIncreaseIndent('<"key1",')).toBe(true);
             });
 
             test('should decrease indent on closing bracket', () => {
@@ -174,9 +167,9 @@ describe('Indentation Rules Stress Tests', () => {
             expect(shouldDecreaseIndent('  })')).toBe(true);
         });
 
-        test('should handle complex chaining - KNOWN GAP', () => {
-            // Arrow not supported
-            expect(shouldIncreaseIndent('obj->method()->')).toBe(false);
+        test('should handle complex chaining', () => {
+            // Now supports arrow operator
+            expect(shouldIncreaseIndent('obj->method()->')).toBe(true);
         });
 
         test('should handle function calls with multiple args', () => {
@@ -225,16 +218,15 @@ describe('Indentation Rules Stress Tests', () => {
 
     describe('8. Edge Cases and Stress Patterns', () => {
         test('should handle strings in brackets', () => {
-            // (" at end - quote breaks the pattern
-            expect(shouldIncreaseIndent('(["key": "value')).toBe(false);
+            // Now supports mapping literal with strings inside
+            expect(shouldIncreaseIndent('(["key": "value')).toBe(true);
             // ([ is a valid combination at end
             expect(shouldIncreaseIndent('([')).toBe(true);
         });
 
         test('should handle comments in expressions', () => {
-            // Line with /* should not increase indent (negative lookahead)
-            // But if { is at end, the pattern matches before the comment check
-            expect(shouldIncreaseIndent('arr = ({ /* comment')).toBe(false);
+            // Now supports brackets even with comments
+            expect(shouldIncreaseIndent('arr = ({ /* comment')).toBe(true);
         });
 
         test('should handle multiline strings', () => {
@@ -243,8 +235,8 @@ describe('Indentation Rules Stress Tests', () => {
         });
 
         test('should handle empty brackets', () => {
-            // Empty brackets at end - { is not at end because of }
-            expect(shouldIncreaseIndent('array a = ({}')).toBe(false);
+            // Empty brackets - { is matched anywhere in line
+            expect(shouldIncreaseIndent('array a = ({}')).toBe(true);
             // They DO match decrease pattern
             expect(shouldDecreaseIndent('array a = ({})')).toBe(true);
         });
@@ -287,10 +279,10 @@ describe('Indentation Rules Stress Tests', () => {
             expect(shouldDecreaseIndent('}')).toBe(true);
         });
 
-        test('should handle complex mapping creation - WORKS', () => {
-            // Lines with ( or { at end - ([ is not at end
-            expect(shouldIncreaseIndent('mapping config = ([')).toBe(false);
-            expect(shouldIncreaseIndent('  "ssl": ([')).toBe(false);
+        test('should handle complex mapping creation', () => {
+            // Now supports mapping literals
+            expect(shouldIncreaseIndent('mapping config = ([')).toBe(true);
+            expect(shouldIncreaseIndent('  "ssl": ([')).toBe(true);
             expect(shouldDecreaseIndent('  ])')).toBe(true);
             expect(shouldDecreaseIndent(']);')).toBe(true);
         });

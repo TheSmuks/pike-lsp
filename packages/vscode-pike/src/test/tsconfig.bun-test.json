@@ -13,6 +13,7 @@
     "include": [
         "./bun-test.d.ts",
         "./mockOutputChannel.test.ts",
-        "./extension-features.test.ts"
+        "./extension-features.test.ts",
+        "./indentation-stress.test.ts"
     ]
 }
