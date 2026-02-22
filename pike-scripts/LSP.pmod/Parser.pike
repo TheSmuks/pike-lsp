@@ -212,7 +212,8 @@ mapping parse_request(mapping params) {
                     string current_token = "";
                     catch { current_token = parser->peekToken(); };
                     // Add diagnostic for this error - improved message
-                    if (!has_value(error_msg, "expected identifier")) {
+                    if (!has_value(error_msg, "expected identifier") &&
+                        !has_value(error_msg, "sprintf: Wrong type")) {
                         // Improve error message with more context
                         string improved_msg = improve_syntax_error_message(error_msg, current_token, filename, error_line);
                         diagnostics += ({
