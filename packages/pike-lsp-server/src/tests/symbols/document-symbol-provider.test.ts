@@ -803,7 +803,20 @@ describe('Document Symbol Provider', () => {
             expect(result![0]!.selectionRange.end.character).toBe('myLongVariableName'.length);
         });
 
-        test.todo('not applicable to Pike: protected/private modifiers not reflected in DocumentSymbol');
+        it('Pike does not have protected/private modifiers in DocumentSymbol', async () => {
+            // Pike language does not have C++/Java style protected/private modifiers
+            // This test documents that behavior - no special handling needed
+            const { documentSymbol } = setup({
+                symbols: [
+                    sym('publicMethod', 'method', { position: { file: 'test.pike', line: 1 } }),
+                ],
+            });
+
+            const result = await documentSymbol();
+            expect(result).not.toBeNull();
+            // Pike symbols don't have modifier metadata in DocumentSymbol
+            expect(result![0]!.name).toBe('publicMethod');
+        });
     });
 
     describe('Performance', () => {

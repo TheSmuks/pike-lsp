@@ -299,6 +299,57 @@ export interface MockServicesOverrides {
 }
 
 /**
+ * Create a mock workspace scanner that simulates workspace file scanning.
+ * Returns uncached files for testing workspace-based reference search.
+ */
+export function createMockWorkspaceScanner(files: { uri: string; content: string }[]) {
+    const fileMap = new Map<string, { uri: string; content: string }>();
+    for (const f of files) {
+        fileMap.set(f.uri, f);
+    }
+
+    return {
+        isReady: () => true,
+        getUncachedFiles: (cachedUris: Set<string>) => {
+            return files
+                .filter(f => !cachedUris.has(f.uri))
+                .map(f => ({ uri: f.uri, path: decodeURIComponent(f.uri.replace(/^file:\/\//, '')) }));
+        },
+    };
+}
+
+/**
+ * Create a mock bridge that simulates Pike bridge responses.
+ * Supports cross-file symbol resolution and inheritance queries.
+ */
+export function createMockBridge(responses: {
+    findDefinition?: (file: string, symbol: string) => Promise<any>;
+    findReferences?: (file: string, symbol: string) => Promise<any[]>;
+    getInheritance?: (file: string, className: string) => Promise<any[]>;
+    resolveSymbol?: (file: string, symbol: string) => Promise<any>;
+}) {
+    return {
+        bridge: {
+            findDefinition: responses.findDefinition ?? (async () => null),
+            findReferences: responses.findReferences ?? (async () => []),
+            getInheritance: responses.getInheritance ?? (async () => []),
+            resolveSymbol: responses.resolveSymbol ?? (async () => null),
+        },
+    };
+}
+
+/**
+ * Create a mock workspace index for symbol search across workspace.
+ */
+export function createMockWorkspaceIndex(symbols: Map<string, any[]>) {
+    return {
+        searchSymbols: (query: string) => {
+            return symbols.get(query) ?? [];
+        },
+    };
+}
+
+/**
  * Build mock Services suitable for registering handlers.
  *
  * Creates a documentCache backed by a simple Map.
