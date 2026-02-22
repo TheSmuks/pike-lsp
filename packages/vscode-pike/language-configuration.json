@@ -39,7 +39,7 @@
         }
     },
     "indentationRules": {
-        "increaseIndentPattern": "^.*[{(]$",
-        "decreaseIndentPattern": "^[\\]})]$"
+        "increaseIndentPattern": "([\\{\\[<]|[(][\\{<]|->)",
+        "decreaseIndentPattern": "[\\]})>]"
     }
 }
