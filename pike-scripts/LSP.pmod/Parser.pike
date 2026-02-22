@@ -183,7 +183,21 @@ mapping parse_request(mapping params) {
                 decl = parser->parseDecl();
             };
 
-            if (parse_err || !decl) {
+            // Check if decl is a Modifier that was returned for the @ splat operator
+            // AutoDoc.PikeParser returns Modifier for @ since it's not a real modifier
+            int is_splat_modifier = 0;
+            if (!parse_err && decl && objectp(decl)) {
+                string decl_repr = sprintf("%O", decl);
+                if (has_value(decl_repr, "->Modifier(")) {
+                    // Check if current token is @ (splat operator)
+                    string current_tok = parser->peekToken();
+                    if (current_tok == "@") {
+                        is_splat_modifier = 1;
+                    }
+                }
+            }
+
+            if (parse_err || !decl || is_splat_modifier) {
                 autodoc_buffer = ({});
 
                 // Only generate diagnostic if there was an actual error (not just no decl)
@@ -216,6 +230,12 @@ mapping parse_request(mapping params) {
                 // Try to recover by skipping to next statement boundary
                 // Note: skipUntil may need multiple calls due to newline handling quirks
                 int recovery_attempts = 0;
+
+                // If this was the @ splat operator, skip it first
+                if (is_splat_modifier) {
+                    parser->readToken();
+                }
+
                 while (recovery_attempts < 10) {
                     parser->skipUntil((<";", "{", "}", "">));
                     string tok = parser->peekToken();
