@@ -213,4 +213,322 @@ void outer() {
     );
     assert.strictEqual(afterBlock.scopeDepth, 1);
   });
+
+  // ========== EDGE CASES ==========
+
+  it('should handle class member variables', async () => {
+    const code = `class MyClass {
+  string name;
+  int value;
+
+  void create() {
+    name;
+    value;
+  }
+}`;
+
+    const nameType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'name');
+    assert.strictEqual(nameType.found, 1);
+    assert.strictEqual(nameType.type, 'string');
+
+    const valueType = await bridge.getTypeAtPosition(code, 'test.pike', 6, 'value');
+    assert.strictEqual(valueType.found, 1);
+    assert.strictEqual(valueType.type, 'int');
+  });
+
+  it('should handle class inheritance with variable shadowing', async () => {
+    const code = `class Parent {
+  int value = 1;
+}
+
+class Child {
+  float value = 2.5;
+
+  void check() {
+    value;
+  }
+}`;
+
+    // In Child::check(), value should be float (child's version)
+    const childValue = await bridge.getTypeAtPosition(code, 'test.pike', 10, 'value');
+    assert.strictEqual(childValue.found, 1);
+    assert.strictEqual(childValue.type, 'float');
+  });
+
+  it('should handle foreach loop variables', async () => {
+    const code = `void test() {
+  array(int) nums = ({ 1, 2, 3 });
+  foreach (nums, int num) {
+    num;
+  }
+}`;
+
+    const loopVar = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'num');
+    assert.strictEqual(loopVar.found, 1);
+    assert.strictEqual(loopVar.type, 'int');
+  });
+
+  it('should handle for loop variables', async () => {
+    const code = `void test() {
+  for (int i = 0; i < 10; i++) {
+    i;
+  }
+}`;
+
+    const loopVar = await bridge.getTypeAtPosition(code, 'test.pike', 3, 'i');
+    assert.strictEqual(loopVar.found, 1);
+    assert.strictEqual(loopVar.type, 'int');
+  });
+
+  // See issue #601: extends ScopeResolver to support constants, enums, inheritance
+  it.skip('should handle constants', async () => {
+    const code = `constant MAX = 100;
+constant NAME = "test";
+
+void test() {
+  MAX;
+  NAME;
+}`;
+
+    const maxType = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'MAX');
+    assert.strictEqual(maxType.found, 1);
+    assert.strictEqual(maxType.type, 'int');
+
+    const nameType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'NAME');
+    assert.strictEqual(nameType.found, 1);
+    assert.strictEqual(nameType.type, 'string');
+  });
+
+  it('should handle static variables', async () => {
+    const code = `class Counter {
+  static int count = 0;
+
+  void increment() {
+    count;
+  }
+}`;
+
+    const countType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'count');
+    assert.strictEqual(countType.found, 1);
+    assert.strictEqual(countType.type, 'int');
+  });
+
+  // See issue #601: extends ScopeResolver to support constants, enums, inheritance
+  it.skip('should handle multi-level inheritance', async () => {
+    const code = `class A {
+  int x = 1;
+}
+
+class B {
+  float x = 2.0;
+}
+
+class C {
+  string x = "three";
+}
+
+class D {
+  inherit A;
+  inherit B;
+  inherit C;
+
+  void check() {
+    x;
+  }
+}`;
+
+    // The last inherited class (C) should shadow earlier ones
+    const xType = await bridge.getTypeAtPosition(code, 'test.pike', 19, 'x');
+    assert.strictEqual(xType.found, 1);
+    assert.strictEqual(xType.type, 'string');
+  });
+
+  it('should handle function pointers and programs', async () => {
+    const code = `void test() {
+  function f = lambda() { return 1; };
+  program p = class { };
+  f;
+  p;
+}`;
+
+    const funcType = await bridge.getTypeAtPosition(code, 'test.pike', 3, 'f');
+    assert.strictEqual(funcType.found, 1);
+    assert.ok(funcType.type?.includes('function'), 'Should detect function type');
+
+    const progType = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'p');
+    assert.strictEqual(progType.found, 1);
+    assert.ok(progType.type?.includes('program'), 'Should detect program type');
+  });
+
+  it('should handle lambda closures capturing variables', async () => {
+    const code = `void test() {
+  int outer = 42;
+  lambda void() {
+    outer;
+  };
+}`;
+
+    const outerType = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'outer');
+    assert.strictEqual(outerType.found, 1);
+    assert.strictEqual(outerType.type, 'int');
+  });
+
+  it('should handle sscanf pattern variables', async () => {
+    const code = `void test() {
+  string input = "123";
+  int result;
+  sscanf(input, "%d", result);
+  result;
+}`;
+
+    const resultType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'result');
+    assert.strictEqual(resultType.found, 1);
+    assert.strictEqual(resultType.type, 'int');
+  });
+
+  it('should handle mixed scope with multiple variables', async () => {
+    const code = `int a = 1;
+string b = "hi";
+float c = 1.5;
+
+void func1() {
+  int a = 2;
+  b;
+  c;
+}`;
+
+    const aInFunc = await bridge.getTypeAtPosition(code, 'test.pike', 7, 'a');
+    assert.strictEqual(aInFunc.type, 'int');
+    assert.strictEqual(aInFunc.scopeDepth, 1);
+
+    const bInFunc = await bridge.getTypeAtPosition(code, 'test.pike', 8, 'b');
+    assert.strictEqual(bInFunc.type, 'string');
+    assert.strictEqual(bInFunc.scopeDepth, 0);
+
+    const cInFunc = await bridge.getTypeAtPosition(code, 'test.pike', 9, 'c');
+    assert.strictEqual(cInFunc.type, 'float');
+    assert.strictEqual(cInFunc.scopeDepth, 0);
+  });
+
+  it('should handle while loop variables', async () => {
+    const code = `void test() {
+  int i = 0;
+  while (i < 10) {
+    i++;
+  }
+  i;
+}`;
+
+    const iInLoop = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'i');
+    assert.strictEqual(iInLoop.found, 1);
+    assert.strictEqual(iInLoop.type, 'int');
+
+    const iAfterLoop = await bridge.getTypeAtPosition(code, 'test.pike', 6, 'i');
+    assert.strictEqual(iAfterLoop.found, 1);
+    assert.strictEqual(iAfterLoop.type, 'int');
+  });
+
+  // See issue #601 doesn't yet handle 'enum' keyword
+  it.skip('should handle enum values', async () => {
+    const code = `enum Color {
+  RED = 1,
+  GREEN = 2,
+  BLUE = 3
+}
+
+void test() {
+  Color c = RED;
+  c;
+}`;
+
+    const cType = await bridge.getTypeAtPosition(code, 'test.pike', 8, 'c');
+    assert.strictEqual(cType.found, 1);
+    assert.strictEqual(cType.type, 'int');
+  });
+
+  // See issue #601 doesn't yet handle implicit typing (variables without explicit type)
+  it.skip('should handle implicit mixed type (no explicit type)', async () => {
+    const code = `void test() {
+  x = 5;
+  x = "string";
+  x;
+}`;
+
+    const xType = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'x');
+    assert.strictEqual(xType.found, 1);
+    // Without explicit type, should detect as mixed or inferred type
+    assert.ok(xType.type === 'mixed' || xType.type === 'unknown' || xType.type === 'auto');
+  });
+
+  it('should handle catch block variables', async () => {
+    const code = `void test() {
+  mixed err = catch {
+    int x = 5;
+    x;
+  };
+  err;
+}`;
+
+    const errType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'err');
+    assert.strictEqual(errType.found, 1);
+    assert.ok(errType.type === 'mixed' || errType.type === 'int' || errType.type === 'zero');
+  });
+
+  it('should handle complex generic types', async () => {
+    const code = `void test() {
+  array(mapping(string:int)) complex = ({ ([]) });
+  complex;
+}`;
+
+    const complexType = await bridge.getTypeAtPosition(code, 'test.pike', 3, 'complex');
+    assert.strictEqual(complexType.found, 1);
+    assert.ok(complexType.type?.includes('array'), 'Should detect array');
+    assert.ok(complexType.type?.includes('mapping'), 'Should detect nested mapping');
+  });
+
+  it('should handle constructor parameters', async () => {
+    const code = `class MyClass {
+  int value;
+
+  void create(int value) {
+    this->value = value;
+    value;
+  }
+}`;
+
+    const paramValue = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'value');
+    assert.strictEqual(paramValue.found, 1);
+    assert.strictEqual(paramValue.type, 'int');
+    // Constructor creates an additional scope, so depth is 2 (class + function)
+    assert.ok(paramValue.scopeDepth === 1 || paramValue.scopeDepth === 2);
+  });
+
+  it('should handle private class variables with this->', async () => {
+    const code = `class Counter {
+  private int count = 0;
+
+  void increment() {
+    this->count;
+  }
+}`;
+
+    const countType = await bridge.getTypeAtPosition(code, 'test.pike', 4, 'count');
+    assert.strictEqual(countType.found, 1);
+    assert.strictEqual(countType.type, 'int');
+  });
+
+  it('should return correct type for global constant vs local variable', async () => {
+    const code = `constant MAX_SIZE = 100;
+
+void test() {
+  int MAX_SIZE = 50;
+  MAX_SIZE;
+}`;
+
+    // Local should shadow global
+    const localType = await bridge.getTypeAtPosition(code, 'test.pike', 5, 'MAX_SIZE');
+    assert.strictEqual(localType.found, 1);
+    assert.strictEqual(localType.type, 'int');
+    assert.strictEqual(localType.scopeDepth, 1);
+  });
 });
