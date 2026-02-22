@@ -16,6 +16,7 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { PatternHelpers } from '../../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
+import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 
 // Semantic tokens legend (shared with server.ts)
 const tokenTypes = [
@@ -180,6 +181,29 @@ export function registerSemanticTokensHandler(
                     const modifiers = isDeclaration ? declModifiers : 0;
 
                     builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
+                }
+            }
+        }
+
+        // Add keyword highlighting for Pike keywords
+        const keywordTokenType = tokenTypes.indexOf('keyword');
+        const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(kw => kw.name);
+
+        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+            const line = lines[lineNum];
+            if (!line) continue;
+
+            for (const keyword of controlKeywords) {
+                const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
+                let match: RegExpExecArray | null;
+                while ((match = keywordRegex.exec(line)) !== null) {
+                    const matchIndex = match.index;
+
+                    if (isInsideComment(line, matchIndex) || isInsideString(line, matchIndex)) {
+                        continue;
+                    }
+
+                    builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
                 }
             }
         }
