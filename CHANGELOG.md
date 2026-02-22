@@ -16,6 +16,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.22] - 2026-02-22
+
+### Added
+- **Semantic tokens and diagnostics** - Enhanced semantic tokens and diagnostics support
+- **Range operator (..)** - Implement range operator support for slicing expressions
+- **Splat operator (@)** - Improved splat operator error handling in parser
+- **Do-while loop** - Add do-while loop support verification tests
+- **Ternary/conditional operator (? :)** - Implement ternary/conditional operator context detection
+- **Complex function types** - Implement complex function types with varargs support
+- **Safe navigation operator (?->, ?[)** - Implement safe navigation operator support
+- **$/cancelRequest LSP method** - Implement $/cancelRequest LSP method for request cancellation
+- **Lambda closure** - Implement lambda closure, this keyword, and :: qualified access resolution
+- **Scope-aware variable type inference** - Add scope-aware variable type inference
+- **PIKE_PROGRAM_PATH configuration** - Add PIKE_PROGRAM_PATH configuration support
+- **Program path feature tests** - Add tests for program path feature
+- **Development guide generator** - Add development guide generator
+
+### Fixed
+- **VSCode package test errors** - Resolve 22 test errors from missing vscode package
+- **Mock implementations** - Add mock implementations for 21 todo tests
+- **Skipped tests** - Resolve 20 skipped tests due to vscode package unavailability
+- **Indentation rule tests** - Resolve indentation rule test failures
+- **Stale validations** - Prevent stale validations from causing false syntax errors after undo
+- **Hover markdown** - Fix hover markdown formatting issues
+- **Indentation regex** - Simplify indentation regex patterns to fix test failures
+- **LSP methods** - Reduce unimplemented LSP methods from 5 to 1
+- **PR template** - Use lowercase 'closes' in PR template for auto-close
+- **Benchmark CI** - Add pages write permission to benchmark CI
+- **Configuration changes** - Restart language server when pikeProgramPath configuration changes
+- **VSCode mock services** - Fix mock services for semantic tokens handlers
+
+### Test
+- **Do-while loop support** - Verify do-while loop support
+- **Scope-aware type resolution** - Add edge case tests for scope-aware type resolution
+- **Semantic tokens stress tests** - Add stress tests for semantic tokens
+- **Call hierarchy stress tests** - Add stress tests for call hierarchy
+- **Type hierarchy stress tests** - Add stress tests for type hierarchy
+- **Document symbols stress tests** - Add stress tests for document symbols
+- **Workspace symbols stress tests** - Add stress tests for workspace symbols
+- **Formatting stress tests** - Add stress tests for formatting (document)
+- **Document highlights stress tests** - Add stress tests for document highlights
+- **Rename stress tests** - Add stress tests for rename refactoring
+- **Signature help stress tests** - Add stress tests for signature help
+- **Code actions stress tests** - Add stress tests for code actions and quick fixes
+- **Completion stress tests** - Add stress tests for completion provider
+- **Parser stress tests** - Add stress tests for parser control flow and incomplete code
+- **Diagnostics stress tests** - Add stress tests for diagnostics and uninitialized variable detection
+- **Goto definition stress tests** - Add stress tests for goto definition
+- **Indentation stress tests** - Add stress tests for ALT+ARROW indentation rules
+- **References scope tests** - Add stress tests for .pike vs .pmod references scope
+- **Hover markdown stress tests** - Add stress tests for hover markdown formatting
+
+### Changed
+- **Semantics tokens** - Enhance semantic tokens and diagnostics
+
 ## [0.1.0-alpha.21] - 2026-02-19
 
 ### Added
@@ -426,6 +481,20 @@ A full-featured Language Server Protocol implementation for Pike.
 - 100% Pike stdlib compatibility - All 546+ files parse
 - Performance benchmarks with CI/CD integration
 
+[0.1.0-alpha.22]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.22
+[0.1.0-alpha.21]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.21
+[0.1.0-alpha.20]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.20
+[0.1.0-alpha.19]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.19
+[0.1.0-alpha.18]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.18
+[0.1.0-alpha.17]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.17
+[0.1.0-alpha.16]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.16
+[0.1.0-alpha.15]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.15
+[0.1.0-alpha.14]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.14
+[0.1.0-alpha.13]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.13
+[0.1.0-alpha.12]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.12
+[0.1.0-alpha.11]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.11
+[0.1.0-alpha.10]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.10
+[0.1.0-alpha.9]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.9
 [0.1.0-alpha.8]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.8
 [0.1.0-alpha.7]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.7
 [0.1.0-alpha.6]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.6
