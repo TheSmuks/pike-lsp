@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.1.0-alpha.23)'
+        required: false
 
 permissions:
   contents: write

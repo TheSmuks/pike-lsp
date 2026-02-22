@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.23] - 2026-02-22
+
+### Added
+- **Switch/case statement support** - Implement switch/case statement support with semantic token highlighting for control flow keywords
+- **Range operator context detection** - Implement range operator (..) context detection for code completion (array slicing, case ranges, type expressions)
+
+### Chore
+- **Branch cleanup workflow** - Add workflow to automatically delete branches when PRs are merged
+- **Security workflow** - Add workflow_dispatch trigger for manual Gitleaks runs
+
 ## [0.1.0-alpha.22] - 2026-02-22
 
 ### Added
