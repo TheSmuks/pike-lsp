@@ -343,6 +343,64 @@ class D {
     assert.strictEqual(xType.type, 'string');
   });
 
+  // Issue #603: Edge cases for multi-level inheritance
+  it('should handle single inheritance', async () => {
+    const code = `class A {
+  int x = 1;
+}
+
+class B {
+  inherit A;
+
+  void check() {
+    x;
+  }
+}`;
+
+    const xType = await bridge.getTypeAtPosition(code, 'test.pike', 8, 'x');
+    assert.strictEqual(xType.found, 1);
+    assert.strictEqual(xType.type, 'int');
+  });
+
+  it('should prefer local variable over inherited', async () => {
+    const code = `class A {
+  int x = 1;
+}
+
+class B {
+  inherit A;
+  int x = 2;
+
+  void check() {
+    x;
+  }
+}`;
+
+    // Local variable should shadow inherited
+    const xType = await bridge.getTypeAtPosition(code, 'test.pike', 9, 'x');
+    assert.strictEqual(xType.found, 1);
+    assert.strictEqual(xType.type, 'int');
+  });
+
+  it('should handle method inheritance', async () => {
+    const code = `class A {
+  int getValue() { return 42; }
+}
+
+class B {
+  inherit A;
+
+  void check() {
+    getValue;
+  }
+}`;
+
+    const methodType = await bridge.getTypeAtPosition(code, 'test.pike', 8, 'getValue');
+    assert.strictEqual(methodType.found, 1);
+    // The resolver returns the return type for methods
+    assert.strictEqual(methodType.type, 'int');
+  });
+
   it('should handle function pointers and programs', async () => {
     const code = `void test() {
   function f = lambda() { return 1; };
