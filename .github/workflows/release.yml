@@ -50,6 +50,8 @@ jobs:
 
       - name: Get Previous Release Tag
         id: prev_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Get the last published GitHub Release tag
           PREV_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
@@ -89,17 +91,24 @@ jobs:
         run: bun run package
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: packages/vscode-pike/vscode-pike-*.vsix
-          generate_release_notes: true
-          name: Release v${{ steps.version.outputs.version }}
-          tag_name: v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: false
-          ${{ steps.prev_release.outputs.previous_tag != '' && format('previous_tag: {0}', steps.prev_release.outputs.previous_tag) || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          PREV_TAG="${{ steps.prev_release.outputs.previous_tag }}"
+          VSIX=$(ls packages/vscode-pike/vscode-pike-*.vsix)
+
+          ARGS=(
+            "$TAG"
+            --title "Release $TAG"
+            --generate-notes
+          )
+
+          if [ -n "$PREV_TAG" ]; then
+            ARGS+=(--notes-start-tag "$PREV_TAG")
+          fi
+
+          gh release create "${ARGS[@]}" "$VSIX"
 
       - name: Upload VSIX to artifact
         uses: actions/upload-artifact@v4
