@@ -29,10 +29,24 @@
  */
 
 // @ts-nocheck - Integration tests use mocha types at runtime
+// These tests require vscode package to run - skip in standard test environment
 
-import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as path from 'path';
+import { suite, test } from 'mocha';
+
+// Skip all tests in this file if vscode is not available
+let vscode: any;
+let vscodeAvailable = false;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vscode = require('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available - tests will be skipped
+}
+
+const itSkip = vscodeAvailable ? test : test.skip;
 
 // Captured Pike server logs for debugging test failures
 let capturedLogs: string[] = [];
@@ -69,12 +83,16 @@ function assertWithLogs(condition: unknown, message: string): asserts condition 
 }
 
 suite('LSP Feature E2E Tests', () => {
-    let workspaceFolder: vscode.WorkspaceFolder;
-    let testDocumentUri: vscode.Uri;
-    let document: vscode.TextDocument;
-    let outputChannelDisposable: vscode.Disposable | undefined;
+    let workspaceFolder: any;
+    let testDocumentUri: any;
+    let document: any;
+    let outputChannelDisposable: any;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000); // Allow more time for LSP initialization
         capturedLogs = []; // Reset logs for this test run
 
@@ -166,7 +184,7 @@ suite('LSP Feature E2E Tests', () => {
      * Tests that textDocument/documentSymbol returns a valid symbol tree.
      * This verifies the outline/symbol tree feature works end-to-end.
      */
-    test('Document symbols returns valid symbol tree', async function() {
+    itSkip('Document symbols returns valid symbol tree', async function() {
         this.timeout(30000);
 
         logServerOutput('Starting document symbols test...');
@@ -228,7 +246,7 @@ suite('LSP Feature E2E Tests', () => {
      * ARE indexed with conditional metadata, documenting the improvement
      * over the previous limitation.
      */
-    test('Preprocessor conditional symbols are indexed with metadata', async function() {
+    itSkip('Preprocessor conditional symbols are indexed with metadata', async function() {
         this.timeout(30000);
 
         // Create a test file with preprocessor conditionals
@@ -333,7 +351,7 @@ int nested_symbol
      * Tests that textDocument/hover returns type information.
      * This verifies hover shows type info when hovering over symbols.
      */
-    test('Hover returns type information', async function() {
+    itSkip('Hover returns type information', async function() {
         this.timeout(30000);
 
         // Get document text to find symbol positions
@@ -380,7 +398,7 @@ int nested_symbol
      * Tests that textDocument/definition returns valid locations.
      * This verifies go-to-definition navigation works correctly.
      */
-    test('Go-to-definition returns location', async function() {
+    itSkip('Go-to-definition returns location', async function() {
         this.timeout(30000);
 
         // Get document text to find symbol reference
@@ -442,7 +460,7 @@ int nested_symbol
      * Tests that textDocument/completion returns suggestions.
      * This verifies autocomplete works correctly.
      */
-    test('Completion returns suggestions', async function() {
+    itSkip('Completion returns suggestions', async function() {
         this.timeout(30000);
 
         // Get document text to find completion trigger position
@@ -491,7 +509,7 @@ int nested_symbol
     /**
      * Additional test: Verify hover on function shows signature
      */
-    test('Hover on function shows signature information', async function() {
+    itSkip('Hover on function shows signature information', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -530,7 +548,7 @@ int nested_symbol
     /**
      * Additional test: Verify class appears in symbols
      */
-    test('Class symbol appears in document symbols', async function() {
+    itSkip('Class symbol appears in document symbols', async function() {
         this.timeout(30000);
 
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -580,7 +598,7 @@ int nested_symbol
     /**
      * Additional test: Completion at end of word
      */
-    test('Completion triggers on partial word', async function() {
+    itSkip('Completion triggers on partial word', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -623,7 +641,7 @@ int nested_symbol
      * Act: Execute reference provider on test_variable
      * Assert: Returns all reference locations (definition + usages)
      */
-    test('References returns all symbol occurrences', async function() {
+    itSkip('References returns all symbol occurrences', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -664,7 +682,7 @@ int nested_symbol
      * Act: Execute reference provider
      * Assert: Returns all locations where function is called
      */
-    test('References on function returns call sites', async function() {
+    itSkip('References on function returns call sites', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -693,7 +711,7 @@ int nested_symbol
      * Act: Execute document highlight provider
      * Assert: Returns all highlight locations in current document
      */
-    test('Document highlight highlights symbol occurrences', async function() {
+    itSkip('Document highlight highlights symbol occurrences', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -723,7 +741,7 @@ int nested_symbol
      * Act: Execute implementation provider
      * Assert: Returns implementation locations
      */
-    test('Implementation returns symbol usages', async function() {
+    itSkip('Implementation returns symbol usages', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -759,7 +777,7 @@ int nested_symbol
      * Act: Execute call hierarchy prepare
      * Assert: Returns call hierarchy item for the method
      */
-    test('Call hierarchy prepare returns item for method', async function() {
+    itSkip('Call hierarchy prepare returns item for method', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -796,7 +814,7 @@ int nested_symbol
      * Act: Execute incoming calls
      * Assert: Returns list of callers
      */
-    test('Call hierarchy incoming calls shows callers', async function() {
+    itSkip('Call hierarchy incoming calls shows callers', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -838,7 +856,7 @@ int nested_symbol
      * Act: Execute outgoing calls
      * Assert: Returns list of functions called
      */
-    test('Call hierarchy outgoing calls shows callees', async function() {
+    itSkip('Call hierarchy outgoing calls shows callees', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -874,7 +892,7 @@ int nested_symbol
      * Act: Execute type hierarchy prepare
      * Assert: Returns type hierarchy item for the class
      */
-    test('Type hierarchy prepare returns item for class', async function() {
+    itSkip('Type hierarchy prepare returns item for class', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -909,7 +927,7 @@ int nested_symbol
      * Act: Execute supertypes
      * Assert: Returns TestClass as supertype
      */
-    test('Type hierarchy supertypes shows inherited classes', async function() {
+    itSkip('Type hierarchy supertypes shows inherited classes', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -946,7 +964,7 @@ int nested_symbol
      * Act: Execute subtypes
      * Assert: Returns ChildClass as subtype
      */
-    test('Type hierarchy subtypes shows inheriting classes', async function() {
+    itSkip('Type hierarchy subtypes shows inheriting classes', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -987,7 +1005,7 @@ int nested_symbol
      * Act: Execute signature help provider
      * Assert: Returns signature information with parameters
      */
-    test('Signature help shows function parameters', async function() {
+    itSkip('Signature help shows function parameters', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1021,7 +1039,7 @@ int nested_symbol
      * Act: Execute signature help provider
      * Assert: Returns signature with parameter information
      */
-    test('Signature help for function with multiple parameters', async function() {
+    itSkip('Signature help for function with multiple parameters', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1055,7 +1073,7 @@ int nested_symbol
      * Act: Execute code actions provider
      * Assert: Returns available code actions
      */
-    test('Code actions returned for document', async function() {
+    itSkip('Code actions returned for document', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1093,7 +1111,7 @@ int nested_symbol
      * Act: Execute document formatting provider
      * Assert: Returns formatting edits
      */
-    test('Document formatting returns formatting edits', async function() {
+    itSkip('Document formatting returns formatting edits', async function() {
         this.timeout(30000);
 
         const formattingEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
@@ -1113,7 +1131,7 @@ int nested_symbol
      * Act: Execute range formatting provider
      * Assert: Returns formatting edits for the range
      */
-    test('Range formatting formats selected range', async function() {
+    itSkip('Range formatting formats selected range', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1154,7 +1172,7 @@ int nested_symbol
      * Act: Execute semantic tokens provider
      * Assert: Returns semantic tokens with valid data
      */
-    test('Semantic tokens returned for document', async function() {
+    itSkip('Semantic tokens returned for document', async function() {
         this.timeout(30000);
 
         // Semantic tokens are provided via the LSP server
@@ -1176,7 +1194,7 @@ int nested_symbol
      * Act: Execute inlay hint provider on document range
      * Assert: Returns inlay hints (may be empty array)
      */
-    test('Inlay hints returns hints for function parameters', async function() {
+    itSkip('Inlay hints returns hints for function parameters', async function() {
         this.timeout(30000);
 
         const range = new vscode.Range(
@@ -1202,7 +1220,7 @@ int nested_symbol
      * Act: Execute folding range provider
      * Assert: Returns folding ranges for code blocks
      */
-    test('Folding ranges returns collapsible regions', async function() {
+    itSkip('Folding ranges returns collapsible regions', async function() {
         this.timeout(30000);
 
         const ranges = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
@@ -1224,7 +1242,7 @@ int nested_symbol
      * Act: Execute document link provider
      * Assert: Returns document links (may be empty)
      */
-    test('Document links returns clickable paths', async function() {
+    itSkip('Document links returns clickable paths', async function() {
         this.timeout(30000);
 
         const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>(
@@ -1245,7 +1263,7 @@ int nested_symbol
      * Act: Execute code lens provider and test command invocation
      * Assert: Returns code lenses and pike.showReferences command works
      */
-    test('Code lens shows reference counts and command is invocable', async function() {
+    itSkip('Code lens shows reference counts and command is invocable', async function() {
         this.timeout(30000);
 
         // Get code lenses for the document
@@ -1310,7 +1328,7 @@ int nested_symbol
      * Act: Execute pike.showReferences with symbolName parameter
      * Assert: References are found for the function
      */
-    test('Code lens click with symbolName finds references even when position is at return type', async function() {
+    itSkip('Code lens click with symbolName finds references even when position is at return type', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1345,7 +1363,7 @@ int nested_symbol
      * Act: Execute pike.showReferences with all three arguments
      * Assert: Command executes successfully
      */
-    test('pike.showReferences command accepts symbolName parameter', async function() {
+    itSkip('pike.showReferences command accepts symbolName parameter', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1392,7 +1410,7 @@ int nested_symbol
      * Act: Execute selection range provider at a position
      * Assert: Returns selection range hierarchy
      */
-    test('Selection ranges returns smart selection hierarchy', async function() {
+    itSkip('Selection ranges returns smart selection hierarchy', async function() {
         this.timeout(10000);
 
         // Find a position inside a function body
@@ -1430,7 +1448,7 @@ int nested_symbol
      * Act: Execute selection range provider with multiple positions
      * Assert: Returns selection ranges for each position
      */
-    test('Selection ranges for multiple positions', async function() {
+    itSkip('Selection ranges for multiple positions', async function() {
         this.timeout(10000);
 
         const positions = [
@@ -1468,7 +1486,7 @@ int nested_symbol
      * Act: Execute references provider
      * Assert: Returns empty array (not error)
      */
-    test('References on unknown symbol returns empty', async function() {
+    itSkip('References on unknown symbol returns empty', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1499,7 +1517,7 @@ int nested_symbol
      * Act: Execute hover provider
      * Assert: Returns null or empty (no error)
      */
-    test('Hover on empty line returns null gracefully', async function() {
+    itSkip('Hover on empty line returns null gracefully', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1528,7 +1546,7 @@ int nested_symbol
      * Act: Execute completion provider
      * Assert: Returns completion items (keywords, etc.)
      */
-    test('Completion at start of document', async function() {
+    itSkip('Completion at start of document', async function() {
         this.timeout(30000);
 
         const startPosition = new vscode.Position(0, 0);
@@ -1551,7 +1569,7 @@ int nested_symbol
      * Act: Execute completion provider
      * Assert: Returns completion items without error
      */
-    test('Completion at end of document', async function() {
+    itSkip('Completion at end of document', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1576,7 +1594,7 @@ int nested_symbol
      * Act: Execute folding range provider
      * Assert: All folding ranges have valid start/end lines
      */
-    test('Folding ranges have valid line numbers', async function() {
+    itSkip('Folding ranges have valid line numbers', async function() {
         this.timeout(30000);
 
         const ranges = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
@@ -1603,7 +1621,7 @@ int nested_symbol
      * Act: Execute document symbols provider
      * Assert: Returns class symbol with children methods
      */
-    test('Document symbols for nested class structure', async function() {
+    itSkip('Document symbols for nested class structure', async function() {
         this.timeout(30000);
 
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -1640,7 +1658,7 @@ int nested_symbol
      * Act: Execute definition provider
      * Assert: Returns the definition location
      */
-    test('Go to definition on symbol definition returns self', async function() {
+    itSkip('Go to definition on symbol definition returns self', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1680,7 +1698,7 @@ int nested_symbol
      * Act: Execute definition provider on "Stdio" or "File"
      * Assert: Handler doesn't crash (may return null if LSP not fully functional)
      */
-    test('Go-to-definition on module path does not crash', async function() {
+    itSkip('Go-to-definition on module path does not crash', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1708,7 +1726,7 @@ int nested_symbol
      * Act: Execute hover provider at various positions
      * Assert: Provider doesn't crash
      */
-    test('Hover provider does not crash on any position', async function() {
+    itSkip('Hover provider does not crash on any position', async function() {
         this.timeout(30000);
 
         // Test hover at a few positions
@@ -1743,7 +1761,7 @@ int nested_symbol
      * Act: Execute definition provider on "TestClass" in inherit statement
      * Assert: Returns location of TestClass definition
      */
-    test('Go-to-definition on inherit statement navigates to parent class', async function() {
+    itSkip('Go-to-definition on inherit statement navigates to parent class', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1818,7 +1836,7 @@ int nested_symbol
      * that go-to-definition works (tested above) rather than requiring visual
      * representation in the outline view.
      */
-    test('Inherit statement is navigable via go-to-definition', async function() {
+    itSkip('Inherit statement is navigable via go-to-definition', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1878,6 +1896,10 @@ suite('Waterfall Loading E2E Tests', () => {
     let document: vscode.TextDocument;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000);
 
         workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
@@ -1911,7 +1933,7 @@ suite('Waterfall Loading E2E Tests', () => {
      * Test: Completion returns valid results (validates ModuleContext integration)
      * Tests that the ModuleContext getWaterfallSymbolsForDocument is wired into completion
      */
-    test('Completion returns valid results via ModuleContext', async function() {
+    itSkip('Completion returns valid results via ModuleContext', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1946,7 +1968,7 @@ suite('Waterfall Loading E2E Tests', () => {
     /**
      * Test: Completion shows class definitions from current file
      */
-    test('Completion shows class definitions', async function() {
+    itSkip('Completion shows class definitions', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -1982,7 +2004,7 @@ suite('Waterfall Loading E2E Tests', () => {
      * Test: Completion shows symbols from stdlib imports
      * Validates that import resolution contributes to completion context
      */
-    test('Completion shows stdlib import symbols', async function() {
+    itSkip('Completion shows stdlib import symbols', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -2021,7 +2043,7 @@ suite('Waterfall Loading E2E Tests', () => {
     /**
      * Test: Document contains expected structure for ModuleContext tests
      */
-    test('Test file has expected ModuleContext structure', async function() {
+    itSkip('Test file has expected ModuleContext structure', async function() {
         this.timeout(10000);
 
         const text = document.getText();
@@ -2041,7 +2063,7 @@ suite('Waterfall Loading E2E Tests', () => {
      * Note: Full symbol extraction for Roxen patterns (defvar, simpletag_*)
      * depends on Pike analyzer support - this test verifies the file is processed.
      */
-    test('Roxen module: Document can be opened and analyzed without crash', async function() {
+    itSkip('Roxen module: Document can be opened and analyzed without crash', async function() {
         this.timeout(45000);
 
         logServerOutput('Starting Roxen module test...');
@@ -2078,7 +2100,7 @@ suite('Waterfall Loading E2E Tests', () => {
      *
      * Tests that Roxen module diagnostics work - valid modules should have no errors.
      */
-    test('Roxen module: Valid module has no diagnostic errors', async function() {
+    itSkip('Roxen module: Valid module has no diagnostic errors', async function() {
         this.timeout(45000);
 
         logServerOutput('Starting Roxen module diagnostics test...');
@@ -2116,7 +2138,7 @@ suite('Waterfall Loading E2E Tests', () => {
      *
      * Tests MODULE_LOCATION pattern - file can be opened and analyzed.
      */
-    test('Roxen location module: File opens without crash', async function() {
+    itSkip('Roxen location module: File opens without crash', async function() {
         this.timeout(45000);
 
         logServerOutput('Starting Roxen location module test...');
@@ -2145,7 +2167,7 @@ suite('Waterfall Loading E2E Tests', () => {
      *
      * Tests that RXML tags inside Pike strings are handled.
      */
-    test('RXML mixed content: File with RXML parses without errors', async function() {
+    itSkip('RXML mixed content: File with RXML parses without errors', async function() {
         this.timeout(45000);
 
         logServerOutput('Starting RXML mixed content test...');

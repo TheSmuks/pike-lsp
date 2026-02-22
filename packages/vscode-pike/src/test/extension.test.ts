@@ -6,24 +6,54 @@
  */
 
 // @ts-nocheck - Extension tests use mocha types at runtime
+// These tests require vscode package to run - skip in standard test environment
 
 import * as path from 'path';
 import * as fs from 'fs';
 import assert from 'assert';
-import { ExtensionContext } from 'vscode';
-import { describe, it, before, after } from 'mocha';
-import { MockOutputChannelImpl, createMockOutputChannel, type MockOutputChannel } from './mockOutputChannel';
-import { activateForTesting, ExtensionApi } from '../extension';
+import { describe, it, before, after, test, suite } from 'mocha';
 
-// Import VSCode test utilities
-import { runTests } from '@vscode/test-electron';
+// Skip all tests in this file if vscode is not available
+let vscodeAvailable = false;
+try {
+    require.resolve('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available
+}
+
+// Import conditionally only when available
+let ExtensionContext: any;
+let runTests: any;
+let activateForTesting: any;
+let ExtensionApi: any;
+
+if (vscodeAvailable) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    ExtensionContext = require('vscode').ExtensionContext;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    runTests = require('@vscode/test-electron').runTests;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ext = require('../extension');
+    activateForTesting = ext.activateForTesting;
+    ExtensionApi = ext.ExtensionApi;
+}
+
+import { MockOutputChannelImpl, createMockOutputChannel, type MockOutputChannel } from './mockOutputChannel';
+
+// Use conditional test functions - skip tests if vscode not available
+const itSkip = vscodeAvailable ? it : it.skip;
 
 describe('Pike Language Extension', () => {
     let extensionApi: ExtensionApi | null = null;
     let mockOutputChannel: MockOutputChannel;
-    let testContext: ExtensionContext;
+    let testContext: any;
 
     before(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(30000); // Give more time for setup
 
         // Create a mock output channel to capture logs

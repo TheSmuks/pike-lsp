@@ -15,16 +15,34 @@
  */
 
 // @ts-nocheck - Integration tests use mocha types at runtime
+// These tests require vscode package to run - skip in standard test environment
 
-import * as vscode from 'vscode';
 import * as assert from 'assert';
+import { suite, test } from 'mocha';
+
+// Skip all tests in this file if vscode is not available
+let vscode: any;
+let vscodeAvailable = false;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vscode = require('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available - tests will be skipped
+}
+
+const itSkip = vscodeAvailable ? test : test.skip;
 
 suite('Responsiveness E2E Tests', () => {
-    let workspaceFolder: vscode.WorkspaceFolder;
-    let fixtureUri: vscode.Uri;
-    let document: vscode.TextDocument;
+    let workspaceFolder: any;
+    let fixtureUri: any;
+    let document: any;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000);
 
         // Ensure workspace folder exists
@@ -88,7 +106,7 @@ suite('Responsiveness E2E Tests', () => {
      * The 250ms debounce delay should coalesce the 50 edits into
      * ~2 validation calls instead of 50, preventing CPU overload.
      */
-    test('Debouncing prevents CPU thrashing during rapid typing', async function() {
+    itSkip('Debouncing prevents CPU thrashing during rapid typing', async function() {
         this.timeout(30000);
 
         const editor = await vscode.window.showTextDocument(document);
@@ -134,7 +152,7 @@ suite('Responsiveness E2E Tests', () => {
      * and a final validation should occur. This test verifies that
      * the LSP is ready to handle new queries shortly after typing stops.
      */
-    test('LSP recovers quickly after typing burst', async function() {
+    itSkip('LSP recovers quickly after typing burst', async function() {
         this.timeout(30000);
 
         const editor = await vscode.window.showTextDocument(document);

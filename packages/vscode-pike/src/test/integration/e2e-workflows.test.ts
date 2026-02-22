@@ -22,18 +22,36 @@
  */
 
 // @ts-nocheck - Integration tests use mocha types at runtime
+// These tests require vscode package to run - skip in standard test environment
 
-import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import { suite, test } from 'mocha';
+
+// Skip all tests in this file if vscode is not available
+let vscode: any;
+let vscodeAvailable = false;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vscode = require('vscode');
+    vscodeAvailable = true;
+} catch {
+    // vscode not available - tests will be skipped
+}
+
+const itSkip = vscodeAvailable ? test : test.skip;
 
 suite('E2E Workflow Tests', () => {
-    let workspaceFolder: vscode.WorkspaceFolder;
-    let testDocumentUri: vscode.Uri;
-    let document: vscode.TextDocument;
+    let workspaceFolder: any;
+    let testDocumentUri: any;
+    let document: any;
 
     suiteSetup(async function() {
+        if (!vscodeAvailable) {
+            this.skip();
+            return;
+        }
         this.timeout(60000);
 
         workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
@@ -72,7 +90,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Open a Pike file
      * Assert: Language ID is pike, LSP features are available
      */
-    test('46.1 Open Pike file and verify language features activate', async function() {
+    itSkip('46.1 Open Pike file and verify language features activate', async function() {
         this.timeout(30000);
 
         const uri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
@@ -97,7 +115,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Trigger completion and select item
      * Assert: Completion items appear and can be inserted
      */
-    test('46.2 Code completion workflow triggers and inserts suggestion', async function() {
+    itSkip('46.2 Code completion workflow triggers and inserts suggestion', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -125,7 +143,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Execute go-to-definition on function reference
      * Assert: Navigation location points to function definition
      */
-    test('46.3 Go-to-definition workflow navigates to symbol definition', async function() {
+    itSkip('46.3 Go-to-definition workflow navigates to symbol definition', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -154,7 +172,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Execute find references
      * Assert: Returns all reference locations including definition
      */
-    test('46.4 Find references workflow shows all symbol usages', async function() {
+    itSkip('46.4 Find references workflow shows all symbol usages', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -182,7 +200,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Execute rename symbol command
      * Assert: Workspace edit returned with all changes
      */
-    test('46.5 Rename symbol workflow updates all occurrences', async function() {
+    itSkip('46.5 Rename symbol workflow updates all occurrences', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -215,7 +233,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Execute workspace symbol search
      * Assert: Returns matching symbols from all files
      */
-    test('46.6 Workspace search workflow finds symbols across files', async function() {
+    itSkip('46.6 Workspace search workflow finds symbols across files', async function() {
         this.timeout(30000);
 
         const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
@@ -235,7 +253,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Prepare call hierarchy and get incoming/outgoing calls
      * Assert: Returns call hierarchy items
      */
-    test('46.7 Call hierarchy workflow shows callers/callees', async function() {
+    itSkip('46.7 Call hierarchy workflow shows callers/callees', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -274,7 +292,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Prepare type hierarchy and get supertypes/subtypes
      * Assert: Returns type hierarchy items
      */
-    test('46.8 Type hierarchy workflow shows inheritance', async function() {
+    itSkip('46.8 Type hierarchy workflow shows inheritance', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -301,7 +319,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Execute document formatting
      * Assert: Returns formatting edits
      */
-    test('46.9 Document formatting workflow applies formatting', async function() {
+    itSkip('46.9 Document formatting workflow applies formatting', async function() {
         this.timeout(30000);
 
         const formattingEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
@@ -320,7 +338,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Update Pike path setting
      * Assert: Configuration is updated
      */
-    test('46.10 Configure Pike path in settings', async function() {
+    itSkip('46.10 Configure Pike path in settings', async function() {
         this.timeout(30000);
 
         const config = vscode.workspace.getConfiguration('pike');
@@ -341,7 +359,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Update module path setting
      * Assert: Configuration is updated
      */
-    test('46.11 Add module path configuration', async function() {
+    itSkip('46.11 Add module path configuration', async function() {
         this.timeout(30000);
 
         const config = vscode.workspace.getConfiguration('pike');
@@ -361,7 +379,7 @@ suite('E2E Workflow Tests', () => {
      * Act: Open file and wait for analysis
      * Assert: Diagnostics appear for the error
      */
-    test('46.12 Show diagnostics for Pike errors', async function() {
+    itSkip('46.12 Show diagnostics for Pike errors', async function() {
         this.timeout(30000);
 
         // Create a temporary file with invalid Pike code
@@ -404,7 +422,7 @@ int main(
      *
      * Tests: Open file -> Find symbol -> Go to definition -> Return -> Edit
      */
-    test('Complete edit cycle with symbol lookup', async function() {
+    itSkip('Complete edit cycle with symbol lookup', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -432,7 +450,7 @@ int main(
      *
      * Tests: Open file -> Find symbol -> Navigate to another file -> Verify
      */
-    test('Multi-file navigation workflow', async function() {
+    itSkip('Multi-file navigation workflow', async function() {
         this.timeout(30000);
 
         // This test verifies we can navigate across files if symbols are defined elsewhere
@@ -450,7 +468,7 @@ int main(
      *
      * Tests: Find references -> Verify locations -> Prepare rename
      */
-    test('Refactor with confidence workflow', async function() {
+    itSkip('Refactor with confidence workflow', async function() {
         this.timeout(30000);
 
         const text = document.getText();
