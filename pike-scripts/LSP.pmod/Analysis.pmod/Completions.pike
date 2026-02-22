@@ -176,6 +176,17 @@ mapping handle_get_completion_context(mapping params) {
                 }
             }
 
+            // Check for range operator (..)
+            // Range operator is used in:
+            // - Array/string slicing: arr[2..5], arr[2..], arr[..5]
+            // - Case ranges: case 1..10:
+            // - Creating ranges: 1..10
+            // - Type expressions: int(0..255)
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+            }
+
             // Stop at statement boundaries
             if (text == ";" || text == "{" || text == "}") {
                 break;
@@ -220,7 +231,7 @@ mapping handle_get_completion_context(mapping params) {
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
                     obj_text == "->" || obj_text == "::" ||
-                    obj_text == "?" || obj_text == ":") {
+                    obj_text == "?" || obj_text == ":" || obj_text == "..") {
                     break;
                 }
 
@@ -243,6 +254,11 @@ mapping handle_get_completion_context(mapping params) {
             // Ternary operator - provide expression context
             result->context = "expression";
             result->operator = "?:";
+        } else if (found_operator == "..") {
+            // Range operator - provide expression context
+            // Used in: arr[2..5], arr[2..], arr[..5], 1..10, case 1..10:, int(0..255)
+            result->context = "expression";
+            result->operator = "..";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
@@ -407,6 +423,17 @@ mapping handle_get_completion_context_cached(mapping params) {
                 }
             }
 
+            // Check for range operator (..)
+            // Range operator is used in:
+            // - Array/string slicing: arr[2..5], arr[2..], arr[..5]
+            // - Case ranges: case 1..10:
+            // - Creating ranges: 1..10
+            // - Type expressions: int(0..255)
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+            }
+
             // Stop at statement boundaries
             if (text == ";" || text == "{" || text == "}") {
                 break;
@@ -451,7 +478,7 @@ mapping handle_get_completion_context_cached(mapping params) {
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
                     obj_text == "->" || obj_text == "::" ||
-                    obj_text == "?" || obj_text == ":") {
+                    obj_text == "?" || obj_text == ":" || obj_text == "..") {
                     break;
                 }
 
@@ -474,6 +501,11 @@ mapping handle_get_completion_context_cached(mapping params) {
             // Ternary operator - provide expression context
             result->context = "expression";
             result->operator = "?:";
+        } else if (found_operator == "..") {
+            // Range operator - provide expression context
+            // Used in: arr[2..5], arr[2..], arr[..5], 1..10, case 1..10:, int(0..255)
+            result->context = "expression";
+            result->operator = "..";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
