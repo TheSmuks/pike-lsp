@@ -156,13 +156,54 @@ mapping handle_get_completion_context(mapping params) {
                 }
             }
 
+            // Check for ternary operator (? :)
+            // Look for ? but not ?-> or ?[ (safe navigation)
+            if (text == "?") {
+                // Look ahead to see if this is ?-> or ?[ (safe navigation)
+                bool is_safe_nav = false;
+                for (int j = i + 1; j < sizeof(pike_tokens); j++) {
+                    string next_text = LSP.Compat.trim_whites(pike_tokens[j]->text);
+                    if (sizeof(next_text) > 0) {
+                        if (next_text == "->" || next_text == "[") {
+                            is_safe_nav = true;
+                        }
+                        break;
+                    }
+                }
+                if (!is_safe_nav) {
+                    found_operator = "?:";
+                    operator_idx = i;
+                }
+            }
+
             // Stop at statement boundaries
             if (text == ";" || text == "{" || text == "}") {
                 break;
             }
         }
 
-        if (found_operator != "") {
+        // Check for ternary : (colon in ternary expression)
+        // Look backwards for the nearest ?
+        if (found_operator == "" || found_operator == ":") {
+            for (int i = token_idx; i >= 0; i--) {
+                object tok = pike_tokens[i];
+                string text = LSP.Compat.trim_whites(tok->text);
+
+                // Found ? - this is a ternary expression
+                if (text == "?") {
+                    found_operator = "?:";
+                    operator_idx = i;
+                    break;
+                }
+
+                // Stop at statement boundaries or other expression boundaries
+                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")") {
+                    break;
+                }
+            }
+        }
+
+        if (found_operator != "" && found_operator != "?:") {
             // Found an access operator - this is member/scope access
             result->operator = found_operator;
 
@@ -178,7 +219,8 @@ mapping handle_get_completion_context(mapping params) {
                     obj_text == "(" || obj_text == ")" || obj_text == "," ||
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
-                    obj_text == "->" || obj_text == "::") {
+                    obj_text == "->" || obj_text == "::" ||
+                    obj_text == "?" || obj_text == ":") {
                     break;
                 }
 
@@ -197,6 +239,10 @@ mapping handle_get_completion_context(mapping params) {
             } else {
                 result->context = "member_access";
             }
+        } else if (found_operator == "?:") {
+            // Ternary operator - provide expression context
+            result->context = "expression";
+            result->operator = "?:";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
@@ -341,13 +387,54 @@ mapping handle_get_completion_context_cached(mapping params) {
                 }
             }
 
+            // Check for ternary operator (? :)
+            // Look for ? but not ?-> or ?[ (safe navigation)
+            if (text == "?") {
+                // Look ahead to see if this is ?-> or ?[ (safe navigation)
+                bool is_safe_nav = false;
+                for (int j = i + 1; j < sizeof(pike_tokens); j++) {
+                    string next_text = LSP.Compat.trim_whites(pike_tokens[j]->text);
+                    if (sizeof(next_text) > 0) {
+                        if (next_text == "->" || next_text == "[") {
+                            is_safe_nav = true;
+                        }
+                        break;
+                    }
+                }
+                if (!is_safe_nav) {
+                    found_operator = "?:";
+                    operator_idx = i;
+                }
+            }
+
             // Stop at statement boundaries
             if (text == ";" || text == "{" || text == "}") {
                 break;
             }
         }
 
-        if (found_operator != "") {
+        // Check for ternary : (colon in ternary expression)
+        // Look backwards for the nearest ?
+        if (found_operator == "" || found_operator == ":") {
+            for (int i = token_idx; i >= 0; i--) {
+                object tok = pike_tokens[i];
+                string text = LSP.Compat.trim_whites(tok->text);
+
+                // Found ? - this is a ternary expression
+                if (text == "?") {
+                    found_operator = "?:";
+                    operator_idx = i;
+                    break;
+                }
+
+                // Stop at statement boundaries or other expression boundaries
+                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")") {
+                    break;
+                }
+            }
+        }
+
+        if (found_operator != "" && found_operator != "?:") {
             // Found an access operator - this is member/scope access
             result->operator = found_operator;
 
@@ -363,7 +450,8 @@ mapping handle_get_completion_context_cached(mapping params) {
                     obj_text == "(" || obj_text == ")" || obj_text == "," ||
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
-                    obj_text == "->" || obj_text == "::") {
+                    obj_text == "->" || obj_text == "::" ||
+                    obj_text == "?" || obj_text == ":") {
                     break;
                 }
 
@@ -382,6 +470,10 @@ mapping handle_get_completion_context_cached(mapping params) {
             } else {
                 result->context = "member_access";
             }
+        } else if (found_operator == "?:") {
+            // Ternary operator - provide expression context
+            result->context = "expression";
+            result->operator = "?:";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
