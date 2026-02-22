@@ -281,7 +281,7 @@ class Child {
   });
 
   // See issue #601: extends ScopeResolver to support constants, enums, inheritance
-  it.skip('should handle constants', async () => {
+  it('should handle constants', async () => {
     const code = `constant MAX = 100;
 constant NAME = "test";
 
@@ -314,7 +314,7 @@ void test() {
   });
 
   // See issue #601: extends ScopeResolver to support constants, enums, inheritance
-  it.skip('should handle multi-level inheritance', async () => {
+  it('should handle multi-level inheritance', async () => {
     const code = `class A {
   int x = 1;
 }
@@ -428,8 +428,7 @@ void func1() {
     assert.strictEqual(iAfterLoop.type, 'int');
   });
 
-  // See issue #601 doesn't yet handle 'enum' keyword
-  it.skip('should handle enum values', async () => {
+  it('should handle enum values', async () => {
     const code = `enum Color {
   RED = 1,
   GREEN = 2,
@@ -446,8 +445,7 @@ void test() {
     assert.strictEqual(cType.type, 'int');
   });
 
-  // See issue #601 doesn't yet handle implicit typing (variables without explicit type)
-  it.skip('should handle implicit mixed type (no explicit type)', async () => {
+  it('should handle implicit mixed type (no explicit type)', async () => {
     const code = `void test() {
   x = 5;
   x = "string";
