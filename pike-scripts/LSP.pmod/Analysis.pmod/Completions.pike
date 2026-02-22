@@ -128,9 +128,32 @@ mapping handle_get_completion_context(mapping params) {
 
             // Check if this is an access operator
             if (text == "->" || text == "." || text == "::") {
+                // Check if this is a safe navigation operator (?->) by looking at previous token
+                if (i > 0) {
+                    object prev_tok = pike_tokens[i - 1];
+                    string prev_text = LSP.Compat.trim_whites(prev_tok->text);
+                    if (prev_text == "?") {
+                        found_operator = "?->";
+                        operator_idx = i - 1;  // Mark ? as the operator position
+                        break;
+                    }
+                }
                 found_operator = text;
                 operator_idx = i;
                 break;
+            }
+
+            // Check for safe index operator (?[) - tokenized as ? then [
+            if (text == "[") {
+                if (i > 0) {
+                    object prev_tok = pike_tokens[i - 1];
+                    string prev_text = LSP.Compat.trim_whites(prev_tok->text);
+                    if (prev_text == "?") {
+                        found_operator = "?[";
+                        operator_idx = i - 1;
+                        break;
+                    }
+                }
             }
 
             // Stop at statement boundaries
@@ -290,9 +313,32 @@ mapping handle_get_completion_context_cached(mapping params) {
 
             // Check if this is an access operator
             if (text == "->" || text == "." || text == "::") {
+                // Check if this is a safe navigation operator (?->) by looking at previous token
+                if (i > 0) {
+                    object prev_tok = pike_tokens[i - 1];
+                    string prev_text = LSP.Compat.trim_whites(prev_tok->text);
+                    if (prev_text == "?") {
+                        found_operator = "?->";
+                        operator_idx = i - 1;  // Mark ? as the operator position
+                        break;
+                    }
+                }
                 found_operator = text;
                 operator_idx = i;
                 break;
+            }
+
+            // Check for safe index operator (?[) - tokenized as ? then [
+            if (text == "[") {
+                if (i > 0) {
+                    object prev_tok = pike_tokens[i - 1];
+                    string prev_text = LSP.Compat.trim_whites(prev_tok->text);
+                    if (prev_text == "?") {
+                        found_operator = "?[";
+                        operator_idx = i - 1;
+                        break;
+                    }
+                }
             }
 
             // Stop at statement boundaries
