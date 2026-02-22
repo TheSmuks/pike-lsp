@@ -967,3 +967,89 @@ Do NOT leave branches or worktrees behind regardless of outcome.
 - ✅ ALWAYS run cleanup verification and confirm zero residual artifacts
 - ✅ ALWAYS check PR mergeability after push — if CONFLICTING, rebase immediately (Step 6b)
 - ✅ ALWAYS re-verify (lint, typecheck, build, test) after every rebase
+
+---
+
+## 📦 Creating a Release
+
+This section describes how to create a new release for pike-lsp.
+
+### Step 1: Determine the Previous and New Release Tags
+
+```bash
+# Get the last published GitHub Release (not just git tag)
+gh release list --limit 1
+
+# Get the current version from package.json
+cat package.json | grep '"version"'
+
+# Or get the latest git tag
+git describe --tags --abbrev=0
+```
+
+### Step 2: Update Version Numbers
+
+Update the version in both files:
+- `package.json`
+- `packages/vscode-pike/package.json`
+
+```bash
+# Edit both files to bump the version (e.g., alpha.22 → alpha.23)
+```
+
+### Step 3: Update CHANGELOG.md
+
+Add a new section for the release with the date and changes. Keep only the latest two releases in the changelog (current + previous).
+
+### Step 4: Commit and Tag
+
+```bash
+git add -A
+git commit -m "chore: bump version to alpha.NEW"
+git tag -a v0.1.0-alpha.NEW -m "Release v0.1.0-alpha.NEW"
+```
+
+### Step 5: Push and Create GitHub Release (CRITICAL)
+
+**Always use `gh release create` with `--notes-start-tag`** to create an actual GitHub Release:
+
+```bash
+# Push the tag
+git push origin v0.1.0-alpha.NEW
+```
+
+The release workflow (`.github/workflows/release.yml`) will automatically:
+1. Build and test the project
+2. Create the VSIX package
+3. Publish the GitHub Release with auto-generated notes
+
+### Step 6: Verify the Release
+
+Check that the release was created correctly:
+
+```bash
+gh release view v0.1.0-alpha.NEW
+gh release list
+```
+
+### Why This Matters
+
+GitHub's auto-generated release notes compare against the **last published GitHub Release**, not the last git tag. If you only push git tags without creating GitHub Releases, the next release will accumulate all changes since the last actual Release — resulting in bloated changelogs.
+
+**Always ensure each release creates an actual GitHub Release**, not just a git tag.
+
+### Fixing a Release
+
+If you need to fix a release's changelog:
+
+```bash
+# Delete the old release
+gh release delete v0.1.0-alpha.NEW --yes
+
+# Recreate with correct diff range
+gh release create v0.1.0-alpha.NEW \
+  --target <commit-sha> \
+  --generate-notes \
+  --notes-start-tag v0.1.0-alpha.PREVIOUS \
+  --title "Release v0.1.0-alpha.NEW"
+```

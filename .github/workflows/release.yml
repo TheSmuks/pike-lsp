@@ -44,6 +44,14 @@ jobs:
             echo "version=${{ steps.version_manual.outputs.version }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Get Previous Release Tag
+        id: prev_release
+        run: |
+          # Get the last published GitHub Release tag
+          PREV_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+          echo "previous_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous release tag: $PREV_TAG"
+
       - name: Verify Version Match
         if: github.event_name == 'push'
         working-directory: packages/vscode-pike
@@ -85,6 +93,7 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
+          ${{ steps.prev_release.outputs.previous_tag != '' && format('previous_tag: {0}', steps.prev_release.outputs.previous_tag) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
