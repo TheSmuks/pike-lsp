@@ -39,14 +39,19 @@ public mapping|int resolve_variable_type(string code, string filename, int line,
     
     // Build scope-aware variable map
     mapping scope_map = build_scope_map(tokens, lines, filename);
-    
+
     // Find variables visible at the given line
     array(mapping) visible_vars = get_visible_variables_at_line(scope_map, variable_name, line);
-    
+
+    // Issue #603: If no variables found, check inherited class members
+    if (sizeof(visible_vars) == 0) {
+        visible_vars = get_inherited_variable(tokens, scope_map, variable_name, line);
+    }
+
     if (sizeof(visible_vars) == 0) {
         return 0;
     }
-    
+
     // Return the innermost scope variable (last in array = deepest scope)
     return visible_vars[-1];
 }
@@ -58,15 +63,18 @@ public mapping|int resolve_variable_type(string code, string filename, int line,
 protected mapping build_scope_map(array tokens, array(string) lines, string filename) {
     // Map: variable_name -> array of ([ type, scope_depth, decl_line, end_line ])
     mapping(string:array(mapping)) scope_map = ([]);
-    
+
     // Current scope depth
     int scope_depth = 0;
-    
+
     // Stack to track scope ending lines
     array(int) scope_end_stack = ({});
-    
+
+    // Track inherited classes per scope level: scope_depth -> array of class names
+    array(array(string)) inherits_stack = ({});
+
     // Use module-level helper functions directly (imported from .module)
-    
+
     int i = 0;
     int end_idx = sizeof(tokens);
     
@@ -89,14 +97,20 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
             if (close_idx >= 0) {
                 scope_end_stack += ({ tokens[close_idx]->line });
             }
+            // Initialize inherits for new scope (inherit from parent)
+            inherits_stack += (({}));
             i++;
             continue;
         }
-        
+
         if (text == "}") {
             // Remove scope end marker
             if (sizeof(scope_end_stack) > 0) {
                 scope_end_stack = scope_end_stack[0..sizeof(scope_end_stack)-2];
+            }
+            // Pop inherits for this scope
+            if (sizeof(inherits_stack) > 0) {
+                inherits_stack = inherits_stack[0..sizeof(inherits_stack)-2];
             }
             scope_depth--;
             i++;
@@ -303,11 +317,26 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
             continue;
         }
 
-        // Handle inheritance (inherit keyword) - Issue #601
+        // Handle inheritance (inherit keyword) - Issue #601/#603
         // Track inherit for later use in type resolution
         if (text == "inherit") {
-            // Skip to end of inherit statement
+            // Find the inherited class name
             int j = i + 1;
+            // Skip whitespace
+            while (j < end_idx && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+            // Get the class name
+            if (j < end_idx) {
+                string inherit_name = tokens[j]->text;
+                // Remove quotes if it's a string literal
+                if (sizeof(inherit_name) > 2 && inherit_name[0] == '"' && inherit_name[-1] == '"') {
+                    inherit_name = inherit_name[1..sizeof(inherit_name)-2];
+                }
+                // Add to inherits stack for current scope
+                if (sizeof(inherits_stack) > 0) {
+                    inherits_stack[-1] += ({ inherit_name });
+                }
+            }
+            // Skip to end of inherit statement
             while (j < end_idx && tokens[j]->text != ";") j++;
             i = j + 1;
             continue;
@@ -404,6 +433,144 @@ protected array(mapping) get_visible_variables_at_line(mapping scope_map, string
     
     // Sort by scope depth (outermost first, innermost last)
     sort(visible->scope_depth, visible);
-    
+
     return visible;
+}
+
+//! Look up a variable in inherited classes
+//!
+//! When a variable is not found in the current scope, this function searches
+//! for it in classes that are inherited at the current scope level.
+//! Issue #603: Multi-level inheritance scope resolution
+protected array(mapping) get_inherited_variable(array tokens, mapping scope_map, string variable_name, int line) {
+    array(mapping) result = ({});
+
+    // First, collect all class definitions and their members from the tokens
+    mapping(string:mapping) class_definitions = ([]);
+
+    int i = 0;
+    int end_idx = sizeof(tokens);
+    string current_class = 0;
+    int current_class_start = 0;
+    int current_class_end = 999999;
+    array(string) current_inherits = ({});
+
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+        int tok_line = tok->line;
+
+        // Track class scope
+        if (text == "class") {
+            // Get class name
+            int j = i + 1;
+            // Skip the class keyword and get to the class name
+            while (j < end_idx && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+            if (j < end_idx && mod->is_identifier(tokens[j]->text)) {
+                current_class = tokens[j]->text;
+                current_class_start = tok_line;
+                current_class_end = 999999;
+                current_inherits = ({});
+                // Initialize class definition immediately
+                class_definitions[current_class] = ([
+                    "start": current_class_start,
+                    "end": current_class_end,
+                    "inherits": current_inherits,
+                    "members": ([])
+                ]);
+            }
+        } else if (text == "{" && current_class) {
+            int close_idx = mod->find_matching_brace(tokens, i, end_idx);
+            if (close_idx >= 0) {
+                current_class_end = tokens[close_idx]->line;
+            }
+        } else if (text == "}") {
+            // End of class - save class definition (preserve existing members!)
+            if (current_class) {
+                class_definitions[current_class]["end"] = current_class_end;
+                class_definitions[current_class]["inherits"] = current_inherits;
+                // Don't overwrite members - they're already populated
+            }
+            current_class = 0;
+            current_class_end = 999999;
+        } else if (text == "inherit" && current_class) {
+            // Track inherit inside a class
+            int j = i + 1;
+            while (j < end_idx && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+            if (j < end_idx) {
+                string inherit_name = tokens[j]->text;
+                if (sizeof(inherit_name) > 2 && inherit_name[0] == '"' && inherit_name[-1] == '"') {
+                    inherit_name = inherit_name[1..sizeof(inherit_name)-2];
+                }
+                current_inherits += ({ inherit_name });
+            }
+        }
+
+        // Track member variables in current class
+        if (current_class && tok_line >= current_class_start && tok_line <= current_class_end) {
+            if (mod->is_type_keyword(text)) {
+                mapping decl_info = mod->try_parse_declaration(tokens, i, end_idx);
+                if (decl_info && decl_info->is_declaration && decl_info->name) {
+                    // Add to class members
+                    if (!class_definitions[current_class]["members"][decl_info->name]) {
+                        class_definitions[current_class]["members"][decl_info->name] = ({});
+                    }
+                    class_definitions[current_class]["members"][decl_info->name] += ({
+                        ([
+                            "type": decl_info->type || text,
+                            "decl_line": tok_line
+                        ])
+                    });
+                    i = decl_info->end_idx;
+                    continue;
+                }
+            }
+        }
+
+        i++;
+    }
+
+    // Now find which class contains the given line and check its inherits
+    foreach (class_definitions; string class_name; mapping class_info) {
+        if (line >= class_info->start && line <= class_info->end) {
+            // werror("DEBUG: Found class %s containing line %d\n", class_name, line);
+            // We're inside this class - search through inherits
+            // Last inherit wins (shadowing)
+            for (int j = sizeof(class_info->inherits) - 1; j >= 0; j--) {
+                string inherit_name = class_info->inherits[j];
+                // Look up the inherited class
+                if (class_definitions[inherit_name]) {
+                    mapping inherit_info = class_definitions[inherit_name];
+                    if (inherit_info->members[variable_name]) {
+                        // Found it - add to result
+                        array(mapping) members = inherit_info->members[variable_name];
+                        foreach (members, mapping member) {
+                            result += ({
+                                ([
+                                    "type": member->type,
+                                    "scope_depth": 0,  // Inherited, treat as class-level
+                                    "decl_line": member->decl_line,
+                                    "end_line": inherit_info->end,
+                                    "inherited_from": inherit_name,
+                                    "is_inherited": 1
+                                ])
+                            });
+                        }
+                        // Return on first match (last inherited class shadows earlier ones)
+                        // But we need to collect all and sort
+                        if (sizeof(result) > 0) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Sort by decl_line (earlier first)
+    if (sizeof(result) > 0) {
+        sort(result->decl_line, result);
+    }
+
+    return result;
 }
