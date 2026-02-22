@@ -23,6 +23,16 @@ constant mod = LSP.Analysis.module;
 //!   Mapping with type information or 0 if not found
 //!   ([ "type": string type, "scope_depth": int depth, "decl_line": int line ])
 public mapping|int resolve_variable_type(string code, string filename, int line, string variable_name) {
+    // Handle special keywords first
+    if (variable_name == "this" || variable_name == "this_program" || variable_name == "this_object") {
+        return resolve_this_keyword(code, filename, line, variable_name);
+    }
+
+    // Handle :: qualified access (e.g., "ParentClass::member")
+    if (has_value(variable_name, "::")) {
+        return resolve_qualified_access(code, filename, line, variable_name);
+    }
+
     // Tokenize the code using Parser.Pike (same as Diagnostics.pike)
     array tokens;
     
@@ -40,8 +50,8 @@ public mapping|int resolve_variable_type(string code, string filename, int line,
     // Build scope-aware variable map
     mapping scope_map = build_scope_map(tokens, lines, filename);
 
-    // Find variables visible at the given line
-    array(mapping) visible_vars = get_visible_variables_at_line(scope_map, variable_name, line);
+    // Find variables visible at the given line (with lambda closure support - Issue #607)
+    array(mapping) visible_vars = get_visible_variables_with_lambda_support(tokens, scope_map, variable_name, line);
 
     // Issue #603: If no variables found, check inherited class members
     if (sizeof(visible_vars) == 0) {
@@ -72,6 +82,19 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
 
     // Track inherited classes per scope level: scope_depth -> array of class names
     array(array(string)) inherits_stack = ({});
+
+    // Issue #607: Track lambda scopes for closure resolution
+    // Lambda captures variables from enclosing scope by reference
+    // Stack to track lambda scope boundaries: array of (start_line, end_line)
+    array(array(int)) lambda_stack = ({});
+    // Track the scope depth when each lambda started (for closure resolution)
+    array(int) lambda_scope_depth = ({});
+
+    // Issue #606: Track if we're inside a class definition
+    string current_class = 0;
+    int in_class_scope = 0;
+    // For anonymous classes: track if current class is anonymous
+    int in_anonymous_class = 0;
 
     // Use module-level helper functions directly (imported from .module)
 
@@ -125,7 +148,7 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
                 if (body_end > body_start) {
                     // Extract function parameters
                     mapping(string:mapping) params = mod->extract_function_params(tokens, i, body_start);
-                    
+
                     // Add parameters to scope map (function-local scope)
                     foreach (params; string param_name; mapping param_info) {
                         if (!scope_map[param_name]) {
@@ -140,6 +163,42 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
                             ])
                         });
                     }
+                }
+            }
+        }
+
+        // Issue #607: Detect lambda expressions
+        // Lambda syntax: lambda <return_type>? <parameters>? { ... }
+        if (text == "lambda") {
+            // Find the lambda body (first { after lambda keyword)
+            int body_start = mod->find_next_token(tokens, i, end_idx, "{");
+            if (body_start >= 0) {
+                int body_end = mod->find_matching_brace(tokens, body_start, end_idx);
+                if (body_end > body_start) {
+                    // Push lambda scope onto stack - captures current scope depth
+                    lambda_stack += ({ ({ tokens[body_start]->line, tokens[body_end]->line }) });
+                    lambda_scope_depth += ({ scope_depth });
+                }
+            }
+        }
+
+        // Issue #606: Track class definitions
+        if (text == "class") {
+            // Check if this is an anonymous class (followed by { without identifier)
+            int next_idx = i + 1;
+            while (next_idx < end_idx && sizeof(LSP.Compat.trim_whites(tokens[next_idx]->text)) == 0) next_idx++;
+
+            if (next_idx < end_idx) {
+                string next_text = tokens[next_idx]->text;
+                if (next_text == "{") {
+                    // Anonymous class: class { ... }
+                    in_anonymous_class = 1;
+                    in_class_scope = 1;
+                } else if (mod->is_identifier(next_text)) {
+                    // Named class: class Foo { ... }
+                    current_class = next_text;
+                    in_class_scope = 1;
+                    in_anonymous_class = 0;
                 }
             }
         }
@@ -573,4 +632,352 @@ protected array(mapping) get_inherited_variable(array tokens, mapping scope_map,
     }
 
     return result;
+}
+
+//! Issue #606: Resolve this, this_program, and this_object keywords
+//!
+//! @param code
+//!   Pike source code
+//! @param filename
+//!   Filename for context
+//! @param line
+//!   Line number (1-indexed)
+//! @param keyword
+//!   One of "this", "this_program", "this_object"
+//! @returns
+//!   Mapping with type information
+protected mapping|int resolve_this_keyword(string code, string filename, int line, string keyword) {
+    array tokens;
+
+    mixed err = catch {
+        array(string) split_tokens = Parser.Pike.split(code);
+        tokens = Parser.Pike.tokenize(split_tokens);
+    };
+
+    if (err || !tokens || sizeof(tokens) == 0) {
+        return 0;
+    }
+
+    // Find what class we're inside at the given line
+    string enclosing_class = 0;
+    int is_anonymous = 0;
+
+    int i = 0;
+    int end_idx = sizeof(tokens);
+    int current_class_start = 0;
+    int current_class_end = 999999;
+
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+        int tok_line = tok->line;
+
+        if (text == "class") {
+            int next_idx = i + 1;
+            while (next_idx < end_idx && sizeof(LSP.Compat.trim_whites(tokens[next_idx]->text)) == 0) next_idx++;
+
+            if (next_idx < end_idx) {
+                string next_text = tokens[next_idx]->text;
+                if (next_text == "{") {
+                    // Anonymous class starts
+                    if (tok_line <= line) {
+                        current_class_start = tok_line;
+                        is_anonymous = 1;
+                    }
+                } else if (mod->is_identifier(next_text)) {
+                    // Named class starts
+                    if (tok_line <= line) {
+                        enclosing_class = next_text;
+                        current_class_start = tok_line;
+                        is_anonymous = 0;
+                    }
+                }
+            }
+        } else if (text == "{" && enclosing_class || (is_anonymous && tok_line >= current_class_start)) {
+            int close_idx = mod->find_matching_brace(tokens, i, end_idx);
+            if (close_idx >= 0) {
+                current_class_end = tokens[close_idx]->line;
+            }
+            // If we're past the line we're looking for, stop tracking
+            if (tok_line > line) {
+                break;
+            }
+        } else if (text == "}" && tok_line == current_class_end) {
+            enclosing_class = 0;
+            is_anonymous = 0;
+        }
+
+        i++;
+    }
+
+    // Determine the return type based on the keyword
+    string result_type;
+    if (keyword == "this") {
+        // "this" refers to current object instance
+        if (enclosing_class) {
+            result_type = enclosing_class;
+        } else {
+            result_type = "object";
+        }
+    } else if (keyword == "this_program") {
+        // "this_program" refers to current program (class) type
+        if (enclosing_class) {
+            result_type = "program(" + enclosing_class + ")";
+        } else {
+            result_type = "program";
+        }
+    } else if (keyword == "this_object") {
+        // "this_object" always refers to the current object instance
+        result_type = "object";
+    } else {
+        return 0;
+    }
+
+    return ([
+        "type": result_type,
+        "scope_depth": 0,
+        "decl_line": enclosing_class ? current_class_start : 1,
+        "end_line": enclosing_class ? current_class_end : 999999,
+        "is_keyword": 1,
+        "keyword": keyword,
+        "is_anonymous": is_anonymous
+    ]);
+}
+
+//! Issue #605: Resolve :: qualified access (e.g., "ParentClass::member")
+//!
+//! @param code
+//!   Pike source code
+//! @param filename
+//!   Filename for context
+//! @param line
+//!   Line number (1-indexed)
+//! @param qualified_name
+//!   The qualified name with :: (e.g., "ParentClass::member")
+//! @returns
+//!   Mapping with type information
+protected mapping|int resolve_qualified_access(string code, string filename, int line, string qualified_name) {
+    // Parse the qualified name: "ClassName::member"
+    array(string) parts = qualified_name / "::";
+    if (sizeof(parts) != 2) {
+        return 0;
+    }
+
+    string class_name = parts[0];
+    string member_name = parts[1];
+
+    array tokens;
+
+    mixed err = catch {
+        array(string) split_tokens = Parser.Pike.split(code);
+        tokens = Parser.Pike.tokenize(split_tokens);
+    };
+
+    if (err || !tokens || sizeof(tokens) == 0) {
+        return 0;
+    }
+
+    // Find the class definition for class_name
+    int class_start = 0;
+    int class_end = 999999;
+
+    int i = 0;
+    int end_idx = sizeof(tokens);
+
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+
+        if (text == "class") {
+            int next_idx = i + 1;
+            while (next_idx < end_idx && sizeof(LSP.Compat.trim_whites(tokens[next_idx]->text)) == 0) next_idx++;
+
+            if (next_idx < end_idx && tokens[next_idx]->text == class_name) {
+                // Found the class
+                class_start = tok->line;
+                // Find the class body
+                int brace_idx = mod->find_next_token(tokens, next_idx, end_idx, "{");
+                if (brace_idx >= 0) {
+                    int close_idx = mod->find_matching_brace(tokens, brace_idx, end_idx);
+                    if (close_idx >= 0) {
+                        class_end = tokens[close_idx]->line;
+                    }
+                }
+                break;
+            }
+        }
+
+        i++;
+    }
+
+    if (class_start == 0) {
+        // Class not found in this file - might be from another file
+        return 0;
+    }
+
+    // Now search for the member within that class
+    // Look for type declarations inside the class
+    i = 0;
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+        int tok_line = tok->line;
+
+        // Skip outside the class
+        if (tok_line < class_start || tok_line > class_end) {
+            i++;
+            continue;
+        }
+
+        // Check for variable declarations
+        if (mod->is_type_keyword(text)) {
+            mapping decl_info = mod->try_parse_declaration(tokens, i, end_idx);
+            if (decl_info && decl_info->is_declaration && decl_info->name == member_name) {
+                return ([
+                    "type": decl_info->type || text,
+                    "scope_depth": 0,
+                    "decl_line": tok_line,
+                    "end_line": class_end,
+                    "is_qualified": 1,
+                    "qualifying_class": class_name,
+                    "member_name": member_name
+                ]);
+            }
+        }
+
+        i++;
+    }
+
+    // Check for inherited members
+    // First find what this class inherits
+    array(string) inherits = ({});
+    i = 0;
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+        int tok_line = tok->line;
+
+        if (tok_line < class_start || tok_line > class_end) {
+            i++;
+            continue;
+        }
+
+        if (text == "inherit") {
+            int j = i + 1;
+            while (j < end_idx && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+            if (j < end_idx) {
+                string inherit_name = tokens[j]->text;
+                if (sizeof(inherit_name) > 2 && inherit_name[0] == '"' && inherit_name[-1] == '"') {
+                    inherit_name = inherit_name[1..sizeof(inherit_name)-2];
+                }
+                inherits += ({ inherit_name });
+            }
+        }
+
+        i++;
+    }
+
+    // Search each inherited class for the member
+    foreach (inherits, string inherit_name) {
+        // Recursively search in inherited class (simplified - just return what we find)
+        // In a full implementation, we'd look up the inherited class definition
+        // For now, return a placeholder indicating we found the inheritance
+        // The actual resolution would need cross-file analysis
+    }
+
+    return 0;
+}
+
+//! Issue #607: Get visible variables with lambda closure support
+//!
+//! This extends get_visible_variables_at_line to handle lambda closure capture.
+//! When inside a lambda, variables from the enclosing function scope are also visible.
+protected array(mapping) get_visible_variables_with_lambda_support(array tokens, mapping scope_map, string variable_name, int line) {
+    // First get normal visible variables
+    array(mapping) visible = get_visible_variables_at_line(scope_map, variable_name, line);
+
+    // Issue #607: Check if we're inside a lambda
+    // If so, we need to also check enclosing scopes for captured variables
+
+    // Find lambda boundaries
+    array(array(int)) lambda_scopes = ({});
+
+    int i = 0;
+    int end_idx = sizeof(tokens);
+
+    while (i < end_idx) {
+        mapping tok = tokens[i];
+        string text = tok->text;
+        int tok_line = tok->line;
+
+        if (text == "lambda") {
+            // Find lambda body
+            int body_start = mod->find_next_token(tokens, i, end_idx, "{");
+            if (body_start >= 0) {
+                int body_end = mod->find_matching_brace(tokens, body_start, end_idx);
+                if (body_end > body_start) {
+                    lambda_scopes += ({ ({ tokens[body_start]->line, tokens[body_end]->line }) });
+                }
+            }
+        }
+
+        i++;
+    }
+
+    // Check if we're inside any lambda
+    foreach (lambda_scopes, array(int) lambda_bounds) {
+        int lambda_start = lambda_bounds[0];
+        int lambda_end = lambda_bounds[1];
+
+        if (line >= lambda_start && line <= lambda_end) {
+            // We're inside a lambda - check for captured variables
+            // Lambda captures variables from the enclosing scope
+            // We need to look at scope_map and find variables declared BEFORE the lambda
+
+            if (scope_map[variable_name]) {
+                array(mapping) all_decls = scope_map[variable_name];
+
+                // Add declarations that are:
+                // 1. Declared before the lambda started
+                // 2. Not already in visible (not shadowed inside lambda)
+                foreach (all_decls, mapping decl) {
+                    if (decl->decl_line < lambda_start) {
+                        // Check if this variable is shadowed inside the lambda
+                        int is_shadowed = 0;
+                        foreach (visible, mapping v) {
+                            if (v->decl_line >= lambda_start && v->decl_line <= lambda_end) {
+                                is_shadowed = 1;
+                                break;
+                            }
+                        }
+
+                        if (!is_shadowed) {
+                            // This is a captured variable - add it
+                            // Mark it as captured for reference
+                            visible += ({
+                                ([
+                                    "type": decl->type,
+                                    "scope_depth": decl->scope_depth,
+                                    "decl_line": decl->decl_line,
+                                    "end_line": decl->end_line,
+                                    "is_captured": 1,
+                                    "captured_by_lambda": 1,
+                                    "lambda_start": lambda_start
+                                ])
+                            });
+                        }
+                    }
+                }
+            }
+
+            break; // Only check innermost lambda
+        }
+    }
+
+    // Re-sort by scope depth
+    if (sizeof(visible) > 0) {
+        sort(visible->scope_depth, visible);
+    }
+
+    return visible;
 }
