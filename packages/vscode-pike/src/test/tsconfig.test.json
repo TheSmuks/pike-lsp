@@ -17,7 +17,6 @@
         "./mockOutputChannel.ts",
         "./extension.test.ts",
         "./lsp-smoke.test.ts",
-        "./extension-features.test.ts",
-        "./integration/**/*.ts"
+        "./extension-features.test.ts"
     ]
 }
