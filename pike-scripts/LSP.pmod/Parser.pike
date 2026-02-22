@@ -1580,6 +1580,29 @@ protected mapping|int type_to_json(object|void type) {
         };
     }
 
+    // Handle VarargsType: extract the element type (stored in 'type' field)
+    if (result->name == "varargs" || has_value(class_path, "VarargsType")) {
+        catch {
+            if (type->type) {
+                result->elementType = type_to_json(type->type);
+            }
+        };
+    }
+
+    // Handle FunctionType: extract argTypes and returnType
+    if (result->name == "function" || has_value(class_path, "FunctionType")) {
+        catch {
+            if (type->argtypes && sizeof(type->argtypes) > 0) {
+                result->argTypes = map(type->argtypes, type_to_json);
+            }
+        };
+        catch {
+            if (type->returntype) {
+                result->returnType = type_to_json(type->returntype);
+            }
+        };
+    }
+
     // Handle OrType: extract constituent types
     if (result->name == "or" || has_value(class_path, "OrType")) {
         result->name = "or";
