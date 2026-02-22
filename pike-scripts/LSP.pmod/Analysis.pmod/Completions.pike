@@ -156,15 +156,6 @@ mapping handle_get_completion_context(mapping params) {
                 }
             }
 
-            // Check for range operator (..) - tokenized as .. (single token in Pike)
-            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
-            // Also used in case statements: case 1..10:
-            if (text == "..") {
-                found_operator = "..";
-                operator_idx = i;
-                break;
-            }
-
             // Check for ternary operator (? :)
             // Look for ? but not ?-> or ?[ (safe navigation)
             if (text == "?") {
@@ -183,6 +174,38 @@ mapping handle_get_completion_context(mapping params) {
                     found_operator = "?:";
                     operator_idx = i;
                 }
+            }
+
+            // Check for range operator (..)
+            // Range operator is used in:
+            // - Array/string slicing: arr[2..5], arr[2..], arr[..5]
+            // - Case ranges: case 1..10:
+            // - Creating ranges: 1..10
+            // - Type expressions: int(0..255)
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+            }
+
+            // Check for typeof expression - typeof(expression)
+            // typeof is a keyword that starts an expression context
+            if (text == "typeof") {
+                found_operator = "typeof";
+                operator_idx = i;
+            }
+
+            // Check for gauge expression - gauge { code }
+            // gauge is a keyword that starts an expression context
+            if (text == "gauge") {
+                found_operator = "gauge";
+                operator_idx = i;
+            }
+
+            // Check for sscanf expression - sscanf(source, format, ...)
+            // sscanf is a keyword that starts an expression context
+            if (text == "sscanf") {
+                found_operator = "sscanf";
+                operator_idx = i;
             }
 
             // Stop at statement boundaries
@@ -206,7 +229,8 @@ mapping handle_get_completion_context(mapping params) {
                 }
 
                 // Stop at statement boundaries or other expression boundaries
-                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")") {
+                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")" ||
+                    text == "typeof" || text == "gauge" || text == "sscanf") {
                     break;
                 }
             }
@@ -229,7 +253,8 @@ mapping handle_get_completion_context(mapping params) {
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
                     obj_text == "->" || obj_text == "::" ||
-                    obj_text == "?" || obj_text == ":") {
+                    obj_text == "?" || obj_text == ":" || obj_text == ".." ||
+                    obj_text == "typeof" || obj_text == "gauge" || obj_text == "sscanf") {
                     break;
                 }
 
@@ -254,11 +279,24 @@ mapping handle_get_completion_context(mapping params) {
             result->operator = "?:";
         } else if (found_operator == "..") {
             // Range operator - provide expression context
-            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
-            // Also used in case statements: case 1..10:
-            // And as range expressions: 1..10
+            // Used in: arr[2..5], arr[2..], arr[..5], 1..10, case 1..10:, int(0..255)
             result->context = "expression";
             result->operator = "..";
+        } else if (found_operator == "typeof") {
+            // typeof expression - provide expression context
+            // typeof(x) returns the type of expression x
+            result->context = "expression";
+            result->operator = "typeof";
+        } else if (found_operator == "gauge") {
+            // gauge expression - provide expression context
+            // gauge { code } measures execution time
+            result->context = "expression";
+            result->operator = "gauge";
+        } else if (found_operator == "sscanf") {
+            // sscanf expression - provide expression context
+            // sscanf(source, format, ...) parses string with format specifiers
+            result->context = "expression";
+            result->operator = "sscanf";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
@@ -403,15 +441,6 @@ mapping handle_get_completion_context_cached(mapping params) {
                 }
             }
 
-            // Check for range operator (..) - tokenized as .. (single token in Pike)
-            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
-            // Also used in case statements: case 1..10:
-            if (text == "..") {
-                found_operator = "..";
-                operator_idx = i;
-                break;
-            }
-
             // Check for ternary operator (? :)
             // Look for ? but not ?-> or ?[ (safe navigation)
             if (text == "?") {
@@ -430,6 +459,38 @@ mapping handle_get_completion_context_cached(mapping params) {
                     found_operator = "?:";
                     operator_idx = i;
                 }
+            }
+
+            // Check for range operator (..)
+            // Range operator is used in:
+            // - Array/string slicing: arr[2..5], arr[2..], arr[..5]
+            // - Case ranges: case 1..10:
+            // - Creating ranges: 1..10
+            // - Type expressions: int(0..255)
+            if (text == "..") {
+                found_operator = "..";
+                operator_idx = i;
+            }
+
+            // Check for typeof expression - typeof(expression)
+            // typeof is a keyword that starts an expression context
+            if (text == "typeof") {
+                found_operator = "typeof";
+                operator_idx = i;
+            }
+
+            // Check for gauge expression - gauge { code }
+            // gauge is a keyword that starts an expression context
+            if (text == "gauge") {
+                found_operator = "gauge";
+                operator_idx = i;
+            }
+
+            // Check for sscanf expression - sscanf(source, format, ...)
+            // sscanf is a keyword that starts an expression context
+            if (text == "sscanf") {
+                found_operator = "sscanf";
+                operator_idx = i;
             }
 
             // Stop at statement boundaries
@@ -453,7 +514,8 @@ mapping handle_get_completion_context_cached(mapping params) {
                 }
 
                 // Stop at statement boundaries or other expression boundaries
-                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")") {
+                if (text == ";" || text == "{" || text == "}" || text == "(" || text == ")" ||
+                    text == "typeof" || text == "gauge" || text == "sscanf") {
                     break;
                 }
             }
@@ -476,7 +538,8 @@ mapping handle_get_completion_context_cached(mapping params) {
                     obj_text == "=" || obj_text == "==" || obj_text == "+" ||
                     obj_text == "-" || obj_text == "*" || obj_text == "/" ||
                     obj_text == "->" || obj_text == "::" ||
-                    obj_text == "?" || obj_text == ":") {
+                    obj_text == "?" || obj_text == ":" || obj_text == ".." ||
+                    obj_text == "typeof" || obj_text == "gauge" || obj_text == "sscanf") {
                     break;
                 }
 
@@ -501,11 +564,24 @@ mapping handle_get_completion_context_cached(mapping params) {
             result->operator = "?:";
         } else if (found_operator == "..") {
             // Range operator - provide expression context
-            // Used in array slicing: arr[lo..hi], arr[lo..], arr[..hi]
-            // Also used in case statements: case 1..10:
-            // And as range expressions: 1..10
+            // Used in: arr[2..5], arr[2..], arr[..5], 1..10, case 1..10:, int(0..255)
             result->context = "expression";
             result->operator = "..";
+        } else if (found_operator == "typeof") {
+            // typeof expression - provide expression context
+            // typeof(x) returns the type of expression x
+            result->context = "expression";
+            result->operator = "typeof";
+        } else if (found_operator == "gauge") {
+            // gauge expression - provide expression context
+            // gauge { code } measures execution time
+            result->context = "expression";
+            result->operator = "gauge";
+        } else if (found_operator == "sscanf") {
+            // sscanf expression - provide expression context
+            // sscanf(source, format, ...) parses string with format specifiers
+            result->context = "expression";
+            result->operator = "sscanf";
         } else if (cursor_after_dot && token_idx >= 0) {
             // NEW: Cursor is after a dot but token scan didn't find the operator
             // This happens when there's no token after the dot (e.g., "Array.|")
