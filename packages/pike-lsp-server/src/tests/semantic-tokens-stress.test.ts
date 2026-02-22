@@ -234,6 +234,27 @@ program Handler = class {
             expect(result.result?.parse).toBeDefined();
         });
 
+        it('should handle switch with case ranges', async () => {
+            const code = `int process(int x) {
+    switch(x) {
+        case 1..5:
+            return 1;
+        case 6..10:
+            return 2;
+        case 11..100:
+            return 3;
+        default:
+            return 0;
+    }
+}`;
+
+            const result = await bridge.analyze(code, ['parse'], '/tmp/test.pike');
+            expect(result.result?.parse).toBeDefined();
+            // Should find the function
+            const symbols = result.result?.parse?.symbols || [];
+            expect(symbols.some(s => s.name === 'process')).toBe(true);
+        });
+
         it('should handle foreach loops with iterator variables', async () => {
             const code = `array items = ({ 1, 2, 3, 4, 5 });
 void process_all() {

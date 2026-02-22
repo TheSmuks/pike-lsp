@@ -290,13 +290,13 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
         }
 
         if (text == "}") {
-            // Before decreasing scope, check if we're ending an if/else block
+            // Before decreasing scope, check if we're ending an if/else or switch block
             if (sizeof(branch_stack) > 0) {
-                // Process any pending if/else blocks at this scope level
+                // Process any pending if/else/switch blocks at this scope level
                 array(int) to_remove = ({});
                 for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                     mapping branch = branch_stack[k];
-                    if (branch->type == "if" && branch->scope_level == scope_depth) {
+                    if ((branch->type == "if" || branch->type == "switch") && branch->scope_level == scope_depth) {
                         // Save final branch states
                         branch->branch_states += ({ save_variable_states_fn(variables) });
 
@@ -634,6 +634,52 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 // Skip past the sscanf call
                 if (paren_close >= 0) {
                     i = paren_close;
+                }
+            }
+        }
+
+        // Handle switch statements - save state for each case branch
+        // Switch is similar to if/else but with multiple case branches
+        if (text == "switch") {
+            // Save current variable states for branch analysis
+            mapping saved_states = save_variable_states_fn(variables);
+            branch_stack += ({ ([
+                "type": "switch",
+                "saved_states": saved_states,
+                "branch_states": ({}),
+                "scope_level": scope_depth + 1,
+                "case_count": 0
+            ]) });
+        }
+
+        // Handle case labels - each case starts a new branch
+        if (text == "case") {
+            // Find the most recent switch that hasn't been completed
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "switch") {
+                    // Save current state as a case branch
+                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                    branch->case_count = (branch->case_count || 0) + 1;
+                    // Restore switch's original state for this case
+                    restore_variable_states_fn(variables, branch->saved_states);
+                    break;
+                }
+            }
+        }
+
+        // Handle default labels - default is just another branch
+        if (text == "default") {
+            // Find the most recent switch that hasn't been completed
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "switch") {
+                    // Save current state as default branch
+                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                    branch->case_count = (branch->case_count || 0) + 1;
+                    // Restore switch's original state for default
+                    restore_variable_states_fn(variables, branch->saved_states);
+                    break;
                 }
             }
         }
