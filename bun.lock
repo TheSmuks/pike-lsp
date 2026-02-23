@@ -70,7 +70,7 @@
     },
     "packages/vscode-pike": {
       "name": "vscode-pike",
-      "version": "0.1.0-alpha.21",
+      "version": "0.1.0-alpha.23",
       "dependencies": {
         "mocha": "^11.7.5",
         "vscode-languageclient": "^9.0.1",

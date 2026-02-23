@@ -77,8 +77,8 @@ describe('Pike Language Extension', () => {
     describe('Server Path Resolution', () => {
         test('should detect server paths for debugging', () => {
             const possiblePaths = [
-                path.resolve(__dirname, '../../../pike-lsp-server/dist/server.js'),
-                path.resolve(__dirname, '../../../../pike-lsp-server/dist/server.js'),
+                path.resolve(__dirname, '../../../packages/pike-lsp-server/dist/server.js'),
+                path.resolve(__dirname, '../../../../packages/pike-lsp-server/dist/server.js'),
             ];
 
             console.log('Checking server paths:');
