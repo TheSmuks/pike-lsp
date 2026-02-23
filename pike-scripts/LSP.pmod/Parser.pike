@@ -28,6 +28,9 @@ mapping parse_request(mapping params) {
     array symbols = ({});
     array diagnostics = ({});
 
+    // Check if this is a .pmod file (modules should have unreachable code detection)
+    int is_pmod_file = has_suffix(filename, ".pmod");
+
     // Extract autodoc comments from original code before preprocessing
     // Maps line number -> documentation string
     // Use consolidated function from Intelligence.module
@@ -353,12 +356,18 @@ mapping parse_request(mapping params) {
 
                     int body_iter = 0;
                     int brace_depth = 1;
+                    // Track if we've seen a return statement in this block (for unreachable code detection)
+                    int seen_return = 0;
 
                     while (brace_depth > 0 && parser->peekToken() != "" && body_iter++ < MAX_BLOCK_ITERATIONS) {
                         string token = parser->peekToken();
 
                         if (token == "}") {
                             brace_depth--;
+                            // Reset return tracking when exiting a block
+                            if (brace_depth == 0) {
+                                seen_return = 0;
+                            }
                             parser->readToken();
                             continue;
                         }
@@ -369,10 +378,54 @@ mapping parse_request(mapping params) {
                             continue;
                         }
 
+                        // Check for return statement - only at the top level of this function body
+                        if (token == "return" && brace_depth == 1 && is_pmod_file) {
+                            // Mark that we've seen a return
+                            seen_return = 1;
+                            // Consume the return token and skip to semicolon
+                            parser->readToken();
+                            parser->skipUntil((<";", "{", "}", "">));
+                            if (parser->peekToken() == ";") {
+                                parser->readToken();
+                            }
+                            continue;
+                        }
+
                         mixed local_decl;
                         mixed parse_err = catch {
                             local_decl = parser->parseDecl();
                         };
+
+                        // Check for unreachable code AFTER parsing the declaration
+                        // This ensures we get proper line numbers and avoid duplicates
+                        if (!parse_err && local_decl && seen_return && brace_depth == 1 && is_pmod_file) {
+                            // Get line info from the parsed declaration
+                            int unreachable_line = 1;
+                            if (objectp(local_decl) && local_decl->position && local_decl->position->firstline) {
+                                unreachable_line = local_decl->position->firstline;
+                            }
+                            // Only add diagnostic if we haven't already reported for this line
+                            int already_reported = 0;
+                            foreach(diagnostics, mapping d) {
+                                if (d->position && d->position->line == unreachable_line &&
+                                    has_value(d->message, "unreachable")) {
+                                    already_reported = 1;
+                                    break;
+                                }
+                            }
+                            if (!already_reported) {
+                                diagnostics += ({
+                                    ([
+                                        "message": "Unreachable code: code after return statement",
+                                        "severity": "warning",
+                                        "position": ([
+                                            "file": filename,
+                                            "line": unreachable_line
+                                        ])
+                                    ])
+                                });
+                            }
+                        }
 
                         if (!parse_err && local_decl) {
                             if (arrayp(local_decl)) {
