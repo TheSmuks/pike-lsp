@@ -51,7 +51,7 @@ export function formatPikeType(typeObj: unknown): string {
 
     // Handle object types: name="object", className="Gmp.mpz"
     if (name === 'object' && t['className']) {
-        return t['className'] as string;
+        return `object(${t['className']})`;
     }
 
     // Handle program types: name="program", className="..."
