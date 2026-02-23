@@ -1652,6 +1652,26 @@ protected mapping|int type_to_json(object|void type) {
         };
     }
 
+    // Handle NamedType (typedef/name type): Pike returns "{ myint = int }" for typedefs
+    // Check if this is a named type by looking for "=" in the type representation
+    if (result->name && has_value(class_path, "NamedType")) {
+        // This is a named/typedef type - extract the alias name and resolve to underlying type
+        // Pike's typeof returns "{ alias = underlying }" format
+        string type_str = sprintf("%O", type);
+        if (has_value(type_str, "=")) {
+            // Parse "{ name = underlying }" format
+            // Extract the name before "="
+            string name_part = "";
+            string underlying_part = "";
+            sscanf(type_str, "{%s=%s}", name_part, underlying_part);
+            if (sizeof(name_part) && sizeof(underlying_part)) {
+                result->name = "name";
+                result->nameAlias = String.trim_all_whites(name_part);
+                result->resolvedType = String.trim_all_whites(underlying_part);
+            }
+        }
+    }
+
     return sizeof(result) > 0 ? result : 0;
 }
 

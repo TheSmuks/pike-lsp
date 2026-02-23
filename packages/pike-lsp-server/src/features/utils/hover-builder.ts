@@ -487,6 +487,23 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
         const modifier = symbol.kind === 'constant' ? 'constant ' : '';
         parts.push(`${modifier}${type} ${symbol.name}`);
         parts.push('```');
+    } else if (symbol.kind === 'typedef') {
+        // Handle typedef - show the typedef definition
+        const type = symbol.type
+            ? formatPikeType(symbol.type)
+            : (sym['type'] as { name?: string })?.name ?? 'mixed';
+
+        // Check for resolved type from type_to_json (contains nameAlias and resolvedType)
+        const resolvedType = sym['resolvedType'] as string | undefined;
+        const nameAlias = sym['nameAlias'] as string | undefined;
+
+        parts.push('```pike');
+        if (nameAlias && resolvedType) {
+            parts.push(`typedef ${resolvedType} ${nameAlias}`);
+        } else {
+            parts.push(`typedef ${type} ${symbol.name}`);
+        }
+        parts.push('```');
     } else if (symbol.kind === 'class') {
         parts.push('```pike');
         parts.push(`class ${symbol.name}`);

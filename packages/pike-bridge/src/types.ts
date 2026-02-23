@@ -50,7 +50,8 @@ export type PikeType =
     | PikeMixedType
     | PikeVoidType
     | PikeZeroType
-    | PikeOrType;
+    | PikeOrType
+    | PikeNameType;
 
 export interface PikeIntType {
     kind: 'int';
@@ -130,6 +131,19 @@ export interface PikeZeroType {
 export interface PikeOrType {
     kind: 'or';
     types: PikeType[];
+}
+
+/**
+ * Named type (typedef/name type alias)
+ * Represents Pike's named types like `typedef int myint`
+ * The type field contains the resolved/underlying type
+ */
+export interface PikeNameType {
+    kind: 'name';
+    /** Name of the typedef/type alias (e.g., "myint") */
+    name: string;
+    /** Resolved underlying type (e.g., "int" for typedef int myint) */
+    type?: PikeType;
 }
 
 /**

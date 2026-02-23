@@ -22,6 +22,7 @@ export function convertCompletionKind(kind?: string): CompletionItemKind {
         case 'method': case 'function': return CompletionItemKind.Function;
         case 'variable': return CompletionItemKind.Variable;
         case 'constant': return CompletionItemKind.Constant;
+        case 'typedef': return CompletionItemKind.TypeParameter;
         case 'module': return CompletionItemKind.Module;
         case 'inherit': return CompletionItemKind.Reference;
         default: return CompletionItemKind.Text;
@@ -373,6 +374,12 @@ export function buildLabelDetails(symbol: PikeSymbol): LabelDetails | undefined 
     if (symbol.kind === 'variable' && symbol.type) {
         const typeName = formatTypeName(symbol.type);
         return typeName ? { detail: typeName } : undefined;
+    }
+
+    // For typedef: show the underlying type
+    if (symbol.kind === 'typedef' && symbol.type) {
+        const typeName = formatTypeName(symbol.type);
+        return typeName ? { detail: `typedef ${typeName}` } : undefined;
     }
 
     // For classes/modules: show kind
