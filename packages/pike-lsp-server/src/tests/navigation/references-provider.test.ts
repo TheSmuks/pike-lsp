@@ -1,19 +1,18 @@
 /**
  * References Provider Tests
  *
- * Tests for find-all-references, document highlight, and implementation handlers.
+ * Tests for find-all-references and document highlight handlers.
  * Exercises registerReferencesHandlers() via MockConnection.
  *
  * Test scenarios:
  * - Find references with text-based search
  * - Find references with symbolPositions index
  * - Document highlight (all occurrences of word at cursor)
- * - Implementation handler (usages excluding definition)
  * - Edge cases: empty cache, short words, large files
  */
 
-import { describe, it, expect, beforeEach, test } from 'bun:test';
-import { Location, DocumentHighlightKind } from 'vscode-languageserver/node.js';
+import { describe, it, expect } from 'bun:test';
+import { DocumentHighlightKind } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { registerReferencesHandlers } from '../../features/navigation/references.js';
@@ -22,9 +21,7 @@ import {
     createMockDocuments,
     createMockServices,
     makeCacheEntry,
-    sym,
     createMockWorkspaceScanner,
-    type MockConnection,
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
@@ -87,11 +84,6 @@ function setup(opts: SetupOptions) {
                 textDocument: { uri },
                 position: { line, character },
             }),
-        implementation: (line: number, character: number) =>
-            conn.implementationHandler({
-                textDocument: { uri },
-                position: { line, character },
-            }),
         uri,
         conn,
     };
@@ -102,6 +94,14 @@ function setup(opts: SetupOptions) {
 // =============================================================================
 
 describe('References Provider', () => {
+    it('should not register implementation handler (owned by implementation.ts)', () => {
+        const { conn } = setup({
+            code: 'class Base {}',
+            symbols: [],
+        });
+
+        expect(() => conn.implementationHandler).toThrow('No implementation handler registered');
+    });
 
     /**
      * Test 6.1: Find References - Local Variable
@@ -952,181 +952,6 @@ int x = myVar;`;
             // Should find "myVar" at lines 0 and 2, but NOT "myVariable"
             // because word boundary check ensures the char after "myVar" is not \w
             expect(result!.length).toBe(2);
-        });
-    });
-});
-
-// =============================================================================
-// Implementation Provider Tests
-// =============================================================================
-
-describe('Implementation Provider', () => {
-
-    describe('Scenario 5.1: Find implementations - text occurrences', () => {
-        it('should find all text occurrences of the word', async () => {
-            const code = `void myMethod() { }
-myMethod();
-myMethod();`;
-
-            const { implementation } = setup({
-                code,
-                symbols: [{
-                    name: 'myMethod',
-                    kind: 'method',
-                    modifiers: [],
-                    position: { file: 'test.pike', line: 1 }, // Pike line 1 -> LSP line 0
-                }],
-            });
-
-            // Cursor on "myMethod" at line 1 (a usage, not definition)
-            const result = await implementation(1, 2);
-            // Should find all 3 occurrences (no exclusion for non-definition cursor)
-            expect(result.length).toBe(3);
-        });
-
-        it('should exclude definition position when cursor is on definition', async () => {
-            const code = `void myMethod() { }
-myMethod();
-myMethod();`;
-
-            const { implementation } = setup({
-                code,
-                symbols: [{
-                    name: 'myMethod',
-                    kind: 'method',
-                    modifiers: [],
-                    position: { file: 'test.pike', line: 1 }, // Pike line 1 -> LSP line 0
-                }],
-            });
-
-            // Cursor on "myMethod" at line 0 (the definition line)
-            const result = await implementation(0, 6);
-            // Implementation handler skips the definition position itself
-            expect(result.length).toBe(2);
-            // The remaining should be the call sites
-            expect(result[0]!.range.start.line).toBe(1);
-            expect(result[1]!.range.start.line).toBe(2);
-        });
-    });
-
-    describe('Scenario 5.2: Find implementations - abstract method', () => {
-        it('should find implementations of abstract methods via text search', async () => {
-            // Test abstract method pattern - find all implementations via text search
-            const code = `class Base {
-    abstract int compute();
-}
-class ImplA {
-    int compute() { return 1; }
-}
-class ImplB {
-    int compute() { return 2; }
-}`;
-
-            const { implementation } = setup({
-                code,
-                symbols: [
-                    { name: 'compute', kind: 'method', modifiers: [], position: { file: 'test.pike', line: 2 } },
-                    { name: 'compute', kind: 'method', modifiers: [], position: { file: 'test.pike', line: 5 } },
-                    { name: 'compute', kind: 'method', modifiers: [], position: { file: 'test.pike', line: 8 } },
-                ],
-            });
-
-            // Cursor on abstract method in Base
-            const result = await implementation(1, 10);
-            // Text search finds all "compute" occurrences
-            expect(result.length).toBeGreaterThanOrEqual(1);
-        });
-    });
-
-    describe('Edge Cases', () => {
-        it('should return empty array when no document', async () => {
-            const { implementation } = setup({
-                code: 'int x = 42;',
-                noDocument: true,
-            });
-
-            const result = await implementation(0, 5);
-            expect(result).toEqual([]);
-        });
-
-        it('should return empty array when no cache', async () => {
-            const { implementation } = setup({
-                code: 'int x = 42;',
-                noCache: true,
-            });
-
-            const result = await implementation(0, 5);
-            expect(result).toEqual([]);
-        });
-
-        it('should return empty for empty word at cursor', async () => {
-            const code = `int x = 42;
-   `;
-
-            const { implementation } = setup({
-                code,
-                symbols: [],
-            });
-
-            // Cursor on whitespace
-            const result = await implementation(1, 1);
-            expect(result).toEqual([]);
-        });
-
-        it('should detect circular inheritance without infinite loop', async () => {
-            // Simulate circular inheritance: A inherits B, B inherits A
-            // The references handler uses text-based search, which won't loop
-            const code = `class A { }
-class B { inherit A; }
-A inherits = B;`;
-
-            const { references } = setup({
-                code,
-                symbols: [
-                    { name: 'A', kind: 'class', modifiers: [], position: { file: 'test.pike', line: 1 } },
-                    { name: 'B', kind: 'class', modifiers: [], position: { file: 'test.pike', line: 2 } },
-                ],
-            });
-
-            // Text-based search should find all "A" and "B" occurrences
-            // No infinite loop because handler doesn't follow inheritance chains
-            const result = await references(0, 5);
-            expect(result.length).toBeGreaterThan(0);
-            // Should complete without hanging
-            expect(result.length).toBe(3); // "A" appears in: class A, inherit A, inherits = B
-        });
-
-        it('should find multiple implementations across files via workspace mock', async () => {
-            // Test finding implementations across multiple files in workspace
-            const mainCode = `interface Calculator {
-    int compute();
-}`;
-
-            const implACode = `class CalculatorImplA {
-    int compute() { return 1; }
-}`;
-
-            const implBCode = `class CalculatorImplB {
-    int compute() { return 2; }
-}`;
-
-            const workspaceScanner = createMockWorkspaceScanner([
-                { uri: 'file:///impl/CalculatorImplA.pike', content: implACode },
-                { uri: 'file:///impl/CalculatorImplB.pike', content: implBCode },
-            ]);
-
-            const { implementation } = setup({
-                code: mainCode,
-                uri: 'file:///interfaces/Calculator.pike',
-                symbols: [
-                    { name: 'compute', kind: 'method', modifiers: [], position: { file: 'Calculator.pike', line: 2 } },
-                ],
-                workspaceScanner,
-            });
-
-            const result = await implementation(1, 10);
-            // Should find implementations via text search in workspace
-            expect(Array.isArray(result)).toBe(true);
         });
     });
 });

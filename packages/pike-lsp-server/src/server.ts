@@ -264,6 +264,9 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                     resolveProvider: true,
                     triggerCharacters: ['.', ':', '>', '-', '!'],
                 },
+                executeCommandProvider: {
+                    commands: ['pike.lsp.showDiagnostics'],
+                },
                 signatureHelpProvider: {
                     triggerCharacters: ['(', ','],
                 },
@@ -283,10 +286,20 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
                     full: { delta: true },
                 },
                 codeActionProvider: {
-                    codeActionKinds: ['quickfix', 'source.organizeImports'],
+                    codeActionKinds: [
+                        'quickfix',
+                        'source.organizeImports',
+                        'refactor',
+                        'refactor.extract',
+                        'refactor.rewrite',
+                    ],
                 },
                 documentFormattingProvider: true,
                 documentRangeFormattingProvider: true,
+                documentOnTypeFormattingProvider: {
+                    firstTriggerCharacter: ';',
+                    moreTriggerCharacter: ['}', '\n'],
+                },
                 documentLinkProvider: { resolveProvider: true },
                 codeLensProvider: { resolveProvider: true },
                 linkedEditingRangeProvider: true,
@@ -356,6 +369,48 @@ connection.onInitialized(async () => {
 
         return null;
     });
+
+    // Keep workspace indices/scanner in sync when folders are added/removed.
+    if (typeof connection.workspace.onDidChangeWorkspaceFolders === 'function') {
+        connection.workspace.onDidChangeWorkspaceFolders(async (event) => {
+            const added = event.added ?? [];
+            const removed = event.removed ?? [];
+
+            if (added.length === 0 && removed.length === 0) {
+                return;
+            }
+
+            connection.console.log(`Workspace folders changed (+${added.length}, -${removed.length})`);
+
+            for (const folder of removed) {
+                const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+                workspaceScanner.removeFolder(folderPath);
+            }
+
+            for (const folder of added) {
+                const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+                try {
+                    await workspaceScanner.addFolder(folderPath);
+                } catch (err) {
+                    connection.console.warn(`Failed to scan added folder ${folder.name}: ${err}`);
+                }
+            }
+
+            // Rebuild workspace index from currently active folders.
+            workspaceIndex.clear();
+            const currentFolders = await connection.workspace.getWorkspaceFolders();
+            if (currentFolders && currentFolders.length > 0) {
+                for (const folder of currentFolders) {
+                    try {
+                        const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+                        await workspaceIndex.indexDirectory(folderPath, true);
+                    } catch (err) {
+                        connection.console.warn(`Failed to re-index folder ${folder.name}: ${err}`);
+                    }
+                }
+            }
+        });
+    }
 
     if (bridgeManager?.bridge && !bridgeManager.bridge.isRunning()) {
         try {
