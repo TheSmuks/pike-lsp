@@ -61,7 +61,8 @@ export function registerHoverHandler(
             const keywordInfo = getKeywordInfo(word);
             if (keywordInfo) {
                 const categoryLabel = keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
-                const hoverContent = `**${keywordInfo.name}** (${categoryLabel})\n\n${keywordInfo.description}`;
+                // Use code blocks for consistency with symbol hover format
+                const hoverContent = `**\`${keywordInfo.name}\`**\n\n\`\`\`pike\nkeyword\n\`\`\`\n\n*${categoryLabel}*\n\n${keywordInfo.description}`;
                 return {
                     contents: {
                         kind: MarkupKind.Markdown,

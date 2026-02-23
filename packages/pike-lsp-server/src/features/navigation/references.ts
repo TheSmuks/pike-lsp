@@ -271,6 +271,10 @@ export function registerReferencesHandlers(
             }
 
             // Search in other open documents
+            // For .pike files, only search in the same file (skip other open documents)
+            // For .pmod files, search across all open documents
+            const isPikeFileCurrent = uri.endsWith('.pike');
+            if (!isPikeFileCurrent) {
             for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
                 if (otherUri === uri) continue;
 
@@ -319,6 +323,7 @@ export function registerReferencesHandlers(
                     }
                 }
             }
+            } // end if: skip other documents for .pike files
 
             // Search in workspace files that are not currently open
             // For .pike files, only search in the same file (skip workspace search)
