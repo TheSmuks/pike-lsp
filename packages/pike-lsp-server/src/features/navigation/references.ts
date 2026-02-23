@@ -1,9 +1,7 @@
 /**
  * References and Implementation Handlers
  *
- * Provides find all references, implementation, and document highlight.
- *
- * Note: The class inheritance implementation handler is in implementation.ts
+ * Provides find all references and document highlight.
  */
 
 import {
@@ -27,122 +25,6 @@ export function registerReferencesHandlers(
 ): void {
     const { documentCache } = services;
     const log = new Logger('Navigation');
-
-    /**
-     * Implementation handler - find where a symbol is used (usages excluding definition)
-     * This is different from the class inheritance handler in implementation.ts
-     */
-    connection.onImplementation(async (params): Promise<Location[]> => {
-        log.debug('Implementation request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const cached = documentCache.get(uri);
-            const document = documents.get(uri);
-
-            if (!cached || !document) {
-                return [];
-            }
-
-            const text = document.getText();
-            const offset = document.offsetAt(params.position);
-
-            // Find word boundaries
-            let start = offset;
-            let end = offset;
-            while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-                start--;
-            }
-            while (end < text.length && /\w/.test(text[end] ?? '')) {
-                end++;
-            }
-
-            const word = text.slice(start, end);
-            if (!word) {
-                return [];
-            }
-
-            // Check if we're on a definition
-            const symbolAtPosition = cached.symbols.find(s => {
-                if (s.name !== word || !s.position) return false;
-                const symbolLine = s.position.line - 1;
-                const cursorLine = params.position.line;
-                return symbolLine === cursorLine;
-            });
-
-            const references: Location[] = [];
-
-            // Search for all occurrences of the word in the current document
-            const lines = text.split('\n');
-            for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                const line = lines[lineNum];
-                if (!line) continue;
-                let searchStart = 0;
-                let matchIndex: number;
-
-                while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
-                    const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                    const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                    if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                        // If we're on a definition, skip the definition position itself
-                        if (symbolAtPosition && lineNum === params.position.line &&
-                            matchIndex <= params.position.character &&
-                            matchIndex + word.length >= params.position.character) {
-                            // Skip the definition position itself
-                        } else {
-                            references.push({
-                                uri,
-                                range: {
-                                    start: { line: lineNum, character: matchIndex },
-                                    end: { line: lineNum, character: matchIndex + word.length },
-                                },
-                            });
-                        }
-                    }
-                    searchStart = matchIndex + 1;
-                }
-            }
-
-            // Also search in other open documents
-            for (const [otherUri] of Array.from(documentCache.entries())) {
-                if (otherUri === uri) continue;
-
-                const otherDoc = documents.get(otherUri);
-                if (!otherDoc) continue;
-
-                const otherText = otherDoc.getText();
-                const otherLines = otherText.split('\n');
-
-                for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
-                    const line = otherLines[lineNum];
-                    if (!line) continue;
-                    let searchStart = 0;
-                    let matchIndex: number;
-
-                    while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
-                        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                        const afterChar = matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                            references.push({
-                                uri: otherUri,
-                                range: {
-                                    start: { line: lineNum, character: matchIndex },
-                                    end: { line: lineNum, character: matchIndex + word.length },
-                                },
-                            });
-                        }
-                        searchStart = matchIndex + 1;
-                    }
-                }
-            }
-
-            return references;
-        } catch (err) {
-            log.error(`Implementation failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
-            return [];
-        }
-    });
 
     /**
      * References handler - find all references to a symbol (Find References / Show Usages)

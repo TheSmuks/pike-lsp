@@ -123,6 +123,11 @@ export function registerDocumentLinksHandler(
             return [];
         }
     });
+
+    connection.onDocumentLinkResolve((link): DocumentLink => {
+        // Links are resolved eagerly in onDocumentLinks, so resolve is identity.
+        return link;
+    });
 }
 
 /**
