@@ -56,6 +56,9 @@ export function registerDiagnosticsHandlers(
 
     // Validation timers for debouncing
     const validationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+    // INC-563: Track expected document version for each debounced validation
+    // This prevents stale validations from overwriting fresher results after undo
+    const validationVersions = new Map<string, number>();
 
     // INC-002: Track change ranges for incremental parsing.
     // Stores the range of the most recent change for each document URI.
@@ -87,9 +90,27 @@ export function registerDiagnosticsHandlers(
             clearTimeout(existingTimer);
         }
 
+        // INC-563: Store expected version for this scheduled validation
+        // This prevents stale validations from overwriting fresher results after undo
+        const expectedVersion = version;
+        validationVersions.set(uri, expectedVersion);
+
         // Set new timer
         const timer = setTimeout(() => {
             validationTimers.delete(uri);
+            validationVersions.delete(uri);
+
+            // INC-563: Check if this validation is stale (a newer version was scheduled)
+            const currentVersion = document.version;
+            if (currentVersion !== expectedVersion) {
+                connection.console.log(
+                    `[DEBOUNCE] uri=${uri}, expected=${expectedVersion}, current=${currentVersion} - SKIPPING stale validation`
+                );
+                // Clear pending change range since we're skipping
+                pendingChangeRanges.delete(uri);
+                return;
+            }
+
             // LOG-14-01: Track debounce timer execution
             connection.console.log(`[DEBOUNCE] uri=${uri}, version=${version}, executing validateDocument`);
 
