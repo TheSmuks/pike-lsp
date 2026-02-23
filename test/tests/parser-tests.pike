@@ -116,6 +116,11 @@ int main(int argc, array(string) argv) {
     run_test(test_parse_typedef, "parse_request: typedef extraction");
     run_test(test_parse_inherit, "parse_request: inherit statement extraction");
     run_test(test_parse_method_with_return_type, "parse_request: method with return type");
+    run_test(test_parse_union_type, "parse_request: union type extraction");
+    run_test(test_parse_intersection_type, "parse_request: intersection type extraction");
+    run_test(test_parse_range_type, "parse_request: range type extraction");
+    run_test(test_parse_attribute_type, "parse_request: attribute type extraction");
+    run_test(test_parse_builtin_type_variants, "parse_request: zero/type/unknown extraction");
     run_test(test_parse_class_with_children, "parse_request: class with child methods");
     run_test(test_autodoc_extraction, "parse_request: AutoDoc comment extraction");
     run_test(test_parse_enum, "parse_request: enum extraction");
@@ -274,6 +279,128 @@ void test_parse_method_with_return_type() {
         return;  // Success
     }
     error("Expected method get_name with string return type, got %O\n", symbols);
+}
+
+//! Test parsing union variable types
+void test_parse_union_type() {
+    object Parser = get_parser();
+    object p = Parser();
+
+    mapping result = p->parse_request(([
+        "code": "int|string value;",
+        "filename": "test.pike",
+        "line": 1
+    ]));
+
+    array symbols = result->result->symbols;
+    mapping variable = find_symbol(symbols, "value", "variable");
+
+    if (variable && variable->type && variable->type->name == "or" &&
+        arrayp(variable->type->types) && sizeof(variable->type->types) == 2 &&
+        variable->type->types[0]->name == "int" &&
+        variable->type->types[1]->name == "string") {
+        return;  // Success
+    }
+
+    error("Expected union type int|string on value, got %O\n", symbols);
+}
+
+//! Test parsing intersection variable types via token fallback recovery
+void test_parse_intersection_type() {
+    object Parser = get_parser();
+    object p = Parser();
+
+    mapping result = p->parse_request(([
+        "code": "int&float value;",
+        "filename": "test.pike",
+        "line": 1
+    ]));
+
+    array symbols = result->result->symbols;
+    mapping variable = find_symbol(symbols, "value", "variable");
+
+    if (variable && variable->type && variable->type->name == "and" &&
+        arrayp(variable->type->types) && sizeof(variable->type->types) == 2 &&
+        variable->type->types[0]->name == "int" &&
+        variable->type->types[1]->name == "float") {
+        return;  // Success
+    }
+
+    error("Expected intersection type int&float on value, got %O\n", symbols);
+}
+
+//! Test parsing range-constrained integer types
+void test_parse_range_type() {
+    object Parser = get_parser();
+    object p = Parser();
+
+    mapping result = p->parse_request(([
+        "code": "int(0..255) byte_value;",
+        "filename": "test.pike",
+        "line": 1
+    ]));
+
+    array symbols = result->result->symbols;
+    mapping variable = find_symbol(symbols, "byte_value", "variable");
+
+    if (variable && variable->type &&
+        variable->type->name == "int" &&
+        variable->type->min == "0" &&
+        variable->type->max == "255") {
+        return;  // Success
+    }
+
+    error("Expected range type int(0..255) on byte_value, got %O\n", symbols);
+}
+
+//! Test parsing __attribute__ type wrappers via fallback recovery
+void test_parse_attribute_type() {
+    object Parser = get_parser();
+    object p = Parser();
+
+    mapping result = p->parse_request(([
+        "code": "__attribute__(deprecated) int old_value;",
+        "filename": "test.pike",
+        "line": 1
+    ]));
+
+    array symbols = result->result->symbols;
+    mapping variable = find_symbol(symbols, "old_value", "variable");
+
+    if (variable && variable->type &&
+        variable->type->name == "__attribute__" &&
+        variable->type->attribute == "deprecated" &&
+        variable->type->type &&
+        variable->type->type->name == "int") {
+        return;  // Success
+    }
+
+    error("Expected __attribute__(deprecated) int for old_value, got %O\n", symbols);
+}
+
+//! Test built-in type variants missing from old fallback paths
+void test_parse_builtin_type_variants() {
+    object Parser = get_parser();
+    object p = Parser();
+
+    mapping result = p->parse_request(([
+        "code": "zero z; type t; unknown u;",
+        "filename": "test.pike",
+        "line": 1
+    ]));
+
+    array symbols = result->result->symbols;
+    mapping z = find_symbol(symbols, "z", "variable");
+    mapping t = find_symbol(symbols, "t", "variable");
+    mapping u = find_symbol(symbols, "u", "variable");
+
+    if (z && z->type && z->type->name == "zero" &&
+        t && t->type && t->type->name == "type" &&
+        u && u->type && u->type->name == "unknown") {
+        return;  // Success
+    }
+
+    error("Expected built-in types zero/type/unknown, got %O\n", symbols);
 }
 
 //! Test parsing class with child methods

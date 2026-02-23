@@ -491,61 +491,71 @@ mapping parse_request(mapping params) {
             if (s->name) found_names[s->name] = 1;
         }
 
-        // Type keywords for detection
+        // Type keywords for fallback declaration detection
         multiset(string) type_kw = (<
             "int", "string", "float", "mixed", "void", "array",
-            "mapping", "multiset", "object", "program", "function"
+            "mapping", "multiset", "object", "program", "function",
+            "zero", "type", "unknown"
         >);
 
-        // Walk tokens looking for additional declarations
+        // Walk tokens and recover declaration symbols that parseDecl() missed.
+        // This explicitly handles declarations with:
+        // - union types: int|string
+        // - intersection types: A&B
+        // - attribute types: __attribute__(deprecated) int
+        // - range types: int(0..255)
         int i = 0;
         while (i < sizeof(tok)) {
             object t = tok[i];
             string txt = t->text;
 
-            // Look for type keywords followed by identifiers
-            if (type_kw[txt]) {
-                // Check next token for identifier
-                int next_idx = i + 1;
-                while (next_idx < sizeof(tok)) {
-                    string next_txt = tok[next_idx]->text;
-                    // Skip whitespace and comments
-                    if (sizeof(next_txt) == 0 || next_txt[0] == ' ' || has_prefix(next_txt, "//")) {
-                        next_idx++;
-                        continue;
-                    }
-                    if (has_prefix(next_txt, "/*")) {
-                        // Skip to end of comment
-                        while (next_idx < sizeof(tok) && !has_prefix(tok[next_idx]->text, "*/")) {
-                            next_idx++;
-                        }
-                        next_idx += 2;
-                        continue;
-                    }
-                    break;
-                }
+            if (is_ignorable_token(txt)) {
+                i++;
+                continue;
+            }
 
-                if (next_idx < sizeof(tok)) {
-                    string name = tok[next_idx]->text;
-                    // Skip if already found or not an identifier
-                    if (!found_names[name] && sizeof(name) > 0 &&
-                        !type_kw[name] && name[0] >= 'a' && name[0] <= 'z') {
-                        // Add as additional symbol
-                        tokenized_symbols += ({
-                            ([
-                                "name": name,
-                                "kind": "variable",
-                                "position": ([
-                                    "file": filename,
-                                    "line": t->line
-                                ])
-                            ])
-                        });
-                        found_names[name] = 1;
-                    }
+            int type_start = 0;
+            if (type_kw[txt] || txt == "__attribute__") {
+                type_start = 1;
+            } else if (is_identifier_token(txt)) {
+                // Support class/interface-style type starts (A&B x;)
+                // and dotted names (Foo.Bar x;).
+                if ((txt[0] >= 'A' && txt[0] <= 'Z') || txt[0] == '_') {
+                    type_start = 1;
                 }
             }
-            i++;
+
+            if (!type_start) {
+                i++;
+                continue;
+            }
+
+            // Scan until declaration terminator.
+            int end_idx = i;
+            while (end_idx < sizeof(tok)) {
+                string end_txt = tok[end_idx]->text;
+                if (end_txt == ";") break;
+                if (end_txt == "\n" || end_txt == "{" || end_txt == "}") {
+                    end_idx = -1;
+                    break;
+                }
+                end_idx++;
+            }
+
+            if (end_idx < 0 || end_idx >= sizeof(tok)) {
+                i++;
+                continue;
+            }
+
+            mapping|int recovered =
+                recover_declaration_symbol_from_tokens(tok, i, end_idx, filename, type_kw, found_names);
+            if (mappingp(recovered) && recovered->name) {
+                tokenized_symbols += ({ recovered });
+                found_names[recovered->name] = 1;
+            }
+
+            // Skip to token after ';' to avoid duplicate work.
+            i = end_idx + 1;
         }
     };
 
@@ -1607,6 +1617,277 @@ protected string improve_syntax_error_message(string error_msg, string current_t
     return improved;
 }
 
+//! Check whether a token should be skipped by fallback token recovery.
+protected int is_ignorable_token(string token) {
+    if (!token || sizeof(token) == 0) return 1;
+    if (token == "\n") return 1;
+    if (token[0] == ' ' || token[0] == '\t' || token[0] == '\r') return 1;
+    if (has_prefix(token, "//")) return 1;
+    if (has_prefix(token, "/*")) return 1;
+    if (has_prefix(token, "*/")) return 1;
+    return 0;
+}
+
+//! Check if token is a Pike identifier token (supports dotted names).
+protected int is_identifier_token(string token) {
+    if (!token || sizeof(token) == 0) return 0;
+
+    int first = token[0];
+    if (!((first >= 'a' && first <= 'z') ||
+          (first >= 'A' && first <= 'Z') ||
+          first == '_')) {
+        return 0;
+    }
+
+    for (int i = 1; i < sizeof(token); i++) {
+        int ch = token[i];
+        if (!((ch >= 'a' && ch <= 'z') ||
+              (ch >= 'A' && ch <= 'Z') ||
+              (ch >= '0' && ch <= '9') ||
+              ch == '_' || ch == '.')) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+//! Pike declaration modifiers that may appear before a type.
+protected int is_modifier_keyword(string token) {
+    return has_value(({
+        "public", "private", "protected", "static", "final",
+        "local", "constant", "optional", "inline", "variant"
+    }), token);
+}
+
+//! Remove wrapping parenthesis around a full type expression.
+protected array(string) unwrap_type_parens(array(string) tokens) {
+    if (!tokens) return ({});
+
+    while (sizeof(tokens) >= 2 && tokens[0] == "(" && tokens[-1] == ")") {
+        int depth = 0;
+        int wraps = 1;
+
+        for (int i = 0; i < sizeof(tokens); i++) {
+            string tok = tokens[i];
+            if (tok == "(") depth++;
+            else if (tok == ")") {
+                depth--;
+                if (depth == 0 && i < sizeof(tokens) - 1) {
+                    wraps = 0;
+                    break;
+                }
+            }
+            if (depth < 0) {
+                wraps = 0;
+                break;
+            }
+        }
+
+        if (!wraps || depth != 0) break;
+        tokens = tokens[1..<1];
+    }
+
+    return tokens;
+}
+
+//! Split type tokens by top-level operator (ignores nested parentheses).
+protected array(array(string)) split_type_tokens_top_level(array(string) tokens, string op) {
+    array(array(string)) parts = ({});
+    array(string) current = ({});
+    int depth = 0;
+
+    foreach (tokens, string tok) {
+        if (tok == "(") depth++;
+        else if (tok == ")" && depth > 0) depth--;
+
+        if (tok == op && depth == 0) {
+            parts += ({ current });
+            current = ({});
+            continue;
+        }
+
+        current += ({ tok });
+    }
+
+    parts += ({ current });
+    return parts;
+}
+
+//! Parse a fallback type expression from token texts into JSON shape used by TS.
+protected mapping|int parse_fallback_type_tokens(array(string) raw_tokens) {
+    if (!raw_tokens || sizeof(raw_tokens) == 0) return 0;
+
+    array(string) tokens = unwrap_type_parens(raw_tokens);
+    if (sizeof(tokens) == 0) return 0;
+
+    // __attribute__(...) <type>
+    if (sizeof(tokens) >= 3 && tokens[0] == "__attribute__" && tokens[1] == "(") {
+        int depth = 1;
+        int attr_end = -1;
+        for (int i = 2; i < sizeof(tokens); i++) {
+            if (tokens[i] == "(") depth++;
+            else if (tokens[i] == ")") {
+                depth--;
+                if (depth == 0) {
+                    attr_end = i;
+                    break;
+                }
+            }
+        }
+
+        if (attr_end > 1) {
+            mapping attr_type = ([ "name": "__attribute__" ]);
+            string attr_name = "";
+            if (attr_end > 2) {
+                attr_name = tokens[2..attr_end - 1] * "";
+            }
+            if (sizeof(attr_name) > 0) {
+                attr_type->attribute = attr_name;
+            }
+            if (attr_end + 1 < sizeof(tokens)) {
+                mapping|int inner = parse_fallback_type_tokens(tokens[attr_end + 1..]);
+                if (inner) attr_type->type = inner;
+            }
+            return attr_type;
+        }
+    }
+
+    // Union (A|B)
+    array(array(string)) union_parts = split_type_tokens_top_level(tokens, "|");
+    if (sizeof(union_parts) > 1) {
+        array(mapping) parsed = ({});
+        foreach (union_parts, array(string) part) {
+            mapping|int part_type = parse_fallback_type_tokens(part);
+            if (mappingp(part_type)) parsed += ({ part_type });
+        }
+        if (sizeof(parsed) == 1) return parsed[0];
+        if (sizeof(parsed) > 1) return ([ "name": "or", "types": parsed ]);
+    }
+
+    // Intersection (A&B)
+    array(array(string)) intersection_parts = split_type_tokens_top_level(tokens, "&");
+    if (sizeof(intersection_parts) > 1) {
+        array(mapping) parsed = ({});
+        foreach (intersection_parts, array(string) part) {
+            mapping|int part_type = parse_fallback_type_tokens(part);
+            if (mappingp(part_type)) parsed += ({ part_type });
+        }
+        if (sizeof(parsed) == 1) return parsed[0];
+        if (sizeof(parsed) > 1) return ([ "name": "and", "types": parsed ]);
+    }
+
+    // Range types: int(0..255), int(..255), int(0..)
+    if (sizeof(tokens) >= 4 &&
+        (tokens[0] == "int" || tokens[0] == "string") &&
+        tokens[1] == "(" && tokens[-1] == ")") {
+        array(string) inner = tokens[2..<1];
+        int depth = 0;
+        int range_idx = -1;
+
+        for (int i = 0; i < sizeof(inner); i++) {
+            if (inner[i] == "(") depth++;
+            else if (inner[i] == ")" && depth > 0) depth--;
+            else if (inner[i] == ".." && depth == 0) {
+                range_idx = i;
+                break;
+            }
+        }
+
+        if (range_idx >= 0) {
+            mapping result = ([ "name": tokens[0] ]);
+            if (range_idx > 0) {
+                string min = inner[..range_idx - 1] * "";
+                if (sizeof(min) > 0) result->min = min;
+            }
+            if (range_idx + 1 < sizeof(inner)) {
+                string max = inner[range_idx + 1..] * "";
+                if (sizeof(max) > 0) result->max = max;
+            }
+            return result;
+        }
+    }
+
+    if (sizeof(tokens) == 1) {
+        return ([ "name": tokens[0] ]);
+    }
+
+    // Fallback for complex types we don't fully decompose in token recovery.
+    return ([ "name": tokens * "" ]);
+}
+
+//! Recover a variable declaration from token stream when parseDecl() fails.
+protected mapping|int recover_declaration_symbol_from_tokens(
+    array tok,
+    int start_idx,
+    int end_idx,
+    string filename,
+    multiset(string) type_kw,
+    multiset(string) found_names
+) {
+    if (start_idx < 0 || end_idx <= start_idx || end_idx > sizeof(tok)) return 0;
+
+    array(string) sig = ({});
+    int i = start_idx;
+    while (i < end_idx) {
+        string txt = tok[i]->text;
+
+        if (has_prefix(txt, "/*")) {
+            // Skip block comments entirely.
+            while (i < end_idx && !has_prefix(tok[i]->text, "*/")) i++;
+            i++;
+            continue;
+        }
+
+        if (!is_ignorable_token(txt)) {
+            sig += ({ txt });
+        }
+        i++;
+    }
+
+    if (sizeof(sig) < 2) return 0;
+
+    while (sizeof(sig) > 0 && is_modifier_keyword(sig[0])) {
+        sig = sig[1..];
+    }
+
+    if (sizeof(sig) < 2) return 0;
+
+    int name_idx = -1;
+    for (int idx = sizeof(sig) - 1; idx >= 1; idx--) {
+        string candidate = sig[idx];
+        if (!is_identifier_token(candidate)) continue;
+        if (type_kw[candidate]) continue;
+        if (is_modifier_keyword(candidate)) continue;
+        name_idx = idx;
+        break;
+    }
+
+    if (name_idx <= 0) return 0;
+
+    string name = sig[name_idx];
+    if (!name || sizeof(name) == 0 || found_names[name]) return 0;
+
+    array(string) type_tokens = sig[..name_idx - 1];
+    if (sizeof(type_tokens) == 0) return 0;
+
+    mapping symbol = ([
+        "name": name,
+        "kind": "variable",
+        "position": ([
+            "file": filename,
+            "line": tok[start_idx]->line
+        ])
+    ]);
+
+    mapping|int parsed_type = parse_fallback_type_tokens(type_tokens);
+    if (mappingp(parsed_type)) {
+        symbol->type = parsed_type;
+    }
+
+    return symbol;
+}
+
 protected mapping|int type_to_json(object|void type) {
     if (!type) return 0;
 
@@ -1633,25 +1914,27 @@ protected mapping|int type_to_json(object|void type) {
         else if (has_value(class_path, "MixedType")) result->name = "mixed";
         else if (has_value(class_path, "VoidType")) result->name = "void";
         else if (has_value(class_path, "ZeroType")) result->name = "zero";
+        else if (has_value(class_path, "TypeType")) result->name = "type";
         else if (has_value(class_path, "OrType")) result->name = "or";
+        else if (has_value(class_path, "AndType")) result->name = "and";
         else if (has_value(class_path, "VarargsType")) result->name = "varargs";
         else if (has_value(class_path, "AttributeType")) {
             result->name = "__attribute__";
             catch {
                 if (type->attribute) result->attribute = type->attribute;
             };
-            catch {
-                if (type->subtype) return type_to_json(type->subtype);
-                if (type->type) return type_to_json(type->type);
-            };
+            catch { if (type->type_or_type) result->type = type_to_json(type->type_or_type); };
+            catch { if (!result->type && type->subtype) result->type = type_to_json(type->subtype); };
+            catch { if (!result->type && type->type) result->type = type_to_json(type->type); };
         } else result->name = "unknown";
     }
 
-    if (result->name == "__attribute__") {
-        catch {
-            if (type->type_or_type) return type_to_json(type->type_or_type);
-            if (type->subtype) return type_to_json(type->subtype);
-        };
+    // Preserve __attribute__ wrapper in the JSON output and include inner type.
+    if (result->name == "__attribute__" || has_value(class_path, "AttributeType")) {
+        catch { if (type->attribute) result->attribute = type->attribute; };
+        catch { if (!result->type && type->type_or_type) result->type = type_to_json(type->type_or_type); };
+        catch { if (!result->type && type->subtype) result->type = type_to_json(type->subtype); };
+        catch { if (!result->type && type->type) result->type = type_to_json(type->type); };
     }
 
     // Handle VarargsType: extract the element type (stored in 'type' field)
@@ -1687,6 +1970,30 @@ protected mapping|int type_to_json(object|void type) {
         };
     }
 
+    // Handle AndType (intersection): extract constituent types
+    if (result->name == "and" || has_value(class_path, "AndType")) {
+        result->name = "and";
+        catch {
+            if (type->types && sizeof(type->types) > 0) {
+                result->types = map(type->types, type_to_json);
+            }
+        };
+    }
+
+    // Handle range bounds on IntType/StringType (e.g., int(0..255))
+    if (result->name == "int" || result->name == "string") {
+        catch {
+            if (type->min && sizeof((string)type->min) > 0) {
+                result->min = (string)type->min;
+            }
+        };
+        catch {
+            if (type->max && sizeof((string)type->max) > 0) {
+                result->max = (string)type->max;
+            }
+        };
+    }
+
     // Handle ObjectType: include classname (e.g., "this_program", "Gmp.mpz")
     if (result->name == "object" || has_value(class_path, "ObjectType")) {
         catch {
@@ -1694,6 +2001,11 @@ protected mapping|int type_to_json(object|void type) {
                 result->className = type->classname;
             }
         };
+        // Pike's internal "unknown" type often comes through as object("unknown").
+        if (result->className == "unknown") {
+            result->name = "unknown";
+            m_delete(result, "className");
+        }
     }
 
     // Handle ProgramType: include classname

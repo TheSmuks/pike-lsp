@@ -127,6 +127,30 @@ export function registerCompletionHandlers(
         const completionContext = getCompletionContext(lineText);
         logger.debug('Completion context', { context: completionContext, lineText: lineText.slice(-50) });
 
+        // Type attribute completion: __attribute__(...)
+        const attributeArgMatch = lineText.match(/__attribute__\(\s*"?([a-zA-Z_]*)$/);
+        if (attributeArgMatch) {
+            const attrPrefix = (attributeArgMatch[1] ?? '').toLowerCase();
+            const commonAttributes = [
+                'deprecated',
+                'experimental',
+                'unused',
+                'strict_types',
+            ];
+
+            for (const attr of commonAttributes) {
+                if (!attrPrefix || attr.startsWith(attrPrefix)) {
+                    completions.push({
+                        label: attr,
+                        kind: CompletionItemKind.Property,
+                        detail: 'Pike type attribute',
+                        insertText: `"${attr}"`,
+                    });
+                }
+            }
+            return toCompletionList(completions);
+        }
+
         // Check for scope operator (::) for special cases like this_program::, this::
         const scopeMatch = lineText.match(IDENTIFIER_PATTERNS.SCOPED_ACCESS);
 
@@ -665,6 +689,9 @@ export function registerCompletionHandlers(
             { name: 'int', kind: CompletionItemKind.Keyword },
             { name: 'string', kind: CompletionItemKind.Keyword },
             { name: 'float', kind: CompletionItemKind.Keyword },
+            { name: 'zero', kind: CompletionItemKind.Keyword },
+            { name: 'type', kind: CompletionItemKind.Keyword },
+            { name: 'unknown', kind: CompletionItemKind.Keyword },
             { name: 'array', kind: CompletionItemKind.Keyword },
             { name: 'mapping', kind: CompletionItemKind.Keyword },
             { name: 'multiset', kind: CompletionItemKind.Keyword },
@@ -695,6 +722,8 @@ export function registerCompletionHandlers(
             { name: 'static', kind: CompletionItemKind.Keyword },
             { name: 'final', kind: CompletionItemKind.Keyword },
             { name: 'local', kind: CompletionItemKind.Keyword },
+            { name: '__attribute__', kind: CompletionItemKind.Keyword },
+            { name: 'int(0..255)', kind: CompletionItemKind.Snippet },
             { name: 'sizeof', kind: CompletionItemKind.Function },
             { name: 'typeof', kind: CompletionItemKind.Function },
             { name: 'Stdio', kind: CompletionItemKind.Module },
@@ -792,6 +821,7 @@ function getCompletionContext(lineText: string): 'type' | 'expression' {
         /\bclass\s+\w+\s*$/,
         /\binherit\s+$/,
         /\|$/,
+        /&$/,
     ];
 
     for (const pattern of expressionPatterns) {
