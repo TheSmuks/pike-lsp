@@ -50,7 +50,11 @@ export type PikeType =
     | PikeMixedType
     | PikeVoidType
     | PikeZeroType
+    | PikeTypeType
+    | PikeUnknownType
     | PikeOrType
+    | PikeAndType
+    | PikeAttributeType
     | PikeNameType;
 
 export interface PikeIntType {
@@ -128,9 +132,29 @@ export interface PikeZeroType {
     kind: 'zero';
 }
 
+export interface PikeTypeType {
+    kind: 'type';
+    subtype?: PikeType;
+}
+
+export interface PikeUnknownType {
+    kind: 'unknown';
+}
+
 export interface PikeOrType {
     kind: 'or';
     types: PikeType[];
+}
+
+export interface PikeAndType {
+    kind: 'and';
+    types: PikeType[];
+}
+
+export interface PikeAttributeType {
+    kind: '__attribute__';
+    attribute?: string;
+    type?: PikeType;
 }
 
 /**

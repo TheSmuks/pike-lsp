@@ -46,11 +46,28 @@ export function formatPikeType(typeObj: unknown): string {
     // Handle union types (OrType): name="or", types=[...]
     if (name === 'or' && Array.isArray(t['types'])) {
         const parts = (t['types'] as unknown[]).map(sub => formatPikeType(sub));
-        return parts.join('|');
+        return parts.join(' | ');
+    }
+
+    // Handle intersection types (AndType): name="and", types=[...]
+    if (name === 'and' && Array.isArray(t['types'])) {
+        const parts = (t['types'] as unknown[]).map(sub => formatPikeType(sub));
+        return parts.join(' & ');
+    }
+
+    // Handle type attributes: __attribute__(deprecated) int
+    if (name === '__attribute__') {
+        const attribute = t['attribute'] ? String(t['attribute']) : '';
+        const inner = t['type'] ? formatPikeType(t['type']) : 'mixed';
+        const attrArgs = attribute ? attribute : '';
+        return `__attribute__(${attrArgs}) ${inner}`;
     }
 
     // Handle object types: name="object", className="Gmp.mpz"
     if (name === 'object' && t['className']) {
+        if (t['className'] === 'unknown') {
+            return 'unknown';
+        }
         return `object(${t['className']})`;
     }
 
@@ -71,9 +88,16 @@ export function formatPikeType(typeObj: unknown): string {
         return `mapping(${key}:${val})`;
     }
 
-    // Handle varargs: name contains "..."
-    if (name === 'varargs' && t['type']) {
-        return `${formatPikeType(t['type'])}...`;
+    // Handle bounded integer/string ranges (int(0..255), int(..255), int(0..))
+    if ((name === 'int' || name === 'string') && (t['min'] || t['max'])) {
+        const min = typeof t['min'] === 'string' ? t['min'] : '';
+        const max = typeof t['max'] === 'string' ? t['max'] : '';
+        return `${name}(${min}..${max})`;
+    }
+
+    // Handle varargs: support both `type` and `elementType` payloads
+    if (name === 'varargs' && (t['type'] || t['elementType'])) {
+        return `${formatPikeType(t['type'] ?? t['elementType'])}...`;
     }
 
     // Simple types: int, string, float, void, mixed, zero

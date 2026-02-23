@@ -401,6 +401,44 @@ describe('Completion Provider', () => {
             const sizeofItem = findItem(result, 'sizeof');
             expect(sizeofItem?.kind).toBe(CompletionItemKind.Function);
         });
+
+        it('A.10: should include extended Pike type built-ins', async () => {
+            const { complete } = setup({ code: '' });
+            const result = await complete(0, 0);
+
+            const names = labels(result);
+            expect(names).toContain('zero');
+            expect(names).toContain('type');
+            expect(names).toContain('unknown');
+            expect(names).toContain('__attribute__');
+            expect(names).toContain('int(0..255)');
+        });
+
+        it('A.11: should suggest type attributes inside __attribute__(...)', async () => {
+            const { complete } = setup({ code: '__attribute__(dep' });
+            const result = await complete(0, 17);
+
+            const names = labels(result);
+            expect(names).toContain('deprecated');
+
+            const item = findItem(result, 'deprecated');
+            expect(item?.insertText).toBe('"deprecated"');
+            expect(item?.kind).toBe(CompletionItemKind.Property);
+        });
+
+        it('A.12: should provide type completions after union/intersection operators', async () => {
+            const { complete } = setup({ code: 'int|' });
+            const unionResult = await complete(0, 4);
+            const unionNames = labels(unionResult);
+            expect(unionNames).toContain('string');
+            expect(unionNames).toContain('float');
+
+            const { complete: completeIntersection } = setup({ code: 'int&' });
+            const intersectionResult = await completeIntersection(0, 4);
+            const intersectionNames = labels(intersectionResult);
+            expect(intersectionNames).toContain('string');
+            expect(intersectionNames).toContain('float');
+        });
     });
 
     // =========================================================================
@@ -1449,8 +1487,9 @@ describe('Completion Provider', () => {
                 sym(`symbol_${i}`, 'variable')
             );
 
-            const { complete } = setup({ code: '', symbols });
-            const result = await complete(0, 0);
+            // Use a prefix to keep the completion set intentionally small.
+            const { complete } = setup({ code: 'sym', symbols });
+            const result = await complete(0, 3);
 
             // Result should be CompletionList structure
             expect(result).toHaveProperty('isIncomplete');
