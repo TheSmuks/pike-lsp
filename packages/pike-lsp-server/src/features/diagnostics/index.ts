@@ -84,6 +84,7 @@ export function registerDiagnosticsHandlers(
   // Stores the range of the most recent change for each document URI.
   const pendingChangeRanges = new Map<string, Range | undefined>();
   const documentSnapshots = new Map<string, string>();
+  const inFlightDiagnosticRequests = new Map<string, string>();
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -201,10 +202,29 @@ export function registerDiagnosticsHandlers(
 
     try {
       log.debug('Calling unified analyze', { filename, version });
-      const requestId = `${uri}:${version}`;
+      const requestId = `${uri}:${version}:${Date.now()}`;
+      const clearInFlightRequest = (): void => {
+        if (inFlightDiagnosticRequests.get(uri) === requestId) {
+          inFlightDiagnosticRequests.delete(uri);
+        }
+      };
       let analyzeResult: import('@pike-lsp/pike-bridge').AnalyzeResponse | null = null;
 
       try {
+        const previousRequestId = inFlightDiagnosticRequests.get(uri);
+        if (previousRequestId && previousRequestId !== requestId) {
+          try {
+            await bridge.engineCancelRequest({ requestId: previousRequestId });
+          } catch (err) {
+            log.debug('Engine query cancellation for superseded request failed', {
+              uri,
+              requestId: previousRequestId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+        inFlightDiagnosticRequests.set(uri, requestId);
+
         const snapshotId = documentSnapshots.get(uri);
         const qeResponse = await bridge.engineQuery({
           feature: 'diagnostics',
@@ -232,6 +252,7 @@ export function registerDiagnosticsHandlers(
         const message = err instanceof Error ? err.message : String(err);
         if (/cancel/i.test(message)) {
           log.debug('Engine query diagnostics cancelled', { uri, requestId });
+          clearInFlightRequest();
           return;
         }
         log.debug('Engine query diagnostics fallback', {
@@ -249,6 +270,8 @@ export function registerDiagnosticsHandlers(
           version
         );
       }
+
+      clearInFlightRequest();
 
       // Log completion status
       const hasParse = !!analyzeResult.result?.parse;
@@ -600,6 +623,7 @@ export function registerDiagnosticsHandlers(
 
       log.debug('Validation complete', { uri, version, diagnostics: diagnostics.length });
     } catch (err) {
+      inFlightDiagnosticRequests.delete(uri);
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
   }
@@ -740,6 +764,7 @@ export function registerDiagnosticsHandlers(
     // Clear cache for closed document
     documentCache.delete(event.document.uri);
     documentSnapshots.delete(event.document.uri);
+    inFlightDiagnosticRequests.delete(event.document.uri);
 
     // Clear from type database
     typeDatabase.removeProgram(event.document.uri);
