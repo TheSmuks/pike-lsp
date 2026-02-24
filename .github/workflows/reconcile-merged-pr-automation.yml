@@ -1,0 +1,159 @@
+name: Reconcile Merged PR Automation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  pull-requests: read
+  issues: write
+  contents: write
+
+concurrency:
+  group: reconcile-merged-pr-automation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Reconcile linked issues and merged branches
+        uses: actions/github-script@v7
+        env:
+          LOOKBACK_HOURS: '72'
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const cutoff = new Date(Date.now() - Number(process.env.LOOKBACK_HOURS || 72) * 60 * 60 * 1000);
+            const mergedPrs = [];
+            const query = `
+              query($owner: String!, $repo: String!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(
+                    first: 50,
+                    states: MERGED,
+                    orderBy: {field: UPDATED_AT, direction: DESC},
+                    after: $cursor
+                  ) {
+                    nodes {
+                      number
+                      mergedAt
+                      baseRefName
+                      headRefName
+                      isCrossRepository
+                      closingIssuesReferences(first: 20) {
+                        nodes {
+                          number
+                          state
+                          repository {
+                            name
+                            owner { login }
+                          }
+                        }
+                      }
+                    }
+                    pageInfo {
+                      hasNextPage
+                      endCursor
+                    }
+                  }
+                }
+              }
+            `;
+
+            let cursor = null;
+            let keepPaging = true;
+            while (keepPaging) {
+              const result = await github.graphql(query, { owner, repo, cursor });
+              const page = result.repository.pullRequests;
+              const nodes = page.nodes || [];
+
+              for (const pr of nodes) {
+                if (!pr.mergedAt) {
+                  continue;
+                }
+                const mergedAt = new Date(pr.mergedAt);
+                if (Number.isNaN(mergedAt.getTime())) {
+                  continue;
+                }
+                if (mergedAt < cutoff) {
+                  keepPaging = false;
+                  break;
+                }
+                if (pr.baseRefName === 'main' || pr.baseRefName === 'master') {
+                  mergedPrs.push(pr);
+                }
+              }
+
+              if (!keepPaging || !page.pageInfo.hasNextPage) {
+                break;
+              }
+              cursor = page.pageInfo.endCursor;
+            }
+
+            const closedIssues = new Set();
+            let closedCount = 0;
+            for (const pr of mergedPrs) {
+              for (const issue of pr.closingIssuesReferences.nodes || []) {
+                if (!issue?.repository?.owner?.login || !issue?.repository?.name) {
+                  continue;
+                }
+                const issueRepo = `${issue.repository.owner.login}/${issue.repository.name}`;
+                if (issueRepo !== `${owner}/${repo}`) {
+                  continue;
+                }
+                if (issue.state !== 'OPEN') {
+                  continue;
+                }
+                if (closedIssues.has(issue.number)) {
+                  continue;
+                }
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  body: `Closed automatically by reconciliation: PR #${pr.number} is merged.`,
+                });
+
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                });
+
+                closedIssues.add(issue.number);
+                closedCount += 1;
+              }
+            }
+
+            let deletedCount = 0;
+            for (const pr of mergedPrs) {
+              if (pr.isCrossRepository || !pr.headRefName) {
+                continue;
+              }
+              if (pr.headRefName === 'main' || pr.headRefName === 'master') {
+                continue;
+              }
+
+              const ref = `heads/${pr.headRefName}`;
+              try {
+                await github.rest.git.deleteRef({ owner, repo, ref });
+                deletedCount += 1;
+              } catch (error) {
+                const status = error?.status;
+                if (status !== 404 && status !== 422) {
+                  throw error;
+                }
+              }
+            }
+
+            core.info(`Merged PRs scanned: ${mergedPrs.length}`);
+            core.info(`Issues closed: ${closedCount}`);
+            core.info(`Branches deleted: ${deletedCount}`);
