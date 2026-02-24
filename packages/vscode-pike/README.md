@@ -45,7 +45,7 @@ Verify LSP features work end-to-end:
 
 ```bash
 cd packages/vscode-pike
-pnpm run test:features
+bun run test:features
 ```
 
 Tests verify:
