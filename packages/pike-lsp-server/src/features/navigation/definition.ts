@@ -5,10 +5,7 @@
  * Supports module path resolution (Stdio.File) and member access (file->read).
  */
 
-import {
-    Connection,
-    Location,
-} from 'vscode-languageserver/node.js';
+import { Connection, Location } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
@@ -17,524 +14,734 @@ import type { DocumentCacheEntry } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
+import { readFileSync } from 'node:fs';
 
 /**
  * Convert a file:// URI to a filesystem path.
  * Needed because bridge methods expect filesystem paths, not URIs.
  */
 function uriToFilePath(uri: string): string {
-    if (uri.startsWith('file://')) {
-        try {
-            return decodeURIComponent(new URL(uri).pathname);
-        } catch {
-            // Fallback: strip file:// prefix
-            return uri.replace(/^file:\/\//, '');
-        }
+  if (uri.startsWith('file://')) {
+    try {
+      return decodeURIComponent(new URL(uri).pathname);
+    } catch {
+      // Fallback: strip file:// prefix
+      return uri.replace(/^file:\/\//, '');
     }
-    return uri;
+  }
+  return uri;
 }
 
 /**
  * Register definition handlers.
  */
 export function registerDefinitionHandlers(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache } = services;
-    const log = new Logger('Navigation');
+  const { documentCache } = services;
+  const log = new Logger('Navigation');
 
-    /**
-     * Definition handler - go to symbol definition
-     * Supports:
-     * - Local symbol navigation
-     * - Module path resolution (Stdio.File -> Pike stdlib)
-     * - Member access navigation (file->read -> method definition)
-     */
-    connection.onDefinition(async (params): Promise<Location | Location[] | null> => {
-        log.debug('Definition request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const cached = documentCache.get(uri);
-            const document = documents.get(uri);
+  /**
+   * Definition handler - go to symbol definition
+   * Supports:
+   * - Local symbol navigation
+   * - Module path resolution (Stdio.File -> Pike stdlib)
+   * - Member access navigation (file->read -> method definition)
+   */
+  connection.onDefinition(async (params): Promise<Location | Location[] | null> => {
+    log.debug('Definition request', { uri: params.textDocument.uri });
+    try {
+      const uri = params.textDocument.uri;
+      const cached = documentCache.get(uri);
+      const document = documents.get(uri);
 
-            if (!cached || !document) {
-                return null;
-            }
+      if (!cached || !document) {
+        return null;
+      }
 
-            // Early check: if cursor is on a directive line (#include, import, inherit),
-            // handle it directly to avoid expression extraction mangling paths.
-            const directiveResult = await handleDirectiveNavigation(
-                document, params.position, uri, services, cached, log
+      // Early check: if cursor is on a directive line (#include, import, inherit),
+      // handle it directly to avoid expression extraction mangling paths.
+      const directiveResult = await handleDirectiveNavigation(
+        document,
+        params.position,
+        uri,
+        services,
+        cached,
+        log
+      );
+      if (directiveResult) {
+        return directiveResult;
+      }
+
+      // First, try to extract expression at cursor position
+      const expr = extractExpressionAtPosition(document, params.position);
+      if (expr) {
+        log.debug('Definition: extracted expression', { expression: expr });
+
+        // Try module path resolution first
+        if (expr.isModulePath || expr.operator === '.') {
+          const moduleLocation = await resolveModulePath(services, expr, document, uri);
+          if (moduleLocation) {
+            return moduleLocation;
+          }
+        }
+
+        // Try member access resolution
+        if (expr.member && expr.operator === '->') {
+          const memberLocation = await resolveMemberAccess(services, expr, cached, uri);
+          if (memberLocation) {
+            return memberLocation;
+          }
+        }
+
+        // Try module path with member (Stdio.File->read)
+        if (expr.member && expr.operator === '.') {
+          const moduleMemberLocation = await resolveModuleMember(services, expr, document);
+          if (moduleMemberLocation) {
+            return moduleMemberLocation;
+          }
+        }
+      }
+
+      const wordAtCursor = getWordAtPosition(document, params.position);
+      if (wordAtCursor) {
+        if (!cached.dependencies && services.includeResolver) {
+          try {
+            cached.dependencies = await services.includeResolver.resolveDependencies(
+              uri,
+              cached.symbols || []
             );
-            if (directiveResult) {
-                return directiveResult;
+          } catch (err) {
+            log.debug('Definition: failed to resolve dependencies', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        const includedSymbol = findSymbolInIncludedFiles(wordAtCursor, cached, services, log);
+        if (includedSymbol) {
+          const targetUri = includedSymbol.filePath.startsWith('file://')
+            ? includedSymbol.filePath
+            : `file://${includedSymbol.filePath}`;
+          const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
+
+          log.debug('Definition: navigating to included symbol', {
+            symbolName: wordAtCursor,
+            filePath: includedSymbol.filePath,
+            line,
+          });
+
+          return {
+            uri: targetUri,
+            range: {
+              start: { line, character: 0 },
+              end: { line, character: (includedSymbol.symbol.name || '').length },
+            },
+          };
+        }
+
+        const includedTextMatch = findSymbolTextInIncludedFiles(
+          wordAtCursor,
+          cached,
+          services,
+          log
+        );
+        if (includedTextMatch) {
+          return {
+            uri: includedTextMatch.filePath.startsWith('file://')
+              ? includedTextMatch.filePath
+              : `file://${includedTextMatch.filePath}`,
+            range: {
+              start: { line: includedTextMatch.line, character: includedTextMatch.character },
+              end: {
+                line: includedTextMatch.line,
+                character: includedTextMatch.character + wordAtCursor.length,
+              },
+            },
+          };
+        }
+
+        const directIncludeMatch = await findSymbolInDirectIncludes(
+          wordAtCursor,
+          document,
+          uri,
+          services,
+          log
+        );
+        if (directIncludeMatch) {
+          return {
+            uri: directIncludeMatch.filePath.startsWith('file://')
+              ? directIncludeMatch.filePath
+              : `file://${directIncludeMatch.filePath}`,
+            range: {
+              start: { line: directIncludeMatch.line, character: directIncludeMatch.character },
+              end: {
+                line: directIncludeMatch.line,
+                character: directIncludeMatch.character + wordAtCursor.length,
+              },
+            },
+          };
+        }
+      }
+
+      // Fallback to local symbol lookup
+      const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+
+      // If not found locally, search in included files
+      if (!symbol || !symbol.position) {
+        // Ensure dependencies are resolved (on-demand resolution)
+        if (!cached.dependencies && services.includeResolver) {
+          try {
+            cached.dependencies = await services.includeResolver.resolveDependencies(
+              uri,
+              cached.symbols || []
+            );
+          } catch (err) {
+            log.debug('Definition: failed to resolve dependencies', {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        // Extract the word at cursor position
+        const text = document.getText();
+        const offset = document.offsetAt(params.position);
+        let start = offset;
+        let end = offset;
+        while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+          start--;
+        }
+        while (end < text.length && /\w/.test(text[end] ?? '')) {
+          end++;
+        }
+        const word = text.slice(start, end);
+
+        if (word) {
+          const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
+          if (includedSymbol) {
+            // Found symbol in included file - return its location
+            const targetUri = includedSymbol.filePath.startsWith('file://')
+              ? includedSymbol.filePath
+              : `file://${includedSymbol.filePath}`;
+            const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
+
+            log.debug('Definition: navigating to symbol from included file', {
+              symbolName: word,
+              filePath: includedSymbol.filePath,
+              line,
+            });
+
+            return {
+              uri: targetUri,
+              range: {
+                start: { line, character: 0 },
+                end: { line, character: (includedSymbol.symbol.name || '').length },
+              },
+            };
+          }
+        }
+
+        return null;
+      }
+
+      // Check if we're clicking ON the definition itself
+      // Pike uses 1-based lines, LSP uses 0-based
+      const symbolLine = (symbol.position.line ?? 1) - 1;
+      const isOnDefinition = symbolLine === params.position.line;
+
+      if (isOnDefinition) {
+        // If this is an import, include, or inherit, navigate to the target module/file
+        if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
+          // Use classname if available (usually contains the module path), otherwise name
+          const modulePath = symbol.classname || symbol.name;
+          if (modulePath) {
+            log.debug('Definition: navigating to import/inherit target', { modulePath });
+
+            // Use introspection data for inherits if available
+            // This handles macros and complex resolutions performed by the Pike compiler
+            if (symbol.kind === 'inherit' && cached.inherits) {
+              const normalizedPath = modulePath.replace(/['"]/g, '');
+              const foundInherit = cached.inherits.find(
+                (h: InheritanceInfo) =>
+                  h.source_name === normalizedPath ||
+                  h.path === normalizedPath ||
+                  h.label === normalizedPath ||
+                  (h.source_name && h.source_name.replace(/['"]/g, '') === normalizedPath)
+              );
+
+              if (foundInherit && foundInherit.path) {
+                log.debug('Definition: resolved inherit from introspection', {
+                  modulePath,
+                  resolvedPath: foundInherit.path,
+                });
+
+                const targetUri = foundInherit.path.startsWith('file://')
+                  ? foundInherit.path
+                  : `file://${foundInherit.path}`;
+
+                return {
+                  uri: targetUri,
+                  range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: 0, character: 0 },
+                  },
+                };
+              }
             }
 
-            // First, try to extract expression at cursor position
-            const expr = extractExpressionAtPosition(document, params.position);
-            if (expr) {
-                log.debug('Definition: extracted expression', { expression: expr });
+            // Check if this is a #include statement by looking at the actual source code
+            // The parser strips quotes from the path, so we check the source line directly
+            const symbolLine = (symbol.position.line ?? 1) - 1; // Convert to 0-based
+            const lineText = document
+              .getText({
+                start: { line: symbolLine, character: 0 },
+                end: { line: symbolLine + 1, character: 0 },
+              })
+              .trim();
+            const isIncludeDirective =
+              lineText.startsWith('#include') ||
+              lineText.startsWith('#if') ||
+              lineText.startsWith('#else') ||
+              lineText.startsWith('#elif') ||
+              lineText.startsWith('#endif');
 
-                // Try module path resolution first
-                if (expr.isModulePath || expr.operator === '.') {
-                    const moduleLocation = await resolveModulePath(services, expr, document, uri);
-                    if (moduleLocation) {
-                        return moduleLocation;
-                    }
-                }
+            const isRequireDirective = lineText.startsWith('#require');
 
-                // Try member access resolution
-                if (expr.member && expr.operator === '->') {
-                    const memberLocation = await resolveMemberAccess(services, expr, cached, uri);
-                    if (memberLocation) {
-                        return memberLocation;
-                    }
-                }
+            if (isIncludeDirective && services.bridge?.bridge) {
+              // Use resolveInclude for #include directives
+              try {
+                const includeResult = await services.bridge.bridge.resolveInclude(
+                  modulePath,
+                  uriToFilePath(uri)
+                );
 
-                // Try module path with member (Stdio.File->read)
-                if (expr.member && expr.operator === '.') {
-                    const moduleMemberLocation = await resolveModuleMember(services, expr, document);
-                    if (moduleMemberLocation) {
-                        return moduleMemberLocation;
-                    }
+                if (includeResult.exists && includeResult.path) {
+                  const targetUri = includeResult.path.startsWith('file://')
+                    ? includeResult.path
+                    : `file://${includeResult.path}`;
+
+                  log.debug('Definition: resolved include path', {
+                    originalPath: includeResult.originalPath,
+                    resolvedPath: includeResult.path,
+                  });
+
+                  return {
+                    uri: targetUri,
+                    range: {
+                      start: { line: 0, character: 0 },
+                      end: { line: 0, character: 0 },
+                    },
+                  };
                 }
+              } catch (err) {
+                log.debug('Definition: failed to resolve include path', {
+                  modulePath,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
             }
 
-            // Fallback to local symbol lookup
-            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+            // Handle #require directives using resolveImport
+            if (isRequireDirective && services.bridge?.bridge) {
+              try {
+                // Use resolveImport for #require directives
+                // The PikeBridge's resolveImport method handles both string literals
+                // and constant identifiers, returning appropriate results
+                const requireResult = await services.bridge.bridge.resolveImport(
+                  'require',
+                  modulePath,
+                  uriToFilePath(uri)
+                );
 
-            // If not found locally, search in included files
-            if (!symbol || !symbol.position) {
-                // Ensure dependencies are resolved (on-demand resolution)
-                if (!cached.dependencies && services.includeResolver) {
+                if (requireResult.exists === 1 && requireResult.path) {
+                  const targetUri = requireResult.path.startsWith('file://')
+                    ? requireResult.path
+                    : `file://${requireResult.path}`;
+
+                  log.debug('Definition: resolved require path', {
+                    modulePath,
+                    resolvedPath: requireResult.path,
+                  });
+
+                  return {
+                    uri: targetUri,
+                    range: {
+                      start: { line: 0, character: 0 },
+                      end: { line: 0, character: 0 },
+                    },
+                  };
+                } else {
+                  log.debug('Definition: #require target not found', {
+                    modulePath,
+                    error: requireResult.error,
+                  });
+                }
+              } catch (err) {
+                log.debug('Definition: failed to resolve require path', {
+                  modulePath,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+
+            // Handle relative import paths (starting with .)
+            if (modulePath.startsWith('.') && services.bridge?.bridge) {
+              try {
+                const relativeResult = await services.bridge.bridge.resolveInclude(
+                  modulePath,
+                  uriToFilePath(uri)
+                );
+
+                if (relativeResult.exists && relativeResult.path) {
+                  const targetUri = relativeResult.path.startsWith('file://')
+                    ? relativeResult.path
+                    : `file://${relativeResult.path}`;
+
+                  log.debug('Definition: resolved relative import path', {
+                    modulePath,
+                    resolvedPath: relativeResult.path,
+                  });
+
+                  return {
+                    uri: targetUri,
+                    range: {
+                      start: { line: 0, character: 0 },
+                      end: { line: 0, character: 0 },
+                    },
+                  };
+                }
+              } catch (err) {
+                log.debug('Definition: failed to resolve relative path', {
+                  modulePath,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+
+            // For inherit statements, try resolving with ALL import paths (order-independent)
+            if (symbol.kind === 'inherit') {
+              // Get ALL imports in the file, not just prior ones (fixes Gap 2)
+              const allImports = cached.symbols.filter((s: PikeSymbol) => s.kind === 'import');
+
+              for (const importSymbol of allImports) {
+                const importPath = importSymbol.classname || importSymbol.name;
+                if (importPath && importPath !== modulePath) {
+                  const qualifiedPath = `${importPath}.${modulePath}`;
+
+                  const moduleInfo = await services.stdlibIndex?.getModule(qualifiedPath);
+                  if (moduleInfo && moduleInfo.resolvedPath) {
+                    const targetUri = moduleInfo.resolvedPath.startsWith('file://')
+                      ? moduleInfo.resolvedPath
+                      : `file://${moduleInfo.resolvedPath}`;
+
+                    log.debug('Definition: resolved inherit via import', {
+                      qualifiedPath,
+                      resolvedPath: moduleInfo.resolvedPath,
+                    });
+
+                    return {
+                      uri: targetUri,
+                      range: {
+                        start: { line: 0, character: 0 },
+                        end: { line: 0, character: 0 },
+                      },
+                    };
+                  }
+
+                  if (services.bridge?.bridge) {
                     try {
-                        cached.dependencies = await services.includeResolver.resolveDependencies(uri, cached.symbols || []);
-                    } catch (err) {
-                        log.debug('Definition: failed to resolve dependencies', {
-                            error: err instanceof Error ? err.message : String(err),
-                        });
-                    }
-                }
+                      const bridgeResult = await services.bridge.bridge.resolveInclude(
+                        qualifiedPath,
+                        uriToFilePath(uri)
+                      );
 
-                // Extract the word at cursor position
-                const text = document.getText();
-                const offset = document.offsetAt(params.position);
-                let start = offset;
-                let end = offset;
-                while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-                    start--;
-                }
-                while (end < text.length && /\w/.test(text[end] ?? '')) {
-                    end++;
-                }
-                const word = text.slice(start, end);
+                      if (bridgeResult.exists && bridgeResult.path) {
+                        const targetUri = bridgeResult.path.startsWith('file://')
+                          ? bridgeResult.path
+                          : `file://${bridgeResult.path}`;
 
-                if (word) {
-                    const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
-                    if (includedSymbol) {
-                        // Found symbol in included file - return its location
-                        const targetUri = includedSymbol.filePath.startsWith('file://')
-                            ? includedSymbol.filePath
-                            : `file://${includedSymbol.filePath}`;
-                        const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
-
-                        log.debug('Definition: navigating to symbol from included file', {
-                            symbolName: word,
-                            filePath: includedSymbol.filePath,
-                            line,
+                        log.debug('Definition: resolved inherit via bridge', {
+                          qualifiedPath,
+                          resolvedPath: bridgeResult.path,
                         });
 
                         return {
-                            uri: targetUri,
-                            range: {
-                                start: { line, character: 0 },
-                                end: { line, character: (includedSymbol.symbol.name || "").length },
-                            },
+                          uri: targetUri,
+                          range: {
+                            start: { line: 0, character: 0 },
+                            end: { line: 0, character: 0 },
+                          },
                         };
+                      }
+                    } catch (err) {
+                      log.debug('Definition: bridge resolve failed for inherit', {
+                        qualifiedPath,
+                        error: err instanceof Error ? err.message : String(err),
+                      });
                     }
+                  }
                 }
-
-                return null;
+              }
             }
 
-            // Check if we're clicking ON the definition itself
-            // Pike uses 1-based lines, LSP uses 0-based
-            const symbolLine = (symbol.position.line ?? 1) - 1;
-            const isOnDefinition = symbolLine === params.position.line;
+            // Fall back to stdlib index for import/inherit statements
+            const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
 
-            if (isOnDefinition) {
-                // If this is an import, include, or inherit, navigate to the target module/file
-                if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
-                    // Use classname if available (usually contains the module path), otherwise name
-                    const modulePath = symbol.classname || symbol.name;
-                    if (modulePath) {
-                        log.debug('Definition: navigating to import/inherit target', { modulePath });
+            if (moduleInfo && moduleInfo.resolvedPath) {
+              const targetUri = moduleInfo.resolvedPath.startsWith('file://')
+                ? moduleInfo.resolvedPath
+                : `file://${moduleInfo.resolvedPath}`;
 
-                        // Use introspection data for inherits if available
-                        // This handles macros and complex resolutions performed by the Pike compiler
-                        if (symbol.kind === 'inherit' && cached.inherits) {
-                            const normalizedPath = modulePath.replace(/['"]/g, "");
-                            const foundInherit = cached.inherits.find((h: InheritanceInfo) =>
-                                h.source_name === normalizedPath || 
-                                h.path === normalizedPath ||
-                                h.label === normalizedPath ||
-                                (h.source_name && h.source_name.replace(/['"]/g, "") === normalizedPath)
-                            );
-
-                            if (foundInherit && foundInherit.path) {
-                                log.debug('Definition: resolved inherit from introspection', { 
-                                    modulePath, 
-                                    resolvedPath: foundInherit.path 
-                                });
-                                
-                                const targetUri = foundInherit.path.startsWith('file://')
-                                    ? foundInherit.path
-                                    : `file://${foundInherit.path}`;
-
-                                return {
-                                    uri: targetUri,
-                                    range: {
-                                        start: { line: 0, character: 0 },
-                                        end: { line: 0, character: 0 },
-                                    },
-                                };
-                            }
-                        }
-
-                        // Check if this is a #include statement by looking at the actual source code
-                        // The parser strips quotes from the path, so we check the source line directly
-                        const symbolLine = (symbol.position.line ?? 1) - 1;  // Convert to 0-based
-                        const lineText = document.getText({
-                            start: { line: symbolLine, character: 0 },
-                            end: { line: symbolLine + 1, character: 0 }
-                        }).trim();
-                        const isIncludeDirective = lineText.startsWith('#include') ||
-                                                   lineText.startsWith('#if') ||
-                                                   lineText.startsWith('#else') ||
-                                                   lineText.startsWith('#elif') ||
-                                                   lineText.startsWith('#endif');
-
-                        const isRequireDirective = lineText.startsWith('#require');
-
-                        if (isIncludeDirective && services.bridge?.bridge) {
-                            // Use resolveInclude for #include directives
-                            try {
-                                const includeResult = await services.bridge.bridge.resolveInclude(
-                                    modulePath,
-                                    uriToFilePath(uri)
-                                );
-
-                                if (includeResult.exists && includeResult.path) {
-                                    const targetUri = includeResult.path.startsWith('file://')
-                                        ? includeResult.path
-                                        : `file://${includeResult.path}`;
-
-                                    log.debug('Definition: resolved include path', {
-                                        originalPath: includeResult.originalPath,
-                                        resolvedPath: includeResult.path,
-                                    });
-
-                                    return {
-                                        uri: targetUri,
-                                        range: {
-                                            start: { line: 0, character: 0 },
-                                            end: { line: 0, character: 0 },
-                                        },
-                                    };
-                                }
-                            } catch (err) {
-                                log.debug('Definition: failed to resolve include path', {
-                                    modulePath,
-                                    error: err instanceof Error ? err.message : String(err),
-                                });
-                            }
-                        }
-
-                        // Handle #require directives using resolveImport
-                        if (isRequireDirective && services.bridge?.bridge) {
-                            try {
-                                // Use resolveImport for #require directives
-                                // The PikeBridge's resolveImport method handles both string literals
-                                // and constant identifiers, returning appropriate results
-                                const requireResult = await services.bridge.bridge.resolveImport(
-                                    'require',
-                                    modulePath,
-                                    uriToFilePath(uri)
-                                );
-
-                                if (requireResult.exists === 1 && requireResult.path) {
-                                    const targetUri = requireResult.path.startsWith('file://')
-                                        ? requireResult.path
-                                        : `file://${requireResult.path}`;
-
-                                    log.debug('Definition: resolved require path', {
-                                        modulePath,
-                                        resolvedPath: requireResult.path,
-                                    });
-
-                                    return {
-                                        uri: targetUri,
-                                        range: {
-                                            start: { line: 0, character: 0 },
-                                            end: { line: 0, character: 0 },
-                                        },
-                                    };
-                                } else {
-                                    log.debug('Definition: #require target not found', {
-                                        modulePath,
-                                        error: requireResult.error,
-                                    });
-                                }
-                            } catch (err) {
-                                log.debug('Definition: failed to resolve require path', {
-                                    modulePath,
-                                    error: err instanceof Error ? err.message : String(err),
-                                });
-                            }
-                        }
-
-                        // Handle relative import paths (starting with .)
-                        if (modulePath.startsWith('.') && services.bridge?.bridge) {
-                            try {
-                                const relativeResult = await services.bridge.bridge.resolveInclude(
-                                    modulePath,
-                                    uriToFilePath(uri)
-                                );
-
-                                if (relativeResult.exists && relativeResult.path) {
-                                    const targetUri = relativeResult.path.startsWith('file://')
-                                        ? relativeResult.path
-                                        : `file://${relativeResult.path}`;
-
-                                    log.debug('Definition: resolved relative import path', {
-                                        modulePath,
-                                        resolvedPath: relativeResult.path,
-                                    });
-
-                                    return {
-                                        uri: targetUri,
-                                        range: {
-                                            start: { line: 0, character: 0 },
-                                            end: { line: 0, character: 0 },
-                                        },
-                                    };
-                                }
-                            } catch (err) {
-                                log.debug('Definition: failed to resolve relative path', {
-                                    modulePath,
-                                    error: err instanceof Error ? err.message : String(err),
-                                });
-                            }
-                        }
-
-                        // For inherit statements, try resolving with ALL import paths (order-independent)
-                        if (symbol.kind === 'inherit') {
-                            // Get ALL imports in the file, not just prior ones (fixes Gap 2)
-                            const allImports = cached.symbols.filter((s: PikeSymbol) =>
-                                s.kind === 'import'
-                            );
-
-                            for (const importSymbol of allImports) {
-                                const importPath = importSymbol.classname || importSymbol.name;
-                                if (importPath && importPath !== modulePath) {
-                                    const qualifiedPath = `${importPath}.${modulePath}`;
-
-                                    const moduleInfo = await services.stdlibIndex?.getModule(qualifiedPath);
-                                    if (moduleInfo && moduleInfo.resolvedPath) {
-                                        const targetUri = moduleInfo.resolvedPath.startsWith('file://')
-                                            ? moduleInfo.resolvedPath
-                                            : `file://${moduleInfo.resolvedPath}`;
-
-                                        log.debug('Definition: resolved inherit via import', {
-                                            qualifiedPath,
-                                            resolvedPath: moduleInfo.resolvedPath,
-                                        });
-
-                                        return {
-                                            uri: targetUri,
-                                            range: {
-                                                start: { line: 0, character: 0 },
-                                                end: { line: 0, character: 0 },
-                                            },
-                                        };
-                                    }
-
-                                    if (services.bridge?.bridge) {
-                                        try {
-                                            const bridgeResult = await services.bridge.bridge.resolveInclude(
-                                                qualifiedPath,
-                                                uriToFilePath(uri)
-                                            );
-
-                                            if (bridgeResult.exists && bridgeResult.path) {
-                                                const targetUri = bridgeResult.path.startsWith('file://')
-                                                    ? bridgeResult.path
-                                                    : `file://${bridgeResult.path}`;
-
-                                                log.debug('Definition: resolved inherit via bridge', {
-                                                    qualifiedPath,
-                                                    resolvedPath: bridgeResult.path,
-                                                });
-
-                                                return {
-                                                    uri: targetUri,
-                                                    range: {
-                                                        start: { line: 0, character: 0 },
-                                                        end: { line: 0, character: 0 },
-                                                    },
-                                                };
-                                            }
-                                        } catch (err) {
-                                            log.debug('Definition: bridge resolve failed for inherit', {
-                                                qualifiedPath,
-                                                error: err instanceof Error ? err.message : String(err),
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Fall back to stdlib index for import/inherit statements
-                        const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
-
-                        if (moduleInfo && moduleInfo.resolvedPath) {
-                            const targetUri = moduleInfo.resolvedPath.startsWith('file://')
-                                ? moduleInfo.resolvedPath
-                                : `file://${moduleInfo.resolvedPath}`;
-
-                            return {
-                                uri: targetUri,
-                                range: {
-                                    start: { line: 0, character: 0 },
-                                    end: { line: 0, character: 0 },
-                                },
-                            };
-                        }
-                    }
-                }
-
-                // User clicked on a definition - show references instead
-                log.debug('Definition: cursor on definition, returning references', { symbol: symbol.name });
-
-                const references = findReferencesForSymbol(
-                    symbol.name,
-                    uri,
-                    document,
-                    cached,
-                    documentCache,
-                    documents
-                );
-
-                if (references.length > 0) {
-                    return references;
-                }
-                // No references found, return null (nothing to show)
-                return null;
-            }
-
-            // Normal case: return location of symbol definition
-            const line = Math.max(0, symbolLine);
-            return {
-                uri,
+              return {
+                uri: targetUri,
                 range: {
-                    start: { line, character: 0 },
-                    end: { line, character: (symbol.name || symbol.classname || "").length },
+                  start: { line: 0, character: 0 },
+                  end: { line: 0, character: 0 },
                 },
-            };
-        } catch (err) {
-            log.error(`Definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
-            return null;
+              };
+            }
+          }
         }
-    });
 
-    /**
-     * Declaration handler - navigate to declaration (delegates to definition)
-     * For Pike, declaration and definition are the same
-     */
-    connection.onDeclaration(async (params): Promise<Location | null> => {
-        log.debug('Declaration request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const cached = documentCache.get(uri);
-            const document = documents.get(uri);
+        // User clicked on a definition - show references instead
+        log.debug('Definition: cursor on definition, returning references', {
+          symbol: symbol.name,
+        });
 
-            if (!cached || !document) {
-                return null;
-            }
+        const references = findReferencesForSymbol(
+          symbol.name,
+          uri,
+          document,
+          cached,
+          documentCache,
+          documents
+        );
 
-            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
-            if (!symbol || !symbol.position) {
-                return null;
-            }
+        if (references.length > 0) {
+          return references;
+        }
+        // No references found, return null (nothing to show)
+        return null;
+      }
 
-            const line = Math.max(0, (symbol.position.line ?? 1) - 1);
+      // Normal case: return location of symbol definition
+      const line = Math.max(0, symbolLine);
+      return {
+        uri,
+        range: {
+          start: { line, character: 0 },
+          end: { line, character: (symbol.name || symbol.classname || '').length },
+        },
+      };
+    } catch (err) {
+      log.error(
+        `Definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return null;
+    }
+  });
+
+  /**
+   * Declaration handler - navigate to declaration (delegates to definition)
+   * For Pike, declaration and definition are the same
+   */
+  connection.onDeclaration(async (params): Promise<Location | null> => {
+    log.debug('Declaration request', { uri: params.textDocument.uri });
+    try {
+      const uri = params.textDocument.uri;
+      const cached = documentCache.get(uri);
+      const document = documents.get(uri);
+
+      if (!cached || !document) {
+        return null;
+      }
+
+      const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+      if (!symbol || !symbol.position) {
+        return null;
+      }
+
+      const line = Math.max(0, (symbol.position.line ?? 1) - 1);
+      return {
+        uri,
+        range: {
+          start: { line, character: 0 },
+          end: { line, character: (symbol.name || symbol.classname || '').length },
+        },
+      };
+    } catch (err) {
+      log.error(
+        `Declaration failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return null;
+    }
+  });
+
+  /**
+   * Type definition handler - navigate to type definition
+   * For classes, navigates to the class definition
+   */
+  connection.onTypeDefinition(async (params): Promise<Location | null> => {
+    log.debug('Type definition request', { uri: params.textDocument.uri });
+    try {
+      const uri = params.textDocument.uri;
+      const cached = documentCache.get(uri);
+      const document = documents.get(uri);
+
+      if (!cached || !document) {
+        return null;
+      }
+
+      const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+      if (!symbol) {
+        return null;
+      }
+
+      // For classes, navigate to the class definition
+      if (symbol.kind === 'class' && symbol.position) {
+        const line = Math.max(0, (symbol.position.line ?? 1) - 1);
+        return {
+          uri,
+          range: {
+            start: { line, character: 0 },
+            end: { line, character: (symbol.name || symbol.classname || '').length },
+          },
+        };
+      }
+
+      // For variables/methods with type info, could navigate to type
+      // For now, fall back to symbol position
+      if (symbol.position) {
+        const line = Math.max(0, (symbol.position.line ?? 1) - 1);
+        return {
+          uri,
+          range: {
+            start: { line, character: 0 },
+            end: { line, character: (symbol.name || symbol.classname || '').length },
+          },
+        };
+      }
+
+      return null;
+    } catch (err) {
+      log.error(
+        `Type definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return null;
+    }
+  });
+}
+
+function getWordAtPosition(
+  document: TextDocument,
+  position: { line: number; character: number }
+): string {
+  const text = document.getText();
+  const offset = document.offsetAt(position);
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
+
+  return text.slice(start, end);
+}
+
+function findSymbolTextInIncludedFiles(
+  symbolName: string,
+  cached: DocumentCacheEntry,
+  services: Services,
+  log: Logger
+): { filePath: string; line: number; character: number } | null {
+  if (!symbolName || !cached.dependencies?.includes || !services.includeResolver) {
+    return null;
+  }
+
+  const pattern = new RegExp(`\\b${symbolName}\\b`);
+  for (const include of cached.dependencies.includes) {
+    try {
+      const content = readFileSync(include.resolvedPath, 'utf-8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i] ?? '';
+        const match = line.match(pattern);
+        if (match && match.index !== undefined) {
+          log.debug('Definition: found text symbol in included file', {
+            symbolName,
+            filePath: include.resolvedPath,
+            line: i,
+            character: match.index,
+          });
+          return {
+            filePath: include.resolvedPath,
+            line: i,
+            character: match.index,
+          };
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function findSymbolInDirectIncludes(
+  symbolName: string,
+  document: TextDocument,
+  uri: string,
+  services: Services,
+  log: Logger
+): Promise<{ filePath: string; line: number; character: number } | null> {
+  if (!symbolName || !services.bridge?.bridge) {
+    return null;
+  }
+
+  const source = document.getText();
+  const includeRegex = /^#include\s+["<]([^">]+)[">]/gm;
+  const symbolRegex = new RegExp(`\\b${symbolName}\\b`);
+  const currentFilePath = uriToFilePath(uri);
+
+  let includeMatch = includeRegex.exec(source);
+  while (includeMatch) {
+    const includePath = includeMatch[1] ?? '';
+    try {
+      const resolved = await services.bridge.bridge.resolveInclude(includePath, currentFilePath);
+      if (resolved.exists && resolved.path) {
+        const includeContent = readFileSync(resolved.path, 'utf-8');
+        const lines = includeContent.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i] ?? '';
+          const symbolMatch = line.match(symbolRegex);
+          if (symbolMatch && symbolMatch.index !== undefined) {
+            log.debug('Definition: resolved symbol through direct include', {
+              symbolName,
+              includePath,
+              resolvedPath: resolved.path,
+              line: i,
+              character: symbolMatch.index,
+            });
             return {
-                uri,
-                range: {
-                    start: { line, character: 0 },
-                    end: { line, character: (symbol.name || symbol.classname || "").length },
-                },
+              filePath: resolved.path,
+              line: i,
+              character: symbolMatch.index,
             };
-        } catch (err) {
-            log.error(`Declaration failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
-            return null;
+          }
         }
-    });
+      }
+    } catch {}
 
-    /**
-     * Type definition handler - navigate to type definition
-     * For classes, navigates to the class definition
-     */
-    connection.onTypeDefinition(async (params): Promise<Location | null> => {
-        log.debug('Type definition request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const cached = documentCache.get(uri);
-            const document = documents.get(uri);
+    includeMatch = includeRegex.exec(source);
+  }
 
-            if (!cached || !document) {
-                return null;
-            }
-
-            const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
-            if (!symbol) {
-                return null;
-            }
-
-            // For classes, navigate to the class definition
-            if (symbol.kind === 'class' && symbol.position) {
-                const line = Math.max(0, (symbol.position.line ?? 1) - 1);
-                return {
-                    uri,
-                    range: {
-                        start: { line, character: 0 },
-                        end: { line, character: (symbol.name || symbol.classname || "").length },
-                    },
-                };
-            }
-
-            // For variables/methods with type info, could navigate to type
-            // For now, fall back to symbol position
-            if (symbol.position) {
-                const line = Math.max(0, (symbol.position.line ?? 1) - 1);
-                return {
-                    uri,
-                    range: {
-                        start: { line, character: 0 },
-                        end: { line, character: (symbol.name || symbol.classname || "").length },
-                    },
-                };
-            }
-
-            return null;
-        } catch (err) {
-            log.error(`Type definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`);
-            return null;
-        }
-    });
+  return null;
 }
 
 /**
@@ -543,254 +750,265 @@ export function registerDefinitionHandlers(
  * into dotted expressions.
  */
 async function handleDirectiveNavigation(
-    document: TextDocument,
-    position: { line: number; character: number },
-    uri: string,
-    services: Services,
-    cached: DocumentCacheEntry,
-    log: Logger
+  document: TextDocument,
+  position: { line: number; character: number },
+  uri: string,
+  services: Services,
+  cached: DocumentCacheEntry,
+  log: Logger
 ): Promise<Location | null> {
-    const lineText = document.getText({
-        start: { line: position.line, character: 0 },
-        end: { line: position.line + 1, character: 0 }
-    }).trim();
+  const lineText = document
+    .getText({
+      start: { line: position.line, character: 0 },
+      end: { line: position.line + 1, character: 0 },
+    })
+    .trim();
 
-    const filePath = uriToFilePath(uri);
+  const filePath = uriToFilePath(uri);
 
-    // Handle #include directives
-    const includeMatch = lineText.match(/^#include\s+["<]([^">]+)[">]/);
-    if (includeMatch && services.bridge?.bridge) {
-        const includePath = includeMatch[1] ?? '';
-        log.debug('Definition: directive include navigation', { includePath });
+  // Handle #include directives
+  const includeMatch = lineText.match(/^#include\s+["<]([^">]+)[">]/);
+  if (includeMatch && services.bridge?.bridge) {
+    const includePath = includeMatch[1] ?? '';
+    log.debug('Definition: directive include navigation', { includePath });
 
-        try {
-            const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
-            if (result.exists && result.path) {
-                return {
-                    uri: `file://${result.path}`,
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                };
-            }
-        } catch (err) {
-            log.debug('Definition: include resolution failed', {
-                includePath,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
-        return null;
+    try {
+      const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
+      if (result.exists && result.path) {
+        return {
+          uri: `file://${result.path}`,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        };
+      }
+    } catch (err) {
+      log.debug('Definition: include resolution failed', {
+        includePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-
-    // Handle import statements
-    const importMatch = lineText.match(/^import\s+([^;]+)/);
-    if (importMatch && services.bridge?.bridge) {
-        const modulePath = (importMatch[1] ?? '').trim();
-        log.debug('Definition: directive import navigation', { modulePath });
-
-        // Try stdlib index first
-        const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
-        if (moduleInfo?.resolvedPath) {
-            const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
-            return {
-                uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
-                range: { start: { line: moduleInfo.line ?? 0, character: 0 }, end: { line: moduleInfo.line ?? 0, character: 0 } },
-            };
-        }
-
-        // Try bridge resolve_import
-        try {
-            const result = await services.bridge.bridge.resolveImport('import', modulePath, filePath);
-            if (result.exists === 1 && result.path) {
-                return {
-                    uri: `file://${result.path}`,
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                };
-            }
-        } catch (err) {
-            log.debug('Definition: import resolution failed', {
-                modulePath,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
-        return null;
-    }
-
-    // Handle inherit statements
-    const inheritMatch = lineText.match(/^inherit\s+([^;:]+)/);
-    if (inheritMatch && services.bridge?.bridge) {
-        const className = (inheritMatch[1] ?? '').trim().replace(/['"]/g, '');
-        log.debug('Definition: directive inherit navigation', { className });
-
-        // Try introspection data first (cached inherits from Pike compiler)
-        if (cached.inherits) {
-            const normalizedName = className.replace(/['"]/g, '');
-            const foundInherit = cached.inherits.find((h: InheritanceInfo) =>
-                h.source_name === normalizedName ||
-                h.path === normalizedName ||
-                h.label === normalizedName ||
-                (h.source_name && h.source_name.replace(/['"]/g, '') === normalizedName)
-            );
-
-            if (foundInherit?.path) {
-                const targetUri = foundInherit.path.startsWith('file://')
-                    ? foundInherit.path
-                    : `file://${foundInherit.path}`;
-                return {
-                    uri: targetUri,
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                };
-            }
-        }
-
-        // Try stdlib index
-        const moduleInfo = await services.stdlibIndex?.getModule(className);
-        if (moduleInfo?.resolvedPath) {
-            const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
-            return {
-                uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
-                range: { start: { line: moduleInfo.line ?? 0, character: 0 }, end: { line: moduleInfo.line ?? 0, character: 0 } },
-            };
-        }
-
-        // Try bridge resolve_import for inherit
-        try {
-            const result = await services.bridge.bridge.resolveImport('inherit', className, filePath);
-            if (result.exists === 1 && result.path) {
-                return {
-                    uri: `file://${result.path}`,
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                };
-            }
-        } catch (err) {
-            log.debug('Definition: inherit resolution failed', {
-                className,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
-
-        // Try with import-qualified names
-        const allImports = cached.symbols?.filter((s: PikeSymbol) => s.kind === 'import') || [];
-        for (const importSymbol of allImports) {
-            const importPath = importSymbol.classname || importSymbol.name;
-            if (importPath) {
-                const qualifiedPath = `${importPath}.${className}`;
-                const qualifiedInfo = await services.stdlibIndex?.getModule(qualifiedPath);
-                if (qualifiedInfo?.resolvedPath) {
-                    const targetPath = qualifiedInfo.filePath ?? qualifiedInfo.resolvedPath;
-                    return {
-                        uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
-                        range: { start: { line: qualifiedInfo.line ?? 0, character: 0 }, end: { line: qualifiedInfo.line ?? 0, character: 0 } },
-                    };
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // Handle #require directives
-    const requireMatch = lineText.match(/^#require\s+["<]?([^">;]+)/);
-    if (requireMatch && services.bridge?.bridge) {
-        const requirePath = (requireMatch[1] ?? '').trim();
-        log.debug('Definition: directive require navigation', { requirePath });
-
-        try {
-            const result = await services.bridge.bridge.resolveImport('require', requirePath, filePath);
-            if (result.exists === 1 && result.path) {
-                return {
-                    uri: `file://${result.path}`,
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                };
-            }
-        } catch (err) {
-            log.debug('Definition: require resolution failed', {
-                requirePath,
-                error: err instanceof Error ? err.message : String(err),
-            });
-        }
-        return null;
-    }
-
-    // Not a directive line
     return null;
+  }
+
+  // Handle import statements
+  const importMatch = lineText.match(/^import\s+([^;]+)/);
+  if (importMatch && services.bridge?.bridge) {
+    const modulePath = (importMatch[1] ?? '').trim();
+    log.debug('Definition: directive import navigation', { modulePath });
+
+    // Try stdlib index first
+    const moduleInfo = await services.stdlibIndex?.getModule(modulePath);
+    if (moduleInfo?.resolvedPath) {
+      const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+      return {
+        uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+        range: {
+          start: { line: moduleInfo.line ?? 0, character: 0 },
+          end: { line: moduleInfo.line ?? 0, character: 0 },
+        },
+      };
+    }
+
+    // Try bridge resolve_import
+    try {
+      const result = await services.bridge.bridge.resolveImport('import', modulePath, filePath);
+      if (result.exists === 1 && result.path) {
+        return {
+          uri: `file://${result.path}`,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        };
+      }
+    } catch (err) {
+      log.debug('Definition: import resolution failed', {
+        modulePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return null;
+  }
+
+  // Handle inherit statements
+  const inheritMatch = lineText.match(/^inherit\s+([^;:]+)/);
+  if (inheritMatch && services.bridge?.bridge) {
+    const className = (inheritMatch[1] ?? '').trim().replace(/['"]/g, '');
+    log.debug('Definition: directive inherit navigation', { className });
+
+    // Try introspection data first (cached inherits from Pike compiler)
+    if (cached.inherits) {
+      const normalizedName = className.replace(/['"]/g, '');
+      const foundInherit = cached.inherits.find(
+        (h: InheritanceInfo) =>
+          h.source_name === normalizedName ||
+          h.path === normalizedName ||
+          h.label === normalizedName ||
+          (h.source_name && h.source_name.replace(/['"]/g, '') === normalizedName)
+      );
+
+      if (foundInherit?.path) {
+        const targetUri = foundInherit.path.startsWith('file://')
+          ? foundInherit.path
+          : `file://${foundInherit.path}`;
+        return {
+          uri: targetUri,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        };
+      }
+    }
+
+    // Try stdlib index
+    const moduleInfo = await services.stdlibIndex?.getModule(className);
+    if (moduleInfo?.resolvedPath) {
+      const targetPath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+      return {
+        uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+        range: {
+          start: { line: moduleInfo.line ?? 0, character: 0 },
+          end: { line: moduleInfo.line ?? 0, character: 0 },
+        },
+      };
+    }
+
+    // Try bridge resolve_import for inherit
+    try {
+      const result = await services.bridge.bridge.resolveImport('inherit', className, filePath);
+      if (result.exists === 1 && result.path) {
+        return {
+          uri: `file://${result.path}`,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        };
+      }
+    } catch (err) {
+      log.debug('Definition: inherit resolution failed', {
+        className,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Try with import-qualified names
+    const allImports = cached.symbols?.filter((s: PikeSymbol) => s.kind === 'import') || [];
+    for (const importSymbol of allImports) {
+      const importPath = importSymbol.classname || importSymbol.name;
+      if (importPath) {
+        const qualifiedPath = `${importPath}.${className}`;
+        const qualifiedInfo = await services.stdlibIndex?.getModule(qualifiedPath);
+        if (qualifiedInfo?.resolvedPath) {
+          const targetPath = qualifiedInfo.filePath ?? qualifiedInfo.resolvedPath;
+          return {
+            uri: targetPath.startsWith('file://') ? targetPath : `file://${targetPath}`,
+            range: {
+              start: { line: qualifiedInfo.line ?? 0, character: 0 },
+              end: { line: qualifiedInfo.line ?? 0, character: 0 },
+            },
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Handle #require directives
+  const requireMatch = lineText.match(/^#require\s+["<]?([^">;]+)/);
+  if (requireMatch && services.bridge?.bridge) {
+    const requirePath = (requireMatch[1] ?? '').trim();
+    log.debug('Definition: directive require navigation', { requirePath });
+
+    try {
+      const result = await services.bridge.bridge.resolveImport('require', requirePath, filePath);
+      if (result.exists === 1 && result.path) {
+        return {
+          uri: `file://${result.path}`,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+        };
+      }
+    } catch (err) {
+      log.debug('Definition: require resolution failed', {
+        requirePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return null;
+  }
+
+  // Not a directive line
+  return null;
 }
 
 /**
  * Find symbol at given position in document.
  */
 function findSymbolAtPosition(
-    symbols: PikeSymbol[],
-    position: { line: number; character: number },
-    document: TextDocument
+  symbols: PikeSymbol[],
+  position: { line: number; character: number },
+  document: TextDocument
 ): PikeSymbol | null {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
+  const text = document.getText();
+  const offset = document.offsetAt(position);
 
-    // Find word boundaries
-    let start = offset;
-    let end = offset;
+  // Find word boundaries
+  let start = offset;
+  let end = offset;
 
-    while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-        start--;
-    }
-    while (end < text.length && /\w/.test(text[end] ?? '')) {
-        end++;
-    }
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
 
-    const word = text.slice(start, end);
-    if (!word) {
-        return null;
-    }
-
-    // Find symbol with matching name
-    for (const symbol of symbols) {
-        if (symbol.name === word) {
-            return symbol;
-        }
-
-        // Match against classname for inherits, imports, and includes (stripping quotes)
-        if (symbol.kind === "inherit" || symbol.kind === "import" || symbol.kind === "include") {
-            const classname = symbol.classname?.replace(/['"]/g, "");
-            // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
-            if (classname === word || (classname && classname.includes(word))) {
-                return symbol;
-            }
-        }
-    }
-
+  const word = text.slice(start, end);
+  if (!word) {
     return null;
-}
+  }
 
+  // Find symbol with matching name
+  for (const symbol of symbols) {
+    if (symbol.name === word) {
+      return symbol;
+    }
+
+    // Match against classname for inherits, imports, and includes (stripping quotes)
+    if (symbol.kind === 'inherit' || symbol.kind === 'import' || symbol.kind === 'include') {
+      const classname = symbol.classname?.replace(/['"]/g, '');
+      // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
+      if (classname === word || (classname && classname.includes(word))) {
+        return symbol;
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * Find a symbol by name in included file symbols.
  * Used for go-to-definition when the symbol is defined in an included header file.
  */
 function findSymbolInIncludedFiles(
-    symbolName: string,
-    cached: DocumentCacheEntry,
-    services: Services,
-    log: Logger
+  symbolName: string,
+  cached: DocumentCacheEntry,
+  services: Services,
+  log: Logger
 ): { symbol: PikeSymbol; filePath: string } | null {
-    // Check if we have dependencies with included symbols
-    if (!cached.dependencies?.includes || !services.includeResolver) {
-        return null;
-    }
-
-    for (const include of cached.dependencies.includes) {
-        if (!include.symbols) continue;
-
-        for (const symbol of include.symbols) {
-            if (symbol.name === symbolName && symbol.position) {
-                log.debug('Definition: found symbol in included file', {
-                    symbolName,
-                    filePath: include.resolvedPath,
-                });
-                return { symbol, filePath: include.resolvedPath };
-            }
-        }
-    }
-
+  // Check if we have dependencies with included symbols
+  if (!cached.dependencies?.includes || !services.includeResolver) {
     return null;
+  }
+
+  for (const include of cached.dependencies.includes) {
+    if (!include.symbols) continue;
+
+    for (const symbol of include.symbols) {
+      if (symbol.name === symbolName && symbol.position) {
+        log.debug('Definition: found symbol in included file', {
+          symbolName,
+          filePath: include.resolvedPath,
+        });
+        return { symbol, filePath: include.resolvedPath };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -798,111 +1016,115 @@ function findSymbolInIncludedFiles(
  * Excludes the definition itself from the results.
  */
 function findReferencesForSymbol(
-    symbolName: string,
-    currentUri: string,
-    currentDocument: TextDocument,
-    cached: DocumentCacheEntry,
-    documentCache: DocumentCache,
-    documents: TextDocuments<TextDocument>
+  symbolName: string,
+  currentUri: string,
+  currentDocument: TextDocument,
+  cached: DocumentCacheEntry,
+  documentCache: DocumentCache,
+  documents: TextDocuments<TextDocument>
 ): Location[] {
-    const references: Location[] = [];
-    const text = currentDocument.getText();
+  const references: Location[] = [];
+  const text = currentDocument.getText();
 
-    // Use symbolPositions index if available (pre-computed positions)
-    if (cached.symbolPositions) {
-        const positions = cached.symbolPositions.get(symbolName);
-        if (positions) {
-            for (const pos of positions) {
-                references.push({
-                    uri: currentUri,
-                    range: {
-                        start: pos,
-                        end: { line: pos.line, character: pos.character + symbolName.length },
-                    },
-                });
-            }
-        }
+  // Use symbolPositions index if available (pre-computed positions)
+  if (cached.symbolPositions) {
+    const positions = cached.symbolPositions.get(symbolName);
+    if (positions) {
+      for (const pos of positions) {
+        references.push({
+          uri: currentUri,
+          range: {
+            start: pos,
+            end: { line: pos.line, character: pos.character + symbolName.length },
+          },
+        });
+      }
     }
+  }
 
-    // Fallback: if symbolPositions didn't have results, do text-based search
-    if (references.length === 0) {
-        const lines = text.split('\n');
-        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-            const line = lines[lineNum];
-            if (!line) continue;
-            let searchStart = 0;
-            let matchIndex: number;
+  // Fallback: if symbolPositions didn't have results, do text-based search
+  if (references.length === 0) {
+    const lines = text.split('\n');
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      const line = lines[lineNum];
+      if (!line) continue;
+      let searchStart = 0;
+      let matchIndex: number;
 
-            while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
-                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                const afterChar = matchIndex + symbolName.length < line.length ? line[matchIndex + symbolName.length] : ' ';
+      while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
+        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+        const afterChar =
+          matchIndex + symbolName.length < line.length ? line[matchIndex + symbolName.length] : ' ';
 
-                // Check word boundaries
-                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                    references.push({
-                        uri: currentUri,
-                        range: {
-                            start: { line: lineNum, character: matchIndex },
-                            end: { line: lineNum, character: matchIndex + symbolName.length },
-                        },
-                    });
-                }
-                searchStart = matchIndex + 1;
-            }
+        // Check word boundaries
+        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+          references.push({
+            uri: currentUri,
+            range: {
+              start: { line: lineNum, character: matchIndex },
+              end: { line: lineNum, character: matchIndex + symbolName.length },
+            },
+          });
         }
+        searchStart = matchIndex + 1;
+      }
     }
+  }
 
-    // Search in other open documents
-    for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
-        if (otherUri === currentUri) continue;
+  // Search in other open documents
+  for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
+    if (otherUri === currentUri) continue;
 
-        // Use symbolPositions if available
-        if (otherCached.symbolPositions) {
-            const positions = otherCached.symbolPositions.get(symbolName);
-            if (positions) {
-                for (const pos of positions) {
-                    references.push({
-                        uri: otherUri,
-                        range: {
-                            start: pos,
-                            end: { line: pos.line, character: pos.character + symbolName.length },
-                        },
-                    });
-                }
-            }
-        } else {
-            // Fallback text search for other documents without symbolPositions
-            const otherDoc = documents.get(otherUri);
-            if (otherDoc) {
-                const otherText = otherDoc.getText();
-                const otherLines = otherText.split('\n');
-                for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
-                    const line = otherLines[lineNum];
-                    if (!line) continue;
-                    let searchStart = 0;
-                    let matchIndex: number;
-
-                    while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
-                        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                        const afterChar = matchIndex + symbolName.length < line.length ? line[matchIndex + symbolName.length] : ' ';
-
-                        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                            references.push({
-                                uri: otherUri,
-                                range: {
-                                    start: { line: lineNum, character: matchIndex },
-                                    end: { line: lineNum, character: matchIndex + symbolName.length },
-                                },
-                            });
-                        }
-                        searchStart = matchIndex + 1;
-                    }
-                }
-            }
+    // Use symbolPositions if available
+    if (otherCached.symbolPositions) {
+      const positions = otherCached.symbolPositions.get(symbolName);
+      if (positions) {
+        for (const pos of positions) {
+          references.push({
+            uri: otherUri,
+            range: {
+              start: pos,
+              end: { line: pos.line, character: pos.character + symbolName.length },
+            },
+          });
         }
-    }
+      }
+    } else {
+      // Fallback text search for other documents without symbolPositions
+      const otherDoc = documents.get(otherUri);
+      if (otherDoc) {
+        const otherText = otherDoc.getText();
+        const otherLines = otherText.split('\n');
+        for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
+          const line = otherLines[lineNum];
+          if (!line) continue;
+          let searchStart = 0;
+          let matchIndex: number;
 
-    return references;
+          while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
+            const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+            const afterChar =
+              matchIndex + symbolName.length < line.length
+                ? line[matchIndex + symbolName.length]
+                : ' ';
+
+            if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+              references.push({
+                uri: otherUri,
+                range: {
+                  start: { line: lineNum, character: matchIndex },
+                  end: { line: lineNum, character: matchIndex + symbolName.length },
+                },
+              });
+            }
+            searchStart = matchIndex + 1;
+          }
+        }
+      }
+    }
+  }
+
+  return references;
 }
 
 /**
@@ -910,76 +1132,74 @@ function findReferencesForSymbol(
  * Handles dotted module paths like "Stdio.File" or "Parser.Pike".
  */
 async function resolveModulePath(
-    services: Services,
-    expr: ExpressionInfo,
-    _document: TextDocument,
-    _currentUri: string
+  services: Services,
+  expr: ExpressionInfo,
+  _document: TextDocument,
+  _currentUri: string
 ): Promise<Location | null> {
-    const { stdlibIndex, bridge } = services;
+  const { stdlibIndex, bridge } = services;
 
-    if (!stdlibIndex || !bridge) {
-        return null;
+  if (!stdlibIndex || !bridge) {
+    return null;
+  }
+
+  // Build the module path to resolve
+  let modulePath = expr.base;
+  if (expr.operator === '.' && !expr.isModulePath && expr.member) {
+    // For simple dot access like "Stdio.File", use the full path
+    modulePath = expr.fullPath;
+  }
+
+  try {
+    const moduleInfo = await stdlibIndex.getModule(modulePath);
+    if (!moduleInfo) {
+      return null;
     }
 
-    // Build the module path to resolve
-    let modulePath = expr.base;
-    if (expr.operator === '.' && !expr.isModulePath && expr.member) {
-        // For simple dot access like "Stdio.File", use the full path
-        modulePath = expr.fullPath;
+    // Use filePath (without line number) for the URI, and line for the position
+    const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+    if (!filePath) {
+      return null;
     }
 
-    try {
-        const moduleInfo = await stdlibIndex.getModule(modulePath);
-        if (!moduleInfo) {
-            return null;
-        }
+    // Convert file path to URI
+    const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
 
-        // Use filePath (without line number) for the URI, and line for the position
-        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
-        if (!filePath) {
-            return null;
-        }
+    // Get the line number (0-based) from module info, default to 0
+    const line = moduleInfo.line ?? 0;
 
-        // Convert file path to URI
-        const uri = filePath.startsWith('file://')
-            ? filePath
-            : `file://${filePath}`;
-
-        // Get the line number (0-based) from module info, default to 0
-        const line = moduleInfo.line ?? 0;
-
-        // Find the specific symbol within the module if a member was requested
-        // Note: IntrospectedSymbol doesn't have position info, so we return the module file
-        if (expr.member && moduleInfo.symbols) {
-            const memberSymbol = moduleInfo.symbols.get(expr.member);
-            if (memberSymbol) {
-                // Return the module file location at the module's line
-                return {
-                    uri,
-                    range: {
-                        start: { line, character: 0 },
-                        end: { line, character: 0 },
-                    },
-                };
-            }
-        }
-
-        // Return the module file location at the parsed line number
+    // Find the specific symbol within the module if a member was requested
+    // Note: IntrospectedSymbol doesn't have position info, so we return the module file
+    if (expr.member && moduleInfo.symbols) {
+      const memberSymbol = moduleInfo.symbols.get(expr.member);
+      if (memberSymbol) {
+        // Return the module file location at the module's line
         return {
-            uri,
-            range: {
-                start: { line, character: 0 },
-                end: { line, character: 0 },
-            },
+          uri,
+          range: {
+            start: { line, character: 0 },
+            end: { line, character: 0 },
+          },
         };
-    } catch (error) {
-        const log = new Logger('Navigation');
-        log.debug('Module path resolution failed', {
-            modulePath,
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
+      }
     }
+
+    // Return the module file location at the parsed line number
+    return {
+      uri,
+      range: {
+        start: { line, character: 0 },
+        end: { line, character: 0 },
+      },
+    };
+  } catch (error) {
+    const log = new Logger('Navigation');
+    log.debug('Module path resolution failed', {
+      modulePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**
@@ -987,85 +1207,83 @@ async function resolveModulePath(
  * First resolves the variable's type, then finds the member within that type.
  */
 async function resolveMemberAccess(
-    services: Services,
-    expr: ExpressionInfo,
-    cached: DocumentCacheEntry,
-    _currentUri: string
+  services: Services,
+  expr: ExpressionInfo,
+  cached: DocumentCacheEntry,
+  _currentUri: string
 ): Promise<Location | null> {
-    const { stdlibIndex } = services;
+  const { stdlibIndex } = services;
 
-    if (!stdlibIndex || !expr.base || !expr.member) {
-        return null;
+  if (!stdlibIndex || !expr.base || !expr.member) {
+    return null;
+  }
+
+  try {
+    // Find the base variable in local symbols to get its type
+    const baseSymbol = cached.symbols?.find((s: PikeSymbol) => s.name === expr.base);
+    let typeName: string | null = null;
+
+    if (baseSymbol) {
+      // Try to get type from introspection result
+      if (baseSymbol.type) {
+        const type = baseSymbol.type;
+        if (type.kind === 'object' && type.className) {
+          typeName = type.className;
+        } else if (type.kind === 'program' && type.className) {
+          typeName = type.className;
+        }
+      }
     }
 
-    try {
-        // Find the base variable in local symbols to get its type
-        const baseSymbol = cached.symbols?.find((s: PikeSymbol) => s.name === expr.base);
-        let typeName: string | null = null;
-
-        if (baseSymbol) {
-            // Try to get type from introspection result
-            if (baseSymbol.type) {
-                const type = baseSymbol.type;
-                if (type.kind === 'object' && type.className) {
-                    typeName = type.className;
-                } else if (type.kind === 'program' && type.className) {
-                    typeName = type.className;
-                }
-            }
-        }
-
-        // If no type from symbol, try extracting from the first use
-        if (!typeName && baseSymbol?.position) {
-            // Could add more sophisticated type inference here
-            // For now, try to find type annotations in the code
-        }
-
-        if (!typeName) {
-            return null;
-        }
-
-        // Resolve the type module
-        const moduleInfo = await stdlibIndex.getModule(typeName);
-        if (!moduleInfo || !moduleInfo.symbols) {
-            return null;
-        }
-
-        // Find the member in the module
-        const memberSymbol = moduleInfo.symbols.get(expr.member);
-        if (!memberSymbol) {
-            return null;
-        }
-
-        // Use filePath (without line number) for the URI
-        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
-        if (!filePath) {
-            return null;
-        }
-
-        // Build URI from module path
-        const uri = filePath.startsWith('file://')
-            ? filePath
-            : `file://${filePath}`;
-
-        // Use the module's line number (0-based) if available
-        const line = moduleInfo.line ?? 0;
-        return {
-            uri,
-            range: {
-                start: { line, character: 0 },
-                end: { line, character: expr.member.length },
-            },
-        };
-    } catch (error) {
-        const log = new Logger('Navigation');
-        log.debug('Member access resolution failed', {
-            base: expr.base,
-            member: expr.member,
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
+    // If no type from symbol, try extracting from the first use
+    if (!typeName && baseSymbol?.position) {
+      // Could add more sophisticated type inference here
+      // For now, try to find type annotations in the code
     }
+
+    if (!typeName) {
+      return null;
+    }
+
+    // Resolve the type module
+    const moduleInfo = await stdlibIndex.getModule(typeName);
+    if (!moduleInfo || !moduleInfo.symbols) {
+      return null;
+    }
+
+    // Find the member in the module
+    const memberSymbol = moduleInfo.symbols.get(expr.member);
+    if (!memberSymbol) {
+      return null;
+    }
+
+    // Use filePath (without line number) for the URI
+    const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+    if (!filePath) {
+      return null;
+    }
+
+    // Build URI from module path
+    const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
+
+    // Use the module's line number (0-based) if available
+    const line = moduleInfo.line ?? 0;
+    return {
+      uri,
+      range: {
+        start: { line, character: 0 },
+        end: { line, character: expr.member.length },
+      },
+    };
+  } catch (error) {
+    const log = new Logger('Navigation');
+    log.debug('Member access resolution failed', {
+      base: expr.base,
+      member: expr.member,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 /**
@@ -1073,56 +1291,54 @@ async function resolveMemberAccess(
  * Resolves the base module, then finds the member within it.
  */
 async function resolveModuleMember(
-    services: Services,
-    expr: ExpressionInfo,
-    _document: TextDocument
+  services: Services,
+  expr: ExpressionInfo,
+  _document: TextDocument
 ): Promise<Location | null> {
-    const { stdlibIndex } = services;
+  const { stdlibIndex } = services;
 
-    if (!stdlibIndex || !expr.base || !expr.member) {
-        return null;
+  if (!stdlibIndex || !expr.base || !expr.member) {
+    return null;
+  }
+
+  try {
+    // Resolve the base module
+    const moduleInfo = await stdlibIndex.getModule(expr.base);
+    if (!moduleInfo || !moduleInfo.symbols) {
+      return null;
     }
 
-    try {
-        // Resolve the base module
-        const moduleInfo = await stdlibIndex.getModule(expr.base);
-        if (!moduleInfo || !moduleInfo.symbols) {
-            return null;
-        }
-
-        // Find the member in the module
-        const memberSymbol = moduleInfo.symbols.get(expr.member);
-        if (!memberSymbol) {
-            return null;
-        }
-
-        // Use filePath (without line number) for the URI
-        const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
-        if (!filePath) {
-            return null;
-        }
-
-        // Build URI from module path
-        const uri = filePath.startsWith('file://')
-            ? filePath
-            : `file://${filePath}`;
-
-        // Use the module's line number (0-based) if available
-        const line = moduleInfo.line ?? 0;
-        return {
-            uri,
-            range: {
-                start: { line, character: 0 },
-                end: { line, character: expr.member.length },
-            },
-        };
-    } catch (error) {
-        const log = new Logger('Navigation');
-        log.debug('Module member resolution failed', {
-            base: expr.base,
-            member: expr.member,
-            error: error instanceof Error ? error.message : String(error),
-        });
-        return null;
+    // Find the member in the module
+    const memberSymbol = moduleInfo.symbols.get(expr.member);
+    if (!memberSymbol) {
+      return null;
     }
+
+    // Use filePath (without line number) for the URI
+    const filePath = moduleInfo.filePath ?? moduleInfo.resolvedPath;
+    if (!filePath) {
+      return null;
+    }
+
+    // Build URI from module path
+    const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
+
+    // Use the module's line number (0-based) if available
+    const line = moduleInfo.line ?? 0;
+    return {
+      uri,
+      range: {
+        start: { line, character: 0 },
+        end: { line, character: expr.member.length },
+      },
+    };
+  } catch (error) {
+    const log = new Logger('Navigation');
+    log.debug('Module member resolution failed', {
+      base: expr.base,
+      member: expr.member,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }

@@ -1,7 +1,7 @@
 //! Main test file for include navigation
 //! Tests #include with relative path "../parent/globals.h"
 
-#include "../parent/globals.h"
+#include "parent/globals.h"
 
 void main() {
     // Using global_constant from the included file
