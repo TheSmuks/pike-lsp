@@ -23,7 +23,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -32,16 +32,13 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
+const itSkip = test;
 
 suite('Error Handling Tests', () => {
     let workspaceFolder: any;
     let originalPikePath: string | undefined;
 
     suiteSetup(async function() {
-        if (!vscodeAvailable) {
-            this.skip();
-            return;
         }
         this.timeout(60000);
 
@@ -80,7 +77,7 @@ suite('Error Handling Tests', () => {
      * Act: Try to open a Pike file
      * Assert: Error message shown, extension doesn't crash
      */
-    itSkip('48.1 Pike not found error handled gracefully', async function() {
+    test('48.1 Pike not found error handled gracefully', async function() {
         this.timeout(30000);
 
         // Verify Pike path configuration is readable and valid
@@ -125,7 +122,7 @@ suite('Error Handling Tests', () => {
      * Act: Open file and trigger LSP features
      * Assert: Diagnostics shown, server remains responsive
      */
-    itSkip('48.2 Invalid Pike code does not crash server', async function() {
+    test('48.2 Invalid Pike code does not crash server', async function() {
         this.timeout(30000);
 
         const invalidUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-invalid.pike');
@@ -204,7 +201,7 @@ int dupe() { return 2; }
      * - Verifying the server restarts it
      * - Checking subsequent requests work
      */
-    itSkip('48.3 Analyzer crash recovery', async function() {
+    test('48.3 Analyzer crash recovery', async function() {
         this.timeout(30000);
 
         // This test verifies the LSP can handle errors gracefully
@@ -248,7 +245,7 @@ int dupe() { return 2; }
      * - Sending malformed JSON-RPC
      * - Verifying error recovery
      */
-    itSkip('48.4 Bridge communication failure recovery', async function() {
+    test('48.4 Bridge communication failure recovery', async function() {
         this.timeout(30000);
 
         // Test that the LSP can handle various error conditions
@@ -291,7 +288,7 @@ int dupe() { return 2; }
      * - Verifying cache invalidation works
      * - Checking re-analysis succeeds
      */
-    itSkip('48.5 Corrupted cache handling', async function() {
+    test('48.5 Corrupted cache handling', async function() {
         this.timeout(30000);
 
         // Test that the LSP handles cache issues gracefully
@@ -344,7 +341,7 @@ int new_function() {
      *
      * Tests that empty files don't crash the server
      */
-    itSkip('Empty file doesn\'t crash server', async function() {
+    test('Empty file doesn\'t crash server', async function() {
         this.timeout(30000);
 
         const emptyUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-empty.pike');
@@ -379,7 +376,7 @@ int new_function() {
      *
      * Tests that comment-only files are handled gracefully
      */
-    itSkip('File with only comments doesn\'t crash server', async function() {
+    test('File with only comments doesn\'t crash server', async function() {
         this.timeout(30000);
 
         const commentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-comments.pike');
@@ -417,7 +414,7 @@ int new_function() {
      *
      * Tests that files with very long lines don't crash the server
      */
-    itSkip('File with very long line doesn\'t crash server', async function() {
+    test('File with very long line doesn\'t crash server', async function() {
         this.timeout(30000);
 
         const longLineUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-longline.pike');
@@ -457,7 +454,7 @@ int main() {
      *
      * Tests that special characters are handled gracefully
      */
-    itSkip('File with special characters doesn\'t crash server', async function() {
+    test('File with special characters doesn\'t crash server', async function() {
         this.timeout(30000);
 
         const specialUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-special.pike');
@@ -498,7 +495,7 @@ int main() {
      *
      * Tests that rapid file operations don't crash the server
      */
-    itSkip('Rapid file open/close doesn\'t crash server', async function() {
+    test('Rapid file open/close doesn\'t crash server', async function() {
         this.timeout(30000);
 
         const rapidUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-rapid.pike');
@@ -542,7 +539,7 @@ int main() {
      *
      * Tests that concurrent requests don't cause race conditions
      */
-    itSkip('Concurrent requests to different files don\'t crash', async function() {
+    test('Concurrent requests to different files don\'t crash', async function() {
         this.timeout(30000);
 
         // Create multiple test files

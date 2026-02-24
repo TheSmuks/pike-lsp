@@ -22,7 +22,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -31,7 +31,7 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
+const itSkip = test;
 
 suite('Responsiveness E2E Tests', () => {
     let workspaceFolder: any;
@@ -39,9 +39,6 @@ suite('Responsiveness E2E Tests', () => {
     let document: any;
 
     suiteSetup(async function() {
-        if (!vscodeAvailable) {
-            this.skip();
-            return;
         }
         this.timeout(60000);
 
@@ -106,7 +103,7 @@ suite('Responsiveness E2E Tests', () => {
      * The 250ms debounce delay should coalesce the 50 edits into
      * ~2 validation calls instead of 50, preventing CPU overload.
      */
-    itSkip('Debouncing prevents CPU thrashing during rapid typing', async function() {
+    test('Debouncing prevents CPU thrashing during rapid typing', async function() {
         this.timeout(30000);
 
         const editor = await vscode.window.showTextDocument(document);
@@ -152,7 +149,7 @@ suite('Responsiveness E2E Tests', () => {
      * and a final validation should occur. This test verifies that
      * the LSP is ready to handle new queries shortly after typing stops.
      */
-    itSkip('LSP recovers quickly after typing burst', async function() {
+    test('LSP recovers quickly after typing burst', async function() {
         this.timeout(30000);
 
         const editor = await vscode.window.showTextDocument(document);

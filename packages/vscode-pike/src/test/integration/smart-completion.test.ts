@@ -25,7 +25,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -34,7 +34,7 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
+const itSkip = test;
 
 suite('Smart Completion E2E Tests', () => {
     let document: any;
@@ -122,7 +122,7 @@ suite('Smart Completion E2E Tests', () => {
     // N. Stdlib Member Access
     // =========================================================================
 
-    itSkip('N.1: Array. shows stdlib Array methods', async function () {
+    test('N.1: Array. shows stdlib Array methods', async function () {
         this.timeout(30000);
 
         // Find UNIQUE_PATTERN_ARRAY_COMPLETION and locate "Array." after it
@@ -156,7 +156,7 @@ suite('Smart Completion E2E Tests', () => {
         );
     });
 
-    itSkip('N.2: String. shows stdlib String methods', async function () {
+    test('N.2: String. shows stdlib String methods', async function () {
         this.timeout(30000);
 
         // Find UNIQUE_PATTERN_STRING_COMPLETION and locate "String." after it
@@ -185,7 +185,7 @@ suite('Smart Completion E2E Tests', () => {
 
     });
 
-    itSkip('N.3: Stdio. shows stdlib Stdio members', async function () {
+    test('N.3: Stdio. shows stdlib Stdio members', async function () {
         this.timeout(30000);
 
         // Find UNIQUE_PATTERN_STDIO_COMPLETION and locate "Stdio." after this
@@ -217,7 +217,7 @@ suite('Smart Completion E2E Tests', () => {
     // O. Type-Based Variable Completion
     // =========================================================================
 
-    itSkip('O.1: btn-> shows Button class members', async function () {
+    test('O.1: btn-> shows Button class members', async function () {
         this.timeout(30000);
 
         const completions = await getCompletionsAfter('btn->press');
@@ -244,7 +244,7 @@ suite('Smart Completion E2E Tests', () => {
         );
     });
 
-    itSkip('O.2: btn-> also shows inherited BaseWidget members', async function () {
+    test('O.2: btn-> also shows inherited BaseWidget members', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -268,7 +268,7 @@ suite('Smart Completion E2E Tests', () => {
         );
     });
 
-    itSkip('O.3: f-> on Stdio.File variable shows file operations', async function () {
+    test('O.3: f-> on Stdio.File variable shows file operations', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -296,7 +296,7 @@ suite('Smart Completion E2E Tests', () => {
     // P. Inherited Member Completion
     // =========================================================================
 
-    itSkip('P.1: class inheriting BaseWidget gets parent members in completion', async function () {
+    test('P.1: class inheriting BaseWidget gets parent members in completion', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -327,7 +327,7 @@ suite('Smart Completion E2E Tests', () => {
         }
     });
 
-    itSkip('P.2: deprecated inherited member has deprecated tag', async function () {
+    test('P.2: deprecated inherited member has deprecated tag', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -368,7 +368,7 @@ suite('Smart Completion E2E Tests', () => {
     // Q. Scope Operator Completion
     // =========================================================================
 
-    itSkip('Q.1: this_program:: shows local and inherited members', async function () {
+    test('Q.1: this_program:: shows local and inherited members', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -391,7 +391,7 @@ suite('Smart Completion E2E Tests', () => {
         );
     });
 
-    itSkip('Q.2: BaseWidget:: shows parent class members', async function () {
+    test('Q.2: BaseWidget:: shows parent class members', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -418,7 +418,7 @@ suite('Smart Completion E2E Tests', () => {
     // R. Constructor Snippet Completion
     // =========================================================================
 
-    itSkip('R.1: Connection class completion includes constructor info', async function () {
+    test('R.1: Connection class completion includes constructor info', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -450,7 +450,7 @@ suite('Smart Completion E2E Tests', () => {
     // S. Context-Aware Prioritization
     // =========================================================================
 
-    itSkip('S.1: completions at start of line include type keywords', async function () {
+    test('S.1: completions at start of line include type keywords', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -483,7 +483,7 @@ suite('Smart Completion E2E Tests', () => {
         );
     });
 
-    itSkip('S.2: completions after = include variables and functions', async function () {
+    test('S.2: completions after = include variables and functions', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -502,7 +502,7 @@ suite('Smart Completion E2E Tests', () => {
         assert.ok(result.items.length > 0, 'Should have items in expression context');
     });
 
-    itSkip('S.3: completions after return include local symbols', async function () {
+    test('S.3: completions after return include local symbols', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -529,7 +529,7 @@ suite('Smart Completion E2E Tests', () => {
     // T. Completion Suppression
     // =========================================================================
 
-    itSkip('T.1: completion inside comment does not crash', async function () {
+    test('T.1: completion inside comment does not crash', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -550,7 +550,7 @@ suite('Smart Completion E2E Tests', () => {
         assert.ok(result !== undefined, 'Should not crash in comment context');
     });
 
-    itSkip('T.2: completion inside string does not crash', async function () {
+    test('T.2: completion inside string does not crash', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -572,7 +572,7 @@ suite('Smart Completion E2E Tests', () => {
     // U. Completion Item Structure
     // =========================================================================
 
-    itSkip('U.1: completion items have valid kind values', async function () {
+    test('U.1: completion items have valid kind values', async function () {
         this.timeout(30000);
 
         const text = document.getText();
@@ -596,7 +596,7 @@ suite('Smart Completion E2E Tests', () => {
         }
     });
 
-    itSkip('U.2: function completions have non-empty labels', async function () {
+    test('U.2: function completions have non-empty labels', async function () {
         this.timeout(30000);
 
         const position = new vscode.Position(0, 0);
@@ -614,7 +614,7 @@ suite('Smart Completion E2E Tests', () => {
         }
     });
 
-    itSkip('U.3: completion performance is under 2 seconds', async function () {
+    test('U.3: completion performance is under 2 seconds', async function () {
         this.timeout(30000);
 
         const text = document.getText();
