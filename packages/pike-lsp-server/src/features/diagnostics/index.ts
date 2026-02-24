@@ -83,6 +83,7 @@ export function registerDiagnosticsHandlers(
   // INC-002: Track change ranges for incremental parsing.
   // Stores the range of the most recent change for each document URI.
   const pendingChangeRanges = new Map<string, Range | undefined>();
+  const documentSnapshots = new Map<string, string>();
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -204,10 +205,11 @@ export function registerDiagnosticsHandlers(
       let analyzeResult: import('@pike-lsp/pike-bridge').AnalyzeResponse | null = null;
 
       try {
+        const snapshotId = documentSnapshots.get(uri);
         const qeResponse = await bridge.engineQuery({
           feature: 'diagnostics',
           requestId,
-          snapshot: { mode: 'latest' },
+          snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
           queryParams: {
             uri,
             filename,
@@ -220,6 +222,7 @@ export function registerDiagnosticsHandlers(
           requestId,
           snapshotIdUsed: qeResponse.snapshotIdUsed,
         });
+        documentSnapshots.set(uri, qeResponse.snapshotIdUsed);
 
         const candidate = qeResponse.result['analyzeResult'];
         if (candidate && typeof candidate === 'object') {
@@ -630,6 +633,9 @@ export function registerDiagnosticsHandlers(
         version: event.document.version,
         text: event.document.getText(),
       })
+      .then(ack => {
+        documentSnapshots.set(event.document.uri, ack.snapshotId);
+      })
       .catch(err => {
         log.debug('Engine open document failed', {
           uri: event.document.uri,
@@ -687,6 +693,9 @@ export function registerDiagnosticsHandlers(
         version: params.textDocument.version,
         changes,
       })
+      .then(ack => {
+        documentSnapshots.set(params.textDocument.uri, ack.snapshotId);
+      })
       .catch(err => {
         log.debug('Engine change document failed', {
           uri: params.textDocument.uri,
@@ -713,6 +722,9 @@ export function registerDiagnosticsHandlers(
       ?.engineCloseDocument({
         uri: event.document.uri,
       })
+      .then(() => {
+        documentSnapshots.delete(event.document.uri);
+      })
       .catch(err => {
         log.debug('Engine close document failed', {
           uri: event.document.uri,
@@ -722,6 +734,7 @@ export function registerDiagnosticsHandlers(
 
     // Clear cache for closed document
     documentCache.delete(event.document.uri);
+    documentSnapshots.delete(event.document.uri);
 
     // Clear from type database
     typeDatabase.removeProgram(event.document.uri);

@@ -106,7 +106,7 @@ Checklist:
 
 - [x] `PikeAnalysisHost` mutable input model implemented
 - [x] Immutable snapshot handle implemented
-- [ ] One read path migrated to fixed snapshot execution
+- [x] One read path migrated to fixed snapshot execution
 - [ ] Snapshot monotonicity tests added
 
 Exit gate:
@@ -118,6 +118,7 @@ Evidence:
 - PRs:
 - Runtime stubs: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-bridge/src/types.ts`
 - Document lifecycle wiring: `packages/pike-lsp-server/src/features/diagnostics/index.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`
+- Fixed snapshot diagnostics read path: `packages/pike-lsp-server/src/features/diagnostics/index.ts`
 - Tests:
 - Benchmarks:
 
