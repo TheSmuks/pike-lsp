@@ -9,24 +9,20 @@
  * Run with: bun test dist/src/tests/pike-analyzer/intelligence.test.js
  */
 
-import { describe, it, before, after } from "node:test";
+import { describe, it, beforeAll, afterAll } from "bun:test";
 import assert from "node:assert/strict";
 import { PikeBridge } from "@pike-lsp/pike-bridge";
 
 describe("Pike Intelligence Tests", { timeout: 60000 }, () => {
   let bridge: PikeBridge;
 
-  before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-    bridge.on("stderr", () => {});
-  });
+  beforeAll(async () => { bridge = new PikeBridge();
+  await bridge.start();
+  bridge.on("stderr", () => {}); });
 
-  after(async () => {
-    if (bridge) {
-      await bridge.stop();
-    }
-  });
+  afterAll(async () => { if (bridge) {
+    await bridge.stop();
+  } });
 
   async function runIntrospect(code: string, filename: string = "test.pike") {
     const response = await bridge.analyze(code, ["introspect"], filename);

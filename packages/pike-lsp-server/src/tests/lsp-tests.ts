@@ -5,7 +5,7 @@
  * Run with: node --test dist/tests/lsp-tests.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge';
 import { buildCodeLensCommand } from '../utils/code-lens.js';

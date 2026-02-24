@@ -3,7 +3,7 @@
  * Tests real behavior, not just compilation
  */
 
-import { test, describe } from 'node:test';
+import { test, describe } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';

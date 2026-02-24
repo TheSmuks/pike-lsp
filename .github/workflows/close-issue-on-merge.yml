@@ -20,7 +20,7 @@ jobs:
           ISSUE=$(gh pr view ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
             --json body --jq '.body' \
-            | grep -oiE '(closes|fixes|resolves) #[0-9]+' \
+            | grep -oE '(closes|fixes|resolves) #[0-9]+' \
             | grep -oE '[0-9]+' \
             | head -1)
 

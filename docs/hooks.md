@@ -17,9 +17,12 @@ exactly, in order, every single cycle. Deviation is not permitted.
 ## LEAD AGENT — Full Protocol
 
 ### Step 1: Discover safe work
+
 Run this exact command. No substitutions:
 ```
+
 gh issue list --label safe --state open --json number,title,assignees --jq '.[]'
+
 ```
 If zero results → go to Step 2 (generate issues). If results exist → go to Step 3.
 
@@ -27,7 +30,9 @@ If zero results → go to Step 2 (generate issues). If results exist → go to S
 - Analyze the codebase for bugs, gaps, tech debt, missing tests, security issues, etc.
 - For EACH item found, create exactly ONE GitHub issue:
 ```
+
 gh issue create --label safe --title "<clear title>" --body "<detailed description of the problem and expected fix>"
+
 ```
 - Create a maximum of [N] issues per cycle to avoid overload.
 - After creating issues, restart from Step 1.
@@ -57,13 +62,17 @@ You have been assigned exactly ONE GitHub issue. Follow these steps:
 
 ### Step 1: Read your issue
 ```
+
 gh issue view <your-issue-number>
+
 ```
 
 ### Step 2: Create a branch
 ```
+
 git checkout main && git pull
 git checkout -b fix/issue-<your-issue-number>
+
 ```
 
 ### Step 3: Implement the fix
@@ -76,10 +85,12 @@ git checkout -b fix/issue-<your-issue-number>
 
 ### Step 5: Push and open PR
 ```
+
 git add -A
 git commit -m "fix: <short description> (closes #<number>)"
 git push origin fix/issue-<your-issue-number>
-gh pr create --title "fix: <description>" --body "Closes #<your-issue-number>" --base main
+gh pr create --title "fix: <description>" --body "closes #<your-issue-number>" --base main
+
 ```
 
 ### Step 6: Stop
@@ -157,7 +168,7 @@ Don't rely only on agent behavior — enforce at the repo level too:
    ```yaml
    - name: Check safe label
      run: |
-       ISSUE=$(gh pr view ${{ github.event.pull_request.number }} --json body --jq '.body' | grep -oP 'Closes #\K[0-9]+')
+       ISSUE=$(gh pr view ${{ github.event.pull_request.number }} --json body --jq '.body' | grep -oP 'closes #\K[0-9]+')
        LABELS=$(gh issue view $ISSUE --json labels --jq '.labels[].name')
        echo "$LABELS" | grep -q "safe" || (echo "PR linked issue missing 'safe' label" && exit 1)
    ```
@@ -165,12 +176,12 @@ Don't rely only on agent behavior — enforce at the repo level too:
 
 ### The enforcement stack summary
 
-| Layer | What it blocks | Bypass possible? |
-|---|---|---|
-| `CLAUDE.md` instructions | Agent forgetting the workflow | Yes (LLM drift) |
-| Claude Code hooks | Specific forbidden commands | Very hard |
-| Branch protection on GitHub | Direct push to main, unreviewed merges | No |
-| CI label check | PRs from non-`safe` issues | No |
-| Auto-merge config | Agents trying to self-merge | N/A, removes the action entirely |
+| Layer                       | What it blocks                         | Bypass possible?                 |
+| --------------------------- | -------------------------------------- | -------------------------------- |
+| `CLAUDE.md` instructions    | Agent forgetting the workflow          | Yes (LLM drift)                  |
+| Claude Code hooks           | Specific forbidden commands            | Very hard                        |
+| Branch protection on GitHub | Direct push to main, unreviewed merges | No                               |
+| CI label check              | PRs from non-`safe` issues             | No                               |
+| Auto-merge config           | Agents trying to self-merge            | N/A, removes the action entirely |
 
 The bottom two layers are **100% enforced** regardless of what the agent does. The hooks cover the middle ground. `CLAUDE.md` handles intent and workflow flow. Together they give you genuine guarantees.

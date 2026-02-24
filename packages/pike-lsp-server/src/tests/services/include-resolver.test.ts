@@ -10,7 +10,7 @@
  * Run with: bun test dist/src/tests/services/include-resolver.test.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { IncludeResolver } from '../../services/include-resolver.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';

@@ -3,7 +3,7 @@
  * Tests semantic tokens, document highlight, folding range, inlay hints, selection range
  */
 
-import { test, describe } from 'node:test';
+import { test, describe } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 

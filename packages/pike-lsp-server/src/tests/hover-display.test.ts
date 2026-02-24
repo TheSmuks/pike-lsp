@@ -10,7 +10,7 @@
  * Run with: node --test dist/tests/hover-display.test.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { buildHoverContent } from '../features/utils/hover-builder.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';

@@ -12,7 +12,7 @@
  * Run with: bun test dist/src/tests/references.test.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { Position } from 'vscode-languageserver/node.js';
@@ -354,15 +354,11 @@ void decrement() { counter -= 1; }`;
 describe('References - Integration with Pike Parser', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should find references using parsed symbols', async () => {
         // Arrange

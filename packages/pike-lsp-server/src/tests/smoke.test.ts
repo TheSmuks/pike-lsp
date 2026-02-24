@@ -5,25 +5,21 @@
  * Used by pre-push hooks and CI for quick feedback.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('LSP Smoke Tests', { timeout: 30000 }, () => {
   let bridge: PikeBridge;
 
-  before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-    // Suppress stderr output during tests
-    bridge.on('stderr', () => {});
-  });
+  beforeAll(async () => { bridge = new PikeBridge();
+  await bridge.start();
+  // Suppress stderr output during tests
+  bridge.on('stderr', () => {}); });
 
-  after(async () => {
-    if (bridge) {
-      await bridge.stop();
-    }
-  });
+  afterAll(async () => { if (bridge) {
+    await bridge.stop();
+  } });
 
   it('responds to parse request with symbol array', async () => {
     const result = await bridge.parse('int x;', 'test.pike');

@@ -1,5 +1,5 @@
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert';
 import { buildHoverContent } from '../features/utils/hover-builder.js';
 import type { PikeSymbol, PikeMethod, PikeClass } from '@pike-lsp/pike-bridge';

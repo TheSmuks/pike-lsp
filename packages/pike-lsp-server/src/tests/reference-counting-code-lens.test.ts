@@ -7,7 +7,7 @@
  * Run with: bun test src/tests/reference-counting-code-lens.test.ts
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
@@ -17,16 +17,12 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 let bridge: PikeBridge;
 
-before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-});
+beforeAll(async () => { bridge = new PikeBridge();
+await bridge.start(); });
 
-after(async () => {
-    if (bridge) {
-        await bridge.stop();
-    }
-});
+afterAll(async () => { if (bridge) {
+    await bridge.stop();
+} });
 
 // ============================================================================
 // Tests

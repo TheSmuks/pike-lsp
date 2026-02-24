@@ -11,7 +11,7 @@
  * - Context Filtering (CA-001 through CA-015)
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { CodeAction, CodeActionKind, CodeActionParams } from 'vscode-languageserver/node.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
@@ -35,16 +35,12 @@ function createCodeAction(overrides: Partial<CodeAction> = {}): CodeAction {
 
 let bridge: PikeBridge;
 
-before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-});
+beforeAll(async () => { bridge = new PikeBridge();
+await bridge.start(); });
 
-after(async () => {
-    if (bridge) {
-        await bridge.stop();
-    }
-});
+afterAll(async () => { if (bridge) {
+    await bridge.stop();
+} });
 
 // ============================================================================
 // Tests

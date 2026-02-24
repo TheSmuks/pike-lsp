@@ -1,5 +1,5 @@
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { getGenerateGetterSetterActions } from '../features/advanced/getters-setters.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';

@@ -9,23 +9,19 @@
  * Run with: node --test dist/tests/lsp-protocol-tests.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('LSP Hover Feature Tests', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        // Suppress Pike warnings
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    // Suppress Pike warnings
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should provide hover information for variables', async () => {
         const code = `
@@ -120,15 +116,11 @@ multiset(string) uniqueStrings = (<>);
 describe('LSP Completion Feature Tests', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should provide completions for local variables', async () => {
         const code = `
@@ -242,15 +234,11 @@ class Derived {
 describe('LSP Go to Definition Feature Tests', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should navigate to variable definitions', async () => {
         const code = `
@@ -383,15 +371,11 @@ class Calculator {
 describe('LSP Symbol Position Validation', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should provide valid line numbers for all symbols', async () => {
         const code = `

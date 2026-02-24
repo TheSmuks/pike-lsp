@@ -11,7 +11,7 @@
  * Run with: bun test dist/src/tests/services/type-database.test.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { TypeDatabase } from '../../type-database.js';
 import type { IntrospectedSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';

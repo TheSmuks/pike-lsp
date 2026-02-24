@@ -4,7 +4,7 @@
  * Tests that verify RXML feature is properly wired into the LSP server.
  */
 
-import { describe, test } from 'node:test';
+import { describe, test } from 'bun:test';
 import assert from 'node:assert/strict';
 import { Connection } from 'vscode-languageserver';
 import { TextDocuments } from 'vscode-languageserver';

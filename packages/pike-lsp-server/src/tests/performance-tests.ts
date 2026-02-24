@@ -10,7 +10,7 @@
  * Run with: node --test dist/tests/performance-tests.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge, PikeParseResult } from '@pike-lsp/pike-bridge';
 
@@ -61,15 +61,11 @@ function measurePerformance<T>(
 describe('Performance Tests - Large File Parsing', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should parse moderately sized file efficiently (100+ lines)', async () => {
         const code = generatePikeCode(100, 'TestModule');
@@ -137,15 +133,11 @@ describe('Performance Tests - Large File Parsing', () => {
 describe('Performance Tests - Symbol Operations', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should extract symbols quickly from complex code', async () => {
         const code = `
@@ -200,15 +192,11 @@ class ComplexClass {
 describe('Performance Tests - Memory and Resource Usage', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should handle rapid sequential parse operations', async () => {
         const iterations = 10;
@@ -257,15 +245,11 @@ describe('Performance Tests - Memory and Resource Usage', () => {
 describe('Performance Tests - Real-World Scenarios', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should simulate working with a medium project (10 files)', async () => {
         const files: string[] = [];
@@ -321,15 +305,11 @@ void newFunction() {
 describe('Performance Tests - Compilation and Diagnostics', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should compile valid code quickly', async () => {
         const code = generatePikeCode(200, 'CompileTest');

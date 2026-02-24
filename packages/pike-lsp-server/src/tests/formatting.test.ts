@@ -1,5 +1,5 @@
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { formatPikeCode } from '../features/advanced/formatting.js';
 import { TextEdit } from 'vscode-languageserver/node.js';

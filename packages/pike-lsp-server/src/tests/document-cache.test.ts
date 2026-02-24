@@ -11,7 +11,7 @@
  * Run with: bun test dist/src/tests/document-cache.test.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { DocumentCache } from '../services/document-cache.js';
 import type { DocumentCacheEntry } from '../core/types.js';

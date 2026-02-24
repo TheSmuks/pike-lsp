@@ -11,7 +11,7 @@
  * Run with: bun test dist/src/tests/stdlib-index.test.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { StdlibIndexManager } from '../stdlib-index.js';
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
@@ -580,18 +580,14 @@ describe('StdlibIndexManager - Edge Cases', () => {
 describe('StdlibIndexManager - Integration with PikeBridge', { timeout: 30000 }, () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        const { PikeBridge: RealBridge } = await import('@pike-lsp/pike-bridge');
-        bridge = new RealBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { const { PikeBridge: RealBridge } = await import('@pike-lsp/pike-bridge');
+    bridge = new RealBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        if (bridge) {
-            await bridge.stop();
-        }
-    });
+    afterAll(async () => { if (bridge) {
+        await bridge.stop();
+    } });
 
     it('should load real Stdio module', async () => {
         // Arrange

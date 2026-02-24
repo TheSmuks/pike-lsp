@@ -5,7 +5,7 @@
  * Roxen modules use defvar() calls to define configuration variables.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import {
     parseRoxenConfig,

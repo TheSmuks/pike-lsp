@@ -3,7 +3,7 @@
  * Tests @int, @string, @mixed, @section, @ul, @ol, @code containers
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { buildHoverContent } from '../../features/utils/hover-builder.js';
 

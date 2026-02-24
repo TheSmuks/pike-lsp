@@ -11,7 +11,7 @@
  * Run with: bun test dist/src/tests/services/workspace-scanner.test.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { WorkspaceScanner } from '../../services/workspace-scanner.js';
 import type { Logger } from '@pike-lsp/core';

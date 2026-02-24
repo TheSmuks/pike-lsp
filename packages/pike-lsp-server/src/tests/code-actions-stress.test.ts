@@ -8,7 +8,7 @@
  * Run with: bun test dist/src/tests/code-actions-stress-tests.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert';
 import { CodeActionKind } from 'vscode-languageserver/node.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
@@ -19,16 +19,12 @@ import { getExtractMethodAction } from '../features/advanced/extract-method.js';
 describe('Code Actions Stress Tests: Import Quick Fixes', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start(); });
 
-    after(async () => {
-        if (bridge) {
-            await bridge.stop();
-        }
-    });
+    afterAll(async () => { if (bridge) {
+        await bridge.stop();
+    } });
 
     it('should handle file with many unsorted imports', async () => {
         const code = `import ZModule;
@@ -461,16 +457,12 @@ int c = 3;`;
 describe('Code Actions Stress Tests: Performance', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start(); });
 
-    after(async () => {
-        if (bridge) {
-            await bridge.stop();
-        }
-    });
+    afterAll(async () => { if (bridge) {
+        await bridge.stop();
+    } });
 
     it('should respond quickly for code action request', async () => {
         const code = `import Stdio;

@@ -3,7 +3,7 @@
  * Tests definition, usages, and Ctrl+Click functionality
  */
 
-import { test, describe } from 'node:test';
+import { test, describe } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
