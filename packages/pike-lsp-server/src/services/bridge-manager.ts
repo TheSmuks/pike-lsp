@@ -435,6 +435,19 @@ export class BridgeManager {
     return this.bridge.engineUpdateConfig(params);
   }
 
+  async engineUpdateWorkspace(params: {
+    roots: string[];
+    added: string[];
+    removed: string[];
+  }): Promise<QueryEngineMutationAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineUpdateWorkspace() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineUpdateWorkspace(params);
+  }
+
   async engineCancelRequest(params: { requestId: string }): Promise<QueryEngineCancelAck> {
     if (!this.bridge) {
       throw new Error(

@@ -459,7 +459,7 @@ connection.onInitialized(async () => {
           }
         }
 
-        const configAck = await bridgeManager.bridge.engineUpdateConfig({
+        const configAck = await bridgeManager.engineUpdateConfig({
           settings: {
             diagnosticDelay: globalSettings.diagnosticDelay,
             includePaths,
@@ -481,7 +481,7 @@ connection.onInitialized(async () => {
   // Index workspace
   const workspaceFolders = await connection.workspace.getWorkspaceFolders();
   if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
-    const workspaceAck = await bridgeManager.bridge.engineUpdateWorkspace({
+    const workspaceAck = await bridgeManager.engineUpdateWorkspace({
       roots: workspaceFolders.map(folder => folder.uri),
       added: workspaceFolders.map(folder => folder.uri),
       removed: [],
