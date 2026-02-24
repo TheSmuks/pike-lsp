@@ -13,7 +13,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -22,17 +22,14 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
-const createSuite = vscodeAvailable ? suite : () => { /* skip */ };
+const itSkip = test;
+const createSuite = suite;
 
 createSuite('Pike Language Extension Integration Test', () => {
 
-    if (!vscodeAvailable) {
-        // Should not reach here since we use createSuite
-        return;
     }
 
-    itSkip('Extension should be present', () => {
+    test('Extension should be present', () => {
         assert.ok(vscode.extensions.getExtension('pike-lsp.vscode-pike'));
     });
 

@@ -11,7 +11,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -20,7 +20,7 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
+const itSkip = test;
 
 let capturedLogs: string[] = [];
 
@@ -52,9 +52,6 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
     let document: any;
 
     suiteSetup(async function() {
-        if (!vscodeAvailable) {
-            this.skip();
-            return;
         }
         this.timeout(60000);
         capturedLogs = [];
@@ -114,7 +111,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         }
     });
 
-    itSkip('Go-to-definition for constant from #include file', async function() {
+    test('Go-to-definition for constant from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -165,7 +162,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to constant: ${uriPath}:${firstLocation.range.start.line}`);
     });
 
-    itSkip('Go-to-definition for function from #include file', async function() {
+    test('Go-to-definition for function from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -216,7 +213,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to function: ${uriPath}:${firstLocation.range.start.line}`);
     });
 
-    itSkip('Go-to-definition for documented function from #include file', async function() {
+    test('Go-to-definition for documented function from #include file', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -261,7 +258,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
         console.log(`Navigate to documented symbol: ${uriPath}`);
     });
 
-    itSkip('Go-to-definition on #include directive navigates to included file', async function() {
+    test('Go-to-definition on #include directive navigates to included file', async function() {
         this.timeout(30000);
 
         const text = document.getText();

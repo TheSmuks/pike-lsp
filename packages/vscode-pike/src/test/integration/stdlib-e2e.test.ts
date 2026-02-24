@@ -25,7 +25,7 @@ import { suite, test } from 'mocha';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
-let vscodeAvailable = false;
+let vscodeAvailable = true;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     vscode = require('vscode');
@@ -34,7 +34,7 @@ try {
     // vscode not available - tests will be skipped
 }
 
-const itSkip = vscodeAvailable ? test : test.skip;
+const itSkip = test;
 
 suite('Stdlib E2E Tests', () => {
     let workspaceFolder: any;
@@ -42,9 +42,6 @@ suite('Stdlib E2E Tests', () => {
     let document: any;
 
     suiteSetup(async function() {
-        if (!vscodeAvailable) {
-            this.skip();
-            return;
         }
         this.timeout(60000);
 
@@ -144,7 +141,7 @@ class TestClass {
      *
      * Expected: Completions should include real Array methods (sum, sort, flatten, etc.)
      */
-    itSkip('Array module completion returns real stdlib methods', async function() {
+    test('Array module completion returns real stdlib methods', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -187,7 +184,7 @@ class TestClass {
      * Validates that completing on "String." returns actual Pike stdlib methods
      * like trim_all_whites, capitalize, etc.
      */
-    itSkip('String module completion returns real stdlib methods', async function() {
+    test('String module completion returns real stdlib methods', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -229,7 +226,7 @@ class TestClass {
      * Validates that completing on "Stdio." returns actual Pike stdlib classes
      * like File, Port, etc.
      */
-    itSkip('Stdio module completion returns real stdlib classes and functions', async function() {
+    test('Stdio module completion returns real stdlib classes and functions', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -271,7 +268,7 @@ class TestClass {
      * Validates that hovering over Array.sum shows type information
      * from the real stdlib module.
      */
-    itSkip('Hover on Array.sum shows function signature', async function() {
+    test('Hover on Array.sum shows function signature', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -315,7 +312,7 @@ class TestClass {
      * Validates that document symbols are extracted correctly even when
      * using stdlib modules (no crash, correct parsing).
      */
-    itSkip('Document symbols parse correctly with stdlib imports', async function() {
+    test('Document symbols parse correctly with stdlib imports', async function() {
         this.timeout(30000);
 
         const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -342,7 +339,7 @@ class TestClass {
      * Validates that go-to-definition on stdlib references (Array, String, Stdio)
      * doesn't crash and returns appropriate results (may be null for stdlib).
      */
-    itSkip('Go-to-definition on Array module reference handles gracefully', async function() {
+    test('Go-to-definition on Array module reference handles gracefully', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -375,7 +372,7 @@ class TestClass {
      *
      * This is important per ADR-002: Target Pike 8.0.1116
      */
-    itSkip('String.trim_all_whites completion available (Pike 8.0.1116 API)', async function() {
+    test('String.trim_all_whites completion available (Pike 8.0.1116 API)', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -414,7 +411,7 @@ class TestClass {
      * Validates that Array.sum appears in completions.
      * This is a commonly used stdlib method.
      */
-    itSkip('Array.sum completion available', async function() {
+    test('Array.sum completion available', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -450,7 +447,7 @@ class TestClass {
      *
      * Validates that Stdio.File class appears in completions.
      */
-    itSkip('Stdio.File class completion available', async function() {
+    test('Stdio.File class completion available', async function() {
         this.timeout(30000);
 
         const text = document.getText();
@@ -487,7 +484,7 @@ class TestClass {
      * Validates that Pike stdlib exists and contains expected modules.
      * Dynamically detects Pike path via `pike --show-paths`.
      */
-    itSkip('Pike stdlib path exists and contains modules', async function() {
+    test('Pike stdlib path exists and contains modules', async function() {
         this.timeout(10000);
 
         // Dynamically detect Pike's module path
