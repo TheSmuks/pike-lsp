@@ -10,6 +10,7 @@ import type {
   PikeBridge,
   PikeVersionInfo,
   ProtocolInfo,
+  QueryEngineMutationAck,
   QueryEngineQueryResponse,
   QueryEngineSnapshotSelector,
   AnalyzeResponse,
@@ -384,6 +385,53 @@ export class BridgeManager {
       throw new Error('Bridge not available: engineQuery() called before bridge was initialized.');
     }
     return this.bridge.engineQuery(params);
+  }
+
+  async engineOpenDocument(params: {
+    uri: string;
+    languageId: string;
+    version: number;
+    text: string;
+  }): Promise<QueryEngineMutationAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineOpenDocument() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineOpenDocument(params);
+  }
+
+  async engineChangeDocument(params: {
+    uri: string;
+    version: number;
+    changes: Array<Record<string, unknown>>;
+  }): Promise<QueryEngineMutationAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineChangeDocument() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineChangeDocument(params);
+  }
+
+  async engineCloseDocument(params: { uri: string }): Promise<QueryEngineMutationAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineCloseDocument() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineCloseDocument(params);
+  }
+
+  async engineUpdateConfig(params: {
+    settings: Record<string, unknown>;
+  }): Promise<QueryEngineMutationAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineUpdateConfig() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineUpdateConfig(params);
   }
 
   /**

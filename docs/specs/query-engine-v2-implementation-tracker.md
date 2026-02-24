@@ -117,6 +117,7 @@ Evidence:
 
 - PRs:
 - Runtime stubs: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-bridge/src/types.ts`
+- Document lifecycle wiring: `packages/pike-lsp-server/src/features/diagnostics/index.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`
 - Tests:
 - Benchmarks:
 

@@ -604,6 +604,18 @@ export function registerDiagnosticsHandlers(
       ...(settings?.pike ?? {}),
     };
 
+    services.bridge
+      ?.engineUpdateConfig({
+        settings: {
+          pike: settings?.pike ?? {},
+        },
+      })
+      .catch(err => {
+        log.debug('Engine config update failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     // Revalidate all open documents
     documents.all().forEach(validateDocumentDebounced);
   });
@@ -611,6 +623,20 @@ export function registerDiagnosticsHandlers(
   // Handle document open - validate immediately without debouncing
   documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
+    services.bridge
+      ?.engineOpenDocument({
+        uri: event.document.uri,
+        languageId: event.document.languageId,
+        version: event.document.version,
+        text: event.document.getText(),
+      })
+      .catch(err => {
+        log.debug('Engine open document failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
@@ -644,6 +670,29 @@ export function registerDiagnosticsHandlers(
 
     // Store the change range for use in debounced validation
     pendingChangeRanges.set(params.textDocument.uri, changeRange);
+
+    const changes = contentChanges.map(change => {
+      const record: Record<string, unknown> = {
+        text: change.text,
+      };
+      if ('range' in change && change.range) {
+        record['range'] = change.range;
+      }
+      return record;
+    });
+
+    services.bridge
+      ?.engineChangeDocument({
+        uri: params.textDocument.uri,
+        version: params.textDocument.version,
+        changes,
+      })
+      .catch(err => {
+        log.debug('Engine change document failed', {
+          uri: params.textDocument.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
   });
 
   // Handle document save - validate immediately without debouncing
@@ -660,6 +709,17 @@ export function registerDiagnosticsHandlers(
 
   // Handle document close
   documents.onDidClose(event => {
+    services.bridge
+      ?.engineCloseDocument({
+        uri: event.document.uri,
+      })
+      .catch(err => {
+        log.debug('Engine close document failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     // Clear cache for closed document
     documentCache.delete(event.document.uri);
 
