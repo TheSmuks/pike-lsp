@@ -51,6 +51,15 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ runner.os }}-test-pike8.0
+          restore-keys: |
+            apt-${{ runner.os }}-test-
+            apt-${{ runner.os }}-
+
       - name: Install dependencies
         run: bun install
 
@@ -105,6 +114,15 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ runner.os }}-build-extension-pike8.0
+          restore-keys: |
+            apt-${{ runner.os }}-build-extension-
+            apt-${{ runner.os }}-
 
       - name: Cache apt packages
         uses: actions/cache@v4
