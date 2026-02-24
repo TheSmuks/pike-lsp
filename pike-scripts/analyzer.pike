@@ -159,6 +159,26 @@ int ctx_initialized = 0;
 int compat_loaded = 0;
 float compat_load_time = 0.0;
 
+int qe2_revision = 0;
+mapping(string:mapping(string:mixed)) qe2_documents = ([]);
+mapping(string:mixed) qe2_settings = ([]);
+mapping(string:mixed) qe2_workspace = (["roots": ({}), "added": ({}), "removed": ({})]);
+
+string qe2_snapshot_id() {
+    return sprintf("snp-%d", qe2_revision);
+}
+
+mapping(string:mixed) qe2_ack() {
+    return ([
+        "revision": qe2_revision,
+        "snapshotId": qe2_snapshot_id()
+    ]);
+}
+
+void qe2_bump_revision() {
+    qe2_revision += 1;
+}
+
 //! get_context - Lazy initialization of Context service container
 //! Creates Context only on first request, deferring Parser/Intelligence/Analysis
 //! module loading until needed for startup optimization
@@ -471,6 +491,101 @@ int main(int argc, array(string) argv) {
                     "minor": ver[1],
                     "build": ver[2],
                     "display": __REAL_VERSION__
+                ])
+            ]);
+        },
+        "get_protocol_info": lambda(mapping params, object ctx) {
+            return ([
+                "result": ([
+                    "protocol": "query-engine-v2",
+                    "version": "2.0.0",
+                    "major": 2,
+                    "minor": 0,
+                    "build_id": BUILD_ID,
+                    "capabilities": ({
+                        "snapshot",
+                        "cancellation",
+                        "analyze"
+                    })
+                ])
+            ]);
+        },
+        "engine_open_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            qe2_documents[uri] = ([
+                "uri": uri,
+                "languageId": (string)(params->languageId || "pike"),
+                "version": (int)(params->version || 0),
+                "text": (string)(params->text || "")
+            ]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_change_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            mapping(string:mixed) doc = qe2_documents[uri] || (["uri": uri, "languageId": "pike", "text": ""]);
+            doc->version = (int)(params->version || (doc->version || 0));
+            if (stringp(params->text)) {
+                doc->text = (string)params->text;
+            }
+            if (arrayp(params->changes)) {
+                doc->changes = params->changes;
+            }
+            qe2_documents[uri] = doc;
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_close_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            m_delete(qe2_documents, uri);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_update_config": lambda(mapping params, object ctx) {
+            qe2_settings = mappingp(params->settings) ? params->settings : ([]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_update_workspace": lambda(mapping params, object ctx) {
+            qe2_workspace = ([
+                "roots": arrayp(params->roots) ? params->roots : ({}),
+                "added": arrayp(params->added) ? params->added : ({}),
+                "removed": arrayp(params->removed) ? params->removed : ({})
+            ]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_query": lambda(mapping params, object ctx) {
+            string request_id = (string)(params->requestId || "");
+            mapping snapshot = mappingp(params->snapshot) ? params->snapshot : ([]);
+            string snapshot_mode = (string)(snapshot->mode || "latest");
+            string snapshot_used = snapshot_mode == "fixed" && stringp(snapshot->snapshotId)
+                ? (string)snapshot->snapshotId
+                : qe2_snapshot_id();
+
+            return ([
+                "result": ([
+                    "requestId": request_id,
+                    "snapshotIdUsed": snapshot_used,
+                    "result": ([
+                        "feature": (string)(params->feature || "unknown"),
+                        "status": "stub",
+                        "revision": qe2_revision,
+                        "documentCount": sizeof(qe2_documents)
+                    ]),
+                    "metrics": (["durationMs": 0.0])
                 ])
             ]);
         },
