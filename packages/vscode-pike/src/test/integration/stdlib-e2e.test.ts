@@ -493,10 +493,17 @@ class TestClass {
 
     try {
       const pikeShowPathsOutput = execSync('pike --show-paths', { encoding: 'utf8' });
-      const modulePathMatch = pikeShowPathsOutput.match(/Module path\.\.\.:\s*(\S+)/);
-      const extractedPath = modulePathMatch?.[1];
-      if (extractedPath) {
-        stdlibPath = extractedPath;
+      const modulePathMatch = pikeShowPathsOutput.match(/Module path\.\.\.:\s*(.+)/);
+      const extractedPath = modulePathMatch?.[1]?.trim();
+      const parsedPaths = extractedPath
+        ? extractedPath
+            .split(':')
+            .map(p => p.trim())
+            .filter(Boolean)
+        : [];
+      const existingPath = parsedPaths.find(p => fs.existsSync(p));
+      if (existingPath) {
+        stdlibPath = existingPath;
       } else {
         throw new Error('Could not parse module path from pike --show-paths');
       }
@@ -505,15 +512,19 @@ class TestClass {
       const possiblePaths = [
         '/usr/local/pike/8.0.1116/lib/modules',
         '/usr/lib/pike/8.0/lib/modules',
+        '/usr/lib/pike8.0/modules',
         '/usr/share/pike/8.0/lib/modules',
       ];
       const found = possiblePaths.find(p => fs.existsSync(p));
-      stdlibPath = found ?? possiblePaths[0] ?? '/usr/local/pike/8.0.1116/lib/modules';
+      stdlibPath = found ?? '';
     }
 
     // Verify stdlib directory exists
     const stdlibExists = fs.existsSync(stdlibPath);
-    assert.ok(stdlibExists, `Pike stdlib should exist at ${stdlibPath}`);
+    assert.ok(
+      stdlibExists,
+      `Pike stdlib should exist at discovered path. Got: ${stdlibPath || '(none)'}`
+    );
 
     // List some expected modules
     const expectedModules = ['Array.pmod', 'String.pmod', 'Stdio.pmod'];

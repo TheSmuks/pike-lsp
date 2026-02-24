@@ -1,22 +1,23 @@
 {
-    "compilerOptions": {
-        "target": "ES2022",
-        "module": "CommonJS",
-        "moduleResolution": "Node",
-        "lib": ["ES2022"],
-        "strict": false,
-        "strictNullChecks": false,
-        "noImplicitAny": false,
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "types": ["node", "@types/vscode", "mocha"],
-        "outDir": "../../dist",
-        "rootDir": ".."
-    },
-    "include": [
-        "./mockOutputChannel.ts",
-        "./extension.test.ts",
-        "./lsp-smoke.test.ts",
-        "./extension-features.test.ts"
-    ]
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "strict": false,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node", "@types/vscode", "mocha"],
+    "outDir": "../../dist",
+    "rootDir": ".."
+  },
+  "include": [
+    "./mockOutputChannel.ts",
+    "./extension.test.ts",
+    "./lsp-smoke.test.ts",
+    "./extension-features.test.ts",
+    "./integration/**/*.ts"
+  ]
 }
