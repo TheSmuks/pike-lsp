@@ -14,6 +14,25 @@ set -e
 
 cd "$(dirname "$0")/.."
 
+run_and_validate() {
+    local output
+    local exit_code
+
+    set +e
+    output=$("$@" 2>&1)
+    exit_code=$?
+    set -e
+
+    echo "$output"
+
+    if [ $exit_code -eq 0 ] && echo "$output" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+        echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
+        return 1
+    fi
+
+    return $exit_code
+}
+
 # Detect if running in CI environment
 is_ci() {
     [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] || [ -n "$JENKINS_URL" ]
@@ -33,7 +52,7 @@ case "$(uname -s)" in
             echo "Display detected (DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY). Running tests..."
             # In CI or headless environments, we still want these flags
             export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
-            ./node_modules/.bin/vscode-test "$@"
+            run_and_validate ./node_modules/.bin/vscode-test "$@"
             exit $?
         fi
 
@@ -47,7 +66,8 @@ case "$(uname -s)" in
                 # Create isolated environment for headless testing
                 # We need to unset ALL session-related variables to prevent
                 # VSCode from connecting to the real user session (D-Bus, etc.)
-                xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+                set +e
+                TEST_OUTPUT=$(xvfb-run -a --server-args="-screen 0 1920x1080x24" \
                     env -u WAYLAND_DISPLAY \
                     -u WAYLAND_SOCKET \
                     -u DBUS_SESSION_BUS_ADDRESS \
@@ -62,8 +82,18 @@ case "$(uname -s)" in
                     ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox --disable-features=UseOzonePlatform" \
                     GDK_BACKEND=x11 \
                     QT_QPA_PLATFORM=xcb \
-                    ./node_modules/.bin/vscode-test "$@"
-                exit $?
+                    ./node_modules/.bin/vscode-test "$@" 2>&1)
+                TEST_EXIT_CODE=$?
+                set -e
+
+                echo "$TEST_OUTPUT"
+
+                if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+                    echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
+                    TEST_EXIT_CODE=1
+                fi
+
+                exit $TEST_EXIT_CODE
             fi
         fi
 
@@ -101,6 +131,11 @@ case "$(uname -s)" in
             TEST_EXIT_CODE=$?
             echo "$TEST_OUTPUT"
 
+            if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+                echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
+                TEST_EXIT_CODE=1
+            fi
+
             # 4. Cleanup
             kill $WESTON_PID 2>/dev/null || true
             rm -rf "$XDG_RUNTIME_DIR"
@@ -132,16 +167,16 @@ case "$(uname -s)" in
     Darwin*)
         # macOS has native display support
         echo "Running tests on macOS (native display)..."
-        npx vscode-test "$@"
+        run_and_validate bunx vscode-test "$@"
         ;;
     CYGWIN*|MINGW*|MSYS*)
         # Windows has native display support
         echo "Running tests on Windows (native display)..."
-        npx vscode-test "$@"
+        run_and_validate bunx vscode-test "$@"
         ;;
     *)
         echo "Unknown platform: $(uname -s)"
         echo "Attempting to run tests directly..."
-        npx vscode-test "$@"
+        run_and_validate bunx vscode-test "$@"
         ;;
 esac
