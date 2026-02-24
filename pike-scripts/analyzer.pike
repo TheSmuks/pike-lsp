@@ -569,6 +569,7 @@ int main(int argc, array(string) argv) {
             return (["result": qe2_ack()]);
         },
         "engine_query": lambda(mapping params, object ctx) {
+            object query_timer = System.Timer();
             string request_id = (string)(params->requestId || "");
             if (qe2_cancelled_requests[request_id]) {
                 m_delete(qe2_cancelled_requests, request_id);
@@ -617,7 +618,7 @@ int main(int argc, array(string) argv) {
                             "revision": qe2_revision,
                             "analyzeResult": analyze_response
                         ]),
-                        "metrics": (["durationMs": 0.0])
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
                     ])
                 ]);
             }
@@ -632,7 +633,7 @@ int main(int argc, array(string) argv) {
                         "revision": qe2_revision,
                         "documentCount": sizeof(qe2_documents)
                     ]),
-                    "metrics": (["durationMs": 0.0])
+                    "metrics": (["durationMs": query_timer->peek() * 1000.0])
                 ])
             ]);
         },

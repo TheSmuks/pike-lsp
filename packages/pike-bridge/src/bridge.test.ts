@@ -115,6 +115,14 @@ describe('PikeBridge', () => {
       innerResult?.['diagnostics'],
       'analyzeResult.result should include diagnostics payload'
     );
+
+    const metrics = response.metrics as Record<string, unknown> | undefined;
+    assert.ok(metrics, 'engine_query diagnostics should include metrics');
+    assert.equal(
+      typeof metrics?.['durationMs'],
+      'number',
+      'engine_query metrics should include durationMs'
+    );
   });
 
   it('should parse simple Pike code', async () => {
