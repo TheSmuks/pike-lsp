@@ -88,6 +88,30 @@ describe('PikeBridge', () => {
     assert.equal(Boolean(cancelAck.accepted), true, 'Cancel request should be accepted');
   });
 
+  it('should return analyzeResult for diagnostics engine queries', async () => {
+    const response = await bridge.engineQuery({
+      feature: 'diagnostics',
+      requestId: 'qe2-diagnostics-query',
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri: 'file:///tmp/qe2-diagnostics.pike',
+        filename: '/tmp/qe2-diagnostics.pike',
+        version: 1,
+        text: 'int x = 1;\n',
+      },
+    });
+
+    const analyzeResult = response.result['analyzeResult'] as Record<string, unknown> | undefined;
+    assert.ok(analyzeResult, 'engine_query diagnostics should include analyzeResult');
+
+    const innerResult = analyzeResult?.['result'] as Record<string, unknown> | undefined;
+    assert.ok(innerResult, 'analyzeResult should contain result object');
+    assert.ok(
+      innerResult?.['diagnostics'],
+      'analyzeResult.result should include diagnostics payload'
+    );
+  });
+
   it('should parse simple Pike code', async () => {
     const code = `
             int x = 42;

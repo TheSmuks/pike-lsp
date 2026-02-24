@@ -234,6 +234,7 @@ export function registerDiagnosticsHandlers(
             uri,
             filename,
             version,
+            text,
           },
         });
 

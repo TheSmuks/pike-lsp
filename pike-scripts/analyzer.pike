@@ -584,12 +584,47 @@ int main(int argc, array(string) argv) {
                 ? (string)snapshot->snapshotId
                 : qe2_snapshot_id();
 
+            mapping query_params = mappingp(params->queryParams) ? params->queryParams : ([]);
+            string feature = (string)(params->feature || "unknown");
+
+            if (feature == "diagnostics") {
+                mapping analyze_params = ([
+                    "code": (string)(query_params->text || ""),
+                    "filename": (string)(query_params->filename || "input.pike"),
+                    "include": ({ "parse", "introspect", "diagnostics", "tokenize" }),
+                    "version": (int)(query_params->version || 0)
+                ]);
+
+                mapping analyze_response = ctx->analysis->handle_analyze(analyze_params);
+
+                if (qe2_cancelled_requests[request_id]) {
+                    return ([
+                        "error": ([
+                            "code": -32800,
+                            "message": "Request cancelled"
+                        ])
+                    ]);
+                }
+
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": snapshot_used,
+                        "result": ([
+                            "feature": feature,
+                            "analyzeResult": analyze_response
+                        ]),
+                        "metrics": (["durationMs": 0.0])
+                    ])
+                ]);
+            }
+
             return ([
                 "result": ([
                     "requestId": request_id,
                     "snapshotIdUsed": snapshot_used,
                     "result": ([
-                        "feature": (string)(params->feature || "unknown"),
+                        "feature": feature,
                         "status": "stub",
                         "revision": qe2_revision,
                         "documentCount": sizeof(qe2_documents)

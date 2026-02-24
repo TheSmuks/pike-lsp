@@ -153,11 +153,11 @@ Evidence:
 
 Owner: TBD
 
-Status: NOT_STARTED
+Status: IN_PROGRESS
 
 Checklist:
 
-- [ ] Diagnostics query pipeline migrated
+- [x] Diagnostics query pipeline migrated
 - [ ] Legacy/duplicate diagnostics path disabled in active flow
 - [ ] Shadow diff parity checked
 - [ ] p95 diagnostics latency compared to baseline
@@ -170,6 +170,7 @@ Exit gate:
 Evidence:
 
 - PRs:
+- Diagnostics query-engine analyze payload: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.test.ts`, `packages/pike-lsp-server/src/features/diagnostics/index.ts`
 - Diff reports:
 - Benchmarks:
 
