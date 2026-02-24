@@ -103,6 +103,11 @@ describe('PikeBridge', () => {
 
     const analyzeResult = response.result['analyzeResult'] as Record<string, unknown> | undefined;
     assert.ok(analyzeResult, 'engine_query diagnostics should include analyzeResult');
+    assert.equal(
+      typeof response.result['revision'],
+      'number',
+      'engine_query diagnostics should include revision'
+    );
 
     const innerResult = analyzeResult?.['result'] as Record<string, unknown> | undefined;
     assert.ok(innerResult, 'analyzeResult should contain result object');

@@ -571,6 +571,7 @@ int main(int argc, array(string) argv) {
         "engine_query": lambda(mapping params, object ctx) {
             string request_id = (string)(params->requestId || "");
             if (qe2_cancelled_requests[request_id]) {
+                m_delete(qe2_cancelled_requests, request_id);
                 return ([
                     "error": ([
                         "code": -32800,
@@ -598,6 +599,7 @@ int main(int argc, array(string) argv) {
                 mapping analyze_response = ctx->analysis->handle_analyze(analyze_params);
 
                 if (qe2_cancelled_requests[request_id]) {
+                    m_delete(qe2_cancelled_requests, request_id);
                     return ([
                         "error": ([
                             "code": -32800,
@@ -612,6 +614,7 @@ int main(int argc, array(string) argv) {
                         "snapshotIdUsed": snapshot_used,
                         "result": ([
                             "feature": feature,
+                            "revision": qe2_revision,
                             "analyzeResult": analyze_response
                         ]),
                         "metrics": (["durationMs": 0.0])

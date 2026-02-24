@@ -95,6 +95,7 @@ Evidence:
 
 - Specs: `docs/specs/query-engine-v2-rfc.md`, `docs/specs/query-engine-v2-protocol.md`, `docs/specs/query-engine-v2-launch-runbook.md`
 - Runtime handshake: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-lsp-server/src/server.ts`
+- Query response revision metadata (diagnostics path): `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.test.ts`
 
 ### Phase 1 - Host/Snapshot Foundation
 
