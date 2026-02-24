@@ -2,7 +2,7 @@ name: Performance Benchmarks
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - '*.md'
@@ -12,7 +12,7 @@ on:
       - 'docusaurus.config.ts'
       - 'sidebars.ts'
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - 'docs/**'
       - '*.md'
@@ -47,6 +47,15 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-${{ runner.os }}-bench-pike8.0-full
+          restore-keys: |
+            apt-${{ runner.os }}-bench-
+            apt-${{ runner.os }}-
+
       - name: Install Pike
         run: |
           sudo apt-get update
@@ -66,8 +75,8 @@ jobs:
         run: |
           node scripts/check-benchmark-regression.js benchmark-results.json
         env:
-          CACHE_HIT_THRESHOLD: 80  # Expect >80% hit rate for repeated requests
-          COMPILE_SPEEDUP_THRESHOLD: 50  # Expect >50% speedup for cache hits
+          CACHE_HIT_THRESHOLD: 80 # Expect >80% hit rate for repeated requests
+          COMPILE_SPEEDUP_THRESHOLD: 50 # Expect >50% speedup for cache hits
 
       - name: Fetch gh-pages for historical data
         run: git fetch origin gh-pages:gh-pages || true
@@ -93,6 +102,6 @@ jobs:
           auto-push: true
           alert-threshold: '150%'
           comment-on-alert: true
-          fail-on-alert: false  # Rolling average analysis handles regression detection
+          fail-on-alert: false # Rolling average analysis handles regression detection
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: benchmarks
