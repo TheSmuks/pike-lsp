@@ -16,7 +16,7 @@
  * Parser may miss things but should NOT hallucinate.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
@@ -28,16 +28,12 @@ interface ComparisonResult {
 describe('Oracle Tests', { timeout: 30000 }, () => {
   let bridge: PikeBridge;
 
-  before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-    // Suppress stderr noise
-    bridge.on('stderr', () => {});
-  });
+  beforeAll(async () => { bridge = new PikeBridge();
+  await bridge.start();
+  // Suppress stderr noise
+  bridge.on('stderr', () => {}); });
 
-  after(async () => {
-    await bridge.stop();
-  });
+  afterAll(async () => { await bridge.stop(); });
 
   /**
    * Helper: Compare parser output vs Pike compiler introspection
@@ -180,8 +176,8 @@ class Bar {
     assert.ok(
       parseSymbols.length <= introspectSymbols.length,
       `Parser found ${parseSymbols.length} symbols, introspect found ${introspectSymbols.length}. ` +
-      `Parser should not hallucinate symbols. Parse: [${parseSymbols.join(', ')}], ` +
-      `Introspect: [${introspectSymbols.join(', ')}]`
+        `Parser should not hallucinate symbols. Parse: [${parseSymbols.join(', ')}], ` +
+        `Introspect: [${introspectSymbols.join(', ')}]`
     );
 
     // Every parser symbol should exist in introspect (no hallucinations)
@@ -189,7 +185,7 @@ class Bar {
       assert.ok(
         introspectSymbols.includes(symbol),
         `Parser found '${symbol}' but introspect did not. This is a hallucination. ` +
-        `Introspect symbols: [${introspectSymbols.join(', ')}]`
+          `Introspect symbols: [${introspectSymbols.join(', ')}]`
       );
     }
   });

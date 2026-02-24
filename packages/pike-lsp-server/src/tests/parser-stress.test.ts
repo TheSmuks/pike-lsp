@@ -7,7 +7,7 @@
  * Run with: bun test dist/src/tests/parser-stress-tests.js
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 

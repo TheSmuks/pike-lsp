@@ -7,7 +7,7 @@
  * Run with: node --test dist/tests/integration-tests.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge';
 
@@ -28,15 +28,11 @@ function flattenSymbols(symbols: PikeSymbol[]): PikeSymbol[] {
 describe('End-to-End Document Workflow', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should handle complete document lifecycle: open -> edit -> close', async () => {
         const initialCode = `
@@ -147,15 +143,11 @@ void main() {
 describe('End-to-End Code Navigation Workflow', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should support "find all references" style workflow', async () => {
         const code = `
@@ -214,15 +206,11 @@ class AppConfig {
 describe('End-to-End Autocompletion Workflow', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should provide completions as user types', async () => {
         // Start with partial code
@@ -272,15 +260,11 @@ array(string) roles = ({"admin", "user"});
 describe('End-to-End Error Handling Workflow', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should report multiple errors in a single document', async () => {
         const code = `
@@ -333,15 +317,11 @@ int alsoValid = 2;
 describe('Real-World Code Scenarios', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should handle a realistic Pike class with inheritance', async () => {
         const code = `
@@ -418,15 +398,11 @@ void init() {
 describe('Batch Parse Performance (PERF-002)', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should parse multiple files in a single batch request', async () => {
         const files = [

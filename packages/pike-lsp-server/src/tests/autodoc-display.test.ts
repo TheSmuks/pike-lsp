@@ -11,7 +11,7 @@
  * Run with: node --test dist/tests/autodoc-display.test.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
@@ -34,15 +34,11 @@ function flattenSymbols(symbols: unknown[]): unknown[] {
 describe('Autodoc Display - Happy Path', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should display autodoc for basic function with //! docs', async () => {
         // Arrange
@@ -105,15 +101,11 @@ class StringHelper {
 describe('Autodoc Display - Edge Cases', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should display autodoc for this_program return type', async () => {
         // Arrange
@@ -256,15 +248,11 @@ string|int get_value(string type) {
 describe('Autodoc Display - Error Cases', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should handle malformed autodoc gracefully', async () => {
         // Arrange
@@ -329,15 +317,11 @@ void empty_doc_func() {
 describe('Autodoc Display - Regression Tests', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {}); });
 
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should find function with this_program modifier not in skip set', async () => {
         // This is a regression test for the bug where this_program was not in the skip set

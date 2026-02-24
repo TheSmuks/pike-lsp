@@ -1,18 +1,14 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('Scope-Aware Type Inference', () => {
   let bridge: PikeBridge;
 
-  before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-  });
+  beforeAll(async () => { bridge = new PikeBridge();
+  await bridge.start(); });
 
-  after(async () => {
-    await bridge.stop();
-  });
+  afterAll(async () => { await bridge.stop(); });
 
   it('should resolve global variable type', async () => {
     const code = `string qsa;`;

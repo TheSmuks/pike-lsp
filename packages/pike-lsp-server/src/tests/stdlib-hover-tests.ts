@@ -8,7 +8,7 @@
  * Run with: node --test dist/tests/stdlib-hover-tests.js
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
@@ -36,17 +36,13 @@ function measureResolve<T>(
 describe('Stdlib Hover Tests', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
+    beforeAll(async () => { bridge = new PikeBridge();
+    await bridge.start();
+    
+    // Suppress stderr for cleaner test output
+    bridge.on('stderr', () => {}); });
 
-        // Suppress stderr for cleaner test output
-        bridge.on('stderr', () => {});
-    });
-
-    after(async () => {
-        await bridge.stop();
-    });
+    afterAll(async () => { await bridge.stop(); });
 
     it('should return symbols for Stdio module', async () => {
         const result = await bridge.resolveStdlib('Stdio');

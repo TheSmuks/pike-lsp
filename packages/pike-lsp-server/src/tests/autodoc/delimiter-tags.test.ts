@@ -3,7 +3,7 @@
  * Tests @index, @type, @obsolete, @copyright, @thanks, @fixme, @constant
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { buildHoverContent } from '../../features/utils/hover-builder.js';
 

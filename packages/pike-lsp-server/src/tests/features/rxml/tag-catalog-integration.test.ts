@@ -9,7 +9,7 @@
  * - Multiple server instance support
  */
 
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'bun:test';
 import * as assert from 'node:assert';
 import type { RXMLTagCatalogEntry } from '../../features/rxml/types.js';
 

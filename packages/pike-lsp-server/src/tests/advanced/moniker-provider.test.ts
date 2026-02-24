@@ -8,7 +8,7 @@
  * - 1.4 Moniker - Scheme selection
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
@@ -18,16 +18,12 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 let bridge: PikeBridge;
 
-before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-});
+beforeAll(async () => { bridge = new PikeBridge();
+await bridge.start(); });
 
-after(async () => {
-    if (bridge) {
-        await bridge.stop();
-    }
-});
+afterAll(async () => { if (bridge) {
+    await bridge.stop();
+} });
 
 // ============================================================================
 // Tests

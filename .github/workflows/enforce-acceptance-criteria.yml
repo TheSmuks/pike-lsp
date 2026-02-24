@@ -59,11 +59,11 @@ jobs:
             }
 
             // Must have linked issue
-            const hasLinkedIssue = /(closes|fixes|resolves)\s*#[0-9]+/i.test(body);
+            const hasLinkedIssue = /(closes|fixes|resolves)\s*#[0-9]+/.test(body);
             if (!hasLinkedIssue) {
               errors.push(
                 '- Missing linked issue.\n' +
-                '  Add one of: Closes #N, Fixes #N, Resolves #N'
+                '  Add one of (lowercase): closes #N, fixes #N, resolves #N'
               );
             }
 

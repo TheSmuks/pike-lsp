@@ -15,25 +15,21 @@
  * 5. Error responses
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
   let bridge: PikeBridge;
 
-  before(async () => {
-    bridge = new PikeBridge();
-    await bridge.start();
-    // Suppress stderr output during tests
-    bridge.on('stderr', () => {});
-  });
+  beforeAll(async () => { bridge = new PikeBridge();
+  await bridge.start();
+  // Suppress stderr output during tests
+  bridge.on('stderr', () => {}); });
 
-  after(async () => {
-    if (bridge) {
-      await bridge.stop();
-    }
-  });
+  afterAll(async () => { if (bridge) {
+    await bridge.stop();
+  } });
 
   // =========================================================================
   // 45.1 Method: parse

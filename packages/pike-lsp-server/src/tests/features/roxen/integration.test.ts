@@ -5,28 +5,24 @@
  * are properly integrated into diagnostics, symbols, and completion providers.
  */
 
-import { describe, test, before, after } from 'node:test';
+import { describe, test, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('Roxen Integration - TDD RED Phase', () => {
     let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        const available = await bridge.checkPike();
-        if (!available) {
-            throw new Error('Pike executable not found');
-        }
-        await bridge.start();
-        await new Promise(resolve => setTimeout(resolve, 200));
-    });
+    beforeAll(async () => { bridge = new PikeBridge();
+    const available = await bridge.checkPike();
+    if (!available) {
+        throw new Error('Pike executable not found');
+    }
+    await bridge.start();
+    await new Promise(resolve => setTimeout(resolve, 200)); });
 
-    after(async () => {
-        if (bridge) {
-            await bridge.stop();
-        }
-    });
+    afterAll(async () => { if (bridge) {
+        await bridge.stop();
+    } });
 
     describe('Detector integration', () => {
         test('Fast-path: code without "inherit "module"" -> returns null immediately', async () => {

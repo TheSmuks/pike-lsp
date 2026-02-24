@@ -15,7 +15,7 @@ After completing the task, you MUST:
 2. STAGE: `git add -A`
 3. COMMIT: `git commit -m "{type}: {description} #{issue}"`
 4. PUSH: `git push -u origin {branch}`
-5. CREATE PR: `gh pr create --title "{type}: {description} #{issue}" --body "Fixes #{issue}" --base main`
+5. CREATE PR: `gh pr create --title "{type}: {description} #{issue}" --body "fixes #{issue}" --base main`
 6. CLOSE ISSUE: `gh issue close {issue} --comment "PR created"`
 7. REPORT: Send message with PR URL
 
@@ -34,14 +34,14 @@ Do NOT ask for permission - proceed autonomously.
 
 ## Parameters
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `{issue}` | GitHub issue number | 287 |
-| `{title}` | Issue title | Review git workflow |
-| `{type}` | Commit type | chore, feat, fix, docs |
-| `{description}` | Short description | review git workflow |
-| `{branch}` | Branch name | chore/git-workflow-review |
-| `{working_dir}` | Working directory | /home/smuks/OpenCode/pike-lsp |
+| Parameter       | Description         | Example                       |
+| --------------- | ------------------- | ----------------------------- |
+| `{issue}`       | GitHub issue number | 287                           |
+| `{title}`       | Issue title         | Review git workflow           |
+| `{type}`        | Commit type         | chore, feat, fix, docs        |
+| `{description}` | Short description   | review git workflow           |
+| `{branch}`      | Branch name         | chore/git-workflow-review     |
+| `{working_dir}` | Working directory   | /home/smuks/OpenCode/pike-lsp |
 
 ## Protocol Steps
 
@@ -51,19 +51,21 @@ Do NOT ask for permission - proceed autonomously.
 4. **STAGE**: git add -A
 5. **COMMIT**: Clear commit message with issue #
 6. **PUSH**: Push to branch
-7. **PR**: Create PR with "Fixes #N"
+7. **PR**: Create PR with "fixes #N"
 8. **CLOSE**: Close the issue
 9. **REPORT**: Send completion message
 
 ## Lead Responsibilities
 
 In autonomous mode, the lead:
+
 - Spawns workers with this protocol
 - Monitors for failures
 - Handles CI failures if workers can't
 - Merges PRs after CI passes
 
 The lead does NOT:
+
 - Run git commands
 - Create PRs
 - Close issues

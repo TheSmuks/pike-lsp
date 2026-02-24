@@ -20,6 +20,10 @@ if [ "$ONLY_CONFIG" = "true" ]; then
   exit 0
 fi
 
+# 1.5 Prevent node:test imports (use bun:test only)
+echo "[Pre-push] Checking for forbidden node:test imports..."
+bash scripts/check-no-node-test.sh
+
 # Discover tools: check common locations if not already on PATH
 for dir in "$HOME/.bun/bin" /usr/local/bin; do
   [ -d "$dir" ] && export PATH="$dir:$PATH"

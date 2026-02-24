@@ -5,7 +5,7 @@
  * The extension passes analyzerPath explicitly, so auto-detection is not needed.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';

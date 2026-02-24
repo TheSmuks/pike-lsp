@@ -6,7 +6,7 @@
  * - Member access (file->read, mapping->key)
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { extractExpressionAtPosition } from '../features/navigation/expression-utils.js';
