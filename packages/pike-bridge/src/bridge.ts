@@ -21,6 +21,7 @@ import type {
   PikeVersionInfo,
   ProtocolInfo,
   QueryEngineMutationAck,
+  QueryEngineCancelAck,
   QueryEngineQueryResponse,
   QueryEngineSnapshotSelector,
   AnalyzeResponse,
@@ -1408,6 +1409,10 @@ export class PikeBridge extends EventEmitter {
     queryParams: Record<string, unknown>;
   }): Promise<QueryEngineQueryResponse> {
     return this.sendRequest<QueryEngineQueryResponse>('engine_query', params);
+  }
+
+  async engineCancelRequest(params: { requestId: string }): Promise<QueryEngineCancelAck> {
+    return this.sendRequest<QueryEngineCancelAck>('engine_cancel_request', params);
   }
 
   /**

@@ -792,6 +792,10 @@ export interface QueryEngineQueryResponse {
   };
 }
 
+export interface QueryEngineCancelAck {
+  accepted: boolean;
+}
+
 /**
  * RXML tag definition
  */
@@ -936,6 +940,7 @@ export interface PikeRequest {
     | 'engine_update_config'
     | 'engine_update_workspace'
     | 'engine_query'
+    | 'engine_cancel_request'
     | 'roxen_detect'
     | 'roxen_parse_tags'
     | 'roxen_parse_vars'
@@ -1063,6 +1068,7 @@ export type PikeResponseResult =
   | CacheStats
   | QueryEngineMutationAck
   | QueryEngineQueryResponse
+  | QueryEngineCancelAck
   | ProtocolInfo
   | PikeVersionInfo;
 

@@ -11,6 +11,7 @@ import type {
   PikeVersionInfo,
   ProtocolInfo,
   QueryEngineMutationAck,
+  QueryEngineCancelAck,
   QueryEngineQueryResponse,
   QueryEngineSnapshotSelector,
   AnalyzeResponse,
@@ -432,6 +433,15 @@ export class BridgeManager {
       );
     }
     return this.bridge.engineUpdateConfig(params);
+  }
+
+  async engineCancelRequest(params: { requestId: string }): Promise<QueryEngineCancelAck> {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: engineCancelRequest() called before bridge was initialized.'
+      );
+    }
+    return this.bridge.engineCancelRequest(params);
   }
 
   /**

@@ -126,12 +126,12 @@ Evidence:
 
 Owner: TBD
 
-Status: NOT_STARTED
+Status: IN_PROGRESS
 
 Checklist:
 
-- [ ] TS adapter emits cancel requests with request ids
-- [ ] Bridge forwards cancellation to Pike
+- [x] TS adapter emits cancel requests with request ids
+- [x] Bridge forwards cancellation to Pike
 - [ ] Pike query checkpoints honor cancellation
 - [ ] No-publish-after-cancel guard in adapter
 
@@ -142,6 +142,7 @@ Exit gate:
 Evidence:
 
 - PRs:
+- Cancellation forwarding path: `packages/pike-lsp-server/src/features/advanced/moniker.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`, `packages/pike-bridge/src/bridge.ts`, `pike-scripts/analyzer.pike`
 - Tests:
 - Logs:
 

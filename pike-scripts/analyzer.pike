@@ -163,6 +163,7 @@ int qe2_revision = 0;
 mapping(string:mapping(string:mixed)) qe2_documents = ([]);
 mapping(string:mixed) qe2_settings = ([]);
 mapping(string:mixed) qe2_workspace = (["roots": ({}), "added": ({}), "removed": ({})]);
+mapping(string:int) qe2_cancelled_requests = ([]);
 
 string qe2_snapshot_id() {
     return sprintf("snp-%d", qe2_revision);
@@ -569,6 +570,14 @@ int main(int argc, array(string) argv) {
         },
         "engine_query": lambda(mapping params, object ctx) {
             string request_id = (string)(params->requestId || "");
+            if (qe2_cancelled_requests[request_id]) {
+                return ([
+                    "error": ([
+                        "code": -32800,
+                        "message": "Request cancelled"
+                    ])
+                ]);
+            }
             mapping snapshot = mappingp(params->snapshot) ? params->snapshot : ([]);
             string snapshot_mode = (string)(snapshot->mode || "latest");
             string snapshot_used = snapshot_mode == "fixed" && stringp(snapshot->snapshotId)
@@ -588,6 +597,13 @@ int main(int argc, array(string) argv) {
                     "metrics": (["durationMs": 0.0])
                 ])
             ]);
+        },
+        "engine_cancel_request": lambda(mapping params, object ctx) {
+            string request_id = (string)(params->requestId || "");
+            if (sizeof(request_id)) {
+                qe2_cancelled_requests[request_id] = 1;
+            }
+            return (["result": (["accepted": 1])]);
         },
         "get_startup_metrics": lambda(mapping params, object ctx) {
             // PERF-012: Include context_created flag to indicate lazy state
