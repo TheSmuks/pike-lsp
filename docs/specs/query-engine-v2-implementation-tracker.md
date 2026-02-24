@@ -84,11 +84,11 @@ Checklist:
 - [x] Launch runbook drafted
 - [x] Protocol/version handshake implemented
 - [ ] Shadow mode diff harness implemented
-- [ ] Telemetry for requestId/snapshot/revision wired
+- [x] Telemetry for requestId/snapshot/revision wired
 
 Exit gate:
 
-- [ ] Query responses include snapshot metadata in migrated paths
+- [x] Query responses include snapshot metadata in migrated paths
 - [ ] Baseline p50/p95 and memory profiles captured
 
 Evidence:
@@ -96,6 +96,7 @@ Evidence:
 - Specs: `docs/specs/query-engine-v2-rfc.md`, `docs/specs/query-engine-v2-protocol.md`, `docs/specs/query-engine-v2-launch-runbook.md`
 - Runtime handshake: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-lsp-server/src/server.ts`
 - Query response revision metadata (diagnostics path): `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.test.ts`
+- Diagnostics runtime telemetry logs (requestId/snapshotId/revision): `packages/pike-lsp-server/src/features/diagnostics/index.ts`
 
 ### Phase 1 - Host/Snapshot Foundation
 

@@ -238,10 +238,16 @@ export function registerDiagnosticsHandlers(
           },
         });
 
+        const responseRevision =
+          typeof qeResponse.result['revision'] === 'number'
+            ? qeResponse.result['revision']
+            : undefined;
+
         log.debug('Engine query diagnostics response', {
           uri,
           requestId,
           snapshotIdUsed: qeResponse.snapshotIdUsed,
+          revision: responseRevision,
         });
         documentSnapshots.set(uri, qeResponse.snapshotIdUsed);
 
@@ -264,6 +270,7 @@ export function registerDiagnosticsHandlers(
       }
 
       if (!analyzeResult) {
+        log.debug('Engine query diagnostics using analyze fallback', { uri, requestId });
         analyzeResult = await bridge.analyze(
           text,
           ['parse', 'introspect', 'diagnostics', 'tokenize'],
