@@ -261,7 +261,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
           triggerCharacters: ['.', ':', '>', '-', '!'],
         },
         executeCommandProvider: {
-          commands: ['pike.lsp.showDiagnostics'],
+          commands: ['pike.lsp.serverHealth'],
         },
         signatureHelpProvider: {
           triggerCharacters: ['(', ','],
@@ -325,7 +325,7 @@ connection.onInitialized(async () => {
 
   // Register health check command handler
   connection.onExecuteCommand(async params => {
-    if (params.command === 'pike.lsp.showDiagnostics') {
+    if (params.command === 'pike.lsp.serverHealth') {
       const health = await bridgeManager?.getHealth();
 
       // Format health status as readable output
