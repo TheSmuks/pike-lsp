@@ -107,19 +107,20 @@ Checklist:
 - [x] `PikeAnalysisHost` mutable input model implemented
 - [x] Immutable snapshot handle implemented
 - [x] One read path migrated to fixed snapshot execution
-- [ ] Snapshot monotonicity tests added
+- [x] Snapshot monotonicity tests added
 
 Exit gate:
 
-- [ ] Snapshot/revision monotonic tests passing
+- [x] Snapshot/revision monotonic tests passing
 
 Evidence:
 
 - PRs:
 - Runtime stubs: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-bridge/src/types.ts`
+- Snapshot monotonicity tests: `packages/pike-bridge/src/bridge.test.ts`
 - Document lifecycle wiring: `packages/pike-lsp-server/src/features/diagnostics/index.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`
 - Fixed snapshot diagnostics read path: `packages/pike-lsp-server/src/features/diagnostics/index.ts`
-- Tests:
+- Tests: `bun test` in `packages/pike-bridge` (includes query-engine revision monotonic assertions)
 - Benchmarks:
 
 ### Phase 2 - Real Cancellation
