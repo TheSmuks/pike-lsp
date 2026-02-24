@@ -73,7 +73,7 @@ jobs:
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
-          path: /var/cache/apt/archives
+          path: /var/cache/apt/archives/*.deb
           key: apt-${{ runner.os }}-release-pike8.0
           restore-keys: |
             apt-${{ runner.os }}-release-
