@@ -200,16 +200,47 @@ export function registerDiagnosticsHandlers(
 
     try {
       log.debug('Calling unified analyze', { filename, version });
-      // PERF-004: Include 'tokenize' to avoid separate findOccurrences call for symbolPositions
-      // Tokens are used to build symbolPositions index without additional IPC round-trip
-      // Single unified analyze call - replaces 3 separate calls (introspect, parse, analyzeUninitialized)
-      // Pass document version for cache key (open docs use LSP version, no stat overhead)
-      const analyzeResult = await bridge.analyze(
-        text,
-        ['parse', 'introspect', 'diagnostics', 'tokenize'],
-        filename,
-        version
-      );
+      const requestId = `${uri}:${version}`;
+      let analyzeResult: import('@pike-lsp/pike-bridge').AnalyzeResponse | null = null;
+
+      try {
+        const qeResponse = await bridge.engineQuery({
+          feature: 'diagnostics',
+          requestId,
+          snapshot: { mode: 'latest' },
+          queryParams: {
+            uri,
+            filename,
+            version,
+          },
+        });
+
+        log.debug('Engine query diagnostics response', {
+          uri,
+          requestId,
+          snapshotIdUsed: qeResponse.snapshotIdUsed,
+        });
+
+        const candidate = qeResponse.result['analyzeResult'];
+        if (candidate && typeof candidate === 'object') {
+          analyzeResult = candidate as import('@pike-lsp/pike-bridge').AnalyzeResponse;
+        }
+      } catch (err) {
+        log.debug('Engine query diagnostics fallback', {
+          uri,
+          requestId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      if (!analyzeResult) {
+        analyzeResult = await bridge.analyze(
+          text,
+          ['parse', 'introspect', 'diagnostics', 'tokenize'],
+          filename,
+          version
+        );
+      }
 
       // Log completion status
       const hasParse = !!analyzeResult.result?.parse;
