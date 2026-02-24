@@ -132,8 +132,8 @@ Checklist:
 
 - [x] TS adapter emits cancel requests with request ids
 - [x] Bridge forwards cancellation to Pike
-- [ ] Pike query checkpoints honor cancellation
-- [ ] No-publish-after-cancel guard in adapter
+- [x] Pike query checkpoints honor cancellation
+- [x] No-publish-after-cancel guard in adapter
 
 Exit gate:
 
@@ -143,6 +143,7 @@ Evidence:
 
 - PRs:
 - Cancellation forwarding path: `packages/pike-lsp-server/src/features/advanced/moniker.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`, `packages/pike-bridge/src/bridge.ts`, `pike-scripts/analyzer.pike`
+- Adapter no-publish guard: `packages/pike-lsp-server/src/features/diagnostics/index.ts`
 - Tests:
 - Logs:
 

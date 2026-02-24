@@ -229,10 +229,15 @@ export function registerDiagnosticsHandlers(
           analyzeResult = candidate as import('@pike-lsp/pike-bridge').AnalyzeResponse;
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (/cancel/i.test(message)) {
+          log.debug('Engine query diagnostics cancelled', { uri, requestId });
+          return;
+        }
         log.debug('Engine query diagnostics fallback', {
           uri,
           requestId,
-          error: err instanceof Error ? err.message : String(err),
+          error: message,
         });
       }
 
