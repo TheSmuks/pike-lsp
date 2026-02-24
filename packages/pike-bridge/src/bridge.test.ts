@@ -81,6 +81,13 @@ describe('PikeBridge', () => {
     assert.ok(closeAck.snapshotId.startsWith('snp-'));
   });
 
+  it('should accept query-engine cancel requests', async () => {
+    const requestId = 'qe2-cancel-test';
+
+    const cancelAck = await bridge.engineCancelRequest({ requestId });
+    assert.equal(Boolean(cancelAck.accepted), true, 'Cancel request should be accepted');
+  });
+
   it('should parse simple Pike code', async () => {
     const code = `
             int x = 42;

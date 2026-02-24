@@ -145,7 +145,7 @@ Evidence:
 - PRs:
 - Cancellation forwarding path: `packages/pike-lsp-server/src/features/advanced/moniker.ts`, `packages/pike-lsp-server/src/services/bridge-manager.ts`, `packages/pike-bridge/src/bridge.ts`, `pike-scripts/analyzer.pike`
 - Adapter no-publish guard: `packages/pike-lsp-server/src/features/diagnostics/index.ts`
-- Tests:
+- Tests: `packages/pike-bridge/src/bridge.test.ts` cancellation acknowledgment coverage
 - Logs:
 
 ### Phase 3 - Diagnostics Vertical Slice
