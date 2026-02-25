@@ -141,13 +141,6 @@ jobs:
             ~/.cache/pike/distfiles
           key: pike-toolchain-${{ runner.os }}-8.0.1116-v2
 
-      - name: Cache Pike latest toolchain
-        if: matrix.pike-version == 'latest'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pike/latest
-          key: pike-toolchain-${{ runner.os }}-latest-v1
-
       - name: Install Pike ${{ matrix.pike-version }}
         run: |
           set -euxo pipefail
@@ -192,29 +185,14 @@ jobs:
             rm -rf "$BUILD_DIR"
             mkdir -p "$BUILD_DIR"
             tar -xzf "$PIKE_ARCHIVE" -C "$BUILD_DIR" --strip-components=1
-            cd "$BUILD_DIR"
+            cd "$BUILD_DIR/src"
             ./configure --prefix="$PIKE_PREFIX"
             make -j"$(nproc)"
             make install
             echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
           else
-            PIKE_PREFIX="$HOME/.cache/pike/latest"
-            if [ -x "$PIKE_PREFIX/bin/pike" ]; then
-              echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
-              exit 0
-            fi
-
             sudo apt-get update
-            sudo apt-get install -y build-essential libgmp-dev bison flex make git
-
-            BUILD_DIR="/tmp/pike-latest-build"
-            rm -rf "$BUILD_DIR"
-            git clone --depth 1 https://github.com/pike-lang/pike.git "$BUILD_DIR"
-            cd "$BUILD_DIR"
-            ./configure --prefix="$PIKE_PREFIX"
-            make -j"$(nproc)"
-            make install
-            echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
+            sudo apt-get install -y pike8.0
           fi
 
       - name: Verify Pike installation
