@@ -220,6 +220,58 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
         extensionTs.includes('pike.showReferences') && extensionTs.includes('registerCommand')
       ).toBe(true);
     });
+
+    test('33.5 should register pike.lsp.showHealth command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const showHealthCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.showHealth'
+      );
+
+      expect(showHealthCmd).toBeDefined();
+      expect(showHealthCmd?.title).toBe('Show Health');
+      expect(showHealthCmd?.category).toBe('Pike LSP');
+    });
+
+    test('33.6 should register pike.lsp.restartServer command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const restartServerCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.restartServer'
+      );
+
+      expect(restartServerCmd).toBeDefined();
+      expect(restartServerCmd?.title).toBe('Restart Server');
+      expect(restartServerCmd?.category).toBe('Pike LSP');
+    });
+
+    test('33.7 should register pike.lsp.serverActions command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const serverActionsCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.serverActions'
+      );
+
+      expect(serverActionsCmd).toBeDefined();
+      expect(serverActionsCmd?.title).toBe('Server Actions');
+      expect(serverActionsCmd?.category).toBe('Pike LSP');
+    });
+
+    test('33.8 should register pike.lsp.openLogs command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const openLogsCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.openLogs'
+      );
+
+      expect(openLogsCmd).toBeDefined();
+      expect(openLogsCmd?.title).toBe('Open Logs');
+      expect(openLogsCmd?.category).toBe('Pike LSP');
+    });
   });
 
   /**

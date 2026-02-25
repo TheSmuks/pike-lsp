@@ -46,6 +46,7 @@ bun run bundle-server
 
 # Keep extension E2E on the stable completion path unless explicitly overridden.
 export PIKE_LSP_QE2_COMPLETION="${PIKE_LSP_QE2_COMPLETION:-0}"
+export PIKE_LSP_ENABLE_TEST_COMMANDS="${PIKE_LSP_ENABLE_TEST_COMMANDS:-1}"
 
 # Check platform
 case "$(uname -s)" in

@@ -101,6 +101,7 @@ let bridgeManager: BridgeManager | null = null;
 
 let globalSettings: PikeSettings = defaultSettings;
 let includePaths: string[] = [];
+let clientSupportsWorkDoneProgress = false;
 
 // ============================================================================
 // Helper: Find analyzer.pike script
@@ -201,6 +202,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       | undefined;
 
     log(`Init options: ${JSON.stringify(initOptions)}`);
+    clientSupportsWorkDoneProgress = Boolean(params.capabilities.window?.workDoneProgress);
 
     const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv } = {
       pikePath: initOptions?.pikePath ?? 'pike',
@@ -489,10 +491,24 @@ connection.onInitialized(async () => {
 
     connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
     setImmediate(async () => {
+      const progress = clientSupportsWorkDoneProgress
+        ? await connection.window.createWorkDoneProgress().catch(() => null)
+        : null;
+
+      if (progress) {
+        progress.begin('Pike: indexing workspace', 0, 'Scanning project folders', false);
+      }
+
       let _totalIndexed = 0;
       const folderPaths: string[] = [];
-      for (const folder of workspaceFolders) {
+      for (let i = 0; i < workspaceFolders.length; i += 1) {
+        const folder = workspaceFolders[i]!;
         try {
+          if (progress) {
+            const percentage = Math.floor((i / workspaceFolders.length) * 90);
+            progress.report(percentage, `Indexing ${folder.name}`);
+          }
+
           const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
           folderPaths.push(folderPath);
           const indexed = await workspaceIndex.indexDirectory(folderPath, true);
@@ -510,6 +526,10 @@ connection.onInitialized(async () => {
 
       // Initialize workspace scanner for workspace-wide references
       try {
+        if (progress) {
+          progress.report(95, 'Building workspace scanner index');
+        }
+
         await workspaceScanner.initialize(folderPaths);
         const scannerStats = workspaceScanner.getStats();
         connection.console.log(
@@ -517,6 +537,11 @@ connection.onInitialized(async () => {
         );
       } catch (err) {
         connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
+      } finally {
+        if (progress) {
+          progress.report(100, 'Workspace ready');
+          progress.done();
+        }
       }
     });
   }

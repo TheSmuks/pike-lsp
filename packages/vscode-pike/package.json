@@ -108,6 +108,26 @@
         "command": "pike.detectPike",
         "title": "Detect Pike Installation",
         "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.showHealth",
+        "title": "Show Health",
+        "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.restartServer",
+        "title": "Restart Server",
+        "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.serverActions",
+        "title": "Server Actions",
+        "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.openLogs",
+        "title": "Open Logs",
+        "category": "Pike LSP"
       }
     ],
     "menus": {

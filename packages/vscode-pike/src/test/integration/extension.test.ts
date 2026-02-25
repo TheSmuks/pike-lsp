@@ -190,4 +190,121 @@ int main() {
       'All restart cycles should keep extension responsive'
     );
   });
+
+  test('Should auto-restart after unexpected client stop', async function () {
+    this.timeout(120000);
+
+    const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+    assert.ok(extension, 'Extension should be found');
+
+    if (!extension.isActive) {
+      await extension.activate();
+    }
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, 'Workspace folder should exist');
+    const testUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+
+    const beforeStopSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+      'vscode.executeDocumentSymbolProvider',
+      testUri
+    );
+    assert.ok(
+      beforeStopSymbols === undefined || Array.isArray(beforeStopSymbols),
+      'Server should be responsive before forced stop'
+    );
+
+    await vscode.commands.executeCommand('pike.lsp.__simulateUnexpectedStopForTesting');
+
+    let recovered = false;
+    const deadline = Date.now() + 30000;
+
+    while (Date.now() < deadline && !recovered) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      try {
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+          'vscode.executeDocumentSymbolProvider',
+          testUri
+        );
+        if (symbols === undefined || Array.isArray(symbols)) {
+          recovered = true;
+        }
+      } catch {}
+    }
+
+    assert.strictEqual(recovered, true, 'Server should recover after unexpected stop');
+  });
+
+  test('Should pause auto-restart after repeated restart failures', async function () {
+    this.timeout(120000);
+
+    const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+    assert.ok(extension, 'Extension should be found');
+
+    if (!extension.isActive) {
+      await extension.activate();
+    }
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, 'Workspace folder should exist');
+    const testUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+
+    await vscode.commands.executeCommand('pike.lsp.__setAutoRestartPolicyForTesting', {
+      windowMs: 20000,
+      maxAttempts: 2,
+      backoffMs: [100, 200],
+    });
+    await vscode.commands.executeCommand('pike.lsp.__setRestartFailureModeForTesting', true);
+
+    try {
+      try {
+        await vscode.commands.executeCommand('pike.lsp.__simulateUnexpectedStopForTesting');
+      } catch (err) {
+        const message = String(err);
+        if (!message.includes('Pending response rejected since connection got disposed')) {
+          throw err;
+        }
+      }
+
+      let paused = false;
+      const deadline = Date.now() + 15000;
+
+      while (Date.now() < deadline && !paused) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const state = await vscode.commands.executeCommand<{
+          paused?: boolean;
+          attempts?: number;
+        }>('pike.lsp.__getAutoRestartStateForTesting');
+        paused = Boolean(state?.paused);
+      }
+
+      assert.strictEqual(paused, true, 'Auto-restart should pause after repeated failures');
+    } finally {
+      await vscode.commands.executeCommand('pike.lsp.__setRestartFailureModeForTesting', false);
+      await vscode.commands.executeCommand('pike.lsp.__setAutoRestartPolicyForTesting', {
+        windowMs: 60000,
+        maxAttempts: 3,
+        backoffMs: [1000, 3000, 7000],
+      });
+
+      await vscode.commands.executeCommand('pike.lsp.restartServer');
+
+      let recovered = false;
+      const recoverDeadline = Date.now() + 30000;
+      while (Date.now() < recoverDeadline && !recovered) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+          const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+            'vscode.executeDocumentSymbolProvider',
+            testUri
+          );
+          if (symbols === undefined || Array.isArray(symbols)) {
+            recovered = true;
+          }
+        } catch {}
+      }
+
+      assert.strictEqual(recovered, true, 'Server should recover after disabling failure mode');
+    }
+  });
 });
