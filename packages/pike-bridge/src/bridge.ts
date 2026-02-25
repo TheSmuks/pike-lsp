@@ -148,6 +148,8 @@ export class PikeBridge extends EventEmitter {
   private requestCache = new Map<string, Promise<unknown>>();
   /** PERF-003: Tokenization cache for completion context */
   private tokenCache = new Map<string, CachedTokens>();
+  private stdlibResolveCache = new Map<string, import('./types.js').StdlibResolveResult>();
+  private moduleResolveCache = new Map<string, string | null>();
   /** PERF-003: Maximum number of cached documents */
   private readonly MAX_TOKEN_CACHE_SIZE = 50;
 
@@ -342,7 +344,14 @@ export class PikeBridge extends EventEmitter {
       this.process = null;
       this.started = false;
     }
+    this.requestCache.clear();
+    this.clearResolutionCaches();
     this.emit('stopped');
+  }
+
+  private clearResolutionCaches(): void {
+    this.stdlibResolveCache.clear();
+    this.moduleResolveCache.clear();
   }
 
   /**
@@ -357,8 +366,20 @@ export class PikeBridge extends EventEmitter {
   /**
    * Generate cache key for request deduplication
    */
-  private getRequestKey(method: string, params: Record<string, unknown>): string {
-    return `${method}:${JSON.stringify(params)}`;
+  private getRequestKey(method: string, params: Record<string, unknown>): string | null {
+    switch (method) {
+      case 'analyze':
+      case 'parse':
+      case 'compile':
+      case 'tokenize':
+      case 'get_completion_context':
+      case 'get_completion_context_cached':
+      case 'extract_imports':
+      case 'check_circular':
+        return null;
+      default:
+        return `${method}:${JSON.stringify(params)}`;
+    }
   }
 
   /**
@@ -376,11 +397,12 @@ export class PikeBridge extends EventEmitter {
 
     // Check for inflight request with same method and params
     const requestKey = this.getRequestKey(method, params);
-    const existing = this.requestCache.get(requestKey);
-
-    if (existing) {
-      // Reuse the existing inflight request
-      return existing as Promise<T>;
+    if (requestKey) {
+      const existing = this.requestCache.get(requestKey);
+      if (existing) {
+        // Reuse the existing inflight request
+        return existing as Promise<T>;
+      }
     }
 
     if (!this.process || !this.process.isAlive() || !this.started) {
@@ -409,11 +431,15 @@ export class PikeBridge extends EventEmitter {
     });
 
     // Track as inflight
-    this.requestCache.set(requestKey, promise);
+    if (requestKey) {
+      this.requestCache.set(requestKey, promise);
+    }
 
     // Remove from inflight when done (success or failure)
     promise.finally(() => {
-      this.requestCache.delete(requestKey);
+      if (requestKey) {
+        this.requestCache.delete(requestKey);
+      }
     });
 
     // Apply runtime response validation if provided
@@ -604,6 +630,12 @@ export class PikeBridge extends EventEmitter {
    * ```
    */
   async resolveModule(modulePath: string, currentFile?: string): Promise<string | null> {
+    const cacheKey = `${modulePath}@@${currentFile ?? ''}`;
+    if (this.moduleResolveCache.has(cacheKey)) {
+      const cached = this.moduleResolveCache.get(cacheKey);
+      return cached ?? null;
+    }
+
     const result = await this.sendRequest<{
       path: string | null;
       exists: boolean;
@@ -612,7 +644,9 @@ export class PikeBridge extends EventEmitter {
       currentFile: currentFile || undefined,
     });
 
-    return result.exists ? result.path : null;
+    const resolvedPath = result.exists ? result.path : null;
+    this.moduleResolveCache.set(cacheKey, resolvedPath);
+    return resolvedPath;
   }
 
   /**
@@ -716,6 +750,11 @@ export class PikeBridge extends EventEmitter {
    * ```
    */
   async resolveStdlib(modulePath: string): Promise<import('./types.js').StdlibResolveResult> {
+    const cached = this.stdlibResolveCache.get(modulePath);
+    if (cached) {
+      return cached;
+    }
+
     const result = await this.sendRequest<import('./types.js').StdlibResolveResult>(
       'resolve_stdlib',
       {
@@ -723,6 +762,7 @@ export class PikeBridge extends EventEmitter {
       }
     );
 
+    this.stdlibResolveCache.set(modulePath, result);
     return result;
   }
 

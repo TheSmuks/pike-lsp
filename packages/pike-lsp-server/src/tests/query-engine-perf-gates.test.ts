@@ -119,4 +119,38 @@ describe('Query engine perf gates', () => {
     const hardFailRate = hardFails / 40;
     assert.equal(hardFailRate, 0);
   });
+
+  it('keeps typing fairness under background load within latency budget', async () => {
+    const scheduler = new RequestScheduler();
+    const backgroundTasks: Promise<void>[] = [];
+
+    for (let i = 0; i < 20; i++) {
+      backgroundTasks.push(
+        scheduler.schedule({
+          requestClass: 'background',
+          run: async checkpoint => {
+            checkpoint();
+            await new Promise(resolve => setTimeout(resolve, 2));
+            checkpoint();
+          },
+        })
+      );
+    }
+
+    const typingLatencies: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const start = Date.now();
+      await scheduler.schedule({
+        requestClass: 'typing',
+        run: async () => {
+          typingLatencies.push(Date.now() - start);
+        },
+      });
+    }
+
+    await Promise.all(backgroundTasks);
+
+    const typingP95 = percentile(typingLatencies, 0.95);
+    assert.equal(typingP95 < 40, true);
+  });
 });

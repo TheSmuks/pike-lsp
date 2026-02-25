@@ -86,6 +86,18 @@ jobs:
         env:
           BENCHMARK_RESULTS: benchmark-results.json
 
+      - name: Compare branch vs main (critical budget gate)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          bun run bench:gate -- --rounds=2 --base=origin/main --target=HEAD --iterations=2 --warmup=1 --mitata-time=200 --output=benchmark-branch-compare.json --budget=scripts/benchmark-budgets.json
+
+      - name: Enforce typing fairness perf test gate
+        if: github.event_name == 'pull_request'
+        run: |
+          cd packages/pike-lsp-server
+          bun test src/tests/query-engine-perf-gates.test.ts
+
       - name: Prepare for benchmark storage
         run: |
           # Stash benchmark results so git switch doesn't fail

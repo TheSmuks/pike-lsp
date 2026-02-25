@@ -42,7 +42,7 @@ describe('RequestScheduler', () => {
     releaseBackgroundFn();
 
     await Promise.all([backgroundPromise, typingPromise, interactivePromise]);
-    assert.deepEqual(order, ['background-start', 'background-end', 'typing', 'interactive']);
+    assert.deepEqual(order, ['typing', 'interactive', 'background-start', 'background-end']);
   });
 
   it('coalesces keyed requests and rejects superseded entries', async () => {
@@ -200,14 +200,16 @@ describe('RequestScheduler', () => {
       },
     });
 
-    const firstCoalesced = scheduler.schedule({
-      requestClass: 'typing',
-      key: 'obs:file:///tmp/obs.pike',
-      coalesceMs: 5,
-      run: async () => {
-        return;
-      },
-    });
+    const firstCoalesced = scheduler
+      .schedule({
+        requestClass: 'typing',
+        key: 'obs:file:///tmp/obs.pike',
+        coalesceMs: 5,
+        run: async () => {
+          return;
+        },
+      })
+      .catch(err => err);
 
     const secondCoalesced = scheduler.schedule({
       requestClass: 'typing',
@@ -222,9 +224,7 @@ describe('RequestScheduler', () => {
     try {
       await fail;
     } catch {}
-    try {
-      await firstCoalesced;
-    } catch {}
+    await firstCoalesced;
     await secondCoalesced;
 
     const metrics = scheduler.snapshotMetrics();
@@ -276,5 +276,43 @@ describe('RequestScheduler', () => {
     await second;
     assert.equal(cancelSeenAt > 0, true);
     assert.equal(cancelSeenAt - start < 100, true);
+  });
+
+  it('prioritizes typing bursts over queued background starts', async () => {
+    const scheduler = new RequestScheduler();
+    const order: string[] = [];
+
+    const background = scheduler.schedule({
+      requestClass: 'background',
+      run: async () => {
+        order.push('background');
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1));
+
+    const typing = scheduler.schedule({
+      requestClass: 'typing',
+      run: async () => {
+        order.push('typing');
+      },
+    });
+
+    await Promise.all([background, typing]);
+    assert.deepEqual(order, ['typing', 'background']);
+  });
+
+  it('still runs background work when no typing arrives', async () => {
+    const scheduler = new RequestScheduler();
+    const startedAt = Date.now();
+    await scheduler.schedule({
+      requestClass: 'background',
+      run: async () => {
+        return;
+      },
+    });
+
+    const duration = Date.now() - startedAt;
+    assert.equal(duration < 100, true);
   });
 });

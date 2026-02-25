@@ -7,6 +7,23 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type AnyRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): AnyRecord {
+  return typeof value === 'object' && value !== null ? (value as AnyRecord) : {};
+}
+
+function readNestedNumber(record: AnyRecord, path: string[]): number | null {
+  let current: unknown = record;
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null || !(key in (current as AnyRecord))) {
+      return null;
+    }
+    current = (current as AnyRecord)[key];
+  }
+  return typeof current === 'number' ? current : null;
+}
+
 async function runBenchmarks() {
   const smallPike = fs.readFileSync(path.join(__dirname, 'fixtures/small.pike'), 'utf8');
   const mediumPike = fs.readFileSync(path.join(__dirname, 'fixtures/medium.pike'), 'utf8');
@@ -26,7 +43,11 @@ async function runBenchmarks() {
 
       // Fetch startup metrics if available
       try {
-        const metrics = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_startup_metrics', {});
+        const metrics = await (
+          bridge as unknown as {
+            sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>>;
+          }
+        ).sendRequest('get_startup_metrics', {});
         // Metrics will be available in result.startup
         const startup = metrics?.startup;
         if (startup && !process.env.MITATA_JSON) {
@@ -58,28 +79,43 @@ async function runBenchmarks() {
   await bridge.start();
 
   const pikeMetrics: Record<string, number[]> = {};
+  const collectPikeMetrics = !process.env.MITATA_JSON;
 
-  const trackPikeTime = (name: string, result: Record<string, unknown>) => {
+  const trackPikeTime = (name: string, result: unknown) => {
+    if (!collectPikeMetrics) {
+      return;
+    }
     if (!pikeMetrics[name]) pikeMetrics[name] = [];
-    if (result?._perf?.pike_total_ms) {
-      pikeMetrics[name].push(result._perf.pike_total_ms);
+    const rec = asRecord(result);
+    const directPerf = readNestedNumber(rec, ['_perf', 'pike_total_ms']);
+    if (directPerf !== null) {
+      pikeMetrics[name].push(directPerf);
     } else if (Array.isArray(result)) {
-        // Handle batch results if needed, but here we usually have single objects
+      // Handle batch results if needed, but here we usually have single objects
     } else if (typeof result === 'object' && result !== null) {
-        // Check nested results (like in validation suite)
-        for (const key in result) {
-            if (result[key]?._perf?.pike_total_ms) {
-                pikeMetrics[name].push(result[key]._perf.pike_total_ms);
-            }
+      // Check nested results (like in validation suite)
+      for (const key of Object.keys(rec)) {
+        const value = rec[key];
+        const nestedPerf = readNestedNumber(asRecord(value), ['_perf', 'pike_total_ms']);
+        if (nestedPerf !== null) {
+          pikeMetrics[name].push(nestedPerf);
         }
+      }
     }
   };
 
   // PERF-011: Fetch startup metrics once for reporting
   let startupPhases: Record<string, number> | null = null;
   try {
-    const startupResult = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_startup_metrics', {});
-    startupPhases = startupResult?.startup || null;
+    const startupResult = await (
+      bridge as unknown as {
+        sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>>;
+      }
+    ).sendRequest('get_startup_metrics', {});
+    const startupRecord = asRecord(startupResult?.startup);
+    startupPhases = Object.fromEntries(
+      Object.entries(startupRecord).filter(([, v]) => typeof v === 'number')
+    ) as Record<string, number>;
   } catch {
     // Handler may not be available
   }
@@ -88,10 +124,11 @@ async function runBenchmarks() {
     const runValidation = async (code: string, filename: string, benchName: string) => {
       const results: Record<string, unknown> = {};
       const response = await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
-      results.introspect = response.result.introspect;
-      results.parse = response.result.parse;
-      results.analyze = response.result.diagnostics;
-      trackPikeTime(benchName, response.result);
+      const responseResult = asRecord(response.result);
+      results.introspect = responseResult.introspect;
+      results.parse = responseResult.parse;
+      results.analyze = responseResult.diagnostics;
+      trackPikeTime(benchName, responseResult);
       return results;
     };
 
@@ -128,12 +165,8 @@ async function runBenchmarks() {
 
     // Consolidated: Single analyze() call with all include types
     bench('Validation Consolidated (1 call: analyze with all includes)', async () => {
-      const response = await bridge.analyze(
-        code,
-        ['parse', 'introspect', 'diagnostics'],
-        filename
-      );
-      trackPikeTime('Validation Consolidated', response.result);
+      const response = await bridge.analyze(code, ['parse', 'introspect', 'diagnostics'], filename);
+      trackPikeTime('Validation Consolidated', response.result ?? {});
       return response;
     });
 
@@ -145,10 +178,7 @@ async function runBenchmarks() {
   // PERF-13-04: Compilation Cache benchmark group
   // Measures the speedup from caching compiled programs
   group('Compilation Cache (Warm)', async () => {
-    const cacheTestCode = fs.readFileSync(
-      path.join(__dirname, 'fixtures/cache-test.pike'),
-      'utf8'
-    );
+    const cacheTestCode = fs.readFileSync(path.join(__dirname, 'fixtures/cache-test.pike'), 'utf8');
     const cacheTestFilename = 'cache-test.pike';
 
     // Warm up: First request always compiles (cache miss)
@@ -160,7 +190,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        1  // Same version = cache hit
+        1 // Same version = cache hit
       );
       return response;
     });
@@ -171,7 +201,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        999  // Different version = cache miss
+        999 // Different version = cache miss
       );
       return response;
     });
@@ -182,7 +212,7 @@ async function runBenchmarks() {
         cacheTestCode,
         ['introspect'],
         cacheTestFilename,
-        undefined  // No version = stat-based key
+        undefined // No version = stat-based key
       );
       return response;
     });
@@ -194,10 +224,7 @@ async function runBenchmarks() {
       path.join(__dirname, 'fixtures/cross-file/lib/utils.pike'),
       'utf8'
     );
-    const mainCode = fs.readFileSync(
-      path.join(__dirname, 'fixtures/cross-file/main.pike'),
-      'utf8'
-    );
+    const mainCode = fs.readFileSync(path.join(__dirname, 'fixtures/cross-file/main.pike'), 'utf8');
 
     // First compile utils.pike directly to establish baseline
     await bridge.analyze(utilsCode, ['introspect'], 'lib/utils.pike', 1);
@@ -265,29 +292,29 @@ async function runBenchmarks() {
   group('Responsiveness (Warm)', () => {
     // Benchmark: First keystroke response (user perception)
     bench('First diagnostic after document change', async () => {
-      const start = Date.now();
+      const start = performance.now();
       await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', 1);
-      return Date.now() - start;
+      return performance.now() - start;
     });
 
     // Benchmark: Validation with debounce delay (simulates post-typing validation)
     bench('[Debounce] Validation with 250ms debounce', async () => {
       // Simulate waiting for debounce delay + validation
-      const start = Date.now();
+      const start = performance.now();
       await new Promise(resolve => setTimeout(resolve, 250));
       await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', 2);
-      return Date.now() - start;
+      return performance.now() - start;
     });
 
     // Benchmark: Rapid edit coalescing (multiple edits before debounce fires)
     bench('[Debounce] Rapid edit simulation (5x50ms)', async () => {
       // Simulate 5 rapid edits - only last one should trigger validation
-      const start = Date.now();
+      const start = performance.now();
       for (let i = 0; i < 5; i++) {
         await new Promise(resolve => setTimeout(resolve, 50)); // 50ms between edits (faster than debounce)
         await bridge.analyze(mediumPike, ['introspect'], 'medium.pike', i + 1);
       }
-      return Date.now() - start;
+      return performance.now() - start;
     });
 
     // Benchmark: Pure validation performance without debounce delays
@@ -359,16 +386,24 @@ async function runBenchmarks() {
 
     // PERF-13-04: Report compilation cache statistics
     try {
-      const cacheStats = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_cache_stats', {});
+      const cacheStats = await (
+        bridge as unknown as {
+          sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>>;
+        }
+      ).sendRequest('get_cache_stats', {});
       if (cacheStats && !process.env.MITATA_JSON) {
         console.log('\n--- Compilation Cache Statistics ---');
-        console.log(`Hits:        ${cacheStats.hits || 0}`);
-        console.log(`Misses:      ${cacheStats.misses || 0}`);
-        console.log(`Evictions:   ${cacheStats.evictions || 0}`);
-        console.log(`Size:        ${cacheStats.size || 0} / ${cacheStats.max_files || 0} files`);
-        const hitRate = cacheStats.hits > 0
-          ? (cacheStats.hits / (cacheStats.hits + cacheStats.misses) * 100).toFixed(1)
-          : '0.0';
+        const statsRecord = asRecord(cacheStats);
+        const hits = typeof statsRecord.hits === 'number' ? statsRecord.hits : 0;
+        const misses = typeof statsRecord.misses === 'number' ? statsRecord.misses : 0;
+        const evictions = typeof statsRecord.evictions === 'number' ? statsRecord.evictions : 0;
+        const size = typeof statsRecord.size === 'number' ? statsRecord.size : 0;
+        const maxFiles = typeof statsRecord.max_files === 'number' ? statsRecord.max_files : 0;
+        console.log(`Hits:        ${hits}`);
+        console.log(`Misses:      ${misses}`);
+        console.log(`Evictions:   ${evictions}`);
+        console.log(`Size:        ${size} / ${maxFiles} files`);
+        const hitRate = hits > 0 ? ((hits / (hits + misses)) * 100).toFixed(1) : '0.0';
         console.log(`Hit Rate:    ${hitRate}%`);
       }
     } catch {
@@ -379,8 +414,14 @@ async function runBenchmarks() {
     if (!process.env.MITATA_JSON) {
       console.log('\n=== Cross-File Cache Verification ===');
       try {
-        const cacheStats = await (bridge as unknown as { sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>> }).sendRequest('get_cache_stats', {});
-        console.log(`Files in cache: ${cacheStats.size || 0}`);
+        const cacheStats = await (
+          bridge as unknown as {
+            sendRequest: (method: string, params: unknown) => Promise<Record<string, unknown>>;
+          }
+        ).sendRequest('get_cache_stats', {});
+        const statsRecord = asRecord(cacheStats);
+        const size = typeof statsRecord.size === 'number' ? statsRecord.size : 0;
+        console.log(`Files in cache: ${size}`);
         console.log('Verification: Check if both main.pike and lib/utils.pike are cached');
         console.log('Expected: 2+ files (main.pike + lib/utils.pike) for cross-file caching');
       } catch {

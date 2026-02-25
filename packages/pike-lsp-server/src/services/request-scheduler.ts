@@ -54,6 +54,7 @@ interface PendingTaskHandle {
 export class RequestScheduler {
   private nextId = 1;
   private running = false;
+  private readonly BACKGROUND_START_GRACE_MS = 8;
   private readonly queues: Record<RequestClass, QueuedTask[]> = {
     typing: [],
     interactive: [],
@@ -180,6 +181,18 @@ export class RequestScheduler {
 
         if (!next) {
           break;
+        }
+
+        if (
+          next.requestClass === 'background' &&
+          this.queues.typing.length === 0 &&
+          this.queues.interactive.length === 0
+        ) {
+          await new Promise(resolve => setTimeout(resolve, this.BACKGROUND_START_GRACE_MS));
+          if (this.queues.typing.length > 0 || this.queues.interactive.length > 0) {
+            this.queues.background.unshift(next);
+            continue;
+          }
         }
 
         await this.runTask(next);
