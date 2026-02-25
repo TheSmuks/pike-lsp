@@ -257,7 +257,14 @@ int main() {
     await vscode.commands.executeCommand('pike.lsp.__setRestartFailureModeForTesting', true);
 
     try {
-      await vscode.commands.executeCommand('pike.lsp.__simulateUnexpectedStopForTesting');
+      try {
+        await vscode.commands.executeCommand('pike.lsp.__simulateUnexpectedStopForTesting');
+      } catch (err) {
+        const message = String(err);
+        if (!message.includes('Pending response rejected since connection got disposed')) {
+          throw err;
+        }
+      }
 
       let paused = false;
       const deadline = Date.now() + 15000;
