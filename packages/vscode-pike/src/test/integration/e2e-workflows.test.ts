@@ -1,46 +1,17 @@
-/**
- * E2E Workflow Tests
- *
- * These tests verify complete end-to-end workflows that users would perform.
- * Tests cover typical development workflows from opening a file to refactoring.
- *
- * Tests verify:
- * - 46.1: Open Pike file and verify language features activate
- * - 46.2: Code completion workflow triggers and inserts suggestion
- * - 46.3: Go-to-definition workflow navigates to symbol definition
- * - 46.4: Find references workflow shows all symbol usages
- * - 46.5: Rename symbol workflow updates all occurrences
- * - 46.6: Workspace search workflow finds symbols across files
- * - 46.7: Call hierarchy workflow shows callers/callees
- * - 46.8: Type hierarchy workflow shows inheritance
- * - 46.9: Document formatting workflow applies formatting
- * - 46.10: Configure Pike path in settings
- * - 46.11: Add module path configuration
- * - 46.12: Show diagnostics for Pike errors
- *
- * Key principle: Tests simulate real user workflows through VSCode commands
- */
-
 // @ts-nocheck - Integration tests use mocha types at runtime
-// These tests require vscode package to run - skip in standard test environment
 
 import * as assert from 'assert';
-import * as fs from 'fs';
-import * as path from 'path';
 import { suite, test } from 'mocha';
+import { labelOf, normalizeLocations, positionForRegex, waitFor } from './helpers';
 
-// Skip all tests in this file if vscode is not available
 let vscode: any;
 let vscodeAvailable = true;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   vscode = require('vscode');
-  vscodeAvailable = true;
 } catch {
-  // vscode not available - tests will be skipped
+  vscodeAvailable = false;
 }
-
-const itSkip = test;
 
 suite('E2E Workflow Tests', () => {
   let workspaceFolder: any;
@@ -48,27 +19,31 @@ suite('E2E Workflow Tests', () => {
   let document: any;
 
   suiteSetup(async function () {
+    if (!vscodeAvailable) {
+      this.skip();
+      return;
+    }
     this.timeout(60000);
 
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+    workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, 'Workspace folder should exist');
 
     const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
     assert.ok(extension, 'Extension should be found');
-
     if (!extension.isActive) {
       await extension.activate();
-      console.log('Extension activated for E2E workflow tests');
     }
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
 
     testDocumentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
     document = await vscode.workspace.openTextDocument(testDocumentUri);
     await vscode.window.showTextDocument(document);
 
-    await new Promise(resolve => setTimeout(resolve, 15000));
-    console.log('E2E workflow test setup complete');
+    await waitFor(
+      'initial document symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      20000
+    );
   });
 
   suiteTeardown(async () => {
@@ -78,439 +53,336 @@ suite('E2E Workflow Tests', () => {
     }
   });
 
-  /**
-   * 46.1: Open Pike file and verify language features activate
-   * Category: Happy Path
-   *
-   * Arrange: Test workspace with Pike files
-   * Act: Open a Pike file
-   * Assert: Language ID is pike, LSP features are available
-   */
   test('46.1 Open Pike file and verify language features activate', async function () {
     this.timeout(30000);
 
-    const uri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
-    const doc = await vscode.workspace.openTextDocument(uri);
-
-    assert.strictEqual(doc.languageId, 'pike', 'Document should have Pike language ID');
-
-    // Verify LSP is active by checking document symbols
-    const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+    assert.strictEqual(document.languageId, 'pike', 'Document should have Pike language ID');
+    const symbols = await vscode.commands.executeCommand<any[]>(
       'vscode.executeDocumentSymbolProvider',
-      uri
+      testDocumentUri
     );
-
-    assert.ok(symbols !== undefined, 'LSP should respond to document symbol request');
+    assert.ok(Array.isArray(symbols) && symbols.length > 0, 'Document symbols should be returned');
+    assert.ok(
+      symbols.some(s => s.name === 'test_function'),
+      'Fixture symbol test_function should exist'
+    );
   });
 
-  /**
-   * 46.2: Code completion workflow triggers and inserts suggestion
-   * Category: Happy Path
-   *
-   * Arrange: Open Pike file and position cursor after dot
-   * Act: Trigger completion and select item
-   * Assert: Completion items appear and can be inserted
-   */
   test('46.2 Code completion workflow triggers and inserts suggestion', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const completionMatch = text.match(/Array\./);
-    assert.ok(completionMatch, 'Should find Array. completion trigger');
-
-    const completionOffset = text.indexOf(completionMatch[0]) + 'Array.'.length;
-    const completionPosition = document.positionAt(completionOffset);
-
-    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      'vscode.executeCompletionItemProvider',
-      testDocumentUri,
-      completionPosition
+    const completionPosition = positionForRegex(document, /Array\./, 'Array.'.length);
+    const completions = await waitFor(
+      'Array completions',
+      () =>
+        vscode.commands.executeCommand<any>(
+          'vscode.executeCompletionItemProvider',
+          testDocumentUri,
+          completionPosition
+        ),
+      value => value?.items?.length > 0
     );
 
-    assert.ok(completions, 'Should return completions');
-    assert.ok(completions!.items.length > 0, 'Should have completion items');
+    const labels = completions.items.map(labelOf);
+    assert.ok(
+      labels.includes('sum'),
+      `Expected Array completion to include sum. Got: ${labels.slice(0, 20).join(', ')}`
+    );
   });
 
-  /**
-   * 46.3: Go-to-definition workflow navigates to symbol definition
-   * Category: Happy Path
-   *
-   * Arrange: Open Pike file with function call
-   * Act: Execute go-to-definition on function reference
-   * Assert: Navigation location points to function definition
-   */
   test('46.3 Go-to-definition workflow navigates to symbol definition', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const funcMatch = text.match(/test_function\s*\(/);
-    assert.ok(funcMatch, 'Should find test_function call');
+    const callPosition = positionForRegex(
+      document,
+      /return test_function\("test"\)/,
+      'return '.length
+    );
+    const rawLocations = await vscode.commands.executeCommand<any>(
+      'vscode.executeDefinitionProvider',
+      testDocumentUri,
+      callPosition
+    );
+    const locations = normalizeLocations(rawLocations);
 
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
-
-    const locations = await vscode.commands.executeCommand<
-      vscode.Location | vscode.Location[] | vscode.LocationLink[]
-    >('vscode.executeDefinitionProvider', testDocumentUri, funcPosition);
-
-    assert.ok(locations, 'Should return definition locations');
+    assert.ok(locations.length > 0, 'Definition should return at least one location');
+    assert.strictEqual(
+      locations[0].uri.toString(),
+      testDocumentUri.toString(),
+      'Definition should resolve in fixture file'
+    );
+    const definitionLine = document.lineAt(locations[0].range.start.line).text;
+    assert.ok(
+      definitionLine.includes('int test_function'),
+      `Definition line mismatch: ${definitionLine}`
+    );
   });
 
-  /**
-   * 46.4: Find references workflow shows all symbol usages
-   * Category: Happy Path
-   *
-   * Arrange: Open Pike file and find symbol reference
-   * Act: Execute find references
-   * Assert: Returns all reference locations including definition
-   */
   test('46.4 Find references workflow shows all symbol usages', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const varMatch = text.match(/test_variable/);
-    assert.ok(varMatch, 'Should find test_variable reference');
-
-    const varOffset = text.indexOf(varMatch![0]);
-    const varPosition = document.positionAt(varOffset);
-
-    const references = await vscode.commands.executeCommand<vscode.Location[]>(
+    const varPosition = positionForRegex(document, /int a = test_variable/, 'int a = '.length);
+    const references = await vscode.commands.executeCommand<any[]>(
       'vscode.executeReferenceProvider',
       testDocumentUri,
       varPosition
     );
 
-    assert.ok(references !== undefined, 'Should return references');
-    assert.ok(references!.length > 0, 'Should have at least one reference');
+    assert.ok(Array.isArray(references), 'References should be an array');
+    assert.ok(
+      references.length >= 3,
+      `Expected multiple references to test_variable. Got: ${references.length}`
+    );
   });
 
-  /**
-   * 46.5: Rename symbol workflow updates all occurrences
-   * Category: Happy Path
-   *
-   * Arrange: Open Pike file with symbol
-   * Act: Execute rename symbol command
-   * Assert: Workspace edit returned with all changes
-   */
   test('46.5 Rename symbol workflow updates all occurrences', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const funcMatch = text.match(/int test_function\s*\(/);
-    if (funcMatch) {
-      const funcOffset = text.indexOf(funcMatch[0]);
-      const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m, 'int '.length);
+    const edit = await vscode.commands.executeCommand<any>(
+      'vscode.executeDocumentRenameProvider',
+      testDocumentUri,
+      funcPosition,
+      'workflow_renamed_function'
+    );
 
-      // Execute rename preparation
-      const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
-        'vscode.executeDocumentRenameProvider',
-        testDocumentUri,
-        funcPosition,
-        'new_function_name'
-      );
-
-      // Should return workspace edit (not null)
-      assert.ok(edit !== undefined, 'Should return workspace edit for rename');
-    } else {
-      // SKIPPED: Test requires specific symbol 'test_function' in test file
-      return;
-    }
+    assert.ok(edit, 'Rename should return a workspace edit');
+    const entries = edit.entries();
+    assert.ok(entries.length > 0, 'Rename workspace edit should contain file edits');
+    const thisFileEdit = entries.find(
+      ([uri]: any[]) => uri.toString() === testDocumentUri.toString()
+    );
+    assert.ok(thisFileEdit, 'Rename should include edits in the fixture file');
+    const newTexts = thisFileEdit[1].map((e: any) => e.newText);
+    assert.ok(
+      newTexts.includes('workflow_renamed_function'),
+      'Rename should include replacement text'
+    );
   });
 
-  /**
-   * 46.6: Workspace search workflow finds symbols across files
-   * Category: Happy Path
-   *
-   * Arrange: Open workspace with multiple Pike files
-   * Act: Execute workspace symbol search
-   * Assert: Returns matching symbols from all files
-   */
   test('46.6 Workspace search workflow finds symbols across files', async function () {
     this.timeout(30000);
 
-    const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+    const symbols = await vscode.commands.executeCommand<any[]>(
       'vscode.executeWorkspaceSymbolProvider',
-      'test'
+      'test_function'
     );
-
-    // Should not crash - may return empty or results
-    assert.ok(symbols !== undefined, 'Workspace symbol search should not crash');
+    assert.ok(
+      Array.isArray(symbols) && symbols.length > 0,
+      'Workspace symbol search should return results'
+    );
+    assert.ok(
+      symbols.some(s => s.name === 'test_function'),
+      'Workspace symbols should include test_function'
+    );
   });
 
-  /**
-   * 46.7: Call hierarchy workflow shows callers/callees
-   * Category: Happy Path
-   *
-   * Arrange: Find a function that calls other functions
-   * Act: Prepare call hierarchy and get incoming/outgoing calls
-   * Assert: Returns call hierarchy items
-   */
   test('46.7 Call hierarchy workflow shows callers/callees', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const funcMatch = text.match(/void caller_function\s*\(/);
-    if (funcMatch) {
-      const funcOffset = text.indexOf(funcMatch[0]);
-      const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^void caller_function\s*\(/m, 'void '.length);
+    const items = await vscode.commands.executeCommand<any[]>(
+      'vscode.prepareCallHierarchy',
+      testDocumentUri,
+      funcPosition
+    );
+    assert.ok(Array.isArray(items), 'Call hierarchy prepare should return an array');
 
-      const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
-        'vscode.prepareCallHierarchy',
-        testDocumentUri,
-        funcPosition
+    if (items.length > 0) {
+      const outgoingCalls = await vscode.commands.executeCommand<any[]>(
+        'vscode.provideOutgoingCalls',
+        items[0]
       );
-
-      assert.ok(items, 'Should return call hierarchy items');
-
-      if (items && items.length > 0) {
-        const outgoingCalls = await vscode.commands.executeCommand<
-          vscode.CallHierarchyOutgoingCall[]
-        >('vscode.provideOutgoingCalls', items[0]);
-
-        assert.ok(outgoingCalls !== undefined, 'Should return outgoing calls');
+      assert.ok(Array.isArray(outgoingCalls), 'Outgoing calls should return an array');
+      if (outgoingCalls.length > 0) {
+        const targetNames = outgoingCalls.map(c => c.to?.name).filter(Boolean);
+        assert.ok(
+          targetNames.includes('test_function') || targetNames.includes('multi_param'),
+          `Expected outgoing calls to known callees. Got: ${targetNames.join(', ')}`
+        );
       }
-    } else {
-      // SKIPPED: Test requires specific symbol 'caller_function' in test file
-      return;
     }
   });
 
-  /**
-   * 46.8: Type hierarchy workflow shows inheritance
-   * Category: Happy Path
-   *
-   * Arrange: Find a class with inheritance
-   * Act: Prepare type hierarchy and get supertypes/subtypes
-   * Assert: Returns type hierarchy items
-   */
   test('46.8 Type hierarchy workflow shows inheritance', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const classMatch = text.match(/^class TestClass\s*{/m);
-    assert.ok(classMatch, 'Should find TestClass definition');
-
-    const classOffset = text.indexOf(classMatch![0]);
-    const classPosition = document.positionAt(classOffset);
-
-    const items = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
+    const classPosition = positionForRegex(document, /^class TestClass\s*{/m, 'class '.length);
+    const items = await vscode.commands.executeCommand<any[]>(
       'vscode.prepareTypeHierarchy',
       testDocumentUri,
       classPosition
     );
+    assert.ok(
+      Array.isArray(items) && items.length > 0,
+      'Type hierarchy should return item for TestClass'
+    );
 
-    assert.ok(items, 'Should return type hierarchy items');
+    const subtypes = await vscode.commands.executeCommand<any[]>(
+      'vscode.provideSubtypes',
+      items[0]
+    );
+    assert.ok(Array.isArray(subtypes), 'Type hierarchy subtypes should return an array');
+    if (subtypes.length > 0) {
+      assert.ok(
+        subtypes.some(s => s.name === 'ChildClass'),
+        'Subtypes should include ChildClass when available'
+      );
+    }
   });
 
-  /**
-   * 46.9: Document formatting workflow applies formatting
-   * Category: Happy Path
-   *
-   * Arrange: Open Pike file
-   * Act: Execute document formatting
-   * Assert: Returns formatting edits
-   */
   test('46.9 Document formatting workflow applies formatting', async function () {
     this.timeout(30000);
 
-    const formattingEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
-      'vscode.executeFormatDocumentProvider',
-      testDocumentUri
+    const start = positionForRegex(document, /^void poorly_formatted\(\)/m);
+    const range = new vscode.Range(
+      new vscode.Position(start.line, 0),
+      new vscode.Position(start.line + 8, 0)
+    );
+    const formattingEdits = await vscode.commands.executeCommand<any[]>(
+      'vscode.executeFormatRangeProvider',
+      testDocumentUri,
+      range
     );
 
-    assert.ok(formattingEdits !== undefined, 'Should return formatting edits');
+    assert.ok(Array.isArray(formattingEdits), 'Range formatting should return edits array');
+    assert.ok(formattingEdits.length > 0, 'Poorly formatted block should produce formatting edits');
   });
 
-  /**
-   * 46.10: Configure Pike path in settings
-   * Category: Configuration
-   *
-   * Arrange: Get current configuration
-   * Act: Update Pike path setting
-   * Assert: Configuration is updated
-   */
   test('46.10 Configure Pike path in settings', async function () {
     this.timeout(30000);
 
     const config = vscode.workspace.getConfiguration('pike');
     const currentPath = config.get<string>('pikePath');
-
-    // Test reading the configuration
-    assert.ok(currentPath !== undefined, 'Should be able to read Pike path setting');
-
-    // Note: Don't actually change settings in test to avoid side effects
-    // Just verify we can read the configuration
+    assert.ok(typeof currentPath === 'string', 'pike.pikePath should be readable as a string');
   });
 
-  /**
-   * 46.11: Add module path configuration
-   * Category: Configuration
-   *
-   * Arrange: Get current module paths
-   * Act: Update module path setting
-   * Assert: Configuration is updated
-   */
   test('46.11 Add module path configuration', async function () {
     this.timeout(30000);
 
     const config = vscode.workspace.getConfiguration('pike');
     const modulePaths = config.get<string[]>('pikeModulePath');
-
-    // Test reading the configuration
-    assert.ok(modulePaths !== undefined, 'Should be able to read module paths setting');
-
-    // Note: Don't actually change settings in test to avoid side effects
+    assert.ok(Array.isArray(modulePaths), 'pike.pikeModulePath should be readable as an array');
   });
 
-  /**
-   * 46.12: Show diagnostics for Pike errors
-   * Category: Happy Path
-   *
-   * Arrange: Create Pike file with syntax error
-   * Act: Open file and wait for analysis
-   * Assert: Diagnostics appear for the error
-   */
   test('46.12 Show diagnostics for Pike errors', async function () {
     this.timeout(30000);
 
-    // Create a temporary file with invalid Pike code
     const errorUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-error.pike');
-    const errorContent = `//! File with Pike syntax error
-int main(
-    // Missing closing parenthesis
-    return 0;
-}
-`;
-    const encoder = new TextEncoder();
-    await vscode.workspace.fs.writeFile(errorUri, encoder.encode(errorContent));
+    const errorContent = `int main(\n  return 0;\n}\n`;
+    await vscode.workspace.fs.writeFile(errorUri, new TextEncoder().encode(errorContent));
 
     try {
       const errorDoc = await vscode.workspace.openTextDocument(errorUri);
       await vscode.window.showTextDocument(errorDoc);
 
-      // Wait for LSP to analyze
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      const diagnostics = await waitFor(
+        'syntax diagnostics',
+        () => vscode.languages.getDiagnostics(errorUri),
+        (value: any[]) =>
+          Array.isArray(value) && value.some(d => d.severity === vscode.DiagnosticSeverity.Error)
+      );
 
-      // Check for diagnostics
-      const diagnostics = vscode.languages.getDiagnostics(errorUri);
-
-      // Should have diagnostics for syntax error (or at least not crash)
-      assert.ok(diagnostics !== undefined, 'Should be able to get diagnostics');
-
-      // Close and clean up
-      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      assert.ok(diagnostics.length > 0, 'Syntax error file should produce diagnostics');
     } finally {
-      // Clean up test file
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       await vscode.workspace.fs.delete(errorUri);
     }
   });
 
-  // Additional workflow tests for completeness
-
-  /**
-   * Workflow: Complete edit cycle with symbol lookup
-   * Category: Complex Workflow
-   *
-   * Tests: Open file -> Find symbol -> Go to definition -> Return -> Edit
-   */
   test('Complete edit cycle with symbol lookup', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const funcMatch = text.match(/test_function/);
-    assert.ok(funcMatch, 'Should find test_function');
+    const callPosition = positionForRegex(
+      document,
+      /return test_function\("test"\)/,
+      'return '.length
+    );
+    const definitionLocations = normalizeLocations(
+      await vscode.commands.executeCommand<any>(
+        'vscode.executeDefinitionProvider',
+        testDocumentUri,
+        callPosition
+      )
+    );
+    assert.ok(definitionLocations.length > 0, 'Go-to-definition should return a target');
 
-    // Go to definition
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
-
-    const locations = await vscode.commands.executeCommand<
-      vscode.Location | vscode.Location[] | vscode.LocationLink[]
-    >('vscode.executeDefinitionProvider', testDocumentUri, funcPosition);
-
-    assert.ok(locations, 'Definition lookup should succeed in workflow');
+    const definitionPosition = definitionLocations[0].range.start;
+    const references = await vscode.commands.executeCommand<any[]>(
+      'vscode.executeReferenceProvider',
+      testDocumentUri,
+      definitionPosition
+    );
+    assert.ok(
+      Array.isArray(references) && references.length >= 3,
+      'Edit cycle should surface multiple references'
+    );
   });
 
-  /**
-   * Workflow: Multi-file navigation
-   * Category: Complex Workflow
-   *
-   * Tests: Open file -> Find symbol -> Navigate to another file -> Verify
-   */
   test('Multi-file navigation workflow', async function () {
     this.timeout(30000);
 
-    // This test verifies we can navigate across files if symbols are defined elsewhere
-    const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-      'vscode.executeDocumentSymbolProvider',
-      testDocumentUri
-    );
+    const helperUri = vscode.Uri.joinPath(workspaceFolder.uri, 'workflow-helper.pike');
+    const helperContent = 'int helper_call() { return test_function("helper"); }\n';
+    await vscode.workspace.fs.writeFile(helperUri, new TextEncoder().encode(helperContent));
 
-    assert.ok(symbols, 'Should get symbols for multi-file workflow');
+    try {
+      const helperDoc = await vscode.workspace.openTextDocument(helperUri);
+      await vscode.window.showTextDocument(helperDoc);
+
+      const callPos = positionForRegex(helperDoc, /test_function\("helper"\)/);
+      const locations = normalizeLocations(
+        await vscode.commands.executeCommand<any>(
+          'vscode.executeDefinitionProvider',
+          helperUri,
+          callPos
+        )
+      );
+
+      assert.ok(locations.length > 0, 'Cross-file definition lookup should return a location');
+
+      const workspaceSymbols = await vscode.commands.executeCommand<any[]>(
+        'vscode.executeWorkspaceSymbolProvider',
+        'helper_call'
+      );
+      assert.ok(Array.isArray(workspaceSymbols), 'Workspace symbol search should return an array');
+      assert.ok(
+        workspaceSymbols.some(s => s.location?.uri?.toString() === helperUri.toString()),
+        'Workspace symbol search should include symbol from helper file'
+      );
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await vscode.workspace.fs.delete(helperUri);
+    }
   });
 
-  /**
-   * Workflow: Refactor with confidence
-   * Category: Complex Workflow
-   *
-   * Tests: Find references -> Verify locations -> Prepare rename
-   */
   test('Refactor with confidence workflow', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const funcMatch = text.match(/int test_function\s*\(/);
-    if (funcMatch) {
-      const funcOffset = text.indexOf(funcMatch[0]);
-      const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m, 'int '.length);
+    const references = await vscode.commands.executeCommand<any[]>(
+      'vscode.executeReferenceProvider',
+      testDocumentUri,
+      funcPosition
+    );
+    assert.ok(
+      Array.isArray(references) && references.length >= 3,
+      'Should find references before rename'
+    );
 
-      // First, find all references
-      let references: vscode.Location[] | undefined;
-      try {
-        references = await vscode.commands.executeCommand<vscode.Location[]>(
-          'vscode.executeReferenceProvider',
-          testDocumentUri,
-          funcPosition,
-          false
-        );
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (message.includes('Unexpected type')) {
-          references = await vscode.commands.executeCommand<vscode.Location[]>(
-            'vscode.executeReferenceProvider',
-            testDocumentUri,
-            funcPosition
-          );
-        } else {
-          throw err;
-        }
-      }
+    const edit = await vscode.commands.executeCommand<any>(
+      'vscode.executeDocumentRenameProvider',
+      testDocumentUri,
+      funcPosition,
+      'renamed_for_workflow'
+    );
 
-      assert.ok(references !== undefined, 'Should find references before rename');
-
-      if (references && references.length > 0) {
-        // Then prepare rename to see what would change
-        let edit: vscode.WorkspaceEdit | undefined;
-        try {
-          edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
-            'vscode.executeDocumentRenameProvider',
-            testDocumentUri,
-            funcPosition,
-            'renamed_function'
-          );
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          if (!message.includes('Unexpected type')) {
-            throw err;
-          }
-          return;
-        }
-
-        assert.ok(edit !== undefined, 'Should prepare rename edit');
-      }
-    } else {
-      // SKIPPED: Test requires specific symbol 'test_function' in test file
-      return;
-    }
+    assert.ok(edit, 'Rename preparation should return workspace edit');
+    const entries = edit.entries();
+    const totalEdits = entries.reduce((count: number, [, edits]: any[]) => count + edits.length, 0);
+    assert.ok(
+      totalEdits >= 2,
+      `Rename should affect multiple occurrences. Got edits: ${totalEdits}`
+    );
   });
 });
