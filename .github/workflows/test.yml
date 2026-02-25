@@ -137,19 +137,26 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pike/8.1116
+            ~/.cache/pike/8.0.1116
             ~/.cache/pike/distfiles
-          key: pike-toolchain-${{ runner.os }}-8.1116-v1
+          key: pike-toolchain-${{ runner.os }}-8.0.1116-v2
+
+      - name: Cache Pike latest toolchain
+        if: matrix.pike-version == 'latest'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pike/latest
+          key: pike-toolchain-${{ runner.os }}-latest-v1
 
       - name: Install Pike ${{ matrix.pike-version }}
         run: |
           set -euxo pipefail
           if [ "${{ matrix.pike-version }}" = "8.1116" ]; then
-            PIKE_VERSION="8.1116"
+            PIKE_VERSION="8.0.1116"
             PIKE_PREFIX="$HOME/.cache/pike/${PIKE_VERSION}"
             PIKE_DISTDIR="$HOME/.cache/pike/distfiles"
-            PIKE_ARCHIVE="$PIKE_DISTDIR/pike-${PIKE_VERSION}.tar.gz"
-            PIKE_URL="https://pike.lysator.liu.se/builds/pike-${PIKE_VERSION}.tar.gz"
+            PIKE_ARCHIVE="$PIKE_DISTDIR/Pike-v${PIKE_VERSION}.tar.gz"
+            PIKE_URL="https://pike.lysator.liu.se/pub/pike/all/${PIKE_VERSION}/Pike-v${PIKE_VERSION}.tar.gz"
 
             if [ -x "$PIKE_PREFIX/bin/pike" ]; then
               echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
@@ -162,9 +169,8 @@ jobs:
 
             download_pike_archive() {
               wget "$PIKE_URL" -O "$PIKE_ARCHIVE" || {
-                echo "Pike ${PIKE_VERSION} source archive unavailable, falling back to pike8.0"
-                sudo apt-get install -y pike8.0
-                exit 0
+                echo "Pike ${PIKE_VERSION} source archive unavailable"
+                exit 1
               }
             }
 
@@ -178,9 +184,8 @@ jobs:
             fi
 
             if ! tar -tzf "$PIKE_ARCHIVE" >/dev/null 2>&1; then
-              echo "Pike ${PIKE_VERSION} archive invalid after redownload, falling back to pike8.0"
-              sudo apt-get install -y pike8.0
-              exit 0
+              echo "Pike ${PIKE_VERSION} archive invalid after redownload"
+              exit 1
             fi
 
             BUILD_DIR="/tmp/pike-${PIKE_VERSION}-build"
@@ -193,15 +198,23 @@ jobs:
             make install
             echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
           else
+            PIKE_PREFIX="$HOME/.cache/pike/latest"
+            if [ -x "$PIKE_PREFIX/bin/pike" ]; then
+              echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
+              exit 0
+            fi
+
             sudo apt-get update
-            sudo apt-get install -y pike8.0 || {
-              sudo apt-get install -y build-essential libgmp-dev bison flex make git
-              cd /tmp
-              git clone https://github.com/pike-lang/pike.git
-              cd pike
-              make
-              sudo make install
-            }
+            sudo apt-get install -y build-essential libgmp-dev bison flex make git
+
+            BUILD_DIR="/tmp/pike-latest-build"
+            rm -rf "$BUILD_DIR"
+            git clone --depth 1 https://github.com/pike-lang/pike.git "$BUILD_DIR"
+            cd "$BUILD_DIR"
+            ./configure --prefix="$PIKE_PREFIX"
+            make -j"$(nproc)"
+            make install
+            echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
           fi
 
       - name: Verify Pike installation
