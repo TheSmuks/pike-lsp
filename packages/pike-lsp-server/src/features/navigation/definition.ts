@@ -13,6 +13,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
+import { queryNavigationLocations } from './query-engine.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { readFileSync } from 'node:fs';
 
@@ -54,10 +55,25 @@ export function registerDefinitionHandlers(
     log.debug('Definition request', { uri: params.textDocument.uri });
     try {
       const uri = params.textDocument.uri;
-      const cached = documentCache.get(uri);
       const document = documents.get(uri);
 
-      if (!cached || !document) {
+      if (!document) {
+        return null;
+      }
+
+      const queryLocations = await queryNavigationLocations(
+        services,
+        'definition',
+        uri,
+        document,
+        params.position
+      );
+      if (queryLocations && queryLocations.length > 0) {
+        return queryLocations;
+      }
+
+      const cached = documentCache.get(uri);
+      if (!cached) {
         return null;
       }
 

@@ -137,9 +137,6 @@ function findAnalyzerPath(): string | undefined {
   return undefined;
 }
 
-// NOTE: Document validation is handled by features/diagnostics.ts
-// The registerDiagnosticsHandlers function sets up all document event handlers
-
 // ============================================================================
 // Services Bundle Factory
 // ============================================================================
@@ -523,9 +520,6 @@ connection.onInitialized(async () => {
       }
     });
   }
-
-  // NOTE: Open documents will be validated by diagnostics.ts onDidOpen handlers
-  // which are triggered when documents.listen(connection) starts
 });
 
 connection.onDidChangeConfiguration(change => {
@@ -534,7 +528,6 @@ connection.onDidChangeConfiguration(change => {
     ...defaultSettings,
     ...(settings?.pike ?? {}),
   };
-  // NOTE: Document revalidation is handled by diagnostics.ts onDidChangeConfiguration
 });
 
 // ============================================================================

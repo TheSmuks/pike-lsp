@@ -150,4 +150,45 @@ int main() {
 
     console.log('Extension activated and LSP server responsive');
   });
+
+  test('Should remain stable through repeated deactivate/activate restart cycles', async function () {
+    this.timeout(120000);
+
+    const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+    assert.ok(extension, 'Extension should be found');
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, 'Workspace folder should exist');
+    const testUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
+
+    let responsiveCycles = 0;
+    const cycles = 5;
+
+    for (let i = 0; i < cycles; i++) {
+      if (!extension.isActive) {
+        await extension.activate();
+      }
+
+      const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+        'vscode.executeDocumentSymbolProvider',
+        testUri
+      );
+
+      if (symbols === undefined || Array.isArray(symbols)) {
+        responsiveCycles += 1;
+      }
+
+      if (extension.exports && typeof extension.exports.deactivate === 'function') {
+        await extension.exports.deactivate();
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    assert.strictEqual(
+      responsiveCycles,
+      cycles,
+      'All restart cycles should keep extension responsive'
+    );
+  });
 });

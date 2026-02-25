@@ -125,6 +125,84 @@ describe('PikeBridge', () => {
     );
   });
 
+  it('should return definition locations for definition engine queries', async () => {
+    const response = await bridge.engineQuery({
+      feature: 'definition',
+      requestId: 'qe2-definition-query',
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri: 'file:///tmp/qe2-definition.pike',
+        filename: '/tmp/qe2-definition.pike',
+        version: 1,
+        text: 'int alpha = 1;\nint x = alpha;\n',
+        position: { line: 1, character: 9 },
+      },
+    });
+
+    const innerResult = response.result['result'] as Record<string, unknown> | undefined;
+    const resultView = innerResult ?? response.result;
+    assert.equal(resultView['feature'], 'definition');
+    assert.equal(typeof resultView['revision'], 'number');
+
+    const locations = resultView['locations'] as Array<Record<string, unknown>> | undefined;
+    assert.ok(Array.isArray(locations), 'definition query should return locations array');
+    assert.ok(
+      (locations?.length ?? 0) >= 1,
+      'definition query should return at least one location'
+    );
+  });
+
+  it('should return references locations for references engine queries', async () => {
+    const response = await bridge.engineQuery({
+      feature: 'references',
+      requestId: 'qe2-references-query',
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri: 'file:///tmp/qe2-references.pike',
+        filename: '/tmp/qe2-references.pike',
+        version: 1,
+        text: 'int beta = 1;\nint y = beta;\nbeta = y + beta;\n',
+        position: { line: 1, character: 8 },
+      },
+    });
+
+    const innerResult = response.result['result'] as Record<string, unknown> | undefined;
+    const resultView = innerResult ?? response.result;
+    assert.equal(resultView['feature'], 'references');
+    assert.equal(typeof resultView['revision'], 'number');
+
+    const locations = resultView['locations'] as Array<Record<string, unknown>> | undefined;
+    assert.ok(Array.isArray(locations), 'references query should return locations array');
+    assert.ok((locations?.length ?? 0) >= 2, 'references query should return multiple locations');
+  });
+
+  it('should return completion items for completion engine queries', async () => {
+    const response = await bridge.engineQuery({
+      feature: 'completion',
+      requestId: 'qe2-completion-query',
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri: 'file:///tmp/qe2-completion.pike',
+        filename: '/tmp/qe2-completion.pike',
+        version: 1,
+        text: 'int gamma = 1;\nint y = gamma;\n',
+        position: { line: 1, character: 8 },
+      },
+    });
+
+    const innerResult = response.result['result'] as Record<string, unknown> | undefined;
+    const resultView = innerResult ?? response.result;
+    assert.equal(resultView['feature'], 'completion');
+    assert.equal(typeof resultView['revision'], 'number');
+
+    const items = resultView['items'] as Array<Record<string, unknown>> | undefined;
+    assert.ok(Array.isArray(items), 'completion query should return items array');
+    assert.ok(
+      (items?.length ?? 0) >= 1,
+      'completion query should return at least one completion item'
+    );
+  });
+
   it('should parse simple Pike code', async () => {
     const code = `
             int x = 42;

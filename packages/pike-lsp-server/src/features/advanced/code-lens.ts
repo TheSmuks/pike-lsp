@@ -4,11 +4,7 @@
  * Provides reference counts in code.
  */
 
-import {
-    Connection,
-    CodeLens,
-    Position,
-} from 'vscode-languageserver/node.js';
+import { Connection, CodeLens, Position } from 'vscode-languageserver/node.js';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
@@ -19,134 +15,160 @@ import { Logger } from '@pike-lsp/core';
  * Register code lens handlers.
  */
 export function registerCodeLensHandlers(
-    connection: Connection,
-    services: Services,
-    _documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  _documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache } = services;
-    const log = new Logger('Advanced');
+  const { documentCache } = services;
+  const log = new Logger('Advanced');
 
-    // Code lens cache: URI -> { version, lenses }
-    // Prevents regenerating lenses when switching tabs if document hasn't changed
-    const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
+  // Code lens cache: URI -> { version, lenses }
+  // Prevents regenerating lenses when switching tabs if document hasn't changed
+  const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
 
-    // Resolved code lens cache: URI -> { version, refCounts: Map<symbolName, refCount> }
-    // Prevents re-resolving lenses on window focus changes
-    const resolvedLensCache = new Map<string, { version: number; refCounts: Map<string, number> }>();
+  // Resolved code lens cache: URI -> { version, refCounts: Map<symbolName, refCount> }
+  // Prevents re-resolving lenses on window focus changes
+  const resolvedLensCache = new Map<string, { version: number; refCounts: Map<string, number> }>();
 
-    /**
-     * Code Lens handler - provide inline annotations
-     */
-    connection.onCodeLens((params): CodeLens[] => {
-        log.debug('Code lens request', { uri: params.textDocument.uri });
-        try {
-            const uri = params.textDocument.uri;
-            const cache = documentCache.get(uri);
+  /**
+   * Code Lens handler - provide inline annotations
+   */
+  connection.onCodeLens((params): CodeLens[] => {
+    log.debug('Code lens request', { uri: params.textDocument.uri });
+    try {
+      const uri = params.textDocument.uri;
+      const cache = documentCache.get(uri);
 
-            if (!cache) {
-                return [];
-            }
+      if (!cache) {
+        return [];
+      }
 
-            // Check if we have cached lenses for this document version
-            const cached = codeLensCache.get(uri);
-            if (cached && cached.version === cache.version) {
-                log.debug('Code lens cache hit', { uri, version: cache.version });
-                return cached.lenses;
-            }
+      // Check if we have cached lenses for this document version
+      const cached = codeLensCache.get(uri);
+      if (cached && cached.version === cache.version) {
+        log.debug('Code lens cache hit', { uri, version: cache.version });
+        return cached.lenses;
+      }
 
-            const lenses: CodeLens[] = [];
+      const lenses: CodeLens[] = [];
 
-            for (const symbol of cache.symbols) {
-                // Show reference counts for classes, methods, variables, and constants
-                if (symbol.kind === 'method' || symbol.kind === 'class' ||
-                    symbol.kind === 'variable' || symbol.kind === 'constant') {
-                    const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
-                    const char = Math.max(0, (symbol.position?.column ?? 1) - 1);
-                    const symbolName = symbol.name ?? '';
+      for (const symbol of cache.symbols) {
+        // Show reference counts for classes, methods, variables, and constants
+        if (
+          symbol.kind === 'method' ||
+          symbol.kind === 'class' ||
+          symbol.kind === 'variable' ||
+          symbol.kind === 'constant'
+        ) {
+          const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+          const char = Math.max(0, (symbol.position?.column ?? 1) - 1);
+          const symbolName = symbol.name ?? '';
 
-                    const position: Position = { line, character: char };
+          const position: Position = { line, character: char };
 
-                    lenses.push({
-                        range: {
-                            start: { line, character: char },
-                            end: { line, character: char + symbolName.length }
-                        },
-                        data: {
-                            uri,
-                            symbolName,
-                            kind: symbol.kind,
-                            position
-                        }
-                    });
-                }
-            }
-
-            // Cache the lenses for this document version
-            codeLensCache.set(uri, { version: cache.version, lenses });
-
-            connection.console.log(`[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`);
-            return lenses;
-        } catch (err) {
-            log.error(`Code lens failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
-            return [];
+          lenses.push({
+            range: {
+              start: { line, character: char },
+              end: { line, character: char + symbolName.length },
+            },
+            data: {
+              uri,
+              symbolName,
+              kind: symbol.kind,
+              position,
+            },
+          });
         }
-    });
+      }
 
-    /**
-     * Code Lens resolve handler - compute reference counts
-     */
-    connection.onCodeLensResolve((lens): CodeLens => {
-        try {
-            const data = lens.data as { uri: string; symbolName: string; kind: string; position: Position };
+      // Cache the lenses for this document version
+      codeLensCache.set(uri, { version: cache.version, lenses });
 
-            if (!data) {
-                return lens;
-            }
+      connection.console.log(
+        `[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`
+      );
+      return lenses;
+    } catch (err) {
+      log.error(
+        `Code lens failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return [];
+    }
+  });
 
-            const currentCache = documentCache.get(data.uri);
-            const currentVersion = currentCache?.version ?? 0;
+  /**
+   * Code Lens resolve handler - compute reference counts
+   */
+  connection.onCodeLensResolve((lens): CodeLens => {
+    try {
+      const data = lens.data as {
+        uri: string;
+        symbolName: string;
+        kind: string;
+        position: Position;
+      };
 
-            // Check resolved cache - prevents re-resolution on window focus changes
-            const cached = resolvedLensCache.get(data.uri);
-            if (cached && cached.version === currentVersion) {
-                const cachedRefCount = cached.refCounts.get(data.symbolName);
-                if (cachedRefCount !== undefined) {
-                    lens.command = buildCodeLensCommand(cachedRefCount, data.uri, data.position, data.symbolName);
-                    return lens;
-                }
-            }
+      if (!data) {
+        return lens;
+      }
 
-            // Compute ref count
-            let refCount = 0;
+      const currentCache = documentCache.get(data.uri);
+      const currentVersion = currentCache?.version ?? 0;
 
-            if (currentCache && currentCache.symbolPositions) {
-                const positions = currentCache.symbolPositions.get(data.symbolName);
-                refCount = positions?.length ?? 0;
-            }
-
-            const entries = Array.from(documentCache.entries());
-            for (const [uri, cache] of entries) {
-                if (uri !== data.uri && cache.symbolPositions) {
-                    const positions = cache.symbolPositions.get(data.symbolName);
-                    if (positions) {
-                        refCount += positions.length;
-                    }
-                }
-            }
-
-            // Update cache
-            if (!cached || cached.version !== currentVersion) {
-                resolvedLensCache.set(data.uri, { version: currentVersion, refCounts: new Map() });
-            }
-            resolvedLensCache.get(data.uri)!.refCounts.set(data.symbolName, refCount);
-
-            lens.command = buildCodeLensCommand(refCount, data.uri, data.position, data.symbolName);
-
-            connection.console.log(`[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`);
-            return lens;
-        } catch (err) {
-            log.error(`Code lens resolve failed for symbol "${lens.data && (lens.data as any).symbolName}" in ${(lens.data as any)?.uri}: ${err instanceof Error ? err.message : String(err)}`);
-            return lens;
+      // Check resolved cache - prevents re-resolution on window focus changes
+      const cached = resolvedLensCache.get(data.uri);
+      if (cached && cached.version === currentVersion) {
+        const cachedRefCount = cached.refCounts.get(data.symbolName);
+        if (cachedRefCount !== undefined) {
+          lens.command = buildCodeLensCommand(
+            cachedRefCount,
+            data.uri,
+            data.position,
+            data.symbolName
+          );
+          return lens;
         }
-    });
+      }
+
+      // Compute ref count
+      let refCount = 0;
+
+      if (currentCache && currentCache.symbolPositions) {
+        const positions = currentCache.symbolPositions.get(data.symbolName);
+        refCount = positions?.length ?? 0;
+      }
+
+      const entries = Array.from(documentCache.entries());
+      for (const [uri, cache] of entries) {
+        if (uri !== data.uri && cache.symbolPositions) {
+          const positions = cache.symbolPositions.get(data.symbolName);
+          if (positions) {
+            refCount += positions.length;
+          }
+        }
+      }
+
+      // Update cache
+      if (!cached || cached.version !== currentVersion) {
+        resolvedLensCache.set(data.uri, { version: currentVersion, refCounts: new Map() });
+      }
+      resolvedLensCache.get(data.uri)!.refCounts.set(data.symbolName, refCount);
+
+      lens.command = buildCodeLensCommand(refCount, data.uri, data.position, data.symbolName);
+
+      connection.console.log(
+        `[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`
+      );
+      return lens;
+    } catch (err) {
+      const data =
+        lens.data && typeof lens.data === 'object'
+          ? (lens.data as { symbolName?: string; uri?: string })
+          : undefined;
+      log.error(
+        `Code lens resolve failed for symbol "${data?.symbolName ?? 'unknown'}" in ${data?.uri ?? 'unknown'}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return lens;
+    }
+  });
 }

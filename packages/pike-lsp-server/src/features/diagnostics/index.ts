@@ -24,6 +24,7 @@ import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/index.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 
 // Import from split modules
@@ -85,6 +86,7 @@ export function registerDiagnosticsHandlers(
   const pendingChangeRanges = new Map<string, Range | undefined>();
   const documentSnapshots = new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
+  const diagnosticsScheduler = new RequestScheduler();
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -144,9 +146,19 @@ export function registerDiagnosticsHandlers(
       }
 
       // Proceed with full validation
-      const promise = validateDocument(document, classification);
+      const promise = diagnosticsScheduler.schedule({
+        requestClass: 'typing',
+        key: `diagnostics:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
+          await validateDocument(document, classification);
+        },
+      });
       documentCache.setPending(uri, promise);
       promise.catch(err => {
+        if (err instanceof RequestSupersededError) {
+          return;
+        }
         log.error('Debounced validation failed', {
           uri,
           error: err instanceof Error ? err.message : String(err),
@@ -446,9 +458,11 @@ export function registerDiagnosticsHandlers(
 
             const inParse = parsedSymbolNames.has(introspectedSym.name);
             if (!inParse) {
+              const introspectedKind =
+                introspectedSym.kind as import('@pike-lsp/pike-bridge').PikeSymbolKind;
               legacySymbols.push({
                 name: introspectedSym.name,
-                kind: introspectedSym.kind as any,
+                kind: introspectedKind,
                 modifiers: introspectedSym.modifiers,
                 type: introspectedSym.type,
               });
@@ -657,7 +671,27 @@ export function registerDiagnosticsHandlers(
       });
 
     // Revalidate all open documents
-    documents.all().forEach(validateDocumentDebounced);
+    documents.all().forEach(document => {
+      const promise = diagnosticsScheduler.schedule({
+        requestClass: 'background',
+        key: `diagnostics:${document.uri}`,
+        coalesceMs: globalSettings.diagnosticDelay,
+        run: async checkpoint => {
+          checkpoint();
+          await validateDocument(document);
+        },
+      });
+      documentCache.setPending(document.uri, promise);
+      promise.catch(err => {
+        if (err instanceof RequestSupersededError) {
+          return;
+        }
+        log.error('Config-change validation failed', {
+          uri: document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    });
   });
 
   // Handle document open - validate immediately without debouncing
@@ -683,6 +717,9 @@ export function registerDiagnosticsHandlers(
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
       log.error('Document open validation failed', {
         uri: event.document.uri,
         error: err instanceof Error ? err.message : String(err),
@@ -746,6 +783,9 @@ export function registerDiagnosticsHandlers(
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
       log.error('Document save validation failed', {
         uri: event.document.uri,
         error: err instanceof Error ? err.message : String(err),

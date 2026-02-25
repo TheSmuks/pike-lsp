@@ -20,6 +20,7 @@ Operational guide for rolling out Pike Query Engine v2 safely with measurable ga
 - End-to-end cancellation implemented and tested.
 - Shadow diff harness running in CI.
 - Benchmark baseline established on representative workspaces.
+- VS Code extension bridge lifecycle hardening completed (restart/dispose resilience).
 - Feature flags available per migrated feature.
 
 ## Rollout Stages
@@ -44,6 +45,12 @@ Gate to proceed:
 - Stale publish count remains zero.
 - Cancellation latency meets budget.
 - p95 latency within accepted regression threshold.
+- No extension restart/dispose leak signals in canary telemetry.
+- Queue wait p95 for typing-path requests within budget.
+- Parse hard-fail rate stays at 0 during malformed rapid-edit canary fixtures.
+- Reload-storm error/latency metrics remain within envelope.
+- Follow-up/resolve requests remain correct across restart/dispose cycles.
+- Required telemetry set is complete for the entire canary interval.
 
 ### Stage 2 - Canary 25%
 
@@ -54,6 +61,8 @@ Gate to proceed:
 
 - Error rate and latency remain within SLO.
 - No increase in severe editor usability regressions.
+- No post-dispose client event handling regressions.
+- Failure-containment checks show no loop-crashing per-request failures.
 
 ### Stage 3 - General Availability
 
@@ -97,6 +106,10 @@ For every query:
 - `cancelled` flag
 - `cacheHit` and recompute metadata
 
+Required completeness rule:
+
+- Rollout stage cannot advance if any required metric stream is missing for the full observation window.
+
 For rollouts:
 
 - cohort tag (`internal`, `canary-5`, `canary-25`, `ga`)
@@ -110,6 +123,7 @@ Rollback is immediate if any hard trigger occurs:
 - cancellation correctness failure
 - severe latency regression with editor impact
 - crash loop or restart-recovery failure
+- extension client lifecycle leak (post-dispose event/request handling)
 
 Rollback steps:
 
@@ -156,6 +170,12 @@ Rollback steps:
 - Restart and replay test passes.
 - Benchmarks pass SLO thresholds.
 - Rollback toggle tested in staging.
+- Queue wait and cancel-stop latency gates pass for typing-path requests.
+- Parse-under-edit non-fatal fixture suite passes (broken intermediate states).
+- Restart-safe follow-up/resolve request suite passes.
+- Reload-storm suite (workspace/config/fs burst) passes.
+- Failure-containment suite verifies per-request panic/error isolation.
+- Benchmarks run against pinned small/medium/large corpus and remain within regression budget.
 
 ## Ownership and Escalation
 
