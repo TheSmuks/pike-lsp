@@ -28,6 +28,10 @@ const tagDefinitionIndexCache = new Map<
 >();
 const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
 
+function uriToFilePath(uri: string): string {
+  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
+}
+
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
 }
@@ -166,6 +170,18 @@ export async function findTagDefinition(
   }
 
   return null;
+}
+
+export function invalidateRXMLDefinitionCaches(uri?: string): void {
+  tagDefinitionIndexCache.clear();
+  pikeGlobCache.clear();
+
+  if (!uri) {
+    fileContentCache.clear();
+    return;
+  }
+
+  fileContentCache.delete(uriToFilePath(uri));
 }
 
 /**

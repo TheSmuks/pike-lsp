@@ -340,8 +340,34 @@ export function sym(
  * Create a mock TextDocuments manager from a Map of URI -> TextDocument.
  */
 export function createMockDocuments(docs: Map<string, TextDocument>) {
+  const didChangeListeners: Array<(event: { document: TextDocument }) => void> = [];
+  const didCloseListeners: Array<(event: { document: TextDocument }) => void> = [];
   return {
     get: (uri: string) => docs.get(uri),
+    onDidChangeContent: (listener: (event: { document: TextDocument }) => void) => {
+      didChangeListeners.push(listener);
+    },
+    onDidClose: (listener: (event: { document: TextDocument }) => void) => {
+      didCloseListeners.push(listener);
+    },
+    triggerDidChangeContent: (uri: string) => {
+      const doc = docs.get(uri);
+      if (!doc) {
+        return;
+      }
+      for (const listener of didChangeListeners) {
+        listener({ document: doc });
+      }
+    },
+    triggerDidClose: (uri: string) => {
+      const doc = docs.get(uri);
+      if (!doc) {
+        return;
+      }
+      for (const listener of didCloseListeners) {
+        listener({ document: doc });
+      }
+    },
   };
 }
 

@@ -29,6 +29,10 @@ const tagReferenceIndexCache = new Map<
 >();
 const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
 
+function uriToFilePath(uri: string): string {
+  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
+}
+
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
 }
@@ -133,6 +137,19 @@ export async function findTagReferences(
   }
 
   return locations;
+}
+
+export function invalidateRXMLReferenceCaches(uri?: string): void {
+  tagReferenceIndexCache.clear();
+  templateGlobCache.clear();
+  pikeGlobCache.clear();
+
+  if (!uri) {
+    fileContentCache.clear();
+    return;
+  }
+
+  fileContentCache.delete(uriToFilePath(uri));
 }
 
 /**
