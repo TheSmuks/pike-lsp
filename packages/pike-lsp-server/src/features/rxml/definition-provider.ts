@@ -12,12 +12,83 @@
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { getTagInfo } from './tag-catalog.js';
 import { GlobCache } from './glob-cache.js';
 
 // Shared glob cache - 30 second TTL
 const pikeGlobCache = new GlobCache<string[]>(30);
+const TAG_DEFINITION_INDEX_TTL_MS = 30_000;
+const tagDefinitionIndexCache = new Map<
+  string,
+  {
+    builtAt: number;
+    byTag: Map<string, RoxenTagInfo>;
+  }
+>();
+const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
+
+function makeWorkspaceKey(workspaceFolders: string[]): string {
+  return [...workspaceFolders].sort().join('|');
+}
+
+async function readFileCached(filePath: string): Promise<string> {
+  try {
+    const fileStats = await stat(filePath);
+    const cached = fileContentCache.get(filePath);
+    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+      return cached.content;
+    }
+
+    const content = await readFile(filePath, 'utf-8');
+    fileContentCache.set(filePath, { mtimeMs: fileStats.mtimeMs, content });
+    return content;
+  } catch {
+    const content = await readFile(filePath, 'utf-8');
+    return content;
+  }
+}
+
+async function getTagDefinitionIndex(
+  workspaceFolders: string[]
+): Promise<Map<string, RoxenTagInfo>> {
+  const key = makeWorkspaceKey(workspaceFolders);
+  const now = Date.now();
+  const cached = tagDefinitionIndexCache.get(key);
+  if (cached && now - cached.builtAt < TAG_DEFINITION_INDEX_TTL_MS) {
+    return cached.byTag;
+  }
+
+  const byTag = new Map<string, RoxenTagInfo>();
+  const pikeFiles = await findPikeFiles(workspaceFolders);
+
+  for (const file of pikeFiles) {
+    const content = await readFileCached(file);
+
+    const simpleTagPattern = /^\s*simpletag\s+([A-Za-z_]\w*)\s*\(/gm;
+    let match: RegExpExecArray | null;
+    while ((match = simpleTagPattern.exec(content)) !== null) {
+      const tagName = match[1];
+      if (!tagName || byTag.has(tagName)) {
+        continue;
+      }
+
+      const position = findPositionForMatch(content, match);
+      byTag.set(tagName, {
+        tagName,
+        functionName: `simpletag_${tagName}`,
+        location: Location.create(fileToUri(file), {
+          start: position,
+          end: { line: position.line, character: position.character + tagName.length },
+        }),
+        tagType: 'simple',
+      });
+    }
+  }
+
+  tagDefinitionIndexCache.set(key, { builtAt: now, byTag });
+  return byTag;
+}
 
 /**
  * Result of finding a tag definition
@@ -76,33 +147,10 @@ export async function findTagDefinition(
     return null;
   }
 
-  // Search for .pike files that might contain the tag
-  const pikeFiles = await findPikeFiles(workspaceFolders);
-
-  for (const file of pikeFiles) {
-    const content = await readFile(file, 'utf-8');
-
-    // Look for simpletag_* or container_* functions
-    const patterns = [
-      new RegExp(`simpletag\\s+${escapeRegExp(tagName)}\\s*\\(`, 'm'),
-      new RegExp(`simpletag\\s+\\w+\\s*\\([^)]*\\b${escapeRegExp(tagName)}\\b`, 'm'),
-    ];
-
-    for (const pattern of patterns) {
-      const match = pattern.exec(content);
-      if (match) {
-        const position = findPositionForMatch(content, match);
-        return {
-          tagName,
-          functionName: `simpletag_${tagName}`,
-          location: Location.create(fileToUri(file), {
-            start: position,
-            end: { line: position.line, character: position.character + 10 }
-          }),
-          tagType: 'simple'
-        };
-      }
-    }
+  const index = await getTagDefinitionIndex(workspaceFolders);
+  const indexed = index.get(tagName);
+  if (indexed) {
+    return indexed;
   }
 
   // Fallback: check if it's a built-in tag
@@ -113,7 +161,7 @@ export async function findTagDefinition(
       tagName,
       functionName: `builtin:${tagName}`,
       location: Location.create('builtin:tag-catalog', Range.create(0, 0, 0, 0)),
-      tagType: tagInfo.type
+      tagType: tagInfo.type,
     };
   }
 
@@ -138,10 +186,13 @@ export async function findDefvarDefinition(
   const pikeFiles = await findPikeFiles(workspaceFolders);
 
   for (const file of pikeFiles) {
-    const content = await readFile(file, 'utf-8');
+    const content = await readFileCached(file);
 
     // Look for defvar statements
-    const pattern = new RegExp(`defvar\\s+("${escapeRegExp(defvarName)}"\\s*;|'${escapeRegExp(defvarName)}'\\s*;|\\w+\\s*=)`, 'm');
+    const pattern = new RegExp(
+      `defvar\\s+("${escapeRegExp(defvarName)}"\\s*;|'${escapeRegExp(defvarName)}'\\s*;|\\w+\\s*=)`,
+      'm'
+    );
     const match = pattern.exec(content);
 
     if (match) {
@@ -152,8 +203,8 @@ export async function findDefvarDefinition(
         documentation: `Defvar: ${defvarName}`,
         location: Location.create(fileToUri(file), {
           start: position,
-          end: { line: position.line, character: position.character + defvarName.length }
-        })
+          end: { line: position.line, character: position.character + defvarName.length },
+        }),
       };
     }
   }
@@ -198,7 +249,10 @@ export async function provideRXMLDefinition(
 /**
  * Find tag at given offset
  */
-function findTagAtPosition(content: string, offset: number): { tagName: string; range: Range } | null {
+function findTagAtPosition(
+  content: string,
+  offset: number
+): { tagName: string; range: Range } | null {
   // Find the tag we're in
   const before = content.substring(Math.max(0, offset - 100), offset);
 
@@ -214,7 +268,10 @@ function findTagAtPosition(content: string, offset: number): { tagName: string; 
 /**
  * Find attribute at given offset
  */
-function findAttributeAtPosition(content: string, offset: number): { attrName: string; tagName: string } | null {
+function findAttributeAtPosition(
+  content: string,
+  offset: number
+): { attrName: string; tagName: string } | null {
   // Simple implementation - could be enhanced
   const before = content.substring(Math.max(0, offset - 200), offset);
   const attrMatch = before.match(/(\w+)\s*=\s*["']?[^"']*$/);
@@ -246,7 +303,7 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -285,6 +342,6 @@ function findPositionForMatch(content: string, match: RegExpExecArray): Position
 
   return {
     line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length
+    character: (lines[lines.length - 1] || '').length,
   };
 }
