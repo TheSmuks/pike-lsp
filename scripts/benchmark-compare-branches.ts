@@ -71,14 +71,17 @@ function ensureRefAvailable(repoPath: string, ref: string): string {
   }
 
   if (ref.startsWith('origin/')) {
-    const remoteRef = ref;
     const branch = ref.slice('origin/'.length);
-    run(
-      'git',
-      ['fetch', '--quiet', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
-      repoPath
-    );
-    return remoteRef;
+    try {
+      run('git', ['fetch', '--quiet', 'origin', branch], repoPath);
+      run('git', ['rev-parse', '--verify', `origin/${branch}`], repoPath);
+      return `origin/${branch}`;
+    } catch {
+      const repoSlug = process.env['GITHUB_REPOSITORY'] ?? 'TheSmuks/pike-lsp';
+      const remoteUrl = `https://github.com/${repoSlug}.git`;
+      run('git', ['fetch', '--quiet', remoteUrl, `refs/heads/${branch}`], repoPath);
+      return 'FETCH_HEAD';
+    }
   }
 
   return ref;
