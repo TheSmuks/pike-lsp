@@ -16,14 +16,15 @@ jobs:
         run: |
           ISSUE=$(gh pr view ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --json body --jq '.body' \
+            --json title,body --jq '(.title // "") + "\n" + (.body // "")' \
+            | tr '[:upper:]' '[:lower:]' \
             | grep -oE '(closes|fixes|resolves) #[0-9]+' \
             | grep -oE '[0-9]+' \
             | head -1)
 
           if [ -z "$ISSUE" ]; then
             echo "ERROR: No linked issue found."
-            echo "PR body must contain lowercase: 'closes #N', 'fixes #N', or 'resolves #N'"
+            echo "PR title/body must contain: 'closes #N', 'fixes #N', or 'resolves #N'"
             exit 1
           fi
 
