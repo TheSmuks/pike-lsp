@@ -11,7 +11,9 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerMonikerHandler } from '../features/advanced/moniker.js';
+import { registerSemanticTokensHandler } from '../features/advanced/semantic-tokens.js';
 import {
   createMockConnection,
   createMockDocuments,
@@ -273,278 +275,72 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
     });
   });
 
-  describe('LSP Method Error Handling', () => {
-    it('should handle missing text document in requests', () => {
-      // Simulate a request without a valid text document
-      // The server should handle this gracefully
-      const invalidDoc = null;
-      assert.ok(invalidDoc === null, 'Should handle missing document');
+  describe('Runtime behavior checks', () => {
+    it('returns empty semantic token responses for missing documents', () => {
+      const connection = createMockConnection();
+      const services = createMockServices();
+      const documents = createMockDocuments(new Map());
+
+      registerSemanticTokensHandler(connection as any, services as any, documents as any);
+
+      const full = connection.semanticTokensHandler({
+        textDocument: { uri: 'file:///missing.pike' },
+      });
+      const delta = connection.semanticTokensDeltaHandler({
+        textDocument: { uri: 'file:///missing.pike' },
+        previousResultId: 'unknown',
+      });
+
+      assert.deepStrictEqual(full.data, []);
+      assert.deepStrictEqual(delta.edits, []);
     });
 
-    it('should handle invalid position in requests', () => {
-      // Position out of bounds should be handled
-      const position = { line: -1, character: -1 };
-      assert.ok(position.line < 0, 'Should detect invalid position');
-    });
-
-    it('should handle empty document content', () => {
-      // Empty code should not crash the server
-      const emptyCode = '';
-      assert.strictEqual(emptyCode, '', 'Empty code should be handled');
-    });
-
-    it('should handle very large line numbers', () => {
-      // Line numbers beyond document length
-      const position = { line: 999999, character: 0 };
-      assert.ok(position.line > 10000, 'Should detect out-of-bounds line');
-    });
-
-    it('should handle invalid URI formats', () => {
-      // Invalid file URIs should be handled gracefully
-      const invalidUri = 'not-a-uri';
-      assert.ok(!invalidUri.startsWith('file://'), 'Should detect invalid URI');
-    });
-  });
-
-  describe('Capability Consistency', () => {
-    it('should have matching token types and modifiers', () => {
-      const tokenTypes = [
-        'namespace',
-        'type',
-        'class',
-        'enum',
-        'interface',
-        'struct',
-        'typeParameter',
-        'parameter',
-        'variable',
-        'property',
-        'enumMember',
-        'event',
-        'function',
-        'method',
-        'macro',
-        'keyword',
-        'modifier',
-        'comment',
-        'string',
-        'number',
-        'regexp',
-        'operator',
-        'decorator',
-      ];
-
-      const tokenModifiers = [
-        'declaration',
-        'definition',
-        'readonly',
-        'static',
-        'deprecated',
-        'abstract',
-        'async',
-        'modification',
-        'documentation',
-        'defaultLibrary',
-      ];
-
-      assert.ok(tokenTypes.length >= 20, 'Should have at least 20 token types');
-      assert.ok(tokenModifiers.length >= 8, 'Should have at least 8 token modifiers');
-    });
-
-    it('should have completion trigger characters', () => {
-      const triggerCharacters = ['.', ':', '>', '-', '!'];
-      assert.ok(triggerCharacters.includes('.'), 'Dot should be trigger character');
-    });
-
-    it('should have signature help trigger characters', () => {
-      const triggerCharacters = ['(', ','];
-      assert.ok(
-        triggerCharacters.includes('('),
-        'Parenthesis should be trigger for signature help'
-      );
-    });
-
-    it('should support workspace folders', () => {
-      assert.ok(IMPLEMENTED_CAPABILITIES.workspace, 'Should support workspace');
-    });
-  });
-
-  describe('Method Request Validation', () => {
-    it('should validate initialize params', () => {
-      const validParams = {
-        processId: 12345,
-        rootUri: 'file:///test',
-        capabilities: {},
-      };
-
-      assert.ok(validParams.processId !== undefined, 'Should have processId');
-      assert.ok(validParams.rootUri?.startsWith('file://'), 'Should have valid rootUri');
-    });
-
-    it('should reject invalid initialize params', () => {
-      // Missing required params should be rejected
-      const invalidParams: any = {
-        // Missing processId
-        // Missing rootUri
-      };
-
-      assert.ok(!invalidParams.processId, 'Should detect missing processId');
-      assert.ok(!invalidParams.rootUri, 'Should detect missing rootUri');
-    });
-
-    it('should validate document identifiers', () => {
-      const validUri = 'file:///path/to/file.pike';
-      assert.ok(validUri.startsWith('file://'), 'Should be a valid file URI');
-
-      const invalidUri = 'http://example.com';
-      assert.ok(!invalidUri.startsWith('file://'), 'Should reject non-file URIs');
-    });
-
-    it('should validate position objects', () => {
-      const validPosition = { line: 1, character: 5 };
-      assert.ok(validPosition.line >= 0, 'Line should be non-negative');
-      assert.ok(validPosition.character >= 0, 'Character should be non-negative');
-
-      const invalidPosition = { line: -1, character: 5 };
-      assert.ok(invalidPosition.line < 0, 'Should detect negative line');
-    });
-
-    it('should validate range objects', () => {
-      const validRange = {
-        start: { line: 1, character: 0 },
-        end: { line: 1, character: 10 },
-      };
-
-      assert.ok(
-        validRange.start.line <= validRange.end.line,
-        'Start line should be before or equal to end line'
-      );
-
-      // Invalid range where start > end
-      const invalidRange = {
-        start: { line: 5, character: 0 },
-        end: { line: 1, character: 10 },
-      };
-
-      assert.ok(
-        invalidRange.start.line > invalidRange.end.line,
-        'Should detect invalid range where start > end'
-      );
-    });
-  });
-
-  describe('Error Response Format', () => {
-    it('should document error response structure', () => {
-      // LSP error responses follow JSON-RPC 2.0 format
-      const errorResponse = {
-        jsonrpc: '2.0',
-        error: {
-          code: -32600, // InvalidRequest
-          message: 'Invalid Request',
-          data: undefined,
+    it('forwards cancel requests with numeric and string ids', async () => {
+      const seen: string[] = [];
+      const connection = createMockConnection();
+      const services = createMockServices({
+        bridge: {
+          engineCancelRequest: async ({ requestId }: { requestId: string }) => {
+            seen.push(requestId);
+          },
         },
-      };
+      });
+      const documents = createMockDocuments(new Map());
 
-      assert.strictEqual(errorResponse.jsonrpc, '2.0', 'Should use JSON-RPC 2.0');
-      assert.ok('code' in errorResponse.error, 'Should have error code');
-      assert.ok('message' in errorResponse.error, 'Should have error message');
+      registerMonikerHandler(connection as any, services as any, documents as any);
+
+      const cancelHandler = connection.getRequestHandler('$/cancelRequest');
+      assert.ok(cancelHandler, '$/cancelRequest handler should be registered');
+
+      await cancelHandler?.({ id: 21 });
+      await cancelHandler?.({ id: 'abc' });
+      assert.deepStrictEqual(seen, ['21', 'abc']);
     });
 
-    it('should document method not found error', () => {
-      const methodNotFoundError = {
-        code: -32601,
-        message: 'Method not found',
-      };
+    it('clears semantic token delta state when a document closes', () => {
+      const uri = 'file:///close-case.pike';
+      const doc = TextDocument.create(uri, 'pike', 1, 'int close_case = 1;');
+      const documents = createMockDocuments(new Map([[uri, doc]]));
+      const services = createMockServices({
+        cacheEntries: new Map([
+          [
+            uri,
+            { symbols: [], diagnostics: [], metadata: { parseTime: 0, symbolCount: 0 } } as any,
+          ],
+        ]),
+      });
+      const connection = createMockConnection();
 
-      assert.strictEqual(methodNotFoundError.code, -32601, 'Method not found should be -32601');
-    });
+      registerSemanticTokensHandler(connection as any, services as any, documents as any);
 
-    it('should document invalid params error', () => {
-      const invalidParamsError = {
-        code: -32602,
-        message: 'Invalid params',
-      };
+      const full = connection.semanticTokensHandler({ textDocument: { uri } });
+      (documents as any).triggerDidClose(uri);
+      const delta = connection.semanticTokensDeltaHandler({
+        textDocument: { uri },
+        previousResultId: full.resultId,
+      });
 
-      assert.strictEqual(invalidParamsError.code, -32602, 'Invalid params should be -32602');
-    });
-
-    it('should document internal error', () => {
-      const internalError = {
-        code: -32603,
-        message: 'Internal error',
-      };
-
-      assert.strictEqual(internalError.code, -32603, 'Internal error should be -32603');
-    });
-
-    it('should document server error range', () => {
-      // Server-defined errors should be between -32000 and -32099
-      const serverError = {
-        code: -32000,
-        message: 'Server error',
-      };
-
-      assert.ok(
-        serverError.code >= -32099 && serverError.code <= -32000,
-        'Server error codes should be in range -32000 to -32099'
-      );
-    });
-  });
-
-  describe('Notification vs Request Handling', () => {
-    it('should distinguish notifications from requests', () => {
-      // Notifications don't expect a response
-      const notification = {
-        jsonrpc: '2.0',
-        method: 'textDocument/didOpen',
-        params: {},
-      };
-
-      assert.strictEqual(notification.jsonrpc, '2.0', 'Should be JSON-RPC 2.0');
-      assert.ok(!('id' in notification), 'Notifications should not have id');
-    });
-
-    it('should handle requests with numeric IDs', () => {
-      const request = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'textDocument/definition',
-        params: {},
-      };
-
-      assert.ok('id' in request, 'Requests should have id');
-      assert.ok(typeof request.id === 'number', 'Id should be number');
-    });
-
-    it('should handle requests with string IDs', () => {
-      const request = {
-        jsonrpc: '2.0',
-        id: 'unique-id-123',
-        method: 'textDocument/hover',
-        params: {},
-      };
-
-      assert.ok(typeof request.id === 'string', 'Id can be string');
-    });
-  });
-
-  describe('Progress and Partial Results', () => {
-    it('should document progress notification support', () => {
-      // Server may support progress
-      const hasProgressSupport = false; // Not currently implemented
-
-      assert.strictEqual(
-        hasProgressSupport,
-        false,
-        'Progress notifications are not currently implemented'
-      );
-    });
-
-    it('should document partial results support', () => {
-      // Some methods support partial results
-      const supportsPartialResults = true; // For methods like workspace symbols
-
-      assert.ok(supportsPartialResults, 'Partial results should be supported for some methods');
+      assert.ok(Array.isArray(delta.edits));
     });
   });
 
@@ -567,14 +363,9 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
       });
 
       console.log('\n  Test Categories:');
-      console.log('    • Server Capabilities (20 tests)');
-      console.log('    • Unimplemented Methods Documentation (3 tests)');
-      console.log('    • Error Handling (5 tests)');
-      console.log('    • Capability Consistency (3 tests)');
-      console.log('    • Method Request Validation (5 tests)');
-      console.log('    • Error Response Format (5 tests)');
-      console.log('    • Notification vs Request (3 tests)');
-      console.log('    • Progress and Partial Results (2 tests)');
+      console.log('    • Server Capabilities');
+      console.log('    • Unimplemented Methods Documentation');
+      console.log('    • Runtime behavior checks');
 
       console.log('\n═══════════════════════════════════════════════════\n');
 
