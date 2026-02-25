@@ -159,6 +159,38 @@ int ctx_initialized = 0;
 int compat_loaded = 0;
 float compat_load_time = 0.0;
 
+int qe2_revision = 0;
+mapping(string:mapping(string:mixed)) qe2_documents = ([]);
+mapping(string:mixed) qe2_settings = ([]);
+mapping(string:mixed) qe2_workspace = (["roots": ({}), "added": ({}), "removed": ({})]);
+mapping(string:int) qe2_cancelled_requests = ([]);
+
+int qe2_take_cancelled(string request_id) {
+    if (!sizeof(request_id)) {
+        return 0;
+    }
+    if (qe2_cancelled_requests[request_id]) {
+        m_delete(qe2_cancelled_requests, request_id);
+        return 1;
+    }
+    return 0;
+}
+
+string qe2_snapshot_id() {
+    return sprintf("snp-%d", qe2_revision);
+}
+
+mapping(string:mixed) qe2_ack() {
+    return ([
+        "revision": qe2_revision,
+        "snapshotId": qe2_snapshot_id()
+    ]);
+}
+
+void qe2_bump_revision() {
+    qe2_revision += 1;
+}
+
 //! get_context - Lazy initialization of Context service container
 //! Creates Context only on first request, deferring Parser/Intelligence/Analysis
 //! module loading until needed for startup optimization
@@ -473,6 +505,331 @@ int main(int argc, array(string) argv) {
                     "display": __REAL_VERSION__
                 ])
             ]);
+        },
+        "get_protocol_info": lambda(mapping params, object ctx) {
+            return ([
+                "result": ([
+                    "protocol": "query-engine-v2",
+                    "version": "2.0.0",
+                    "major": 2,
+                    "minor": 0,
+                    "build_id": BUILD_ID,
+                    "capabilities": ({
+                        "snapshot",
+                        "cancellation",
+                        "analyze"
+                    })
+                ])
+            ]);
+        },
+        "engine_open_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            qe2_documents[uri] = ([
+                "uri": uri,
+                "languageId": (string)(params->languageId || "pike"),
+                "version": (int)(params->version || 0),
+                "text": (string)(params->text || "")
+            ]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_change_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            mapping(string:mixed) doc = qe2_documents[uri] || (["uri": uri, "languageId": "pike", "text": ""]);
+            doc->version = (int)(params->version || (doc->version || 0));
+            if (stringp(params->text)) {
+                doc->text = (string)params->text;
+            }
+            if (arrayp(params->changes)) {
+                doc->changes = params->changes;
+            }
+            qe2_documents[uri] = doc;
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_close_document": lambda(mapping params, object ctx) {
+            string uri = (string)(params->uri || "");
+            if (!sizeof(uri)) {
+                return (["error": (["code": -32602, "message": "Missing uri"]) ]);
+            }
+
+            m_delete(qe2_documents, uri);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_update_config": lambda(mapping params, object ctx) {
+            qe2_settings = mappingp(params->settings) ? params->settings : ([]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_update_workspace": lambda(mapping params, object ctx) {
+            qe2_workspace = ([
+                "roots": arrayp(params->roots) ? params->roots : ({}),
+                "added": arrayp(params->added) ? params->added : ({}),
+                "removed": arrayp(params->removed) ? params->removed : ({})
+            ]);
+            qe2_bump_revision();
+            return (["result": qe2_ack()]);
+        },
+        "engine_query": lambda(mapping params, object ctx) {
+            object query_timer = System.Timer();
+            string request_id = (string)(params->requestId || "");
+            if (qe2_take_cancelled(request_id)) {
+                return ([
+                    "error": ([
+                        "code": -32800,
+                        "message": "Request cancelled"
+                    ])
+                ]);
+            }
+            mapping snapshot = mappingp(params->snapshot) ? params->snapshot : ([]);
+            string snapshot_mode = (string)(snapshot->mode || "latest");
+            string snapshot_used = snapshot_mode == "fixed" && stringp(snapshot->snapshotId)
+                ? (string)snapshot->snapshotId
+                : qe2_snapshot_id();
+
+            mapping query_params = mappingp(params->queryParams) ? params->queryParams : ([]);
+            string feature = (string)(params->feature || "unknown");
+
+            if (feature == "diagnostics") {
+                mapping analyze_params = ([
+                    "code": (string)(query_params->text || ""),
+                    "filename": (string)(query_params->filename || "input.pike"),
+                    "include": ({ "parse", "introspect", "diagnostics", "tokenize" }),
+                    "version": (int)(query_params->version || 0)
+                ]);
+
+                mapping analyze_response = ctx->analysis->handle_analyze(analyze_params);
+
+                if (qe2_take_cancelled(request_id)) {
+                    return ([
+                        "error": ([
+                            "code": -32800,
+                            "message": "Request cancelled"
+                        ])
+                    ]);
+                }
+
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": snapshot_used,
+                        "result": ([
+                            "feature": feature,
+                            "revision": qe2_revision,
+                            "analyzeResult": analyze_response
+                        ]),
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                    ])
+                ]);
+            }
+
+            if (feature == "definition" || feature == "references") {
+                string code = (string)(query_params->text || "");
+                string target_uri = (string)(query_params->uri || "");
+                mapping position = mappingp(query_params->position) ? query_params->position : ([]);
+                int line_idx = (int)(position->line || 0);
+                int char_idx = (int)(position->character || 0);
+                string target_symbol = "";
+
+                array(string) code_lines = code / "\n";
+                if (line_idx >= 0 && line_idx < sizeof(code_lines)) {
+                    string line_text = code_lines[line_idx] || "";
+
+                    if (char_idx < 0) {
+                        char_idx = 0;
+                    }
+                    if (char_idx > sizeof(line_text)) {
+                        char_idx = sizeof(line_text);
+                    }
+
+                    int start_idx = char_idx;
+                    int end_idx = char_idx;
+
+                    while (start_idx > 0) {
+                        int c = line_text[start_idx - 1];
+                        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) {
+                            break;
+                        }
+                        start_idx--;
+                    }
+
+                    while (end_idx < sizeof(line_text)) {
+                        int c = line_text[end_idx];
+                        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) {
+                            break;
+                        }
+                        end_idx++;
+                    }
+
+                    if (end_idx > start_idx) {
+                        target_symbol = line_text[start_idx..end_idx - 1];
+                    }
+                }
+
+                mapping occurrences_response = ctx->analysis->handle_find_occurrences(([
+                    "code": code,
+                ]));
+
+                array(mapping) occurrences = ({});
+                if (mappingp(occurrences_response->result) && arrayp(occurrences_response->result->occurrences)) {
+                    occurrences = occurrences_response->result->occurrences;
+                }
+
+                if (qe2_take_cancelled(request_id)) {
+                    return ([
+                        "error": ([
+                            "code": -32800,
+                            "message": "Request cancelled"
+                        ])
+                    ]);
+                }
+
+                array(mapping) locations = ({});
+                int occurrence_index = 0;
+                foreach (occurrences, mapping occ) {
+                    occurrence_index += 1;
+                    if (occurrence_index % 64 == 0 && qe2_take_cancelled(request_id)) {
+                        return ([
+                            "error": ([
+                                "code": -32800,
+                                "message": "Request cancelled"
+                            ])
+                        ]);
+                    }
+                    string occ_text = (string)(occ->text || "");
+                    if (!sizeof(occ_text)) {
+                        continue;
+                    }
+                    if (sizeof(target_symbol) && occ_text != target_symbol) {
+                        continue;
+                    }
+
+                    int occ_line = (int)(occ->line || 1);
+                    int occ_char = (int)(occ->character || 0);
+
+                    locations += ({([
+                        "uri": target_uri,
+                        "range": ([
+                            "start": ([
+                                "line": occ_line > 0 ? occ_line - 1 : 0,
+                                "character": occ_char,
+                            ]),
+                            "end": ([
+                                "line": occ_line > 0 ? occ_line - 1 : 0,
+                                "character": occ_char + sizeof(occ_text),
+                            ]),
+                        ]),
+                    ])});
+                }
+
+                if (feature == "definition" && sizeof(locations) > 1) {
+                    locations = ({ locations[0] });
+                }
+
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": snapshot_used,
+                        "result": ([
+                            "feature": feature,
+                            "revision": qe2_revision,
+                            "locations": locations,
+                        ]),
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                    ])
+                ]);
+            }
+
+            if (feature == "completion") {
+                string code = (string)(query_params->text || "");
+                mapping occurrences_response = ctx->analysis->handle_find_occurrences(([
+                    "code": code,
+                ]));
+
+                array(mapping) occurrences = ({});
+                if (mappingp(occurrences_response->result) && arrayp(occurrences_response->result->occurrences)) {
+                    occurrences = occurrences_response->result->occurrences;
+                }
+
+                if (qe2_take_cancelled(request_id)) {
+                    return ([
+                        "error": ([
+                            "code": -32800,
+                            "message": "Request cancelled"
+                        ])
+                    ]);
+                }
+
+                multiset(string) seen = (<>);
+                array(mapping) items = ({});
+
+                int completion_occurrence_index = 0;
+                foreach (occurrences, mapping occ) {
+                    completion_occurrence_index += 1;
+                    if (completion_occurrence_index % 64 == 0 && qe2_take_cancelled(request_id)) {
+                        return ([
+                            "error": ([
+                                "code": -32800,
+                                "message": "Request cancelled"
+                            ])
+                        ]);
+                    }
+                    string label = (string)(occ->text || "");
+                    if (!sizeof(label)) {
+                        continue;
+                    }
+                    if (seen[label]) {
+                        continue;
+                    }
+                    seen[label] = 1;
+                    items += ({([
+                        "label": label,
+                    ])});
+                }
+
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": snapshot_used,
+                        "result": ([
+                            "feature": feature,
+                            "revision": qe2_revision,
+                            "items": items,
+                        ]),
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                    ])
+                ]);
+            }
+
+            return ([
+                "result": ([
+                    "requestId": request_id,
+                    "snapshotIdUsed": snapshot_used,
+                    "result": ([
+                        "feature": feature,
+                        "status": "stub",
+                        "revision": qe2_revision,
+                        "documentCount": sizeof(qe2_documents)
+                    ]),
+                    "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                ])
+            ]);
+        },
+        "engine_cancel_request": lambda(mapping params, object ctx) {
+            string request_id = (string)(params->requestId || "");
+            if (sizeof(request_id)) {
+                qe2_cancelled_requests[request_id] = 1;
+            }
+            return (["result": (["accepted": 1])]);
         },
         "get_startup_metrics": lambda(mapping params, object ctx) {
             // PERF-012: Include context_created flag to indicate lazy state

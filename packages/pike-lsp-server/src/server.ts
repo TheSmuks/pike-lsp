@@ -31,6 +31,12 @@ import { ModuleContext } from './services/module-context.js';
 import { WorkspaceScanner } from './services/workspace-scanner.js';
 import { Logger } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
+import {
+  formatProtocolVersion,
+  isProtocolCompatible,
+  QUERY_ENGINE_MAJOR_VERSION,
+  QUERY_ENGINE_PROTOCOL,
+} from './query-engine/contracts.js';
 import * as features from './features/index.js';
 
 // Semantic tokens legend (defined here for capabilities)
@@ -130,9 +136,6 @@ function findAnalyzerPath(): string | undefined {
 
   return undefined;
 }
-
-// NOTE: Document validation is handled by features/diagnostics.ts
-// The registerDiagnosticsHandlers function sets up all document event handlers
 
 // ============================================================================
 // Services Bundle Factory
@@ -435,6 +438,31 @@ connection.onInitialized(async () => {
         connection.console.log(
           `Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`
         );
+
+        const protocolInfo = await bridgeManager.getProtocolInfo();
+        if (!protocolInfo) {
+          connection.console.warn('Pike analyzer did not provide protocol handshake info');
+          log('Protocol handshake unavailable from Pike analyzer');
+        } else {
+          const protocolSummary = formatProtocolVersion(protocolInfo);
+          connection.console.log(`Pike protocol handshake: ${protocolSummary}`);
+          log(`Protocol handshake: ${protocolSummary}`);
+
+          if (!isProtocolCompatible(protocolInfo)) {
+            connection.console.warn(
+              `Unexpected Pike protocol handshake: ${protocolSummary} (expected ${QUERY_ENGINE_PROTOCOL}@${QUERY_ENGINE_MAJOR_VERSION}.x)`
+            );
+            log(`Protocol compatibility warning: ${protocolSummary}`);
+          }
+        }
+
+        const configAck = await bridgeManager.engineUpdateConfig({
+          settings: {
+            diagnosticDelay: globalSettings.diagnosticDelay,
+            includePaths,
+          },
+        });
+        log(`Engine config ack revision=${configAck.revision} snapshot=${configAck.snapshotId}`);
       }
     } catch (err) {
       connection.console.warn(`Failed to start bridge: ${err}`);
@@ -450,6 +478,15 @@ connection.onInitialized(async () => {
   // Index workspace
   const workspaceFolders = await connection.workspace.getWorkspaceFolders();
   if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
+    const workspaceAck = await bridgeManager.engineUpdateWorkspace({
+      roots: workspaceFolders.map(folder => folder.uri),
+      added: workspaceFolders.map(folder => folder.uri),
+      removed: [],
+    });
+    log(
+      `Engine workspace ack revision=${workspaceAck.revision} snapshot=${workspaceAck.snapshotId}`
+    );
+
     connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
     setImmediate(async () => {
       let _totalIndexed = 0;
@@ -483,9 +520,6 @@ connection.onInitialized(async () => {
       }
     });
   }
-
-  // NOTE: Open documents will be validated by diagnostics.ts onDidOpen handlers
-  // which are triggered when documents.listen(connection) starts
 });
 
 connection.onDidChangeConfiguration(change => {
@@ -494,7 +528,6 @@ connection.onDidChangeConfiguration(change => {
     ...defaultSettings,
     ...(settings?.pike ?? {}),
   };
-  // NOTE: Document revalidation is handled by diagnostics.ts onDidChangeConfiguration
 });
 
 // ============================================================================

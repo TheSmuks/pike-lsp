@@ -33,14 +33,9 @@
  * ============================================================================
  */
 
-import {
-    Position,
-    Range,
-    DocumentSymbol,
-    SymbolKind
-} from 'vscode-languageserver/node.js';
+import { Position, Range, DocumentSymbol, SymbolKind } from 'vscode-languageserver/node.js';
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
-import type { BridgeManager } from '../../services/bridge-manager.js';
+import { BridgeManager } from '../../services/bridge-manager.js';
 
 /**
  * RXML string literal found in Pike code
@@ -49,58 +44,58 @@ import type { BridgeManager } from '../../services/bridge-manager.js';
  * Positions are in LSP format (0-indexed lines, 0-indexed characters).
  */
 export interface RXMLStringLiteral {
-    /** The RXML content extracted from the string literal */
-    content: string;
+  /** The RXML content extracted from the string literal */
+  content: string;
 
-    /** Range of the string literal content (excluding quotes) in the document */
-    range: Range;
+  /** Range of the string literal content (excluding quotes) in the document */
+  range: Range;
 
-    /** Range including the opening #" and closing " quotes */
-    fullRange: Range;
+  /** Range including the opening #" and closing " quotes */
+  fullRange: Range;
 
-    /** Confidence score (0-1) that this contains RXML */
-    confidence: number;
+  /** Confidence score (0-1) that this contains RXML */
+  confidence: number;
 
-    /** Detected RXML markers found in content */
-    markers: RXMLMarker[];
+  /** Detected RXML markers found in content */
+  markers: RXMLMarker[];
 }
 
 /**
  * RXML marker pattern detected in string content
  */
 export interface RXMLMarker {
-    /** Marker type */
-    type: 'tag' | 'entity' | 'directive';
+  /** Marker type */
+  type: 'tag' | 'entity' | 'directive';
 
-    /** Marker name (e.g., "roxen", "set", "emit") */
-    name: string;
+  /** Marker name (e.g., "roxen", "set", "emit") */
+  name: string;
 
-    /** Position of marker within the RXML string content */
-    position: Position;
+  /** Position of marker within the RXML string content */
+  position: Position;
 }
 
 /**
  * Result of RXML string detection
  */
 export interface RXMLDetectionResult {
-    /** All detected RXML string literals */
-    strings: RXMLStringLiteral[];
+  /** All detected RXML string literals */
+  strings: RXMLStringLiteral[];
 
-    /** Combined symbol tree (Pike + RXML symbols) */
-    symbols: DocumentSymbol[];
+  /** Combined symbol tree (Pike + RXML symbols) */
+  symbols: DocumentSymbol[];
 
-    /** RXML-specific diagnostics */
-    diagnostics: RXMLDiagnostic[];
+  /** RXML-specific diagnostics */
+  diagnostics: RXMLDiagnostic[];
 }
 
 /**
  * RXML diagnostic (error/warning in RXML content)
  */
 export interface RXMLDiagnostic {
-    severity: 'error' | 'warning' | 'info';
-    message: string;
-    range: Range;
-    code?: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  range: Range;
+  code?: string;
 }
 
 /**
@@ -110,17 +105,17 @@ export interface RXMLDiagnostic {
  * document for diagnostics, symbols, and completions.
  */
 export interface PositionMapping {
-    /** Original document range */
-    documentRange: Range;
+  /** Original document range */
+  documentRange: Range;
 
-    /** Offset within the extracted RXML string */
-    contentOffset: number;
+  /** Offset within the extracted RXML string */
+  contentOffset: number;
 
-    /** Line offset (document line - content line) */
-    lineOffset: number;
+  /** Line offset (document line - content line) */
+  lineOffset: number;
 
-    /** Character offset within the first line */
-    characterOffset: number;
+  /** Character offset within the first line */
+  characterOffset: number;
 }
 
 /**
@@ -135,46 +130,51 @@ export interface PositionMapping {
  * @returns Promise<RXMLStringLiteral[]> - Detected RXML strings
  */
 export async function detectRXMLStrings(
-    code: string,
-    uri: string,
-    bridge: BridgeManager | PikeBridge
+  code: string,
+  uri: string,
+  bridge: BridgeManager | PikeBridge
 ): Promise<RXMLStringLiteral[]> {
-    // Call Pike-side method: roxenExtractRXMLStrings()
-    // This uses Parser.Pike.split() to find multiline string literals
+  // Call Pike-side method: roxenExtractRXMLStrings()
+  // This uses Parser.Pike.split() to find multiline string literals
 
-    const result = await (bridge as any).roxenExtractRXMLStrings(code, uri);
+  const extractor = bridge instanceof BridgeManager ? bridge.bridge : bridge;
+  if (!extractor) {
+    return [];
+  }
 
-    if (!result || !result.strings) {
-        return [];
-    }
+  const result = await extractor.roxenExtractRXMLStrings(code, uri);
 
-    // Transform Pike-side results to TypeScript types
-     
-    return result.strings.map((s: any) => ({
-        content: s.content,
-        range: {
-            start: {
-                line: s.range.start.line - 1, // Convert 1-indexed to 0-indexed
-                character: s.range.start.column - 1
-            },
-            end: {
-                line: s.range.end.line - 1,
-                character: s.range.end.column - 1
-            }
-        },
-        fullRange: {
-            start: {
-                line: s.fullRange.start.line - 1,
-                character: s.fullRange.start.column - 1
-            },
-            end: {
-                line: s.fullRange.end.line - 1,
-                character: s.fullRange.end.column - 1
-            }
-        },
-        confidence: s.confidence || 0,
-        markers: s.markers || []
-    }));
+  if (!result || !result.strings) {
+    return [];
+  }
+
+  // Transform Pike-side results to TypeScript types
+
+  return result.strings.map((s: any) => ({
+    content: s.content,
+    range: {
+      start: {
+        line: s.range.start.line - 1, // Convert 1-indexed to 0-indexed
+        character: s.range.start.column - 1,
+      },
+      end: {
+        line: s.range.end.line - 1,
+        character: s.range.end.column - 1,
+      },
+    },
+    fullRange: {
+      start: {
+        line: s.fullRange.start.line - 1,
+        character: s.fullRange.start.column - 1,
+      },
+      end: {
+        line: s.fullRange.end.line - 1,
+        character: s.fullRange.end.column - 1,
+      },
+    },
+    confidence: s.confidence || 0,
+    markers: s.markers || [],
+  }));
 }
 
 /**
@@ -190,29 +190,29 @@ export async function detectRXMLStrings(
  * @returns number - Confidence score (0-1)
  */
 export function calculateRXMLConfidence(content: string): number {
-    let confidence = 0;
+  let confidence = 0;
 
-    const lower = content.toLowerCase();
+  const lower = content.toLowerCase();
 
-    // Strong indicators
-    if (lower.includes('<roxen')) confidence += 0.4;
-    if (lower.includes('<set ')) confidence += 0.2;
-    if (lower.includes('<emit ')) confidence += 0.2;
-    if (lower.includes('<if ') || lower.includes('<elseif ') || lower.includes('<else>')) {
-        confidence += 0.15;
-    }
+  // Strong indicators
+  if (lower.includes('<roxen')) confidence += 0.4;
+  if (lower.includes('<set ')) confidence += 0.2;
+  if (lower.includes('<emit ')) confidence += 0.2;
+  if (lower.includes('<if ') || lower.includes('<elseif ') || lower.includes('<else>')) {
+    confidence += 0.15;
+  }
 
-    // RXML entities
-    if (/\&(roxen|form|cache|config|usr)\./.test(content)) {
-        confidence += 0.2;
-    }
+  // RXML entities
+  if (/\&(roxen|form|cache|config|usr)\./.test(content)) {
+    confidence += 0.2;
+  }
 
-    // XML structure
-    if (/<(\w+)[^>]*>.*?<\/\1>/.test(content)) {
-        confidence += 0.1;
-    }
+  // XML structure
+  if (/<(\w+)[^>]*>.*?<\/\1>/.test(content)) {
+    confidence += 0.1;
+  }
 
-    return Math.min(confidence, 1.0);
+  return Math.min(confidence, 1.0);
 }
 
 /**
@@ -224,63 +224,92 @@ export function calculateRXMLConfidence(content: string): number {
  * @returns RXMLMarker[] - Detected markers with positions
  */
 export function detectRXMLMarkers(content: string): RXMLMarker[] {
-    const markers: RXMLMarker[] = [];
-    const lines = content.split('\n');
+  const markers: RXMLMarker[] = [];
+  const lines = content.split('\n');
 
-    // Known RXML tags
-    const rxmlTags = new Set([
-        'roxen', 'set', 'emit', 'if', 'elseif', 'else', 'then', 'elseif',
-        'case', 'for', 'foreach', 'apre', 'locale', 'cset', 'config',
-        'cache', 'header', 'redirect', 'timeout', 'abort', 'insert',
-        'doc', 'help', 'box', 'navigation', 'tablist', 'tabs', 'tab',
-        'frame', 'frameset', 'noprint', 'ssl', 'crypt', 'user'
-    ]);
+  // Known RXML tags
+  const rxmlTags = new Set([
+    'roxen',
+    'set',
+    'emit',
+    'if',
+    'elseif',
+    'else',
+    'then',
+    'elseif',
+    'case',
+    'for',
+    'foreach',
+    'apre',
+    'locale',
+    'cset',
+    'config',
+    'cache',
+    'header',
+    'redirect',
+    'timeout',
+    'abort',
+    'insert',
+    'doc',
+    'help',
+    'box',
+    'navigation',
+    'tablist',
+    'tabs',
+    'tab',
+    'frame',
+    'frameset',
+    'noprint',
+    'ssl',
+    'crypt',
+    'user',
+  ]);
 
-    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum];
-        if (!line) continue;
+  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+    const line = lines[lineNum];
+    if (!line) continue;
 
-        // Detect opening tags: <tagname or </tagname
-        const tagRegex = /<\/?([a-z][a-z0-9_]*)/gi;
-        let match;
+    // Detect opening tags: <tagname or </tagname
+    const tagRegex = /<\/?([a-z][a-z0-9_]*)/gi;
+    let match;
 
-        while ((match = tagRegex.exec(line)) !== null) {
-            if (!match[1] || match.index === undefined) continue;
-            const tagName: string = match[1].toLowerCase();
+    while ((match = tagRegex.exec(line)) !== null) {
+      if (!match[1] || match.index === undefined) continue;
+      const tagName: string = match[1].toLowerCase();
 
-            if (rxmlTags.has(tagName)) {
-                markers.push({
-                    type: 'tag',
-                    name: tagName,
-                    position: {
-                        line: lineNum,
-                        character: match.index
-                    }
-                });
-            }
-        }
-
-        // Detect RXML entities: &roxen.*, &form.*, etc.
-        const entityRegex = /\&([a-z][a-z0-9_]*)\./gi;
-
-        while ((match = entityRegex.exec(line)) !== null) {
-            if (!match[1] || match.index === undefined) continue;
-            const entityPrefix: string = match[1].toLowerCase();
-
-            if (['roxen', 'form', 'cache', 'config', 'usr', 'page', 'client'].includes(entityPrefix)) {
-                markers.push({
-                    type: 'entity',
-                    name: entityPrefix,
-                    position: {
-                        line: lineNum,
-                        character: match.index
-                    }
-                });
-            }
-        }
+      if (rxmlTags.has(tagName)) {
+        markers.push({
+          type: 'tag',
+          name: tagName,
+          position: {
+            line: lineNum,
+            character: match.index,
+          },
+        });
+      }
     }
 
-    return markers;
+    // Detect RXML entities: &roxen.*, &form.*, etc.
+    const entityRegex = /\&([a-z][a-z0-9_]*)\./gi;
+
+    while ((match = entityRegex.exec(line)) !== null) {
+      if (!match[1] || match.index === undefined) continue;
+      const entityPrefix: string = match[1].toLowerCase();
+
+      if (['roxen', 'form', 'cache', 'config', 'usr', 'page', 'client'].includes(entityPrefix)) {
+        markers.push({
+          type: 'entity',
+          name: entityPrefix,
+          position: {
+            line: lineNum,
+            character: match.index,
+          },
+        });
+      }
+    }
+  }
+
+  return markers;
 }
 
 /**
@@ -294,15 +323,14 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
  * @returns Position - Position in original document
  */
 export function mapContentToDocumentPosition(
-    position: Position,
-    mapping: PositionMapping
+  position: Position,
+  mapping: PositionMapping
 ): Position {
-    return {
-        line: position.line + mapping.lineOffset,
-        character: position.line === 0
-            ? position.character + mapping.characterOffset
-            : position.character
-    };
+  return {
+    line: position.line + mapping.lineOffset,
+    character:
+      position.line === 0 ? position.character + mapping.characterOffset : position.character,
+  };
 }
 
 /**
@@ -313,30 +341,28 @@ export function mapContentToDocumentPosition(
  * @returns Position | null - Position within RXML content, or null if outside
  */
 export function mapDocumentToContentPosition(
-    position: Position,
-    rxmlString: RXMLStringLiteral
+  position: Position,
+  rxmlString: RXMLStringLiteral
 ): Position | null {
-    const { range } = rxmlString;
+  const { range } = rxmlString;
 
-    // Check if position is within the RXML string range
-    if (
-        position.line < range.start.line ||
-        position.line > range.end.line ||
-        (position.line === range.start.line && position.character < range.start.character) ||
-        (position.line === range.end.line && position.character > range.end.character)
-    ) {
-        return null;
-    }
+  // Check if position is within the RXML string range
+  if (
+    position.line < range.start.line ||
+    position.line > range.end.line ||
+    (position.line === range.start.line && position.character < range.start.character) ||
+    (position.line === range.end.line && position.character > range.end.character)
+  ) {
+    return null;
+  }
 
-    // Calculate offset within the content
-    const lineOffset = position.line - range.start.line;
+  // Calculate offset within the content
+  const lineOffset = position.line - range.start.line;
 
-    return {
-        line: lineOffset,
-        character: lineOffset === 0
-            ? position.character - range.start.character
-            : position.character
-    };
+  return {
+    line: lineOffset,
+    character: lineOffset === 0 ? position.character - range.start.character : position.character,
+  };
 }
 
 /**
@@ -351,66 +377,68 @@ export function mapDocumentToContentPosition(
  * @returns DocumentSymbol[] - Merged symbol tree
  */
 export function mergeSymbolTrees(
-    pikeSymbols: DocumentSymbol[],
-    rxmlStrings: RXMLStringLiteral[]
+  pikeSymbols: DocumentSymbol[],
+  rxmlStrings: RXMLStringLiteral[]
 ): DocumentSymbol[] {
-    const result: DocumentSymbol[] = [...pikeSymbols];
+  const result: DocumentSymbol[] = [...pikeSymbols];
 
-    // For each RXML string, add a container symbol
-    for (const rxmlString of rxmlStrings) {
-        if (rxmlString.confidence < 0.3) {
-            continue; // Skip low-confidence strings
-        }
-
-        // Create a "RXML Content" symbol at the string literal location
-        const rxmlSymbol: DocumentSymbol = {
-            name: 'RXML Template',
-            kind: SymbolKind.Namespace,
-            range: rxmlString.range,
-            selectionRange: rxmlString.range,
-            detail: `${rxmlString.markers.length} RXML markers`,
-            children: []
-        };
-
-        // Add detected markers as children
-        for (const marker of rxmlString.markers) {
-            const markerSymbol: DocumentSymbol = {
-                name: marker.name,
-                kind: marker.type === 'tag' ? 5 : 13, // Tag = Method, Entity = Constant
-                range: {
-                    start: mapContentToDocumentPosition(marker.position, {
-                        documentRange: rxmlString.range,
-                        contentOffset: 0,
-                        lineOffset: rxmlString.range.start.line,
-                        characterOffset: rxmlString.range.start.character
-                    }),
-                    end: {
-                        line: marker.position.line + rxmlString.range.start.line,
-                        character: marker.position.character + marker.name.length + rxmlString.range.start.character
-                    }
-                },
-                selectionRange: {
-                    start: mapContentToDocumentPosition(marker.position, {
-                        documentRange: rxmlString.range,
-                        contentOffset: 0,
-                        lineOffset: rxmlString.range.start.line,
-                        characterOffset: rxmlString.range.start.character
-                    }),
-                    end: {
-                        line: marker.position.line + rxmlString.range.start.line,
-                        character: marker.position.character + marker.name.length + rxmlString.range.start.character
-                    }
-                },
-                detail: marker.type
-            };
-
-            rxmlSymbol.children!.push(markerSymbol);
-        }
-
-        result.push(rxmlSymbol);
+  // For each RXML string, add a container symbol
+  for (const rxmlString of rxmlStrings) {
+    if (rxmlString.confidence < 0.3) {
+      continue; // Skip low-confidence strings
     }
 
-    return result;
+    // Create a "RXML Content" symbol at the string literal location
+    const rxmlSymbol: DocumentSymbol = {
+      name: 'RXML Template',
+      kind: SymbolKind.Namespace,
+      range: rxmlString.range,
+      selectionRange: rxmlString.range,
+      detail: `${rxmlString.markers.length} RXML markers`,
+      children: [],
+    };
+
+    // Add detected markers as children
+    for (const marker of rxmlString.markers) {
+      const markerSymbol: DocumentSymbol = {
+        name: marker.name,
+        kind: marker.type === 'tag' ? 5 : 13, // Tag = Method, Entity = Constant
+        range: {
+          start: mapContentToDocumentPosition(marker.position, {
+            documentRange: rxmlString.range,
+            contentOffset: 0,
+            lineOffset: rxmlString.range.start.line,
+            characterOffset: rxmlString.range.start.character,
+          }),
+          end: {
+            line: marker.position.line + rxmlString.range.start.line,
+            character:
+              marker.position.character + marker.name.length + rxmlString.range.start.character,
+          },
+        },
+        selectionRange: {
+          start: mapContentToDocumentPosition(marker.position, {
+            documentRange: rxmlString.range,
+            contentOffset: 0,
+            lineOffset: rxmlString.range.start.line,
+            characterOffset: rxmlString.range.start.character,
+          }),
+          end: {
+            line: marker.position.line + rxmlString.range.start.line,
+            character:
+              marker.position.character + marker.name.length + rxmlString.range.start.character,
+          },
+        },
+        detail: marker.type,
+      };
+
+      rxmlSymbol.children!.push(markerSymbol);
+    }
+
+    result.push(rxmlSymbol);
+  }
+
+  return result;
 }
 
 /**
@@ -424,23 +452,23 @@ export function mergeSymbolTrees(
  * @returns RXMLStringLiteral | null - The RXML string containing position, or null
  */
 export function findRXMLStringAtPosition(
-    position: Position,
-    rxmlStrings: RXMLStringLiteral[]
+  position: Position,
+  rxmlStrings: RXMLStringLiteral[]
 ): RXMLStringLiteral | null {
-    for (const rxmlString of rxmlStrings) {
-        const { range } = rxmlString;
+  for (const rxmlString of rxmlStrings) {
+    const { range } = rxmlString;
 
-        if (
-            position.line >= range.start.line &&
-            position.line <= range.end.line &&
-            (position.line > range.start.line || position.character >= range.start.character) &&
-            (position.line < range.end.line || position.character <= range.end.character)
-        ) {
-            return rxmlString;
-        }
+    if (
+      position.line >= range.start.line &&
+      position.line <= range.end.line &&
+      (position.line > range.start.line || position.character >= range.start.character) &&
+      (position.line < range.end.line || position.character <= range.end.character)
+    ) {
+      return rxmlString;
     }
+  }
 
-    return null;
+  return null;
 }
 
 /**
@@ -449,25 +477,46 @@ export function findRXMLStringAtPosition(
  * @param rxmlString - RXML string literal info
  * @returns PositionMapping - Mapping info
  */
-export function createPositionMapping(
-    rxmlString: RXMLStringLiteral
-): PositionMapping {
-    return {
-        documentRange: rxmlString.range,
-        contentOffset: 0,
-        lineOffset: rxmlString.range.start.line,
-        characterOffset: rxmlString.range.start.character
-    };
+export function createPositionMapping(rxmlString: RXMLStringLiteral): PositionMapping {
+  return {
+    documentRange: rxmlString.range,
+    contentOffset: 0,
+    lineOffset: rxmlString.range.start.line,
+    characterOffset: rxmlString.range.start.character,
+  };
 }
 
 /**
  * Known RXML tags for completion
  */
 const KNOWN_RXML_TAGS_FOR_COMPLETION = new Set([
-    'roxen', 'set', 'emit', 'if', 'elseif', 'else', 'then', 'case',
-    'switch', 'default', 'for', 'foreach', 'while', 'output', 'insert',
-    'config', 'header', 'cache', 'input', 'date', 'apre', 'locale',
-    'referrer', 'user', 'container', 'contents', 'sqlquery'
+  'roxen',
+  'set',
+  'emit',
+  'if',
+  'elseif',
+  'else',
+  'then',
+  'case',
+  'switch',
+  'default',
+  'for',
+  'foreach',
+  'while',
+  'output',
+  'insert',
+  'config',
+  'header',
+  'cache',
+  'input',
+  'date',
+  'apre',
+  'locale',
+  'referrer',
+  'user',
+  'container',
+  'contents',
+  'sqlquery',
 ]);
 
 /**
@@ -478,32 +527,32 @@ const KNOWN_RXML_TAGS_FOR_COMPLETION = new Set([
  * @returns Array of RXML tag names for completion
  */
 export function getRXMLTagCompletions(
-    _rxmlString: RXMLStringLiteral,
-    _position: Position
+  _rxmlString: RXMLStringLiteral,
+  _position: Position
 ): string[] {
-    return Array.from(KNOWN_RXML_TAGS_FOR_COMPLETION);
+  return Array.from(KNOWN_RXML_TAGS_FOR_COMPLETION);
 }
 
 /**
  * Known RXML attributes per tag
  */
 const RXML_TAG_ATTRIBUTES: Record<string, string[]> = {
-    'set': ['variable', 'scope'],
-    'emit': ['source', 'query', 'maxrows', 'skiprows', 'row'],
-    'output': ['variable', 'encode', 'trim'],
-    'config': ['variable', 'scope'],
-    'input': ['name', 'default'],
-    'if': ['variable', 'matches', 'is', 'not', 'exists'],
-    'elseif': ['variable', 'matches', 'is', 'not', 'exists'],
-    'foreach': ['variable', 'in', 'iterator'],
-    'for': ['from', 'to', 'step'],
-    'sqlquery': ['query', 'host', 'database', 'user', 'password'],
-    'container': ['name', 'noxml', 'prefix'],
-    'contents': ['name', 'of'],
-    'cache': ['key', 'seconds', 'minute', 'hour', 'day'],
-    'header': ['name', 'value', 'replace'],
-    'insert': ['data', 'from', 'variable'],
-    'date': ['time', 'timezone', 'format']
+  set: ['variable', 'scope'],
+  emit: ['source', 'query', 'maxrows', 'skiprows', 'row'],
+  output: ['variable', 'encode', 'trim'],
+  config: ['variable', 'scope'],
+  input: ['name', 'default'],
+  if: ['variable', 'matches', 'is', 'not', 'exists'],
+  elseif: ['variable', 'matches', 'is', 'not', 'exists'],
+  foreach: ['variable', 'in', 'iterator'],
+  for: ['from', 'to', 'step'],
+  sqlquery: ['query', 'host', 'database', 'user', 'password'],
+  container: ['name', 'noxml', 'prefix'],
+  contents: ['name', 'of'],
+  cache: ['key', 'seconds', 'minute', 'hour', 'day'],
+  header: ['name', 'value', 'replace'],
+  insert: ['data', 'from', 'variable'],
+  date: ['time', 'timezone', 'format'],
 };
 
 /**
@@ -513,7 +562,7 @@ const RXML_TAG_ATTRIBUTES: Record<string, string[]> = {
  * @returns Array of known attribute names for the tag
  */
 export function getRXMLAttributeCompletions(tagName: string): string[] {
-    return RXML_TAG_ATTRIBUTES[tagName.toLowerCase()] || [];
+  return RXML_TAG_ATTRIBUTES[tagName.toLowerCase()] || [];
 }
 
 // ============================================================================

@@ -1,0 +1,38 @@
+{
+  "defaultMaxRegressionPct": 5,
+  "subMsCutoff": 0.5,
+  "subMsMaxAbsoluteRegressionMs": 0.03,
+  "benchmarks": {
+    "Closed File: analyze without version (stat-based key)": {
+      "maxRegressionPct": 12,
+      "subMsMaxAbsoluteRegressionMs": 0.05
+    },
+    "First diagnostic after document change": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.04
+    },
+    "PikeBridge.start() with detailed metrics [Cold Start]": {
+      "maxRegressionPct": 3
+    },
+    "Validation: sequential warm revalidation": {
+      "maxRegressionPct": 8,
+      "subMsMaxAbsoluteRegressionMs": 0.04
+    },
+    "Hover: resolveStdlib(\"Stdio.File\")": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.08
+    },
+    "Hover: resolveModule(\"Stdio.File\")": {
+      "maxRegressionPct": 25,
+      "subMsMaxAbsoluteRegressionMs": 0.03
+    },
+    "resolveStdlib(\"Stdio\") - warm": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.3
+    },
+    "resolveStdlib(\"Stdio.File\") - nested": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.08
+    }
+  }
+}

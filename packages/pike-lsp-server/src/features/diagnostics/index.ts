@@ -24,6 +24,7 @@ import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/index.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 
 // Import from split modules
@@ -83,6 +84,9 @@ export function registerDiagnosticsHandlers(
   // INC-002: Track change ranges for incremental parsing.
   // Stores the range of the most recent change for each document URI.
   const pendingChangeRanges = new Map<string, Range | undefined>();
+  const documentSnapshots = new Map<string, string>();
+  const inFlightDiagnosticRequests = new Map<string, string>();
+  const diagnosticsScheduler = new RequestScheduler();
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -142,9 +146,19 @@ export function registerDiagnosticsHandlers(
       }
 
       // Proceed with full validation
-      const promise = validateDocument(document, classification);
+      const promise = diagnosticsScheduler.schedule({
+        requestClass: 'typing',
+        key: `diagnostics:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
+          await validateDocument(document, classification);
+        },
+      });
       documentCache.setPending(uri, promise);
       promise.catch(err => {
+        if (err instanceof RequestSupersededError) {
+          return;
+        }
         log.error('Debounced validation failed', {
           uri,
           error: err instanceof Error ? err.message : String(err),
@@ -200,16 +214,84 @@ export function registerDiagnosticsHandlers(
 
     try {
       log.debug('Calling unified analyze', { filename, version });
-      // PERF-004: Include 'tokenize' to avoid separate findOccurrences call for symbolPositions
-      // Tokens are used to build symbolPositions index without additional IPC round-trip
-      // Single unified analyze call - replaces 3 separate calls (introspect, parse, analyzeUninitialized)
-      // Pass document version for cache key (open docs use LSP version, no stat overhead)
-      const analyzeResult = await bridge.analyze(
-        text,
-        ['parse', 'introspect', 'diagnostics', 'tokenize'],
-        filename,
-        version
-      );
+      const requestId = `${uri}:${version}:${Date.now()}`;
+      const clearInFlightRequest = (): void => {
+        if (inFlightDiagnosticRequests.get(uri) === requestId) {
+          inFlightDiagnosticRequests.delete(uri);
+        }
+      };
+      let analyzeResult: import('@pike-lsp/pike-bridge').AnalyzeResponse | null = null;
+
+      try {
+        const previousRequestId = inFlightDiagnosticRequests.get(uri);
+        if (previousRequestId && previousRequestId !== requestId) {
+          try {
+            await bridge.engineCancelRequest({ requestId: previousRequestId });
+          } catch (err) {
+            log.debug('Engine query cancellation for superseded request failed', {
+              uri,
+              requestId: previousRequestId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+        inFlightDiagnosticRequests.set(uri, requestId);
+
+        const snapshotId = documentSnapshots.get(uri);
+        const qeResponse = await bridge.engineQuery({
+          feature: 'diagnostics',
+          requestId,
+          snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
+          queryParams: {
+            uri,
+            filename,
+            version,
+            text,
+          },
+        });
+
+        const responseRevision =
+          typeof qeResponse.result['revision'] === 'number'
+            ? qeResponse.result['revision']
+            : undefined;
+
+        log.debug('Engine query diagnostics response', {
+          uri,
+          requestId,
+          snapshotIdUsed: qeResponse.snapshotIdUsed,
+          revision: responseRevision,
+        });
+        documentSnapshots.set(uri, qeResponse.snapshotIdUsed);
+
+        const candidate = qeResponse.result['analyzeResult'];
+        if (candidate && typeof candidate === 'object') {
+          analyzeResult = candidate as import('@pike-lsp/pike-bridge').AnalyzeResponse;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (/cancel/i.test(message)) {
+          log.debug('Engine query diagnostics cancelled', { uri, requestId });
+          clearInFlightRequest();
+          return;
+        }
+        log.debug('Engine query diagnostics fallback', {
+          uri,
+          requestId,
+          error: message,
+        });
+      }
+
+      if (!analyzeResult) {
+        log.debug('Engine query diagnostics using analyze fallback', { uri, requestId });
+        analyzeResult = await bridge.analyze(
+          text,
+          ['parse', 'introspect', 'diagnostics', 'tokenize'],
+          filename,
+          version
+        );
+      }
+
+      clearInFlightRequest();
 
       // Log completion status
       const hasParse = !!analyzeResult.result?.parse;
@@ -376,9 +458,11 @@ export function registerDiagnosticsHandlers(
 
             const inParse = parsedSymbolNames.has(introspectedSym.name);
             if (!inParse) {
+              const introspectedKind =
+                introspectedSym.kind as import('@pike-lsp/pike-bridge').PikeSymbolKind;
               legacySymbols.push({
                 name: introspectedSym.name,
-                kind: introspectedSym.kind as any,
+                kind: introspectedKind,
                 modifiers: introspectedSym.modifiers,
                 type: introspectedSym.type,
               });
@@ -561,6 +645,7 @@ export function registerDiagnosticsHandlers(
 
       log.debug('Validation complete', { uri, version, diagnostics: diagnostics.length });
     } catch (err) {
+      inFlightDiagnosticRequests.delete(uri);
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
   }
@@ -573,16 +658,68 @@ export function registerDiagnosticsHandlers(
       ...(settings?.pike ?? {}),
     };
 
+    services.bridge
+      ?.engineUpdateConfig({
+        settings: {
+          pike: settings?.pike ?? {},
+        },
+      })
+      .catch(err => {
+        log.debug('Engine config update failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     // Revalidate all open documents
-    documents.all().forEach(validateDocumentDebounced);
+    documents.all().forEach(document => {
+      const promise = diagnosticsScheduler.schedule({
+        requestClass: 'background',
+        key: `diagnostics:${document.uri}`,
+        coalesceMs: globalSettings.diagnosticDelay,
+        run: async checkpoint => {
+          checkpoint();
+          await validateDocument(document);
+        },
+      });
+      documentCache.setPending(document.uri, promise);
+      promise.catch(err => {
+        if (err instanceof RequestSupersededError) {
+          return;
+        }
+        log.error('Config-change validation failed', {
+          uri: document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    });
   });
 
   // Handle document open - validate immediately without debouncing
   documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
+    services.bridge
+      ?.engineOpenDocument({
+        uri: event.document.uri,
+        languageId: event.document.languageId,
+        version: event.document.version,
+        text: event.document.getText(),
+      })
+      .then(ack => {
+        documentSnapshots.set(event.document.uri, ack.snapshotId);
+      })
+      .catch(err => {
+        log.debug('Engine open document failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
       log.error('Document open validation failed', {
         uri: event.document.uri,
         error: err instanceof Error ? err.message : String(err),
@@ -613,6 +750,32 @@ export function registerDiagnosticsHandlers(
 
     // Store the change range for use in debounced validation
     pendingChangeRanges.set(params.textDocument.uri, changeRange);
+
+    const changes = contentChanges.map(change => {
+      const record: Record<string, unknown> = {
+        text: change.text,
+      };
+      if ('range' in change && change.range) {
+        record['range'] = change.range;
+      }
+      return record;
+    });
+
+    services.bridge
+      ?.engineChangeDocument({
+        uri: params.textDocument.uri,
+        version: params.textDocument.version,
+        changes,
+      })
+      .then(ack => {
+        documentSnapshots.set(params.textDocument.uri, ack.snapshotId);
+      })
+      .catch(err => {
+        log.debug('Engine change document failed', {
+          uri: params.textDocument.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
   });
 
   // Handle document save - validate immediately without debouncing
@@ -620,6 +783,9 @@ export function registerDiagnosticsHandlers(
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
       log.error('Document save validation failed', {
         uri: event.document.uri,
         error: err instanceof Error ? err.message : String(err),
@@ -629,8 +795,24 @@ export function registerDiagnosticsHandlers(
 
   // Handle document close
   documents.onDidClose(event => {
+    services.bridge
+      ?.engineCloseDocument({
+        uri: event.document.uri,
+      })
+      .then(() => {
+        documentSnapshots.delete(event.document.uri);
+      })
+      .catch(err => {
+        log.debug('Engine close document failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     // Clear cache for closed document
     documentCache.delete(event.document.uri);
+    documentSnapshots.delete(event.document.uri);
+    inFlightDiagnosticRequests.delete(event.document.uri);
 
     // Clear from type database
     typeDatabase.removeProgram(event.document.uri);
