@@ -91,6 +91,22 @@ bun run bench:compare-branches -- --base=origin/main --target=origin/fix/vscode-
 
 The command runs isolated clone-based benchmark rounds for each ref and writes a single JSON report with per-benchmark median, p95, and delta.
 
+Apply critical-path budgets to the comparison output:
+
+```bash
+bun run bench:check-budgets -- --report=benchmark-branch-compare.json --budget=scripts/benchmark-budgets.json
+```
+
+The budget checker supports noise-aware handling for sub-ms paths using absolute-delta caps.
+
+Current budget set includes both critical and secondary convergence paths (stdlib nested/hover) with calibrated thresholds in `scripts/benchmark-budgets.json`.
+
+For low-flake CI enforcement, run two consecutive compare+budget rounds:
+
+```bash
+bun run bench:gate -- --rounds=2 --base=origin/main --target=HEAD --iterations=2 --warmup=1 --mitata-time=200 --output=benchmark-branch-compare.json --budget=scripts/benchmark-budgets.json
+```
+
 ## CI Integration
 
 Benchmark generation is automated in CI:

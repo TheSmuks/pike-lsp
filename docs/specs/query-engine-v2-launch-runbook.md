@@ -176,6 +176,7 @@ Rollback steps:
 - Reload-storm suite (workspace/config/fs burst) passes.
 - Failure-containment suite verifies per-request panic/error isolation.
 - Benchmarks run against pinned small/medium/large corpus and remain within regression budget.
+- Promotion evidence pack checklist complete (`docs/specs/query-engine-v2-promotion-evidence-pack.md`).
 
 ## Ownership and Escalation
 

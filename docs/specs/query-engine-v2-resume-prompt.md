@@ -14,6 +14,8 @@ Context:
   - docs/specs/query-engine-v2-protocol.md
   - docs/specs/query-engine-v2-launch-runbook.md
   - docs/specs/query-engine-v2-branching-and-execution-policy.md
+  - docs/specs/query-engine-v2-performance-convergence-plan.md
+  - docs/specs/query-engine-v2-promotion-evidence-pack.md
 
 Current status snapshot:
 - Query-engine vertical slices are complete through diagnostics, navigation, and completion.
@@ -35,6 +37,12 @@ What to do first:
 4) Update tracker evidence after each milestone.
 
 Suggested next slices:
+- Execute performance convergence plan short-term goals in order (signal stability -> top hotspot tuning -> correctness gate revalidation).
+- Keep `bench:check-budgets` green while tuning secondary stdlib nested/hover paths that still show variance.
+- Keep `bench:gate` (2 consecutive rounds) green to avoid perf-gate flake regressions.
+- Preserve and extend bridge-side stdlib/module resolution caches before considering riskier analyzer-level tuning.
+- Keep typing-fairness gate (`query-engine-perf-gates`) passing while adjusting scheduler behavior.
+- Run `bun run qe2:promotion-gates` before opening integration promotion PRs.
 - Promote/rollout only after branch policy gates are satisfied on `rewrite/query-engine-v2`.
 - If new regressions appear, use tracker KPIs and the new perf-gate tests as first triage surface.
 
