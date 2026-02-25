@@ -18,44 +18,52 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../services/index.js';
 import * as fs from 'node:fs';
 import { Logger } from '@pike-lsp/core';
+import { invalidateRXMLDefinitionCaches } from './rxml/definition-provider.js';
+import { invalidateRXMLReferenceCaches } from './rxml/references-provider.js';
 
 /**
  * File change event type from LSP
  * 1 = Created, 2 = Changed, 3 = Deleted
  */
 const LSPFileChangeType = {
-    Created: 1,
-    Changed: 2,
-    Deleted: 3,
+  Created: 1,
+  Changed: 2,
+  Deleted: 3,
 };
 
 /**
  * Pike file extensions to watch
  */
 const PIKE_EXTENSIONS = new Set(['.pike', '.pmod', '.cmod']);
+const RXML_EXTENSIONS = new Set(['.rxml', '.roxen']);
 
 /**
  * Check if a URI is a Pike source file
  * Exported for testing
  */
 export function isPikeFile(uri: string): boolean {
-    const pathname = decodeURIComponent(uri.replace(/^file:\/\//, ''));
-    return PIKE_EXTENSIONS.has(getExtension(pathname));
+  const pathname = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+  return PIKE_EXTENSIONS.has(getExtension(pathname));
+}
+
+export function isRXMLTemplateFile(uri: string): boolean {
+  const pathname = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+  return RXML_EXTENSIONS.has(getExtension(pathname));
 }
 
 /**
  * Get file extension from path
  */
 function getExtension(pathname: string): string {
-    const idx = pathname.lastIndexOf('.');
-    return idx >= 0 ? pathname.substring(idx) : '';
+  const idx = pathname.lastIndexOf('.');
+  return idx >= 0 ? pathname.substring(idx) : '';
 }
 
 /**
  * Convert file URI to filesystem path
  */
 function uriToPath(uri: string): string {
-    return decodeURIComponent(uri.replace(/^file:\/\//, ''));
+  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
 }
 
 /**
@@ -69,155 +77,165 @@ function uriToPath(uri: string): string {
  * @param documents - Text document manager (for open documents)
  */
 export function registerFileWatcher(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    const { workspaceIndex, documentCache } = services;
-    const log = new Logger('FileWatcher');
+  const { workspaceIndex, documentCache } = services;
+  const log = new Logger('FileWatcher');
 
-    connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
-        const startTime = Date.now();
-        let processed = 0;
-        let created = 0;
-        let updated = 0;
-        let deleted = 0;
-        let skipped = 0;
+  connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
+    const startTime = Date.now();
+    let processed = 0;
+    let created = 0;
+    let updated = 0;
+    let deleted = 0;
+    let skipped = 0;
 
-        connection.console.log(`[FILE_WATCHER] Processing ${params.changes.length} file change events`);
+    connection.console.log(`[FILE_WATCHER] Processing ${params.changes.length} file change events`);
 
-        for (const change of params.changes) {
-            const uri = change.uri;
-            const type = change.type;
+    for (const change of params.changes) {
+      const uri = change.uri;
+      const type = change.type;
 
-            // Skip non-Pike files
-            if (!isPikeFile(uri)) {
-                skipped++;
-                continue;
-            }
+      if (isRXMLTemplateFile(uri)) {
+        invalidateRXMLDefinitionCaches(uri);
+        invalidateRXMLReferenceCaches(uri);
+        processed++;
+        continue;
+      }
 
-            const filePath = uriToPath(uri);
+      if (!isPikeFile(uri)) {
+        skipped++;
+        continue;
+      }
 
-            try {
-                switch (type) {
-                    case LSPFileChangeType.Created: {
-                        connection.console.log(`[FILE_WATCHER] Created: ${uri}`);
-                        await handleFileCreated(uri, filePath, documents, workspaceIndex);
-                        created++;
-                        processed++;
-                        break;
-                    }
+      const filePath = uriToPath(uri);
 
-                    case LSPFileChangeType.Changed: {
-                        connection.console.log(`[FILE_WATCHER] Changed: ${uri}`);
-                        await handleFileChanged(uri, filePath, documents, workspaceIndex, documentCache);
-                        updated++;
-                        processed++;
-                        break;
-                    }
+      try {
+        switch (type) {
+          case LSPFileChangeType.Created: {
+            connection.console.log(`[FILE_WATCHER] Created: ${uri}`);
+            await handleFileCreated(uri, filePath, documents, workspaceIndex);
+            created++;
+            processed++;
+            break;
+          }
 
-                    case LSPFileChangeType.Deleted: {
-                        connection.console.log(`[FILE_WATCHER] Deleted: ${uri}`);
-                        handleFileDeleted(uri, workspaceIndex, documentCache);
-                        deleted++;
-                        processed++;
-                        break;
-                    }
+          case LSPFileChangeType.Changed: {
+            connection.console.log(`[FILE_WATCHER] Changed: ${uri}`);
+            await handleFileChanged(uri, filePath, documents, workspaceIndex, documentCache);
+            updated++;
+            processed++;
+            break;
+          }
 
-                    default:
-                        connection.console.warn(`[FILE_WATCHER] Unknown file change type: ${type} for ${uri}`);
-                }
-            } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                connection.console.error(`[FILE_WATCHER] Error processing ${uri}: ${message}`);
-                log.error(`Failed to process file change: ${message}`, { uri });
-            }
+          case LSPFileChangeType.Deleted: {
+            connection.console.log(`[FILE_WATCHER] Deleted: ${uri}`);
+            handleFileDeleted(uri, workspaceIndex, documentCache);
+            deleted++;
+            processed++;
+            break;
+          }
+
+          default:
+            connection.console.warn(`[FILE_WATCHER] Unknown file change type: ${type} for ${uri}`);
         }
-
-        const duration = Date.now() - startTime;
-        connection.console.log(
-            `[FILE_WATCHER] Completed in ${duration}ms: ` +
-            `${processed} processed (created: ${created}, updated: ${updated}, deleted: ${deleted}), ` +
-            `${skipped} skipped (non-Pike files)`
-        );
-    });
-
-    /**
-     * Handle a newly created file
-     */
-    async function handleFileCreated(
-        uri: string,
-        path: string,
-        docs: TextDocuments<TextDocument>,
-        index: typeof workspaceIndex
-    ): Promise<void> {
-        // Check if file is already open in editor
-        const doc = docs.get(uri);
-        if (doc) {
-            // File is open, index from document content
-            await index.indexDocument(uri, doc.getText(), doc.version);
-            return;
-        }
-
-        // File is not open, read from disk
-        try {
-            const content = await fs.promises.readFile(path, 'utf-8');
-            await index.indexDocument(uri, content, 0);
-        } catch (err) {
-            throw new Error(`Failed to read newly created file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`);
-        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        connection.console.error(`[FILE_WATCHER] Error processing ${uri}: ${message}`);
+        log.error(`Failed to process file change: ${message}`, { uri });
+      }
     }
 
-    /**
-     * Handle a modified file
-     */
-    async function handleFileChanged(
-        uri: string,
-        path: string,
-        docs: TextDocuments<TextDocument>,
-        index: typeof workspaceIndex,
-        cache: typeof documentCache
-    ): Promise<void> {
-        // Check if file is open in editor
-        const doc = docs.get(uri);
-        if (doc) {
-            // File is open in editor - didChange will handle indexing
-            // No need to re-index here, it would create duplicate work
-            connection.console.log(`[FILE_WATCHER] Skipping open file (didChange will handle): ${uri}`);
-            return;
-        }
+    const duration = Date.now() - startTime;
+    connection.console.log(
+      `[FILE_WATCHER] Completed in ${duration}ms: ` +
+        `${processed} processed (created: ${created}, updated: ${updated}, deleted: ${deleted}), ` +
+        `${skipped} skipped (non-Pike files)`
+    );
+  });
 
-        // File is not open, read from disk and re-index
-        try {
-            const content = await fs.promises.readFile(path, 'utf-8');
-            await index.indexDocument(uri, content, 0);
-
-            // Also clear any cached diagnostics for this file
-            cache.delete(uri);
-        } catch (err) {
-            if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-                // File was deleted between change event and now
-                handleFileDeleted(uri, index, cache);
-                return;
-            }
-            throw new Error(`Failed to read changed file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`);
-        }
+  /**
+   * Handle a newly created file
+   */
+  async function handleFileCreated(
+    uri: string,
+    path: string,
+    docs: TextDocuments<TextDocument>,
+    index: typeof workspaceIndex
+  ): Promise<void> {
+    // Check if file is already open in editor
+    const doc = docs.get(uri);
+    if (doc) {
+      // File is open, index from document content
+      await index.indexDocument(uri, doc.getText(), doc.version);
+      return;
     }
 
-    /**
-     * Handle a deleted file
-     */
-    function handleFileDeleted(
-        uri: string,
-        index: typeof workspaceIndex,
-        cache: typeof documentCache
-    ): void {
-        // Remove from workspace index
-        index.removeDocument(uri);
-
-        // Remove from document cache
-        cache.delete(uri);
+    // File is not open, read from disk
+    try {
+      const content = await fs.promises.readFile(path, 'utf-8');
+      await index.indexDocument(uri, content, 0);
+    } catch (err) {
+      throw new Error(
+        `Failed to read newly created file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`
+      );
     }
+  }
+
+  /**
+   * Handle a modified file
+   */
+  async function handleFileChanged(
+    uri: string,
+    path: string,
+    docs: TextDocuments<TextDocument>,
+    index: typeof workspaceIndex,
+    cache: typeof documentCache
+  ): Promise<void> {
+    // Check if file is open in editor
+    const doc = docs.get(uri);
+    if (doc) {
+      // File is open in editor - didChange will handle indexing
+      // No need to re-index here, it would create duplicate work
+      connection.console.log(`[FILE_WATCHER] Skipping open file (didChange will handle): ${uri}`);
+      return;
+    }
+
+    // File is not open, read from disk and re-index
+    try {
+      const content = await fs.promises.readFile(path, 'utf-8');
+      await index.indexDocument(uri, content, 0);
+
+      // Also clear any cached diagnostics for this file
+      cache.delete(uri);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        // File was deleted between change event and now
+        handleFileDeleted(uri, index, cache);
+        return;
+      }
+      throw new Error(
+        `Failed to read changed file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`
+      );
+    }
+  }
+
+  /**
+   * Handle a deleted file
+   */
+  function handleFileDeleted(
+    uri: string,
+    index: typeof workspaceIndex,
+    cache: typeof documentCache
+  ): void {
+    // Remove from workspace index
+    index.removeDocument(uri);
+
+    // Remove from document cache
+    cache.delete(uri);
+  }
 }
 
 /**
@@ -225,14 +243,16 @@ export function registerFileWatcher(
  * Used to register with the client's file watcher
  */
 export function getPikeFileWatchPatterns(): Array<{
-    pattern: string;
-    kind: 'file' | 'folder';
+  pattern: string;
+  kind: 'file' | 'folder';
 }> {
-    return [
-        { pattern: '**/*.pike', kind: 'file' },
-        { pattern: '**/*.pmod', kind: 'file' },
-        { pattern: '**/*.cmod', kind: 'file' },
-    ];
+  return [
+    { pattern: '**/*.pike', kind: 'file' },
+    { pattern: '**/*.pmod', kind: 'file' },
+    { pattern: '**/*.cmod', kind: 'file' },
+    { pattern: '**/*.rxml', kind: 'file' },
+    { pattern: '**/*.roxen', kind: 'file' },
+  ];
 }
 
 /**

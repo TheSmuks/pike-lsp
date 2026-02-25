@@ -12,6 +12,7 @@ import {
   invalidateRXMLReferenceCaches,
 } from '../features/rxml/references-provider.js';
 import { registerRXMLHandlers } from '../features/rxml/index.js';
+import { FileChangeType, registerFileWatcher } from '../features/file-watcher.js';
 import { createMockDocuments, createMockServices } from './helpers/mock-services.js';
 
 const createdDirs: string[] = [];
@@ -89,6 +90,52 @@ describe('RXML cache invalidation', () => {
 
     await writeFile(templatePath, '<set />', 'utf-8');
     (docs as any).triggerDidChangeContent(templateUri);
+
+    const refreshedEmit = await findTagReferences('emit', [root], false);
+    const refreshedSet = await findTagReferences('set', [root], false);
+    expect(refreshedEmit.length).toBe(0);
+    expect(refreshedSet.length).toBeGreaterThan(0);
+  });
+
+  it('invalidates RXML caches on watched filesystem template changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pike-rxml-watch-'));
+    createdDirs.push(root);
+
+    const templatePath = join(root, 'watch.rxml');
+    const templateUri = `file://${templatePath}`;
+    await writeFile(templatePath, '<emit />', 'utf-8');
+
+    const initial = await findTagReferences('emit', [root], false);
+    expect(initial.length).toBeGreaterThan(0);
+
+    let watcherHandler: any = null;
+    const connection = {
+      onDidChangeWatchedFiles: (handler: any) => {
+        watcherHandler = handler;
+      },
+      console: {
+        log: () => {},
+        warn: () => {},
+        error: () => {},
+      },
+    };
+
+    const services = createMockServices({
+      workspaceIndex: {
+        indexDocument: async () => {},
+        removeDocument: () => {},
+      },
+      cacheEntries: new Map(),
+    });
+    const docs = createMockDocuments(new Map());
+    registerFileWatcher(connection as any, services as any, docs as any);
+
+    await writeFile(templatePath, '<set />', 'utf-8');
+    if (watcherHandler) {
+      await watcherHandler({
+        changes: [{ uri: templateUri, type: FileChangeType.Changed }],
+      });
+    }
 
     const refreshedEmit = await findTagReferences('emit', [root], false);
     const refreshedSet = await findTagReferences('set', [root], false);
