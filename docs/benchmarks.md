@@ -11,16 +11,16 @@ Last updated: 2026-02-18 (v0.1.0-alpha.20)
 
 ## Performance Summary
 
-| Operation | Target | Actual | Status |
-|-----------|--------|--------|--------|
-| Pike Startup | <500ms | ~57µs | ✅ Excellent |
-| Small Validation (15 lines) | - | 0.15ms | ✅ Good |
-| Medium Validation (100 lines) | - | 0.64ms | ✅ Good |
-| Large Validation (1000 lines) | <10ms | 7.5ms | ✅ Good |
-| Completion Context | <0.5ms | 0.16-0.23ms | ✅ Exceeded |
-| Hover (resolveModule) | <100µs | 21µs | ✅ Excellent |
-| Stdlib Resolution | <500ms | 20-300µs | ✅ Excellent |
-| Cache Hit Rate | >80% | 84% | ✅ Good |
+| Operation                     | Target | Actual      | Status       |
+| ----------------------------- | ------ | ----------- | ------------ |
+| Pike Startup                  | <500ms | ~57µs       | ✅ Excellent |
+| Small Validation (15 lines)   | -      | 0.15ms      | ✅ Good      |
+| Medium Validation (100 lines) | -      | 0.64ms      | ✅ Good      |
+| Large Validation (1000 lines) | <10ms  | 7.5ms       | ✅ Good      |
+| Completion Context            | <0.5ms | 0.16-0.23ms | ✅ Exceeded  |
+| Hover (resolveModule)         | <100µs | 21µs        | ✅ Excellent |
+| Stdlib Resolution             | <500ms | 20-300µs    | ✅ Excellent |
+| Cache Hit Rate                | >80%   | 84%         | ✅ Good      |
 
 :::info Live Dashboard
 View interactive benchmarks: [thesmuks.github.io/pike-lsp](https://thesmuks.github.io/pike-lsp)
@@ -53,10 +53,10 @@ View interactive benchmarks: [thesmuks.github.io/pike-lsp](https://thesmuks.gith
 
 ## Benchmark Specifications
 
-| Specification | Status | Severity | Date |
-|---------------|--------|----------|------|
-| [Spec: Fix Benchmark Regression from paramOrder Array](./specs/2026-01-25-benchmark-regression-paramorder) | 📋 Draft | Performance Regression (55-70% slower on affected benchmarks) | 2026-01-25 |
-| [Spec: Pike LSP Performance Optimization](./specs/2026-01-25-lsp-performance-optimization) | ✅ Completed | User Experience Impact (4.69ms for completion context) | 2026-01-25 |
+| Specification                                                                                              | Status       | Severity                                                      | Date       |
+| ---------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------- | ---------- |
+| [Spec: Fix Benchmark Regression from paramOrder Array](./specs/2026-01-25-benchmark-regression-paramorder) | 📋 Draft     | Performance Regression (55-70% slower on affected benchmarks) | 2026-01-25 |
+| [Spec: Pike LSP Performance Optimization](./specs/2026-01-25-lsp-performance-optimization)                 | ✅ Completed | User Experience Impact (4.69ms for completion context)        | 2026-01-25 |
 
 ## Methodology
 
@@ -80,6 +80,16 @@ Benchmarks are measured using:
 - Platform: Linux (CI environment)
 - Pike: 8.0.1116
 - Node.js: 20.x
+
+### Branch-to-Branch Comparison
+
+Use the deterministic branch comparison runner to compare median/p95 metrics between two refs:
+
+```bash
+bun run bench:compare-branches -- --base=origin/main --target=origin/fix/vscode-e2e-ci-real-tests --iterations=3 --warmup=1 --mitata-time=300 --output=benchmark-branch-compare.json
+```
+
+The command runs isolated clone-based benchmark rounds for each ref and writes a single JSON report with per-benchmark median, p95, and delta.
 
 ## CI Integration
 

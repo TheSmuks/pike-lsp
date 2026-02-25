@@ -20,6 +20,7 @@
     "docs:typescript": "typedoc",
     "docs:pike": "node scripts/generate-pike-docs.mjs",
     "docs:benchmarks": "node scripts/generate-benchmark-docs.js",
+    "bench:compare-branches": "bun scripts/benchmark-compare-branches.ts",
     "clean": "bun run --filter '*' clean",
     "test": "bun test ./packages/pike-bridge ./packages/pike-lsp-server",
     "test:packages": "bun test ./packages/pike-bridge ./packages/pike-lsp-server",
