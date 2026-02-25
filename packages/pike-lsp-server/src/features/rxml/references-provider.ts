@@ -12,13 +12,73 @@
 import { Location, ReferenceContext } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { parseRXMLTemplate, type RXMLTag } from './parser.js';
 import { GlobCache } from './glob-cache.js';
 
 // Shared glob cache - 30 second TTL
 const templateGlobCache = new GlobCache<string[]>(30);
 const pikeGlobCache = new GlobCache<string[]>(30);
+const TAG_REFERENCE_INDEX_TTL_MS = 30_000;
+const tagReferenceIndexCache = new Map<
+  string,
+  {
+    builtAt: number;
+    byTag: Map<string, Location[]>;
+  }
+>();
+const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
+
+function makeWorkspaceKey(workspaceFolders: string[]): string {
+  return [...workspaceFolders].sort().join('|');
+}
+
+async function readFileCached(filePath: string): Promise<string> {
+  try {
+    const fileStats = await stat(filePath);
+    const cached = fileContentCache.get(filePath);
+    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
+      return cached.content;
+    }
+
+    const content = await readFile(filePath, 'utf-8');
+    fileContentCache.set(filePath, { mtimeMs: fileStats.mtimeMs, content });
+    return content;
+  } catch {
+    return await readFile(filePath, 'utf-8');
+  }
+}
+
+async function getTagReferenceIndex(workspaceFolders: string[]): Promise<Map<string, Location[]>> {
+  const key = makeWorkspaceKey(workspaceFolders);
+  const now = Date.now();
+  const cached = tagReferenceIndexCache.get(key);
+  if (cached && now - cached.builtAt < TAG_REFERENCE_INDEX_TTL_MS) {
+    return cached.byTag;
+  }
+
+  const byTag = new Map<string, Location[]>();
+  const templateFiles = await findTemplateFiles(workspaceFolders);
+
+  for (const file of templateFiles) {
+    const content = await readFileCached(file);
+    const tags = parseRXMLTemplate(content, file);
+    const flattened = flattenTags(tags);
+
+    for (const tag of flattened) {
+      const keyName = tag.name.toLowerCase();
+      const locations = byTag.get(keyName) ?? [];
+      locations.push({
+        uri: fileToUri(file),
+        range: tag.range,
+      });
+      byTag.set(keyName, locations);
+    }
+  }
+
+  tagReferenceIndexCache.set(key, { builtAt: now, byTag });
+  return byTag;
+}
 
 /**
  * Find all references to a tag in workspace
@@ -39,30 +99,16 @@ export async function findTagReferences(
     return locations;
   }
 
-  // Search for .rxml and .roxen template files
-  const templateFiles = await findTemplateFiles(workspaceFolders);
-
-  for (const file of templateFiles) {
-    const content = await readFile(file, 'utf-8');
-    const tags = parseRXMLTemplate(content, file);
-
-    // Find all occurrences of the tag (using flattenTags or recursive search)
-    const foundTags = findTagsByName(tags, tagName);
-
-    for (const tag of foundTags) {
-      locations.push({
-        uri: fileToUri(file),
-        range: tag.range
-      });
-    }
-  }
+  const referenceIndex = await getTagReferenceIndex(workspaceFolders);
+  const indexedLocations = referenceIndex.get(tagName.toLowerCase()) ?? [];
+  locations.push(...indexedLocations);
 
   // Also search in .pike files for tag function references
   if (includeDeclaration) {
     const pikeFiles = await findPikeFiles(workspaceFolders);
 
     for (const file of pikeFiles) {
-      const content = await readFile(file, 'utf-8');
+      const content = await readFileCached(file);
 
       // Look for simpletag_* or container_* function definitions
       const patterns = [
@@ -78,8 +124,8 @@ export async function findTagReferences(
             uri: fileToUri(file),
             range: {
               start: position,
-              end: { line: position.line, character: position.character + tagName.length }
-            }
+              end: { line: position.line, character: position.character + tagName.length },
+            },
           });
         }
       }
@@ -110,7 +156,7 @@ export async function findDefvarReferences(
   const pikeFiles = await findPikeFiles(workspaceFolders);
 
   for (const file of pikeFiles) {
-    const content = await readFile(file, 'utf-8');
+    const content = await readFileCached(file);
 
     // Look for &var.name; style references in templates
     // Or direct variable usage in Pike code
@@ -128,8 +174,8 @@ export async function findDefvarReferences(
           uri: fileToUri(file),
           range: {
             start: position,
-            end: { line: position.line, character: position.character + defvarName.length }
-          }
+            end: { line: position.line, character: position.character + defvarName.length },
+          },
         });
       }
     }
@@ -158,7 +204,7 @@ export async function findModulesUsingTag(
   const templateFiles = await findTemplateFiles(workspaceFolders);
 
   for (const file of templateFiles) {
-    const content = await readFile(file, 'utf-8');
+    const content = await readFileCached(file);
     const tags = parseRXMLTemplate(content, file);
 
     if (findTagsByName(tags, tagName).length > 0) {
@@ -223,6 +269,17 @@ function findTagsByName(tags: RXMLTag[], tagName: string): RXMLTag[] {
   return results;
 }
 
+function flattenTags(tags: RXMLTag[]): RXMLTag[] {
+  const out: RXMLTag[] = [];
+  for (const tag of tags) {
+    out.push(tag);
+    if (tag.children && tag.children.length > 0) {
+      out.push(...flattenTags(tag.children));
+    }
+  }
+  return out;
+}
+
 async function findTemplateFiles(workspaceFolders: string[]): Promise<string[]> {
   const files: string[] = [];
 
@@ -237,7 +294,7 @@ async function findTemplateFiles(workspaceFolders: string[]): Promise<string[]> 
     const matches = await glob('**/*.{rxml,roxen}', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -262,7 +319,7 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -291,7 +348,7 @@ function findPositionForMatch(content: string, match: RegExpExecArray): Position
 
   return {
     line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length
+    character: (lines[lines.length - 1] || '').length,
   };
 }
 
@@ -304,7 +361,10 @@ function findTagAtPosition(content: string, offset: number): { tagName: string }
   return null;
 }
 
-function findAttributeAtPosition(content: string, offset: number): { attrName: string; tagName: string } | null {
+function findAttributeAtPosition(
+  content: string,
+  offset: number
+): { attrName: string; tagName: string } | null {
   const before = content.substring(Math.max(0, offset - 200), offset);
   const attrMatch = before.match(/(\w+)\s*=\s*["']?[^"']*$/);
   if (attrMatch && attrMatch[1]) {
