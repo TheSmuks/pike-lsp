@@ -2,7 +2,7 @@
   "name": "vscode-pike",
   "displayName": "Pike Language Support",
   "description": "Complete language support for Pike including IntelliSense, go-to-definition, find references, diagnostics, hover, signature help, code completion, semantic tokens, call hierarchy, and workspace symbols.",
-  "version": "0.1.0-alpha.23",
+  "version": "0.1.0-alpha.24",
   "publisher": "pike-lsp",
   "license": "MIT",
   "icon": "images/icon.png",
