@@ -16,6 +16,9 @@ import {
   Position,
   Uri,
   Location,
+  StatusBarAlignment,
+  StatusBarItem,
+  ThemeColor,
   commands,
   workspace,
   window,
@@ -29,6 +32,7 @@ import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
+  State,
   TransportKind,
 } from 'vscode-languageclient/node';
 
@@ -39,6 +43,18 @@ class ExtensionRuntime {
   private serverOptions: ServerOptions | null = null;
   private serverModulePath: string | null = null;
   private readonly outputChannel: OutputChannel;
+  private readonly statusBarItem: StatusBarItem;
+  private restartAttempts = 0;
+  private restartWindowStart = 0;
+  private restartTimer: ReturnType<typeof setTimeout> | undefined;
+  private suppressNextStopEvent = false;
+  private autoRestartPaused = false;
+  private forceRestartFailureForTesting = false;
+  private restartPolicy = {
+    windowMs: 60_000,
+    maxAttempts: 3,
+    backoffMs: [1000, 3000, 7000],
+  };
   private lspStarted = false;
   private disposed = false;
 
@@ -47,6 +63,112 @@ class ExtensionRuntime {
     testOutputChannel?: OutputChannel
   ) {
     this.outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
+    this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+    this.statusBarItem.command = 'pike.lsp.serverActions';
+    this.setStatusBar('idle');
+    this.statusBarItem.show();
+    this.track(this.statusBarItem);
+  }
+
+  private clearRestartTimer(): void {
+    if (!this.restartTimer) {
+      return;
+    }
+    clearTimeout(this.restartTimer);
+    this.restartTimer = undefined;
+  }
+
+  private resetRestartWindow(): void {
+    this.restartAttempts = 0;
+    this.restartWindowStart = 0;
+    this.autoRestartPaused = false;
+  }
+
+  private scheduleAutoRestart(reason: string): void {
+    if (this.disposed || !this.lspStarted) {
+      return;
+    }
+
+    const now = Date.now();
+    const { windowMs, maxAttempts, backoffMs } = this.restartPolicy;
+
+    if (this.restartWindowStart === 0 || now - this.restartWindowStart > windowMs) {
+      this.restartWindowStart = now;
+      this.restartAttempts = 0;
+      this.autoRestartPaused = false;
+    }
+
+    if (this.restartAttempts >= maxAttempts) {
+      this.autoRestartPaused = true;
+      this.clearRestartTimer();
+      this.setStatusBar('error', 'auto-restart paused');
+      this.outputChannel.appendLine('[Pike] Auto-restart paused after repeated failures.');
+      window.showWarningMessage(
+        'Pike language server stopped repeatedly. Auto-restart paused; run "Pike LSP: Restart Server".'
+      );
+      return;
+    }
+
+    this.restartAttempts += 1;
+    const delay = backoffMs[Math.min(this.restartAttempts - 1, backoffMs.length - 1)] ?? 1000;
+    this.clearRestartTimer();
+    this.outputChannel.appendLine(
+      `[Pike] ${reason}. Scheduling auto-restart in ${delay}ms (attempt ${this.restartAttempts}/${maxAttempts}).`
+    );
+    this.setStatusBar('restarting', `retry in ${Math.round(delay / 1000)}s`);
+
+    this.restartTimer = setTimeout(async () => {
+      this.restartTimer = undefined;
+      if (this.disposed || !this.lspStarted) {
+        return;
+      }
+      await this.restartClient(false);
+    }, delay);
+  }
+
+  private setStatusBar(
+    state: 'idle' | 'starting' | 'running' | 'restarting' | 'error' | 'stopped',
+    detail?: string
+  ): void {
+    const suffix = detail ? ` (${detail})` : '';
+
+    switch (state) {
+      case 'idle':
+        this.statusBarItem.text = '$(symbol-key) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: idle${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+      case 'starting':
+        this.statusBarItem.text = '$(sync~spin) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: starting${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+      case 'running':
+        this.statusBarItem.text = '$(check) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: running${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+      case 'restarting':
+        this.statusBarItem.text = '$(sync~spin) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: restarting${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+      case 'error':
+        this.statusBarItem.text = '$(error) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: error${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = new ThemeColor('statusBarItem.errorBackground');
+        break;
+      case 'stopped':
+        this.statusBarItem.text = '$(debug-stop) Pike';
+        this.statusBarItem.tooltip = `Pike LSP: stopped${suffix}\nClick for server actions`;
+        this.statusBarItem.backgroundColor = new ThemeColor('statusBarItem.warningBackground');
+        break;
+      default:
+        this.statusBarItem.text = 'Pike';
+        this.statusBarItem.tooltip = 'Pike Language Server';
+        this.statusBarItem.backgroundColor = undefined;
+        break;
+    }
   }
 
   isDisposed(): boolean {
@@ -86,6 +208,7 @@ class ExtensionRuntime {
     }
 
     this.lspStarted = true;
+    this.setStatusBar('starting');
     await autoDetectPikeConfigurationIfNeeded(this.outputChannel);
 
     const serverModule = this.resolveServerModule();
@@ -177,13 +300,19 @@ class ExtensionRuntime {
       return;
     }
 
+    const hadExistingClient = Boolean(this.client);
+
     if (this.client) {
       try {
+        this.suppressNextStopEvent = true;
         await this.client.stop();
       } catch (err) {
         console.error('Error stopping Pike Language Client:', err);
+        this.suppressNextStopEvent = false;
       }
     }
+
+    this.clearRestartTimer();
 
     const config = workspace.getConfiguration('pike');
     const pikePath = config.get<string>('pikePath', 'pike');
@@ -214,9 +343,13 @@ class ExtensionRuntime {
     }
 
     const clientOptions: LanguageClientOptions = {
-      documentSelector: [{ scheme: 'file', language: 'pike' }],
+      documentSelector: [
+        { scheme: 'file', language: 'pike' },
+        { scheme: 'file', language: 'rxml' },
+        { scheme: 'file', language: 'rjs' },
+      ],
       synchronize: {
-        fileEvents: workspace.createFileSystemWatcher('**/*.{pike,pmod}'),
+        fileEvents: workspace.createFileSystemWatcher('**/*.{pike,pmod,rxml,roxen,rjs}'),
       },
       initializationOptions: {
         pikePath,
@@ -231,35 +364,154 @@ class ExtensionRuntime {
       outputChannel: this.outputChannel,
     };
 
+    const effectiveServerOptions: ServerOptions = this.forceRestartFailureForTesting
+      ? {
+          run: {
+            module: path.join(this.context.extensionPath, '__missing_server_for_testing__.js'),
+            transport: TransportKind.ipc,
+          },
+          debug: {
+            module: path.join(this.context.extensionPath, '__missing_server_for_testing__.js'),
+            transport: TransportKind.ipc,
+          },
+        }
+      : this.serverOptions;
+
     this.client = new LanguageClient(
       'pikeLsp',
       'Pike Language Server',
-      this.serverOptions,
+      effectiveServerOptions,
       clientOptions
     );
 
+    this.track(
+      this.client.onDidChangeState(event => {
+        switch (event.newState) {
+          case State.Starting:
+            this.setStatusBar('starting');
+            break;
+          case State.Running:
+            this.resetRestartWindow();
+            this.setStatusBar('running');
+            break;
+          case State.Stopped:
+            this.setStatusBar('stopped');
+            if (this.suppressNextStopEvent) {
+              this.suppressNextStopEvent = false;
+              return;
+            }
+            this.scheduleAutoRestart('Language server stopped unexpectedly');
+            break;
+          default:
+            this.setStatusBar('idle');
+            break;
+        }
+      })
+    );
+
     try {
+      this.setStatusBar(hadExistingClient ? 'restarting' : 'starting');
       await this.client.start();
+      this.setStatusBar('running');
       if (showMessage && !this.disposed) {
         window.showInformationMessage('Pike Language Server started');
       }
     } catch (err) {
       console.error('Failed to start Pike Language Client:', err);
+      this.setStatusBar('error', err instanceof Error ? err.message : String(err));
       window.showErrorMessage(`Failed to start Pike language server: ${err}`);
     }
   }
 
   async deactivate(): Promise<void> {
     this.disposed = true;
+    this.clearRestartTimer();
     if (!this.client) {
       return;
     }
     try {
+      this.suppressNextStopEvent = true;
       await this.client.stop();
     } catch (err) {
       console.error('Error stopping Pike Language Client:', err);
+      this.suppressNextStopEvent = false;
     }
     this.client = undefined;
+    this.setStatusBar('stopped');
+  }
+
+  async simulateUnexpectedStopForTesting(): Promise<void> {
+    if (!this.client) {
+      throw new Error('Language client is not running');
+    }
+
+    const waitDeadline = Date.now() + 15000;
+    while (this.client && this.client.state !== State.Running && Date.now() < waitDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    if (!this.client) {
+      throw new Error('Language client is no longer available');
+    }
+
+    if (this.client.state !== State.Running) {
+      throw new Error(`Language client is not running (state: ${this.client.state})`);
+    }
+
+    this.suppressNextStopEvent = false;
+    const currentClient = this.client;
+    this.client = undefined;
+    await currentClient.stop();
+  }
+
+  setAutoRestartPolicyForTesting(policy: {
+    windowMs?: number;
+    maxAttempts?: number;
+    backoffMs?: number[];
+  }): void {
+    if (
+      typeof policy.windowMs === 'number' &&
+      Number.isFinite(policy.windowMs) &&
+      policy.windowMs > 0
+    ) {
+      this.restartPolicy.windowMs = policy.windowMs;
+    }
+
+    if (
+      typeof policy.maxAttempts === 'number' &&
+      Number.isFinite(policy.maxAttempts) &&
+      policy.maxAttempts > 0
+    ) {
+      this.restartPolicy.maxAttempts = policy.maxAttempts;
+    }
+
+    if (
+      Array.isArray(policy.backoffMs) &&
+      policy.backoffMs.length > 0 &&
+      policy.backoffMs.every(ms => Number.isFinite(ms) && ms >= 0)
+    ) {
+      this.restartPolicy.backoffMs = policy.backoffMs;
+    }
+  }
+
+  setRestartFailureModeForTesting(enabled: boolean): void {
+    this.forceRestartFailureForTesting = enabled;
+  }
+
+  getAutoRestartStateForTesting(): {
+    attempts: number;
+    paused: boolean;
+    timerActive: boolean;
+    lspStarted: boolean;
+    clientState: State | null;
+  } {
+    return {
+      attempts: this.restartAttempts,
+      paused: this.autoRestartPaused,
+      timerActive: Boolean(this.restartTimer),
+      lspStarted: this.lspStarted,
+      clientState: this.client?.state ?? null,
+    };
   }
 }
 
@@ -433,6 +685,123 @@ async function activateInternal(
   );
 
   runtime.track(showDiagnosticsDisposable);
+
+  const showHealthDisposable = commands.registerCommand('pike.lsp.showHealth', async () => {
+    if (runtime.isDisposed()) return;
+
+    await runtime.ensureLspStarted();
+    const client = runtime.getClient();
+    if (!client) {
+      window.showWarningMessage('Pike language server is not running yet.');
+      return;
+    }
+
+    try {
+      const result = await client.sendRequest('workspace/executeCommand', {
+        command: 'pike.lsp.serverHealth',
+        arguments: [],
+      });
+
+      const healthText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+      runtime.getOutputChannel().show(true);
+      runtime.getOutputChannel().appendLine(healthText);
+      window.showInformationMessage('Pike server health printed to output channel.');
+    } catch (err) {
+      runtime
+        .getOutputChannel()
+        .appendLine(`[pike.lsp.showHealth] Failed to request server health: ${String(err)}`);
+      window.showErrorMessage('Failed to fetch Pike server health.');
+    }
+  });
+
+  runtime.track(showHealthDisposable);
+
+  const restartServerDisposable = commands.registerCommand('pike.lsp.restartServer', async () => {
+    if (runtime.isDisposed()) return;
+
+    if (runtime.isLspStarted()) {
+      await runtime.restartClient(true);
+      return;
+    }
+
+    await runtime.ensureLspStarted();
+  });
+
+  runtime.track(restartServerDisposable);
+
+  const serverActionsDisposable = commands.registerCommand('pike.lsp.serverActions', async () => {
+    if (runtime.isDisposed()) return;
+
+    const selected = await window.showQuickPick(
+      [
+        { label: 'Restart Server', command: 'pike.lsp.restartServer' },
+        { label: 'Show Health', command: 'pike.lsp.showHealth' },
+        { label: 'Open Logs', command: 'pike.lsp.openLogs' },
+        { label: 'Detect Pike Installation', command: 'pike.detectPike' },
+      ],
+      {
+        placeHolder: 'Pike Language Server actions',
+      }
+    );
+
+    if (!selected) {
+      return;
+    }
+
+    await commands.executeCommand(selected.command);
+  });
+
+  runtime.track(serverActionsDisposable);
+
+  const openLogsDisposable = commands.registerCommand('pike.lsp.openLogs', async () => {
+    if (runtime.isDisposed()) return;
+    runtime.getOutputChannel().show(true);
+  });
+
+  runtime.track(openLogsDisposable);
+
+  const simulateUnexpectedStopDisposable = commands.registerCommand(
+    'pike.lsp.__simulateUnexpectedStopForTesting',
+    async () => {
+      if (runtime.isDisposed()) return;
+      await runtime.simulateUnexpectedStopForTesting();
+    }
+  );
+
+  const enableTestCommands = process.env['PIKE_LSP_ENABLE_TEST_COMMANDS'] === '1';
+  if (enableTestCommands) {
+    runtime.track(simulateUnexpectedStopDisposable);
+
+    const setAutoRestartPolicyDisposable = commands.registerCommand(
+      'pike.lsp.__setAutoRestartPolicyForTesting',
+      async (policy: { windowMs?: number; maxAttempts?: number; backoffMs?: number[] }) => {
+        if (runtime.isDisposed()) return;
+        runtime.setAutoRestartPolicyForTesting(policy ?? {});
+      }
+    );
+
+    runtime.track(setAutoRestartPolicyDisposable);
+
+    const setRestartFailureModeDisposable = commands.registerCommand(
+      'pike.lsp.__setRestartFailureModeForTesting',
+      async (enabled: boolean) => {
+        if (runtime.isDisposed()) return;
+        runtime.setRestartFailureModeForTesting(Boolean(enabled));
+      }
+    );
+
+    runtime.track(setRestartFailureModeDisposable);
+
+    const getAutoRestartStateDisposable = commands.registerCommand(
+      'pike.lsp.__getAutoRestartStateForTesting',
+      async () => {
+        if (runtime.isDisposed()) return null;
+        return runtime.getAutoRestartStateForTesting();
+      }
+    );
+
+    runtime.track(getAutoRestartStateDisposable);
+  }
 
   // Register Pike detection command
   const detectPikeDisposable = commands.registerCommand('pike.detectPike', async () => {
