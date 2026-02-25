@@ -116,8 +116,14 @@ export function registerDiagnosticsHandlers(
       validationTimers.delete(uri);
       validationVersions.delete(uri);
 
+      const liveDocument = documents.get(uri);
+      if (!liveDocument) {
+        pendingChangeRanges.delete(uri);
+        return;
+      }
+
       // INC-563: Check if this validation is stale (a newer version was scheduled)
-      const currentVersion = document.version;
+      const currentVersion = liveDocument.version;
       if (currentVersion !== expectedVersion) {
         // Clear pending change range since we're skipping
         pendingChangeRanges.delete(uri);
@@ -127,7 +133,7 @@ export function registerDiagnosticsHandlers(
       // INC-002: Classify change to determine if parsing is needed
       const changeRange = pendingChangeRanges.get(uri);
       const cachedEntry = documentCache.get(uri);
-      const classification = classifyChange(document, changeRange, cachedEntry);
+      const classification = classifyChange(liveDocument, changeRange, cachedEntry);
 
       if (classification.canSkip) {
         // Skip parsing entirely - just update cache metadata
@@ -137,7 +143,7 @@ export function registerDiagnosticsHandlers(
           if (classification.newLineHashes) {
             cachedEntry.lineHashes = classification.newLineHashes;
           }
-          cachedEntry.version = version;
+          cachedEntry.version = currentVersion;
         }
 
         // Clear the pending change range
@@ -151,7 +157,7 @@ export function registerDiagnosticsHandlers(
         key: `diagnostics:${uri}`,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(document, classification);
+          await validateDocument(liveDocument, classification);
         },
       });
       documentCache.setPending(uri, promise);
@@ -292,6 +298,16 @@ export function registerDiagnosticsHandlers(
       }
 
       clearInFlightRequest();
+
+      const latestAfterAnalyze = documents.get(uri);
+      if (!latestAfterAnalyze || latestAfterAnalyze.version !== version) {
+        log.debug('Discarding stale diagnostics result', {
+          uri,
+          validatedVersion: version,
+          latestVersion: latestAfterAnalyze?.version,
+        });
+        return;
+      }
 
       // Log completion status
       const hasParse = !!analyzeResult.result?.parse;
@@ -627,6 +643,16 @@ export function registerDiagnosticsHandlers(
         });
       }
       // --- End Roxen integration ---
+
+      const latestBeforePublish = documents.get(uri);
+      if (!latestBeforePublish || latestBeforePublish.version !== version) {
+        log.debug('Skipping diagnostics publish for stale version', {
+          uri,
+          validatedVersion: version,
+          latestVersion: latestBeforePublish?.version,
+        });
+        return;
+      }
 
       // Send diagnostics
       connection.sendDiagnostics({ uri, diagnostics });
