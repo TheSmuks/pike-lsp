@@ -150,7 +150,6 @@ int main() {
 
     console.log('Extension activated and LSP server responsive');
   });
-
   test('Should remain stable through repeated deactivate/activate restart cycles', async function () {
     this.timeout(120000);
 
