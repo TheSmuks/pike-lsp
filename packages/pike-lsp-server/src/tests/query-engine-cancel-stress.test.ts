@@ -20,8 +20,12 @@ function createMockDocuments() {
   let saveHandler: SaveHandler | undefined;
   let changeHandler: ChangeHandler | undefined;
   let closeHandler: CloseHandler | undefined;
+  const docs = new Map<string, TextDocument>();
 
   return {
+    get(uri: string): TextDocument | undefined {
+      return docs.get(uri);
+    },
     onDidOpen(handler: OpenHandler): void {
       openHandler = handler;
     },
@@ -35,18 +39,22 @@ function createMockDocuments() {
       closeHandler = handler;
     },
     all(): TextDocument[] {
-      return [];
+      return [...docs.values()];
     },
     emitOpen(document: TextDocument): void {
+      docs.set(document.uri, document);
       openHandler?.({ document });
     },
     emitSave(document: TextDocument): void {
+      docs.set(document.uri, document);
       saveHandler?.({ document });
     },
     emitChange(document: TextDocument): void {
+      docs.set(document.uri, document);
       changeHandler?.({ document });
     },
     emitClose(document: TextDocument): void {
+      docs.delete(document.uri);
       closeHandler?.({ document });
     },
   };

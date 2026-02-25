@@ -14,14 +14,14 @@ import type { DocumentCacheEntry } from '../../core/types.js';
  * INC-002: Change detection result from classification
  */
 export interface ChangeClassification {
-    /** Whether parsing can be skipped entirely */
-    canSkip: boolean;
-    /** Reason for classification */
-    reason: string;
-    /** New content hash (computed if needed) */
-    newHash?: string;
-    /** New line hashes (computed if needed) */
-    newLineHashes?: number[];
+  /** Whether parsing can be skipped entirely */
+  canSkip: boolean;
+  /** Reason for classification */
+  reason: string;
+  /** New content hash (computed if needed) */
+  newHash?: string;
+  /** New line hashes (computed if needed) */
+  newLineHashes?: number[];
 }
 
 /**
@@ -29,12 +29,12 @@ export interface ChangeClassification {
  * Handles both line comments (//) and block comment markers.
  */
 export function stripLineComments(line: string): string {
-    // Remove line comments
-    const commentPos = line.indexOf('//');
-    if (commentPos >= 0) {
-        line = line.substring(0, commentPos);
-    }
-    return line.trim();
+  // Remove line comments
+  const commentPos = line.indexOf('//');
+  if (commentPos >= 0) {
+    line = line.substring(0, commentPos);
+  }
+  return line.trim();
 }
 
 /**
@@ -51,90 +51,61 @@ export function stripLineComments(line: string): string {
  * @returns Classification indicating if parsing can be skipped
  */
 export function classifyChange(
-    document: TextDocument,
-    changeRange: Range | undefined,
-    cachedEntry: DocumentCacheEntry | undefined
+  document: TextDocument,
+  changeRange: Range | undefined,
+  cachedEntry: DocumentCacheEntry | undefined
 ): ChangeClassification {
-    // No cache? Must parse
-    if (!cachedEntry) {
-        return { canSkip: false, reason: 'no_cache' };
+  // No cache? Must parse
+  if (!cachedEntry) {
+    return { canSkip: false, reason: 'no_cache' };
+  }
+
+  const text = document.getText();
+
+  // Strategy 1: Check if change range is provided
+  if (changeRange) {
+    const startLine = changeRange.start.line;
+    const endLine = changeRange.end.line;
+
+    // Strategy 2: Check if change overlaps with any symbol positions
+    if (cachedEntry.lineHashes) {
+      const newLineHashes = computeLineHashes(text);
+
+      // Check if any line in the change range has different semantic content
+      let hasSemanticChange = false;
+      for (let i = startLine; i <= endLine && i < newLineHashes.length; i++) {
+        const cachedHash = cachedEntry.lineHashes[i];
+        const newHash = newLineHashes[i];
+
+        if (cachedHash !== newHash) {
+          hasSemanticChange = true;
+          break;
+        }
+      }
+
+      if (!hasSemanticChange) {
+        return {
+          canSkip: true,
+          reason: 'semantic_unchanged',
+          newHash: computeContentHash(text),
+          newLineHashes,
+        };
+      }
+
+      return {
+        canSkip: false,
+        reason: 'semantic_changed',
+        newHash: computeContentHash(text),
+        newLineHashes,
+      };
     }
+  }
 
-    const text = document.getText();
-    const lines = text.split('\n');
+  // No range info (full document replacement) - compare content hash
+  const newHash = computeContentHash(text);
+  if (cachedEntry.contentHash === newHash) {
+    return { canSkip: true, reason: 'content_unchanged', newHash };
+  }
 
-    // Strategy 1: Check if change range is provided
-    if (changeRange) {
-        const startLine = changeRange.start.line;
-        const endLine = changeRange.end.line;
-
-        // Single-line change - check if it's just comment/whitespace
-        if (startLine === endLine && startLine < lines.length) {
-            const line = lines[startLine];
-            if (line) {
-                const semanticContent = stripLineComments(line.trim());
-
-                if (!semanticContent) {
-                    return { canSkip: true, reason: 'comment_only' };
-                }
-            }
-        }
-
-        // Multi-line change - check if all affected lines are comments
-        let allComments = true;
-        for (let i = startLine; i <= endLine && i < lines.length; i++) {
-            const line = lines[i];
-            if (line) {
-                const semanticContent = stripLineComments(line.trim());
-                if (semanticContent) {
-                    allComments = false;
-                    break;
-                }
-            }
-        }
-        if (allComments) {
-            return { canSkip: true, reason: 'multiline_comment_only' };
-        }
-
-        // Strategy 2: Check if change overlaps with any symbol positions
-        if (cachedEntry.lineHashes) {
-            const newLineHashes = computeLineHashes(text);
-
-            // Check if any line in the change range has different semantic content
-            let hasSemanticChange = false;
-            for (let i = startLine; i <= endLine && i < newLineHashes.length; i++) {
-                const cachedHash = cachedEntry.lineHashes[i];
-                const newHash = newLineHashes[i];
-
-                if (cachedHash !== newHash) {
-                    hasSemanticChange = true;
-                    break;
-                }
-            }
-
-            if (!hasSemanticChange) {
-                return {
-                    canSkip: true,
-                    reason: 'semantic_unchanged',
-                    newHash: computeContentHash(text),
-                    newLineHashes
-                };
-            }
-
-            return {
-                canSkip: false,
-                reason: 'semantic_changed',
-                newHash: computeContentHash(text),
-                newLineHashes
-            };
-        }
-    }
-
-    // No range info (full document replacement) - compare content hash
-    const newHash = computeContentHash(text);
-    if (cachedEntry.contentHash === newHash) {
-        return { canSkip: true, reason: 'content_unchanged', newHash };
-    }
-
-    return { canSkip: false, reason: 'full_replacement', newHash };
+  return { canSkip: false, reason: 'full_replacement', newHash };
 }
