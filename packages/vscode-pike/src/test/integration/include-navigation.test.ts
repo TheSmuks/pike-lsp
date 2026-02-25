@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { suite, test } from 'mocha';
+import { normalizeLocations, waitFor } from './helpers';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
@@ -15,12 +16,9 @@ let vscodeAvailable = true;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   vscode = require('vscode');
-  vscodeAvailable = true;
 } catch {
-  // vscode not available - tests will be skipped
+  vscodeAvailable = false;
 }
-
-const itSkip = test;
 
 let capturedLogs: string[] = [];
 
@@ -34,7 +32,9 @@ function dumpServerLogs(context: string) {
   if (capturedLogs.length === 0) {
     console.log('(No logs captured)');
   } else {
-    capturedLogs.forEach(log => console.log(log));
+    capturedLogs.forEach(log => {
+      console.log(log);
+    });
   }
   console.log('=== End Server Logs ===\n');
 }
@@ -52,6 +52,10 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
   let document: any;
 
   suiteSetup(async function () {
+    if (!vscodeAvailable) {
+      this.skip();
+      return;
+    }
     this.timeout(60000);
     capturedLogs = [];
 
@@ -79,7 +83,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
       return;
     }
 
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+    workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, 'Workspace folder should exist');
 
     const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
@@ -103,7 +107,29 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
     document = await vscode.workspace.openTextDocument(testDocumentUri);
     assert.ok(document, 'Should open test document');
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const includePosition = (() => {
+      const text = document.getText();
+      const includeIndex = text.indexOf('globals.h');
+      assert.ok(includeIndex >= 0, 'Fixture should contain globals.h include');
+      return document.positionAt(includeIndex + 2);
+    })();
+
+    await waitFor(
+      'include definition resolution warm-up',
+      async () => {
+        const locations = await vscode.commands.executeCommand<any>(
+          'vscode.executeDefinitionProvider',
+          testDocumentUri,
+          includePosition
+        );
+        return normalizeLocations(locations);
+      },
+      (locations: any[]) =>
+        Array.isArray(locations) &&
+        locations.length > 0 &&
+        locations.some(l => l.uri?.fsPath?.includes('globals.h')),
+      15000
+    );
     console.log('Include navigation test suite initialized');
   });
 
@@ -133,18 +159,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
       'Should return definition locations (not null) - include resolution may be broken'
     );
 
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
-    }
+    const locationArray = normalizeLocations(locations);
 
     assertWithLogs(locationArray.length > 0, 'Should have at least one definition location');
 
@@ -153,9 +168,11 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
     assertWithLogs(firstLocation.range, 'Location should have range');
 
     const uriPath = firstLocation.uri.fsPath;
+    const targetDoc = await vscode.workspace.openTextDocument(firstLocation.uri);
+    const targetLine = targetDoc.lineAt(firstLocation.range.start.line).text;
     assertWithLogs(
-      uriPath.includes('globals.h'),
-      `Definition should point to globals.h, got: ${uriPath}`
+      targetLine.includes('global_constant'),
+      `Definition should resolve to global_constant declaration, got line: ${targetLine}`
     );
 
     assertWithLogs(firstLocation.range.start, 'Location range should have start position');
@@ -183,18 +200,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
       'Should return definition locations (not null) - include resolution may be broken'
     );
 
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
-    }
+    const locationArray = normalizeLocations(locations);
 
     assertWithLogs(locationArray.length > 0, 'Should have at least one definition location');
 
@@ -203,9 +209,11 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
     assertWithLogs(firstLocation.range, 'Location should have range');
 
     const uriPath = firstLocation.uri.fsPath;
+    const targetDoc = await vscode.workspace.openTextDocument(firstLocation.uri);
+    const targetLine = targetDoc.lineAt(firstLocation.range.start.line).text;
     assertWithLogs(
-      uriPath.includes('globals.h'),
-      `Definition should point to globals.h, got: ${uriPath}`
+      targetLine.includes('helper_function'),
+      `Definition should resolve to helper_function declaration, got line: ${targetLine}`
     );
 
     assertWithLogs(firstLocation.range.start, 'Location range should have start position');
@@ -214,45 +222,43 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
     console.log(`Navigate to function: ${uriPath}:${firstLocation.range.start.line}`);
   });
 
-  test('Go-to-definition for documented function from #include file', async function () {
+  test('Go-to-definition for documented global function from #include file', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const referenceMatch = text.match(/global_constant/);
-    assert.ok(referenceMatch, 'Should find symbol reference in main.pike');
+    const fixtureDir = path.dirname(testDocumentUri.fsPath);
+    const tempUri = vscode.Uri.file(path.join(fixtureDir, 'temp-global-function.pike'));
+    const tempContent = '#include "parent/globals.h"\nstring value = global_function();\n';
+    await vscode.workspace.fs.writeFile(tempUri, Buffer.from(tempContent, 'utf-8'));
 
-    const referenceOffset = text.indexOf(referenceMatch[0]);
-    const referencePosition = document.positionAt(referenceOffset);
+    try {
+      const tempDoc = await vscode.workspace.openTextDocument(tempUri);
+      await vscode.window.showTextDocument(tempDoc);
 
-    const locations = await vscode.commands.executeCommand<
-      vscode.Location | vscode.Location[] | vscode.LocationLink[]
-    >('vscode.executeDefinitionProvider', testDocumentUri, referencePosition);
+      const text = tempDoc.getText();
+      const referenceOffset = text.indexOf('global_function');
+      assert.ok(referenceOffset >= 0, 'Should find global_function reference in temp fixture');
+      const referencePosition = tempDoc.positionAt(referenceOffset);
 
-    assertWithLogs(locations, 'Should return definition locations');
+      const locations = await vscode.commands.executeCommand<
+        vscode.Location | vscode.Location[] | vscode.LocationLink[]
+      >('vscode.executeDefinitionProvider', tempUri, referencePosition);
 
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
+      assertWithLogs(locations, 'Should return definition locations');
+      const locationArray = normalizeLocations(locations);
+      assertWithLogs(locationArray.length > 0, 'Should have at least one definition location');
+
+      const firstLocation = locationArray[0]!;
+      const targetDoc = await vscode.workspace.openTextDocument(firstLocation.uri);
+      const targetLine = targetDoc.lineAt(firstLocation.range.start.line).text;
+      assertWithLogs(
+        targetLine.includes('global_function'),
+        `Definition should resolve to global_function declaration, got line: ${targetLine}`
+      );
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await vscode.workspace.fs.delete(tempUri);
+      await vscode.window.showTextDocument(document);
     }
-
-    assertWithLogs(locationArray.length > 0, 'Should have at least one definition location');
-
-    const firstLocation = locationArray[0]!;
-    const uriPath = firstLocation.uri.fsPath;
-    assertWithLogs(
-      uriPath.includes('globals.h'),
-      `Definition should point to globals.h, got: ${uriPath}`
-    );
-
-    console.log(`Navigate to documented symbol: ${uriPath}`);
   });
 
   test('Go-to-definition on #include directive navigates to included file', async function () {
@@ -277,18 +283,7 @@ suite('Include/Import/Inherit Navigation E2E Tests', () => {
       'Should return definition location for #include directive (not null)'
     );
 
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
-    }
+    const locationArray = normalizeLocations(locations);
 
     assertWithLogs(locationArray.length > 0, 'Should have at least one location for #include');
 

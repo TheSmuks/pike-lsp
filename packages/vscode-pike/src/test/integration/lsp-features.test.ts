@@ -323,8 +323,12 @@ int nested_symbol
     const doc = await vscode.workspace.openTextDocument(testDocUri);
     await vscode.window.showTextDocument(doc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await waitFor(
+      'preprocessor test symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocUri),
+      (value: any) => Array.isArray(value) && value.length > 0,
+      15000
+    );
 
     // Get document symbols
     const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
