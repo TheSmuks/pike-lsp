@@ -18,7 +18,6 @@ import {
   Location,
   StatusBarAlignment,
   StatusBarItem,
-  ThemeColor,
   commands,
   workspace,
   window,
@@ -136,37 +135,30 @@ class ExtensionRuntime {
       case 'idle':
         this.statusBarItem.text = '$(symbol-key) Pike';
         this.statusBarItem.tooltip = `Pike LSP: idle${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = undefined;
         break;
       case 'starting':
         this.statusBarItem.text = '$(sync~spin) Pike';
         this.statusBarItem.tooltip = `Pike LSP: starting${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = undefined;
         break;
       case 'running':
         this.statusBarItem.text = '$(check) Pike';
         this.statusBarItem.tooltip = `Pike LSP: running${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = undefined;
         break;
       case 'restarting':
         this.statusBarItem.text = '$(sync~spin) Pike';
         this.statusBarItem.tooltip = `Pike LSP: restarting${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = undefined;
         break;
       case 'error':
         this.statusBarItem.text = '$(error) Pike';
         this.statusBarItem.tooltip = `Pike LSP: error${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = new ThemeColor('statusBarItem.errorBackground');
         break;
       case 'stopped':
         this.statusBarItem.text = '$(debug-stop) Pike';
         this.statusBarItem.tooltip = `Pike LSP: stopped${suffix}\nClick for server actions`;
-        this.statusBarItem.backgroundColor = new ThemeColor('statusBarItem.warningBackground');
         break;
       default:
         this.statusBarItem.text = 'Pike';
         this.statusBarItem.tooltip = 'Pike Language Server';
-        this.statusBarItem.backgroundColor = undefined;
         break;
     }
   }
@@ -760,16 +752,16 @@ async function activateInternal(
 
   runtime.track(openLogsDisposable);
 
-  const simulateUnexpectedStopDisposable = commands.registerCommand(
-    'pike.lsp.__simulateUnexpectedStopForTesting',
-    async () => {
-      if (runtime.isDisposed()) return;
-      await runtime.simulateUnexpectedStopForTesting();
-    }
-  );
-
   const enableTestCommands = process.env['PIKE_LSP_ENABLE_TEST_COMMANDS'] === '1';
   if (enableTestCommands) {
+    const simulateUnexpectedStopDisposable = commands.registerCommand(
+      'pike.lsp.__simulateUnexpectedStopForTesting',
+      async () => {
+        if (runtime.isDisposed()) return;
+        await runtime.simulateUnexpectedStopForTesting();
+      }
+    );
+
     runtime.track(simulateUnexpectedStopDisposable);
 
     const setAutoRestartPolicyDisposable = commands.registerCommand(
