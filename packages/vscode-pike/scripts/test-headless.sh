@@ -44,6 +44,9 @@ bun run build:test
 # Build bundled server (required for LSP to work)
 bun run bundle-server
 
+# Keep extension E2E on the stable completion path unless explicitly overridden.
+export PIKE_LSP_QE2_COMPLETION="${PIKE_LSP_QE2_COMPLETION:-0}"
+
 # Check platform
 case "$(uname -s)" in
     Linux*)

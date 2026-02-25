@@ -65,6 +65,25 @@ function run(command: string, args: string[], cwd: string, env?: NodeJS.ProcessE
   return res.stdout.trim();
 }
 
+function ensureRefAvailable(repoPath: string, ref: string): string {
+  if (ref === 'HEAD') {
+    return ref;
+  }
+
+  if (ref.startsWith('origin/')) {
+    const remoteRef = ref;
+    const branch = ref.slice('origin/'.length);
+    run(
+      'git',
+      ['fetch', '--quiet', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+      repoPath
+    );
+    return remoteRef;
+  }
+
+  return ref;
+}
+
 function percentile(values: number[], p: number): number {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -179,7 +198,8 @@ function printComparison(baseSummary: Record<string, any>, targetSummary: Record
 }
 
 function runBenchForRef(repoPath: string, ref: string, opts: Options): BenchmarkPoint[][] {
-  run('git', ['checkout', '--quiet', ref], repoPath);
+  const resolvedRef = ensureRefAvailable(repoPath, ref);
+  run('git', ['checkout', '--quiet', resolvedRef], repoPath);
   run('bun', ['install', '--frozen-lockfile'], repoPath, {
     CI: '1',
     TZ: 'UTC',

@@ -30,6 +30,7 @@ import {
 
 const inFlightCompletionRequests = new Map<string, string>();
 const completionRequestSequence = new Map<string, number>();
+const useQueryEngineCompletions = process.env['PIKE_LSP_QE2_COMPLETION'] !== '0';
 
 function getSymbolClassname(symbol: PikeSymbol): string | undefined {
   if ('classname' in symbol && typeof symbol.classname === 'string') {
@@ -131,7 +132,7 @@ export function registerCompletionHandlers(
       return toCompletionList([]);
     }
 
-    if (bridge?.isRunning?.()) {
+    if (useQueryEngineCompletions && bridge?.isRunning?.()) {
       const nextSequence = (completionRequestSequence.get(uri) ?? 0) + 1;
       completionRequestSequence.set(uri, nextSequence);
       const requestId = `completion:${uri}:${document.version}:${Date.now()}:${nextSequence}`;

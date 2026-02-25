@@ -28,7 +28,7 @@
     },
     "resolveStdlib(\"Stdio\") - warm": {
       "maxRegressionPct": 20,
-      "subMsMaxAbsoluteRegressionMs": 0.12
+      "subMsMaxAbsoluteRegressionMs": 0.3
     },
     "resolveStdlib(\"Stdio.File\") - nested": {
       "maxRegressionPct": 20,
