@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 
@@ -15,7 +15,7 @@ function percentile95(values: number[]): number {
 describe('Query engine diagnostics parity', () => {
   let bridge: PikeBridge;
 
-  before(async () => {
+  beforeAll(async () => {
     bridge = new PikeBridge();
     const available = await bridge.checkPike();
     if (!available) {
@@ -24,7 +24,7 @@ describe('Query engine diagnostics parity', () => {
     await bridge.start();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await bridge.stop();
   });
 

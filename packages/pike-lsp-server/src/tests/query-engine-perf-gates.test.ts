@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 import { RequestScheduler, RequestSupersededError } from '../services/request-scheduler.js';

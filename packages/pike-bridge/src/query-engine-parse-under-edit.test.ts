@@ -1,11 +1,11 @@
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 
 describe('Query engine parse-under-edit resilience', () => {
   let bridge: PikeBridge;
 
-  before(async () => {
+  beforeAll(async () => {
     bridge = new PikeBridge();
     const available = await bridge.checkPike();
     if (!available) {
@@ -14,7 +14,7 @@ describe('Query engine parse-under-edit resilience', () => {
     await bridge.start();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await bridge.stop();
   });
 

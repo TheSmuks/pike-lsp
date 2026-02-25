@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 import { BENCHMARK_CORPUS } from './benchmark-corpus.js';
@@ -15,7 +15,7 @@ function percentile(values: number[], ratio: number): number {
 describe('Query engine baseline metrics', () => {
   let bridge: PikeBridge;
 
-  before(async () => {
+  beforeAll(async () => {
     bridge = new PikeBridge();
     const available = await bridge.checkPike();
     if (!available) {
@@ -24,7 +24,7 @@ describe('Query engine baseline metrics', () => {
     await bridge.start();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await bridge.stop();
   });
 
