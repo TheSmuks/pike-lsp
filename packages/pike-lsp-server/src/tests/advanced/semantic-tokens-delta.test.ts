@@ -268,5 +268,40 @@ int b = 2;`;
 
       expect(delta.edits).toEqual([]);
     });
+
+    it('should reset delta state after document close', () => {
+      const uri = 'file:///close-reset.pike';
+      const code = `int close_reset = 1;`;
+
+      const doc = TextDocument.create(uri, 'pike', 1, code);
+      const docsMap = new Map<string, TextDocument>();
+      docsMap.set(uri, doc);
+
+      const cacheEntry: DocumentCacheEntry = makeCacheEntry({
+        symbols: [sym('close_reset', 'variable', { position: { line: 1, character: 4 } })],
+      });
+
+      const services = createMockServices({
+        cacheEntries: new Map([[uri, cacheEntry]]),
+      });
+      const documents = createMockDocuments(docsMap);
+      const conn = createMockConnection();
+
+      registerSemanticTokensHandler(conn as any, services as any, documents as any);
+
+      const full = conn.semanticTokensHandler({
+        textDocument: { uri },
+      });
+
+      (documents as any).triggerDidClose(uri);
+
+      const delta = conn.semanticTokensDeltaHandler({
+        textDocument: { uri },
+        previousResultId: full.resultId,
+      });
+
+      expect(delta.edits.length).toBe(1);
+      expect(delta.edits[0].start).toBe(0);
+    });
   });
 });
