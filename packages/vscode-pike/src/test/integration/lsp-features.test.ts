@@ -34,6 +34,16 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import { suite, test } from 'mocha';
+import {
+  findSymbolByName,
+  flattenSymbols,
+  hoverText,
+  labelOf,
+  normalizeLocations,
+  positionForRegex,
+  waitFor,
+  withTimeout,
+} from './helpers';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
@@ -41,12 +51,9 @@ let vscodeAvailable = true;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   vscode = require('vscode');
-  vscodeAvailable = true;
 } catch {
-  // vscode not available - tests will be skipped
+  vscodeAvailable = false;
 }
-
-const itSkip = test;
 
 // Captured Pike server logs for debugging test failures
 let capturedLogs: string[] = [];
@@ -67,7 +74,9 @@ function dumpServerLogs(context: string) {
   if (capturedLogs.length === 0) {
     console.log('(No logs captured)');
   } else {
-    capturedLogs.forEach(log => console.log(log));
+    capturedLogs.forEach(log => {
+      console.log(log);
+    });
   }
   console.log('=== End Server Logs ===\n');
 }
@@ -87,13 +96,18 @@ suite('LSP Feature E2E Tests', () => {
   let testDocumentUri: any;
   let document: any;
   let outputChannelDisposable: any;
+  let hadTestFailures = false;
 
   suiteSetup(async function () {
+    if (!vscodeAvailable) {
+      this.skip();
+      return;
+    }
     this.timeout(60000); // Allow more time for LSP initialization
     capturedLogs = []; // Reset logs for this test run
 
     // Ensure workspace folder exists
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+    workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, 'Workspace folder should exist');
 
     // Explicitly activate the extension before running tests
@@ -126,10 +140,6 @@ suite('LSP Feature E2E Tests', () => {
       console.log('Could not set up output channel monitoring:', e);
     }
 
-    // Wait a bit for the LSP server to fully start after activation
-    logServerOutput('Waiting for LSP server to start...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
     // Use the existing test.pike file in test-workspace instead of creating dynamically
     // This avoids URI scheme issues that prevent LSP from caching the document
     testDocumentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test.pike');
@@ -141,10 +151,13 @@ suite('LSP Feature E2E Tests', () => {
     await vscode.window.showTextDocument(document);
     logServerOutput('Document opened and shown in editor');
 
-    // Wait for LSP to fully initialize and analyze the file
-    // This is critical - LSP features won't work if server isn't ready
     logServerOutput('Waiting for LSP to analyze document...');
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    await waitFor(
+      'document symbols from LSP',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      20000
+    );
 
     // Check for diagnostics on the file (could indicate Pike errors)
     const diagnostics = vscode.languages.getDiagnostics(testDocumentUri);
@@ -160,6 +173,13 @@ suite('LSP Feature E2E Tests', () => {
     logServerOutput('Test setup complete');
   });
 
+  teardown(function () {
+    if (this.currentTest?.state === 'failed') {
+      hadTestFailures = true;
+      dumpServerLogs(`Failure in: ${this.currentTest.title}`);
+    }
+  });
+
   suiteTeardown(async () => {
     // Dispose diagnostic listener
     if (outputChannelDisposable) {
@@ -172,8 +192,9 @@ suite('LSP Feature E2E Tests', () => {
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     }
 
-    // Always dump logs at the end of the suite for debugging
-    dumpServerLogs('Suite teardown');
+    if (hadTestFailures) {
+      dumpServerLogs('Suite teardown after failures');
+    }
   });
 
   /**
@@ -224,6 +245,8 @@ suite('LSP Feature E2E Tests', () => {
     // Look for expected symbols from fixture
     const symbolNames = symbols.map(s => s.name);
     assert.ok(symbolNames.length > 0, 'Should extract symbol names');
+    assert.ok(symbolNames.includes('test_function'), 'Symbols should include test_function');
+    assert.ok(symbolNames.includes('TestClass'), 'Symbols should include TestClass');
 
     // Verify we can find specific symbols from fixture
     // Test fixture has: test_variable, test_function, TestClass, etc.
@@ -300,8 +323,12 @@ int nested_symbol
     const doc = await vscode.workspace.openTextDocument(testDocUri);
     await vscode.window.showTextDocument(doc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await waitFor(
+      'preprocessor test symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocUri),
+      (value: any) => Array.isArray(value) && value.length > 0,
+      15000
+    );
 
     // Get document symbols
     const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -357,17 +384,7 @@ int nested_symbol
   test('Hover returns type information', async function () {
     this.timeout(30000);
 
-    // Get document text to find symbol positions
-    const text = document.getText();
-
-    // Find position of "TestClass" usage (line 11: TestClass tc = TestClass();)
-    // We want to hover on the class name
-    const classMatch = text.match(/TestClass\s+tc\s*=/);
-    assert.ok(classMatch, 'Should find TestClass usage in test.pike');
-
-    // Calculate position: start of match to be on "TestClass"
-    const classOffset = text.indexOf(classMatch[0]);
-    const hoverPosition = document.positionAt(classOffset);
+    const hoverPosition = positionForRegex(document, /TestClass\s+tc\s*=/);
 
     // Execute hover provider via VSCode command
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
@@ -385,11 +402,7 @@ int nested_symbol
     // Verify hover has content
     const firstHover = hovers[0];
     assert.ok(firstHover.contents, 'Hover should have contents');
-    assert.ok(firstHover.contents.length > 0, 'Hover contents should not be empty');
-
-    // Extract content string (can be string or MarkedString object)
-    const content = firstHover.contents[0];
-    const contentStr = typeof content === 'string' ? content : content.value;
+    const contentStr = hoverText(firstHover);
 
     // Verify content contains some information
     assert.ok(contentStr, 'Hover content should be extractable');
@@ -404,17 +417,7 @@ int nested_symbol
   test('Go-to-definition returns location', async function () {
     this.timeout(30000);
 
-    // Get document text to find symbol reference
-    const text = document.getText();
-
-    // Find position of TestClass reference (line 11: TestClass tc = TestClass();)
-    // Note: Pike syntax doesn't allow whitespace between class name and parentheses
-    const referenceMatch = text.match(/TestClass\s*\(\)/);
-    assert.ok(referenceMatch, 'Should find TestClass() constructor call in test.pike');
-
-    // Calculate position to be on the class name
-    const referenceOffset = text.indexOf(referenceMatch[0]);
-    const referencePosition = document.positionAt(referenceOffset);
+    const referencePosition = positionForRegex(document, /TestClass\s*\(\)/);
 
     // Execute definition provider via VSCode command
     const locations = await vscode.commands.executeCommand<
@@ -428,20 +431,7 @@ int nested_symbol
     );
 
     // Normalize to array (can be single Location, array of Location, or LocationLink[])
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      // Check if it's LocationLink array (has targetUri) or Location array (has uri)
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        // Convert LocationLink to Location
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
-    }
+    const locationArray = normalizeLocations(locations);
 
     // Verify we have at least one location
     assert.ok(locationArray.length > 0, 'Should have at least one definition location');
@@ -454,6 +444,13 @@ int nested_symbol
     // Verify range is valid
     assert.ok(firstLocation.range.start, 'Location range should have start position');
     assert.ok(firstLocation.range.end, 'Location range should have end position');
+
+    const targetDocument = await vscode.workspace.openTextDocument(firstLocation.uri);
+    const targetLine = targetDocument.lineAt(firstLocation.range.start.line).text;
+    assert.ok(
+      targetLine.includes('class TestClass'),
+      `Definition should resolve to TestClass. Got line: ${targetLine}`
+    );
   });
 
   /**
@@ -466,16 +463,7 @@ int nested_symbol
     this.timeout(30000);
 
     // Get document text to find completion trigger position
-    const text = document.getText();
-
-    // Find position after "Array." which should trigger stdlib completion
-    // Line 50: // Test completion: Array.
-    const completionTriggerMatch = text.match(/Array\./);
-    assert.ok(completionTriggerMatch, 'Should find Array. completion trigger in fixture');
-
-    // Position after the dot to trigger completion
-    const completionOffset = text.indexOf(completionTriggerMatch[0]) + 'Array.'.length;
-    const completionPosition = document.positionAt(completionOffset);
+    const completionPosition = positionForRegex(document, /Array\./, 'Array.'.length);
 
     // Execute completion provider via VSCode command
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -505,15 +493,17 @@ int nested_symbol
     );
 
     // Verify label is non-empty
-    const labelText = typeof firstItem.label === 'string' ? firstItem.label : firstItem.label.label;
+    const labelText = labelOf(firstItem);
     assert.ok(labelText && labelText.length > 0, 'Completion label should not be empty');
 
     // For stdlib completion, we might see methods like cast, flatten, sum, etc.
     // or keywords, or local symbols
-    const labels = completions.items.map(i =>
-      typeof i.label === 'string' ? i.label : i.label.label
-    );
+    const labels = completions.items.map(labelOf);
     assert.ok(labels.length > 0, 'Should extract completion labels');
+    assert.ok(
+      labels.includes('sum') || labels.includes('map') || labels.includes('filter'),
+      `Completion should include known Array methods. Got: ${labels.slice(0, 20).join(', ')}`
+    );
   });
 
   /**
@@ -522,15 +512,7 @@ int nested_symbol
   test('Hover on function shows signature information', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find main function declaration: int main()
-    const functionMatch = text.match(/int\s+main\s*\(/);
-    assert.ok(functionMatch, 'Should find main function declaration in test.pike');
-
-    // Position on function name
-    const functionOffset = text.indexOf(functionMatch[0]) + 'int '.length;
-    const functionPosition = document.positionAt(functionOffset);
+    const functionPosition = positionForRegex(document, /int\s+main\s*\(/, 'int '.length);
 
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
       'vscode.executeHoverProvider',
@@ -542,9 +524,7 @@ int nested_symbol
     assert.ok(hovers.length > 0, 'Should have hover result for function');
 
     const hover = hovers[0]!;
-    const contents = Array.isArray(hover.contents) ? hover.contents : [hover.contents];
-    const content = contents[0];
-    const contentStr = typeof content === 'string' ? content : content?.value || '';
+    const contentStr = hoverText(hover);
 
     // Function hover should mention function, parameters, or return type
     assert.ok(
@@ -568,17 +548,7 @@ int nested_symbol
 
     assert.ok(symbols, 'Should return symbols');
 
-    // Flatten symbol tree (classes have children)
-    const allSymbols: vscode.DocumentSymbol[] = [];
-    const collectSymbols = (symbolList: vscode.DocumentSymbol[]) => {
-      for (const symbol of symbolList) {
-        allSymbols.push(symbol);
-        if (symbol.children) {
-          collectSymbols(symbol.children);
-        }
-      }
-    };
-    collectSymbols(symbols);
+    const allSymbols = flattenSymbols(symbols);
 
     // Look for TestClass from fixture
     const testClassSymbol = allSymbols.find(s => s.name === 'TestClass');
@@ -608,28 +578,16 @@ int nested_symbol
   test('Completion triggers on partial word', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
+    const partialPosition = positionForRegex(document, /class\s+Test/, 'class '.length + 4);
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      partialPosition
+    );
 
-    // Find "Test" and trigger completion there
-    const partialMatch = text.match(/class\s+Test/);
-    if (partialMatch) {
-      // Position after "Test" (partial word)
-      const partialOffset = text.indexOf(partialMatch[0]) + 'class '.length + 4;
-      const partialPosition = document.positionAt(partialOffset);
-
-      const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-        'vscode.executeCompletionItemProvider',
-        testDocumentUri,
-        partialPosition
-      );
-
-      assert.ok(completions, 'Should return completions for partial word');
-      assert.ok(completions.items, 'Should have items for partial word');
-
-      // This is a soft assertion - completion may or may not filter by prefix
-      // depending on LSP behavior
-      assert.ok(completions.items.length > 0, 'Should have some completions for partial word');
-    }
+    assert.ok(completions, 'Should return completions for partial word');
+    assert.ok(completions.items, 'Should have items for partial word');
+    assert.ok(completions.items.length > 0, 'Should have some completions for partial word');
   });
 
   // =========================================================================
@@ -648,15 +606,7 @@ int nested_symbol
   test('References returns all symbol occurrences', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_variable reference (not definition) - use a reference in main()
-    const varMatch = text.match(/int a = test_variable/);
-    assert.ok(varMatch, 'Should find test_variable reference in main()');
-
-    // Position on "test_variable" part
-    const varOffset = text.indexOf(varMatch![0]) + 'int a = '.length;
-    const varPosition = document.positionAt(varOffset);
+    const varPosition = positionForRegex(document, /int a = test_variable/, 'int a = '.length);
 
     // Execute references provider
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
@@ -667,10 +617,10 @@ int nested_symbol
 
     assertWithLogs(references, 'Should return references (not null)');
     assert.ok(Array.isArray(references), 'References should be an array');
-    assert.ok(references!.length > 0, 'Should have at least one reference');
+    assert.ok(references.length >= 3, 'Should have multiple references');
 
     // Verify each reference has required structure
-    for (const ref of references!) {
+    for (const ref of references) {
       assert.ok(ref.uri, 'Reference should have URI');
       assert.ok(ref.range, 'Reference should have range');
       assert.ok(ref.range.start, 'Reference range should have start');
@@ -689,13 +639,7 @@ int nested_symbol
   test('References on function returns call sites', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_function definition
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function definition');
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m);
 
     const references = await vscode.commands.executeCommand<vscode.Location[]>(
       'vscode.executeReferenceProvider',
@@ -718,14 +662,7 @@ int nested_symbol
   test('Document highlight highlights symbol occurrences', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_variable for highlight test
-    const varMatch = text.match(/test_variable/);
-    assert.ok(varMatch, 'Should find test_variable');
-
-    const varOffset = text.indexOf(varMatch![0]);
-    const varPosition = document.positionAt(varOffset);
+    const varPosition = positionForRegex(document, /test_variable/);
 
     const highlights = await vscode.commands.executeCommand<vscode.DocumentHighlight[]>(
       'vscode.executeDocumentHighlights',
@@ -748,14 +685,7 @@ int nested_symbol
   test('Implementation returns symbol usages', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find TestClass reference
-    const classMatch = text.match(/TestClass\s+tc/);
-    assert.ok(classMatch, 'Should find TestClass reference');
-
-    const classOffset = text.indexOf(classMatch![0]);
-    const classPosition = document.positionAt(classOffset);
+    const classPosition = positionForRegex(document, /TestClass\s+tc/);
 
     // Note: Implementation provider behaves like references in this LSP
     const implementations = await vscode.commands.executeCommand<vscode.Location[]>(
@@ -784,14 +714,7 @@ int nested_symbol
   test('Call hierarchy prepare returns item for method', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find caller_function definition
-    const funcMatch = text.match(/^void caller_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find caller_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^void caller_function\s*\(/m);
 
     // Prepare call hierarchy
     const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
@@ -821,14 +744,7 @@ int nested_symbol
   test('Call hierarchy incoming calls shows callers', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_function which is called from multiple places
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m);
 
     const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
       'vscode.prepareCallHierarchy',
@@ -862,14 +778,7 @@ int nested_symbol
   test('Call hierarchy outgoing calls shows callees', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find caller_function which calls test_function and multi_param
-    const funcMatch = text.match(/^void caller_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find caller_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^void caller_function\s*\(/m);
 
     const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
       'vscode.prepareCallHierarchy',
@@ -897,14 +806,7 @@ int nested_symbol
   test('Type hierarchy prepare returns item for class', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find TestClass definition
-    const classMatch = text.match(/^class TestClass\s*{/m);
-    assert.ok(classMatch, 'Should find TestClass definition');
-
-    const classOffset = text.indexOf(classMatch![0]);
-    const classPosition = document.positionAt(classOffset);
+    const classPosition = positionForRegex(document, /^class TestClass\s*{/m);
 
     const items = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
       'vscode.prepareTypeHierarchy',
@@ -932,14 +834,7 @@ int nested_symbol
   test('Type hierarchy supertypes shows inherited classes', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find ChildClass which inherits TestClass
-    const classMatch = text.match(/^class ChildClass\s*{/m);
-    assert.ok(classMatch, 'Should find ChildClass definition');
-
-    const classOffset = text.indexOf(classMatch![0]);
-    const classPosition = document.positionAt(classOffset);
+    const classPosition = positionForRegex(document, /^class ChildClass\s*{/m);
 
     const items = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
       'vscode.prepareTypeHierarchy',
@@ -969,14 +864,7 @@ int nested_symbol
   test('Type hierarchy subtypes shows inheriting classes', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find TestClass which is inherited by ChildClass
-    const classMatch = text.match(/^class TestClass\s*{/m);
-    assert.ok(classMatch, 'Should find TestClass definition');
-
-    const classOffset = text.indexOf(classMatch![0]);
-    const classPosition = document.positionAt(classOffset);
+    const classPosition = positionForRegex(document, /^class TestClass\s*{/m);
 
     const items = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
       'vscode.prepareTypeHierarchy',
@@ -1010,15 +898,7 @@ int nested_symbol
   test('Signature help shows function parameters', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find multi_param call: multi_param(42, "test", ({}))
-    const callMatch = text.match(/multi_param\s*\(\s*42/);
-    assert.ok(callMatch, 'Should find multi_param function call');
-
-    // Position after opening parenthesis
-    const callOffset = text.indexOf(callMatch![0]) + 'multi_param('.length;
-    const callPosition = document.positionAt(callOffset);
+    const callPosition = positionForRegex(document, /multi_param\s*\(\s*42/, 'multi_param('.length);
 
     const sigHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
       'vscode.executeSignatureHelpProvider',
@@ -1044,26 +924,19 @@ int nested_symbol
   test('Signature help for function with multiple parameters', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
+    const funcPosition = positionForRegex(
+      document,
+      /result\s*=\s*complex_function\s*\(/,
+      'result = complex_function('.length
+    );
+    const sigHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
+      'vscode.executeSignatureHelpProvider',
+      testDocumentUri,
+      funcPosition
+    );
 
-    // Find complex_function call (not definition) - look for the call in test_complex_function
-    const callMatch = text.match(/result\s*=\s*complex_function\s*\(/);
-    if (callMatch) {
-      // Position inside the parameter list (after the opening paren)
-      const funcOffset = text.indexOf(callMatch[0]) + callMatch[0].length;
-      const funcPosition = document.positionAt(funcOffset);
-
-      const sigHelp = await vscode.commands.executeCommand<vscode.SignatureHelp>(
-        'vscode.executeSignatureHelpProvider',
-        testDocumentUri,
-        funcPosition
-      );
-
-      // Note: Signature help for user-defined functions may not be implemented yet
-      // This test documents expected behavior
-      if (sigHelp) {
-        assert.ok(sigHelp.signatures && sigHelp.signatures.length > 0, 'Should have signatures');
-      }
+    if (sigHelp) {
+      assert.ok(sigHelp.signatures && sigHelp.signatures.length > 0, 'Should have signatures');
     }
   });
 
@@ -1136,14 +1009,7 @@ int nested_symbol
   test('Range formatting formats selected range', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find the poorly_formatted function (lines 164-172)
-    const funcMatch = text.match(/void poorly_formatted/);
-    assert.ok(funcMatch, 'Should find poorly_formatted function');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const startLine = document.positionAt(funcOffset).line;
+    const startLine = positionForRegex(document, /void poorly_formatted/).line;
     const endLine = startLine + 10; // Cover the function body
 
     const range = new vscode.Range(
@@ -1283,13 +1149,7 @@ int nested_symbol
     assert.ok(firstLens.range, 'Code lens should have range');
 
     // Get the document text to find a test function position
-    const text = document.getText();
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function for code lens test');
-
-    // Calculate position for the function
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m);
 
     // Test that the pike.showReferences command can be invoked directly
     // This simulates what happens when user clicks the code lens
@@ -1335,14 +1195,7 @@ int nested_symbol
   test('Code lens click with symbolName finds references even when position is at return type', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_function definition - this function is called multiple times in the file
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcLine = document.positionAt(funcOffset).line;
+    const funcLine = positionForRegex(document, /^int test_function\s*\(/m).line;
 
     // Simulate code lens click: position at column 0 (where return type "int" is)
     // and provide symbolName to enable the fix
@@ -1373,14 +1226,7 @@ int nested_symbol
   test('pike.showReferences command accepts symbolName parameter', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_function definition
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]);
-    const funcLine = document.positionAt(funcOffset).line;
+    const funcLine = positionForRegex(document, /^int test_function\s*\(/m).line;
 
     // Execute command with all three parameters (uri, position, symbolName)
     // Position is at column 0 (return type), but symbolName should help find the right position
@@ -1427,21 +1273,17 @@ int nested_symbol
     this.timeout(10000);
 
     // Find a position inside a function body
-    const text = document.getText();
-    const funcMatch = text.match(/int\s+test_function/);
-    const position = funcMatch
-      ? document.positionAt(funcMatch.index! + 10)
-      : new vscode.Position(5, 5);
+    const position = positionForRegex(document, /int\s+test_function/, 10);
 
-    // Use Promise.race with timeout to avoid hanging
-    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 5000));
-    const rangesPromise = vscode.commands.executeCommand<vscode.SelectionRange[]>(
-      'vscode.executeSelectionRangeProvider',
-      testDocumentUri,
-      [position]
+    const ranges = await withTimeout(
+      vscode.commands.executeCommand<vscode.SelectionRange[]>(
+        'vscode.executeSelectionRangeProvider',
+        testDocumentUri,
+        [position]
+      ),
+      5000,
+      null
     );
-
-    const ranges = await Promise.race([rangesPromise, timeoutPromise]);
 
     // Should return selection ranges (or null if provider timed out)
     assert.ok(ranges !== undefined, 'Should return selection ranges or null');
@@ -1466,15 +1308,15 @@ int nested_symbol
 
     const positions = [new vscode.Position(5, 5), new vscode.Position(10, 10)];
 
-    // Use Promise.race with timeout to avoid hanging
-    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 5000));
-    const rangesPromise = vscode.commands.executeCommand<vscode.SelectionRange[]>(
-      'vscode.executeSelectionRangeProvider',
-      testDocumentUri,
-      positions
+    const ranges = await withTimeout(
+      vscode.commands.executeCommand<vscode.SelectionRange[]>(
+        'vscode.executeSelectionRangeProvider',
+        testDocumentUri,
+        positions
+      ),
+      5000,
+      null
     );
-
-    const ranges = await Promise.race([rangesPromise, timeoutPromise]);
 
     // Should return selection ranges for each position (or null if timed out)
     assert.ok(ranges !== undefined, 'Should return selection ranges or null');
@@ -1647,19 +1489,7 @@ int nested_symbol
 
     assert.ok(symbols, 'Should return symbols');
 
-    // Find TestClass
-    const findSymbol = (syms: vscode.DocumentSymbol[]): vscode.DocumentSymbol | null => {
-      for (const s of syms) {
-        if (s.name === 'TestClass') return s;
-        if (s.children) {
-          const found = findSymbol(s.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const testClass = findSymbol(symbols);
+    const testClass = findSymbolByName(symbols, 'TestClass');
     if (testClass) {
       assert.ok(testClass.children, 'TestClass should have children array');
       // Class should have methods as children
@@ -1677,14 +1507,7 @@ int nested_symbol
   test('Go to definition on symbol definition returns self', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find test_function definition
-    const funcMatch = text.match(/^int test_function\s*\(/m);
-    assert.ok(funcMatch, 'Should find test_function definition');
-
-    const funcOffset = text.indexOf(funcMatch![0]) + 'int '.length;
-    const funcPosition = document.positionAt(funcOffset);
+    const funcPosition = positionForRegex(document, /^int test_function\s*\(/m, 'int '.length);
 
     const locations = await vscode.commands.executeCommand<
       vscode.Location | vscode.Location[] | vscode.LocationLink[]
@@ -1776,14 +1599,7 @@ int nested_symbol
     this.timeout(30000);
 
     const text = document.getText();
-
-    // Find "inherit TestClass" at line 50
-    const inheritMatch = text.match(/inherit\s+TestClass/);
-    assert.ok(inheritMatch, 'Should find "inherit TestClass" statement in test.pike');
-
-    // Calculate position to be on "TestClass" part (after "inherit ")
-    const inheritOffset = text.indexOf(inheritMatch![0]) + 'inherit '.length;
-    const inheritPosition = document.positionAt(inheritOffset);
+    const inheritPosition = positionForRegex(document, /inherit\s+TestClass/, 'inherit '.length);
 
     // Execute definition provider
     const locations = await vscode.commands.executeCommand<
@@ -1793,19 +1609,7 @@ int nested_symbol
     // Verify response is not null
     assert.ok(locations, 'Should return definition location for inherit statement (not null)');
 
-    // Normalize to array
-    let locationArray: vscode.Location[];
-    if (Array.isArray(locations)) {
-      if (locations.length > 0 && locations[0] && 'targetUri' in locations[0]) {
-        locationArray = (locations as vscode.LocationLink[]).map(
-          ll => new vscode.Location(ll.targetUri, ll.targetRange)
-        );
-      } else {
-        locationArray = locations as vscode.Location[];
-      }
-    } else {
-      locationArray = [locations as vscode.Location];
-    }
+    const locationArray = normalizeLocations(locations);
 
     // Verify we have at least one location
     assert.ok(locationArray.length > 0, 'Should have at least one definition location for inherit');
@@ -1847,10 +1651,7 @@ int nested_symbol
     this.timeout(30000);
 
     const text = document.getText();
-
-    // Verify inherit statement exists in source
-    const inheritMatch = text.match(/inherit\s+TestClass/);
-    assert.ok(inheritMatch, 'Source code should contain "inherit TestClass"');
+    const inheritPosition = positionForRegex(document, /inherit\s+TestClass/, 'inherit '.length);
 
     // Verify ChildClass exists in symbols
     const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
@@ -1860,25 +1661,11 @@ int nested_symbol
 
     assert.ok(symbols, 'Should return symbols');
 
-    const findSymbol = (syms: vscode.DocumentSymbol[]): vscode.DocumentSymbol | null => {
-      for (const s of syms) {
-        if (s.name === 'ChildClass') return s;
-        if (s.children) {
-          const found = findSymbol(s.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const childClass = findSymbol(symbols);
+    const childClass = findSymbolByName(symbols, 'ChildClass');
     assert.ok(childClass, 'ChildClass should appear in document symbols');
 
     // The key test: inherit navigation works (verified by previous test)
     // Inherit symbols are in the parser output but may not be LSP document symbols
-    const inheritOffset = text.indexOf(inheritMatch![0]) + 'inherit '.length;
-    const inheritPosition = document.positionAt(inheritOffset);
-
     const locations = await vscode.commands.executeCommand<
       vscode.Location | vscode.Location[] | vscode.LocationLink[]
     >('vscode.executeDefinitionProvider', testDocumentUri, inheritPosition);
@@ -1901,7 +1688,7 @@ suite('Waterfall Loading E2E Tests', () => {
   suiteSetup(async function () {
     this.timeout(60000);
 
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+    workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, 'Workspace folder should exist');
 
     const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
@@ -1920,8 +1707,12 @@ suite('Waterfall Loading E2E Tests', () => {
 
     await vscode.window.showTextDocument(doc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await waitFor(
+      'waterfall document symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      15000
+    );
   });
 
   suiteTeardown(async () => {
@@ -1935,15 +1726,7 @@ suite('Waterfall Loading E2E Tests', () => {
   test('Completion returns valid results via ModuleContext', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find a position in general code to trigger completion
-    const match = text.match(/int x = waterfall_test_value;/m);
-    assert.ok(match, 'Should find "waterfall_test_value" usage in test file');
-
-    // Position at the start of the line to trigger general completion
-    const offset = text.indexOf(match![0]);
-    const position = document.positionAt(offset);
+    const position = positionForRegex(document, /int x = waterfall_test_value;/m);
 
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
@@ -1970,12 +1753,7 @@ suite('Waterfall Loading E2E Tests', () => {
   test('Completion shows class definitions', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const match = text.match(/WaterfallTestClass obj =/m);
-    assert.ok(match, 'Should find "WaterfallTestClass obj" in test file');
-
-    const offset = text.indexOf(match![0]);
-    const position = document.positionAt(offset);
+    const position = positionForRegex(document, /WaterfallTestClass obj =/m);
 
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
@@ -1986,12 +1764,10 @@ suite('Waterfall Loading E2E Tests', () => {
     assert.ok(completions, 'Should return completions');
     assert.ok(completions!.items.length > 0, 'Should have completion items');
 
-    const completionLabels = completions!.items.map(i => i.label);
+    const completionLabels = completions!.items.map(labelOf);
 
     // WaterfallTestClass should appear
-    const hasClass = completionLabels.some(l =>
-      typeof l === 'string' ? l === 'WaterfallTestClass' : l.label === 'WaterfallTestClass'
-    );
+    const hasClass = completionLabels.includes('WaterfallTestClass');
 
     assertWithLogs(
       hasClass,
@@ -2007,13 +1783,7 @@ suite('Waterfall Loading E2E Tests', () => {
   test('Completion shows stdlib import symbols', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-    const match = text.match(/File f;/m);
-    assert.ok(match, 'Should find "File f;" in test file');
-
-    // Position just before "File" to trigger completion after import
-    const offset = text.indexOf(match![0]);
-    const position = document.positionAt(offset);
+    const position = positionForRegex(document, /File f;/m);
 
     const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
       'vscode.executeCompletionItemProvider',
@@ -2025,13 +1795,11 @@ suite('Waterfall Loading E2E Tests', () => {
     assert.ok(completions!.items.length > 0, 'Should have completion items');
 
     // Stdio types should appear due to "import Stdio;"
-    const completionLabels = completions!.items.map(i => i.label);
+    const completionLabels = completions!.items.map(labelOf);
 
     // File, write, stdin, etc. should appear from Stdio import
-    const hasStdioSymbol = completionLabels.some(l =>
-      typeof l === 'string'
-        ? l === 'File' || l === 'write' || l === 'stdin'
-        : l.label === 'File' || l.label === 'write' || l.label === 'stdin'
+    const hasStdioSymbol = completionLabels.some(
+      l => l === 'File' || l === 'write' || l === 'stdin'
     );
 
     assertWithLogs(
@@ -2080,8 +1848,12 @@ suite('Waterfall Loading E2E Tests', () => {
     const roxenDoc = await vscode.workspace.openTextDocument(roxenUri);
     await vscode.window.showTextDocument(roxenDoc);
 
-    // Wait for LSP to analyze the Roxen file - give it more time
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    await waitFor(
+      'Roxen document symbols availability',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', roxenUri),
+      value => value !== undefined,
+      20000
+    );
 
     // Check diagnostics - file should be parseable
     const diagnostics = vscode.languages.getDiagnostics(roxenUri);
@@ -2117,8 +1889,12 @@ suite('Waterfall Loading E2E Tests', () => {
     const roxenDoc = await vscode.workspace.openTextDocument(roxenUri);
     await vscode.window.showTextDocument(roxenDoc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await waitFor(
+      'Roxen diagnostics availability',
+      () => vscode.languages.getDiagnostics(roxenUri),
+      value => Array.isArray(value),
+      15000
+    );
 
     // Get diagnostics
     const diagnostics = vscode.languages.getDiagnostics(roxenUri);
@@ -2162,8 +1938,12 @@ suite('Waterfall Loading E2E Tests', () => {
     const locationDoc = await vscode.workspace.openTextDocument(locationUri);
     await vscode.window.showTextDocument(locationDoc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 15000));
+    await waitFor(
+      'Roxen location diagnostics availability',
+      () => vscode.languages.getDiagnostics(locationUri),
+      value => Array.isArray(value),
+      20000
+    );
 
     // Check diagnostics
     const diagnostics = vscode.languages.getDiagnostics(locationUri);
@@ -2194,8 +1974,12 @@ suite('Waterfall Loading E2E Tests', () => {
     const rxmlDoc = await vscode.workspace.openTextDocument(rxmlUri);
     await vscode.window.showTextDocument(rxmlDoc);
 
-    // Wait for LSP to analyze
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    await waitFor(
+      'RXML diagnostics availability',
+      () => vscode.languages.getDiagnostics(rxmlUri),
+      value => Array.isArray(value),
+      15000
+    );
 
     // Get diagnostics - RXML in strings should not cause parsing errors
     const diagnostics = vscode.languages.getDiagnostics(rxmlUri);

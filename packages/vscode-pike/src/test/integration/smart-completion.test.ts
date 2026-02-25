@@ -22,616 +22,611 @@
 
 import * as assert from 'assert';
 import { suite, test } from 'mocha';
+import { labelOf, positionForRegex, waitFor } from './helpers';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
 let vscodeAvailable = true;
 try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    vscode = require('vscode');
-    vscodeAvailable = true;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  vscode = require('vscode');
 } catch {
-    // vscode not available - tests will be skipped
+  vscodeAvailable = false;
 }
 
-const itSkip = test;
-
 suite('Smart Completion E2E Tests', () => {
-    let document: any;
-    let testDocumentUri: any;
+  let document: any;
+  let testDocumentUri: any;
 
-    suiteSetup(async function () {
-        this.timeout(60000);
+  suiteSetup(async function () {
+    if (!vscodeAvailable) {
+      this.skip();
+      return;
+    }
+    this.timeout(60000);
 
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        assert.ok(workspaceFolder, 'Workspace folder should exist');
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder, 'Workspace folder should exist');
 
-        // Activate extension
-        const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
-        assert.ok(extension, 'Extension should be found');
-        if (!extension.isActive) {
-            await extension.activate();
-        }
-
-        // Wait for LSP server to start
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
-        // Open the smart completion test fixture
-        testDocumentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-smart-completion.pike');
-        document = await vscode.workspace.openTextDocument(testDocumentUri);
-        await vscode.window.showTextDocument(document);
-
-        // Wait for LSP to analyze
-        await new Promise(resolve => setTimeout(resolve, 15000));
-    });
-
-    suiteTeardown(async () => {
-        if (document) {
-            await vscode.window.showTextDocument(document);
-            await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-        }
-    });
-
-    // =========================================================================
-    // Helper functions
-    // =========================================================================
-
-    /**
-     * Get completions at the position after a specific text pattern.
-     * Finds the pattern in the document and positions the cursor after it.
-     */
-    async function getCompletionsAfter(
-        pattern: string,
-        offsetFromMatch = 0
-    ): Promise<vscode.CompletionList> {
-        const text = document.getText();
-        const matchIndex = text.indexOf(pattern);
-        assert.ok(matchIndex >= 0, `Pattern "${pattern}" not found in fixture`);
-
-        const offset = matchIndex + pattern.length + offsetFromMatch;
-        const position = document.positionAt(offset);
-
-        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(completions, `Completions should not be null after "${pattern}"`);
-        return completions;
+    // Activate extension
+    const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
+    assert.ok(extension, 'Extension should be found');
+    if (!extension.isActive) {
+      await extension.activate();
     }
 
-    /** Extract string labels from completion items */
-    function getLabels(completions: vscode.CompletionList): string[] {
-        return completions.items.map(i =>
-            typeof i.label === 'string' ? i.label : i.label.label
-        );
+    // Open the smart completion test fixture
+    testDocumentUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-smart-completion.pike');
+    document = await vscode.workspace.openTextDocument(testDocumentUri);
+    await vscode.window.showTextDocument(document);
+
+    await waitFor(
+      'smart completion document symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      20000
+    );
+  });
+
+  suiteTeardown(async () => {
+    if (document) {
+      await vscode.window.showTextDocument(document);
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
     }
+  });
 
-    /** Find a specific completion item by label */
-    function findByLabel(
-        completions: vscode.CompletionList,
-        label: string
-    ): vscode.CompletionItem | undefined {
-        return completions.items.find(i =>
-            (typeof i.label === 'string' ? i.label : i.label.label) === label
-        );
+  // =========================================================================
+  // Helper functions
+  // =========================================================================
+
+  /**
+   * Get completions at the position after a specific text pattern.
+   * Finds the pattern in the document and positions the cursor after it.
+   */
+  async function getCompletionsAfter(
+    pattern: string,
+    offsetFromMatch = 0
+  ): Promise<vscode.CompletionList> {
+    const text = document.getText();
+    const matchIndex = text.indexOf(pattern);
+    assert.ok(matchIndex >= 0, `Pattern "${pattern}" not found in fixture`);
+
+    const offset = matchIndex + pattern.length + offsetFromMatch;
+    const position = document.positionAt(offset);
+
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(completions, `Completions should not be null after "${pattern}"`);
+    return completions;
+  }
+
+  /** Extract string labels from completion items */
+  function getLabels(completions: vscode.CompletionList): string[] {
+    return completions.items.map(labelOf);
+  }
+
+  /** Find a specific completion item by label */
+  function findByLabel(
+    completions: vscode.CompletionList,
+    label: string
+  ): vscode.CompletionItem | undefined {
+    return completions.items.find(i => labelOf(i) === label);
+  }
+
+  // =========================================================================
+  // N. Stdlib Member Access
+  // =========================================================================
+
+  test('N.1: Array. shows stdlib Array methods', async function () {
+    this.timeout(30000);
+
+    // Find UNIQUE_PATTERN_ARRAY_COMPLETION and locate "Array." after it
+    const text = document.getText();
+    const patternIndex = text.indexOf('UNIQUE_PATTERN_ARRAY_COMPLETION');
+    assert.ok(patternIndex >= 0, 'Pattern not found');
+
+    // Find "Array." after this pattern
+    const afterPattern = text.slice(patternIndex);
+    const arrayDotIndex = afterPattern.indexOf('Array.');
+    assert.ok(arrayDotIndex >= 0, 'Array. not found after pattern');
+
+    // Position cursor right after "Array."
+    const cursorPos = patternIndex + arrayDotIndex + 'Array.'.length;
+    const position = document.positionAt(cursorPos);
+
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(completions, 'Should have completions');
+    const itemLabels = getLabels(completions);
+    assert.ok(completions.items.length > 0, 'Should have Array member completions');
+
+    // Array module should expose methods like sort, filter, etc.
+    assert.ok(
+      itemLabels.some(l => l.toLowerCase().includes('sort') || l.toLowerCase().includes('filter')),
+      `Array. should include methods like sort/filter, got: ${itemLabels.slice(0, 10).join(', ')}`
+    );
+  });
+
+  test('N.2: String. shows stdlib String methods', async function () {
+    this.timeout(30000);
+
+    // Find UNIQUE_PATTERN_STRING_COMPLETION and locate "String." after it
+    const text = document.getText();
+    const patternIndex = text.indexOf('UNIQUE_PATTERN_STRING_COMPLETION');
+    assert.ok(patternIndex >= 0, 'Pattern not found');
+
+    // Find "String." after this pattern
+    const afterPattern = text.slice(patternIndex);
+    const stringDotIndex = afterPattern.indexOf('String.');
+    assert.ok(stringDotIndex >= 0, 'String. not found after pattern');
+
+    // Position cursor right after "String."
+    const cursorPos = patternIndex + stringDotIndex + 'String.'.length;
+    const position = document.positionAt(cursorPos);
+
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(completions, 'Should have completions');
+    const itemLabels = getLabels(completions);
+    assert.ok(completions.items.length > 0, 'Should have String member completions');
+  });
+
+  test('N.3: Stdio. shows stdlib Stdio members', async function () {
+    this.timeout(30000);
+
+    // Find UNIQUE_PATTERN_STDIO_COMPLETION and locate "Stdio." after this
+    const text = document.getText();
+    const patternIndex = text.indexOf('UNIQUE_PATTERN_STDIO_COMPLETION');
+    assert.ok(patternIndex >= 0, 'Pattern not found');
+
+    // Find "Stdio." after this pattern
+    const afterPattern = text.slice(patternIndex);
+    const stdioDotIndex = afterPattern.indexOf('Stdio.');
+    assert.ok(stdioDotIndex >= 0, 'Stdio. not found after pattern');
+
+    // Position cursor right after "Stdio."
+    const cursorPos = patternIndex + stdioDotIndex + 'Stdio.'.length;
+    const position = document.positionAt(cursorPos);
+
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(completions, 'Should have completions');
+    const itemLabels = getLabels(completions);
+    assert.ok(completions.items.length > 0, 'Should have Stdio member completions');
+  });
+
+  // =========================================================================
+  // O. Type-Based Variable Completion
+  // =========================================================================
+
+  test('O.1: btn-> shows Button class members', async function () {
+    this.timeout(30000);
+
+    const completions = await getCompletionsAfter('btn->press');
+    // We need to check what appears after "btn->"
+    // Reposition to just after "btn->"
+    const text = document.getText();
+    const btnArrow = text.indexOf('btn->press');
+    assert.ok(btnArrow >= 0, 'Should find btn->press in fixture');
+
+    const position = document.positionAt(btnArrow + 'btn->'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions for btn->');
+    const itemLabels = getLabels(result);
+
+    // Should show Button's own methods
+    assert.ok(
+      itemLabels.includes('press') || itemLabels.includes('get_label'),
+      `btn-> should show Button methods, got: ${itemLabels.slice(0, 15).join(', ')}`
+    );
+  });
+
+  test('O.2: btn-> also shows inherited BaseWidget members', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const btnArrow = text.indexOf('btn->press');
+    assert.ok(btnArrow >= 0);
+
+    const position = document.positionAt(btnArrow + 'btn->'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions');
+    const itemLabels = getLabels(result);
+
+    // Should show inherited methods from BaseWidget
+    assert.ok(
+      itemLabels.includes('set_name') || itemLabels.includes('get_id'),
+      `btn-> should include inherited members (set_name, get_id), got: ${itemLabels.slice(0, 15).join(', ')}`
+    );
+  });
+
+  test('O.3: f-> on Stdio.File variable shows file operations', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const fArrow = text.indexOf('f->close');
+    assert.ok(fArrow >= 0, 'Should find f->close in fixture');
+
+    const position = document.positionAt(fArrow + 'f->'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions for f->');
+    const itemLabels = getLabels(result);
+
+    // Stdio.File should have read, write, close
+    assert.ok(
+      itemLabels.includes('read') || itemLabels.includes('write') || itemLabels.includes('close'),
+      `f-> should show File methods (read/write/close), got: ${itemLabels.slice(0, 15).join(', ')}`
+    );
+  });
+
+  // =========================================================================
+  // P. Inherited Member Completion
+  // =========================================================================
+
+  test('P.1: class inheriting BaseWidget gets parent members in completion', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const bwArrow = text.indexOf('bw->set_name');
+    assert.ok(bwArrow >= 0, 'Should find bw->set_name in fixture');
+
+    const position = document.positionAt(bwArrow + 'bw->'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions for bw->');
+    const itemLabels = getLabels(result);
+
+    expect: {
+      // BaseWidget members
+      const hasBaseMembers =
+        itemLabels.includes('set_name') ||
+        itemLabels.includes('get_id') ||
+        itemLabels.includes('widget_id');
+
+      assert.ok(
+        hasBaseMembers,
+        `bw-> should show BaseWidget members, got: ${itemLabels.slice(0, 15).join(', ')}`
+      );
     }
-
-    // =========================================================================
-    // N. Stdlib Member Access
-    // =========================================================================
-
-    test('N.1: Array. shows stdlib Array methods', async function () {
-        this.timeout(30000);
-
-        // Find UNIQUE_PATTERN_ARRAY_COMPLETION and locate "Array." after it
-        const text = document.getText();
-        const patternIndex = text.indexOf('UNIQUE_PATTERN_ARRAY_COMPLETION');
-        assert.ok(patternIndex >= 0, 'Pattern not found');
-
-        // Find "Array." after this pattern
-        const afterPattern = text.slice(patternIndex);
-        const arrayDotIndex = afterPattern.indexOf('Array.');
-        assert.ok(arrayDotIndex >= 0, 'Array. not found after pattern');
-
-        // Position cursor right after "Array."
-        const cursorPos = patternIndex + arrayDotIndex + 'Array.'.length;
-        const position = document.positionAt(cursorPos);
-
-        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(completions, 'Should have completions');
-        const itemLabels = getLabels(completions);
-        assert.ok(completions.items.length > 0, 'Should have Array member completions');
-
-        // Array module should expose methods like sort, filter, etc.
-        assert.ok(
-            itemLabels.some(l => l.toLowerCase().includes('sort') || l.toLowerCase().includes('filter')),
-            `Array. should include methods like sort/filter, got: ${itemLabels.slice(0, 10).join(', ')}`
-        );
-    });
-
-    test('N.2: String. shows stdlib String methods', async function () {
-        this.timeout(30000);
-
-        // Find UNIQUE_PATTERN_STRING_COMPLETION and locate "String." after it
-        const text = document.getText();
-        const patternIndex = text.indexOf('UNIQUE_PATTERN_STRING_COMPLETION');
-        assert.ok(patternIndex >= 0, 'Pattern not found');
-
-        // Find "String." after this pattern
-        const afterPattern = text.slice(patternIndex);
-        const stringDotIndex = afterPattern.indexOf('String.');
-        assert.ok(stringDotIndex >= 0, 'String. not found after pattern');
-
-        // Position cursor right after "String."
-        const cursorPos = patternIndex + stringDotIndex + 'String.'.length;
-        const position = document.positionAt(cursorPos);
-
-        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(completions, 'Should have completions');
-        const itemLabels = getLabels(completions);
-        assert.ok(completions.items.length > 0, 'Should have String member completions');
-
-    });
-
-    test('N.3: Stdio. shows stdlib Stdio members', async function () {
-        this.timeout(30000);
-
-        // Find UNIQUE_PATTERN_STDIO_COMPLETION and locate "Stdio." after this
-        const text = document.getText();
-        const patternIndex = text.indexOf('UNIQUE_PATTERN_STDIO_COMPLETION');
-        assert.ok(patternIndex >= 0, 'Pattern not found');
-
-        // Find "Stdio." after this pattern
-        const afterPattern = text.slice(patternIndex);
-        const stdioDotIndex = afterPattern.indexOf('Stdio.');
-        assert.ok(stdioDotIndex >= 0, 'Stdio. not found after pattern');
-
-        // Position cursor right after "Stdio."
-        const cursorPos = patternIndex + stdioDotIndex + 'Stdio.'.length;
-        const position = document.positionAt(cursorPos);
-
-        const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(completions, 'Should have completions');
-        const itemLabels = getLabels(completions);
-        assert.ok(completions.items.length > 0, 'Should have Stdio member completions');
-    });
-
-    // =========================================================================
-    // O. Type-Based Variable Completion
-    // =========================================================================
-
-    test('O.1: btn-> shows Button class members', async function () {
-        this.timeout(30000);
-
-        const completions = await getCompletionsAfter('btn->press');
-        // We need to check what appears after "btn->"
-        // Reposition to just after "btn->"
-        const text = document.getText();
-        const btnArrow = text.indexOf('btn->press');
-        assert.ok(btnArrow >= 0, 'Should find btn->press in fixture');
-
-        const position = document.positionAt(btnArrow + 'btn->'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions for btn->');
-        const itemLabels = getLabels(result);
-
-        // Should show Button's own methods
-        assert.ok(
-            itemLabels.includes('press') || itemLabels.includes('get_label'),
-            `btn-> should show Button methods, got: ${itemLabels.slice(0, 15).join(', ')}`
-        );
-    });
-
-    test('O.2: btn-> also shows inherited BaseWidget members', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const btnArrow = text.indexOf('btn->press');
-        assert.ok(btnArrow >= 0);
-
-        const position = document.positionAt(btnArrow + 'btn->'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions');
-        const itemLabels = getLabels(result);
-
-        // Should show inherited methods from BaseWidget
-        assert.ok(
-            itemLabels.includes('set_name') || itemLabels.includes('get_id'),
-            `btn-> should include inherited members (set_name, get_id), got: ${itemLabels.slice(0, 15).join(', ')}`
-        );
-    });
-
-    test('O.3: f-> on Stdio.File variable shows file operations', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const fArrow = text.indexOf('f->close');
-        assert.ok(fArrow >= 0, 'Should find f->close in fixture');
-
-        const position = document.positionAt(fArrow + 'f->'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions for f->');
-        const itemLabels = getLabels(result);
-
-        // Stdio.File should have read, write, close
-        assert.ok(
-            itemLabels.includes('read') || itemLabels.includes('write') || itemLabels.includes('close'),
-            `f-> should show File methods (read/write/close), got: ${itemLabels.slice(0, 15).join(', ')}`
-        );
-    });
-
-    // =========================================================================
-    // P. Inherited Member Completion
-    // =========================================================================
-
-    test('P.1: class inheriting BaseWidget gets parent members in completion', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const bwArrow = text.indexOf('bw->set_name');
-        assert.ok(bwArrow >= 0, 'Should find bw->set_name in fixture');
-
-        const position = document.positionAt(bwArrow + 'bw->'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions for bw->');
-        const itemLabels = getLabels(result);
-
-        expect: {
-            // BaseWidget members
-            const hasBaseMembers =
-                itemLabels.includes('set_name') ||
-                itemLabels.includes('get_id') ||
-                itemLabels.includes('widget_id');
-
-            assert.ok(
-                hasBaseMembers,
-                `bw-> should show BaseWidget members, got: ${itemLabels.slice(0, 15).join(', ')}`
-            );
-        }
-    });
-
-    test('P.2: deprecated inherited member has deprecated tag', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const bwArrow = text.indexOf('bw->set_name');
-        assert.ok(bwArrow >= 0);
-
-        const position = document.positionAt(bwArrow + 'bw->'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions');
-
-        // Find the deprecated 'rename' method
-        const renameItem = findByLabel(result, 'rename');
-        // DEBUG: Log all items and the rename item specifically
-        console.log(`[P.2 DEBUG] Total items: ${result.items.length}`);
-        console.log(`[P.2 DEBUG] renameItem found: ${!!renameItem}`);
-        if (renameItem) {
-            console.log(`[P.2 DEBUG] renameItem.tags: ${JSON.stringify(renameItem.tags)}`);
-            console.log(`[P.2 DEBUG] renameItem.label: ${renameItem.label}`);
-            console.log(`[P.2 DEBUG] Deprecated tag value: ${vscode.CompletionItemTag.Deprecated}`);
-            // The deprecated tag should be set on inherited members that are deprecated
-            assert.ok(
-                renameItem.tags?.includes(vscode.CompletionItemTag.Deprecated),
-                `rename method should have deprecated tag, got tags: ${JSON.stringify(renameItem.tags)}`
-            );
-        } else {
-            // If rename is not in the list, fail the test with useful info
-            const itemLabels = result.items.map(i => typeof i.label === 'string' ? i.label : i.label.label).slice(0, 20);
-            assert.fail(`rename not found in completions. Got: ${itemLabels.join(', ')}`);
-        }
-    });
-
-    // =========================================================================
-    // Q. Scope Operator Completion
-    // =========================================================================
-
-    test('Q.1: this_program:: shows local and inherited members', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const scopeMatch = text.indexOf('this_program::local_value');
-        assert.ok(scopeMatch >= 0, 'Should find this_program::local_value in fixture');
-
-        const position = document.positionAt(scopeMatch + 'this_program::'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions for this_program::');
-        const itemLabels = getLabels(result);
-
-        assert.ok(
-            itemLabels.includes('local_value') || itemLabels.includes('test_this_program'),
-            `this_program:: should show local members, got: ${itemLabels.slice(0, 15).join(', ')}`
-        );
-    });
-
-    test('Q.2: BaseWidget:: shows parent class members', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const scopeMatch = text.indexOf('BaseWidget::get_id');
-        assert.ok(scopeMatch >= 0, 'Should find BaseWidget::get_id in fixture');
-
-        const position = document.positionAt(scopeMatch + 'BaseWidget::'.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions for BaseWidget::');
-        const itemLabels = getLabels(result);
-
-        assert.ok(
-            itemLabels.includes('get_id') || itemLabels.includes('set_name'),
-            `BaseWidget:: should show parent members, got: ${itemLabels.slice(0, 15).join(', ')}`
-        );
-    });
-
-    // =========================================================================
-    // R. Constructor Snippet Completion
-    // =========================================================================
-
-    test('R.1: Connection class completion includes constructor info', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        // Find "Connection c = Connection(" in fixture
-        const connMatch = text.indexOf('Connection c = Connection(');
-        assert.ok(connMatch >= 0, 'Should find Connection constructor call');
-
-        // Position after "Connection c = " to trigger class name completion
-        const position = document.positionAt(connMatch + 'Connection c = '.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions at constructor position');
-        const connItem = findByLabel(result, 'Connection');
-
-        if (connItem) {
-            // Should have detail showing constructor params
-            assert.ok(
-                connItem.detail || connItem.documentation,
-                'Connection completion should have detail or documentation'
-            );
-        }
-    });
-
-    // =========================================================================
-    // S. Context-Aware Prioritization
-    // =========================================================================
-
-    test('S.1: completions at start of line include type keywords', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        // Find "TypeContext tc" and position at start of that line
-        const tcMatch = text.indexOf('TypeContext tc = TypeContext()');
-        assert.ok(tcMatch >= 0);
-
-        const line = document.positionAt(tcMatch).line;
-        const position = new vscode.Position(line, 0);
-
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions');
-        const itemLabels = getLabels(result);
-
-        // Type keywords should be present
-        assert.ok(itemLabels.includes('int') || itemLabels.includes('string'),
-            'Type position should include type keywords');
-
-        // Local classes should also appear
-        assert.ok(
-            itemLabels.includes('TypeContext') ||
-            itemLabels.includes('Connection') ||
-            itemLabels.includes('Button'),
-            'Type position should include class names'
-        );
-    });
-
-    test('S.2: completions after = include variables and functions', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const exprMatch = text.indexOf('int x = tc->value');
-        assert.ok(exprMatch >= 0);
-
-        // Position after "int x = " (expression context)
-        const position = document.positionAt(exprMatch + 'int x = '.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions in expression context');
-        assert.ok(result.items.length > 0, 'Should have items in expression context');
-    });
-
-    test('S.3: completions after return include local symbols', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const retMatch = text.indexOf('return global_counter');
-        assert.ok(retMatch >= 0);
-
-        const position = document.positionAt(retMatch + 'return '.length);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions after return');
-        const itemLabels = getLabels(result);
-
-        assert.ok(
-            itemLabels.includes('global_counter') || itemLabels.includes('MAX_VALUE'),
-            `After return, should suggest variables/constants, got: ${itemLabels.slice(0, 10).join(', ')}`
-        );
-    });
-
-    // =========================================================================
-    // T. Completion Suppression
-    // =========================================================================
-
-    test('T.1: completion inside comment does not crash', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        // Find a comment line
-        const commentMatch = text.indexOf('// global_counter should NOT');
-        assert.ok(commentMatch >= 0);
-
-        const position = document.positionAt(commentMatch + 5);
-
-        // Should not crash
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        // Should return something (may be empty or keywords)
-        assert.ok(result !== undefined, 'Should not crash in comment context');
-    });
-
-    test('T.2: completion inside string does not crash', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const strMatch = text.indexOf('"No completions inside this string');
-        assert.ok(strMatch >= 0);
-
-        const position = document.positionAt(strMatch + 5);
-
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result !== undefined, 'Should not crash in string context');
-    });
-
-    // =========================================================================
-    // U. Completion Item Structure
-    // =========================================================================
-
-    test('U.1: completion items have valid kind values', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const position = new vscode.Position(0, 0);
-
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions');
-        assert.ok(result.items.length > 0, 'Should have completion items');
-
-        // All items should have valid kind
-        for (const item of result.items.slice(0, 20)) {
-            assert.ok(
-                item.kind !== undefined && item.kind !== null,
-                `Item "${typeof item.label === 'string' ? item.label : item.label.label}" should have a kind`
-            );
-        }
-    });
-
-    test('U.2: function completions have non-empty labels', async function () {
-        this.timeout(30000);
-
-        const position = new vscode.Position(0, 0);
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-
-        assert.ok(result, 'Should return completions');
-
-        for (const item of result.items) {
-            const label = typeof item.label === 'string' ? item.label : item.label.label;
-            assert.ok(label.length > 0, 'Completion labels should not be empty');
-        }
-    });
-
-    test('U.3: completion performance is under 2 seconds', async function () {
-        this.timeout(30000);
-
-        const text = document.getText();
-        const arrayDot = text.indexOf('Array.');
-        assert.ok(arrayDot >= 0);
-
-        const position = document.positionAt(arrayDot + 'Array.'.length);
-
-        const start = Date.now();
-        const result = await vscode.commands.executeCommand<vscode.CompletionList>(
-            'vscode.executeCompletionItemProvider',
-            testDocumentUri,
-            position
-        );
-        const elapsed = Date.now() - start;
-
-        assert.ok(result, 'Should return completions');
-        assert.ok(elapsed < 2000, `Completion should resolve in < 2s, took ${elapsed}ms`);
-    });
+  });
+
+  test('P.2: deprecated inherited member has deprecated tag', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const bwArrow = text.indexOf('bw->set_name');
+    assert.ok(bwArrow >= 0);
+
+    const position = document.positionAt(bwArrow + 'bw->'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions');
+
+    // Find the deprecated 'rename' method
+    const renameItem = findByLabel(result, 'rename');
+    // DEBUG: Log all items and the rename item specifically
+    console.log(`[P.2 DEBUG] Total items: ${result.items.length}`);
+    console.log(`[P.2 DEBUG] renameItem found: ${!!renameItem}`);
+    if (renameItem) {
+      console.log(`[P.2 DEBUG] renameItem.tags: ${JSON.stringify(renameItem.tags)}`);
+      console.log(`[P.2 DEBUG] renameItem.label: ${renameItem.label}`);
+      console.log(`[P.2 DEBUG] Deprecated tag value: ${vscode.CompletionItemTag.Deprecated}`);
+      // The deprecated tag should be set on inherited members that are deprecated
+      assert.ok(
+        renameItem.tags?.includes(vscode.CompletionItemTag.Deprecated),
+        `rename method should have deprecated tag, got tags: ${JSON.stringify(renameItem.tags)}`
+      );
+    } else {
+      // If rename is not in the list, fail the test with useful info
+      const itemLabels = result.items
+        .map(i => (typeof i.label === 'string' ? i.label : i.label.label))
+        .slice(0, 20);
+      assert.fail(`rename not found in completions. Got: ${itemLabels.join(', ')}`);
+    }
+  });
+
+  // =========================================================================
+  // Q. Scope Operator Completion
+  // =========================================================================
+
+  test('Q.1: this_program:: shows local and inherited members', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const scopeMatch = text.indexOf('this_program::local_value');
+    assert.ok(scopeMatch >= 0, 'Should find this_program::local_value in fixture');
+
+    const position = document.positionAt(scopeMatch + 'this_program::'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions for this_program::');
+    const itemLabels = getLabels(result);
+
+    assert.ok(
+      itemLabels.includes('local_value') || itemLabels.includes('test_this_program'),
+      `this_program:: should show local members, got: ${itemLabels.slice(0, 15).join(', ')}`
+    );
+  });
+
+  test('Q.2: BaseWidget:: shows parent class members', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const scopeMatch = text.indexOf('BaseWidget::get_id');
+    assert.ok(scopeMatch >= 0, 'Should find BaseWidget::get_id in fixture');
+
+    const position = document.positionAt(scopeMatch + 'BaseWidget::'.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions for BaseWidget::');
+    const itemLabels = getLabels(result);
+
+    assert.ok(
+      itemLabels.includes('get_id') || itemLabels.includes('set_name'),
+      `BaseWidget:: should show parent members, got: ${itemLabels.slice(0, 15).join(', ')}`
+    );
+  });
+
+  // =========================================================================
+  // R. Constructor Snippet Completion
+  // =========================================================================
+
+  test('R.1: Connection class completion includes constructor info', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    // Find "Connection c = Connection(" in fixture
+    const connMatch = text.indexOf('Connection c = Connection(');
+    assert.ok(connMatch >= 0, 'Should find Connection constructor call');
+
+    // Position after "Connection c = " to trigger class name completion
+    const position = document.positionAt(connMatch + 'Connection c = '.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions at constructor position');
+    const connItem = findByLabel(result, 'Connection');
+
+    if (connItem) {
+      // Should have detail showing constructor params
+      assert.ok(
+        connItem.detail || connItem.documentation,
+        'Connection completion should have detail or documentation'
+      );
+    }
+  });
+
+  // =========================================================================
+  // S. Context-Aware Prioritization
+  // =========================================================================
+
+  test('S.1: completions at start of line include type keywords', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    // Find "TypeContext tc" and position at start of that line
+    const tcMatch = text.indexOf('TypeContext tc = TypeContext()');
+    assert.ok(tcMatch >= 0);
+
+    const line = document.positionAt(tcMatch).line;
+    const position = new vscode.Position(line, 0);
+
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions');
+    const itemLabels = getLabels(result);
+
+    // Type keywords should be present
+    assert.ok(
+      itemLabels.includes('int') || itemLabels.includes('string'),
+      'Type position should include type keywords'
+    );
+
+    // Local classes should also appear
+    assert.ok(
+      itemLabels.includes('TypeContext') ||
+        itemLabels.includes('Connection') ||
+        itemLabels.includes('Button'),
+      'Type position should include class names'
+    );
+  });
+
+  test('S.2: completions after = include variables and functions', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const exprMatch = text.indexOf('int x = tc->value');
+    assert.ok(exprMatch >= 0);
+
+    // Position after "int x = " (expression context)
+    const position = document.positionAt(exprMatch + 'int x = '.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions in expression context');
+    assert.ok(result.items.length > 0, 'Should have items in expression context');
+  });
+
+  test('S.3: completions after return include local symbols', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const retMatch = text.indexOf('return global_counter');
+    assert.ok(retMatch >= 0);
+
+    const position = document.positionAt(retMatch + 'return '.length);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions after return');
+    const itemLabels = getLabels(result);
+
+    assert.ok(
+      itemLabels.includes('global_counter') || itemLabels.includes('MAX_VALUE'),
+      `After return, should suggest variables/constants, got: ${itemLabels.slice(0, 10).join(', ')}`
+    );
+  });
+
+  // =========================================================================
+  // T. Completion Suppression
+  // =========================================================================
+
+  test('T.1: completion inside comment does not crash', async function () {
+    this.timeout(30000);
+
+    const position = positionForRegex(document, /\/\/ global_counter should NOT/, 5);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completion payload in comment context');
+    assert.ok(
+      Array.isArray(result.items),
+      'Completion items should be an array in comment context'
+    );
+  });
+
+  test('T.2: completion inside string does not crash', async function () {
+    this.timeout(30000);
+
+    const position = positionForRegex(document, /"No completions inside this string/, 5);
+
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completion payload in string context');
+    assert.ok(Array.isArray(result.items), 'Completion items should be an array in string context');
+  });
+
+  // =========================================================================
+  // U. Completion Item Structure
+  // =========================================================================
+
+  test('U.1: completion items have valid kind values', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const position = new vscode.Position(0, 0);
+
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions');
+    assert.ok(result.items.length > 0, 'Should have completion items');
+
+    // All items should have valid kind
+    for (const item of result.items.slice(0, 20)) {
+      assert.ok(
+        item.kind !== undefined && item.kind !== null,
+        `Item "${labelOf(item)}" should have a kind`
+      );
+    }
+  });
+
+  test('U.2: function completions have non-empty labels', async function () {
+    this.timeout(30000);
+
+    const position = new vscode.Position(0, 0);
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+
+    assert.ok(result, 'Should return completions');
+
+    for (const item of result.items) {
+      const label = labelOf(item);
+      assert.ok(label.length > 0, 'Completion labels should not be empty');
+    }
+  });
+
+  test('U.3: completion performance is under 2 seconds', async function () {
+    this.timeout(30000);
+
+    const text = document.getText();
+    const arrayDot = text.indexOf('Array.');
+    assert.ok(arrayDot >= 0);
+
+    const position = document.positionAt(arrayDot + 'Array.'.length);
+
+    const start = Date.now();
+    const result = await vscode.commands.executeCommand<vscode.CompletionList>(
+      'vscode.executeCompletionItemProvider',
+      testDocumentUri,
+      position
+    );
+    const elapsed = Date.now() - start;
+
+    assert.ok(result, 'Should return completions');
+    assert.ok(elapsed < 2000, `Completion should resolve in < 2s, took ${elapsed}ms`);
+  });
 });

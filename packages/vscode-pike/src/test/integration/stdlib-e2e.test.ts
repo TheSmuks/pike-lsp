@@ -22,6 +22,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import { suite, test } from 'mocha';
+import { hoverText, labelOf, normalizeLocations, positionForRegex, waitFor } from './helpers';
 
 // Skip all tests in this file if vscode is not available
 let vscode: any;
@@ -29,12 +30,9 @@ let vscodeAvailable = true;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   vscode = require('vscode');
-  vscodeAvailable = true;
 } catch {
-  // vscode not available - tests will be skipped
+  vscodeAvailable = false;
 }
-
-const itSkip = test;
 
 suite('Stdlib E2E Tests', () => {
   let workspaceFolder: any;
@@ -63,7 +61,7 @@ suite('Stdlib E2E Tests', () => {
       return;
     }
 
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
+    workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, 'Workspace folder should exist');
 
     const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
@@ -71,10 +69,7 @@ suite('Stdlib E2E Tests', () => {
 
     if (!extension.isActive) {
       await extension.activate();
-      console.log('Extension activated for stdlib E2E tests');
     }
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Create a test file that uses stdlib modules
     const stdlibTestPath = vscode.Uri.joinPath(workspaceFolder.uri, 'test-stdlib.pike');
@@ -110,8 +105,12 @@ class TestClass {
     document = await vscode.workspace.openTextDocument(testDocumentUri);
     await vscode.window.showTextDocument(document);
 
-    await new Promise(resolve => setTimeout(resolve, 15000));
-    console.log('Stdlib E2E test setup complete');
+    await waitFor(
+      'stdlib document symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      20000
+    );
   });
 
   suiteTeardown(async () => {
@@ -140,29 +139,23 @@ class TestClass {
   test('Array module completion returns real stdlib methods', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find "Array." in the test file
-    const completionMatch = text.match(/Array\./);
-    assert.ok(completionMatch, 'Should find Array. completion trigger');
-
-    // Position after "Array." to trigger completion
-    const completionOffset = text.indexOf(completionMatch[0]) + 'Array.'.length;
-    const completionPosition = document.positionAt(completionOffset);
-
-    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      'vscode.executeCompletionItemProvider',
-      testDocumentUri,
-      completionPosition
+    const completionPosition = positionForRegex(document, /Array\./, 'Array.'.length);
+    const completions = await waitFor(
+      'Array completions',
+      () =>
+        vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          testDocumentUri,
+          completionPosition
+        ),
+      value => value?.items?.length > 0
     );
 
     assert.ok(completions, 'Should return completions for Array module');
     assert.ok(completions!.items.length > 0, 'Should have completion items for Array');
 
     // Verify REAL stdlib methods appear (from Array.pmod at /usr/local/pike/8.0.1116/lib/modules/)
-    const labels = completions!.items.map(i =>
-      typeof i.label === 'string' ? i.label : i.label.label
-    );
+    const labels = completions!.items.map(labelOf);
 
     // Expected methods from real Array.pmod module
     const expectedMethods = ['sum', 'sort', 'flatten', 'filter', 'map', 'reduce'];
@@ -185,28 +178,23 @@ class TestClass {
   test('String module completion returns real stdlib methods', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find "String." in the test file
-    const completionMatch = text.match(/String\./);
-    assert.ok(completionMatch, 'Should find String. completion trigger');
-
-    const completionOffset = text.indexOf(completionMatch[0]) + 'String.'.length;
-    const completionPosition = document.positionAt(completionOffset);
-
-    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      'vscode.executeCompletionItemProvider',
-      testDocumentUri,
-      completionPosition
+    const completionPosition = positionForRegex(document, /String\./, 'String.'.length);
+    const completions = await waitFor(
+      'String completions',
+      () =>
+        vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          testDocumentUri,
+          completionPosition
+        ),
+      value => value?.items?.length > 0
     );
 
     assert.ok(completions, 'Should return completions for String module');
     assert.ok(completions!.items.length > 0, 'Should have completion items for String');
 
     // Verify REAL stdlib methods appear
-    const labels = completions!.items.map(i =>
-      typeof i.label === 'string' ? i.label : i.label.label
-    );
+    const labels = completions!.items.map(labelOf);
 
     // Expected methods from real String module (8.0.1116 compatible)
     const expectedMethods = ['trim_all_whites', 'capitalize', 'count', 'width'];
@@ -229,28 +217,23 @@ class TestClass {
   test('Stdio module completion returns real stdlib classes and functions', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find "Stdio." in the test file
-    const completionMatch = text.match(/Stdio\./);
-    assert.ok(completionMatch, 'Should find Stdio. completion trigger');
-
-    const completionOffset = text.indexOf(completionMatch[0]) + 'Stdio.'.length;
-    const completionPosition = document.positionAt(completionOffset);
-
-    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      'vscode.executeCompletionItemProvider',
-      testDocumentUri,
-      completionPosition
+    const completionPosition = positionForRegex(document, /Stdio\./, 'Stdio.'.length);
+    const completions = await waitFor(
+      'Stdio completions',
+      () =>
+        vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          testDocumentUri,
+          completionPosition
+        ),
+      value => value?.items?.length > 0
     );
 
     assert.ok(completions, 'Should return completions for Stdio module');
     assert.ok(completions!.items.length > 0, 'Should have completion items for Stdio');
 
     // Verify REAL stdlib classes/ functions appear
-    const labels = completions!.items.map(i =>
-      typeof i.label === 'string' ? i.label : i.label.label
-    );
+    const labels = completions!.items.map(labelOf);
 
     // Expected from real Stdio module
     const expectedSymbols = ['File', 'stdout', 'stderr', 'stdin', 'Port'];
@@ -273,15 +256,7 @@ class TestClass {
   test('Hover on Array.sum shows function signature', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
-
-    // Find "Array.sum" in the test file
-    const hoverMatch = text.match(/Array\.sum/);
-    assert.ok(hoverMatch, 'Should find Array.sum usage');
-
-    // Position on "sum" part
-    const hoverOffset = text.indexOf(hoverMatch[0]) + 'Array.'.length;
-    const hoverPosition = document.positionAt(hoverOffset);
+    const hoverPosition = positionForRegex(document, /Array\.sum/, 'Array.'.length);
 
     const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
       'vscode.executeHoverProvider',
@@ -294,15 +269,8 @@ class TestClass {
 
     const firstHover = hovers[0]!;
     assert.ok(firstHover.contents, 'Hover should have contents');
+    const contentStr = hoverText(firstHover);
 
-    // Extract content string
-    const contents = Array.isArray(firstHover.contents)
-      ? firstHover.contents
-      : [firstHover.contents];
-    const content = contents[0];
-    const contentStr = typeof content === 'string' ? content : content?.value || '';
-
-    // Hover should contain some useful information
     assert.ok(contentStr.length > 0, 'Hover content should not be empty for Array.sum');
   });
 
@@ -343,21 +311,14 @@ class TestClass {
   test('Go-to-definition on Array module reference handles gracefully', async function () {
     this.timeout(30000);
 
-    const text = document.getText();
+    const refPosition = positionForRegex(document, /Array\.sum/);
 
-    // Find "Array" module reference
-    const refMatch = text.match(/Array\.sum/);
-    assert.ok(refMatch, 'Should find Array.sum reference');
-
-    const refOffset = text.indexOf(refMatch[0]);
-    const refPosition = document.positionAt(refOffset);
-
-    const locations = await vscode.commands.executeCommand<
+    const rawLocations = await vscode.commands.executeCommand<
       vscode.Location | vscode.Location[] | vscode.LocationLink[]
     >('vscode.executeDefinitionProvider', testDocumentUri, refPosition);
+    const locations = normalizeLocations(rawLocations);
 
-    // Should not crash - may return null for stdlib modules (expected)
-    assert.ok(locations !== undefined, 'Definition handler should not crash on stdlib reference');
+    assert.ok(Array.isArray(locations), 'Definition handler should return normalized array');
   });
 
   /**
