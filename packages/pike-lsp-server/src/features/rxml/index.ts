@@ -7,6 +7,8 @@ import type { Connection } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { TextDocuments } from 'vscode-languageserver';
 import type { Services } from '../../services/index.js';
+import { invalidateRXMLDefinitionCaches } from './definition-provider.js';
+import { invalidateRXMLReferenceCaches } from './references-provider.js';
 
 /**
  * Register RXML feature handlers.
@@ -32,15 +34,39 @@ export function registerRXMLHandlers(
   // These providers detect RXML files by checking document.languageId === 'rxml'
   // and then apply RXML-specific logic.
 
-  // Future: Set up document change listeners for cache invalidation
-  // _documents.onDidChangeContent((change) => {
-  //   if (change.document.languageId === 'rxml') {
-  //     invalidateRXMLCache(change.document.uri);
-  //   }
-  // });
+  const docs = _documents as unknown as {
+    onDidChangeContent?: (listener: (change: { document: TextDocument }) => void) => void;
+    onDidClose?: (listener: (change: { document: TextDocument }) => void) => void;
+  };
+
+  const invalidateForUri = (uri: string): void => {
+    invalidateRXMLDefinitionCaches(uri);
+    invalidateRXMLReferenceCaches(uri);
+  };
+
+  if (typeof docs.onDidChangeContent === 'function') {
+    docs.onDidChangeContent(change => {
+      if (change.document.languageId === 'rxml') {
+        invalidateForUri(change.document.uri);
+      }
+    });
+  }
+
+  if (typeof docs.onDidClose === 'function') {
+    docs.onDidClose(change => {
+      if (change.document.languageId === 'rxml') {
+        invalidateForUri(change.document.uri);
+      }
+    });
+  }
 }
 
-export { provideRXMLCompletions, getTagCompletions, getAttributeCompletions, getAttributeValueCompletions } from './completion.js';
+export {
+  provideRXMLCompletions,
+  getTagCompletions,
+  getAttributeCompletions,
+  getAttributeValueCompletions,
+} from './completion.js';
 export {
   RXML_TAG_CATALOG,
   getTagInfo,
@@ -52,7 +78,13 @@ export {
   type RXMLTagType,
   type RXMLAttribute,
 } from './tag-catalog.js';
-export { validateRXMLDocument, checkUnknownTags, checkMissingRequiredAttributes, checkUnclosedContainerTags, checkInvalidAttributeValues } from './diagnostics.js';
+export {
+  validateRXMLDocument,
+  checkUnknownTags,
+  checkMissingRequiredAttributes,
+  checkUnclosedContainerTags,
+  checkInvalidAttributeValues,
+} from './diagnostics.js';
 export { parseRXMLTemplate, isContainerTag, getTagAttributes } from './parser.js';
 export { provideRXMLSymbols } from './symbols.js';
 export type { RXMLTagInfo, RXMLTagCatalogEntry } from './types.js';
@@ -66,27 +98,22 @@ export {
   provideRXMLDefinition,
   findTagDefinition,
   findDefvarDefinition,
+  invalidateRXMLDefinitionCaches,
   type RoxenTagInfo,
   type RoxenDefvarInfo,
-  type RoxenModuleInfo
+  type RoxenModuleInfo,
 } from './definition-provider.js';
 export {
   provideRXMLReferences,
   findTagReferences,
   findDefvarReferences,
-  findModulesUsingTag
+  invalidateRXMLReferenceCaches,
+  findModulesUsingTag,
 } from './references-provider.js';
-export {
-  prepareRXMLRename,
-  provideRXMLRename
-} from './rename-provider.js';
-export {
-  provideRXMLHover,
-  getModuleConstantHover,
-  getDefvarHover
-} from './hover-provider.js';
+export { prepareRXMLRename, provideRXMLRename } from './rename-provider.js';
+export { provideRXMLHover, getModuleConstantHover, getDefvarHover } from './hover-provider.js';
 export {
   provideRXMLCodeActions,
   provideRXMLQuickFix,
-  type ExtendedModuleInfo
+  type ExtendedModuleInfo,
 } from './code-actions-provider.js';

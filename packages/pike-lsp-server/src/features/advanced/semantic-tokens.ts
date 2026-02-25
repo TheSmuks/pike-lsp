@@ -287,6 +287,15 @@ export function registerSemanticTokensHandler(
     return builder.build();
   };
 
+  const docsWithClose = documents as unknown as {
+    onDidClose?: (listener: (event: { document: TextDocument }) => void) => void;
+  };
+  if (typeof docsWithClose.onDidClose === 'function') {
+    docsWithClose.onDidClose(event => {
+      tokenStateByUri.delete(event.document.uri);
+    });
+  }
+
   /**
    * Semantic Tokens - Full request handler
    *
@@ -321,10 +330,6 @@ export function registerSemanticTokensHandler(
 
   /**
    * Semantic Tokens - Delta request handler
-   *
-   * Handles incremental semantic token updates. Since we don't maintain token state
-   * for delta computation, we return all tokens as a delta edit that replaces
-   * everything from position 0. This triggers a full refresh on the client side.
    */
   connection.languages.semanticTokens.onDelta((params): SemanticTokensDelta => {
     log.debug('Semantic tokens delta request', { uri: params.textDocument.uri });
