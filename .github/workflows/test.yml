@@ -94,7 +94,7 @@ jobs:
     strategy:
       matrix:
         pike-version: ['8.1116', 'latest']
-      fail-fast: false
+      fail-fast: true
 
     continue-on-error: ${{ matrix.pike-version == 'latest' }}
 
@@ -200,7 +200,7 @@ jobs:
           tar -xzf "$PIKE_ARCHIVE" -C "$BUILD_DIR" --strip-components=1
           cd "$BUILD_DIR/src"
           ./configure --prefix="$PIKE_PREFIX"
-          make -j"$(nproc)"
+          make -j1
           make install
           echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
 
