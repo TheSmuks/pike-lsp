@@ -171,7 +171,7 @@ jobs:
 
           mkdir -p "$PIKE_PREFIX" "$PIKE_DISTDIR"
           sudo apt-get update
-          sudo apt-get install -y build-essential libgmp-dev bison flex make wget
+          sudo apt-get install -y build-essential libgmp-dev nettle-dev nasm bison flex make wget
 
           download_pike_archive() {
             wget "$PIKE_URL" -O "$PIKE_ARCHIVE" || {
