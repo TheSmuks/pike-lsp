@@ -15,12 +15,6 @@ import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo } from './keywords.js';
 
 /**
- * Cache for hasDocumentation results to avoid repeated checks on the same symbol.
- * Uses WeakMap to allow garbage collection when symbol is no longer referenced.
- */
-const documentationCache = new WeakMap<PikeSymbol, boolean>();
-
-/**
  * Register hover handler.
  */
 export function registerHoverHandler(
@@ -124,11 +118,9 @@ export function registerHoverHandler(
         return null;
       }
 
-      // Determine content format based on documentation presence
-      const hasDoc = hasDocumentation(symbol);
       const hoverResult: Hover = {
         contents: {
-          kind: hasDoc ? MarkupKind.Markdown : MarkupKind.PlainText,
+          kind: MarkupKind.Markdown,
           value: content,
         },
       };
@@ -169,56 +161,4 @@ function pikeTypeFromString(typeName: string): PikeType {
     default:
       return { kind: 'unknown' };
   }
-}
-
-/**
- * Check if a symbol has documentation.
- * Used to determine whether to use Markdown or PlainText format.
- * Results are cached per symbol to avoid repeated checks.
- *
- * @param symbol - The symbol to check
- * @returns true if symbol has meaningful documentation
- */
-function hasDocumentation(symbol: PikeSymbol): boolean {
-  // Check cache first
-  const cached = documentationCache.get(symbol);
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const sym = symbol as unknown as Record<string, unknown>;
-  let result = false;
-
-  // Case 1: Has documentation object with non-empty text
-  if (sym['documentation'] && typeof sym['documentation'] === 'object') {
-    const docObj = sym['documentation'] as Record<string, unknown>;
-    const text = docObj['text'] as string | undefined;
-    if (text && text.trim().length > 0) {
-      result = true;
-    }
-    // Also check if doc object has other meaningful keys
-    else if (Object.keys(docObj).length > 0) {
-      result = true;
-    }
-  }
-
-  // Case 2: Has string documentation with content
-  if (!result && typeof sym['documentation'] === 'string') {
-    const docStr = sym['documentation'] as string;
-    if (docStr.trim().length > 0) {
-      result = true;
-    }
-  }
-
-  // Case 3: Has attached autodoc comment metadata
-  if (!result && sym['autodoc'] && typeof sym['autodoc'] === 'object') {
-    const autodocObj = sym['autodoc'] as Record<string, unknown>;
-    if (Object.keys(autodocObj).length > 0) {
-      result = true;
-    }
-  }
-
-  // Cache the result
-  documentationCache.set(symbol, result);
-  return result;
 }
