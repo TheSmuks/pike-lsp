@@ -62,6 +62,22 @@ export function registerCompletionHandlers(
     };
   }
 
+  function dedupeCompletionItems(items: CompletionItem[]): CompletionItem[] {
+    const seen = new Set<string>();
+    const deduped: CompletionItem[] = [];
+
+    for (const item of items) {
+      const key = `${item.label}:${item.kind ?? 0}:${item.detail ?? ''}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      deduped.push(item);
+    }
+
+    return deduped;
+  }
+
   /**
    * Parse completion trigger context from LSP params
    */
@@ -126,6 +142,7 @@ export function registerCompletionHandlers(
     const bridge = services.bridge;
     const uri = params.textDocument.uri;
     const document = documents.get(uri);
+    const cached = documentCache.get(uri);
 
     if (!document) {
       logger.debug('Completion request - no document found', { uri });
@@ -196,7 +213,136 @@ export function registerCompletionHandlers(
 
         clearInFlight();
         if (scheduledItems && scheduledItems.length > 0) {
-          return toCompletionList(scheduledItems);
+          const completions = [...scheduledItems];
+          const text = document.getText();
+          const offset = document.offsetAt(params.position);
+          const prefix = getWordAtPosition(text, offset);
+          const prefixLower = prefix.toLowerCase();
+          const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+          const lineText = text.slice(lineStart, offset);
+          const completionContext = getCompletionContext(lineText);
+
+          if (cached) {
+            const existingNames = new Set<string>();
+            for (const item of completions) {
+              existingNames.add(item.label);
+            }
+            for (const symbol of cached.symbols) {
+              if (symbol.name) {
+                existingNames.add(symbol.name);
+              }
+            }
+
+            if (services.includeResolver && cached.dependencies?.includes) {
+              for (const include of cached.dependencies.includes) {
+                for (const symbol of include.symbols) {
+                  if (!symbol.name || existingNames.has(symbol.name)) continue;
+                  if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
+                    const item = buildCompletionItem(
+                      symbol.name,
+                      symbol,
+                      `From ${include.originalPath}`,
+                      undefined,
+                      completionContext
+                    );
+                    item.data = { uri: include.resolvedPath, name: symbol.name };
+                    completions.push(item);
+                    existingNames.add(symbol.name);
+                  }
+                }
+              }
+            }
+
+            if (cached.dependencies?.imports) {
+              for (const imp of cached.dependencies.imports) {
+                if (imp.isStdlib && services.stdlibIndex) {
+                  try {
+                    const moduleInfo = await services.stdlibIndex.getModule(imp.modulePath);
+                    if (moduleInfo?.symbols) {
+                      for (const [name, symbol] of moduleInfo.symbols) {
+                        if (existingNames.has(name)) continue;
+                        if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
+                          completions.push(
+                            buildCompletionItem(
+                              name,
+                              symbol,
+                              `From ${imp.modulePath}`,
+                              undefined,
+                              completionContext
+                            )
+                          );
+                          existingNames.add(name);
+                        }
+                      }
+                    }
+                  } catch (err) {
+                    logger.debug('Failed to get stdlib import symbols', {
+                      modulePath: imp.modulePath,
+                      error: err instanceof Error ? err.message : String(err),
+                    });
+                  }
+                }
+
+                if (!imp.isStdlib && imp.symbols) {
+                  for (const symbol of imp.symbols) {
+                    if (!symbol.name || existingNames.has(symbol.name)) continue;
+                    if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
+                      completions.push(
+                        buildCompletionItem(
+                          symbol.name,
+                          symbol,
+                          `From ${imp.modulePath}`,
+                          undefined,
+                          completionContext
+                        )
+                      );
+                      existingNames.add(symbol.name);
+                    }
+                  }
+                }
+              }
+            }
+
+            const shouldFetchWaterfall =
+              prefixLower.length > 0 &&
+              !!(cached.dependencies?.includes?.length || cached.dependencies?.imports?.length);
+
+            if (shouldFetchWaterfall && moduleContext && services.bridge?.bridge) {
+              try {
+                const waterfallResult = await moduleContext.getWaterfallSymbolsForDocument(
+                  uri,
+                  text,
+                  services.bridge.bridge,
+                  3
+                );
+
+                for (const symbol of waterfallResult.symbols) {
+                  if (!symbol.name || existingNames.has(symbol.name)) continue;
+                  if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
+                    const provenance = symbol.provenance_file
+                      ? `From ${symbol.provenance_file}`
+                      : 'Imported symbol';
+                    completions.push(
+                      buildCompletionItem(
+                        symbol.name,
+                        symbol,
+                        provenance,
+                        undefined,
+                        completionContext
+                      )
+                    );
+                    existingNames.add(symbol.name);
+                  }
+                }
+              } catch (err) {
+                logger.debug('Failed to get waterfall symbols', {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+          }
+
+          return toCompletionList(dedupeCompletionItems(completions));
         }
       } catch (err) {
         clearInFlight();
@@ -210,7 +356,6 @@ export function registerCompletionHandlers(
       }
     }
 
-    const cached = documentCache.get(uri);
     if (!cached) {
       logger.debug('Completion request - no cached document', { uri });
       return toCompletionList([]);
@@ -735,7 +880,11 @@ export function registerCompletionHandlers(
 
       // Add waterfall symbols from imports/include/inherit/require using ModuleContext
       // This provides symbols from transitive dependencies with provenance tracking
-      if (moduleContext && services.bridge?.bridge) {
+      const shouldFetchWaterfall =
+        prefixLower.length > 0 &&
+        !!(cached.dependencies?.includes?.length || cached.dependencies?.imports?.length);
+
+      if (shouldFetchWaterfall && moduleContext && services.bridge?.bridge) {
         try {
           const waterfallResult = await moduleContext.getWaterfallSymbolsForDocument(
             uri,
@@ -981,7 +1130,7 @@ export function registerCompletionHandlers(
       }
     }
 
-    return toCompletionList(completions);
+    return toCompletionList(dedupeCompletionItems(completions));
   });
 
   /**

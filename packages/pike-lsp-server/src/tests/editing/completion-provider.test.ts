@@ -306,6 +306,34 @@ describe('Completion Provider', () => {
       expect(names).toContain('int');
     });
 
+    it('augments query-engine completions with imported module symbols', async () => {
+      const moduleSymbols = new Map<string, IntrospectedSymbol>();
+      moduleSymbols.set('File', {
+        name: 'File',
+        type: { kind: 'program' },
+        kind: 'class',
+        modifiers: ['public'],
+      });
+
+      const { complete } = setup({
+        code: 'import Stdio;\nFi',
+        queryItems: [
+          {
+            label: 'qeItem',
+            kind: CompletionItemKind.Variable,
+            detail: 'From query engine',
+          },
+        ],
+        importModules: [{ modulePath: 'Stdio', isStdlib: true }],
+        stdlibModules: { Stdio: moduleSymbols },
+      });
+
+      const result = await complete(1, 2);
+      const names = labels(result);
+      expect(names).toContain('qeItem');
+      expect(names).toContain('File');
+    });
+
     it('forwards cancellation for superseded completion requests during rapid edits', async () => {
       const cancelled: string[] = [];
       const bridge = {
