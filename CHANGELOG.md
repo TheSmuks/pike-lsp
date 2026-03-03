@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.26] - 2026-03-03
+
+### Fixed
+
+- **Restored session LSP startup** - Start the language server during extension activation when Pike documents are already open (restored VS Code sessions).
+- **Anonymize path logs** - Anonymize user-specific absolute paths in logger output and extension error messages.
+- **Import content in autocomplete** - Augment query-engine completion results with imported/include symbols so import content appears in autocomplete.
+- **Workspace scan performance** - Limit waterfall dependency completion fetches to contexts with a typed prefix to avoid expensive broad scans during edit flows.
+
+### Changed
+
+- **Centralized language IDs** - Moved supported Pike language IDs to a shared constant.
+
 ## [0.1.0-alpha.25] - 2026-02-26
 
 ### Chore
