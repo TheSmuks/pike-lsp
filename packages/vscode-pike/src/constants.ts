@@ -20,3 +20,12 @@ export const DEFAULT_DIAGNOSTIC_DELAY = 500;
  * Used when launching the LSP server in debug mode.
  */
 export const DEBUG_PORT = 6009;
+
+/**
+ * Language IDs handled by the Pike LSP.
+ *
+ * @remarks
+ * Must match the language IDs declared in package.json contributes.languages.
+ */
+export const PIKE_LANGUAGE_IDS = ['pike', 'rxml', 'rjs'] as const;
+
