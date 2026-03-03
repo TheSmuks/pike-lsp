@@ -36,6 +36,21 @@ import {
   TransportKind,
 } from 'vscode-languageclient/node';
 
+function anonymizeSensitivePaths(value: string): string {
+  const home = process.env['HOME'];
+  const userProfile = process.env['USERPROFILE'];
+  const prefixes = [home, userProfile].filter((v): v is string => Boolean(v));
+
+  let output = value;
+  for (const prefix of prefixes) {
+    const normalized = prefix.replace(/\\/g, '/');
+    output = output.replaceAll(normalized, '$HOME');
+    output = output.replaceAll(prefix, '$HOME');
+  }
+
+  return output;
+}
+
 let activeRuntime: ExtensionRuntime | undefined;
 
 class ExtensionRuntime {
@@ -406,9 +421,10 @@ class ExtensionRuntime {
         window.showInformationMessage('Pike Language Server started');
       }
     } catch (err) {
+      const safeMessage = anonymizeSensitivePaths(err instanceof Error ? err.message : String(err));
       console.error('Failed to start Pike Language Client:', err);
-      this.setStatusBar('error', err instanceof Error ? err.message : String(err));
-      window.showErrorMessage(`Failed to start Pike language server: ${err}`);
+      this.setStatusBar('error', safeMessage);
+      window.showErrorMessage(`Failed to start Pike language server: ${safeMessage}`);
     }
   }
 
@@ -578,9 +594,12 @@ async function activateInternal(
               );
           }
         } catch (err) {
+          const safeMessage = anonymizeSensitivePaths(String(err));
           runtime
             .getOutputChannel()
-            .appendLine(`[pike.showReferences] Could not adjust position for symbol: ${err}`);
+            .appendLine(
+              `[pike.showReferences] Could not adjust position for symbol: ${safeMessage}`
+            );
         }
       }
 
@@ -696,9 +715,10 @@ async function activateInternal(
       runtime.getOutputChannel().appendLine(healthText);
       window.showInformationMessage('Pike server health printed to output channel.');
     } catch (err) {
+      const safeMessage = anonymizeSensitivePaths(String(err));
       runtime
         .getOutputChannel()
-        .appendLine(`[pike.lsp.showHealth] Failed to request server health: ${String(err)}`);
+        .appendLine(`[pike.lsp.showHealth] Failed to request server health: ${safeMessage}`);
       window.showErrorMessage('Failed to fetch Pike server health.');
     }
   });
@@ -809,15 +829,15 @@ async function activateInternal(
   });
   runtime.track(fileOpenDisposable);
 
-    // Check for Pike files already open in editor tabs (e.g., restored session).
-    // Their onDidOpenTextDocument events fired before activate(), so we missed them.
-    const alreadyOpenPikeDoc = workspace.textDocuments.find(
-        doc => runtime.isTrackedLanguage(doc.languageId)
-    );
-    if (alreadyOpenPikeDoc) {
-        fileOpenDisposable.dispose();
-        await runtime.ensureLspStarted();
-    }
+  // Check for Pike files already open in editor tabs (e.g., restored session).
+  // Their onDidOpenTextDocument events fired before activate(), so we missed them.
+  const alreadyOpenPikeDoc = workspace.textDocuments.find(doc =>
+    runtime.isTrackedLanguage(doc.languageId)
+  );
+  if (alreadyOpenPikeDoc) {
+    fileOpenDisposable.dispose();
+    await runtime.ensureLspStarted();
+  }
 
   // Also start LSP when configuration changes (if already opened a Pike file)
   context.subscriptions.push(
