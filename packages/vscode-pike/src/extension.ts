@@ -26,6 +26,7 @@ import {
   TextDocument as VSCodeTextDocument,
   TextDocumentChangeEvent,
 } from 'vscode';
+import { PIKE_LANGUAGE_IDS } from './constants';
 import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
 import {
   LanguageClient,
@@ -191,7 +192,7 @@ class ExtensionRuntime {
   }
 
   isTrackedLanguage(languageId: string): boolean {
-    return languageId === 'pike' || languageId === 'rxml' || languageId === 'rjs';
+    return (PIKE_LANGUAGE_IDS as readonly string[]).includes(languageId);
   }
 
   async ensureLspStarted(): Promise<void> {
@@ -335,11 +336,7 @@ class ExtensionRuntime {
     }
 
     const clientOptions: LanguageClientOptions = {
-      documentSelector: [
-        { scheme: 'file', language: 'pike' },
-        { scheme: 'file', language: 'rxml' },
-        { scheme: 'file', language: 'rjs' },
-      ],
+      documentSelector: PIKE_LANGUAGE_IDS.map(lang => ({ scheme: 'file', language: lang })),
       synchronize: {
         fileEvents: workspace.createFileSystemWatcher('**/*.{pike,pmod,rxml,roxen,rjs}'),
       },
@@ -811,6 +808,16 @@ async function activateInternal(
     }
   });
   runtime.track(fileOpenDisposable);
+
+    // Check for Pike files already open in editor tabs (e.g., restored session).
+    // Their onDidOpenTextDocument events fired before activate(), so we missed them.
+    const alreadyOpenPikeDoc = workspace.textDocuments.find(
+        doc => runtime.isTrackedLanguage(doc.languageId)
+    );
+    if (alreadyOpenPikeDoc) {
+        fileOpenDisposable.dispose();
+        await runtime.ensureLspStarted();
+    }
 
   // Also start LSP when configuration changes (if already opened a Pike file)
   context.subscriptions.push(
