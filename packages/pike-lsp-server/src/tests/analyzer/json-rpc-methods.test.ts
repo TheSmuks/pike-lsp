@@ -578,6 +578,19 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
 
       assert.ok(result, 'Should include build_id');
     });
+
+    it('should report include diagnostics on original source lines when Roxen stubs are active', async () => {
+      const code = '#include <definitely_missing_header.h>\nmapping(string:RXML.Type) x;\n';
+      const result = await bridge.analyze(code, ['diagnostics'], 'test.pike');
+
+      const diagnostics = result.result?.diagnostics?.diagnostics ?? [];
+      const includeDiagnostic = diagnostics.find(
+        d => typeof d.message === 'string' && d.message.includes("Couldn't find include file.")
+      );
+
+      assert.ok(includeDiagnostic, 'Expected include diagnostic to be present');
+      assert.equal(includeDiagnostic?.position?.line, 1, 'Include diagnostic should map to line 1');
+    });
   });
 
   // =========================================================================
