@@ -421,12 +421,20 @@ class DependencyTrackingCompiler {
         // Set current file for hook context
         set_current_file(filename);
 
+        // When Roxen stubs are prepended, Pike reports line numbers in the
+        // augmented source. Track offset so diagnostics map back to user code.
+        int roxen_stub_line_offset = 0;
+
         // Capture compilation errors into instance variable
         void compile_error_handler(string file, int line, string msg) {
+            int mapped_line = line;
+            if (roxen_stub_line_offset > 0 && file == filename) {
+                mapped_line = max(1, line - roxen_stub_line_offset);
+            }
             _diagnostics += ({([
                 "message": msg,
                 "severity": "error",
-                "position": (["file": file, "line": line])
+                "position": (["file": file, "line": mapped_line])
             ])});
         };
 
@@ -490,6 +498,7 @@ class DependencyTrackingCompiler {
                     "constant TYPE_FLAG = 5;\n" +
                     "\n";
 
+                roxen_stub_line_offset = max(0, sizeof(roxen_stubs / "\n") - 1);
                 code_to_compile = roxen_stubs + code;
             }
 
