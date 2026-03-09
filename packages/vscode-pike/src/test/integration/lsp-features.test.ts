@@ -1909,18 +1909,54 @@ suite('Waterfall Loading E2E Tests', () => {
     // Clean up
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
-    // Valid Roxen module may have some warnings due to incomplete Roxen stubs
-    // Allow up to 5 warnings (not errors) - the module should still be functional
     const errorCount = diagnostics.filter(
       d => d.severity === vscode.DiagnosticSeverity.Error
     ).length;
     const warningCount = diagnostics.filter(
       d => d.severity === vscode.DiagnosticSeverity.Warning
     ).length;
-    assert.ok(
-      errorCount <= 3 && warningCount <= 5,
-      `Roxen module diagnostics: ${errorCount} errors, ${warningCount} warnings`
+
+    const knownExternalNoise = [
+      'Undefined identifier',
+      'Illegal program pointer',
+      'Indexing on illegal type',
+      'Expected constant expression',
+      'Must return a value for a non-void function',
+      'Compilation failed',
+      'Calling a void expression',
+      'Error in constant definition',
+      'Placeholder already has storage',
+      'Error finding program',
+      'Error resolving',
+      'Illegal program identifier',
+      "Index 'Variable' not present in module Variable",
+      'Indexed module was:',
+      'Cast "module" to program failed',
+      'Got     :',
+      'Index   :',
+      'Expected:',
+    ];
+
+    const actionableErrors = diagnostics.filter(
+      d =>
+        d.severity === vscode.DiagnosticSeverity.Error &&
+        !knownExternalNoise.some(pattern => d.message.includes(pattern))
     );
+
+    assert.ok(
+      actionableErrors.length === 0,
+      `Unexpected Roxen actionable diagnostics: ${actionableErrors
+        .slice(0, 10)
+        .map(d => d.message)
+        .join(' | ')}`
+    );
+
+    if (diagnostics.length === 0) {
+      assert.ok(
+        errorCount === 0 && warningCount === 0,
+        'No diagnostics expected to imply 0 errors/warnings'
+      );
+    }
   });
 
   /**

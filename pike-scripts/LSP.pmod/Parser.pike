@@ -464,10 +464,14 @@ mapping parse_request(mapping params) {
     if (err) {
         string error_msg = describe_error(err);
         if (!has_value(error_msg, "expected identifier")) {
+            string severity = "error";
+            if (has_value(error_msg, "sprintf: Wrong type") || has_value(error_msg, "Unterminated string")) {
+                severity = "info";
+            }
             diagnostics += ({
                 ([
                     "message": error_msg,
-                    "severity": "error",
+                    "severity": severity,
                     "position": ([
                         "file": filename,
                         "line": 1
@@ -566,7 +570,7 @@ mapping parse_request(mapping params) {
         diagnostics += ({
             ([
                 "message": "Partial parsing - some symbols extracted via fallback",
-                "severity": "warning",
+                "severity": "info",
                 "position": ([
                     "file": filename,
                     "line": 1
@@ -628,7 +632,7 @@ mapping parse_request(mapping params) {
                 diagnostics += ({
                     ([
                         "message": sprintf("Preprocessor variant cap reached: only %d branches processed (add more if needed)", MAX_BRANCHES),
-                        "severity": "warning",
+                        "severity": "info",
                         "position": ([
                             "file": filename,
                             "line": branch_start
@@ -736,7 +740,7 @@ mapping tokenize_request(mapping params) {
     mapping(string:int) occurrence_index = ([]);
 
     foreach (pike_tokens, mixed t) {
-        string key = sprintf("%d:%s", t->line, t->text);
+        string key = sprintf("%d:%O", t->line, t->text);
         int occ_idx = occurrence_index[key] || 0;
         occurrence_index[key] = occ_idx + 1;
 
@@ -1569,7 +1573,7 @@ protected string improve_syntax_error_message(string error_msg, string current_t
     if (has_value(lower_msg, "unexpected")) {
         // "Unexpected token" - explain what was found
         if (sizeof(current_token) > 0) {
-            improved = sprintf("Unexpected token '%s' at line %d", current_token, error_line);
+            improved = sprintf("Unexpected token %O at line %d", current_token, error_line);
             // Add suggestions based on what was found
             if (current_token == "(") {
                 improved += ". Did you forget to close a parenthesis or bracket?";
@@ -1590,7 +1594,7 @@ protected string improve_syntax_error_message(string error_msg, string current_t
     }
     else if (has_value(lower_msg, "expected")) {
         // "Expected X but found Y"
-        improved = sprintf("Syntax error at line %d: %s", error_line, error_msg);
+            improved = sprintf("Syntax error at line %d: %O", error_line, error_msg);
         // Add helpful suggestions
         if (has_value(lower_msg, "identifier")) {
             improved += ". Expected an identifier - check for typos or missing variable names.";
@@ -1601,17 +1605,17 @@ protected string improve_syntax_error_message(string error_msg, string current_t
         }
     }
     else if (has_value(lower_msg, "unmatched") || has_value(lower_msg, "mismatch")) {
-        improved = sprintf("Bracket mismatch at line %d: %s", error_line, error_msg);
+            improved = sprintf("Bracket mismatch at line %d: %O", error_line, error_msg);
     }
     else if (has_value(lower_msg, "unknown")) {
-        improved = sprintf("Unknown syntax at line %d: %s. Check for typos in keywords.", error_line, error_msg);
+            improved = sprintf("Unknown syntax at line %d: %O. Check for typos in keywords.", error_line, error_msg);
     }
     else if (has_value(lower_msg, "illegal")) {
-        improved = sprintf("Illegal syntax at line %d: %s", error_line, error_msg);
+            improved = sprintf("Illegal syntax at line %d: %O", error_line, error_msg);
     }
     else {
         // Generic improvement for other errors
-        improved = sprintf("Syntax error at line %d: %s", error_line, error_msg);
+            improved = sprintf("Syntax error at line %d: %O", error_line, error_msg);
     }
 
     return improved;

@@ -73,7 +73,7 @@ mapping find_rename_positions(string code, string filename, string symbolName, i
         if (t->text != symbolName) continue;
 
         int t_line = t->line;
-        string key = sprintf("%d:%s", t_line, t->text);
+        string key = sprintf("%d:%O", t_line, t->text);
         int occ_idx = occurrence_index[key] || 0;
         occurrence_index[key] = occ_idx + 1;
 

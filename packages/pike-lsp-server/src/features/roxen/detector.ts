@@ -1,37 +1,33 @@
-import { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { RoxenModuleInfo } from './types.js';
+
+type RoxenDetectorBridge = {
+  roxenDetect(code: string, filename?: string): Promise<RoxenModuleInfo>;
+};
 
 const cache = new Map<string, RoxenModuleInfo | null>();
 
 function hasMarkers(code: string): boolean {
-  return (
-    // Inherit patterns
+  const hasRoxenInheritance =
     code.includes('inherit "module"') ||
     code.includes("inherit 'module'") ||
     code.includes('inherit "filesystem"') ||
     code.includes("inherit 'filesystem'") ||
     code.includes('inherit "roxen"') ||
-    code.includes("inherit 'roxen'") ||
-    // Include patterns (both <> and "" variants)
+    code.includes("inherit 'roxen'");
+
+  return (
+    hasRoxenInheritance ||
     code.includes('#include <module.h>') ||
     code.includes('#include "module.h"') ||
-    // Module type constant patterns (multiple assignment styles)
     /constant\s+(int\s+)?module_type\s*=\s*MODULE_/.test(code) ||
-    /constant\s+(int\s+)?module_type\s*=\s*1\s*<<\s*\d+/.test(code) ||
-    /constant\s+(int\s+)?module_type\s*=\s*\d+/.test(code) ||
-    // Direct module type constant reference
-    code.includes('MODULE_TAG') ||
-    code.includes('MODULE_LOCATION') ||
-    code.includes('MODULE_FILTER') ||
-    // defvar pattern
-    code.includes('defvar(')
+    /register_module\s*\(/.test(code)
   );
 }
 
 export async function detectRoxenModule(
   code: string,
   uri: string,
-  bridge: PikeBridge
+  bridge: RoxenDetectorBridge
 ): Promise<RoxenModuleInfo | null> {
   if (!hasMarkers(code)) return null;
 
