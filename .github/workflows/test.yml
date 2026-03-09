@@ -335,3 +335,78 @@ jobs:
           echo "- Completion (autocomplete)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the 'Run VSCode LSP Feature Tests' step above for results." >> $GITHUB_STEP_SUMMARY
+
+  vscode-e2e-source-trees:
+    runs-on: ubuntu-24.04
+    needs: [test, pike-test]
+    if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
+
+    env:
+      PIKE_SRC: ${{ vars.PIKE_SRC }}
+      ROXEN_SRC: ${{ vars.ROXEN_SRC }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb pike8.0
+
+      - name: Validate source tree paths
+        run: |
+          if [ ! -d "$PIKE_SRC" ]; then
+            echo "PIKE_SRC does not exist: $PIKE_SRC"
+            exit 1
+          fi
+          if [ ! -d "$ROXEN_SRC" ]; then
+            echo "ROXEN_SRC does not exist: $ROXEN_SRC"
+            exit 1
+          fi
+
+          if [ -d "$PIKE_SRC/lib/modules" ] && [ -d "$PIKE_SRC/lib/include" ]; then
+            echo "PIKE source root layout detected"
+          elif [ "$(basename "$PIKE_SRC")" = "modules" ] && [ -d "$(dirname "$PIKE_SRC")/include" ]; then
+            echo "PIKE module tree layout detected"
+          else
+            echo "PIKE_SRC must be either Pike root (with lib/modules + lib/include) or a modules directory with sibling include"
+            exit 1
+          fi
+
+          if [ ! -d "$ROXEN_SRC/server" ]; then
+            echo "ROXEN_SRC must point to Roxen root containing a server directory"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all packages
+        run: bun run build
+
+      - name: Run Source-Tree VSCode E2E Matrix
+        working-directory: packages/vscode-pike
+        run: USE_XVFB=1 bun run test:headless --grep "Source Tree VSCode E2E Feature Matrix"
+
+      - name: Source-Tree E2E Summary
+        if: always()
+        run: |
+          echo "### Source-Tree VSCode E2E" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- PIKE_SRC configured: yes" >> $GITHUB_STEP_SUMMARY
+          echo "- ROXEN_SRC configured: yes" >> $GITHUB_STEP_SUMMARY
+          echo "- Suite: Source Tree VSCode E2E Feature Matrix" >> $GITHUB_STEP_SUMMARY
