@@ -1931,6 +1931,7 @@ suite('Waterfall Loading E2E Tests', () => {
       'Illegal program identifier',
       "Index 'Variable' not present in module Variable",
       'Indexed module was:',
+      'Cast "module" to program failed',
       'Got     :',
       'Index   :',
       'Expected:',
