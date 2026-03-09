@@ -3,20 +3,42 @@
  */
 
 import type { Diagnostic } from 'vscode-languageserver';
-import type { PikeBridge } from '@pike-lsp/pike-bridge';
 
-const debounceTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+type RoxenRawDiagnostic = {
+  line?: number;
+  column?: number;
+  severity?: string;
+  message?: string;
+};
+
+type RoxenValidationBridge = {
+  roxenValidate(code: string, filename: string): Promise<{ diagnostics?: RoxenRawDiagnostic[] }>;
+};
+
+type PendingDebounce = {
+  timeout: ReturnType<typeof setTimeout> | null;
+  resolve: (value: Diagnostic[]) => void;
+};
+
+const pendingDebounces = new Map<string, PendingDebounce>();
 
 export async function provideRoxenDiagnostics(
   uri: string,
   code: string,
-  bridge: PikeBridge,
+  bridge: RoxenValidationBridge,
   debounceMs = 500
 ): Promise<Diagnostic[]> {
-  return new Promise((resolve) => {
-    const existingTimeout = debounceTimeouts.get(uri);
-    if (existingTimeout) {
-      clearTimeout(existingTimeout);
+  return new Promise(resolve => {
+    const pending: PendingDebounce = {
+      timeout: null,
+      resolve,
+    };
+
+    const existing = pendingDebounces.get(uri);
+    if (existing && existing.timeout !== null) {
+      clearTimeout(existing.timeout);
+      existing.resolve([]);
+      pendingDebounces.delete(uri);
     }
 
     const timeout = setTimeout(async () => {
@@ -24,26 +46,33 @@ export async function provideRoxenDiagnostics(
         const result = await bridge.roxenValidate(code, uri);
         const diagnostics = result.diagnostics || [];
 
-        resolve(diagnostics.map(d => {
-          // Convert 1-based Pike line/column to 0-based LSP
-          const line = Math.max(0, (d.line ?? 1) - 1);
-          const column = Math.max(0, (d.column ?? 1) - 1);
+        resolve(
+          diagnostics.map(d => {
+            // Convert 1-based Pike line/column to 0-based LSP
+            const line = Math.max(0, (d.line ?? 1) - 1);
+            const column = Math.max(0, (d.column ?? 1) - 1);
 
-          return {
-            range: {
-              start: { line, character: column },
-              end: { line, character: column },
-            },
-            severity: d.severity === 'error' ? 1 : d.severity === 'warning' ? 2 : 3,
-            message: d.message || '',
-            source: 'roxen', // Hardcoded - Pike doesn't return source
-          };
-        }));
+            return {
+              range: {
+                start: { line, character: column },
+                end: { line, character: column },
+              },
+              severity: d.severity === 'error' ? 1 : d.severity === 'warning' ? 2 : 3,
+              message: d.message || '',
+              source: 'roxen', // Hardcoded - Pike doesn't return source
+            };
+          })
+        );
       } catch {
         resolve([]);
+      } finally {
+        if (pendingDebounces.get(uri) === pending) {
+          pendingDebounces.delete(uri);
+        }
       }
     }, debounceMs);
-    
-    debounceTimeouts.set(uri, timeout);
+
+    pending.timeout = timeout;
+    pendingDebounces.set(uri, pending);
   });
 }

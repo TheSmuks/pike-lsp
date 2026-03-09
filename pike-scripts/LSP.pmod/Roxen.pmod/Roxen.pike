@@ -74,8 +74,13 @@ protected int has_fast_path_markers(string code) {
     if (has_value(code, "inherit 'module'")) return 1;
     if (has_value(code, "inherit \"filesystem\"")) return 1;
     if (has_value(code, "inherit 'filesystem'")) return 1;
+    if (has_value(code, "inherit \"roxen\"")) return 1;
+    if (has_value(code, "inherit 'roxen'")) return 1;
     if (has_value(code, "#include <module.h>")) return 1;
+    if (has_value(code, "#include \"module.h\"")) return 1;
     if (has_value(code, "constant module_type = MODULE_")) return 1;
+    if (has_value(code, "constant int module_type = MODULE_")) return 1;
+    if (has_value(code, "register_module(")) return 1;
     // Removed: simpletag_, container_, defvar( - these don't indicate Roxen module alone
     return 0;
 }
@@ -91,7 +96,13 @@ mapping detect_module(mapping params) {
 
     if (has_fast_path_markers(code)) {
         [module_types, inherits, module_name] = detect_module_types(code, filename);
-        is_roxen = sizeof(module_types) > 0 || sizeof(inherits) > 0;
+        is_roxen = sizeof(module_types) > 0 ||
+                   has_value(inherits, "module") ||
+                   has_value(inherits, "filesystem") ||
+                   has_value(inherits, "roxen") ||
+                   has_value(code, "#include <module.h>") ||
+                   has_value(code, "#include \"module.h\"") ||
+                   has_value(code, "register_module(");
     }
 
     array(mapping) tags = parse_tag_definitions(code, filename);
@@ -138,6 +149,13 @@ protected array(array(string)|string) detect_module_types(string code, string fi
             }
 
             if (j >= sizeof(tokens)) continue;
+
+            if (stringp(tokens[j]) && tokens[j] == "int") {
+                j++;
+                while (j < sizeof(tokens) && stringp(tokens[j]) && (tokens[j] == " " || tokens[j] == "\n")) {
+                    j++;
+                }
+            }
 
             // Check if this is "module_type"
             if (stringp(tokens[j]) && tokens[j] == "module_type") {

@@ -80,7 +80,7 @@ mapping handle_find_occurrences(mapping params) {
                 }
                 if (!is_keyword) {
                     // Calculate character position - find nth occurrence of this token on this line
-                    string key = sprintf("%d:%s", line, text);
+        string key = sprintf("%d:%O", line, text);
                     int nth = occurrence_count[key] || 0;
                     nth = nth + 1;  // This is the nth occurrence (1-indexed)
                     int char_pos = find_nth_occurrence(lines, line, text, nth);

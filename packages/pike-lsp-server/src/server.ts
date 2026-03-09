@@ -29,7 +29,12 @@ import { DocumentCache } from './services/document-cache.js';
 import { IncludeResolver } from './services/include-resolver.js';
 import { ModuleContext } from './services/module-context.js';
 import { WorkspaceScanner } from './services/workspace-scanner.js';
-import { Logger } from '@pike-lsp/core';
+import {
+  Logger,
+  anonymizeSensitivePaths,
+  StackTraceSanitizer,
+  CatchAllScanner,
+} from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
 import {
   formatProtocolVersion,
@@ -170,6 +175,70 @@ const log = (msg: string) => {
     // Silently ignore logging failures to prevent cascading errors
   }
 };
+
+function toErrorSummary(err: unknown): string {
+  if (err instanceof Error) {
+    return `${err.name}: ${err.message}`;
+  }
+  return String(err);
+}
+
+function sanitizeCrashText(value: string): string {
+  const maxLines = 40;
+  const maxLineLength = 320;
+  const workspaceRoot = process.cwd();
+  const strengthened = CatchAllScanner.scan(
+    StackTraceSanitizer.sanitizeStackTrace(anonymizeSensitivePaths(value), workspaceRoot)
+  );
+
+  const lines = strengthened.split(/\r?\n/).filter(line => line.trim().length > 0);
+
+  const clipped = lines
+    .slice(0, maxLines)
+    .map(line =>
+      line.length > maxLineLength ? `${line.slice(0, maxLineLength)} ... [truncated]` : line
+    );
+
+  if (lines.length > maxLines) {
+    clipped.push(`... ${lines.length - maxLines} additional lines omitted`);
+  }
+
+  return clipped.join('\n');
+}
+
+function formatCrashReport(context: string, err: unknown): string {
+  const raw = err instanceof Error ? (err.stack ?? `${err.name}: ${err.message}`) : String(err);
+  const stack = sanitizeCrashText(raw);
+  return [
+    `[FATAL] ${context}`,
+    `Summary: ${sanitizeCrashText(toErrorSummary(err))}`,
+    'Stack:',
+    stack,
+  ].join('\n');
+}
+
+let fatalExceptionSeen = false;
+
+process.on('unhandledRejection', (reason: unknown) => {
+  const report = formatCrashReport('Unhandled promise rejection', reason);
+  connection.console.error(report);
+  log(report);
+});
+
+process.on('uncaughtException', (err: Error) => {
+  if (fatalExceptionSeen) {
+    return;
+  }
+  fatalExceptionSeen = true;
+
+  const report = formatCrashReport('Uncaught exception', err);
+  connection.console.error(report);
+  log(report);
+
+  setTimeout(() => {
+    process.exit(1);
+  }, 20);
+});
 
 // ============================================================================
 // LSP Lifecycle Handlers
@@ -315,11 +384,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       },
     };
   } catch (err) {
-    const errMsg = err instanceof Error ? err.stack : String(err);
-    connection.console.error(
-      `CRITICAL ERROR in onInitialize: ${errMsg}. This error occurred during LSP server initialization. Check that Pike is installed correctly and the analyzer.pike script exists.`
+    const report = formatCrashReport(
+      'Initialization failure (check Pike path and analyzer.pike availability)',
+      err
     );
-    log(`CRITICAL ERROR in onInitialize: ${errMsg}`);
+    connection.console.error(report);
+    log(report);
     throw err;
   }
 });

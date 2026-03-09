@@ -916,7 +916,7 @@ class Analysis {
                     mapping(string:int) occurrence_index = ([]);
 
                     foreach (tokens, mixed t) {
-                        string key = sprintf("%d:%s", t->line, t->text);
+      string key = sprintf("%d:%O", t->line, t->text);
                         int occ_idx = occurrence_index[key] || 0;
                         occurrence_index[key] = occ_idx + 1;
 

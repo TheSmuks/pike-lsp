@@ -194,6 +194,52 @@ void test_module_types_constant_correct(program Roxen) {
     werror("PASS: test_module_types_constant_correct (documentation)\n");
 }
 
+//! Test 8: constant int module_type = MODULE_TAG is detected
+void test_typed_module_type_constant(program Roxen) {
+    werror("TEST: test_typed_module_type_constant\n");
+
+    string code = "constant int module_type = MODULE_TAG;\n";
+
+    object roxen = Roxen();
+    mapping result = roxen->detect_module(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    if (!result->result->is_roxen_module) {
+        werror("FAIL: Should detect typed module_type declaration as Roxen module\n");
+        exit(1);
+    }
+
+    array(string) types = result->result->module_type || ({});
+    if (!has_value(types, "MODULE_TAG")) {
+        werror("FAIL: Should capture MODULE_TAG from typed declaration, got %O\n", types);
+        exit(1);
+    }
+
+    werror("PASS: test_typed_module_type_constant\n");
+}
+
+//! Test 9: #include "module.h" alone is enough to classify as Roxen module
+void test_include_module_header(program Roxen) {
+    werror("TEST: test_include_module_header\n");
+
+    string code = "#include \"module.h\"\n";
+
+    object roxen = Roxen();
+    mapping result = roxen->detect_module(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    if (!result->result->is_roxen_module) {
+        werror("FAIL: Should detect module.h include as Roxen module\n");
+        exit(1);
+    }
+
+    werror("PASS: test_include_module_header\n");
+}
+
 //! Main test runner
 int main(int argc, array(string) argv) {
     werror("=== Roxen Module Detection Tests (RED phase) ===\n\n");
@@ -205,6 +251,8 @@ int main(int argc, array(string) argv) {
     test_inherit_module_no_module_type(RoxenProg);
     test_includes_inherits_array(RoxenProg);
     test_module_types_constant_correct(RoxenProg);
+    test_typed_module_type_constant(RoxenProg);
+    test_include_module_header(RoxenProg);
 
     werror("\n=== ALL TESTS PASSED (but they should FAIL - this is RED phase) ===\n");
     return 0;
