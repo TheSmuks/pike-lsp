@@ -14,7 +14,7 @@ Pike LSP provides modern Language Server Protocol features for Pike development 
 
 ## Current Status
 
-- Project maturity: **Alpha** (actively developed, API and behavior may still evolve)
+- Project maturity: **Alpha** (actively developed, API and behavior may still evolve; see releases badge)
 - Stability: functional for daily use, but breaking changes can happen between alpha releases
 - CI and benchmarks: published publicly via the badges above
 
