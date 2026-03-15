@@ -6,12 +6,29 @@ export interface RequestSchedulerMetrics {
   completed: number;
   failed: number;
   canceled: number;
+  maxConcurrent: number;
+  activeWorkers: number;
+  queueDepth: {
+    typing: number;
+    interactive: number;
+    background: number;
+  };
+  inFlightByClass: {
+    typing: number;
+    interactive: number;
+    background: number;
+  };
   queueWaitMs: {
     typing: number[];
     interactive: number[];
     background: number[];
   };
 }
+
+type RequestSchedulerCounters = Pick<
+  RequestSchedulerMetrics,
+  'scheduled' | 'started' | 'completed' | 'failed' | 'canceled' | 'queueWaitMs'
+>;
 
 export class RequestSupersededError extends Error {
   constructor(message: string) {
@@ -51,9 +68,20 @@ interface PendingTaskHandle {
   cancel: (reason: Error) => void;
 }
 
+interface RequestSchedulerOptions {
+  maxConcurrent?: number;
+}
+
 export class RequestScheduler {
   private nextId = 1;
-  private running = false;
+  private dispatching = false;
+  private activeWorkers = 0;
+  private readonly maxConcurrent: number;
+  private readonly activeByClass: Record<RequestClass, number> = {
+    typing: 0,
+    interactive: 0,
+    background: 0,
+  };
   private readonly BACKGROUND_START_GRACE_MS = 8;
   private readonly queues: Record<RequestClass, QueuedTask[]> = {
     typing: [],
@@ -62,7 +90,7 @@ export class RequestScheduler {
   };
   private readonly tasksByKey = new Map<string, PendingTaskHandle>();
   private readonly coalescedByKey = new Map<string, CoalescedPending>();
-  private readonly metrics: RequestSchedulerMetrics = {
+  private readonly metrics: RequestSchedulerCounters = {
     scheduled: 0,
     started: 0,
     completed: 0,
@@ -74,6 +102,11 @@ export class RequestScheduler {
       background: [],
     },
   };
+
+  constructor(options: RequestSchedulerOptions = {}) {
+    const configuredMax = Math.floor(options.maxConcurrent ?? 2);
+    this.maxConcurrent = configuredMax > 0 ? configuredMax : 1;
+  }
 
   async schedule<T>(request: ScheduleRequest<T>): Promise<T> {
     const key = request.key;
@@ -139,6 +172,18 @@ export class RequestScheduler {
       completed: this.metrics.completed,
       failed: this.metrics.failed,
       canceled: this.metrics.canceled,
+      maxConcurrent: this.maxConcurrent,
+      activeWorkers: this.activeWorkers,
+      queueDepth: {
+        typing: this.queues.typing.length,
+        interactive: this.queues.interactive.length,
+        background: this.queues.background.length,
+      },
+      inFlightByClass: {
+        typing: this.activeByClass.typing,
+        interactive: this.activeByClass.interactive,
+        background: this.activeByClass.background,
+      },
       queueWaitMs: {
         typing: [...this.metrics.queueWaitMs.typing],
         interactive: [...this.metrics.queueWaitMs.interactive],
@@ -167,17 +212,14 @@ export class RequestScheduler {
   }
 
   private async processQueue(): Promise<void> {
-    if (this.running) {
+    if (this.dispatching) {
       return;
     }
 
-    this.running = true;
+    this.dispatching = true;
     try {
-      while (true) {
-        const next =
-          this.queues.typing.shift() ??
-          this.queues.interactive.shift() ??
-          this.queues.background.shift();
+      while (this.activeWorkers < this.maxConcurrent) {
+        const next = this.dequeueNextTask();
 
         if (!next) {
           break;
@@ -195,11 +237,38 @@ export class RequestScheduler {
           }
         }
 
-        await this.runTask(next);
+        this.activeWorkers += 1;
+        this.activeByClass[next.requestClass] += 1;
+        this.runTask(next)
+          .catch(() => {})
+          .finally(() => {
+            this.activeWorkers -= 1;
+            this.activeByClass[next.requestClass] = Math.max(
+              0,
+              this.activeByClass[next.requestClass] - 1
+            );
+            this.processQueue().catch(() => {});
+          });
       }
     } finally {
-      this.running = false;
+      this.dispatching = false;
     }
+
+    if (this.activeWorkers < this.maxConcurrent && this.hasQueuedTasks()) {
+      this.processQueue().catch(() => {});
+    }
+  }
+
+  private dequeueNextTask(): QueuedTask | undefined {
+    return this.queues.typing.shift() ?? this.queues.interactive.shift() ?? this.queues.background.shift();
+  }
+
+  private hasQueuedTasks(): boolean {
+    return (
+      this.queues.typing.length > 0 ||
+      this.queues.interactive.length > 0 ||
+      this.queues.background.length > 0
+    );
   }
 
   private async runTask(task: QueuedTask): Promise<void> {
