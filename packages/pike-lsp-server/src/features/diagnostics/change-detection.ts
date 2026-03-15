@@ -71,6 +71,15 @@ export function classifyChange(
     if (cachedEntry.lineHashes) {
       const newLineHashes = computeLineHashes(text);
 
+      if (cachedEntry.lineHashes.length !== newLineHashes.length) {
+        return {
+          canSkip: false,
+          reason: 'line_count_changed',
+          newHash: computeContentHash(text),
+          newLineHashes,
+        };
+      }
+
       // Check if any line in the change range has different semantic content
       let hasSemanticChange = false;
       for (let i = startLine; i <= endLine && i < newLineHashes.length; i++) {
