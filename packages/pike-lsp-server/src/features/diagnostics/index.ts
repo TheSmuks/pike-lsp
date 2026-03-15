@@ -940,6 +940,7 @@ export function registerDiagnosticsHandlers(
       clearTimeout(timer);
       validationTimers.delete(event.document.uri);
     }
+    validationVersions.delete(event.document.uri);
 
     // Clear diagnostics for closed document
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
