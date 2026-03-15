@@ -15,7 +15,7 @@ import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
 import { queryNavigationLocations } from './query-engine.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 /**
  * Convert a file:// URI to a filesystem path.
@@ -158,7 +158,7 @@ export function registerDefinitionHandlers(
           };
         }
 
-        const includedTextMatch = findSymbolTextInIncludedFiles(
+        const includedTextMatch = await findSymbolTextInIncludedFiles(
           wordAtCursor,
           cached,
           services,
@@ -669,12 +669,12 @@ function getWordAtPosition(
   return text.slice(start, end);
 }
 
-function findSymbolTextInIncludedFiles(
+async function findSymbolTextInIncludedFiles(
   symbolName: string,
   cached: DocumentCacheEntry,
   services: Services,
   log: Logger
-): { filePath: string; line: number; character: number } | null {
+): Promise<{ filePath: string; line: number; character: number } | null> {
   if (!symbolName || !cached.dependencies?.includes || !services.includeResolver) {
     return null;
   }
@@ -682,7 +682,7 @@ function findSymbolTextInIncludedFiles(
   const pattern = new RegExp(`\\b${symbolName}\\b`);
   for (const include of cached.dependencies.includes) {
     try {
-      const content = readFileSync(include.resolvedPath, 'utf-8');
+      const content = await readFile(include.resolvedPath, 'utf-8');
       const lines = content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i] ?? '';
@@ -731,7 +731,7 @@ async function findSymbolInDirectIncludes(
     try {
       const resolved = await services.bridge.bridge.resolveInclude(includePath, currentFilePath);
       if (resolved.exists && resolved.path) {
-        const includeContent = readFileSync(resolved.path, 'utf-8');
+        const includeContent = await readFile(resolved.path, 'utf-8');
         const lines = includeContent.split('\n');
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i] ?? '';
@@ -752,7 +752,12 @@ async function findSymbolInDirectIncludes(
           }
         }
       }
-    } catch {}
+    } catch (err) {
+      log.debug('Definition: include traversal failed', {
+        includePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     includeMatch = includeRegex.exec(source);
   }
@@ -1065,9 +1070,9 @@ function findReferencesForSymbol(
       const line = lines[lineNum];
       if (!line) continue;
       let searchStart = 0;
-      let matchIndex: number;
+      let matchIndex = line.indexOf(symbolName, searchStart);
 
-      while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
+      while (matchIndex !== -1) {
         const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
         const afterChar =
           matchIndex + symbolName.length < line.length ? line[matchIndex + symbolName.length] : ' ';
@@ -1083,6 +1088,7 @@ function findReferencesForSymbol(
           });
         }
         searchStart = matchIndex + 1;
+        matchIndex = line.indexOf(symbolName, searchStart);
       }
     }
   }
@@ -1115,9 +1121,9 @@ function findReferencesForSymbol(
           const line = otherLines[lineNum];
           if (!line) continue;
           let searchStart = 0;
-          let matchIndex: number;
+          let matchIndex = line.indexOf(symbolName, searchStart);
 
-          while ((matchIndex = line.indexOf(symbolName, searchStart)) !== -1) {
+          while (matchIndex !== -1) {
             const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
             const afterChar =
               matchIndex + symbolName.length < line.length
@@ -1134,6 +1140,7 @@ function findReferencesForSymbol(
               });
             }
             searchStart = matchIndex + 1;
+            matchIndex = line.indexOf(symbolName, searchStart);
           }
         }
       }

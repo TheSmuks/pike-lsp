@@ -24,7 +24,7 @@ import {
     OptionalVersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import * as fs from 'fs';
+import { readFile } from 'node:fs/promises';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -255,9 +255,9 @@ export function registerRenameHandlers(
                 const line = lines[lineNum];
                 if (!line) continue;
                 let searchStart = 0;
-                let matchIndex: number;
+                let matchIndex = line.indexOf(oldName, searchStart);
 
-                while ((matchIndex = line.indexOf(oldName, searchStart)) !== -1) {
+                while (matchIndex !== -1) {
                     const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
                     const afterChar = matchIndex + oldName.length < line.length ? line[matchIndex + oldName.length] : ' ';
 
@@ -272,6 +272,7 @@ export function registerRenameHandlers(
                         });
                     }
                     searchStart = matchIndex + 1;
+                    matchIndex = line.indexOf(oldName, searchStart);
                 }
             }
 
@@ -324,7 +325,7 @@ export function registerRenameHandlers(
             for (const file of uncachedFiles) {
                 try {
                     const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                    const fileContent = fs.readFileSync(filePath, 'utf-8');
+                    const fileContent = await readFile(filePath, 'utf-8');
 
                     // Quick text search fallback for uncached files
                     // Note: We can't use symbolPositions here since files aren't parsed
