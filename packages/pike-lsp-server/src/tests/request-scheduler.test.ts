@@ -233,6 +233,14 @@ describe('RequestScheduler', () => {
     assert.equal(typeof metrics.completed, 'number');
     assert.equal(typeof metrics.failed, 'number');
     assert.equal(typeof metrics.canceled, 'number');
+    assert.equal(typeof metrics.maxConcurrent, 'number');
+    assert.equal(typeof metrics.activeWorkers, 'number');
+    assert.equal(typeof metrics.queueDepth.typing, 'number');
+    assert.equal(typeof metrics.queueDepth.interactive, 'number');
+    assert.equal(typeof metrics.queueDepth.background, 'number');
+    assert.equal(typeof metrics.inFlightByClass.typing, 'number');
+    assert.equal(typeof metrics.inFlightByClass.interactive, 'number');
+    assert.equal(typeof metrics.inFlightByClass.background, 'number');
     assert.equal(Array.isArray(metrics.queueWaitMs.typing), true);
     assert.equal(Array.isArray(metrics.queueWaitMs.interactive), true);
     assert.equal(Array.isArray(metrics.queueWaitMs.background), true);
@@ -314,5 +322,103 @@ describe('RequestScheduler', () => {
 
     const duration = Date.now() - startedAt;
     assert.equal(duration < 100, true);
+  });
+
+  it('starts interactive work while background is in-flight when concurrency allows', async () => {
+    const scheduler = new RequestScheduler({ maxConcurrent: 2 });
+    const order: string[] = [];
+
+    const releaseBackground: { fn?: () => void } = {};
+    const backgroundGate = new Promise<void>(resolve => {
+      releaseBackground.fn = resolve;
+    });
+
+    const bg1 = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        order.push('background-1-start');
+        await backgroundGate;
+        checkpoint();
+        order.push('background-1-end');
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1));
+    const interactiveStartedAt = Date.now();
+    const interactive = scheduler.schedule({
+      requestClass: 'interactive',
+      run: async () => {
+        order.push('interactive');
+      },
+    });
+
+    await interactive;
+    const interactiveLatencyMs = Date.now() - interactiveStartedAt;
+
+    assert.equal(order.includes('interactive'), true);
+    assert.equal(order.includes('background-1-end'), false);
+    assert.equal(interactiveLatencyMs < 40, true);
+
+    const release = releaseBackground.fn;
+    if (!release) {
+      throw new Error('background release hook missing');
+    }
+    release();
+
+    await bg1;
+  });
+
+  it('reports live queue depth and active workers while work is in flight', async () => {
+    const scheduler = new RequestScheduler({ maxConcurrent: 2 });
+    const release: { fn?: () => void } = {};
+    const gate = new Promise<void>(resolve => {
+      release.fn = resolve;
+    });
+
+    const first = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        checkpoint();
+        await gate;
+        checkpoint();
+      },
+    });
+
+    const second = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        checkpoint();
+        await gate;
+        checkpoint();
+      },
+    });
+
+    const third = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        checkpoint();
+        await gate;
+        checkpoint();
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const live = scheduler.snapshotMetrics();
+    assert.equal(live.maxConcurrent, 2);
+    assert.equal(live.activeWorkers, 2);
+    assert.equal(live.inFlightByClass.background, 2);
+    assert.equal(live.queueDepth.background >= 1, true);
+
+    const releaseFn = release.fn;
+    if (!releaseFn) {
+      throw new Error('release hook missing');
+    }
+    releaseFn();
+
+    await Promise.all([first, second, third]);
+    const after = scheduler.snapshotMetrics();
+    assert.equal(after.activeWorkers, 0);
+    assert.equal(after.inFlightByClass.background, 0);
   });
 });

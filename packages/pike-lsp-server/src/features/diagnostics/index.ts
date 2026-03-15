@@ -91,6 +91,8 @@ export function registerDiagnosticsHandlers(
   const documentSnapshots = new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler();
+  const SCHEDULER_METRICS_LOG_EVERY = 25;
+  let validationCompletions = 0;
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -723,6 +725,24 @@ export function registerDiagnosticsHandlers(
       // Send diagnostics
       connection.sendDiagnostics({ uri, version, diagnostics });
       log.debug('Sent diagnostics', { uri, count: diagnostics.length });
+
+      validationCompletions += 1;
+      if (validationCompletions % SCHEDULER_METRICS_LOG_EVERY === 0) {
+        const schedulerMetrics = diagnosticsScheduler.snapshotMetrics();
+        log.debug('Diagnostics scheduler metrics', {
+          uri,
+          samples: validationCompletions,
+          maxConcurrent: schedulerMetrics.maxConcurrent,
+          activeWorkers: schedulerMetrics.activeWorkers,
+          queueDepth: schedulerMetrics.queueDepth,
+          inFlightByClass: schedulerMetrics.inFlightByClass,
+          scheduled: schedulerMetrics.scheduled,
+          started: schedulerMetrics.started,
+          completed: schedulerMetrics.completed,
+          failed: schedulerMetrics.failed,
+          canceled: schedulerMetrics.canceled,
+        });
+      }
 
       // Log memory stats periodically
       const stats = typeDatabase.getMemoryStats();

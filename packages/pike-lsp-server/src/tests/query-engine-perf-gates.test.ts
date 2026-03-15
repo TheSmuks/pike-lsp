@@ -12,6 +12,33 @@ function percentile(values: number[], p: number): number {
   return sorted[index] ?? 0;
 }
 
+async function measureInteractiveQueueP95(maxConcurrent: number): Promise<number> {
+  const interactiveLatencies: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const scheduler = new RequestScheduler({ maxConcurrent });
+    const background = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        checkpoint();
+        await new Promise(resolve => setTimeout(resolve, 40));
+        checkpoint();
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 15));
+    const start = Date.now();
+    await scheduler.schedule({
+      requestClass: 'interactive',
+      run: async () => {
+        interactiveLatencies.push(Date.now() - start);
+      },
+    });
+
+    await background;
+  }
+  return percentile(interactiveLatencies, 0.95);
+}
+
 describe('Query engine perf gates', () => {
   it('measures queue-wait p95 and cancel-stop latency budget', async () => {
     const scheduler = new RequestScheduler();
@@ -152,5 +179,13 @@ describe('Query engine perf gates', () => {
 
     const typingP95 = percentile(typingLatencies, 0.95);
     assert.equal(typingP95 < 40, true);
+  });
+
+  it('improves interactive p95 queue latency with bounded concurrency', async () => {
+    const serialP95 = await measureInteractiveQueueP95(1);
+    const boundedP95 = await measureInteractiveQueueP95(2);
+
+    assert.equal(boundedP95 + 10 < serialP95, true);
+    assert.equal(boundedP95 < 30, true);
   });
 });
