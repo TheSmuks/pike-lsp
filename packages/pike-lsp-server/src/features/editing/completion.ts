@@ -27,6 +27,7 @@ import {
   getRXMLTagCompletions,
   getRXMLAttributeCompletions,
 } from '../rxml/mixed-content.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 const inFlightCompletionRequests = new Map<string, string>();
 const completionRequestSequence = new Map<string, number>();
@@ -64,15 +65,7 @@ export function registerCompletionHandlers(
       uri,
       outcome,
       samples: completionRequestsObserved,
-      maxConcurrent: schedulerMetrics.maxConcurrent,
-      activeWorkers: schedulerMetrics.activeWorkers,
-      queueDepth: schedulerMetrics.queueDepth,
-      inFlightByClass: schedulerMetrics.inFlightByClass,
-      scheduled: schedulerMetrics.scheduled,
-      started: schedulerMetrics.started,
-      completed: schedulerMetrics.completed,
-      failed: schedulerMetrics.failed,
-      canceled: schedulerMetrics.canceled,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
     });
   }
 

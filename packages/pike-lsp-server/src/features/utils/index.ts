@@ -6,3 +6,4 @@
 
 export { formatPikeType, extractTypeName } from './pike-type-formatter.js';
 export { buildHoverContent } from './hover-builder.js';
+export { toSchedulerMetricsLogPayload } from './scheduler-metrics.js';
