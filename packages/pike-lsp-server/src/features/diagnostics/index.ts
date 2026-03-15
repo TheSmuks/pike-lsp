@@ -27,6 +27,11 @@ import { computeContentHash, computeLineHashes } from '../../services/document-c
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 
+interface PendingChangeState {
+  range: Range | undefined;
+  hasMultipleChanges: boolean;
+}
+
 // Import from split modules
 export {
   convertDiagnostic,
@@ -82,8 +87,7 @@ export function registerDiagnosticsHandlers(
   const validationVersions = new Map<string, number>();
 
   // INC-002: Track change ranges for incremental parsing.
-  // Stores the range of the most recent change for each document URI.
-  const pendingChangeRanges = new Map<string, Range | undefined>();
+  const pendingChangeStates = new Map<string, PendingChangeState>();
   const documentSnapshots = new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler();
@@ -118,7 +122,7 @@ export function registerDiagnosticsHandlers(
 
       const liveDocument = documents.get(uri);
       if (!liveDocument) {
-        pendingChangeRanges.delete(uri);
+        pendingChangeStates.delete(uri);
         return;
       }
 
@@ -126,14 +130,16 @@ export function registerDiagnosticsHandlers(
       const currentVersion = liveDocument.version;
       if (currentVersion !== expectedVersion) {
         // Clear pending change range since we're skipping
-        pendingChangeRanges.delete(uri);
+        pendingChangeStates.delete(uri);
         return;
       }
 
       // INC-002: Classify change to determine if parsing is needed
-      const changeRange = pendingChangeRanges.get(uri);
+      const changeState = pendingChangeStates.get(uri);
       const cachedEntry = documentCache.get(uri);
-      const classification = classifyChange(liveDocument, changeRange, cachedEntry);
+      const classification = changeState?.hasMultipleChanges
+        ? { canSkip: false, reason: 'multiple_change_batch' }
+        : classifyChange(liveDocument, changeState?.range, cachedEntry);
 
       if (classification.canSkip) {
         // Skip parsing entirely - just update cache metadata
@@ -147,7 +153,7 @@ export function registerDiagnosticsHandlers(
         }
 
         // Clear the pending change range
-        pendingChangeRanges.delete(uri);
+        pendingChangeStates.delete(uri);
         return;
       }
 
@@ -157,7 +163,7 @@ export function registerDiagnosticsHandlers(
         key: `diagnostics:${uri}`,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(liveDocument, classification);
+          await validateDocument(liveDocument, classification, checkpoint);
         },
       });
       documentCache.setPending(uri, promise);
@@ -182,7 +188,8 @@ export function registerDiagnosticsHandlers(
    */
   async function validateDocument(
     document: TextDocument,
-    classification?: import('./change-detection.js').ChangeClassification
+    classification?: import('./change-detection.js').ChangeClassification,
+    shouldContinue: () => void = () => {}
   ): Promise<void> {
     const uri = document.uri;
     const version = document.version;
@@ -218,7 +225,26 @@ export function registerDiagnosticsHandlers(
     // Extract filename from URI and decode URL encoding
     const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
 
+    const ensureLatest = (stage: string): boolean => {
+      shouldContinue();
+      const live = documents.get(uri);
+      if (!live || live.version !== version) {
+        log.debug('Skipping diagnostics stage for stale version', {
+          uri,
+          stage,
+          validatedVersion: version,
+          latestVersion: live?.version,
+        });
+        return false;
+      }
+      return true;
+    };
+
     try {
+      if (!ensureLatest('pre_analyze')) {
+        return;
+      }
+
       log.debug('Calling unified analyze', { filename, version });
       const requestId = `${uri}:${version}:${Date.now()}`;
       const clearInFlightRequest = (): void => {
@@ -299,13 +325,7 @@ export function registerDiagnosticsHandlers(
 
       clearInFlightRequest();
 
-      const latestAfterAnalyze = documents.get(uri);
-      if (!latestAfterAnalyze || latestAfterAnalyze.version !== version) {
-        log.debug('Discarding stale diagnostics result', {
-          uri,
-          validatedVersion: version,
-          latestVersion: latestAfterAnalyze?.version,
-        });
+      if (!ensureLatest('post_analyze')) {
         return;
       }
 
@@ -418,6 +438,10 @@ export function registerDiagnosticsHandlers(
 
       // Update type database with introspected symbols if compilation succeeded
       if (introspectData.success && introspectData.symbols.length > 0) {
+        if (!ensureLatest('before_type_database_set')) {
+          return;
+        }
+
         // Convert introspected symbols to Maps
         const symbolMap = new Map(introspectData.symbols.map(s => [s.name, s]));
         const functionMap = new Map(introspectData.functions.map(s => [s.name, s]));
@@ -529,6 +553,9 @@ export function registerDiagnosticsHandlers(
         let dependencies: import('../../core/types.js').DocumentDependencies | undefined;
         if (services.includeResolver) {
           dependencies = await services.includeResolver.resolveDependencies(uri, legacySymbols);
+          if (!ensureLatest('post_dependency_resolve')) {
+            return;
+          }
         }
 
         // P.2 FIX: Store hierarchical symbols (not flattened) so classSymbol.children works
@@ -538,16 +565,16 @@ export function registerDiagnosticsHandlers(
             ? extractDeprecatedFromSymbols(parseData.symbols)
             : legacySymbols;
 
+        const symbolPositions = await buildSymbolPositionIndex(text, legacySymbols, tokenizeData, bridge);
+        if (!ensureLatest('post_symbol_index_build')) {
+          return;
+        }
+
         const cacheEntry: DocumentCacheEntry = {
           version,
           symbols: hierarchicalSymbols, // Use hierarchical symbols with children preserved
           diagnostics,
-          symbolPositions: await buildSymbolPositionIndex(
-            text,
-            legacySymbols,
-            tokenizeData,
-            bridge
-          ),
+          symbolPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
           // INC-002: Store hashes for incremental change detection
@@ -584,18 +611,26 @@ export function registerDiagnosticsHandlers(
             uri,
             symbolsWithDeprecated
           );
+          if (!ensureLatest('post_dependency_resolve_fallback')) {
+            return;
+          }
+        }
+
+        const symbolPositions = await buildSymbolPositionIndex(
+          text,
+          symbolsWithDeprecated,
+          tokenizeData,
+          bridge
+        );
+        if (!ensureLatest('post_symbol_index_build_fallback')) {
+          return;
         }
 
         const cacheEntry: DocumentCacheEntry = {
           version,
           symbols: symbolsWithDeprecated, // Use symbols with deprecated extracted from source
           diagnostics,
-          symbolPositions: await buildSymbolPositionIndex(
-            text,
-            symbolsWithDeprecated,
-            tokenizeData,
-            bridge
-          ),
+          symbolPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames: buildSymbolNameIndex(symbolsWithDeprecated),
           // INC-002: Store hashes for incremental change detection
@@ -658,6 +693,9 @@ export function registerDiagnosticsHandlers(
           const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
           if (roxenInfo && roxenInfo.is_roxen_module === 1) {
             const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
+            if (!ensureLatest('post_roxen_diagnostics')) {
+              return;
+            }
             for (const roxenDiag of roxenDiags) {
               pushDiagnostic(roxenDiag);
             }
@@ -699,6 +737,9 @@ export function registerDiagnosticsHandlers(
 
       log.debug('Validation complete', { uri, version, diagnostics: diagnostics.length });
     } catch (err) {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
       inFlightDiagnosticRequests.delete(uri);
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
@@ -732,7 +773,7 @@ export function registerDiagnosticsHandlers(
         coalesceMs: globalSettings.diagnosticDelay,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(document);
+          await validateDocument(document, undefined, checkpoint);
         },
       });
       documentCache.setPending(document.uri, promise);
@@ -802,8 +843,13 @@ export function registerDiagnosticsHandlers(
       }
     }
 
-    // Store the change range for use in debounced validation
-    pendingChangeRanges.set(params.textDocument.uri, changeRange);
+    const existingChangeState = pendingChangeStates.get(params.textDocument.uri);
+    const hasMultipleChanges = Boolean(existingChangeState) || contentChanges.length > 1;
+
+    pendingChangeStates.set(params.textDocument.uri, {
+      range: changeRange,
+      hasMultipleChanges,
+    });
 
     const changes = contentChanges.map(change => {
       const record: Record<string, unknown> = {
@@ -865,6 +911,7 @@ export function registerDiagnosticsHandlers(
 
     // Clear cache for closed document
     documentCache.delete(event.document.uri);
+    pendingChangeStates.delete(event.document.uri);
     documentSnapshots.delete(event.document.uri);
     inFlightDiagnosticRequests.delete(event.document.uri);
 
