@@ -29,7 +29,7 @@ export function registerInlayHintsHandler(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache, globalSettings } = services;
+    const { documentCache } = services;
     const log = new Logger('Advanced');
 
     /**
@@ -84,7 +84,7 @@ export function registerInlayHintsHandler(
         log.debug('Inlay hints request', { uri: params.textDocument.uri });
         try {
             // Check if inlay hints are enabled
-            const config = globalSettings?.inlayHints;
+            const config = services.globalSettings?.inlayHints;
             if (!config?.enabled) {
                 return null;
             }
@@ -110,9 +110,9 @@ export function registerInlayHintsHandler(
                 if (!argNames || argNames.length === 0) continue;
 
                 const callPattern = PatternHelpers.functionCallPattern(method.name);
-                let match;
+                let match: RegExpExecArray | null = callPattern.exec(text);
 
-                while ((match = callPattern.exec(text)) !== null) {
+                while (match !== null) {
                     const callStart = match.index + match[0].length;
 
                     let parenDepth = 1;
@@ -155,6 +155,8 @@ export function registerInlayHintsHandler(
                             currentArgStart = i + 1;
                         }
                     }
+
+                    match = callPattern.exec(text);
                 }
             }
 
