@@ -8,6 +8,7 @@
 import { PikeSymbol, PikeBridge } from '@pike-lsp/pike-bridge';
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
 import * as fs from 'fs';
+import { readFile } from 'node:fs/promises';
 import * as path from 'path';
 import { LSP } from './constants/index.js';
 import { Logger } from '@pike-lsp/core';
@@ -539,7 +540,7 @@ export class WorkspaceIndex {
             const chunkData: Array<{ code: string; filename: string; lastModified: number }> = [];
             for (const fileInfo of chunk) {
                 try {
-                    const content = fs.readFileSync(fileInfo.path, 'utf-8');
+                    const content = await readFile(fileInfo.path, 'utf-8');
                     chunkData.push({
                         code: content,
                         filename: fileInfo.path,
