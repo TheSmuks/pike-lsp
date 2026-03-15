@@ -7,8 +7,8 @@
 
 import { PikeSymbol, PikeBridge } from '@pike-lsp/pike-bridge';
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
-import * as fs from 'fs';
-import { readFile } from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import * as path from 'path';
 import { LSP } from './constants/index.js';
 import { Logger } from '@pike-lsp/core';
@@ -452,7 +452,7 @@ export class WorkspaceIndex {
 
         // PERF-007: Time file discovery
         const discoveryStart = performance.now();
-        const allFiles = this.findPikeFilesWithStats(dirPath, recursive);
+        const allFiles = await this.findPikeFilesWithStats(dirPath, recursive);
         const discoveryEnd = performance.now();
         this.metrics.lastFileDiscoveryMs = discoveryEnd - discoveryStart;
 
@@ -780,39 +780,42 @@ export class WorkspaceIndex {
      * Find all Pike files in a directory with filesystem modification times
      * PERF-008: Enables incremental indexing by tracking file mtime
      */
-    private findPikeFilesWithStats(dirPath: string, recursive: boolean): FileInfo[] {
+    private async findPikeFilesWithStats(dirPath: string, recursive: boolean): Promise<FileInfo[]> {
         const files: FileInfo[] = [];
 
-        const walk = (dir: string) => {
+        const walk = async (dir: string): Promise<void> => {
+            let entries: Dirent[];
             try {
-                const entries = fs.readdirSync(dir, { withFileTypes: true });
-                for (const entry of entries) {
-                    const fullPath = path.join(dir, entry.name);
-                    if (entry.isDirectory() && recursive) {
-                        // Skip common non-source directories
-                        if (!['node_modules', '.git', 'dist', 'build'].includes(entry.name)) {
-                            walk(fullPath);
-                        }
-                    } else if (entry.isFile()) {
-                        if (entry.name.endsWith('.pike') || entry.name.endsWith('.pmod')) {
-                            try {
-                                const stats = fs.statSync(fullPath);
-                                files.push({
-                                    path: fullPath,
-                                    lastModified: stats.mtimeMs,
-                                });
-                            } catch {
-                                // Skip files we can't stat
-                            }
+                entries = await readdir(dir, { withFileTypes: true });
+            } catch {
+                // Skip directories we can't read
+                return;
+            }
+
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory() && recursive) {
+                    // Skip common non-source directories
+                    if (!['node_modules', '.git', 'dist', 'build'].includes(entry.name)) {
+                        await walk(fullPath);
+                    }
+                } else if (entry.isFile()) {
+                    if (entry.name.endsWith('.pike') || entry.name.endsWith('.pmod')) {
+                        try {
+                            const stats = await stat(fullPath);
+                            files.push({
+                                path: fullPath,
+                                lastModified: stats.mtimeMs,
+                            });
+                        } catch {
+                            // Skip files we can't stat
                         }
                     }
                 }
-            } catch {
-                // Skip directories we can't read
             }
         };
 
-        walk(dirPath);
+        await walk(dirPath);
         return files;
     }
 

@@ -15,6 +15,7 @@ describe('Architecture regressions', () => {
   it('keeps definition and rename hot paths free of synchronous file reads', async () => {
     const definitionSource = await readServerFile('features/navigation/definition.ts');
     const renameSource = await readServerFile('features/editing/rename.ts');
+    const workspaceIndexSource = await readServerFile('workspace-index.ts');
 
     assert.equal(
       definitionSource.includes('readFileSync('),
@@ -25,6 +26,16 @@ describe('Architecture regressions', () => {
       renameSource.includes('readFileSync('),
       false,
       'rename hot path should not use readFileSync'
+    );
+    assert.equal(
+      workspaceIndexSource.includes('readdirSync('),
+      false,
+      'workspace discovery should not use readdirSync'
+    );
+    assert.equal(
+      workspaceIndexSource.includes('statSync('),
+      false,
+      'workspace discovery should not use statSync'
     );
   });
 
