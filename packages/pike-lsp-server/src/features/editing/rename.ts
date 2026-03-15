@@ -317,23 +317,68 @@ export function registerRenameHandlers(
 
         // Search workspace files not currently open
         if (services.workspaceScanner?.isReady()) {
-            const cachedUris = new Set(documentCache.keys());
-            const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+            if (!matchingSymbol) {
+                log.debug('Rename: skipping uncached workspace search without matched symbol');
+            } else {
+                const cachedUris = new Set(documentCache.keys());
+                const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+                const maxWorkspaceFiles = Math.max(
+                    1,
+                    Number.parseInt(process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'] ?? '150', 10)
+                );
+                const boundedFiles = uncachedFiles.slice(0, maxWorkspaceFiles);
+                const BATCH_SIZE = 10;
+                const YIELD_EVERY_N_BATCHES = 4;
+                const requestVersion = document.version;
+                let cancelled = false;
 
-            log.debug('Rename: searching workspace files', { uncachedFileCount: uncachedFiles.length });
+                log.debug('Rename: searching workspace files', {
+                    uncachedFileCount: uncachedFiles.length,
+                    boundedFileCount: boundedFiles.length,
+                });
 
-            for (const file of uncachedFiles) {
-                try {
-                    const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                    const fileContent = await readFile(filePath, 'utf-8');
+                for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
+                    const latest = documents.get(uri);
+                    if (!latest || latest.version !== requestVersion) {
+                        cancelled = true;
+                        break;
+                    }
 
-                    // Quick text search fallback for uncached files
-                    // Note: We can't use symbolPositions here since files aren't parsed
-                    addEditsFromTextSearch(file.uri, fileContent);
-                } catch (err) {
-                    log.warn('Failed to read file for rename', {
-                        uri: file.uri,
-                        error: err instanceof Error ? err.message : String(err)
+                    const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
+
+                    for (const file of batch) {
+                        try {
+                            const latest = documents.get(uri);
+                            if (!latest || latest.version !== requestVersion) {
+                                cancelled = true;
+                                break;
+                            }
+
+                            const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+                            const fileContent = await readFile(filePath, 'utf-8');
+
+                            if (!fileContent.includes(oldName)) {
+                                continue;
+                            }
+
+                            addEditsFromTextSearch(file.uri, fileContent);
+                        } catch (err) {
+                            log.warn('Failed to read file for rename', {
+                                uri: file.uri,
+                                error: err instanceof Error ? err.message : String(err)
+                            });
+                        }
+                    }
+
+                    if ((i / BATCH_SIZE) % YIELD_EVERY_N_BATCHES === 0 && i > 0) {
+                        await new Promise(resolve => setImmediate(resolve));
+                    }
+                }
+
+                if (cancelled) {
+                    log.debug('Rename: workspace scan cancelled due to document version change', {
+                        uri,
+                        requestVersion,
                     });
                 }
             }

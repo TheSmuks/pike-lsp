@@ -15,6 +15,9 @@ import { describe, it, expect } from 'bun:test';
 import { DocumentHighlightKind } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { registerReferencesHandlers } from '../../features/navigation/references.js';
 import {
   createMockConnection,
@@ -219,6 +222,52 @@ describe('References Provider', () => {
     const baselineP95 = p95(baselineTimes);
     const queryP95 = p95(queryTimes);
     expect(queryP95).toBeLessThanOrEqual(baselineP95 * 2.0 + 1.0);
+  });
+
+  it('bounds workspace fallback search to configured max files', async () => {
+    const previousMax = process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'];
+    process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'] = '1';
+
+    const dir = await mkdtemp(join(tmpdir(), 'pike-lsp-refs-'));
+    try {
+      const firstPath = join(dir, 'first.pmod');
+      const secondPath = join(dir, 'second.pmod');
+      await writeFile(firstPath, 'int shared = 1;\nshared++;\n', 'utf-8');
+      await writeFile(secondPath, 'int shared = 1;\nshared += 2;\n', 'utf-8');
+
+      const firstUri = `file://${firstPath}`;
+      const secondUri = `file://${secondPath}`;
+      const scanner = createMockWorkspaceScanner([
+        { uri: firstUri, content: '' },
+        { uri: secondUri, content: '' },
+      ]);
+
+      const { references } = setup({
+        uri: 'file:///module.pmod',
+        code: 'int shared = 0;\nshared++;\n',
+        symbols: [
+          {
+            name: 'shared',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'module.pmod', line: 1 },
+          },
+        ],
+        workspaceScanner: scanner,
+      });
+
+      const result = await references(0, 5);
+      const uris = new Set(result.map(item => item.uri));
+      expect(uris.has(firstUri)).toBe(true);
+      expect(uris.has(secondUri)).toBe(false);
+    } finally {
+      if (previousMax === undefined) {
+        delete process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'];
+      } else {
+        process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'] = previousMax;
+      }
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('should not register implementation handler (owned by implementation.ts)', () => {

@@ -15,6 +15,7 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
+import { readFile } from 'node:fs/promises';
 
 /**
  * Register references handlers.
@@ -158,9 +159,9 @@ export function registerReferencesHandlers(
           const line = lines[lineNum];
           if (!line) continue;
           let searchStart = 0;
-          let matchIndex: number;
+          let matchIndex = line.indexOf(word, searchStart);
 
-          while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+          while (matchIndex !== -1) {
             const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
             const afterChar =
               matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
@@ -176,6 +177,7 @@ export function registerReferencesHandlers(
               });
             }
             searchStart = matchIndex + 1;
+            matchIndex = line.indexOf(word, searchStart);
           }
         }
       }
@@ -212,9 +214,9 @@ export function registerReferencesHandlers(
                 const line = otherLines[lineNum];
                 if (!line) continue;
                 let searchStart = 0;
-                let matchIndex: number;
+                let matchIndex = line.indexOf(word, searchStart);
 
-                while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                while (matchIndex !== -1) {
                   const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
                   const afterChar =
                     matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
@@ -229,6 +231,7 @@ export function registerReferencesHandlers(
                     });
                   }
                   searchStart = matchIndex + 1;
+                  matchIndex = line.indexOf(word, searchStart);
                 }
               }
             }
@@ -248,9 +251,15 @@ export function registerReferencesHandlers(
         } else {
           const cachedUris = new Set(documentCache.keys());
           const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+          const maxWorkspaceFiles = Math.max(
+            1,
+            Number.parseInt(process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'] ?? '250', 10)
+          );
+          const boundedFiles = uncachedFiles.slice(0, maxWorkspaceFiles);
 
           log.debug('References: searching workspace files', {
             uncachedFileCount: uncachedFiles.length,
+            boundedFileCount: boundedFiles.length,
             word,
           });
 
@@ -263,11 +272,11 @@ export function registerReferencesHandlers(
           let progress: any = null;
 
           // Create progress token for large workspace scans
-          if (enableProgress && uncachedFiles.length > PROGRESS_THRESHOLD) {
+          if (enableProgress && boundedFiles.length > PROGRESS_THRESHOLD) {
             try {
               progress = await connection.window.createWorkDoneProgress();
-              progress.begin('Searching workspace...', 0, uncachedFiles.length);
-              log.debug('References: progress started', { totalFiles: uncachedFiles.length });
+              progress.begin('Searching workspace...', 0, boundedFiles.length);
+              log.debug('References: progress started', { totalFiles: boundedFiles.length });
             } catch (err) {
               // Client may not support workDoneProgress
               log.debug('References: failed to create progress', {
@@ -278,14 +287,28 @@ export function registerReferencesHandlers(
           }
 
           // Process workspace files in batches with yielding
-          for (let i = 0; i < uncachedFiles.length; i += BATCH_SIZE) {
-            const batch = uncachedFiles.slice(i, Math.min(i + BATCH_SIZE, uncachedFiles.length));
+          const requestVersion = document.version;
+          let cancelled = false;
+
+          for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
+            const latest = documents.get(uri);
+            if (!latest || latest.version !== requestVersion) {
+              cancelled = true;
+              break;
+            }
+
+            const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
 
             for (const file of batch) {
               try {
+                const latest = documents.get(uri);
+                if (!latest || latest.version !== requestVersion) {
+                  cancelled = true;
+                  break;
+                }
+
                 // Read file content
                 const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                const { readFile } = await import('node:fs/promises');
                 const content = await readFile(filePath, 'utf-8');
 
                 // Check if the word appears in the file (quick text search first)
@@ -302,9 +325,9 @@ export function registerReferencesHandlers(
                   const line = lines[lineNum];
                   if (!line) continue;
                   let searchStart = 0;
-                  let matchIndex: number;
+                  let matchIndex = line.indexOf(word, searchStart);
 
-                  while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+                  while (matchIndex !== -1) {
                     const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
                     const afterChar =
                       matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
@@ -320,6 +343,7 @@ export function registerReferencesHandlers(
                       });
                     }
                     searchStart = matchIndex + 1;
+                    matchIndex = line.indexOf(word, searchStart);
                   }
                 }
               } catch (err) {
@@ -333,7 +357,7 @@ export function registerReferencesHandlers(
 
             // Report progress after each batch
             if (progress) {
-              const completed = Math.min(i + BATCH_SIZE, uncachedFiles.length);
+              const completed = Math.min(i + BATCH_SIZE, boundedFiles.length);
               progress.report(completed, `Scanned ${completed} files...`);
             }
 
@@ -347,6 +371,13 @@ export function registerReferencesHandlers(
           if (progress) {
             progress.done(`Found ${references.length} references`);
             log.debug('References: progress complete', { totalReferences: references.length });
+          }
+
+          if (cancelled) {
+            log.debug('References: workspace scan cancelled due to document version change', {
+              uri,
+              requestVersion,
+            });
           }
 
           log.debug('References: workspace search complete', {
@@ -489,9 +520,9 @@ export function registerReferencesHandlers(
         const line = lines[lineNum];
         if (!line) continue;
         let searchStart = 0;
-        let matchIndex: number;
+        let matchIndex = line.indexOf(word, searchStart);
 
-        while ((matchIndex = line.indexOf(word, searchStart)) !== -1) {
+        while (matchIndex !== -1) {
           const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
           const afterChar =
             matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
@@ -506,6 +537,7 @@ export function registerReferencesHandlers(
             });
           }
           searchStart = matchIndex + 1;
+          matchIndex = line.indexOf(word, searchStart);
         }
       }
 
