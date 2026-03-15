@@ -50,6 +50,31 @@ export function registerCompletionHandlers(
   // Note: stdlibIndex accessed via services.stdlibIndex for late binding (initialized after registration)
   const { logger, documentCache, moduleContext } = services;
   const completionScheduler = new RequestScheduler();
+  const COMPLETION_SCHEDULER_LOG_EVERY = 50;
+  let completionRequestsObserved = 0;
+
+  function maybeLogCompletionSchedulerMetrics(uri: string, outcome: string): void {
+    completionRequestsObserved += 1;
+    if (completionRequestsObserved % COMPLETION_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+
+    const schedulerMetrics = completionScheduler.snapshotMetrics();
+    logger.debug('Completion scheduler metrics', {
+      uri,
+      outcome,
+      samples: completionRequestsObserved,
+      maxConcurrent: schedulerMetrics.maxConcurrent,
+      activeWorkers: schedulerMetrics.activeWorkers,
+      queueDepth: schedulerMetrics.queueDepth,
+      inFlightByClass: schedulerMetrics.inFlightByClass,
+      scheduled: schedulerMetrics.scheduled,
+      started: schedulerMetrics.started,
+      completed: schedulerMetrics.completed,
+      failed: schedulerMetrics.failed,
+      canceled: schedulerMetrics.canceled,
+    });
+  }
 
   /**
    * Helper to wrap completion items in CompletionList
@@ -342,13 +367,17 @@ export function registerCompletionHandlers(
             }
           }
 
+          maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
           return toCompletionList(dedupeCompletionItems(completions));
         }
+        maybeLogCompletionSchedulerMetrics(uri, 'qe_empty');
       } catch (err) {
         clearInFlight();
         if (err instanceof RequestSupersededError) {
+          maybeLogCompletionSchedulerMetrics(uri, 'superseded');
           return toCompletionList([]);
         }
+        maybeLogCompletionSchedulerMetrics(uri, 'qe_fallback');
         logger.debug('Completion query fallback', {
           uri,
           error: err instanceof Error ? err.message : String(err),
