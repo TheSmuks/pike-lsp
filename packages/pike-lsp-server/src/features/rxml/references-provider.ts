@@ -27,6 +27,13 @@ const tagReferenceIndexCache = new Map<
     byTag: Map<string, Location[]>;
   }
 >();
+const tagDeclarationIndexCache = new Map<
+  string,
+  {
+    builtAt: number;
+    byTag: Map<string, Location[]>;
+  }
+>();
 const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
 
 function uriToFilePath(uri: string): string {
@@ -84,6 +91,54 @@ async function getTagReferenceIndex(workspaceFolders: string[]): Promise<Map<str
   return byTag;
 }
 
+async function getTagDeclarationIndex(
+  workspaceFolders: string[]
+): Promise<Map<string, Location[]>> {
+  const key = makeWorkspaceKey(workspaceFolders);
+  const now = Date.now();
+  const cached = tagDeclarationIndexCache.get(key);
+  if (cached && now - cached.builtAt < TAG_REFERENCE_INDEX_TTL_MS) {
+    return cached.byTag;
+  }
+
+  const byTag = new Map<string, Location[]>();
+  const pikeFiles = await findPikeFiles(workspaceFolders);
+
+  for (const file of pikeFiles) {
+    const content = await readFileCached(file);
+    const patterns = [
+      /\bsimpletag\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+      /\bcontainer\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
+    ];
+
+    for (const pattern of patterns) {
+      let match = pattern.exec(content);
+      while (match !== null) {
+        const matchedTag = match[1];
+        if (matchedTag) {
+          const keyName = matchedTag.toLowerCase();
+          const locations = byTag.get(keyName) ?? [];
+          const position = findPositionForMatch(content, match);
+
+          locations.push({
+            uri: fileToUri(file),
+            range: {
+              start: position,
+              end: { line: position.line, character: position.character + matchedTag.length },
+            },
+          });
+          byTag.set(keyName, locations);
+        }
+
+        match = pattern.exec(content);
+      }
+    }
+  }
+
+  tagDeclarationIndexCache.set(key, { builtAt: now, byTag });
+  return byTag;
+}
+
 /**
  * Find all references to a tag in workspace
  *
@@ -109,31 +164,9 @@ export async function findTagReferences(
 
   // Also search in .pike files for tag function references
   if (includeDeclaration) {
-    const pikeFiles = await findPikeFiles(workspaceFolders);
-
-    for (const file of pikeFiles) {
-      const content = await readFileCached(file);
-
-      // Look for simpletag_* or container_* function definitions
-      const patterns = [
-        new RegExp(`\\bsimpletag\\s+${escapeRegExp(tagName)}\\b`, 'g'),
-        new RegExp(`\\bcontainer\\s+${escapeRegExp(tagName)}\\b`, 'g'),
-      ];
-
-      for (const pattern of patterns) {
-        let match;
-        while ((match = pattern.exec(content)) !== null) {
-          const position = findPositionForMatch(content, match);
-          locations.push({
-            uri: fileToUri(file),
-            range: {
-              start: position,
-              end: { line: position.line, character: position.character + tagName.length },
-            },
-          });
-        }
-      }
-    }
+    const declarationIndex = await getTagDeclarationIndex(workspaceFolders);
+    const declarationLocations = declarationIndex.get(tagName.toLowerCase()) ?? [];
+    locations.push(...declarationLocations);
   }
 
   return locations;
@@ -141,6 +174,7 @@ export async function findTagReferences(
 
 export function invalidateRXMLReferenceCaches(uri?: string): void {
   tagReferenceIndexCache.clear();
+  tagDeclarationIndexCache.clear();
   templateGlobCache.clear();
   pikeGlobCache.clear();
 
@@ -184,8 +218,8 @@ export async function findDefvarReferences(
     ];
 
     for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(content)) !== null) {
+      let match = pattern.exec(content);
+      while (match !== null) {
         const position = findPositionForMatch(content, match);
         locations.push({
           uri: fileToUri(file),
@@ -194,6 +228,7 @@ export async function findDefvarReferences(
             end: { line: position.line, character: position.character + defvarName.length },
           },
         });
+        match = pattern.exec(content);
       }
     }
   }
