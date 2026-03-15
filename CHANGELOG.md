@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.27] - 2026-03-15
+
+### Fixed
+
+- **Diagnostics debounce lifecycle cleanup** - Clear per-document `validationVersions` state on document close to prevent stale debounce metadata accumulation in long-running sessions.
+
+### Changed
+
+- **Definition fallback observability** - Replace silent include-traversal failures with debug logging to improve troubleshooting without changing navigation behavior.
+
+### Added
+
+- **Architecture regression guards** - Added source-level regression tests to prevent reintroduction of synchronous file reads in definition/rename hot paths and to enforce diagnostics close-path cleanup invariants.
+
 ## [0.1.0-alpha.25] - 2026-02-26
 
 ### Chore
@@ -51,5 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security workflow** - Add workflow_dispatch trigger for manual Gitleaks runs
 
 [0.1.0-alpha.25]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.25
+[0.1.0-alpha.27]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.27
 [0.1.0-alpha.24]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.24
 [0.1.0-alpha.23]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.23
