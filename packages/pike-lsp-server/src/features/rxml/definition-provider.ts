@@ -26,6 +26,14 @@ const tagDefinitionIndexCache = new Map<
     byTag: Map<string, RoxenTagInfo>;
   }
 >();
+const DEFVAR_DEFINITION_INDEX_TTL_MS = 30_000;
+const defvarDefinitionIndexCache = new Map<
+  string,
+  {
+    builtAt: number;
+    byName: Map<string, RoxenDefvarInfo>;
+  }
+>();
 const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
 
 function uriToFilePath(uri: string): string {
@@ -70,10 +78,11 @@ async function getTagDefinitionIndex(
     const content = await readFileCached(file);
 
     const simpleTagPattern = /^\s*simpletag\s+([A-Za-z_]\w*)\s*\(/gm;
-    let match: RegExpExecArray | null;
-    while ((match = simpleTagPattern.exec(content)) !== null) {
+    let match = simpleTagPattern.exec(content);
+    while (match !== null) {
       const tagName = match[1];
       if (!tagName || byTag.has(tagName)) {
+        match = simpleTagPattern.exec(content);
         continue;
       }
 
@@ -87,11 +96,57 @@ async function getTagDefinitionIndex(
         }),
         tagType: 'simple',
       });
+
+      match = simpleTagPattern.exec(content);
     }
   }
 
   tagDefinitionIndexCache.set(key, { builtAt: now, byTag });
   return byTag;
+}
+
+async function getDefvarDefinitionIndex(
+  workspaceFolders: string[]
+): Promise<Map<string, RoxenDefvarInfo>> {
+  const key = makeWorkspaceKey(workspaceFolders);
+  const now = Date.now();
+  const cached = defvarDefinitionIndexCache.get(key);
+  if (cached && now - cached.builtAt < DEFVAR_DEFINITION_INDEX_TTL_MS) {
+    return cached.byName;
+  }
+
+  const byName = new Map<string, RoxenDefvarInfo>();
+  const pikeFiles = await findPikeFiles(workspaceFolders);
+
+  for (const file of pikeFiles) {
+    const content = await readFileCached(file);
+    const defvarPattern = /defvar\s*\(\s*["']([^"']+)["']/g;
+
+    let match = defvarPattern.exec(content);
+    while (match !== null) {
+      const name = match[1];
+      if (name) {
+        const keyName = name.toLowerCase();
+        if (!byName.has(keyName)) {
+          const position = findPositionForMatch(content, match);
+          byName.set(keyName, {
+            name,
+            type: 'mixed',
+            documentation: `Defvar: ${name}`,
+            location: Location.create(fileToUri(file), {
+              start: position,
+              end: { line: position.line, character: position.character + name.length },
+            }),
+          });
+        }
+      }
+
+      match = defvarPattern.exec(content);
+    }
+  }
+
+  defvarDefinitionIndexCache.set(key, { builtAt: now, byName });
+  return byName;
 }
 
 /**
@@ -174,6 +229,7 @@ export async function findTagDefinition(
 
 export function invalidateRXMLDefinitionCaches(uri?: string): void {
   tagDefinitionIndexCache.clear();
+  defvarDefinitionIndexCache.clear();
   pikeGlobCache.clear();
 
   if (!uri) {
@@ -199,33 +255,8 @@ export async function findDefvarDefinition(
     return null;
   }
 
-  const pikeFiles = await findPikeFiles(workspaceFolders);
-
-  for (const file of pikeFiles) {
-    const content = await readFileCached(file);
-
-    // Look for defvar statements
-    const pattern = new RegExp(
-      `defvar\\s+("${escapeRegExp(defvarName)}"\\s*;|'${escapeRegExp(defvarName)}'\\s*;|\\w+\\s*=)`,
-      'm'
-    );
-    const match = pattern.exec(content);
-
-    if (match) {
-      const position = findPositionForMatch(content, match);
-      return {
-        name: defvarName,
-        type: 'mixed', // Would need actual type extraction
-        documentation: `Defvar: ${defvarName}`,
-        location: Location.create(fileToUri(file), {
-          start: position,
-          end: { line: position.line, character: position.character + defvarName.length },
-        }),
-      };
-    }
-  }
-
-  return null;
+  const index = await getDefvarDefinitionIndex(workspaceFolders);
+  return index.get(defvarName.toLowerCase()) ?? null;
 }
 
 /**
@@ -336,13 +367,6 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
 function fileToUri(filePath: string): string {
   // Simple implementation - use proper URI encoding in production
   return filePath.startsWith('/') ? `file://${filePath}` : `file:///${filePath}`;
-}
-
-/**
- * Escape special regex characters
- */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
+  findDefvarDefinition,
   findTagDefinition,
   invalidateRXMLDefinitionCaches,
 } from '../features/rxml/definition-provider.js';
@@ -47,6 +48,28 @@ describe('RXML cache invalidation', () => {
 
     const refreshedFoo = await findTagDefinition('foo', [root]);
     const refreshedBar = await findTagDefinition('bar', [root]);
+    expect(refreshedFoo).toBeNull();
+    expect(refreshedBar).not.toBeNull();
+  });
+
+  it('clears defvar definition cache for changed module files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pike-rxml-defvar-'));
+    createdDirs.push(root);
+
+    const modulePath = join(root, 'module-defvar.pike');
+    await writeFile(modulePath, 'defvar("foo_var", TYPE_STRING);', 'utf-8');
+
+    const first = await findDefvarDefinition('foo_var', [root]);
+    expect(first).not.toBeNull();
+
+    await writeFile(modulePath, 'defvar("bar_var", TYPE_STRING);', 'utf-8');
+    const stale = await findDefvarDefinition('foo_var', [root]);
+    expect(stale).not.toBeNull();
+
+    invalidateRXMLDefinitionCaches(`file://${modulePath}`);
+
+    const refreshedFoo = await findDefvarDefinition('foo_var', [root]);
+    const refreshedBar = await findDefvarDefinition('bar_var', [root]);
     expect(refreshedFoo).toBeNull();
     expect(refreshedBar).not.toBeNull();
   });
