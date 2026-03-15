@@ -73,6 +73,28 @@ describe('RXML cache invalidation', () => {
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
 
+  it('clears declaration reference cache for changed module files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pike-rxml-ref-decl-'));
+    createdDirs.push(root);
+
+    const modulePath = join(root, 'module.pike');
+    await writeFile(modulePath, 'simpletag foo() { return 1; }', 'utf-8');
+
+    const first = await findTagReferences('foo', [root], true);
+    expect(first.length).toBeGreaterThan(0);
+
+    await writeFile(modulePath, 'simpletag bar() { return 1; }', 'utf-8');
+    const stale = await findTagReferences('foo', [root], true);
+    expect(stale.length).toBeGreaterThan(0);
+
+    invalidateRXMLReferenceCaches(`file://${modulePath}`);
+
+    const refreshedFoo = await findTagReferences('foo', [root], true);
+    const refreshedBar = await findTagReferences('bar', [root], true);
+    expect(refreshedFoo.length).toBe(0);
+    expect(refreshedBar.length).toBeGreaterThan(0);
+  });
+
   it('invalidates RXML caches on document content change events', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pike-rxml-hook-'));
     createdDirs.push(root);
