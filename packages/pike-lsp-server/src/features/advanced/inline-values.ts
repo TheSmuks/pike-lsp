@@ -28,7 +28,7 @@ export function registerInlineValuesHandler(
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache, globalSettings } = services;
+    const { documentCache } = services;
     const log = new Logger('Advanced');
 
     /**
@@ -105,7 +105,7 @@ export function registerInlineValuesHandler(
         log.debug('Inline values request', { uri: params.textDocument.uri });
         try {
             // Check if inline values are enabled
-            const config = globalSettings?.inlineValues;
+            const config = services.globalSettings?.inlineValues;
             if (!config?.enabled) {
                 return null;
             }

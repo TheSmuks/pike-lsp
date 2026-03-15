@@ -20,7 +20,6 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import type { PikeSettings } from '../../core/types.js';
 import { registerFoldingRangeHandler } from './folding.js';
 import { registerSemanticTokensHandler } from './semantic-tokens.js';
 import { registerInlayHintsHandler } from './inlay-hints.js';
@@ -51,15 +50,11 @@ export { registerMonikerHandler } from './moniker.js';
  * @param connection - LSP connection
  * @param services - Bundle of server services
  * @param documents - TextDocuments manager for LSP document synchronization
- * @param globalSettings - Current global settings (mutable)
- * @param includePaths - Include paths for module resolution (mutable)
  */
 export function registerAdvancedHandlers(
     connection: Connection,
     services: Services,
-    documents: TextDocuments<TextDocument>,
-    _globalSettings: PikeSettings,
-    includePaths: string[]
+    documents: TextDocuments<TextDocument>
 ): void {
     registerFoldingRangeHandler(connection, services, documents);
     registerSemanticTokensHandler(connection, services, documents);
@@ -67,7 +62,7 @@ export function registerAdvancedHandlers(
     registerSelectionRangesHandler(connection, services, documents);
     registerCodeActionsHandler(connection, services, documents);
     registerFormattingHandlers(connection, services, documents);
-    registerDocumentLinksHandler(connection, services, documents, _globalSettings, includePaths);
+    registerDocumentLinksHandler(connection, services, documents);
     registerCodeLensHandlers(connection, services, documents);
     registerOnTypeFormattingHandler(connection, services, documents);
     registerInlineValuesHandler(connection, services, documents);

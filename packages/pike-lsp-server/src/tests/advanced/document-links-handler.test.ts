@@ -22,9 +22,7 @@ describe('Document Links Handler Registration', () => {
         registerDocumentLinksHandler(
             connection as any,
             { documentCache: new Map() } as any,
-            { get: () => undefined } as any,
-            {} as any,
-            []
+            { get: () => undefined } as any
         );
 
         expect(typeof linksHandler).toBe('function');
