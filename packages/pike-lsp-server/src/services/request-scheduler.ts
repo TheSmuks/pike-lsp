@@ -6,12 +6,29 @@ export interface RequestSchedulerMetrics {
   completed: number;
   failed: number;
   canceled: number;
+  maxConcurrent: number;
+  activeWorkers: number;
+  queueDepth: {
+    typing: number;
+    interactive: number;
+    background: number;
+  };
+  inFlightByClass: {
+    typing: number;
+    interactive: number;
+    background: number;
+  };
   queueWaitMs: {
     typing: number[];
     interactive: number[];
     background: number[];
   };
 }
+
+type RequestSchedulerCounters = Pick<
+  RequestSchedulerMetrics,
+  'scheduled' | 'started' | 'completed' | 'failed' | 'canceled' | 'queueWaitMs'
+>;
 
 export class RequestSupersededError extends Error {
   constructor(message: string) {
@@ -60,6 +77,11 @@ export class RequestScheduler {
   private dispatching = false;
   private activeWorkers = 0;
   private readonly maxConcurrent: number;
+  private readonly activeByClass: Record<RequestClass, number> = {
+    typing: 0,
+    interactive: 0,
+    background: 0,
+  };
   private readonly BACKGROUND_START_GRACE_MS = 8;
   private readonly queues: Record<RequestClass, QueuedTask[]> = {
     typing: [],
@@ -68,7 +90,7 @@ export class RequestScheduler {
   };
   private readonly tasksByKey = new Map<string, PendingTaskHandle>();
   private readonly coalescedByKey = new Map<string, CoalescedPending>();
-  private readonly metrics: RequestSchedulerMetrics = {
+  private readonly metrics: RequestSchedulerCounters = {
     scheduled: 0,
     started: 0,
     completed: 0,
@@ -150,6 +172,18 @@ export class RequestScheduler {
       completed: this.metrics.completed,
       failed: this.metrics.failed,
       canceled: this.metrics.canceled,
+      maxConcurrent: this.maxConcurrent,
+      activeWorkers: this.activeWorkers,
+      queueDepth: {
+        typing: this.queues.typing.length,
+        interactive: this.queues.interactive.length,
+        background: this.queues.background.length,
+      },
+      inFlightByClass: {
+        typing: this.activeByClass.typing,
+        interactive: this.activeByClass.interactive,
+        background: this.activeByClass.background,
+      },
       queueWaitMs: {
         typing: [...this.metrics.queueWaitMs.typing],
         interactive: [...this.metrics.queueWaitMs.interactive],
@@ -204,10 +238,15 @@ export class RequestScheduler {
         }
 
         this.activeWorkers += 1;
+        this.activeByClass[next.requestClass] += 1;
         this.runTask(next)
           .catch(() => {})
           .finally(() => {
             this.activeWorkers -= 1;
+            this.activeByClass[next.requestClass] = Math.max(
+              0,
+              this.activeByClass[next.requestClass] - 1
+            );
             this.processQueue().catch(() => {});
           });
       }
