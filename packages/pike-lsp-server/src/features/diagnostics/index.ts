@@ -683,7 +683,7 @@ export function registerDiagnosticsHandlers(
       }
 
       // Send diagnostics
-      connection.sendDiagnostics({ uri, diagnostics });
+      connection.sendDiagnostics({ uri, version, diagnostics });
       log.debug('Sent diagnostics', { uri, count: diagnostics.length });
 
       // Log memory stats periodically
