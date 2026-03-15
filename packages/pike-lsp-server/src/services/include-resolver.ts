@@ -9,7 +9,7 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 
 /**
  * Cache for resolved includes with their symbols.
@@ -204,7 +204,7 @@ export class IncludeResolver {
 
     try {
       // Read file content
-      const content = readFileSync(filePath, 'utf-8');
+      const content = await readFile(filePath, 'utf-8');
 
       // Use analyze to get symbols (parse operation only)
       const response = await this.bridge.bridge.analyze(content, ['parse'], filePath);
