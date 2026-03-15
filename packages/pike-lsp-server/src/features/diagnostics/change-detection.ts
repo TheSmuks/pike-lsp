@@ -7,7 +7,7 @@
 
 import type { Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import { computeContentHash, computeSemanticLineHash } from '../../services/document-cache.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
 /**
@@ -69,22 +69,20 @@ export function classifyChange(
 
     // Strategy 2: Check if change overlaps with any symbol positions
     if (cachedEntry.lineHashes) {
-      const newLineHashes = computeLineHashes(text);
+      const lines = text.split('\n');
 
-      if (cachedEntry.lineHashes.length !== newLineHashes.length) {
+      if (cachedEntry.lineHashes.length !== lines.length) {
         return {
           canSkip: false,
           reason: 'line_count_changed',
-          newHash: computeContentHash(text),
-          newLineHashes,
         };
       }
 
       // Check if any line in the change range has different semantic content
       let hasSemanticChange = false;
-      for (let i = startLine; i <= endLine && i < newLineHashes.length; i++) {
+      for (let i = startLine; i <= endLine && i < lines.length; i++) {
         const cachedHash = cachedEntry.lineHashes[i];
-        const newHash = newLineHashes[i];
+        const newHash = computeSemanticLineHash(lines[i] ?? '');
 
         if (cachedHash !== newHash) {
           hasSemanticChange = true;
@@ -96,16 +94,13 @@ export function classifyChange(
         return {
           canSkip: true,
           reason: 'semantic_unchanged',
-          newHash: computeContentHash(text),
-          newLineHashes,
+          newLineHashes: cachedEntry.lineHashes,
         };
       }
 
       return {
         canSkip: false,
         reason: 'semantic_changed',
-        newHash: computeContentHash(text),
-        newLineHashes,
       };
     }
   }
