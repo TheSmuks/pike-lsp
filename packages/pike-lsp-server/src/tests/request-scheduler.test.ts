@@ -421,4 +421,22 @@ describe('RequestScheduler', () => {
     assert.equal(after.activeWorkers, 0);
     assert.equal(after.inFlightByClass.background, 0);
   });
+
+  it('bounds queue wait sample retention under sustained load', async () => {
+    const scheduler = new RequestScheduler();
+
+    for (let i = 0; i < 400; i++) {
+      await scheduler.schedule({
+        requestClass: i % 2 === 0 ? 'typing' : 'interactive',
+        run: async () => {
+          return;
+        },
+      });
+    }
+
+    const metrics = scheduler.snapshotMetrics();
+    assert.equal(metrics.queueWaitMs.typing.length <= 256, true);
+    assert.equal(metrics.queueWaitMs.interactive.length <= 256, true);
+    assert.equal(metrics.queueWaitMs.background.length <= 256, true);
+  });
 });

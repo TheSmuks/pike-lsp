@@ -73,6 +73,7 @@ interface RequestSchedulerOptions {
 }
 
 export class RequestScheduler {
+  private static readonly QUEUE_WAIT_SAMPLE_CAP = 256;
   private nextId = 1;
   private dispatching = false;
   private activeWorkers = 0;
@@ -278,7 +279,7 @@ export class RequestScheduler {
 
     task.started = true;
     this.metrics.started += 1;
-    this.metrics.queueWaitMs[task.requestClass].push(Date.now() - task.createdAt);
+    this.recordQueueWait(task.requestClass, Date.now() - task.createdAt);
 
     const checkpoint: Checkpoint = () => {
       if (task.cancelled) {
@@ -307,6 +308,15 @@ export class RequestScheduler {
         this.metrics.failed += 1;
       }
       task.reject(error);
+    }
+  }
+
+  private recordQueueWait(requestClass: RequestClass, waitMs: number): void {
+    const samples = this.metrics.queueWaitMs[requestClass];
+    samples.push(waitMs);
+    const overflow = samples.length - RequestScheduler.QUEUE_WAIT_SAMPLE_CAP;
+    if (overflow > 0) {
+      samples.splice(0, overflow);
     }
   }
 }
