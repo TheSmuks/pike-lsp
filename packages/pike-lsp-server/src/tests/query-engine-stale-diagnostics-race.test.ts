@@ -9,6 +9,8 @@ import type {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../services/index.js';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
+import { computeContentHash, computeLineHashes } from '../services/document-cache.js';
+import type { DocumentCacheEntry } from '../core/types.js';
 
 type OpenHandler = (event: { document: TextDocument }) => void;
 type SaveHandler = (event: { document: TextDocument }) => void;
@@ -57,6 +59,18 @@ function createStatefulMockDocuments() {
       docs.delete(document.uri);
       closeHandler?.({ document });
     },
+  };
+}
+
+function makeCachedEntry(text: string): DocumentCacheEntry {
+  return {
+    version: 1,
+    symbols: [],
+    diagnostics: [],
+    symbolPositions: new Map(),
+    symbolNames: new Map(),
+    contentHash: computeContentHash(text),
+    lineHashes: computeLineHashes(text),
   };
 }
 
@@ -242,5 +256,193 @@ describe('Query Engine stale diagnostics race', () => {
       publishedForUri.every(entry => entry.diagnostics.length === 0),
       'No stale syntax diagnostics should be published after final valid document'
     );
+  });
+
+  it('forces validation when multiple incremental change batches arrive before debounce', async () => {
+    const diagnosticsPublished: Array<{ uri: string; diagnostics: Array<{ message: string }> }> =
+      [];
+
+    let onDidChangeConfigurationHandler:
+      | ((params: DidChangeConfigurationParams) => void)
+      | undefined;
+    let onDidChangeTextDocumentHandler: ((params: DidChangeTextDocumentParams) => void) | undefined;
+
+    const uri = 'file:///tmp/multi-change-batch.pike';
+    const baseText = 'int x = 1;\n';
+    const v2Text = 'int x = 1; \n';
+    const v3Text = 'int x = 1;   \n';
+
+    let queryCallCount = 0;
+    let cachedEntry = makeCachedEntry(baseText);
+
+    const connectionLike = {
+      sendDiagnostics(params: { uri: string; diagnostics: Array<{ message: string }> }): void {
+        diagnosticsPublished.push(params);
+      },
+      onDidChangeConfiguration(handler: (params: DidChangeConfigurationParams) => void): void {
+        onDidChangeConfigurationHandler = handler;
+      },
+      onDidChangeTextDocument(handler: (params: DidChangeTextDocumentParams) => void): void {
+        onDidChangeTextDocumentHandler = handler;
+      },
+      console: {
+        log(): void {},
+        warn(): void {},
+        error(): void {},
+      },
+    };
+
+    const documentsLike = createStatefulMockDocuments();
+
+    const servicesLike = {
+      bridge: {
+        isRunning(): boolean {
+          return true;
+        },
+        async start(): Promise<void> {},
+        async engineOpenDocument(): Promise<{ revision: number; snapshotId: string }> {
+          return { revision: 1, snapshotId: 'open-1' };
+        },
+        async engineChangeDocument(): Promise<{ revision: number; snapshotId: string }> {
+          return { revision: 1, snapshotId: 'change-1' };
+        },
+        async engineCloseDocument(): Promise<{ revision: number; snapshotId: string }> {
+          return { revision: 1, snapshotId: 'close-1' };
+        },
+        async engineUpdateConfig(): Promise<{ revision: number; snapshotId: string }> {
+          return { revision: 1, snapshotId: 'config-1' };
+        },
+        async engineCancelRequest(): Promise<{ accepted: boolean }> {
+          return { accepted: true };
+        },
+        async engineQuery(): Promise<{
+          snapshotIdUsed: string;
+          result: Record<string, unknown>;
+          metrics: Record<string, unknown>;
+        }> {
+          queryCallCount += 1;
+          return {
+            snapshotIdUsed: `snp-${queryCallCount}`,
+            result: {
+              analyzeResult: {
+                result: {
+                  parse: { symbols: [], diagnostics: [] },
+                  introspect: {
+                    success: 0,
+                    symbols: [],
+                    functions: [],
+                    variables: [],
+                    classes: [],
+                    inherits: [],
+                    diagnostics: [],
+                  },
+                  diagnostics: { diagnostics: [] },
+                },
+              },
+              revision: queryCallCount,
+            },
+            metrics: { durationMs: 1 },
+          };
+        },
+        async analyze(): Promise<never> {
+          throw new Error('analyze fallback should not be used in this test');
+        },
+      },
+      documentCache: {
+        get(requestedUri: string): DocumentCacheEntry | undefined {
+          return requestedUri === uri ? cachedEntry : undefined;
+        },
+        setPending(): void {},
+        set(requestedUri: string, entry: DocumentCacheEntry): void {
+          if (requestedUri === uri) {
+            cachedEntry = entry;
+          }
+        },
+        delete(): void {},
+      },
+      typeDatabase: {
+        setProgram(): void {},
+        removeProgram(): void {},
+        getMemoryStats(): {
+          programCount: number;
+          symbolCount: number;
+          totalBytes: number;
+          utilizationPercent: number;
+        } {
+          return {
+            programCount: 0,
+            symbolCount: 0,
+            totalBytes: 0,
+            utilizationPercent: 0,
+          };
+        },
+      },
+      workspaceIndex: {
+        removeDocument(): void {},
+      },
+      includeResolver: null,
+      logger: {
+        debug(): void {},
+        info(): void {},
+        warn(): void {},
+        error(): void {},
+      },
+    };
+
+    registerDiagnosticsHandlers(
+      connectionLike as unknown as Connection,
+      servicesLike as unknown as Services,
+      documentsLike as unknown as TextDocuments<TextDocument>
+    );
+
+    if (onDidChangeConfigurationHandler) {
+      onDidChangeConfigurationHandler({ settings: { pike: { diagnosticDelay: 20 } } });
+    }
+
+    const v2 = TextDocument.create(uri, 'pike', 2, v2Text);
+    const v3 = TextDocument.create(uri, 'pike', 3, v3Text);
+
+    if (onDidChangeTextDocumentHandler) {
+      onDidChangeTextDocumentHandler({
+        textDocument: { uri, version: v2.version },
+        contentChanges: [
+          {
+            range: {
+              start: { line: 0, character: 10 },
+              end: { line: 0, character: 10 },
+            },
+            text: ' ',
+          },
+        ],
+      });
+    }
+    documentsLike.emitChange(v2);
+
+    await new Promise(resolve => setTimeout(resolve, 5));
+
+    if (onDidChangeTextDocumentHandler) {
+      onDidChangeTextDocumentHandler({
+        textDocument: { uri, version: v3.version },
+        contentChanges: [
+          {
+            range: {
+              start: { line: 0, character: 11 },
+              end: { line: 0, character: 11 },
+            },
+            text: '  ',
+          },
+        ],
+      });
+    }
+    documentsLike.emitChange(v3);
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    assert.equal(
+      queryCallCount,
+      1,
+      'Multiple pending change batches should force one validation instead of semantic-skip'
+    );
+    assert.equal(diagnosticsPublished.length, 1, 'Validation should still publish diagnostics once');
   });
 });

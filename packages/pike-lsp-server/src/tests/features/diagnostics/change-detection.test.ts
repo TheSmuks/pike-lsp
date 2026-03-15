@@ -71,4 +71,23 @@ describe('classifyChange', () => {
     expect(result.canSkip).toBe(true);
     expect(result.reason).toBe('semantic_unchanged');
   });
+
+  it('does not skip when incremental edit changes total line count', () => {
+    const previousText = 'int x = 1;\nint y = 2;\n';
+    const currentText = 'int x = 1;\n';
+    const cachedEntry = makeCachedEntry(previousText);
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      {
+        start: { line: 1, character: 0 },
+        end: { line: 1, character: 10 },
+      },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('line_count_changed');
+  });
 });
