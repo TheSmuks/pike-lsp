@@ -701,7 +701,11 @@ async function findSymbolTextInIncludedFiles(
           };
         }
       }
-    } catch {
+    } catch (err) {
+      log.debug('Definition: failed to scan included file content', {
+        includePath: include.resolvedPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
       continue;
     }
   }

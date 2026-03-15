@@ -1,0 +1,43 @@
+import { describe, it } from 'bun:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const serverSrcDir = path.resolve(testDir, '..');
+
+async function readServerFile(relativePath: string): Promise<string> {
+  return readFile(path.join(serverSrcDir, relativePath), 'utf-8');
+}
+
+describe('Architecture regressions', () => {
+  it('keeps definition and rename hot paths free of synchronous file reads', async () => {
+    const definitionSource = await readServerFile('features/navigation/definition.ts');
+    const renameSource = await readServerFile('features/editing/rename.ts');
+
+    assert.equal(
+      definitionSource.includes('readFileSync('),
+      false,
+      'definition hot path should not use readFileSync'
+    );
+    assert.equal(
+      renameSource.includes('readFileSync('),
+      false,
+      'rename hot path should not use readFileSync'
+    );
+  });
+
+  it('cleans validationVersions state on document close', async () => {
+    const diagnosticsSource = await readServerFile('features/diagnostics/index.ts');
+    const didCloseIndex = diagnosticsSource.indexOf('documents.onDidClose(event => {');
+    const cleanupIndex = diagnosticsSource.indexOf('validationVersions.delete(event.document.uri);');
+
+    assert.equal(didCloseIndex >= 0, true, 'expected diagnostics onDidClose handler block');
+    assert.equal(
+      cleanupIndex > didCloseIndex,
+      true,
+      'onDidClose must clear validationVersions entry'
+    );
+  });
+});
