@@ -195,6 +195,33 @@ int main() { return x; }`;
       expect(result).toBeDefined();
       expect(result.data).toEqual([]);
     });
+
+    it('reuses full semantic token result for unchanged document version', () => {
+      const uri = 'file:///cached-full.pike';
+      const code = `int cached = 1;`;
+
+      const doc = TextDocument.create(uri, 'pike', 1, code);
+      const docsMap = new Map<string, TextDocument>();
+      docsMap.set(uri, doc);
+
+      const cacheEntry: DocumentCacheEntry = makeCacheEntry({
+        symbols: [sym('cached', 'variable', { position: { line: 1, character: 4 } })],
+      });
+
+      const services = createMockServices({
+        cacheEntries: new Map([[uri, cacheEntry]]),
+      });
+      const documents = createMockDocuments(docsMap);
+      const conn = createMockConnection();
+
+      registerSemanticTokensHandler(conn as any, services as any, documents as any);
+
+      const first = conn.semanticTokensHandler({ textDocument: { uri } });
+      const second = conn.semanticTokensHandler({ textDocument: { uri } });
+
+      expect(second.resultId).toBe(first.resultId);
+      expect(second.data).toEqual(first.data);
+    });
   });
 
   describe('Delta Edits Format', () => {
@@ -302,6 +329,64 @@ int b = 2;`;
 
       expect(delta.edits.length).toBe(1);
       expect(delta.edits[0].start).toBe(0);
+    });
+
+    it('reuses delta state for unchanged version and matching previousResultId', () => {
+      const uri = 'file:///cached-delta.pike';
+      const code = `int token = 1;`;
+
+      const doc = TextDocument.create(uri, 'pike', 1, code);
+      const docsMap = new Map<string, TextDocument>();
+      docsMap.set(uri, doc);
+
+      const cacheEntry: DocumentCacheEntry = makeCacheEntry({
+        symbols: [sym('token', 'variable', { position: { line: 1, character: 4 } })],
+      });
+
+      const services = createMockServices({
+        cacheEntries: new Map([[uri, cacheEntry]]),
+      });
+      const documents = createMockDocuments(docsMap);
+      const conn = createMockConnection();
+
+      registerSemanticTokensHandler(conn as any, services as any, documents as any);
+
+      const full = conn.semanticTokensHandler({ textDocument: { uri } });
+      const delta = conn.semanticTokensDeltaHandler({
+        textDocument: { uri },
+        previousResultId: full.resultId,
+      });
+
+      expect(delta.resultId).toBe(full.resultId);
+      expect(delta.edits).toEqual([]);
+    });
+
+    it('invalidates semantic token cache when document version changes', () => {
+      const uri = 'file:///cached-invalidate.pike';
+      const firstCode = `int invalidate = 1;`;
+      const secondCode = `int invalidate = 2;`;
+
+      const docsMap = new Map<string, TextDocument>();
+      docsMap.set(uri, TextDocument.create(uri, 'pike', 1, firstCode));
+
+      const cacheEntry: DocumentCacheEntry = makeCacheEntry({
+        symbols: [sym('invalidate', 'variable', { position: { line: 1, character: 4 } })],
+      });
+
+      const services = createMockServices({
+        cacheEntries: new Map([[uri, cacheEntry]]),
+      });
+      const documents = createMockDocuments(docsMap);
+      const conn = createMockConnection();
+
+      registerSemanticTokensHandler(conn as any, services as any, documents as any);
+
+      const first = conn.semanticTokensHandler({ textDocument: { uri } });
+
+      docsMap.set(uri, TextDocument.create(uri, 'pike', 2, secondCode));
+      const second = conn.semanticTokensHandler({ textDocument: { uri } });
+
+      expect(second.resultId).not.toBe(first.resultId);
     });
   });
 });
