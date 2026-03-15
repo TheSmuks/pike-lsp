@@ -315,4 +315,48 @@ describe('RequestScheduler', () => {
     const duration = Date.now() - startedAt;
     assert.equal(duration < 100, true);
   });
+
+  it('starts interactive work while background is in-flight when concurrency allows', async () => {
+    const scheduler = new RequestScheduler({ maxConcurrent: 2 });
+    const order: string[] = [];
+
+    const releaseBackground: { fn?: () => void } = {};
+    const backgroundGate = new Promise<void>(resolve => {
+      releaseBackground.fn = resolve;
+    });
+
+    const bg1 = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        order.push('background-1-start');
+        await backgroundGate;
+        checkpoint();
+        order.push('background-1-end');
+      },
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1));
+    const interactiveStartedAt = Date.now();
+    const interactive = scheduler.schedule({
+      requestClass: 'interactive',
+      run: async () => {
+        order.push('interactive');
+      },
+    });
+
+    await interactive;
+    const interactiveLatencyMs = Date.now() - interactiveStartedAt;
+
+    assert.equal(order.includes('interactive'), true);
+    assert.equal(order.includes('background-1-end'), false);
+    assert.equal(interactiveLatencyMs < 40, true);
+
+    const release = releaseBackground.fn;
+    if (!release) {
+      throw new Error('background release hook missing');
+    }
+    release();
+
+    await bg1;
+  });
 });

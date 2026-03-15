@@ -51,9 +51,15 @@ interface PendingTaskHandle {
   cancel: (reason: Error) => void;
 }
 
+interface RequestSchedulerOptions {
+  maxConcurrent?: number;
+}
+
 export class RequestScheduler {
   private nextId = 1;
-  private running = false;
+  private dispatching = false;
+  private activeWorkers = 0;
+  private readonly maxConcurrent: number;
   private readonly BACKGROUND_START_GRACE_MS = 8;
   private readonly queues: Record<RequestClass, QueuedTask[]> = {
     typing: [],
@@ -74,6 +80,11 @@ export class RequestScheduler {
       background: [],
     },
   };
+
+  constructor(options: RequestSchedulerOptions = {}) {
+    const configuredMax = Math.floor(options.maxConcurrent ?? 2);
+    this.maxConcurrent = configuredMax > 0 ? configuredMax : 1;
+  }
 
   async schedule<T>(request: ScheduleRequest<T>): Promise<T> {
     const key = request.key;
@@ -167,17 +178,14 @@ export class RequestScheduler {
   }
 
   private async processQueue(): Promise<void> {
-    if (this.running) {
+    if (this.dispatching) {
       return;
     }
 
-    this.running = true;
+    this.dispatching = true;
     try {
-      while (true) {
-        const next =
-          this.queues.typing.shift() ??
-          this.queues.interactive.shift() ??
-          this.queues.background.shift();
+      while (this.activeWorkers < this.maxConcurrent) {
+        const next = this.dequeueNextTask();
 
         if (!next) {
           break;
@@ -195,11 +203,33 @@ export class RequestScheduler {
           }
         }
 
-        await this.runTask(next);
+        this.activeWorkers += 1;
+        this.runTask(next)
+          .catch(() => {})
+          .finally(() => {
+            this.activeWorkers -= 1;
+            this.processQueue().catch(() => {});
+          });
       }
     } finally {
-      this.running = false;
+      this.dispatching = false;
     }
+
+    if (this.activeWorkers < this.maxConcurrent && this.hasQueuedTasks()) {
+      this.processQueue().catch(() => {});
+    }
+  }
+
+  private dequeueNextTask(): QueuedTask | undefined {
+    return this.queues.typing.shift() ?? this.queues.interactive.shift() ?? this.queues.background.shift();
+  }
+
+  private hasQueuedTasks(): boolean {
+    return (
+      this.queues.typing.length > 0 ||
+      this.queues.interactive.length > 0 ||
+      this.queues.background.length > 0
+    );
   }
 
   private async runTask(task: QueuedTask): Promise<void> {
