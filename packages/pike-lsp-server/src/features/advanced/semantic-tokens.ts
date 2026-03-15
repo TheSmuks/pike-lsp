@@ -67,7 +67,7 @@ export function registerSemanticTokensHandler(
 ): void {
   const { documentCache } = services;
   const log = new Logger('Advanced');
-  const tokenStateByUri = new Map<string, { resultId: string; data: number[] }>();
+  const tokenStateByUri = new Map<string, { resultId: string; data: number[]; version: number }>();
   let nextResultCounter = 0;
 
   const makeResultId = (): string => {
@@ -116,6 +116,22 @@ export function registerSemanticTokensHandler(
       deleteCount,
       data,
     };
+  };
+
+  const getOrBuildTokenState = (uri: string, document: TextDocument) => {
+    const existing = tokenStateByUri.get(uri);
+    if (existing && existing.version === document.version) {
+      return existing;
+    }
+
+    const tokens = buildTokens(uri, document);
+    const state = {
+      resultId: makeResultId(),
+      data: [...tokens.data],
+      version: document.version,
+    };
+    tokenStateByUri.set(uri, state);
+    return state;
   };
 
   /**
@@ -242,19 +258,17 @@ export function registerSemanticTokensHandler(
           continue;
         }
 
-        let match: RegExpExecArray | null;
-        while ((match = symbolRegex.exec(line)) !== null) {
+        let match = symbolRegex.exec(line);
+        while (match !== null) {
           const matchIndex = match.index;
 
-          if (isInsideComment(line, matchIndex) || isInsideString(line, matchIndex)) {
-            continue;
+          if (!(isInsideComment(line, matchIndex) || isInsideString(line, matchIndex))) {
+            const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
+            const modifiers = isDeclaration ? declModifiers : 0;
+            builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
           }
 
-          const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
-
-          const modifiers = isDeclaration ? declModifiers : 0;
-
-          builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
+          match = symbolRegex.exec(line);
         }
       }
     }
@@ -271,15 +285,15 @@ export function registerSemanticTokensHandler(
 
       for (const keyword of controlKeywords) {
         const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
-        let match: RegExpExecArray | null;
-        while ((match = keywordRegex.exec(line)) !== null) {
+        let match = keywordRegex.exec(line);
+        while (match !== null) {
           const matchIndex = match.index;
 
-          if (isInsideComment(line, matchIndex) || isInsideString(line, matchIndex)) {
-            continue;
+          if (!(isInsideComment(line, matchIndex) || isInsideString(line, matchIndex))) {
+            builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
           }
 
-          builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
+          match = keywordRegex.exec(line);
         }
       }
     }
@@ -313,12 +327,10 @@ export function registerSemanticTokensHandler(
         return { resultId: '0', data: [] };
       }
 
-      const tokens = buildTokens(uri, document);
-      const resultId = makeResultId();
-      tokenStateByUri.set(uri, { resultId, data: [...tokens.data] });
+      const state = getOrBuildTokenState(uri, document);
       return {
-        resultId,
-        data: tokens.data,
+        resultId: state.resultId,
+        data: state.data,
       };
     } catch (err) {
       log.error(
@@ -342,30 +354,40 @@ export function registerSemanticTokensHandler(
         return { resultId: '0', edits: [] };
       }
 
-      const tokens = buildTokens(uri, document);
-      const newResultId = makeResultId();
-      const nextData = [...tokens.data];
+      const nextState = getOrBuildTokenState(uri, document);
 
-      if (!previousState || previousState.resultId !== params.previousResultId) {
-        tokenStateByUri.set(uri, { resultId: newResultId, data: nextData });
+      if (previousState && previousState.resultId === nextState.resultId) {
+        if (params.previousResultId === nextState.resultId) {
+          return {
+            resultId: nextState.resultId,
+            edits: [],
+          };
+        }
+
         return {
-          resultId: newResultId,
-          edits: [{ start: 0, deleteCount: 0, data: nextData }],
+          resultId: nextState.resultId,
+          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
         };
       }
 
-      const edit = computeDeltaEdit(previousState.data, nextData);
-      tokenStateByUri.set(uri, { resultId: newResultId, data: nextData });
+      if (!previousState || previousState.resultId !== params.previousResultId) {
+        return {
+          resultId: nextState.resultId,
+          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
+        };
+      }
+
+      const edit = computeDeltaEdit(previousState.data, nextState.data);
 
       if (!edit) {
         return {
-          resultId: newResultId,
+          resultId: nextState.resultId,
           edits: [],
         };
       }
 
       return {
-        resultId: newResultId,
+        resultId: nextState.resultId,
         edits: [edit],
       };
     } catch (err) {
