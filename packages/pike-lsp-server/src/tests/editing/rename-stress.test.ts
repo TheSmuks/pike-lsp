@@ -13,6 +13,9 @@
 
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
     Range,
     Position,
@@ -22,7 +25,7 @@ import {
     OptionalVersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { DocumentCacheEntry } from '../core/types.js';
+import type { DocumentCacheEntry } from '../../core/types.js';
 import { registerRenameHandlers } from '../../features/editing/rename.js';
 
 // =============================================================================
@@ -92,6 +95,7 @@ interface SetupOptions {
     symbols?: PikeSymbol[];
     cacheExtra?: Partial<DocumentCacheEntry>;
     noCache?: boolean;
+    workspaceScanner?: any;
 }
 
 function setup(options: SetupOptions) {
@@ -100,6 +104,7 @@ function setup(options: SetupOptions) {
         uri = 'file:///test.pike',
         symbols = [],
         cacheExtra = {},
+        workspaceScanner = null,
     } = options;
 
     const mockConnection = createMockConnection();
@@ -121,9 +126,10 @@ function setup(options: SetupOptions) {
         documentCache: {
             get: (docUri: string) => documentCache.get(docUri),
             entries: () => documentCache.entries(),
+            keys: () => documentCache.keys(),
         },
         bridge: null, // Use fallback logic
-        workspaceScanner: null,
+        workspaceScanner,
         logger: silentLogger,
     } as any;
 
@@ -670,6 +676,54 @@ Stdio.File f = Stdio.File();`;
 
             const result = await rename(1, 12, 'FileHandle');
             expect(result).not.toBeNull();
+        });
+
+        it('limits uncached workspace fallback search to configured max files', async () => {
+            const previousMax = process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'];
+            process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'] = '1';
+
+            const dir = await mkdtemp(join(tmpdir(), 'pike-lsp-rename-'));
+            try {
+                const firstPath = join(dir, 'first.pmod');
+                const secondPath = join(dir, 'second.pmod');
+                await writeFile(firstPath, 'int sharedName = 1;\nsharedName++;\n', 'utf-8');
+                await writeFile(secondPath, 'int sharedName = 1;\nsharedName += 2;\n', 'utf-8');
+
+                const firstUri = `file://${firstPath}`;
+                const secondUri = `file://${secondPath}`;
+
+                const { rename } = setup({
+                    uri: 'file:///module.pmod',
+                    code: 'int sharedName = 0;\nsharedName++;\n',
+                    symbols: [sym('sharedName', 'variable')],
+                    workspaceScanner: {
+                        isReady: () => true,
+                        getUncachedFiles: () => [
+                            { uri: firstUri, path: firstPath },
+                            { uri: secondUri, path: secondPath },
+                        ],
+                    },
+                });
+
+                const result = await rename(0, 5, 'renamedSymbol');
+                const changedUris = new Set(
+                    (result?.documentChanges ?? [])
+                        .filter(
+                            (change): change is TextDocumentEdit => 'textDocument' in change
+                        )
+                        .map(change => change.textDocument.uri)
+                );
+
+                expect(changedUris.has(firstUri)).toBe(true);
+                expect(changedUris.has(secondUri)).toBe(false);
+            } finally {
+                if (previousMax === undefined) {
+                    delete process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'];
+                } else {
+                    process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'] = previousMax;
+                }
+                await rm(dir, { recursive: true, force: true });
+            }
         });
     });
 
