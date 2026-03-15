@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.28] - 2026-03-15
+
+### Performance
+
+- **Bounded scheduler observability metrics** - Request scheduler queue-wait samples are now retained in a fixed-size rolling window to prevent unbounded memory growth during long editing sessions.
+- **Non-blocking workspace file discovery** - Workspace index file discovery now uses async directory and stat traversal, reducing event-loop blocking before parse/index phases.
+
+### Added
+
+- **Performance regression guards** - Added stress/regression coverage for scheduler sample bounding and synchronous workspace discovery prevention.
+
 ## [0.1.0-alpha.27] - 2026-03-15
 
 ### Fixed
@@ -65,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security workflow** - Add workflow_dispatch trigger for manual Gitleaks runs
 
 [0.1.0-alpha.25]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.25
+[0.1.0-alpha.28]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.28
 [0.1.0-alpha.27]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.27
 [0.1.0-alpha.24]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.24
 [0.1.0-alpha.23]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.23
