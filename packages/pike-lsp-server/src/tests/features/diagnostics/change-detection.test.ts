@@ -70,6 +70,7 @@ describe('classifyChange', () => {
 
     expect(result.canSkip).toBe(true);
     expect(result.reason).toBe('semantic_unchanged');
+    expect(result.newLineHashes).toBe(cachedEntry.lineHashes);
   });
 
   it('does not skip when incremental edit changes total line count', () => {
@@ -89,5 +90,26 @@ describe('classifyChange', () => {
 
     expect(result.canSkip).toBe(false);
     expect(result.reason).toBe('line_count_changed');
+    expect(result.newLineHashes).toBeUndefined();
+  });
+
+  it('does not return line hashes when semantic content changed', () => {
+    const previousText = 'int x = 1;\n';
+    const currentText = 'int x = 2;\n';
+    const cachedEntry = makeCachedEntry(previousText);
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 9 },
+      },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('semantic_changed');
+    expect(result.newLineHashes).toBeUndefined();
   });
 });

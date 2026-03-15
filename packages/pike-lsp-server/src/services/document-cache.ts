@@ -31,13 +31,15 @@ export function computeLineHashes(content: string): number[] {
     const hashes: number[] = [];
 
     for (const line of lines) {
-        // Remove comments and normalize whitespace
-        const semantic = stripComments(line.trim());
-        // Simple hash for quick comparison
-        hashes.push(simpleHash(semantic));
+        hashes.push(computeSemanticLineHash(line));
     }
 
     return hashes;
+}
+
+export function computeSemanticLineHash(line: string): number {
+    const semantic = stripComments(line.trim());
+    return simpleHash(semantic);
 }
 
 /**
