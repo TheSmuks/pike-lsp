@@ -11,7 +11,6 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
-import type { PikeSettings } from '../../core/types.js';
 import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
 import * as path from 'path';
@@ -23,9 +22,7 @@ import * as fsSync from 'fs';
 export function registerDocumentLinksHandler(
     connection: Connection,
     services: Services,
-    documents: TextDocuments<TextDocument>,
-    _globalSettings: PikeSettings,
-    includePaths: string[]
+    documents: TextDocuments<TextDocument>
 ): void {
     const { documentCache } = services;
     const log = new Logger('Advanced');
@@ -53,8 +50,8 @@ export function registerDocumentLinksHandler(
             for (let lineNum = 0; lineNum < lines.length; lineNum++) {
                 const line = lines[lineNum] ?? '';
 
-                let inheritMatch: RegExpExecArray | null;
-                while ((inheritMatch = inheritRegex.exec(line)) !== null) {
+                let inheritMatch: RegExpExecArray | null = inheritRegex.exec(line);
+                while (inheritMatch !== null) {
                     const index = inheritMatch.index;
                     const modulePath = inheritMatch[1];
                     if (index !== undefined && modulePath) {
@@ -70,15 +67,17 @@ export function registerDocumentLinksHandler(
                             });
                         }
                     }
+
+                    inheritMatch = inheritRegex.exec(line);
                 }
                 inheritRegex.lastIndex = 0;
 
-                let includeMatch: RegExpExecArray | null;
-                while ((includeMatch = includeRegex.exec(line)) !== null) {
+                let includeMatch: RegExpExecArray | null = includeRegex.exec(line);
+                while (includeMatch !== null) {
                     const index = includeMatch.index;
                     const filePath = includeMatch[1];
                     if (index !== undefined && filePath) {
-                        const link = resolveIncludePath(filePath, documentDir, includePaths);
+                        const link = resolveIncludePath(filePath, documentDir, services.includePaths);
                         if (link) {
                             links.push({
                                 range: {
@@ -90,16 +89,18 @@ export function registerDocumentLinksHandler(
                             });
                         }
                     }
+
+                    includeMatch = includeRegex.exec(line);
                 }
                 includeRegex.lastIndex = 0;
 
-                let docMatch: RegExpExecArray | null;
-                while ((docMatch = docLinkRegex.exec(line)) !== null) {
+                let docMatch: RegExpExecArray | null = docLinkRegex.exec(line);
+                while (docMatch !== null) {
                     const index = docMatch.index;
                     const filePath = docMatch[1];
                     if (index !== undefined && filePath) {
                         if (filePath.includes('/') || filePath.includes('.')) {
-                            const link = resolveIncludePath(filePath, documentDir, includePaths);
+                            const link = resolveIncludePath(filePath, documentDir, services.includePaths);
                             if (link) {
                                 links.push({
                                     range: {
@@ -112,6 +113,8 @@ export function registerDocumentLinksHandler(
                             }
                         }
                     }
+
+                    docMatch = docLinkRegex.exec(line);
                 }
                 docLinkRegex.lastIndex = 0;
             }
