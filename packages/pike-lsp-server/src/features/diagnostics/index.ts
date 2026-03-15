@@ -26,6 +26,7 @@ import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 interface PendingChangeState {
   range: Range | undefined;
@@ -732,15 +733,7 @@ export function registerDiagnosticsHandlers(
         log.debug('Diagnostics scheduler metrics', {
           uri,
           samples: validationCompletions,
-          maxConcurrent: schedulerMetrics.maxConcurrent,
-          activeWorkers: schedulerMetrics.activeWorkers,
-          queueDepth: schedulerMetrics.queueDepth,
-          inFlightByClass: schedulerMetrics.inFlightByClass,
-          scheduled: schedulerMetrics.scheduled,
-          started: schedulerMetrics.started,
-          completed: schedulerMetrics.completed,
-          failed: schedulerMetrics.failed,
-          canceled: schedulerMetrics.canceled,
+          ...toSchedulerMetricsLogPayload(schedulerMetrics),
         });
       }
 
