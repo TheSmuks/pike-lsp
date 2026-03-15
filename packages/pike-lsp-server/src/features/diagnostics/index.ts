@@ -360,6 +360,32 @@ export function registerDiagnosticsHandlers(
 
       // Convert Pike diagnostics to LSP diagnostics
       const diagnostics: Diagnostic[] = [];
+      const lines = text.split('\n');
+      const seenDiagnostics = new Set<string>();
+
+      const pushDiagnostic = (diagnostic: Diagnostic): void => {
+        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+          return;
+        }
+
+        const key = [
+          diagnostic.source ?? '',
+          diagnostic.code === undefined ? '' : String(diagnostic.code),
+          diagnostic.severity ?? '',
+          diagnostic.range.start.line,
+          diagnostic.range.start.character,
+          diagnostic.range.end.line,
+          diagnostic.range.end.character,
+          diagnostic.message,
+        ].join('|');
+
+        if (seenDiagnostics.has(key)) {
+          return;
+        }
+
+        seenDiagnostics.add(key);
+        diagnostics.push(diagnostic);
+      };
 
       // Patterns for module resolution errors we should skip
       const skipPatterns = [
@@ -387,7 +413,7 @@ export function registerDiagnosticsHandlers(
         // Check if this diagnostic is about a deprecated symbol
         const isDeprecated = isDeprecatedSymbolDiagnostic(pikeDiag.message, introspectData.symbols);
 
-        diagnostics.push(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }));
+        pushDiagnostic(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }, lines));
       }
 
       // Update type database with introspected symbols if compilation succeeded
@@ -607,7 +633,7 @@ export function registerDiagnosticsHandlers(
           // Determine source based on diagnostic type
           const source = diag.variable ? 'pike-uninitialized' : 'pike';
 
-          diagnostics.push({
+          pushDiagnostic({
             severity,
             range: {
               start: {
@@ -632,7 +658,9 @@ export function registerDiagnosticsHandlers(
           const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
           if (roxenInfo && roxenInfo.is_roxen_module === 1) {
             const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
-            diagnostics.push(...roxenDiags);
+            for (const roxenDiag of roxenDiags) {
+              pushDiagnostic(roxenDiag);
+            }
             log.debug('Added Roxen diagnostics', { uri, count: roxenDiags.length });
           }
         }
