@@ -12,6 +12,9 @@
 
 import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { IncludeResolver } from '../../services/include-resolver.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
@@ -503,5 +506,40 @@ describe('IncludeResolver - Cache Management', () => {
         // Assert
         assert.ok(result1);
         assert.ok(result2);
+    });
+
+    it('should resolve include symbols from real file content', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'include-resolver-'));
+        try {
+            const includePath = join(dir, 'existing.h');
+            await writeFile(includePath, 'int local_symbol = 1;\n', 'utf-8');
+
+            const bridge = {
+                bridge: {
+                    resolveInclude: async () => ({
+                        exists: true,
+                        path: includePath,
+                        originalPath: '"existing.h"',
+                    }),
+                    resolveStdlib: async () => ({ found: 0 }),
+                    analyze: async (_content: string, _operations: string[], filename: string) => ({
+                        result: {
+                            parse: {
+                                symbols: [{ name: `symbol_from_${filename}`, kind: 'variable' as const }],
+                            },
+                        },
+                    }),
+                },
+            };
+
+            const resolver = new IncludeResolver(bridge as any, createMockLogger());
+            const resolved = await resolver.resolveInclude('"existing.h"', 'file:///test.pike');
+
+            assert.ok(resolved);
+            assert.equal(resolved!.resolvedPath, includePath);
+            assert.equal(resolved!.symbols.length, 1);
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 });
