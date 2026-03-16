@@ -51,7 +51,7 @@ export function registerDefinitionHandlers(
    * - Module path resolution (Stdio.File -> Pike stdlib)
    * - Member access navigation (file->read -> method definition)
    */
-  connection.onDefinition(async (params): Promise<Location | Location[] | null> => {
+  connection.onDefinition(async (params, cancellationToken): Promise<Location | Location[] | null> => {
     log.debug('Definition request', { uri: params.textDocument.uri });
     try {
       const uri = params.textDocument.uri;
@@ -66,7 +66,9 @@ export function registerDefinitionHandlers(
         'definition',
         uri,
         document,
-        params.position
+        params.position,
+        {},
+        cancellationToken
       );
       if (queryLocations && queryLocations.length > 0) {
         return queryLocations;

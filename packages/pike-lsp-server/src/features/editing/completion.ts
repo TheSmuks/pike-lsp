@@ -156,7 +156,7 @@ export function registerCompletionHandlers(
   /**
    * Code completion handler
    */
-  connection.onCompletion(async (params): Promise<CompletionList> => {
+  connection.onCompletion(async (params, cancellationToken): Promise<CompletionList> => {
     const bridge = services.bridge;
     const uri = params.textDocument.uri;
     const document = documents.get(uri);
@@ -167,11 +167,20 @@ export function registerCompletionHandlers(
       return toCompletionList([]);
     }
 
+    if (cancellationToken?.isCancellationRequested) {
+      return toCompletionList([]);
+    }
+
     if (useQueryEngineCompletions && bridge?.isRunning?.()) {
       const nextSequence = (completionRequestSequence.get(uri) ?? 0) + 1;
       completionRequestSequence.set(uri, nextSequence);
       const requestId = `completion:${uri}:${document.version}:${Date.now()}:${nextSequence}`;
       const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+      let cancelledByToken = false;
+      const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
+        cancelledByToken = true;
+        void bridge.engineCancelRequest({ requestId }).catch(() => undefined);
+      });
       const clearInFlight = (): void => {
         if (inFlightCompletionRequests.get(uri) === requestId) {
           inFlightCompletionRequests.delete(uri);
@@ -183,6 +192,9 @@ export function registerCompletionHandlers(
           key: `completion:${uri}`,
           run: async checkpoint => {
             checkpoint();
+            if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+              throw new RequestSupersededError('Completion request cancelled by LSP token');
+            }
             const previousRequestId = inFlightCompletionRequests.get(uri);
             if (previousRequestId && previousRequestId !== requestId) {
               try {
@@ -212,6 +224,10 @@ export function registerCompletionHandlers(
             });
             checkpoint();
 
+            if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+              throw new RequestSupersededError('Completion request cancelled by LSP token');
+            }
+
             const directItems = toCompletionItemArray(qeResponse.result['items']);
             if (directItems && directItems.length > 0) {
               return directItems;
@@ -230,6 +246,7 @@ export function registerCompletionHandlers(
         });
 
         clearInFlight();
+        cancellationDisposable?.dispose();
         if (scheduledItems && scheduledItems.length > 0) {
           const completions = [...scheduledItems];
           const text = document.getText();
@@ -366,6 +383,7 @@ export function registerCompletionHandlers(
         maybeLogCompletionSchedulerMetrics(uri, 'qe_empty');
       } catch (err) {
         clearInFlight();
+        cancellationDisposable?.dispose();
         if (err instanceof RequestSupersededError) {
           maybeLogCompletionSchedulerMetrics(uri, 'superseded');
           return toCompletionList([]);
