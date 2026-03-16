@@ -136,9 +136,47 @@ describe('References Provider', () => {
     });
 
     const result = await references(1, 8);
-    expect(result).toHaveLength(1);
-    expect(result[0]?.uri).toBe('file:///query-references.pike');
-    expect(result[0]?.range.start.line).toBe(3);
+    expect(result).toHaveLength(3);
+    expect(result.some(item => item.uri === 'file:///query-references.pike')).toBe(true);
+    expect(result.some(item => item.uri === 'file:///test.pike')).toBe(true);
+  });
+
+  it('dedupes query-engine and fallback references with same location', async () => {
+    const code = `int value = 1;\nint x = value;`;
+
+    const { references } = setup({
+      code,
+      symbols: [
+        {
+          name: 'value',
+          kind: 'variable',
+          modifiers: [],
+          position: { file: 'test.pike', line: 1 },
+        },
+      ],
+      bridge: {
+        isRunning: () => true,
+        engineQuery: async () => ({
+          requestId: 'req-ref-dup',
+          snapshotIdUsed: 'snp-dup',
+          result: {
+            locations: [
+              {
+                uri: 'file:///test.pike',
+                range: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 9 },
+                },
+              },
+            ],
+          },
+        }),
+      },
+    });
+
+    const result = await references(1, 8);
+    expect(result).toHaveLength(2);
+    expect(result.filter(item => item.uri === 'file:///test.pike')).toHaveLength(2);
   });
 
   it('keeps parity with fallback when query returns stub', async () => {
@@ -624,7 +662,7 @@ int x = myVar;`;
       expect(result.some(r => r.uri === 'file:///other.pmod/Test2.pmod')).toBe(true);
     });
 
-    it('should find only local references for .pike files (not cross-file)', async () => {
+    it('should find references across multiple open documents for .pike files', async () => {
       const mainCode = `int myVar = 42;
 int x = myVar;`;
       const otherCode = `myVar = 10;`;
@@ -640,7 +678,7 @@ int x = myVar;`;
 
       const { references } = setup({
         code: mainCode,
-        uri: 'file:///main.pike', // .pike file - should NOT search other files
+        uri: 'file:///main.pike',
         symbols: [
           {
             name: 'myVar',
@@ -665,9 +703,9 @@ int x = myVar;`;
       });
 
       const result = await references(0, 5);
-      // Should find ONLY references in the same .pike file (not other.pike)
-      expect(result.length).toBe(2);
-      expect(result.every(r => r.uri === 'file:///main.pike')).toBe(true);
+      expect(result.length).toBe(3);
+      expect(result.some(r => r.uri === 'file:///main.pike')).toBe(true);
+      expect(result.some(r => r.uri === 'file:///other.pike')).toBe(true);
     });
 
     it('should exclude declaration across multiple files when includeDeclaration=false for .pmod', async () => {
@@ -713,13 +751,9 @@ int x = myVar;`;
         ]),
       });
 
-      // Exclude declaration from main.pmod
-      // Note: includeDeclaration filtering has a pre-existing bug with URI matching
       const result = await references(0, 5, false);
-      expect(result.length).toBe(3);
-      // Declaration (line 0 of main.pmod) may not be excluded due to URI matching issue
-      expect(result.filter(r => r.uri === 'file:///main.pmod/Test.pmod').length).toBe(2);
-      // Reference from other.pmod should still be included
+      expect(result.length).toBe(2);
+      expect(result.filter(r => r.uri === 'file:///main.pmod/Test.pmod').length).toBe(1);
       expect(result.filter(r => r.uri === 'file:///other.pmod/Test2.pmod').length).toBe(1);
     });
 
