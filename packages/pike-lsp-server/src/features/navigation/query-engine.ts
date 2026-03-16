@@ -1,4 +1,4 @@
-import type { Location } from 'vscode-languageserver/node.js';
+import type { CancellationToken, Location } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 
@@ -62,15 +62,26 @@ export async function queryNavigationLocations(
   uri: string,
   document: TextDocument,
   position: { line: number; character: number },
-  extraParams: Record<string, unknown> = {}
+  extraParams: Record<string, unknown> = {},
+  cancellationToken?: CancellationToken
 ): Promise<Location[] | undefined> {
   const bridge = services.bridge;
   if (!bridge || !bridge.isRunning()) {
     return undefined;
   }
 
+  if (cancellationToken?.isCancellationRequested) {
+    return undefined;
+  }
+
   const requestId = `${feature}:${uri}:${document.version}:${Date.now()}`;
   const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+  let cancelled = false;
+  const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
+    cancelled = true;
+    void bridge.engineCancelRequest({ requestId }).catch(() => undefined);
+  });
 
   try {
     const response = await bridge.engineQuery({
@@ -86,6 +97,10 @@ export async function queryNavigationLocations(
         ...extraParams,
       },
     });
+
+    if (cancelled || cancellationToken?.isCancellationRequested) {
+      return undefined;
+    }
 
     const directLocations = parseLocationArray(response.result['locations']);
     if (directLocations && directLocations.length > 0) {
@@ -113,6 +128,8 @@ export async function queryNavigationLocations(
     }
   } catch {
     return undefined;
+  } finally {
+    cancellationDisposable?.dispose();
   }
 
   return undefined;
