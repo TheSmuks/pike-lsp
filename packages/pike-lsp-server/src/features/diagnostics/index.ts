@@ -51,6 +51,20 @@ export {
   type ChangeClassification,
 } from './change-detection.js';
 
+export function applySkippedValidationCacheUpdate(
+  cachedEntry: DocumentCacheEntry,
+  currentVersion: number,
+  classification: { newHash?: string; newLineHashes?: number[] }
+): void {
+  if (classification.newHash) {
+    cachedEntry.contentHash = classification.newHash;
+  }
+  if (classification.newLineHashes) {
+    cachedEntry.lineHashes = classification.newLineHashes;
+  }
+  cachedEntry.version = currentVersion;
+}
+
 /**
  * Register diagnostics handlers with the LSP connection.
  *
@@ -146,13 +160,8 @@ export function registerDiagnosticsHandlers(
 
       if (classification.canSkip) {
         // Skip parsing entirely - just update cache metadata
-        if (cachedEntry && classification.newHash) {
-          // Update hash metadata without full reparse
-          cachedEntry.contentHash = classification.newHash;
-          if (classification.newLineHashes) {
-            cachedEntry.lineHashes = classification.newLineHashes;
-          }
-          cachedEntry.version = currentVersion;
+        if (cachedEntry) {
+          applySkippedValidationCacheUpdate(cachedEntry, currentVersion, classification);
         }
 
         // Clear the pending change range
