@@ -394,11 +394,9 @@ export function registerReferencesHandlers(
         const declarationCandidates =
           cached.symbolPositions?.get(word)?.filter(pos => pos.line === declLine) ?? [];
         const declarationCharacter =
-          typeof matchingSymbol.position.character === 'number'
-            ? matchingSymbol.position.character
-            : declarationCandidates.length > 0
-              ? Math.min(...declarationCandidates.map(pos => pos.character))
-              : undefined;
+          declarationCandidates.length > 0
+            ? Math.min(...declarationCandidates.map(pos => pos.character))
+            : undefined;
 
         // Helper function to check if a reference URI matches the declaration file
         // Handles various URI formats: file:///test.pike, file://test.pike, test.pike
