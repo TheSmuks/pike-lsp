@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.29] - 2026-03-16
+
+### Fixed
+
+- **References completeness across files** - `textDocument/references` now merges query-engine and fallback sources, restores cross-file `.pike` scanning, and deduplicates merged locations to avoid missed usages.
+- **QE2 incremental document state** - `engine_change_document` now applies ordered range edits into stored document text instead of storing change metadata only.
+- **QE2 fixed snapshot resolution** - fixed-snapshot queries now validate snapshot existence and resolve against pinned snapshot state; unknown snapshot IDs return `SNAPSHOT_NOT_FOUND` payloads.
+
+### Added
+
+- **Regression coverage for snapshot/edit correctness** - added bridge-level tests for ranged incremental edits, fixed snapshot pinning across later edits, and unknown fixed snapshot behavior.
+
 ## [0.1.0-alpha.28] - 2026-03-15
 
 ### Performance
@@ -27,56 +39,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Performance regression guards** - Added stress/regression coverage for scheduler sample bounding and synchronous workspace discovery prevention.
 
-## [0.1.0-alpha.27] - 2026-03-15
-
-### Fixed
-
-- **Diagnostics debounce lifecycle cleanup** - Clear per-document `validationVersions` state on document close to prevent stale debounce metadata accumulation in long-running sessions.
-
-### Changed
-
-- **Definition fallback observability** - Replace silent include-traversal failures with debug logging to improve troubleshooting without changing navigation behavior.
-
-### Added
-
-- **Architecture regression guards** - Added source-level regression tests to prevent reintroduction of synchronous file reads in definition/rename hot paths and to enforce diagnostics close-path cleanup invariants.
-
-## [0.1.0-alpha.25] - 2026-02-26
-
-### Chore
-
-- **CLAUDE.md cleanup** - Streamlined CLAUDE.md and updated hover.ts for improved code quality
-
-## [0.1.0-alpha.24] - 2026-02-25
-
-### Added
-
-- **End-to-end stale diagnostics race coverage** - Added regression tests for rapid invalid->valid edit/save bursts so stale syntax diagnostics cannot persist after the document is corrected.
-
-### Fixed
-
-- **Stale diagnostics publishing** - Dropped out-of-date diagnostics when analysis completes for an older document version than the currently open text document.
-- **Debounced validation staleness** - Validation now resolves against the latest live document state before classify/validate, preventing false error leftovers during fast editing.
-- **Change classification false skips** - Removed over-aggressive comment-only skip behavior that could suppress needed revalidation after semantic edits.
-
-### Changed
-
-- **Diagnostics stress mocks** - Updated query-engine cancellation stress mocks to track live document state (`get`/`all`) for more realistic diagnostics lifecycle testing.
-
-## [0.1.0-alpha.23] - 2026-02-22
-
-### Added
-
-- **Switch/case statement support** - Implement switch/case statement support with semantic token highlighting for control flow keywords
-- **Range operator context detection** - Implement range operator (..) context detection for code completion (array slicing, case ranges, type expressions)
-
-### Chore
-
-- **Branch cleanup workflow** - Add workflow to automatically delete branches when PRs are merged
-- **Security workflow** - Add workflow_dispatch trigger for manual Gitleaks runs
-
-[0.1.0-alpha.25]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.25
+[0.1.0-alpha.29]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.29
 [0.1.0-alpha.28]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.28
-[0.1.0-alpha.27]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.27
-[0.1.0-alpha.24]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.24
-[0.1.0-alpha.23]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.23
