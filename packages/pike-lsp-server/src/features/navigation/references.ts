@@ -391,6 +391,12 @@ export function registerReferencesHandlers(
       // See limitation documentation above
       if (!includeDeclaration && matchingSymbol.position) {
         const declLine = matchingSymbol.position.line - 1; // Convert to 0-based
+        const declarationCandidates =
+          cached.symbolPositions?.get(word)?.filter(pos => pos.line === declLine) ?? [];
+        const declarationCharacter =
+          declarationCandidates.length > 0
+            ? Math.min(...declarationCandidates.map(pos => pos.character))
+            : undefined;
 
         // Helper function to check if a reference URI matches the declaration file
         // Handles various URI formats: file:///test.pike, file://test.pike, test.pike
@@ -452,6 +458,16 @@ export function registerReferencesHandlers(
           word,
         });
 
+        let effectiveDeclarationCharacter = declarationCharacter;
+        if (effectiveDeclarationCharacter === undefined) {
+          const sameLineCandidates = references
+            .filter(ref => isDeclarationUri(ref.uri) && ref.range.start.line === declLine)
+            .map(ref => ref.range.start.character);
+          if (sameLineCandidates.length > 0) {
+            effectiveDeclarationCharacter = Math.min(...sameLineCandidates);
+          }
+        }
+
         // Filter out declaration location from parsed results
         const beforeFilter = references.length;
         references = references.filter(ref => {
@@ -459,10 +475,15 @@ export function registerReferencesHandlers(
           const isSameFile = isDeclarationUri(ref.uri);
           const isSameLine = ref.range.start.line === declLine;
 
-          // Exclude if this is the declaration location
-          // NOTE: This only works for parsed documents with symbolPositions
-          // Workspace-only text search results may still include the declaration
-          return !(isSameFile && isSameLine);
+          if (!(isSameFile && isSameLine)) {
+            return true;
+          }
+
+          if (effectiveDeclarationCharacter === undefined) {
+            return true;
+          }
+
+          return ref.range.start.character !== effectiveDeclarationCharacter;
         });
 
         log.debug('References: filtered declaration', {
