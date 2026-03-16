@@ -81,6 +81,150 @@ describe('PikeBridge', () => {
     assert.ok(closeAck.snapshotId.startsWith('snp-'));
   });
 
+  it('should apply ranged incremental changes to stored query-engine document text', async () => {
+    const uri = `file:///tmp/qe2-incremental-${Date.now()}.pike`;
+    const filename = uri.replace('file://', '');
+
+    await bridge.engineOpenDocument({
+      uri,
+      languageId: 'pike',
+      version: 1,
+      text: 'int alpha = 1;\nint x = alpha;\n',
+    });
+
+    await bridge.engineChangeDocument({
+      uri,
+      version: 2,
+      changes: [
+        {
+          range: {
+            start: { line: 0, character: 4 },
+            end: { line: 0, character: 9 },
+          },
+          text: 'beta',
+        },
+        {
+          range: {
+            start: { line: 1, character: 8 },
+            end: { line: 1, character: 13 },
+          },
+          text: 'beta',
+        },
+      ],
+    });
+
+    const response = await bridge.engineQuery({
+      feature: 'completion',
+      requestId: `qe2-incremental-query-${Date.now()}`,
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri,
+        filename,
+        version: 2,
+        position: { line: 1, character: 9 },
+      },
+    });
+
+    const innerResult = response.result['result'] as Record<string, unknown> | undefined;
+    const resultView = innerResult ?? response.result;
+    const items = Array.isArray(resultView['items'])
+      ? (resultView['items'] as Array<Record<string, unknown>>)
+      : [];
+    const labels = items
+      .map(item => item['label'])
+      .filter(label => typeof label === 'string') as string[];
+
+    assert.ok(labels.includes('beta'));
+    assert.ok(!labels.includes('alpha'));
+
+    await bridge.engineCloseDocument({ uri });
+  });
+
+  it('should return snapshot-not-found error payload for unknown fixed snapshotId', async () => {
+    const response = await bridge.engineQuery({
+      feature: 'completion',
+      requestId: `qe2-fixed-missing-${Date.now()}`,
+      snapshot: { mode: 'fixed', snapshotId: 'snp-missing-id' },
+      queryParams: {
+        uri: 'file:///tmp/qe2-missing-snapshot.pike',
+        filename: '/tmp/qe2-missing-snapshot.pike',
+        version: 1,
+        position: { line: 0, character: 1 },
+      },
+    });
+
+    const envelope = response as unknown as Record<string, unknown>;
+    const code = envelope['error'] as Record<string, unknown> | undefined;
+    assert.equal(code?.['code'], 'SNAPSHOT_NOT_FOUND');
+    assert.match(String(code?.['message'] ?? ''), /snapshot not found/);
+  });
+
+  it('should pin query results to fixed snapshot state across document changes', async () => {
+    const uri = `file:///tmp/qe2-fixed-${Date.now()}.pike`;
+    const filename = uri.replace('file://', '');
+    const openAck = await bridge.engineOpenDocument({
+      uri,
+      languageId: 'pike',
+      version: 1,
+      text: 'int alpha = 1;\nint y = alpha;\n',
+    });
+
+    await bridge.engineChangeDocument({
+      uri,
+      version: 2,
+      changes: [{ text: 'int beta = 1;\nint y = beta;\n' }],
+    });
+
+    const fixedResponse = await bridge.engineQuery({
+      feature: 'completion',
+      requestId: `qe2-fixed-query-${Date.now()}`,
+      snapshot: { mode: 'fixed', snapshotId: openAck.snapshotId },
+      queryParams: {
+        uri,
+        filename,
+        version: 1,
+        position: { line: 1, character: 8 },
+      },
+    });
+
+    const latestResponse = await bridge.engineQuery({
+      feature: 'completion',
+      requestId: `qe2-latest-query-${Date.now()}`,
+      snapshot: { mode: 'latest' },
+      queryParams: {
+        uri,
+        filename,
+        version: 2,
+        position: { line: 1, character: 8 },
+      },
+    });
+
+    const fixedResult = (fixedResponse.result['result'] as Record<string, unknown>) ?? fixedResponse.result;
+    const latestResult =
+      (latestResponse.result['result'] as Record<string, unknown>) ?? latestResponse.result;
+
+    const fixedItems = Array.isArray(fixedResult['items'])
+      ? (fixedResult['items'] as Array<Record<string, unknown>>)
+      : [];
+    const latestItems = Array.isArray(latestResult['items'])
+      ? (latestResult['items'] as Array<Record<string, unknown>>)
+      : [];
+
+    const fixedLabels = fixedItems
+      .map(item => item['label'])
+      .filter(label => typeof label === 'string') as string[];
+    const latestLabels = latestItems
+      .map(item => item['label'])
+      .filter(label => typeof label === 'string') as string[];
+
+    assert.ok(fixedLabels.includes('alpha'));
+    assert.ok(!fixedLabels.includes('beta'));
+    assert.ok(latestLabels.includes('beta'));
+    assert.ok(!latestLabels.includes('alpha'));
+
+    await bridge.engineCloseDocument({ uri });
+  });
+
   it('should accept query-engine cancel requests', async () => {
     const requestId = 'qe2-cancel-test';
 
