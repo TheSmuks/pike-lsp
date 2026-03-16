@@ -38,7 +38,7 @@ export function registerReferencesHandlers(
    *   (LIMITATION: No symbol table available for uncached files)
    * - Progress reporting is enabled for workspace scans of 20+ files
    */
-  connection.onReferences(async (params): Promise<Location[]> => {
+  connection.onReferences(async (params, cancellationToken): Promise<Location[]> => {
     log.debug('References request', { uri: params.textDocument.uri, position: params.position });
     try {
       const uri = params.textDocument.uri;
@@ -57,7 +57,8 @@ export function registerReferencesHandlers(
         params.position,
         {
           includeDeclaration: params.context.includeDeclaration ?? true,
-        }
+        },
+        cancellationToken
       );
       if (queryLocations && queryLocations.length > 0) {
         return queryLocations;
