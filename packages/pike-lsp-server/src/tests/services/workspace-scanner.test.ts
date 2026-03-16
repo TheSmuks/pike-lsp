@@ -184,17 +184,42 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
         assert.equal(stats.rootCount, 2);
     });
 
-    it('26.3.3 should remove folder and its files', () => {
-        // Arrange
+    it('26.3.3 should remove folder and its files', async () => {
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
 
-        // Act
-        scanner.removeFolder('/workspace');
+        const rootA = path.join(os.tmpdir(), `ws-remove-a-${Date.now()}`);
+        const rootB = path.join(os.tmpdir(), `ws-remove-b-${Date.now()}`);
+        const nestedA = path.join(rootA, 'nested');
 
-        // Assert
-        const stats = scanner.getStats();
-        assert.equal(stats.rootCount, 0);
+        await fs.mkdir(nestedA, { recursive: true });
+        await fs.mkdir(rootB, { recursive: true });
+        await fs.writeFile(path.join(rootA, 'a.pike'), 'int a;');
+        await fs.writeFile(path.join(nestedA, 'b.pike'), 'int b;');
+        await fs.writeFile(path.join(rootB, 'c.pike'), 'int c;');
+
+        try {
+            await scanner.initialize([rootA, rootB]);
+
+            const beforeRemove = scanner.getAllFiles();
+            assert.ok(beforeRemove.some(f => f.path.startsWith(`file://${rootA}`)));
+            assert.ok(beforeRemove.some(f => f.path.startsWith(`file://${rootB}`)));
+
+            scanner.removeFolder(rootA);
+
+            const afterRemove = scanner.getAllFiles();
+            assert.ok(!afterRemove.some(f => f.path.startsWith(`file://${rootA}`)));
+            assert.ok(afterRemove.some(f => f.path.startsWith(`file://${rootB}`)));
+
+            const stats = scanner.getStats();
+            assert.equal(stats.rootCount, 1);
+        } finally {
+            await fs.rm(rootA, { recursive: true, force: true });
+            await fs.rm(rootB, { recursive: true, force: true });
+        }
     });
 
     it('26.3.4 should scan all folders on scanAll', async () => {
@@ -230,6 +255,33 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
         assert.equal(scanner.isReady(), true, 'Scanner should remain ready after concurrent scans');
         const stats = scanner.getStats();
         assert.ok(typeof stats.fileCount === 'number', 'Stats should be available');
+    });
+
+    it('26.3.6 should remove files when folder is passed as file URI', async () => {
+        const logger = createMockLogger();
+        const scanner = new WorkspaceScanner(logger, () => ({}));
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+
+        const root = path.join(os.tmpdir(), `ws-remove-uri-${Date.now()}`);
+        await fs.mkdir(root, { recursive: true });
+        await fs.writeFile(path.join(root, 'one.pike'), 'int one;');
+
+        try {
+            await scanner.initialize([root]);
+            assert.ok(scanner.getAllFiles().some(f => f.path.startsWith(`file://${root}`)));
+
+            scanner.removeFolder(`file://${root}`);
+
+            assert.ok(!scanner.getAllFiles().some(f => f.path.startsWith(`file://${root}`)));
+            assert.equal(scanner.getStats().rootCount, 0);
+
+            await scanner.scanAll();
+            assert.ok(!scanner.getAllFiles().some(f => f.path.startsWith(`file://${root}`)));
+        } finally {
+            await fs.rm(root, { recursive: true, force: true });
+        }
     });
 });
 
