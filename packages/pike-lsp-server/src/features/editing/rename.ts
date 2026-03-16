@@ -331,6 +331,10 @@ export function registerRenameHandlers(
                 const YIELD_EVERY_N_BATCHES = 4;
                 const requestVersion = document.version;
                 let cancelled = false;
+                const isRequestCurrent = (): boolean => {
+                    const latest = documents.get(uri);
+                    return !!latest && latest.version === requestVersion;
+                };
 
                 log.debug('Rename: searching workspace files', {
                     uncachedFileCount: uncachedFiles.length,
@@ -338,36 +342,50 @@ export function registerRenameHandlers(
                 });
 
                 for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
-                    const latest = documents.get(uri);
-                    if (!latest || latest.version !== requestVersion) {
+                    if (!isRequestCurrent()) {
                         cancelled = true;
                         break;
                     }
 
                     const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
 
-                    for (const file of batch) {
+                    const batchEdits = await Promise.all(batch.map(async file => {
                         try {
-                            const latest = documents.get(uri);
-                            if (!latest || latest.version !== requestVersion) {
+                            if (!isRequestCurrent()) {
                                 cancelled = true;
-                                break;
+                                return null;
                             }
 
                             const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
                             const fileContent = await readFile(filePath, 'utf-8');
 
-                            if (!fileContent.includes(oldName)) {
-                                continue;
+                            if (!isRequestCurrent()) {
+                                cancelled = true;
+                                return null;
                             }
 
-                            addEditsFromTextSearch(file.uri, fileContent);
+                            if (!fileContent.includes(oldName)) {
+                                return null;
+                            }
+
+                            return { uri: file.uri, content: fileContent };
                         } catch (err) {
                             log.warn('Failed to read file for rename', {
                                 uri: file.uri,
                                 error: err instanceof Error ? err.message : String(err)
                             });
+                            return null;
                         }
+                    }));
+
+                    for (const entry of batchEdits) {
+                        if (entry) {
+                            addEditsFromTextSearch(entry.uri, entry.content);
+                        }
+                    }
+
+                    if (cancelled) {
+                        break;
                     }
 
                     if ((i / BATCH_SIZE) % YIELD_EVERY_N_BATCHES === 0 && i > 0) {
