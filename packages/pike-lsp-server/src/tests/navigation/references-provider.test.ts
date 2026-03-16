@@ -517,6 +517,34 @@ myVar = 10;`;
       expect(result[1]!.range.start.line).toBe(2);
     });
 
+    it('should keep same-line usages when excluding declaration', async () => {
+      const code = `int myVar = myVar + 1;`;
+
+      const positions = new Map<string, { line: number; character: number }[]>();
+      positions.set('myVar', [
+        { line: 0, character: 4 },
+        { line: 0, character: 12 },
+      ]);
+
+      const { references } = setup({
+        code,
+        symbols: [
+          {
+            name: 'myVar',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        symbolPositions: positions,
+      });
+
+      const result = await references(0, 5, false);
+      expect(result.length).toBe(1);
+      expect(result[0]!.range.start.line).toBe(0);
+      expect(result[0]!.range.start.character).toBe(12);
+    });
+
     it('should exclude declaration regardless of cursor position', async () => {
       const code = `void myFunc() {}
 myFunc();
