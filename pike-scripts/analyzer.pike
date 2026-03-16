@@ -164,6 +164,7 @@ mapping(string:mapping(string:mixed)) qe2_documents = ([]);
 mapping(string:mixed) qe2_settings = ([]);
 mapping(string:mixed) qe2_workspace = (["roots": ({}), "added": ({}), "removed": ({})]);
 mapping(string:int) qe2_cancelled_requests = ([]);
+mapping(string:mapping(string:mixed)) qe2_snapshots = ([]);
 
 int qe2_take_cancelled(string request_id) {
     if (!sizeof(request_id)) {
@@ -187,8 +188,106 @@ mapping(string:mixed) qe2_ack() {
     ]);
 }
 
+void qe2_store_snapshot() {
+    qe2_snapshots[qe2_snapshot_id()] = ([
+        "revision": qe2_revision,
+        "documents": copy_value(qe2_documents),
+        "settings": copy_value(qe2_settings),
+        "workspace": copy_value(qe2_workspace)
+    ]);
+}
+
 void qe2_bump_revision() {
     qe2_revision += 1;
+    qe2_store_snapshot();
+}
+
+int qe2_offset_for_position(string text, int line, int character) {
+    int safe_line = line < 0 ? 0 : line;
+    int safe_char = character < 0 ? 0 : character;
+    int idx = 0;
+    int current_line = 0;
+
+    while (idx < sizeof(text) && current_line < safe_line) {
+        if (text[idx] == '\n') {
+            current_line += 1;
+        }
+        idx += 1;
+    }
+
+    int line_end = idx;
+    while (line_end < sizeof(text) && text[line_end] != '\n') {
+        line_end += 1;
+    }
+
+    int target = idx + safe_char;
+    if (target > line_end) {
+        target = line_end;
+    }
+    return target;
+}
+
+string qe2_apply_document_changes(string current_text, array(mixed) changes) {
+    string text = current_text;
+
+    foreach (changes, mixed raw_change) {
+        if (!mappingp(raw_change)) {
+            continue;
+        }
+
+        mapping change = raw_change;
+        string insert_text = stringp(change->text) ? (string)change->text : "";
+
+        if (!mappingp(change->range)) {
+            text = insert_text;
+            continue;
+        }
+
+        mapping range = change->range;
+        mapping start = mappingp(range->start) ? range->start : ([]);
+        mapping end = mappingp(range->end) ? range->end : ([]);
+        int start_offset = qe2_offset_for_position(text, (int)(start->line || 0), (int)(start->character || 0));
+        int end_offset = qe2_offset_for_position(text, (int)(end->line || 0), (int)(end->character || 0));
+        if (end_offset < start_offset) {
+            end_offset = start_offset;
+        }
+
+        string prefix = start_offset > 0 ? text[..start_offset - 1] : "";
+        string suffix = end_offset < sizeof(text) ? text[end_offset..] : "";
+        text = prefix + insert_text + suffix;
+    }
+
+    return text;
+}
+
+mapping(string:mixed)|int qe2_resolve_snapshot(mapping snapshot_selector) {
+    string snapshot_mode = (string)(snapshot_selector->mode || "latest");
+    if (snapshot_mode == "fixed") {
+        string fixed_snapshot_id = stringp(snapshot_selector->snapshotId) ? (string)snapshot_selector->snapshotId : "";
+        if (!sizeof(fixed_snapshot_id)) {
+            return 0;
+        }
+        mapping(string:mixed) fixed_snapshot = qe2_snapshots[fixed_snapshot_id];
+        if (!mappingp(fixed_snapshot)) {
+            return 0;
+        }
+
+        return ([
+            "snapshotId": fixed_snapshot_id,
+            "revision": (int)(fixed_snapshot->revision || qe2_revision),
+            "documents": mappingp(fixed_snapshot->documents) ? fixed_snapshot->documents : ([]),
+            "settings": mappingp(fixed_snapshot->settings) ? fixed_snapshot->settings : ([]),
+            "workspace": mappingp(fixed_snapshot->workspace) ? fixed_snapshot->workspace : ([])
+        ]);
+    }
+
+    return ([
+        "snapshotId": qe2_snapshot_id(),
+        "revision": qe2_revision,
+        "documents": qe2_documents,
+        "settings": qe2_settings,
+        "workspace": qe2_workspace
+    ]);
 }
 
 //! get_context - Lazy initialization of Context service container
@@ -545,12 +644,12 @@ int main(int argc, array(string) argv) {
 
             mapping(string:mixed) doc = qe2_documents[uri] || (["uri": uri, "languageId": "pike", "text": ""]);
             doc->version = (int)(params->version || (doc->version || 0));
-            if (stringp(params->text)) {
-                doc->text = (string)params->text;
-            }
+            string next_text = stringp(params->text) ? (string)params->text : (string)(doc->text || "");
             if (arrayp(params->changes)) {
                 doc->changes = params->changes;
+                next_text = qe2_apply_document_changes(next_text, params->changes);
             }
+            doc->text = next_text;
             qe2_documents[uri] = doc;
             qe2_bump_revision();
             return (["result": qe2_ack()]);
@@ -592,16 +691,64 @@ int main(int argc, array(string) argv) {
             }
             mapping snapshot = mappingp(params->snapshot) ? params->snapshot : ([]);
             string snapshot_mode = (string)(snapshot->mode || "latest");
-            string snapshot_used = snapshot_mode == "fixed" && stringp(snapshot->snapshotId)
-                ? (string)snapshot->snapshotId
-                : qe2_snapshot_id();
+            if (snapshot_mode == "fixed" && !stringp(snapshot->snapshotId)) {
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": qe2_snapshot_id(),
+                        "error": ([
+                            "code": "INVALID_PARAMS",
+                            "message": "fixed snapshot mode requires snapshotId"
+                        ]),
+                        "result": ([
+                            "feature": "unknown",
+                            "revision": qe2_revision,
+                            "status": "error"
+                        ]),
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                    ])
+                ]);
+            }
+
+            mapping(string:mixed) snapshot_state = qe2_resolve_snapshot(snapshot);
+            if (!mappingp(snapshot_state)) {
+                return ([
+                    "result": ([
+                        "requestId": request_id,
+                        "snapshotIdUsed": stringp(snapshot->snapshotId) ? (string)snapshot->snapshotId : qe2_snapshot_id(),
+                        "error": ([
+                            "code": "SNAPSHOT_NOT_FOUND",
+                            "message": sprintf("snapshot not found: %O", snapshot->snapshotId)
+                        ]),
+                        "result": ([
+                            "feature": "unknown",
+                            "revision": qe2_revision,
+                            "status": "error"
+                        ]),
+                        "metrics": (["durationMs": query_timer->peek() * 1000.0])
+                    ])
+                ]);
+            }
+
+            string snapshot_used = (string)(snapshot_state->snapshotId || qe2_snapshot_id());
+            int query_revision = (int)(snapshot_state->revision || qe2_revision);
+            mapping(string:mapping(string:mixed)) snapshot_documents = mappingp(snapshot_state->documents)
+                ? snapshot_state->documents
+                : ([]);
 
             mapping query_params = mappingp(params->queryParams) ? params->queryParams : ([]);
             string feature = (string)(params->feature || "unknown");
+            string target_uri = (string)(query_params->uri || "");
+            mapping(string:mixed) snapshot_doc = mappingp(snapshot_documents[target_uri])
+                ? snapshot_documents[target_uri]
+                : 0;
+            string snapshot_text = snapshot_doc && stringp(snapshot_doc->text)
+                ? (string)snapshot_doc->text
+                : "";
 
             if (feature == "diagnostics") {
                 mapping analyze_params = ([
-                    "code": (string)(query_params->text || ""),
+                    "code": stringp(query_params->text) ? (string)query_params->text : snapshot_text,
                     "filename": (string)(query_params->filename || "input.pike"),
                     "include": ({ "parse", "introspect", "diagnostics", "tokenize" }),
                     "version": (int)(query_params->version || 0)
@@ -624,7 +771,7 @@ int main(int argc, array(string) argv) {
                         "snapshotIdUsed": snapshot_used,
                         "result": ([
                             "feature": feature,
-                            "revision": qe2_revision,
+                            "revision": query_revision,
                             "analyzeResult": analyze_response
                         ]),
                         "metrics": (["durationMs": query_timer->peek() * 1000.0])
@@ -633,8 +780,7 @@ int main(int argc, array(string) argv) {
             }
 
             if (feature == "definition" || feature == "references") {
-                string code = (string)(query_params->text || "");
-                string target_uri = (string)(query_params->uri || "");
+                string code = stringp(query_params->text) ? (string)query_params->text : snapshot_text;
                 mapping position = mappingp(query_params->position) ? query_params->position : ([]);
                 int line_idx = (int)(position->line || 0);
                 int char_idx = (int)(position->character || 0);
@@ -741,7 +887,7 @@ int main(int argc, array(string) argv) {
                         "snapshotIdUsed": snapshot_used,
                         "result": ([
                             "feature": feature,
-                            "revision": qe2_revision,
+                            "revision": query_revision,
                             "locations": locations,
                         ]),
                         "metrics": (["durationMs": query_timer->peek() * 1000.0])
@@ -750,7 +896,7 @@ int main(int argc, array(string) argv) {
             }
 
             if (feature == "completion") {
-                string code = (string)(query_params->text || "");
+                string code = stringp(query_params->text) ? (string)query_params->text : snapshot_text;
                 mapping occurrences_response = ctx->analysis->handle_find_occurrences(([
                     "code": code,
                 ]));
@@ -802,7 +948,7 @@ int main(int argc, array(string) argv) {
                         "snapshotIdUsed": snapshot_used,
                         "result": ([
                             "feature": feature,
-                            "revision": qe2_revision,
+                            "revision": query_revision,
                             "items": items,
                         ]),
                         "metrics": (["durationMs": query_timer->peek() * 1000.0])
@@ -817,8 +963,8 @@ int main(int argc, array(string) argv) {
                     "result": ([
                         "feature": feature,
                         "status": "stub",
-                        "revision": qe2_revision,
-                        "documentCount": sizeof(qe2_documents)
+                        "revision": query_revision,
+                        "documentCount": sizeof(snapshot_documents)
                     ]),
                     "metrics": (["durationMs": query_timer->peek() * 1000.0])
                 ])
