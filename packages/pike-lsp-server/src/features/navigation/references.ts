@@ -290,70 +290,84 @@ export function registerReferencesHandlers(
           // Process workspace files in batches with yielding
           const requestVersion = document.version;
           let cancelled = false;
+          const isRequestCurrent = (): boolean => {
+            const latest = documents.get(uri);
+            return !!latest && latest.version === requestVersion;
+          };
 
           for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
-            const latest = documents.get(uri);
-            if (!latest || latest.version !== requestVersion) {
+            if (!isRequestCurrent()) {
               cancelled = true;
               break;
             }
 
             const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
-
-            for (const file of batch) {
-              try {
-                const latest = documents.get(uri);
-                if (!latest || latest.version !== requestVersion) {
-                  cancelled = true;
-                  break;
-                }
-
-                // Read file content
-                const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                const content = await readFile(filePath, 'utf-8');
-
-                // Check if the word appears in the file (quick text search first)
-                if (!content.includes(word)) {
-                  continue;
-                }
-
-                // Word appears in file, do proper search
-                // NOTE: Workspace-only results are NOT filtered by includeDeclaration
-                // This is a documented limitation - we don't have symbol position info
-                // for uncached files, so we can't identify which occurrence is the declaration
-                const lines = content.split('\n');
-                for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                  const line = lines[lineNum];
-                  if (!line) continue;
-                  let searchStart = 0;
-                  let matchIndex = line.indexOf(word, searchStart);
-
-                  while (matchIndex !== -1) {
-                    const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                    const afterChar =
-                      matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                    // Check word boundaries
-                    if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                      references.push({
-                        uri: file.uri,
-                        range: {
-                          start: { line: lineNum, character: matchIndex },
-                          end: { line: lineNum, character: matchIndex + word.length },
-                        },
-                      });
-                    }
-                    searchStart = matchIndex + 1;
-                    matchIndex = line.indexOf(word, searchStart);
+            const batchResults = await Promise.all(
+              batch.map(async file => {
+                try {
+                  if (!isRequestCurrent()) {
+                    cancelled = true;
+                    return [] as Location[];
                   }
+
+                  const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
+                  const content = await readFile(filePath, 'utf-8');
+
+                  if (!isRequestCurrent()) {
+                    cancelled = true;
+                    return [] as Location[];
+                  }
+
+                  if (!content.includes(word)) {
+                    return [] as Location[];
+                  }
+
+                  const fileReferences: Location[] = [];
+                  const lines = content.split('\n');
+                  for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+                    const line = lines[lineNum];
+                    if (!line) continue;
+                    let searchStart = 0;
+                    let matchIndex = line.indexOf(word, searchStart);
+
+                    while (matchIndex !== -1) {
+                      const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                      const afterChar =
+                        matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+
+                      if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                        fileReferences.push({
+                          uri: file.uri,
+                          range: {
+                            start: { line: lineNum, character: matchIndex },
+                            end: { line: lineNum, character: matchIndex + word.length },
+                          },
+                        });
+                      }
+                      searchStart = matchIndex + 1;
+                      matchIndex = line.indexOf(word, searchStart);
+                    }
+                  }
+
+                  return fileReferences;
+                } catch (err) {
+                  log.debug('References: failed to read workspace file', {
+                    uri: file.uri,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                  return [] as Location[];
                 }
-              } catch (err) {
-                // File might not exist or be readable, skip
-                log.debug('References: failed to read workspace file', {
-                  uri: file.uri,
-                  error: err instanceof Error ? err.message : String(err),
-                });
+              })
+            );
+
+            for (const fileReferences of batchResults) {
+              if (fileReferences.length > 0) {
+                references.push(...fileReferences);
               }
+            }
+
+            if (cancelled) {
+              break;
             }
 
             // Report progress after each batch
