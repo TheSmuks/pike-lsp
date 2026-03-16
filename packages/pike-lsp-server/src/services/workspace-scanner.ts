@@ -92,11 +92,26 @@ export class WorkspaceScanner {
      */
     removeFolder(folder: string): void {
         this.logger.debug('WorkspaceScanner: removing folder', { folder });
-        this.workspaceRoots.delete(folder);
+        const stripTrailingSlash = (value: string): string => {
+            if (value.length > 1) {
+                return value.replace(/\/+$/, '');
+            }
+            return value;
+        };
+
+        const normalizedFolder = stripTrailingSlash(folder);
+        const normalizedPath = normalizedFolder.startsWith('file://')
+            ? stripTrailingSlash(decodeURIComponent(normalizedFolder.replace(/^file:\/\//, '')))
+            : normalizedFolder;
+        const folderUri = `file://${normalizedPath}`;
+        const folderUriWithSlash = `${folderUri}/`;
+
+        this.workspaceRoots.delete(normalizedPath);
+        this.workspaceRoots.delete(folderUri);
 
         // Remove all files from this folder
         for (const [uri, info] of this.files) {
-            if (info.path.startsWith(folder)) {
+            if (info.path === folderUri || info.path.startsWith(folderUriWithSlash)) {
                 this.files.delete(uri);
             }
         }

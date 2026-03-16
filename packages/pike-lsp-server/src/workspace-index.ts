@@ -714,6 +714,12 @@ export class WorkspaceIndex {
     // Private helpers
 
     private addToLookup(uri: string, symbols: PikeSymbol[]): void {
+        let symbolNames = this.uriToSymbols.get(uri);
+        if (!symbolNames) {
+            symbolNames = new Set<string>();
+            this.uriToSymbols.set(uri, symbolNames);
+        }
+
         for (const symbol of symbols) {
             // Skip symbols with null names (can occur with certain Pike constructs)
             if (!symbol.name) {
@@ -736,6 +742,22 @@ export class WorkspaceIndex {
                 this.symbolLookup.set(nameLower, entriesByUri);
             }
             entriesByUri.set(uri, entry);
+
+            if (!symbolNames.has(nameLower)) {
+                symbolNames.add(nameLower);
+
+                if (nameLower.length >= 2) {
+                    for (let i = 2; i <= nameLower.length; i++) {
+                        const prefix = nameLower.slice(0, i);
+                        let prefixSet = this.prefixIndex.get(prefix);
+                        if (!prefixSet) {
+                            prefixSet = new Set<string>();
+                            this.prefixIndex.set(prefix, prefixSet);
+                        }
+                        prefixSet.add(nameLower);
+                    }
+                }
+            }
         }
     }
 
@@ -749,16 +771,18 @@ export class WorkspaceIndex {
         // Remove each symbol entry for this URI
         for (const nameLower of symbolNames) {
             const entriesByUri = this.symbolLookup.get(nameLower);
+            let removeNameFromPrefixIndex = false;
+
             if (entriesByUri) {
                 entriesByUri.delete(uri);
                 // Clean up empty name entries
                 if (entriesByUri.size === 0) {
                     this.symbolLookup.delete(nameLower);
+                    removeNameFromPrefixIndex = true;
                 }
             }
 
-            // PERF-XXX: Remove from prefix index
-            if (nameLower.length >= 2) {
+            if (removeNameFromPrefixIndex && nameLower.length >= 2) {
                 for (let i = 2; i <= nameLower.length; i++) {
                     const prefix = nameLower.slice(0, i);
                     const prefixSet = this.prefixIndex.get(prefix);
