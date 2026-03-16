@@ -7,25 +7,32 @@ import { TextEdit } from 'vscode-languageserver/node.js';
 describe('Formatter', () => {
     // Helper to apply edits to text
     function applyEdits(text: string, edits: TextEdit[]): string {
-        const lines = text.split('\n');
-        // Sort edits reverse to apply from bottom up (though specific line replacements in this formatter are simpler)
-        // The formatter returns edits that replace the indentation of lines.
-        // Each edit is for a specific line's leading whitespace.
-
-        // Let's just map lines to their new content
-        const newLines = [...lines];
-        for (const edit of edits) {
-            const lineIdx = edit.range.start.line;
-            const line = newLines[lineIdx] ?? '';
-            // The edit replaces range (0 to currentIndentLength) with newText
-            // We need to know what the original indent length was.
-            // But the test helper can just assume we replace leading whitespace.
-
-            // Reconstruct the line
-            const content = line.trimStart();
-            newLines[lineIdx] = edit.newText + content;
+        const lineOffsets: number[] = [0];
+        for (let i = 0; i < text.length; i++) {
+            if (text[i] === '\n') {
+                lineOffsets.push(i + 1);
+            }
         }
-        return newLines.join('\n');
+
+        const toOffset = (line: number, character: number): number => {
+            const base = lineOffsets[line] ?? text.length;
+            return Math.min(text.length, base + character);
+        };
+
+        const sorted = [...edits].sort((a, b) => {
+            const aStart = toOffset(a.range.start.line, a.range.start.character);
+            const bStart = toOffset(b.range.start.line, b.range.start.character);
+            return bStart - aStart;
+        });
+
+        let result = text;
+        for (const edit of sorted) {
+            const start = toOffset(edit.range.start.line, edit.range.start.character);
+            const end = toOffset(edit.range.end.line, edit.range.end.character);
+            result = result.slice(0, start) + edit.newText + result.slice(end);
+        }
+
+        return result;
     }
 
     function format(code: string): string {
@@ -225,7 +232,7 @@ void test() {
         assert.equal(format(input), expected);
     });
 
-     it('formats mixed braceless and braces', () => {
+    it('formats mixed braceless and braces', () => {
         const input = `
 void test() {
 if (x)
@@ -312,6 +319,36 @@ void test() {
         // Or `indentLevel` should be absolute?
 
         // This is the bug!
+
+        assert.equal(format(input), expected);
+    });
+
+    it('formats a single-line edge-case-heavy Pike snippet', () => {
+        const input = 'class C{void f(){if(x){arr=({1,2,3});}else if(y){m=(["k":({1})]);}for(i=0;i<3;i++){sum+=i;}switch(v){case 1:foo();break;default:bar();}/* keep { } ; in comment */string s="brace { ; }";string q=\'semi;\';}}';
+
+        const expected = [
+            'class C{',
+            '    void f(){',
+            '        if(x){',
+            '            arr=({1,2,3});',
+            '        }',
+            '        else if(y){',
+            '            m=(["k":({1})]);',
+            '        }',
+            '        for(i=0;i<3;i++){',
+            '            sum+=i;',
+            '        }',
+            '        switch(v){',
+            '        case 1:foo();',
+            '            break;',
+            '        default:bar();',
+            '        }',
+            '        /* keep { } ; in comment */',
+            '        string s="brace { ; }";',
+            "        string q='semi;';",
+            '    }',
+            '}',
+        ].join('\n');
 
         assert.equal(format(input), expected);
     });

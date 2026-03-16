@@ -89,6 +89,20 @@ describe('On-Type Formatting Provider', () => {
             const indent = calculateIndentation(code, fullText, 0);
             expect(indent).toBe(4);
         });
+
+        it('should count tab indentation using configured tab size', () => {
+            const code = '\tif (true) {';
+            const fullText = code;
+            const indent = calculateIndentation(code, fullText, 0, 4);
+            expect(indent).toBe(8);
+        });
+
+        it('should preserve tab width for non-brace lines', () => {
+            const code = '\tint x = 42;';
+            const fullText = code;
+            const indent = calculateIndentation(code, fullText, 0, 4);
+            expect(indent).toBe(4);
+        });
     });
 
     /**

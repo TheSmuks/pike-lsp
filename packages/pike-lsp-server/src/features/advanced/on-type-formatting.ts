@@ -61,17 +61,22 @@ export function registerOnTypeFormattingHandler(
                 end: { line: line, character: 0 },
             });
 
+            const tabSize = Math.max(1, params.options.tabSize ?? 4);
+            const insertSpaces = params.options.insertSpaces ?? true;
+            const indentUnit = insertSpaces ? ' '.repeat(tabSize) : '\t';
+
             // Calculate indentation for the new line
-            const indent = calculateIndentation(lineText, text, line - 1);
+            const indentColumns = calculateIndentation(lineText, text, line - 1, tabSize);
+            const indent = toIndentText(indentColumns, indentUnit, tabSize, insertSpaces);
             const insertPosition = { line, character: 0 };
 
-            if (indent > 0) {
+            if (indent.length > 0) {
                 edits.push({
                     range: {
                         start: insertPosition,
                         end: insertPosition,
                     },
-                    newText: ' '.repeat(indent),
+                    newText: indent,
                 });
             }
         }
@@ -125,16 +130,29 @@ export function registerOnTypeFormattingHandler(
     }, triggerCharacters);
 }
 
+function toIndentText(indentColumns: number, indentUnit: string, tabSize: number, insertSpaces: boolean): string {
+    if (indentColumns <= 0) {
+        return '';
+    }
+
+    if (insertSpaces) {
+        return ' '.repeat(indentColumns);
+    }
+
+    const tabs = Math.floor(indentColumns / Math.max(1, tabSize));
+    return indentUnit.repeat(Math.max(0, tabs));
+}
+
 /**
  * Calculate indentation for a new line based on previous line.
  */
-export function calculateIndentation(lineText: string, fullText: string, lineNum: number): number {
+export function calculateIndentation(lineText: string, fullText: string, lineNum: number, tabSize: number = 2): number {
     const trimmed = lineText.trim();
-    const currentIndent = lineText.search(/\S|$/);
+    const currentIndent = getIndentColumns(lineText, tabSize);
 
     // Increase indent after opening brace
     if (trimmed.endsWith('{')) {
-        return currentIndent + 2;
+        return currentIndent + tabSize;
     }
 
     // Check if we're inside a parenthesized expression
@@ -147,11 +165,27 @@ export function calculateIndentation(lineText: string, fullText: string, lineNum
 
     if (openParens > 0) {
         // Indent to align with opening paren plus 4 spaces
-        return currentIndent + 4;
+        return currentIndent + (tabSize * 2);
     }
 
     // Otherwise maintain current indentation
     return currentIndent;
+}
+
+function getIndentColumns(lineText: string, tabSize: number): number {
+    let columns = 0;
+    for (const ch of lineText) {
+        if (ch === ' ') {
+            columns++;
+            continue;
+        }
+        if (ch === '\t') {
+            columns += tabSize;
+            continue;
+        }
+        break;
+    }
+    return columns;
 }
 
 /**

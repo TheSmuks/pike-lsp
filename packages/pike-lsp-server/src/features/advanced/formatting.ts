@@ -149,6 +149,200 @@ export function registerFormattingHandlers(
  */
 export function formatPikeCode(text: string, indent: string, startLine: number = 0): TextEdit[] {
     const lines = text.split('\n');
+
+    if (lines.length === 1) {
+        const expanded = expandSingleLinePike(text);
+        if (expanded !== text) {
+            const expandedEdits = computeIndentEdits(expanded, indent, 0);
+            const formattedExpanded = applyIndentEdits(expanded, expandedEdits);
+            return [
+                {
+                    range: {
+                        start: { line: startLine, character: 0 },
+                        end: { line: startLine, character: text.length },
+                    },
+                    newText: formattedExpanded,
+                },
+            ];
+        }
+    }
+
+    return computeIndentEdits(text, indent, startLine);
+}
+
+function applyIndentEdits(text: string, edits: TextEdit[]): string {
+    const lines = text.split('\n');
+
+    for (const edit of edits) {
+        const line = lines[edit.range.start.line] ?? '';
+        const content = line.slice(edit.range.end.character);
+        lines[edit.range.start.line] = edit.newText + content;
+    }
+
+    return lines.join('\n');
+}
+
+function expandSingleLinePike(text: string): string {
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let inBlockComment = false;
+    let inLineComment = false;
+    let inMultilineString = false;
+    let parenDepth = 0;
+    let output = '';
+
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i] ?? '';
+        const next = text[i + 1] ?? '';
+        const prev = i > 0 ? text[i - 1] ?? '' : '';
+
+        if (inLineComment) {
+            output += char;
+            continue;
+        }
+
+        if (inBlockComment) {
+            output += char;
+            if (char === '*' && next === '/') {
+                output += '/';
+                i++;
+                inBlockComment = false;
+                let lookahead = i + 1;
+                while (lookahead < text.length && /\s/.test(text[lookahead] ?? '')) {
+                    lookahead++;
+                }
+                if (lookahead < text.length) {
+                    output += '\n';
+                }
+            }
+            continue;
+        }
+
+        if (inMultilineString) {
+            output += char;
+            if (char === '"' && next === '#') {
+                output += '#';
+                i++;
+                inMultilineString = false;
+            }
+            continue;
+        }
+
+        if (!inSingleQuote && !inDoubleQuote) {
+            if (char === '/' && next === '/') {
+                output += '//';
+                i++;
+                inLineComment = true;
+                continue;
+            }
+            if (char === '/' && next === '*') {
+                output += '/*';
+                i++;
+                inBlockComment = true;
+                continue;
+            }
+            if (char === '#' && next === '"') {
+                output += '#"';
+                i++;
+                inMultilineString = true;
+                continue;
+            }
+        }
+
+        if (!inDoubleQuote && char === '\'' && prev !== '\\') {
+            inSingleQuote = !inSingleQuote;
+            output += char;
+            continue;
+        }
+
+        if (!inSingleQuote && char === '"' && prev !== '\\') {
+            inDoubleQuote = !inDoubleQuote;
+            output += char;
+            continue;
+        }
+
+        if (inSingleQuote || inDoubleQuote) {
+            output += char;
+            continue;
+        }
+
+        if (char === '(') {
+            parenDepth++;
+            output += char;
+            continue;
+        }
+
+        if (char === ')') {
+            parenDepth = Math.max(0, parenDepth - 1);
+            output += char;
+            continue;
+        }
+
+        if (char === '{') {
+            if (prev === '(') {
+                output += char;
+                continue;
+            }
+            output += '{\n';
+            continue;
+        }
+
+        if (char === '}') {
+            if (next === ')') {
+                output += char;
+                continue;
+            }
+            output += '\n}\n';
+            continue;
+        }
+
+        if (char === ';' && parenDepth === 0) {
+            output += ';\n';
+            continue;
+        }
+
+        output += char;
+    }
+
+    return normalizeExpandedOutput(output);
+}
+
+function normalizeExpandedOutput(text: string): string {
+    let start = 0;
+    let end = text.length;
+    while (start < end && isWhitespace(text[start] ?? '')) {
+        start++;
+    }
+    while (end > start && isWhitespace(text[end - 1] ?? '')) {
+        end--;
+    }
+
+    const trimmed = text.slice(start, end);
+    let normalized = '';
+    let previousWasNewline = false;
+
+    for (const ch of trimmed) {
+        if (ch === '\n') {
+            if (!previousWasNewline) {
+                normalized += ch;
+            }
+            previousWasNewline = true;
+            continue;
+        }
+
+        normalized += ch;
+        previousWasNewline = false;
+    }
+
+    return normalized;
+}
+
+function isWhitespace(ch: string): boolean {
+    return ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r';
+}
+
+function computeIndentEdits(text: string, indent: string, startLine: number): TextEdit[] {
+    const lines = text.split('\n');
     const edits: TextEdit[] = [];
 
     // Stack of indentation levels. Start with 0.
@@ -290,8 +484,11 @@ export function formatPikeCode(text: string, indent: string, startLine: number =
         }
 
         const braceRegex = /[{}]/g;
-        let match: RegExpExecArray | null;
-        while ((match = braceRegex.exec(originalLine)) !== null) {
+        while (true) {
+            const match = braceRegex.exec(originalLine);
+            if (match === null) {
+                break;
+            }
             if (match[0] === '{') {
                 trackingLevel++;
                 indentStack.push(trackingLevel);
