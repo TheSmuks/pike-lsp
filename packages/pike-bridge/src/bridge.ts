@@ -152,6 +152,7 @@ export class PikeBridge extends EventEmitter {
   private moduleResolveCache = new Map<string, string | null>();
   /** PERF-003: Maximum number of cached documents */
   private readonly MAX_TOKEN_CACHE_SIZE = 50;
+  private startupPromise: Promise<void> | null = null;
 
   /** Internal options (excluding rateLimit which is handled separately) */
   private readonly options: InternalBridgeOptions;
@@ -238,9 +239,18 @@ export class PikeBridge extends EventEmitter {
    * @emits started when the subprocess is ready.
    */
   async start(): Promise<void> {
-    if (this.process) {
+    if (this.started && this.process?.isAlive()) {
       this.debugLog('Process already running, skipping start');
       return;
+    }
+
+    if (this.startupPromise) {
+      this.debugLog('Startup already in progress, waiting for readiness');
+      return this.startupPromise;
+    }
+
+    if (this.process && !this.process.isAlive()) {
+      this.process = null;
     }
 
     this.debugLog(
@@ -250,7 +260,7 @@ export class PikeBridge extends EventEmitter {
 
     const pikeProc = new PikeProcess();
 
-    return new Promise((resolve, reject) => {
+    const startupPromise = new Promise<void>((resolve, reject) => {
       let startupSettled = false;
       let startupTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -362,6 +372,12 @@ export class PikeBridge extends EventEmitter {
         rejectStartup(`Failed to start Pike bridge: ${message}`);
       }
     });
+
+    this.startupPromise = startupPromise.finally(() => {
+      this.startupPromise = null;
+    });
+
+    return this.startupPromise;
   }
 
   /**
