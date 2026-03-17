@@ -232,6 +232,48 @@ void test() {
         assert.equal(format(input), expected);
     });
 
+    it('formats mapping initialization blocks', () => {
+        const input = `
+mapping config = ([
+"host": "localhost",
+"port": 8080
+]);
+`.trim();
+
+        const expected = `
+mapping config = ([
+    "host": "localhost",
+    "port": 8080
+]);
+`.trim();
+
+        assert.equal(format(input), expected);
+    });
+
+    it('formats nested mapping initialization blocks', () => {
+        const input = `
+mapping config = ([
+"ssl": ([
+"enabled": 1,
+"port": 443
+]),
+"host": "localhost"
+]);
+`.trim();
+
+        const expected = `
+mapping config = ([
+    "ssl": ([
+        "enabled": 1,
+        "port": 443
+    ]),
+    "host": "localhost"
+]);
+`.trim();
+
+        assert.equal(format(input), expected);
+    });
+
     it('formats mixed braceless and braces', () => {
         const input = `
 void test() {
