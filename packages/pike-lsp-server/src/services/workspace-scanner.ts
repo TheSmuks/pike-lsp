@@ -84,7 +84,10 @@ export class WorkspaceScanner {
     async addFolder(folder: string): Promise<void> {
         this.logger.debug('WorkspaceScanner: adding folder', { folder });
         this.workspaceRoots.add(folder);
-        await this.scanFolder(folder);
+        const files = await this.scanFolder(folder);
+        for (const file of files) {
+            this.files.set(file.uri, file);
+        }
     }
 
     /**

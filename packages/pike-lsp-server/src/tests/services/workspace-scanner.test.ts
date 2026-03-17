@@ -171,17 +171,41 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
     });
 
     it('26.3.2 should add folder dynamically', async () => {
-        // Arrange
         const logger = createMockLogger();
         const scanner = new WorkspaceScanner(logger, () => ({}));
-        await scanner.initialize(['/workspace1']);
+        const os = await import('node:os');
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
 
-        // Act
-        await scanner.addFolder('/workspace2');
+        const rootA = path.join(os.tmpdir(), `ws-add-a-${Date.now()}`);
+        const rootB = path.join(os.tmpdir(), `ws-add-b-${Date.now()}`);
 
-        // Assert
-        const stats = scanner.getStats();
-        assert.equal(stats.rootCount, 2);
+        await fs.mkdir(rootA, { recursive: true });
+        await fs.mkdir(rootB, { recursive: true });
+        await fs.writeFile(path.join(rootA, 'a.pike'), 'int a;');
+        await fs.writeFile(path.join(rootB, 'b.pike'), 'int b;');
+
+        try {
+            await scanner.initialize([rootA]);
+
+            const beforeAdd = scanner.getAllFiles();
+            assert.equal(beforeAdd.length, 1);
+            assert.ok(beforeAdd.some(file => file.path.startsWith(`file://${rootA}`)));
+
+            await scanner.addFolder(rootB);
+
+            const afterAdd = scanner.getAllFiles();
+            assert.equal(afterAdd.length, 2);
+            assert.ok(afterAdd.some(file => file.path.startsWith(`file://${rootA}`)));
+            assert.ok(afterAdd.some(file => file.path.startsWith(`file://${rootB}`)));
+
+            const stats = scanner.getStats();
+            assert.equal(stats.rootCount, 2);
+            assert.equal(stats.fileCount, 2);
+        } finally {
+            await fs.rm(rootA, { recursive: true, force: true });
+            await fs.rm(rootB, { recursive: true, force: true });
+        }
     });
 
     it('26.3.3 should remove folder and its files', async () => {
