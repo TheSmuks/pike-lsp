@@ -211,6 +211,7 @@ function createHarness(seedDocs: TextDocument[]) {
       },
     },
     workspaceIndex: {
+      indexDocument(): void {},
       removeDocument(): void {},
     },
     includeResolver: null,
