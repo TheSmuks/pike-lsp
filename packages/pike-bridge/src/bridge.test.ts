@@ -595,6 +595,7 @@ foo(@args);
   it('should reject pending requests on stop even without exit event', async () => {
     const localBridge = new PikeBridge();
     let rejectedMessage = '';
+    let forceKillCalled = false;
     const timeout = setTimeout(() => undefined, 10000);
 
     try {
@@ -608,6 +609,9 @@ foo(@args);
 
       (localBridge as any).process = {
         kill: () => undefined,
+        forceKill: () => {
+          forceKillCalled = true;
+        },
         isAlive: () => true,
       };
       (localBridge as any).started = true;
@@ -627,9 +631,28 @@ foo(@args);
         /stopped while requests were in flight/,
         'Stop rejection should include deterministic shutdown message'
       );
+      assert.equal(forceKillCalled, true, 'stop() should force-kill when process remains alive');
     } finally {
       clearTimeout(timeout);
     }
+  });
+
+  it('should skip force-kill when process exits after graceful kill', async () => {
+    const localBridge = new PikeBridge();
+    let forceKillCalls = 0;
+
+    (localBridge as any).process = {
+      kill: () => undefined,
+      forceKill: () => {
+        forceKillCalls++;
+      },
+      isAlive: () => false,
+    };
+    (localBridge as any).started = true;
+
+    await localBridge.stop();
+
+    assert.equal(forceKillCalls, 0, 'stop() should not force-kill when process is already down');
   });
 
   it('should resolve local modules with currentFile context', async () => {

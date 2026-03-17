@@ -377,6 +377,9 @@ export class PikeBridge extends EventEmitter {
     if (this.process) {
       this.debugLog('Stopping Pike subprocess...');
       const proc = this.process;
+      const waitForShutdown = async (): Promise<void> => {
+        await new Promise(resolve => setTimeout(resolve, GRACEFUL_SHUTDOWN_DELAY));
+      };
 
       this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
 
@@ -384,7 +387,13 @@ export class PikeBridge extends EventEmitter {
       proc.kill();
 
       // Wait a moment for cleanup
-      await new Promise(resolve => setTimeout(resolve, GRACEFUL_SHUTDOWN_DELAY));
+      await waitForShutdown();
+
+      if (proc.isAlive()) {
+        this.debugLog('Graceful shutdown timed out, forcing SIGKILL');
+        proc.forceKill();
+        await waitForShutdown();
+      }
 
       this.debugLog('Pike subprocess stopped');
       this.process = null;
