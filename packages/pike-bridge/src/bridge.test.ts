@@ -9,6 +9,7 @@ import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 import { PikeProcess } from './process.js';
+import { PROCESS_STARTUP_DELAY } from './constants.js';
 
 describe('PikeBridge', () => {
   let bridge: PikeBridge;
@@ -564,6 +565,51 @@ foo(@args);
       assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after failed start');
     } finally {
       PikeProcess.prototype.spawn = originalSpawn;
+    }
+  });
+
+  it('should wait for active startup before sending concurrent requests', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalSend = PikeProcess.prototype.send;
+    const localBridge = new PikeBridge();
+    const sendTimes: number[] = [];
+    const startedAt = Date.now();
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.send = function mockedSend(this: PikeProcess, json: string): void {
+      sendTimes.push(Date.now() - startedAt);
+      const request = JSON.parse(json) as { id: number };
+      setTimeout(() => {
+        this.emit('message', JSON.stringify({ id: request.id, result: { ok: 1 } }));
+      }, 0);
+    };
+
+    try {
+      const [first, second] = await Promise.all([
+        (localBridge as any).sendRequest('mock_method_one', {}),
+        (localBridge as any).sendRequest('mock_method_two', {}),
+      ]);
+
+      assert.equal((first as { ok: number }).ok, 1);
+      assert.equal((second as { ok: number }).ok, 1);
+      assert.equal(sendTimes.length, 2, 'Both requests should be sent');
+
+      const minExpectedDelay = Math.max(0, PROCESS_STARTUP_DELAY - 20);
+      assert.ok(
+        sendTimes.every(ms => ms >= minExpectedDelay),
+        `Requests should wait for startup delay, got send offsets: ${sendTimes.join(', ')}`
+      );
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.send = originalSend;
+      await localBridge.stop();
     }
   });
 
