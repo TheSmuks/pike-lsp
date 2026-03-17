@@ -657,7 +657,6 @@ foo(@args);
       await localBridge.stop();
     }
   });
-
   it('should reject startup when stop is requested during startup', async () => {
     const originalSpawn = PikeProcess.prototype.spawn;
     const originalIsAlive = PikeProcess.prototype.isAlive;

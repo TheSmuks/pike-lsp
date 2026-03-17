@@ -254,7 +254,6 @@ export class PikeBridge extends EventEmitter {
     if (this.process && !this.process.isAlive()) {
       this.process = null;
     }
-
     this.startupInProgress = true;
     this.cancelStartup = false;
 
