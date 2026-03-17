@@ -454,7 +454,12 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
         }
 
         // If line starts with closing brace, dedent visually
-        if (trimmed.startsWith('}') || trimmed.startsWith(')')) {
+        if (
+            trimmed.startsWith('}') ||
+            trimmed.startsWith(')') ||
+            trimmed.startsWith('])') ||
+            trimmed.startsWith('>)')
+        ) {
              currentLevel = Math.max(0, currentLevel - 1);
         }
 
@@ -484,11 +489,8 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
         }
 
         const braceRegex = /[{}]/g;
-        while (true) {
-            const match = braceRegex.exec(originalLine);
-            if (match === null) {
-                break;
-            }
+        let match: RegExpExecArray | null = braceRegex.exec(originalLine);
+        while (match !== null) {
             if (match[0] === '{') {
                 trackingLevel++;
                 indentStack.push(trackingLevel);
@@ -502,6 +504,20 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
                 indentStack.pop();
                 trackingLevel = indentStack[indentStack.length - 1] ?? 0;
             }
+            match = braceRegex.exec(originalLine);
+        }
+
+        const pikeLiteralRegex = /(\(\[|\(<|\]\)|>\))/g;
+        match = pikeLiteralRegex.exec(originalLine);
+        while (match !== null) {
+            if (match[0] === '([' || match[0] === '(<') {
+                trackingLevel++;
+                indentStack.push(trackingLevel);
+            } else {
+                indentStack.pop();
+                trackingLevel = indentStack[indentStack.length - 1] ?? 0;
+            }
+            match = pikeLiteralRegex.exec(originalLine);
         }
 
         const isBracelessControl = controlKeywords.some(keyword => {
