@@ -21,7 +21,7 @@ import {
     ParameterInformation,
     SignatureInformation,
 } from 'vscode-languageserver/node.js';
-import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
+import type { IntrospectedSymbol, PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 import type { DocumentCacheEntry } from '../core/types.js';
 import { registerSignatureHelpHandler } from '../features/editing/signature-help.js';
 
@@ -59,6 +59,39 @@ const silentLogger = {
     error: () => {},
     log: () => {},
 };
+
+function createMockStdlibIndex(modules: Record<string, Map<string, IntrospectedSymbol>>) {
+    return {
+        getModule: async (modulePath: string) => {
+            const symbols = modules[modulePath];
+            if (!symbols) {
+                return null;
+            }
+
+            return {
+                modulePath,
+                symbols,
+                lastAccessed: Date.now(),
+                accessCount: 1,
+                sizeBytes: 100,
+            };
+        },
+    };
+}
+
+function createMockWorkspaceScanner() {
+    return {
+        isReady: () => true,
+        getAllFiles: () => [],
+        getUncachedFiles: () => [],
+        getFile: () => undefined,
+        updateFileData: () => {},
+        invalidateFile: () => {},
+        upsertFile: () => {},
+        removeFile: () => {},
+        getStats: () => ({ fileCount: 0, rootCount: 0, cachedFiles: 0 }),
+    };
+}
 
 function makeCacheEntry(overrides: Partial<DocumentCacheEntry> & { symbols: PikeSymbol[] }): DocumentCacheEntry {
     return {
@@ -98,6 +131,7 @@ interface SetupOptions {
     uri?: string;
     symbols?: PikeSymbol[];
     cacheExtra?: Partial<DocumentCacheEntry>;
+    stdlibModules?: Record<string, Map<string, IntrospectedSymbol>>;
     noCache?: boolean;
 }
 
@@ -122,11 +156,11 @@ function setup(opts: SetupOptions) {
         bridge: null,
         logger: silentLogger,
         documentCache,
-        stdlibIndex: null,
+        stdlibIndex: opts.stdlibModules ? createMockStdlibIndex(opts.stdlibModules) : null,
         includeResolver: null,
         typeDatabase: {},
         workspaceIndex: {},
-        workspaceScanner: {},
+        workspaceScanner: createMockWorkspaceScanner(),
         globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
         includePaths: [],
     };
@@ -435,6 +469,35 @@ transform(|`,
     // =========================================================================
 
     describe('5. Stdlib Function Signatures', () => {
+
+        it('resolves qualified signature from stdlib module symbol cache', async () => {
+            const arraySymbols = new Map<string, IntrospectedSymbol>();
+            arraySymbols.set('map', {
+                name: 'map',
+                kind: 'function',
+                modifiers: ['public'],
+                type: {
+                    kind: 'function',
+                    arguments: [
+                        { name: 'callback', type: 'function' },
+                        { name: 'items', type: 'array' },
+                    ],
+                    argTypes: [{ kind: 'function' }, { kind: 'array' }],
+                    returnType: { kind: 'array' },
+                },
+            });
+
+            const { getSignatureHelp } = setup({
+                code: `Array.map(|`,
+                symbols: [],
+                stdlibModules: { Array: arraySymbols },
+            });
+
+            const result = await getSignatureHelp(0, 9);
+            expect(result).not.toBeNull();
+            expect(result!.signatures[0].label).toContain('Array.map(');
+            expect(result!.signatures[0].parameters).toHaveLength(2);
+        });
 
         it('should handle qualified function calls', async () => {
             const { getSignatureHelp } = setup({

@@ -575,7 +575,6 @@ foo(@args);
     const localBridge = new PikeBridge();
     const sendTimes: number[] = [];
     const startedAt = Date.now();
-
     PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
       this.emit('stderr', 'mock-started');
     };
@@ -656,6 +655,49 @@ foo(@args);
       PikeProcess.prototype.isAlive = originalIsAlive;
       PikeProcess.prototype.send = originalSend;
       await localBridge.stop();
+    }
+  });
+
+  it('should reject startup when stop is requested during startup', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalKill = PikeProcess.prototype.kill;
+    const originalForceKill = PikeProcess.prototype.forceKill;
+    const localBridge = new PikeBridge();
+    let forceKillCalls = 0;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.kill = function mockedKill(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.forceKill = function mockedForceKill(): boolean {
+      forceKillCalls++;
+      return true;
+    };
+
+    try {
+      const startupErrorPromise = localBridge.start().then(
+        () => null,
+        (error: Error) => error
+      );
+      await localBridge.stop();
+
+      const startupError = await startupErrorPromise;
+      assert.ok(startupError, 'start() should reject if stop() is called before startup settles');
+      assert.match(startupError.message, /stop requested during startup/);
+
+      assert.equal(forceKillCalls, 1, 'stop() should escalate when process stays alive');
+      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after interrupted startup');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.kill = originalKill;
+      PikeProcess.prototype.forceKill = originalForceKill;
     }
   });
 

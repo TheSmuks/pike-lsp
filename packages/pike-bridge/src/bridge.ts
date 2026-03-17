@@ -158,6 +158,8 @@ export class PikeBridge extends EventEmitter {
   private readonly options: InternalBridgeOptions;
 
   private started = false;
+  private startupInProgress = false;
+  private cancelStartup = false;
   private readonly logger = new Logger('PikeBridge');
   private debugLog: (message: string) => void;
   private rateLimiter: RateLimiter | null;
@@ -253,6 +255,9 @@ export class PikeBridge extends EventEmitter {
       this.process = null;
     }
 
+    this.startupInProgress = true;
+    this.cancelStartup = false;
+
     this.debugLog(
       `Starting Pike subprocess: ${this.options.pikePath} ${this.options.analyzerPath}`
     );
@@ -275,6 +280,7 @@ export class PikeBridge extends EventEmitter {
         }
 
         startupSettled = true;
+        this.startupInProgress = false;
         if (startupTimer) {
           clearTimeout(startupTimer);
           startupTimer = null;
@@ -290,7 +296,13 @@ export class PikeBridge extends EventEmitter {
           return;
         }
 
+        if (this.cancelStartup) {
+          rejectStartup('Pike bridge stop requested during startup');
+          return;
+        }
+
         startupSettled = true;
+        this.startupInProgress = false;
         startupTimer = null;
         this.started = true;
         cleanupStartupHandlers();
@@ -390,6 +402,10 @@ export class PikeBridge extends EventEmitter {
    * @emits stopped when the subprocess has terminated.
    */
   async stop(): Promise<void> {
+    if (this.startupInProgress) {
+      this.cancelStartup = true;
+    }
+
     if (this.process) {
       this.debugLog('Stopping Pike subprocess...');
       const proc = this.process;

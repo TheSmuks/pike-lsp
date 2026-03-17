@@ -12,8 +12,12 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import * as fs from 'fs/promises';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type {
+  IntrospectedSymbol,
+  PikeFunctionType,
+  PikeMethod,
+  PikeSymbol,
+} from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 
@@ -88,6 +92,8 @@ export function registerSignatureHelpHandler(
         const module = await stdlibIndex.getModule(modulePath);
 
         if (module?.symbols && module.symbols.has(symbolName)) {
+          funcSymbol = findMethodFromModuleSymbols(module.symbols, symbolName);
+
           const targetPath = module.resolvedPath
             ? module.resolvedPath
             : bridge
@@ -101,20 +107,6 @@ export function registerSignatureHelpHandler(
             const targetCached = documentCache.get(targetUri);
             if (targetCached) {
               funcSymbol = findSymbolByName(targetCached.symbols, symbolName) ?? null;
-            }
-
-            if (!funcSymbol && bridge) {
-              try {
-                const code = await fs.readFile(cleanPath, 'utf-8');
-                const response = await bridge.analyze(code, ['parse'], cleanPath);
-                if (response.result?.parse) {
-                  funcSymbol = findSymbolByName(response.result.parse.symbols, symbolName) ?? null;
-                }
-              } catch (parseErr) {
-                logger.debug('Failed to parse for signature', {
-                  error: parseErr instanceof Error ? parseErr.message : String(parseErr),
-                });
-              }
             }
           }
         }
@@ -190,4 +182,42 @@ function findSymbolByName(symbols: PikeSymbol[], name: string): PikeSymbol | nul
     }
   }
   return null;
+}
+
+function findMethodFromModuleSymbols(
+  symbols: Map<string, IntrospectedSymbol> | undefined,
+  name: string
+): PikeMethod | null {
+  if (!symbols) {
+    return null;
+  }
+
+  const introspected = symbols.get(name);
+  if (!introspected || introspected.kind !== 'function') {
+    return null;
+  }
+
+  const functionType = introspected.type as PikeFunctionType;
+  if (!functionType || functionType.kind !== 'function') {
+    return null;
+  }
+
+  const args = functionType.arguments ?? [];
+  const argNames =
+    args.length > 0 ? args.map(arg => arg.name) : functionType.argTypes?.map(() => null) ?? [];
+  const argTypes = functionType.argTypes ?? args.map(() => ({ kind: 'mixed' as const }));
+
+  return {
+    name: introspected.name,
+    kind: 'method',
+    modifiers: introspected.modifiers,
+    argNames,
+    argTypes,
+    returnType: functionType.returnType,
+    type: introspected.type,
+    inherited: introspected.inherited,
+    inheritedFrom: introspected.inheritedFrom,
+    deprecated: introspected.deprecated === true || introspected.deprecated === 1,
+    documentation: introspected.documentation,
+  } as PikeMethod;
 }

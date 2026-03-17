@@ -156,6 +156,20 @@ function createMockStdlibIndex(modules: Record<string, Map<string, IntrospectedS
   };
 }
 
+function createMockWorkspaceScanner() {
+  return {
+    isReady: () => true,
+    getAllFiles: () => [],
+    getUncachedFiles: () => [],
+    getFile: () => undefined,
+    updateFileData: () => {},
+    invalidateFile: () => {},
+    upsertFile: () => {},
+    removeFile: () => {},
+    getStats: () => ({ fileCount: 0, rootCount: 0, cachedFiles: 0 }),
+  };
+}
+
 /** Mock bridge that returns predefined completion context */
 function createMockBridge(
   contextOverride?: Partial<PikeCompletionContext>,
@@ -232,7 +246,7 @@ function setup(opts: SetupOptions) {
     includeResolver: opts.includeSymbols ? {} : null,
     typeDatabase: {},
     workspaceIndex: {},
-    workspaceScanner: {},
+    workspaceScanner: createMockWorkspaceScanner(),
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],
   };
@@ -1454,7 +1468,7 @@ describe('Completion Provider', () => {
         includeResolver: null,
         typeDatabase: {},
         workspaceIndex: {},
-        workspaceScanner: {},
+        workspaceScanner: createMockWorkspaceScanner(),
         globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
         includePaths: [],
       };
@@ -1501,7 +1515,7 @@ describe('Completion Provider', () => {
         includeResolver: null,
         typeDatabase: {},
         workspaceIndex: {},
-        workspaceScanner: {},
+        workspaceScanner: createMockWorkspaceScanner(),
         globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
         includePaths: [],
       };
