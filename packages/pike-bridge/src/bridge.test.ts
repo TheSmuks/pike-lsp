@@ -592,6 +592,46 @@ foo(@args);
     );
   });
 
+  it('should reject pending requests on stop even without exit event', async () => {
+    const localBridge = new PikeBridge();
+    let rejectedMessage = '';
+    const timeout = setTimeout(() => undefined, 10000);
+
+    try {
+      (localBridge as any).pendingRequests.set(999, {
+        resolve: () => undefined,
+        reject: (error: Error) => {
+          rejectedMessage = error.message;
+        },
+        timeout,
+      });
+
+      (localBridge as any).process = {
+        kill: () => undefined,
+        isAlive: () => true,
+      };
+      (localBridge as any).started = true;
+
+      await localBridge.stop();
+
+      assert.equal(
+        (localBridge as any).pendingRequests.size,
+        0,
+        'pendingRequests should be cleared during stop()'
+      );
+      if (!rejectedMessage) {
+        throw new Error('Pending request should be rejected during stop()');
+      }
+      assert.match(
+        rejectedMessage,
+        /stopped while requests were in flight/,
+        'Stop rejection should include deterministic shutdown message'
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+
   it('should resolve local modules with currentFile context', async () => {
     const modulePath = '.SHA256';
     const currentFile = '/tmp/project/RSA.pmod';
