@@ -14,7 +14,6 @@ import {
   InitializeResult,
   TextDocumentSyncKind,
   TextDocuments,
-  DidChangeConfigurationNotification,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as fsSync from 'fs';
@@ -36,12 +35,6 @@ import {
   CatchAllScanner,
 } from '@pike-lsp/core';
 import { PikeSettings, defaultSettings } from './core/types.js';
-import {
-  formatProtocolVersion,
-  isProtocolCompatible,
-  QUERY_ENGINE_MAJOR_VERSION,
-  QUERY_ENGINE_PROTOCOL,
-} from './query-engine/contracts.js';
 import * as features from './features/index.js';
 import { registerServerRuntimeHandlers } from './runtime/server-runtime.js';
 import { createServiceRuntimeContext } from './runtime/service-runtime-context.js';

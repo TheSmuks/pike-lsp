@@ -12,7 +12,12 @@ import {
   TextDocuments,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { IntrospectedSymbol, PikeFunctionType, PikeSymbol } from '@pike-lsp/pike-bridge';
+import type {
+  IntrospectedSymbol,
+  PikeFunctionType,
+  PikeMethod,
+  PikeSymbol,
+} from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 
@@ -182,7 +187,7 @@ function findSymbolByName(symbols: PikeSymbol[], name: string): PikeSymbol | nul
 function findMethodFromModuleSymbols(
   symbols: Map<string, IntrospectedSymbol> | undefined,
   name: string
-): PikeSymbol | null {
+): PikeMethod | null {
   if (!symbols) {
     return null;
   }
@@ -214,5 +219,5 @@ function findMethodFromModuleSymbols(
     inheritedFrom: introspected.inheritedFrom,
     deprecated: introspected.deprecated === true || introspected.deprecated === 1,
     documentation: introspected.documentation,
-  };
+  } as PikeMethod;
 }

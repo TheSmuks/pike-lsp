@@ -32,7 +32,7 @@ interface RegisterDiagnosticsLifecycleHandlersArgs {
   validationVersions: Map<string, number>;
   validateDocument: (
     document: TextDocument,
-    forcedRange?: Range,
+    classification?: unknown,
     checkpoint?: () => void
   ) => Promise<void>;
   validateDocumentDebounced: (document: TextDocument) => void;

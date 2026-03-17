@@ -192,7 +192,11 @@ export class WorkspaceIndex {
 
         for (const sym of symbols) {
             const parentName = parentPath.length > 0 ? parentPath.join('.') : undefined;
-            flat.push({ symbol: sym, parentName });
+            if (parentName) {
+                flat.push({ symbol: sym, parentName });
+            } else {
+                flat.push({ symbol: sym });
+            }
 
             // Recursively flatten children, building the ancestor path
             if (sym.children && sym.children.length > 0) {
@@ -738,8 +742,10 @@ export class WorkspaceIndex {
                 kind: symbol.kind,
                 uri,
                 line: symbol.position?.line ?? 1,
-                parentName: entryData.parentName,
             };
+            if (entryData.parentName !== undefined) {
+                entry.parentName = entryData.parentName;
+            }
 
             let entriesByUri = this.symbolLookup.get(nameLower);
             if (!entriesByUri) {
