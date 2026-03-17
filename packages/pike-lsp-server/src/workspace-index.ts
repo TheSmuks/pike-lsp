@@ -18,9 +18,14 @@ import { Logger } from '@pike-lsp/core';
  */
 interface IndexedDocument {
     uri: string;
-    symbols: PikeSymbol[];
+    symbols: Array<FlattenedSymbolEntry | PikeSymbol>;
     version: number;
     lastModified: number;
+}
+
+interface FlattenedSymbolEntry {
+    symbol: PikeSymbol;
+    parentName?: string;
 }
 
 /**
@@ -182,16 +187,16 @@ export class WorkspaceIndex {
      * This ensures all class members are indexed at the workspace level
      * WS-001: Tracks parent path for containerName field support
      */
-    private flattenSymbols(symbols: PikeSymbol[], parentPath: string[] = []): PikeSymbol[] {
-        const flat: PikeSymbol[] = [];
+    private flattenSymbols(symbols: PikeSymbol[], parentPath: string[] = []): FlattenedSymbolEntry[] {
+        const flat: FlattenedSymbolEntry[] = [];
 
         for (const sym of symbols) {
-            // Add the symbol itself with parent path metadata
-            // WS-003: Store full ancestor chain for containerName
-            if (parentPath.length > 0) {
-                (sym as any).parentName = parentPath.join('.');
+            const parentName = parentPath.length > 0 ? parentPath.join('.') : undefined;
+            if (parentName) {
+                flat.push({ symbol: sym, parentName });
+            } else {
+                flat.push({ symbol: sym });
             }
-            flat.push(sym);
 
             // Recursively flatten children, building the ancestor path
             if (sym.children && sym.children.length > 0) {
@@ -258,7 +263,8 @@ export class WorkspaceIndex {
      * Get symbols for a document
      */
     getDocumentSymbols(uri: string): PikeSymbol[] {
-        return this.documents.get(uri)?.symbols ?? [];
+        const symbols = this.documents.get(uri)?.symbols ?? [];
+        return symbols.map(symbol => this.toFlattenedSymbolEntry(symbol).symbol);
     }
 
     /**
@@ -285,10 +291,12 @@ export class WorkspaceIndex {
         if (!queryLower) {
             for (const [uri, doc] of this.documents) {
                 if (!doc.symbols) continue;
-                for (const symbol of doc.symbols.slice(0, 5)) {
+                for (const entry of doc.symbols.slice(0, 5)) {
+                    const normalizedEntry = this.toFlattenedSymbolEntry(entry);
+                    const symbol = normalizedEntry.symbol;
                     // Skip symbols with null names
                     if (!symbol.name) continue;
-                    results.push(this.toSymbolInformation(symbol, uri));
+                    results.push(this.toSymbolInformation(symbol, uri, normalizedEntry.parentName));
                     if (results.length >= limit) {
                         return results;
                     }
@@ -713,14 +721,15 @@ export class WorkspaceIndex {
 
     // Private helpers
 
-    private addToLookup(uri: string, symbols: PikeSymbol[]): void {
+    private addToLookup(uri: string, symbols: FlattenedSymbolEntry[]): void {
         let symbolNames = this.uriToSymbols.get(uri);
         if (!symbolNames) {
             symbolNames = new Set<string>();
             this.uriToSymbols.set(uri, symbolNames);
         }
 
-        for (const symbol of symbols) {
+        for (const entryData of symbols) {
+            const symbol = entryData.symbol;
             // Skip symbols with null names (can occur with certain Pike constructs)
             if (!symbol.name) {
                 continue;
@@ -733,8 +742,10 @@ export class WorkspaceIndex {
                 kind: symbol.kind,
                 uri,
                 line: symbol.position?.line ?? 1,
-                parentName: (symbol as any).parentName,  // WS-001: Store parent name for containerName
             };
+            if (entryData.parentName !== undefined) {
+                entry.parentName = entryData.parentName;
+            }
 
             let entriesByUri = this.symbolLookup.get(nameLower);
             if (!entriesByUri) {
@@ -843,7 +854,7 @@ export class WorkspaceIndex {
         return files;
     }
 
-    private toSymbolInformation(symbol: PikeSymbol, uri: string): SymbolInformation {
+    private toSymbolInformation(symbol: PikeSymbol, uri: string, parentName?: string): SymbolInformation {
         const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
 
         const result: SymbolInformation = {
@@ -859,12 +870,20 @@ export class WorkspaceIndex {
         };
 
         // WS-001: Add containerName if parent exists
-        const parentName = (symbol as any).parentName;
         if (parentName) {
             result.containerName = parentName;
         }
 
         return result;
+    }
+
+    private toFlattenedSymbolEntry(
+        symbolOrEntry: FlattenedSymbolEntry | PikeSymbol
+    ): FlattenedSymbolEntry {
+        if ('symbol' in symbolOrEntry) {
+            return symbolOrEntry;
+        }
+        return { symbol: symbolOrEntry };
     }
 
     private convertSymbolKind(kind: string): SymbolKind {

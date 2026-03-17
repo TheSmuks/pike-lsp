@@ -88,4 +88,57 @@ describe('WorkspaceIndex file loading', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('keeps container metadata without mutating source symbols', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'workspace-index-container-'));
+    try {
+      const filePath = join(dir, 'nested.pike');
+      await writeFile(filePath, 'class Outer { void innerMethod() {} }\n', 'utf-8');
+
+      const nestedSymbols = [
+        {
+          name: 'Outer',
+          kind: 'class',
+          modifiers: [],
+          position: { line: 1 },
+          children: [
+            {
+              name: 'innerMethod',
+              kind: 'method',
+              modifiers: [],
+              position: { line: 1 },
+              argNames: [],
+              argTypes: [],
+            },
+          ],
+        },
+      ];
+
+      const bridge = {
+        isRunning: () => true,
+        batchParse: async (files: Array<{ filename: string }>) => ({
+          results: files.map(file => ({
+            filename: file.filename,
+            symbols: nestedSymbols,
+          })),
+        }),
+        parse: async (_code: string, filename: string) => ({
+          filename,
+          symbols: nestedSymbols,
+        }),
+      };
+
+      const index = new WorkspaceIndex(bridge as any);
+      await index.indexDirectory(dir, false);
+
+      const childSymbol = nestedSymbols[0]?.children?.[0] as { parentName?: string } | undefined;
+      expect(childSymbol?.parentName).toBeUndefined();
+
+      const results = index.searchSymbols('inner');
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0]?.containerName).toBe('Outer');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

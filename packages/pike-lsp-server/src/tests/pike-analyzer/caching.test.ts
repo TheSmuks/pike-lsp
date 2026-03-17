@@ -19,8 +19,6 @@
  * - CompilationCache.store() / get() / invalidate() / transitiveInvalidate()
  * - CompilationCache serialization/deserialization and time eviction
  *
- * Tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
- *
  * These tests will be implemented once the Pike analyzer supports the corresponding caching methods.
  */
 
@@ -84,7 +82,7 @@ function createMockCompilationEntry(
 // Phase 8 Task 43.1: Caching - LRU Cache
 // ============================================================================
 
-describe('Phase 8 Task 43.1: Caching - LRU Cache', () => {
+describe.skip('Phase 8 Task 43.1: Caching - LRU Cache', () => {
   it('43.1.1: should have cache hit on subsequent access', () => {
     // TODO: Implement LRUCache.get()
     const cache = new Map<string, any>();
@@ -247,7 +245,9 @@ describe('Phase 8 Task 43.1: Caching - LRU Cache', () => {
       () => cache.get('key2'),
     ];
 
-    operations.forEach(op => op());
+    operations.forEach(op => {
+      op();
+    });
     stats.size = 20;
 
     assert.equal(cache.size, 2);
@@ -307,7 +307,7 @@ describe('Phase 8 Task 43.1: Caching - LRU Cache', () => {
 // Phase 8 Task 43.2: Caching - Compilation Cache
 // ============================================================================
 
-describe('Phase 8 Task 43.2: Caching - Compilation Cache', () => {
+describe.skip('Phase 8 Task 43.2: Caching - Compilation Cache', () => {
   it('43.2.1: should store compilation result', async () => {
     // TODO: Implement CompilationCache.store()
     const code = 'int x = 5;';
@@ -587,7 +587,7 @@ describe('Phase 8 Task 43.2: Caching - Compilation Cache', () => {
 // Test Summary
 // ============================================================================
 
-describe('Phase 8 Task 43: Caching Test Summary', () => {
+describe.skip('Phase 8 Task 43: Caching Test Summary', () => {
   it('should have 2 subtasks with comprehensive coverage', () => {
     const subtasks = ['43.1: LRU Cache', '43.2: Compilation Cache'];
 
