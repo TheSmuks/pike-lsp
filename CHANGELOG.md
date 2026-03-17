@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.30] - 2026-03-17
+
+### Fixed
+
+- **Runtime settings propagation consistency** - initialization and config-change flows now sync mutable runtime settings through shared services state, and diagnostics consumes the same live settings source.
+- **Workspace-folder analyzer sync** - workspace folder add/remove events now propagate deltas into query-engine workspace state to keep analyzer roots aligned with scanner/index state.
+- **Interactive snapshot consistency and safe fallbacks** - navigation/completion queries now prefer fixed snapshots when available, and uncached workspace text-search fallbacks were removed for references/rename to avoid blind symbol-unsafe results.
+
+### Added
+
+- **Regression coverage for workspace/runtime consistency** - added tests for runtime workspace-folder delta forwarding and navigation snapshot selection behavior.
+
 ## [0.1.0-alpha.29] - 2026-03-16
 
 ### Fixed
@@ -28,16 +40,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Regression coverage for snapshot/edit correctness** - added bridge-level tests for ranged incremental edits, fixed snapshot pinning across later edits, and unknown fixed snapshot behavior.
 
-## [0.1.0-alpha.28] - 2026-03-15
-
-### Performance
-
-- **Bounded scheduler observability metrics** - Request scheduler queue-wait samples are now retained in a fixed-size rolling window to prevent unbounded memory growth during long editing sessions.
-- **Non-blocking workspace file discovery** - Workspace index file discovery now uses async directory and stat traversal, reducing event-loop blocking before parse/index phases.
-
-### Added
-
-- **Performance regression guards** - Added stress/regression coverage for scheduler sample bounding and synchronous workspace discovery prevention.
-
+[0.1.0-alpha.30]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.30
 [0.1.0-alpha.29]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.29
-[0.1.0-alpha.28]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.28
