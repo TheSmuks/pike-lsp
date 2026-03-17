@@ -45,6 +45,7 @@ export interface Services {
     globalSettings: PikeSettings;
     /** Include paths for module resolution (mutable, updated by configuration changes) */
     includePaths: string[];
+    documentSnapshots?: Map<string, string>;
 }
 
 // Re-export for convenience
