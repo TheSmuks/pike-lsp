@@ -613,6 +613,52 @@ foo(@args);
     }
   });
 
+  it('should share startup failure and allow retry after rejection', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalSend = PikeProcess.prototype.send;
+    const localBridge = new PikeBridge();
+    let spawnCalls = 0;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      spawnCalls++;
+      if (spawnCalls === 1) {
+        setTimeout(() => this.emit('exit', 1), 0);
+        return;
+      }
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.send = function mockedSend(this: PikeProcess, json: string): void {
+      const request = JSON.parse(json) as { id: number };
+      setTimeout(() => {
+        this.emit('message', JSON.stringify({ id: request.id, result: { ok: 1 } }));
+      }, 0);
+    };
+
+    try {
+      const [first, second] = await Promise.allSettled([
+        (localBridge as any).sendRequest('startup_fail_one', {}),
+        (localBridge as any).sendRequest('startup_fail_two', {}),
+      ]);
+
+      assert.equal(first.status, 'rejected');
+      assert.equal(second.status, 'rejected');
+      assert.equal(spawnCalls, 1, 'Concurrent startup failure should use a single spawn attempt');
+
+      const recovery = await (localBridge as any).sendRequest('startup_retry_ok', {});
+      assert.equal((recovery as { ok: number }).ok, 1);
+      assert.equal(spawnCalls, 2, 'Retry should trigger a new startup attempt after failure');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.send = originalSend;
+      await localBridge.stop();
+    }
+  });
+
   it('should clean pending request state when send throws synchronously', async () => {
     const localBridge = new PikeBridge();
     const failingProcess = {
