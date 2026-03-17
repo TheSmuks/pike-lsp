@@ -134,20 +134,32 @@ export class PikeProcess extends EventEmitter {
      * Use this for graceful shutdown. For immediate termination, the caller
      * may need to send SIGKILL after a timeout.
      */
-    kill(): void {
+    kill(): boolean {
         this.readlineInterface?.close();
-        this.process?.kill('SIGTERM');
-        this.process = null;
-        this.readlineInterface = null;
+        if (!this.process) {
+            return false;
+        }
+        return this.process.kill('SIGTERM');
+    }
+
+    forceKill(): boolean {
+        this.readlineInterface?.close();
+        if (!this.process) {
+            return false;
+        }
+        return this.process.kill('SIGKILL');
     }
 
     /**
      * Check if the subprocess is currently running.
      *
-     * @returns true if the process exists and has not been killed
+     * @returns true if the process exists and has not exited
      */
     isAlive(): boolean {
-        return this.process !== null && !this.process.killed;
+        if (!this.process) {
+            return false;
+        }
+        return this.process.exitCode === null && this.process.signalCode === null;
     }
 
     /**
