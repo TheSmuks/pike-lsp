@@ -188,6 +188,7 @@ export function registerDefinitionHandlers(
             },
           };
         }
+
       }
 
       // Fallback to local symbol lookup
@@ -244,6 +245,11 @@ export function registerDefinitionHandlers(
                 end: { line, character: (includedSymbol.symbol.name || '').length },
               },
             };
+          }
+
+          const workspaceDefinition = findSymbolInWorkspaceCache(word, uri, documentCache);
+          if (workspaceDefinition) {
+            return workspaceDefinition;
           }
         }
 
@@ -1022,6 +1028,77 @@ function findSymbolInIncludedFiles(
   }
 
   return null;
+}
+
+function findSymbolInWorkspaceCache(
+  symbolName: string,
+  currentUri: string,
+  documentCache: DocumentCache
+): Location | null {
+  const declarationKinds = new Set([
+    'method',
+    'class',
+    'constant',
+    'typedef',
+    'enum',
+    'macro',
+    'program',
+  ]);
+
+  let bestMatch:
+    | {
+        uri: string;
+        symbol: PikeSymbol;
+      }
+    | undefined;
+  let bestScore = -1;
+
+  for (const [entryUri, entry] of Array.from(documentCache.entries())) {
+    if (entryUri === currentUri || !entry?.symbols?.length) {
+      continue;
+    }
+
+    for (const symbol of entry.symbols) {
+      if (!symbol.position) {
+        continue;
+      }
+
+      const symbolLabel = symbol.name || symbol.classname;
+      if (!symbolLabel || symbolLabel !== symbolName) {
+        continue;
+      }
+
+      let score = 0;
+      if (declarationKinds.has(symbol.kind)) {
+        score += 10;
+      }
+      if (symbol.kind === 'method') {
+        score += 3;
+      }
+      if (symbol.kind === 'class') {
+        score += 2;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { uri: entryUri, symbol };
+      }
+    }
+  }
+
+  if (!bestMatch?.symbol.position || bestScore < 0) {
+    return null;
+  }
+
+  const line = Math.max(0, (bestMatch.symbol.position.line ?? 1) - 1);
+  const label = bestMatch.symbol.name || bestMatch.symbol.classname || symbolName;
+  return {
+    uri: bestMatch.uri,
+    range: {
+      start: { line, character: 0 },
+      end: { line, character: label.length },
+    },
+  };
 }
 
 /**
