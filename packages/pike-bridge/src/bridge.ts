@@ -338,14 +338,7 @@ export class PikeBridge extends EventEmitter {
         this.process = null;
         this.emit('close', code);
 
-        // Reject all pending requests
-        for (const [_id, pending] of this.pendingRequests) {
-          clearTimeout(pending.timeout);
-          const error = new PikeError(`Pike process exited with code ${code}`);
-          this.debugLog(`Rejecting pending request: ${error.message}`);
-          pending.reject(error);
-        }
-        this.pendingRequests.clear();
+        this.rejectAllPendingRequests(`Pike process exited with code ${code}`);
       });
 
       // Spawn the process
@@ -385,6 +378,8 @@ export class PikeBridge extends EventEmitter {
       this.debugLog('Stopping Pike subprocess...');
       const proc = this.process;
 
+      this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
+
       // Graceful shutdown via PikeProcess
       proc.kill();
 
@@ -395,9 +390,23 @@ export class PikeBridge extends EventEmitter {
       this.process = null;
       this.started = false;
     }
+    this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
     this.requestCache.clear();
     this.clearResolutionCaches();
     this.emit('stopped');
+  }
+
+  private rejectAllPendingRequests(message: string): void {
+    if (this.pendingRequests.size === 0) {
+      return;
+    }
+
+    for (const [_id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timeout);
+      pending.reject(new PikeError(message));
+    }
+
+    this.pendingRequests.clear();
   }
 
   private clearResolutionCaches(): void {
