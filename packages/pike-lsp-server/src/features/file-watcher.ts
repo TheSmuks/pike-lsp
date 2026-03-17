@@ -81,7 +81,7 @@ export function registerFileWatcher(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { workspaceIndex, documentCache, workspaceScanner } = services;
+  const { workspaceIndex, documentCache, workspaceScanner, includeResolver } = services;
   const log = new Logger('FileWatcher');
 
   connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
@@ -111,6 +111,7 @@ export function registerFileWatcher(
       }
 
       const filePath = uriToPath(uri);
+      includeResolver?.invalidate(filePath);
 
       try {
         switch (type) {

@@ -14,6 +14,7 @@ import type { TypeDatabase } from '../../type-database.js';
 import type { WorkspaceIndex } from '../../workspace-index.js';
 import type { Logger } from '@pike-lsp/core';
 import type { ChangeClassification } from './change-detection.js';
+import { readFile } from 'node:fs/promises';
 
 interface RegisterDiagnosticsLifecycleHandlersArgs {
   connection: Connection;
@@ -64,6 +65,46 @@ export function registerDiagnosticsLifecycleHandlers(
     log,
   } = args;
 
+  const indexWorkspaceDocument = (document: TextDocument): void => {
+    try {
+      const indexResult = workspaceIndex.indexDocument?.(
+        document.uri,
+        document.getText(),
+        document.version
+      );
+
+      Promise.resolve(indexResult).catch(err => {
+        log.debug('Workspace index sync failed', {
+          uri: document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    } catch (err) {
+      log.debug('Workspace index sync failed', {
+        uri: document.uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  const rehydrateWorkspaceDocumentFromDisk = (uri: string): void => {
+    const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+    readFile(filePath, 'utf-8')
+      .then(content => workspaceIndex.indexDocument(uri, content, 0))
+      .catch(err => {
+        workspaceIndex.removeDocument(uri);
+        log.debug('Workspace index rehydrate failed, removed entry', {
+          uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  };
+
+  const invalidateIncludeCacheForUri = (uri: string): void => {
+    const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+    services.includeResolver?.invalidate(filePath);
+  };
+
   connection.onDidChangeConfiguration((change: DidChangeConfigurationParams) => {
     const settings = change.settings as { pike?: Partial<PikeSettings> } | undefined;
     setGlobalSettings({
@@ -109,6 +150,9 @@ export function registerDiagnosticsLifecycleHandlers(
 
   documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
+    invalidateIncludeCacheForUri(event.document.uri);
+    indexWorkspaceDocument(event.document);
+
     services.bridge
       ?.engineOpenDocument({
         uri: event.document.uri,
@@ -140,6 +184,8 @@ export function registerDiagnosticsLifecycleHandlers(
   });
 
   documents.onDidChangeContent(change => {
+    invalidateIncludeCacheForUri(change.document.uri);
+    indexWorkspaceDocument(change.document);
     validateDocumentDebounced(change.document);
   });
 
@@ -190,6 +236,9 @@ export function registerDiagnosticsLifecycleHandlers(
   });
 
   documents.onDidSave(event => {
+    invalidateIncludeCacheForUri(event.document.uri);
+    indexWorkspaceDocument(event.document);
+
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
@@ -204,6 +253,7 @@ export function registerDiagnosticsLifecycleHandlers(
   });
 
   documents.onDidClose(event => {
+    invalidateIncludeCacheForUri(event.document.uri);
     services.bridge
       ?.engineCloseDocument({
         uri: event.document.uri,
@@ -224,7 +274,7 @@ export function registerDiagnosticsLifecycleHandlers(
     inFlightDiagnosticRequests.delete(event.document.uri);
 
     typeDatabase.removeProgram(event.document.uri);
-    workspaceIndex.removeDocument(event.document.uri);
+    rehydrateWorkspaceDocumentFromDisk(event.document.uri);
 
     const timer = validationTimers.get(event.document.uri);
     if (timer) {
