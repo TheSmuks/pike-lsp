@@ -116,6 +116,25 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
 
         workspaceIndex.clear();
         const currentFolders = await connection.workspace.getWorkspaceFolders();
+
+        const bridgeForWorkspaceChange = getBridgeManager();
+        if (bridgeForWorkspaceChange?.bridge) {
+          try {
+            const roots = (currentFolders ?? []).map(folder => folder.uri);
+            const workspaceAck = await bridgeForWorkspaceChange.engineUpdateWorkspace({
+              roots,
+              added: added.map(folder => folder.uri),
+              removed: removed.map(folder => folder.uri),
+            });
+            log(
+              `Engine workspace delta ack revision=${workspaceAck.revision} snapshot=${workspaceAck.snapshotId}`
+            );
+          } catch (err) {
+            connection.console.warn(`Failed to update engine workspace delta: ${err}`);
+            log(`Engine workspace delta update failed: ${err}`);
+          }
+        }
+
         if (!currentFolders || currentFolders.length === 0) {
           return;
         }

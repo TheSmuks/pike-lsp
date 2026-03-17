@@ -102,6 +102,7 @@ let bridgeManager: BridgeManager | null = null;
 let globalSettings: PikeSettings = defaultSettings;
 let includePaths: string[] = [];
 let clientSupportsWorkDoneProgress = false;
+const documentSnapshots = new Map<string, string>();
 
 // ============================================================================
 // Helper: Find analyzer.pike script
@@ -155,6 +156,7 @@ function createServices(): features.Services {
     workspaceScanner,
     globalSettings,
     includePaths,
+    documentSnapshots,
   };
 }
 
@@ -286,6 +288,11 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       .map(entry => entry.trim())
       .filter(entry => entry.length > 0);
 
+    serviceRuntimeContext.update({
+      globalSettings,
+      includePaths,
+    });
+
     // Use analyzer path from init options if provided, otherwise use findAnalyzerPath()
     if (initOptions?.analyzerPath) {
       bridgeOptions.analyzerPath = initOptions.analyzerPath;
@@ -396,6 +403,9 @@ connection.onDidChangeConfiguration(change => {
     ...defaultSettings,
     ...(settings?.pike ?? {}),
   };
+  serviceRuntimeContext.update({
+    globalSettings,
+  });
 });
 
 // ============================================================================

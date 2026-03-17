@@ -678,7 +678,7 @@ Stdio.File f = Stdio.File();`;
             expect(result).not.toBeNull();
         });
 
-        it('limits uncached workspace fallback search to configured max files', async () => {
+        it('does not emit uncached workspace text edits without symbol identity', async () => {
             const previousMax = process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'];
             process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'] = '1';
 
@@ -714,7 +714,7 @@ Stdio.File f = Stdio.File();`;
                         .map(change => change.textDocument.uri)
                 );
 
-                expect(changedUris.has(firstUri)).toBe(true);
+                expect(changedUris.has(firstUri)).toBe(false);
                 expect(changedUris.has(secondUri)).toBe(false);
             } finally {
                 if (previousMax === undefined) {

@@ -262,7 +262,7 @@ describe('References Provider', () => {
     expect(queryP95).toBeLessThanOrEqual(baselineP95 * 2.0 + 1.0);
   });
 
-  it('bounds workspace fallback search to configured max files', async () => {
+  it('does not scan uncached workspace files for symbol-unsafe fallback results', async () => {
     const previousMax = process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'];
     process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'] = '1';
 
@@ -296,7 +296,7 @@ describe('References Provider', () => {
 
       const result = await references(0, 5);
       const uris = new Set(result.map(item => item.uri));
-      expect(uris.has(firstUri)).toBe(true);
+      expect(uris.has(firstUri)).toBe(false);
       expect(uris.has(secondUri)).toBe(false);
     } finally {
       if (previousMax === undefined) {

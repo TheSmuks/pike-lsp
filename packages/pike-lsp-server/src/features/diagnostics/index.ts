@@ -103,7 +103,7 @@ export function registerDiagnosticsHandlers(
 
   // INC-002: Track change ranges for incremental parsing.
   const pendingChangeStates = new Map<string, PendingChangeState>();
-  const documentSnapshots = new Map<string, string>();
+  const documentSnapshots = services.documentSnapshots ?? new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler();
   const SCHEDULER_METRICS_LOG_EVERY = 25;
@@ -115,7 +115,6 @@ export function registerDiagnosticsHandlers(
     maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
     diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
   };
-  let globalSettings: PikeSettings = defaultSettings;
 
   function validateDocumentDebounced(document: TextDocument): void {
     const uri = document.uri;
@@ -188,7 +187,7 @@ export function registerDiagnosticsHandlers(
           error: err instanceof Error ? err.message : String(err),
         });
       });
-    }, globalSettings.diagnosticDelay);
+    }, services.globalSettings.diagnosticDelay);
 
     validationTimers.set(uri, timer);
   }
@@ -396,7 +395,7 @@ export function registerDiagnosticsHandlers(
       const seenDiagnostics = new Set<string>();
 
       const pushDiagnostic = (diagnostic: Diagnostic): void => {
-        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+        if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           return;
         }
 
@@ -434,7 +433,7 @@ export function registerDiagnosticsHandlers(
 
       // Process diagnostics from introspection
       for (const pikeDiag of introspectData.diagnostics) {
-        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+        if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           break;
         }
         // Skip module resolution errors
@@ -672,7 +671,7 @@ export function registerDiagnosticsHandlers(
           count: diagnosticsData.diagnostics.length,
         });
         for (const diag of diagnosticsData.diagnostics) {
-          if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+          if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
             break;
           }
           // Determine severity: 'error' = 1 (Error), 'warning' = 2 (Warning), default = Error
@@ -776,9 +775,9 @@ export function registerDiagnosticsHandlers(
     workspaceIndex,
     diagnosticsScheduler,
     defaultSettings,
-    getGlobalSettings: () => globalSettings,
+    getGlobalSettings: () => services.globalSettings,
     setGlobalSettings: settings => {
-      globalSettings = settings;
+      services.globalSettings = settings;
     },
     pendingChangeStates,
     documentSnapshots,
