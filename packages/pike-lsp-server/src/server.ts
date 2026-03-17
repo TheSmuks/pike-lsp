@@ -43,6 +43,8 @@ import {
   QUERY_ENGINE_PROTOCOL,
 } from './query-engine/contracts.js';
 import * as features from './features/index.js';
+import { registerServerRuntimeHandlers } from './runtime/server-runtime.js';
+import { createServiceRuntimeContext } from './runtime/service-runtime-context.js';
 
 // Semantic tokens legend (defined here for capabilities)
 const tokenTypes = [
@@ -307,9 +309,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     bridgeManager = new BridgeManager(bridge, logger);
     includeResolver = new IncludeResolver(bridgeManager, logger);
 
-    // Update services.bridge now that bridgeManager is initialized
-    (services as features.Services).bridge = bridgeManager;
-    (services as features.Services).includeResolver = includeResolver;
+    serviceRuntimeContext.update({
+      bridge: bridgeManager,
+      includeResolver,
+    });
 
     workspaceIndex.setBridge(bridge);
     workspaceIndex.setErrorCallback((message, uri) => {
@@ -394,229 +397,6 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
   }
 });
 
-connection.onInitialized(async () => {
-  connection.console.log('Pike LSP Server initialized');
-  connection.client.register(DidChangeConfigurationNotification.type, undefined);
-
-  // Register health check command handler
-  connection.onExecuteCommand(async params => {
-    if (params.command === 'pike.lsp.serverHealth') {
-      const health = await bridgeManager?.getHealth();
-
-      // Format health status as readable output
-      const lines: string[] = [];
-      lines.push('=== Pike LSP Server Health ===');
-      lines.push('');
-
-      if (health) {
-        const uptime = Math.floor(health.serverUptime / 1000);
-        const uptimeStr =
-          uptime > 60 ? `${Math.floor(uptime / 60)}m ${uptime % 60}s` : `${uptime}s`;
-
-        lines.push(`Server Uptime: ${uptimeStr}`);
-        lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
-        lines.push(`Pike PID: ${health.pikePid ?? 'N/A'}`);
-        lines.push(
-          `Pike Version: ${health.pikeVersion?.version ?? 'Unknown'} (${health.pikeVersion?.display ?? 'N/A'})`
-        );
-        lines.push(`Pike Path: ${health.pikeVersion?.pikePath ?? 'Unknown'}`);
-
-        if (health.recentErrors.length > 0) {
-          lines.push('');
-          lines.push('Recent Errors:');
-          for (const err of health.recentErrors) {
-            lines.push(`  - ${err}`);
-          }
-        } else {
-          lines.push('');
-          lines.push('No recent errors');
-        }
-      } else {
-        lines.push('Health status unavailable');
-      }
-
-      lines.push('');
-      lines.push('============================');
-
-      return lines.join('\n');
-    }
-
-    return null;
-  });
-
-  // Keep workspace indices/scanner in sync when folders are added/removed.
-  if (typeof connection.workspace.onDidChangeWorkspaceFolders === 'function') {
-    connection.workspace.onDidChangeWorkspaceFolders(async event => {
-      const added = event.added ?? [];
-      const removed = event.removed ?? [];
-
-      if (added.length === 0 && removed.length === 0) {
-        return;
-      }
-
-      connection.console.log(`Workspace folders changed (+${added.length}, -${removed.length})`);
-
-      for (const folder of removed) {
-        const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-        workspaceScanner.removeFolder(folderPath);
-      }
-
-      for (const folder of added) {
-        const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-        try {
-          await workspaceScanner.addFolder(folderPath);
-        } catch (err) {
-          connection.console.warn(`Failed to scan added folder ${folder.name}: ${err}`);
-        }
-      }
-
-      // Rebuild workspace index from currently active folders.
-      workspaceIndex.clear();
-      const currentFolders = await connection.workspace.getWorkspaceFolders();
-      if (currentFolders && currentFolders.length > 0) {
-        for (const folder of currentFolders) {
-          try {
-            const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-            await workspaceIndex.indexDirectory(folderPath, true);
-          } catch (err) {
-            connection.console.warn(`Failed to re-index folder ${folder.name}: ${err}`);
-          }
-        }
-      }
-    });
-  }
-
-  if (bridgeManager?.bridge) {
-    try {
-      log('Checking Pike availability after initialize handshake');
-      const available = await bridgeManager.checkPike();
-
-      if (!available) {
-        connection.console.warn('Pike executable not found. Some features may not work.');
-        log('Pike executable not found');
-      } else {
-        stdlibIndex = new StdlibIndexManager(bridgeManager.bridge);
-        (services as features.Services).stdlibIndex = stdlibIndex;
-
-        bridgeManager.on('stderr', (msg: unknown) => {
-          log(`[Pike STDERR] ${String(msg)}`);
-        });
-
-        if (!bridgeManager.bridge.isRunning()) {
-          log('Starting bridge after initialize handshake...');
-          await bridgeManager.bridge.start();
-        }
-
-        connection.console.log(
-          `Pike bridge started (diagnosticDelay: ${globalSettings.diagnosticDelay}ms)`
-        );
-
-        const protocolInfo = await bridgeManager.getProtocolInfo();
-        if (!protocolInfo) {
-          connection.console.warn('Pike analyzer did not provide protocol handshake info');
-          log('Protocol handshake unavailable from Pike analyzer');
-        } else {
-          const protocolSummary = formatProtocolVersion(protocolInfo);
-          connection.console.log(`Pike protocol handshake: ${protocolSummary}`);
-          log(`Protocol handshake: ${protocolSummary}`);
-
-          if (!isProtocolCompatible(protocolInfo)) {
-            connection.console.warn(
-              `Unexpected Pike protocol handshake: ${protocolSummary} (expected ${QUERY_ENGINE_PROTOCOL}@${QUERY_ENGINE_MAJOR_VERSION}.x)`
-            );
-            log(`Protocol compatibility warning: ${protocolSummary}`);
-          }
-        }
-
-        const configAck = await bridgeManager.engineUpdateConfig({
-          settings: {
-            diagnosticDelay: globalSettings.diagnosticDelay,
-            includePaths,
-          },
-        });
-        log(`Engine config ack revision=${configAck.revision} snapshot=${configAck.snapshotId}`);
-      }
-    } catch (err) {
-      connection.console.warn(`Failed to start bridge: ${err}`);
-      log(`Bridge start error: ${err}`);
-    }
-  }
-
-  // NOTE: Stdlib preloading disabled due to Pike subprocess crash when introspecting bootstrap modules (Stdio, String, Array, Mapping).
-  // These modules are used internally by the resolver and cannot be safely introspected.
-  // Modules will be loaded lazily on-demand instead.
-  connection.console.log('Stdlib preloading skipped - modules will load on-demand');
-
-  // Index workspace
-  const workspaceFolders = await connection.workspace.getWorkspaceFolders();
-  if (workspaceFolders && workspaceFolders.length > 0 && bridgeManager?.bridge) {
-    const workspaceAck = await bridgeManager.engineUpdateWorkspace({
-      roots: workspaceFolders.map(folder => folder.uri),
-      added: workspaceFolders.map(folder => folder.uri),
-      removed: [],
-    });
-    log(
-      `Engine workspace ack revision=${workspaceAck.revision} snapshot=${workspaceAck.snapshotId}`
-    );
-
-    connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
-    setImmediate(async () => {
-      const progress = clientSupportsWorkDoneProgress
-        ? await connection.window.createWorkDoneProgress().catch(() => null)
-        : null;
-
-      if (progress) {
-        progress.begin('Pike: indexing workspace', 0, 'Scanning project folders', false);
-      }
-
-      let _totalIndexed = 0;
-      const folderPaths: string[] = [];
-      for (let i = 0; i < workspaceFolders.length; i += 1) {
-        const folder = workspaceFolders[i]!;
-        try {
-          if (progress) {
-            const percentage = Math.floor((i / workspaceFolders.length) * 90);
-            progress.report(percentage, `Indexing ${folder.name}`);
-          }
-
-          const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-          folderPaths.push(folderPath);
-          const indexed = await workspaceIndex.indexDirectory(folderPath, true);
-          _totalIndexed += indexed;
-          connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
-        } catch (err) {
-          connection.console.warn(`Failed to index folder ${folder.name}: ${err}`);
-          log(`Indexing error for folder ${folder.name}: ${err}`);
-        }
-      }
-      const stats = workspaceIndex.getStats();
-      connection.console.log(
-        `Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`
-      );
-
-      // Initialize workspace scanner for workspace-wide references
-      try {
-        if (progress) {
-          progress.report(95, 'Building workspace scanner index');
-        }
-
-        await workspaceScanner.initialize(folderPaths);
-        const scannerStats = workspaceScanner.getStats();
-        connection.console.log(
-          `Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`
-        );
-      } catch (err) {
-        connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
-      } finally {
-        if (progress) {
-          progress.report(100, 'Workspace ready');
-          progress.done();
-        }
-      }
-    });
-  }
-});
-
 connection.onDidChangeConfiguration(change => {
   const settings = change.settings as { pike?: Partial<PikeSettings> } | undefined;
   globalSettings = {
@@ -629,7 +409,8 @@ connection.onDidChangeConfiguration(change => {
 // Register Feature Handlers (BEFORE documents.listen!)
 // ============================================================================
 
-const services = createServices();
+const serviceRuntimeContext = createServiceRuntimeContext(createServices());
+const services = serviceRuntimeContext.services;
 
 features.registerDiagnosticsHandlers(connection, services, documents);
 features.registerNavigationHandlers(connection, services, documents);
@@ -644,19 +425,21 @@ features.registerRXMLHandlers(connection, services, documents);
 // Issue #184: Register file watcher for incremental updates
 features.registerFileWatcher(connection, services, documents);
 
-// ============================================================================
-// Shutdown Handlers
-// ============================================================================
-
-connection.onShutdown(async () => {
-  connection.console.log('Pike LSP Server shutting down...');
-  await bridgeManager?.stop();
-});
-
-connection.onExit(() => {
-  bridgeManager?.stop().catch(() => {
-    // Ignore errors during exit
-  });
+registerServerRuntimeHandlers({
+  connection,
+  workspaceIndex,
+  workspaceScanner,
+  getBridgeManager: () => bridgeManager,
+  getGlobalSettings: () => globalSettings,
+  getIncludePaths: () => includePaths,
+  getClientSupportsWorkDoneProgress: () => clientSupportsWorkDoneProgress,
+  setStdlibIndex: index => {
+    stdlibIndex = index;
+  },
+  updateServices: patch => {
+    serviceRuntimeContext.update(patch);
+  },
+  log,
 });
 
 // ============================================================================

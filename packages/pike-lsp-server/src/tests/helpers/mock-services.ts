@@ -382,7 +382,7 @@ export interface MockServicesOverrides {
   inherits?: any[];
   bridge?: any;
   stdlibIndex?: any;
-  workspaceScanner?: any;
+  workspaceScanner?: ReturnType<typeof createMockWorkspaceScanner>;
   workspaceIndex?: any;
 }
 
@@ -398,11 +398,44 @@ export function createMockWorkspaceScanner(files: { uri: string; content: string
 
   return {
     isReady: () => true,
+    getAllFiles: () => {
+      return files.map(f => ({
+        uri: f.uri,
+        path: decodeURIComponent(f.uri.replace(/^file:\/\//, '')),
+        lastModified: Date.now(),
+      }));
+    },
     getUncachedFiles: (cachedUris: Set<string>) => {
       return files
         .filter(f => !cachedUris.has(f.uri))
-        .map(f => ({ uri: f.uri, path: decodeURIComponent(f.uri.replace(/^file:\/\//, '')) }));
+        .map(f => ({
+          uri: f.uri,
+          path: decodeURIComponent(f.uri.replace(/^file:\/\//, '')),
+          lastModified: Date.now(),
+        }));
     },
+    getFile: (uri: string) => {
+      const existing = fileMap.get(uri);
+      if (!existing) {
+        return undefined;
+      }
+      return {
+        uri: existing.uri,
+        path: decodeURIComponent(existing.uri.replace(/^file:\/\//, '')),
+        lastModified: Date.now(),
+      };
+    },
+    updateFileData: () => {},
+    invalidateFile: () => {},
+    upsertFile: () => {},
+    removeFile: (uri: string) => {
+      fileMap.delete(uri);
+    },
+    getStats: () => ({
+      fileCount: fileMap.size,
+      rootCount: 1,
+      cachedFiles: 0,
+    }),
   };
 }
 
@@ -462,7 +495,7 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     includeResolver: null,
     typeDatabase: {},
     workspaceIndex: overrides?.workspaceIndex ?? { searchSymbols: () => [] },
-    workspaceScanner: overrides?.workspaceScanner ?? { isReady: () => false },
+    workspaceScanner: overrides?.workspaceScanner ?? createMockWorkspaceScanner([]),
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],
     moduleContext: null,
