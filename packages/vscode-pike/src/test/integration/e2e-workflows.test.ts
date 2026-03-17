@@ -290,6 +290,437 @@ suite('E2E Workflow Tests', () => {
     }
   });
 
+  test('46.13 Moving mapping entries keeps indentation formatted immediately', async function () {
+    this.timeout(30000);
+
+    const moveUri = vscode.Uri.joinPath(workspaceFolder.uri, 'move-format-mapping.pike');
+    const moveContent = `int main() {
+mapping cfg = ([
+    "outer": ([
+    ]),
+    "moved": 1,
+]);
+return 0;
+}
+`;
+    await vscode.workspace.fs.writeFile(moveUri, new TextEncoder().encode(moveContent));
+
+    try {
+      const moveDoc = await vscode.workspace.openTextDocument(moveUri);
+      const editor = await vscode.window.showTextDocument(moveDoc);
+      const initialVersion = moveDoc.version;
+      const targetLine = moveDoc
+        .getText()
+        .split('\n')
+        .findIndex(line => line.includes('"moved": 1,'));
+
+      assert.ok(targetLine >= 0, 'Fixture should contain moved mapping entry');
+
+      const linePos = new vscode.Position(targetLine, 0);
+      editor.selection = new vscode.Selection(linePos, linePos);
+      await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+
+      await waitFor(
+        'line move edit applied',
+        () => moveDoc.version,
+        version => version > initialVersion
+      );
+
+      const movedLineText = moveDoc
+        .getText()
+        .split('\n')
+        .find(line => line.includes('"moved": 1,'));
+
+      assert.ok(movedLineText, 'Moved line should still exist after move operation');
+      assert.ok(
+        /^\s{8}"moved": 1,$/.test(movedLineText),
+        `Moved line should be auto-indented for nested mapping immediately. Got: ${movedLineText}`
+      );
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await vscode.workspace.fs.delete(moveUri);
+    }
+  });
+
+  test('46.14 Moving mapping entries keeps tab indentation when tabs are enabled', async function () {
+    this.timeout(30000);
+
+    const moveUri = vscode.Uri.joinPath(workspaceFolder.uri, 'move-format-mapping-tabs.pike');
+    const moveContent = `int main() {
+mapping cfg = ([
+	"outer": ([
+	]),
+	"moved": 1,
+]);
+return 0;
+}
+`;
+
+    const editorConfig = vscode.workspace.getConfiguration('editor', moveUri);
+    const previousInsertSpaces = editorConfig.get('insertSpaces');
+    const previousTabSize = editorConfig.get('tabSize');
+
+    await editorConfig.update('insertSpaces', false, vscode.ConfigurationTarget.Workspace);
+    await editorConfig.update('tabSize', 4, vscode.ConfigurationTarget.Workspace);
+    await vscode.workspace.fs.writeFile(moveUri, new TextEncoder().encode(moveContent));
+
+    try {
+      const moveDoc = await vscode.workspace.openTextDocument(moveUri);
+      const editor = await vscode.window.showTextDocument(moveDoc);
+      const initialVersion = moveDoc.version;
+      const targetLine = moveDoc
+        .getText()
+        .split('\n')
+        .findIndex(line => line.includes('"moved": 1,'));
+
+      assert.ok(targetLine >= 0, 'Fixture should contain moved mapping entry');
+
+      const linePos = new vscode.Position(targetLine, 0);
+      editor.selection = new vscode.Selection(linePos, linePos);
+      await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+
+      await waitFor(
+        'tab-indented line move edit applied',
+        () => moveDoc.version,
+        version => version > initialVersion
+      );
+
+      const movedLineText = moveDoc
+        .getText()
+        .split('\n')
+        .find(line => line.includes('"moved": 1,'));
+
+      assert.ok(movedLineText, 'Moved line should still exist after move operation');
+      assert.ok(
+        /^\t\t"moved": 1,$/.test(movedLineText),
+        `Moved line should be tab-indented for nested mapping immediately. Got: ${movedLineText}`
+      );
+    } finally {
+      await editorConfig.update('insertSpaces', previousInsertSpaces, vscode.ConfigurationTarget.Workspace);
+      await editorConfig.update('tabSize', previousTabSize, vscode.ConfigurationTarget.Workspace);
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await vscode.workspace.fs.delete(moveUri);
+    }
+  });
+
+  test('46.15 Moving code auto-indents across mappings, arrays, conditionals, loops, and switch blocks', async function () {
+    this.timeout(60000);
+
+    async function assertMovedLineIndent(
+      fileName: string,
+      fileContent: string,
+      targetText: string,
+      expectedIndentPattern: RegExp,
+      movesUp: number = 1
+    ): Promise<void> {
+      const uri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+      await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(fileContent));
+
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const editor = await vscode.window.showTextDocument(doc);
+        const initialVersion = doc.version;
+        const targetLine = doc
+          .getText()
+          .split('\n')
+          .findIndex(line => line.includes(targetText));
+
+        assert.ok(targetLine >= 0, `Fixture should contain target line: ${targetText}`);
+
+        const linePos = new vscode.Position(targetLine, 0);
+        editor.selection = new vscode.Selection(linePos, linePos);
+        for (let i = 0; i < movesUp; i++) {
+          await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+        }
+
+        await waitFor(
+          `move applied for ${fileName}`,
+          () => doc.version,
+          version => version > initialVersion
+        );
+
+        const movedLineText = doc
+          .getText()
+          .split('\n')
+          .find(line => line.includes(targetText));
+
+        assert.ok(movedLineText, `Moved line should still exist for ${fileName}`);
+        assert.ok(
+          expectedIndentPattern.test(movedLineText),
+          `Moved line indentation mismatch for ${fileName}. Got: ${movedLineText}`
+        );
+      } finally {
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+        await vscode.workspace.fs.delete(uri);
+      }
+    }
+
+    await assertMovedLineIndent(
+      'move-format-structures-mapping.pike',
+      `int main() {
+mapping cfg = ([
+    "outer": ([
+    ]),
+    "moved_map": 1,
+]);
+return 0;
+}
+`,
+      '"moved_map": 1,',
+      /^\s{8}"moved_map": 1,$/
+    );
+
+    await assertMovedLineIndent(
+      'move-format-structures-array.pike',
+      `int main() {
+array(mixed) arr = ({
+    ({
+    }),
+    "moved_array",
+});
+return 0;
+}
+`,
+      '"moved_array",',
+      /^\s{8}"moved_array",$/
+    );
+
+    await assertMovedLineIndent(
+      'move-format-structures-if.pike',
+      `int main() {
+if (1) {
+    if (1) {
+    }
+    int moved_if = 1;
+}
+return 0;
+}
+`,
+      'int moved_if = 1;',
+      /^\s{8}int moved_if = 1;$/
+    );
+
+    await assertMovedLineIndent(
+      'move-format-structures-loop.pike',
+      `int main() {
+for (int i = 0; i < 1; i++) {
+    if (i) {
+    }
+    int moved_loop = i;
+}
+return 0;
+}
+`,
+      'int moved_loop = i;',
+      /^\s{8}int moved_loop = i;$/
+    );
+
+    await assertMovedLineIndent(
+      'move-format-structures-switch.pike',
+      `int main(int kind) {
+switch (kind) {
+case 1:
+    if (kind) {
+    }
+    int moved_switch = kind;
+    break;
+default:
+    break;
+}
+return 0;
+}
+`,
+      'int moved_switch = kind;',
+      /^\s{8}int moved_switch = kind;$/
+    );
+  });
+
+  test('46.16 Real-source style fixtures (small/medium/big) keep moved-line indentation', async function () {
+    this.timeout(90000);
+
+    async function assertMovedLineIndent(
+      fileName: string,
+      fileContent: string,
+      targetText: string,
+      expectedIndentPattern: RegExp,
+      movesUp: number = 1
+    ): Promise<void> {
+      const uri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+      await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(fileContent));
+
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const editor = await vscode.window.showTextDocument(doc);
+        const initialVersion = doc.version;
+        const targetLine = doc
+          .getText()
+          .split('\n')
+          .findIndex(line => line.includes(targetText));
+
+        assert.ok(targetLine >= 0, `Fixture should contain target line: ${targetText}`);
+
+        const linePos = new vscode.Position(targetLine, 0);
+        editor.selection = new vscode.Selection(linePos, linePos);
+        for (let i = 0; i < movesUp; i++) {
+          await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+        }
+
+        await waitFor(
+          `move applied for ${fileName}`,
+          () => doc.version,
+          version => version > initialVersion
+        );
+
+        const movedLineText = doc
+          .getText()
+          .split('\n')
+          .find(line => line.includes(targetText));
+
+        assert.ok(movedLineText, `Moved line should still exist for ${fileName}`);
+        assert.ok(
+          expectedIndentPattern.test(movedLineText),
+          `Moved line indentation mismatch for ${fileName}. Got: ${movedLineText}`
+        );
+      } finally {
+        await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+        await vscode.workspace.fs.delete(uri);
+      }
+    }
+
+    await assertMovedLineIndent(
+      'move-real-small-dumpmaster.pike',
+      `string fakeroot(string s)
+{
+  if(fr) {
+  }
+  s=fr+combine_path(getcwd(),s);
+  return s;
+}
+`,
+      'return s;',
+      /^\s{4}return s;$/,
+      2
+    );
+
+    await assertMovedLineIndent(
+      'move-real-medium-changes2xml.pike',
+      `void parse_line(string line, string sub)
+{
+  switch(state) {
+  case "INIT":
+    if(!text(line))
+      continue;
+    if(line[0..sizeof(sub)-1] == sub)
+    {
+    }
+    out += make_header(1, tmp);
+    continue;
+  }
+}
+`,
+      'out += make_header(1, tmp);',
+      /^\s{4}out \+= make_header\(1, tmp\);$/
+    );
+
+    await assertMovedLineIndent(
+      'move-real-big-glut-and-switch.pike',
+      `int main()
+{
+  mapping constants = ([
+    "GLUT_RGB": 0,
+    "GLUT_RGBA": 0,
+    "GLUT_INDEX": 1,
+    "GLUT_SINGLE": 0,
+    "GLUT_DOUBLE": 2,
+    "GLUT_ACCUM": 4,
+    "GLUT_ALPHA": 8,
+    "GLUT_DEPTH": 16,
+    "GLUT_STENCIL": 32,
+    "GLUT_MULTISAMPLE": 128,
+    "GLUT_STEREO": 256,
+    "GLUT_LUMINANCE": 512,
+    "GLUT_LEFT_BUTTON": 0,
+    "GLUT_MIDDLE_BUTTON": 1,
+    "GLUT_RIGHT_BUTTON": 2,
+    "GLUT_DOWN": 0,
+    "GLUT_UP": 1,
+    "GLUT_KEY_F1": 1,
+    "GLUT_KEY_F2": 2,
+    "GLUT_KEY_F3": 3,
+    "GLUT_KEY_F4": 4,
+    "GLUT_KEY_F5": 5,
+    "GLUT_KEY_F6": 6,
+    "GLUT_KEY_F7": 7,
+    "GLUT_KEY_F8": 8,
+    "GLUT_KEY_F9": 9,
+    "GLUT_KEY_F10": 10,
+    "GLUT_KEY_F11": 11,
+    "GLUT_KEY_F12": 12,
+    "GLUT_KEY_LEFT": 100,
+    "GLUT_KEY_UP": 101,
+    "GLUT_KEY_RIGHT": 102,
+    "GLUT_KEY_DOWN": 103,
+  ]);
+
+  if (sizeof(constants)) {
+    switch (constants["GLUT_RGB"]) {
+    case 0:
+      if (1) {
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
+  return 0;
+}
+`,
+      'break;',
+      /^\s{8}break;$/
+    );
+  });
+
+  test('46.17 One-line real-style full program stays valid after formatting pass', async function () {
+    this.timeout(30000);
+
+    const oneLineUri = vscode.Uri.joinPath(workspaceFolder.uri, 'one-line-real-style-program.pike');
+    const oneLineProgram = 'int main(){mapping constants=(["GLUT_RGB":0,"GLUT_RGBA":0]);array(int) xs=({1,2,3});if(sizeof(xs)){for(int i=0;i<sizeof(xs);i++){switch(xs[i]){case 1:constants["A"]=i;break;default:constants["B"]=i;break;}}}return 0;}';
+    await vscode.workspace.fs.writeFile(oneLineUri, new TextEncoder().encode(oneLineProgram));
+
+    try {
+      const doc = await vscode.workspace.openTextDocument(oneLineUri);
+      await vscode.window.showTextDocument(doc);
+
+      const edits = await vscode.commands.executeCommand<any[]>(
+        'vscode.executeFormatDocumentProvider',
+        oneLineUri,
+        { tabSize: 2, insertSpaces: true }
+      );
+
+      if (Array.isArray(edits) && edits.length > 0) {
+        const beforeVersion = doc.version;
+        const workspaceEdit = new vscode.WorkspaceEdit();
+        workspaceEdit.set(oneLineUri, edits);
+        const applied = await vscode.workspace.applyEdit(workspaceEdit);
+        assert.ok(applied, 'Formatting edits should apply successfully');
+        await waitFor('one-line formatting applied', () => doc.version, version => version > beforeVersion);
+      }
+
+      const diagnostics = await waitFor(
+        'one-line program diagnostics settle',
+        () => vscode.languages.getDiagnostics(oneLineUri),
+        (value: any[]) => Array.isArray(value)
+      );
+
+      const errors = diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error);
+      assert.equal(errors.length, 0, `One-line real-style program should remain valid. Errors: ${errors.map(e => e.message).join(' | ')}`);
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+      await vscode.workspace.fs.delete(oneLineUri);
+    }
+  });
+
   test('Complete edit cycle with symbol lookup', async function () {
     this.timeout(30000);
 
