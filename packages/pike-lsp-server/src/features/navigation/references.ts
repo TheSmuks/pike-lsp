@@ -15,7 +15,6 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
-import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 
 /**
@@ -31,13 +30,6 @@ export function registerReferencesHandlers(
 
   /**
    * References handler - find all references to a symbol (Find References / Show Usages)
-   *
-   * LSP Compliance Notes:
-   * - includeDeclaration parameter controls whether the symbol's declaration is included
-   * - For parsed documents (symbolPositions), declaration is accurately filtered
-   * - For workspace-only text search results, declaration filtering is NOT applied
-   *   (LIMITATION: No symbol table available for uncached files)
-   * - Progress reporting is enabled for workspace scans of 20+ files
    */
   connection.onReferences(async (params, cancellationToken): Promise<Location[]> => {
     log.debug('References request', { uri: params.textDocument.uri, position: params.position });
@@ -149,9 +141,7 @@ export function registerReferencesHandlers(
         }
       }
 
-      // Fallback: if symbolPositions didn't have results, do text-based search
       if (references.length === 0) {
-        log.debug('References: falling back to text search');
         const lines = text.split('\n');
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
           const line = lines[lineNum];
@@ -164,7 +154,6 @@ export function registerReferencesHandlers(
             const afterChar =
               matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
 
-            // Check word boundaries
             if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
               references.push({
                 uri,
@@ -199,7 +188,6 @@ export function registerReferencesHandlers(
               }
             }
           } else {
-            // Fallback text search for other documents without symbolPositions
             const otherDoc = documents.get(otherUri);
             if (otherDoc) {
               const otherText = otherDoc.getText();
@@ -232,158 +220,6 @@ export function registerReferencesHandlers(
           }
       }
 
-      // Search in workspace files that are not currently open
-      if (services.workspaceScanner?.isReady()) {
-        const cachedUris = new Set(documentCache.keys());
-        const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
-        const maxWorkspaceFiles = Math.max(
-          1,
-          Number.parseInt(process.env['PIKE_LSP_REFERENCES_MAX_WORKSPACE_FILES'] ?? '250', 10)
-        );
-        const boundedFiles = uncachedFiles.slice(0, maxWorkspaceFiles);
-
-        log.debug('References: searching workspace files', {
-          uncachedFileCount: uncachedFiles.length,
-          boundedFileCount: boundedFiles.length,
-          word,
-        });
-
-        // Progress reporting configuration
-        const enableProgress = process.env['PIKE_LSP_REFERENCES_PROGRESS'] !== 'false';
-        const PROGRESS_THRESHOLD = 20; // Only show progress for searches of 20+ files
-        const BATCH_SIZE = 15;
-        const YIELD_EVERY_N_BATCHES = 5;
-
-        let progress: any = null;
-
-        // Create progress token for large workspace scans
-        if (enableProgress && boundedFiles.length > PROGRESS_THRESHOLD) {
-          try {
-            progress = await connection.window.createWorkDoneProgress();
-            progress.begin('Searching workspace...', 0, boundedFiles.length);
-            log.debug('References: progress started', { totalFiles: boundedFiles.length });
-          } catch (err) {
-            // Client may not support workDoneProgress
-            log.debug('References: failed to create progress', {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            progress = null;
-          }
-        }
-
-        // Process workspace files in batches with yielding
-        const requestVersion = document.version;
-        let cancelled = false;
-        const isRequestCurrent = (): boolean => {
-          const latest = documents.get(uri);
-          return !!latest && latest.version === requestVersion;
-        };
-
-        for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
-          if (!isRequestCurrent()) {
-            cancelled = true;
-            break;
-          }
-
-          const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
-          const batchResults = await Promise.all(
-            batch.map(async file => {
-              try {
-                if (!isRequestCurrent()) {
-                  cancelled = true;
-                  return [] as Location[];
-                }
-
-                const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                const content = await readFile(filePath, 'utf-8');
-
-                if (!isRequestCurrent()) {
-                  cancelled = true;
-                  return [] as Location[];
-                }
-
-                if (!content.includes(word)) {
-                  return [] as Location[];
-                }
-
-                const fileReferences: Location[] = [];
-                const lines = content.split('\n');
-                for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-                  const line = lines[lineNum];
-                  if (!line) continue;
-                  let searchStart = 0;
-                  let matchIndex = line.indexOf(word, searchStart);
-
-                  while (matchIndex !== -1) {
-                    const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                    const afterChar =
-                      matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                    if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                      fileReferences.push({
-                        uri: file.uri,
-                        range: {
-                          start: { line: lineNum, character: matchIndex },
-                          end: { line: lineNum, character: matchIndex + word.length },
-                        },
-                      });
-                    }
-                    searchStart = matchIndex + 1;
-                    matchIndex = line.indexOf(word, searchStart);
-                  }
-                }
-
-                return fileReferences;
-              } catch (err) {
-                log.debug('References: failed to read workspace file', {
-                  uri: file.uri,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-                return [] as Location[];
-              }
-            })
-          );
-
-          for (const fileReferences of batchResults) {
-            if (fileReferences.length > 0) {
-              references.push(...fileReferences);
-            }
-          }
-
-          if (cancelled) {
-            break;
-          }
-
-          // Report progress after each batch
-          if (progress) {
-            const completed = Math.min(i + BATCH_SIZE, boundedFiles.length);
-            progress.report(completed, `Scanned ${completed} files...`);
-          }
-
-          // Yield periodically to avoid blocking the event loop
-          if (progress && (i / BATCH_SIZE) % YIELD_EVERY_N_BATCHES === 0 && i > 0) {
-            await new Promise(resolve => setImmediate(resolve));
-          }
-        }
-
-        // Complete progress reporting
-        if (progress) {
-          progress.done(`Found ${references.length} references`);
-          log.debug('References: progress complete', { totalReferences: references.length });
-        }
-
-        if (cancelled) {
-          log.debug('References: workspace scan cancelled due to document version change', {
-            uri,
-            requestVersion,
-          });
-        }
-
-        log.debug('References: workspace search complete', {
-          workspaceReferencesFound: references.length,
-        });
-      }
-
       if (queryLocations && queryLocations.length > 0) {
         references.push(...queryLocations);
       }
@@ -398,9 +234,6 @@ export function registerReferencesHandlers(
         return true;
       });
 
-      // Apply includeDeclaration filtering for parsed documents only
-      // NOTE: Workspace-only results (text search) are NOT filtered
-      // See limitation documentation above
       if (!includeDeclaration && matchingSymbol.position) {
         const declLine = matchingSymbol.position.line - 1; // Convert to 0-based
         const declarationCandidates =

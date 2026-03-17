@@ -220,8 +220,9 @@ export class WorkspaceIndex {
         const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
 
         try {
-            const result = await this.bridge.parse(content, filename);
-            const symbols = this.flattenSymbols(result.symbols);
+            const result = await this.bridge.analyze(content, ['parse'], filename);
+            const parsedSymbols = result.result?.parse?.symbols ?? [];
+            const symbols = this.flattenSymbols(parsedSymbols);
 
             // Remove old entries from lookup
             const existing = this.documents.get(uri);
@@ -629,7 +630,8 @@ export class WorkspaceIndex {
                 // Fallback to sequential parsing for this chunk
                 for (const fileData of chunkData) {
                     try {
-                        const parseResult = await this.bridge.parse(fileData.code, fileData.filename);
+                        const analyzeResult = await this.bridge.analyze(fileData.code, ['parse'], fileData.filename);
+                        const parsedSymbols = analyzeResult.result?.parse?.symbols ?? [];
                         const uri = `file://${fileData.filename}`;
 
                         // Remove old entries from lookup
@@ -639,7 +641,7 @@ export class WorkspaceIndex {
                         }
 
                         // Store indexed document with filesystem mtime
-                        const symbols = this.flattenSymbols(parseResult.symbols);
+                        const symbols = this.flattenSymbols(parsedSymbols);
                         this.documents.set(uri, {
                             uri,
                             symbols,

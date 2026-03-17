@@ -225,7 +225,7 @@ export class IncludeResolver {
    * @returns Array of symbols from the file
    */
   private async parseIncludedFile(filePath: string): Promise<PikeSymbol[]> {
-    if (!this.bridge?.bridge) {
+    if (!this.bridge) {
       return [];
     }
 
@@ -234,7 +234,30 @@ export class IncludeResolver {
       const content = await readFile(filePath, 'utf-8');
 
       // Use analyze to get symbols (parse operation only)
-      const response = await this.bridge.bridge.analyze(content, ['parse'], filePath);
+      const bridgeLike = this.bridge as unknown as {
+        analyze?: (
+          code: string,
+          include: ['parse'],
+          filename: string
+        ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
+        bridge?: {
+          analyze?: (
+            code: string,
+            include: ['parse'],
+            filename: string
+          ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
+        };
+      };
+
+      const response = bridgeLike.analyze
+        ? await bridgeLike.analyze(content, ['parse'], filePath)
+        : bridgeLike.bridge?.analyze
+          ? await bridgeLike.bridge.analyze(content, ['parse'], filePath)
+          : null;
+
+      if (!response) {
+        return [];
+      }
 
       if (response.result?.parse?.symbols) {
         return response.result.parse.symbols;
