@@ -8,6 +8,7 @@
 import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
+import { PikeProcess } from './process.js';
 
 describe('PikeBridge', () => {
   let bridge: PikeBridge;
@@ -543,6 +544,52 @@ foo(@args);
     // All should return the same results
     assert.deepEqual(result1, result2, 'Results should be identical');
     assert.deepEqual(result2, result3, 'Results should be identical');
+  });
+
+  it('should reject startup when subprocess exits during startup delay', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      setTimeout(() => this.emit('exit', 1), 0);
+    };
+
+    const localBridge = new PikeBridge();
+
+    try {
+      await assert.rejects(
+        localBridge.start(),
+        /exited during startup|not alive after startup delay/,
+        'start() should reject when process exits before readiness'
+      );
+      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after failed start');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+    }
+  });
+
+  it('should clean pending request state when send throws synchronously', async () => {
+    const localBridge = new PikeBridge();
+    const failingProcess = {
+      isAlive: () => true,
+      send: () => {
+        throw new Error('stdin closed');
+      },
+    };
+
+    (localBridge as any).process = failingProcess;
+    (localBridge as any).started = true;
+
+    await assert.rejects(
+      (localBridge as any).sendRequest('parse', { code: 'int x = 1;', filename: 'test.pike' }),
+      /Failed to send request/,
+      'sendRequest should reject immediately on synchronous send failure'
+    );
+
+    assert.equal(
+      (localBridge as any).pendingRequests.size,
+      0,
+      'pendingRequests should be cleaned up after send failure'
+    );
   });
 
   it('should resolve local modules with currentFile context', async () => {

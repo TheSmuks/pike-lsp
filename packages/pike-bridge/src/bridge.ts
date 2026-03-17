@@ -251,12 +251,61 @@ export class PikeBridge extends EventEmitter {
     const pikeProc = new PikeProcess();
 
     return new Promise((resolve, reject) => {
-      // Set up event handlers before spawning
-      pikeProc.once('error', err => {
-        this.debugLog(`Process error event: ${err.message}`);
+      let startupSettled = false;
+      let startupTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const cleanupStartupHandlers = (): void => {
+        pikeProc.removeListener('error', onStartupError);
+        pikeProc.removeListener('exit', onStartupExit);
+      };
+
+      const rejectStartup = (message: string): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        startupSettled = true;
+        if (startupTimer) {
+          clearTimeout(startupTimer);
+          startupTimer = null;
+        }
         this.started = false;
-        reject(new Error(`Failed to start Pike subprocess: ${err.message}`));
-      });
+        this.process = null;
+        cleanupStartupHandlers();
+        reject(new Error(message));
+      };
+
+      const resolveStartup = (): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        startupSettled = true;
+        startupTimer = null;
+        this.started = true;
+        cleanupStartupHandlers();
+        this.debugLog('Pike subprocess started successfully');
+        this.emit('started');
+        resolve();
+      };
+
+      const onStartupError = (err: Error): void => {
+        this.debugLog(`Process error event: ${err.message}`);
+        rejectStartup(`Failed to start Pike subprocess: ${err.message}`);
+      };
+
+      const onStartupExit = (code: number | null): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        this.debugLog(`Process exited during startup with code: ${code}`);
+        rejectStartup(`Pike subprocess exited during startup with code ${code}`);
+      };
+
+      // Set up event handlers before spawning
+      pikeProc.on('error', onStartupError);
+      pikeProc.on('exit', onStartupExit);
 
       // Forward stderr events
       pikeProc.on('stderr', data => {
@@ -306,16 +355,18 @@ export class PikeBridge extends EventEmitter {
         this.process = pikeProc;
 
         // Give the process a moment to start
-        setTimeout(() => {
-          this.started = true;
-          this.debugLog('Pike subprocess started successfully');
-          this.emit('started');
-          resolve();
+        startupTimer = setTimeout(() => {
+          if (!this.process || !this.process.isAlive()) {
+            rejectStartup('Pike subprocess is not alive after startup delay');
+            return;
+          }
+
+          resolveStartup();
         }, PROCESS_STARTUP_DELAY);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         this.debugLog(`Exception during start: ${message}`);
-        reject(new Error(`Failed to start Pike bridge: ${message}`));
+        rejectStartup(`Failed to start Pike bridge: ${message}`);
       }
     });
   }
@@ -426,8 +477,23 @@ export class PikeBridge extends EventEmitter {
 
       const request: PikeRequest = { id, method: method as PikeRequest['method'], params };
       const json = JSON.stringify(request);
+      const process = this.process;
 
-      this.process?.send(json);
+      if (!process) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(id);
+        reject(new PikeError('Pike process is not running'));
+        return;
+      }
+
+      try {
+        process.send(json);
+      } catch (err) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(id);
+        const message = err instanceof Error ? err.message : String(err);
+        reject(new PikeError(`Failed to send request ${id}: ${message}`));
+      }
     });
 
     // Track as inflight
@@ -436,11 +502,16 @@ export class PikeBridge extends EventEmitter {
     }
 
     // Remove from inflight when done (success or failure)
-    promise.finally(() => {
-      if (requestKey) {
-        this.requestCache.delete(requestKey);
-      }
-    });
+    if (requestKey) {
+      promise.then(
+        () => {
+          this.requestCache.delete(requestKey);
+        },
+        () => {
+          this.requestCache.delete(requestKey);
+        }
+      );
+    }
 
     // Apply runtime response validation if provided
     if (validate) {
