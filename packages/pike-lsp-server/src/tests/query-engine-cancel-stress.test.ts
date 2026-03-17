@@ -188,6 +188,7 @@ describe('Query Engine diagnostics cancellation stress', () => {
         },
       },
       workspaceIndex: {
+        indexDocument(): void {},
         removeDocument(): void {},
       },
       includeResolver: null,

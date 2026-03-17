@@ -15,7 +15,6 @@ import {
   CallHierarchyIncomingCall,
   CallHierarchyOutgoingCall,
   TypeHierarchyItem,
-  DiagnosticSeverity,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
@@ -208,18 +207,6 @@ export function registerHierarchyHandlers(
       const document = documents.get(uri);
 
       if (!cached || !document) {
-        connection.sendDiagnostics({
-          uri: params.textDocument.uri,
-          diagnostics: [
-            {
-              range: { start: params.position, end: params.position },
-              severity: DiagnosticSeverity.Warning,
-              message:
-                'Call hierarchy unavailable: document not analyzed. Open the file to enable call hierarchy.',
-              source: 'pike-lsp',
-            },
-          ],
-        });
         return null;
       }
 
@@ -253,12 +240,6 @@ export function registerHierarchyHandlers(
       }
 
       const line = methodSymbol.position.line - 1;
-
-      // Clear any previous diagnostics for this file (analysis succeeded)
-      connection.sendDiagnostics({
-        uri,
-        diagnostics: [],
-      });
 
       return [
         {
@@ -297,17 +278,6 @@ export function registerHierarchyHandlers(
       // Check if document has symbolPositions (fully analyzed)
       const cached = documentCache.get(targetUri);
       if (!cached?.symbolPositions) {
-        connection.sendDiagnostics({
-          uri: targetUri,
-          diagnostics: [
-            {
-              range: params.item.range,
-              severity: DiagnosticSeverity.Warning,
-              message: 'Call hierarchy incomplete: document not fully analyzed.',
-              source: 'pike-lsp',
-            },
-          ],
-        });
         return results; // Empty array = no callers found
       }
 
@@ -411,12 +381,6 @@ export function registerHierarchyHandlers(
       // Note: For workspace files not in cache, we skip them as they don't have
       // Pike-tokenized symbolPositions. Users should open files to get accurate results.
 
-      // Clear any previous diagnostics for this file (analysis succeeded)
-      connection.sendDiagnostics({
-        uri: targetUri,
-        diagnostics: [],
-      });
-
       return results;
     } catch (err) {
       log.error(
@@ -441,33 +405,10 @@ export function registerHierarchyHandlers(
       const cached = documentCache.get(sourceUri);
       const doc = documents.get(sourceUri);
       if (!cached || !doc) {
-        connection.sendDiagnostics({
-          uri: sourceUri,
-          diagnostics: [
-            {
-              range: params.item.range,
-              severity: DiagnosticSeverity.Warning,
-              message: 'Call hierarchy unavailable: document not analyzed.',
-              source: 'pike-lsp',
-            },
-          ],
-        });
         return results;
       }
 
       if (!cached.symbolPositions) {
-        connection.sendDiagnostics({
-          uri: sourceUri,
-          diagnostics: [
-            {
-              range: params.item.range,
-              severity: DiagnosticSeverity.Warning,
-              message:
-                'Call hierarchy incomplete: document not fully analyzed. Some calls may be missing.',
-              source: 'pike-lsp',
-            },
-          ],
-        });
         return results;
       }
 
@@ -613,12 +554,6 @@ export function registerHierarchyHandlers(
         });
       }
 
-      // Clear any previous diagnostics for this file (analysis succeeded)
-      connection.sendDiagnostics({
-        uri: sourceUri,
-        diagnostics: [],
-      });
-
       return results;
     } catch (err) {
       log.error(
@@ -726,23 +661,8 @@ export function registerHierarchyHandlers(
       const classUri = params.item.uri;
       const className = params.item.name;
 
-      const sourceCache = documentCache.get(classUri);
       const sourceSymbols = getSymbolsForUri(classUri);
       if (sourceSymbols.length === 0) {
-        // Document not analyzed - publish warning diagnostic with code
-        connection.sendDiagnostics({
-          uri: classUri,
-          diagnostics: [
-            {
-              range: params.item.range,
-              severity: DiagnosticSeverity.Warning,
-              message:
-                'Type hierarchy unavailable: document not analyzed. Open the file to enable type hierarchy.',
-              source: 'pike-lsp',
-              code: 'type-hierarchy',
-            },
-          ],
-        });
         return results; // Empty array = no hierarchy found
       }
 
@@ -758,22 +678,9 @@ export function registerHierarchyHandlers(
         // Circular inheritance detected
         if (visited.has(visitKey)) {
           cyclePath.push(current.name);
-          const nonTypeHierarchyDiagnostics =
-            sourceCache?.diagnostics.filter(
-              d => d.source !== 'pike-lsp' || d.code !== 'type-hierarchy'
-            ) ?? [];
-          connection.sendDiagnostics({
+          log.warn(`Circular inheritance detected: ${cyclePath.join(' -> ')}`, {
             uri: classUri,
-            diagnostics: [
-              ...nonTypeHierarchyDiagnostics,
-              {
-                range: params.item.range,
-                severity: DiagnosticSeverity.Error,
-                code: 'type-hierarchy',
-                message: `Circular inheritance detected: ${cyclePath.join(' → ')}`,
-                source: 'pike-lsp',
-              },
-            ],
+            className,
           });
           return results;
         }
@@ -815,33 +722,11 @@ export function registerHierarchyHandlers(
         }
       }
 
-      const nonTypeHierarchyDiagnostics =
-        sourceCache?.diagnostics.filter(
-          d => d.source !== 'pike-lsp' || d.code !== 'type-hierarchy'
-        ) ?? [];
-      connection.sendDiagnostics({
-        uri: classUri,
-        diagnostics: nonTypeHierarchyDiagnostics,
-      });
-
       return results; // Empty array = no parents found (valid)
     } catch (err) {
       log.error(
         `Type hierarchy supertypes failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`
       );
-      // Publish error diagnostic with code
-      connection.sendDiagnostics({
-        uri: params.item.uri,
-        diagnostics: [
-          {
-            range: params.item.range,
-            severity: DiagnosticSeverity.Error,
-            message: `Type hierarchy analysis failed: ${err instanceof Error ? err.message : String(err)}`,
-            source: 'pike-lsp',
-            code: 'type-hierarchy',
-          },
-        ],
-      });
       return []; // Empty array signals error occurred
     }
   });
@@ -867,20 +752,6 @@ export function registerHierarchyHandlers(
       // Check if the source document is analyzed
       const cached = documentCache.get(classUri);
       if (!cached) {
-        // Document not analyzed - publish warning diagnostic with code
-        connection.sendDiagnostics({
-          uri: classUri,
-          diagnostics: [
-            {
-              range: params.item.range,
-              severity: DiagnosticSeverity.Warning,
-              message:
-                'Type hierarchy unavailable: document not analyzed. Open the file to enable type hierarchy.',
-              source: 'pike-lsp',
-              code: 'type-hierarchy',
-            },
-          ],
-        });
         return results; // Empty array = no hierarchy found
       }
 
@@ -932,53 +803,60 @@ export function registerHierarchyHandlers(
 
         for (const fileInfo of uncachedFiles) {
           try {
-            const filePath = fileInfo.uri.replace('file://', '');
+            const filePath = decodeURIComponent(fileInfo.uri.replace(/^file:\/\//, ''));
             const content = await fs.readFile(filePath, 'utf-8');
-            const lines = content.split('\n');
+            const parsed = await services.bridge?.bridge?.analyze(content, ['parse'], filePath);
+            const parsedSymbols = parsed?.result?.parse?.symbols ?? [];
 
-            // Search for inherit pattern matching the class name
-            const inheritPattern = new RegExp(`^\\s*inherit\\s+${className}\\s*;`);
-
-            for (let i = 0; i < lines.length; i++) {
-              if (inheritPattern.test(lines[i]!)) {
-                const inheritLine = i;
-
-                // Find the containing class (search backwards for class declaration)
-                let containingClassName: string | null = null;
-                let classLine = 0;
-
-                for (let j = inheritLine; j >= 0; j--) {
-                  const classMatch = lines[j]?.match(/^\s*class\s+(\w+)\b/);
-                  if (classMatch) {
-                    containingClassName = classMatch[1]!;
-                    classLine = j;
-                    break;
-                  }
-                }
-
-                if (containingClassName) {
-                  // Check if we already added this class (avoid duplicates)
-                  const alreadyAdded = results.some(
-                    r => r.uri === fileInfo.uri && r.name === containingClassName
-                  );
-
-                  if (!alreadyAdded) {
-                    results.push({
-                      name: containingClassName,
-                      kind: SymbolKind.Class,
-                      uri: fileInfo.uri,
-                      range: {
-                        start: { line: classLine, character: 0 },
-                        end: { line: classLine, character: containingClassName.length },
-                      },
-                      selectionRange: {
-                        start: { line: classLine, character: 0 },
-                        end: { line: classLine, character: containingClassName.length },
-                      },
-                    });
-                  }
-                }
+            for (const symbol of parsedSymbols) {
+              if (symbol.kind !== 'inherit') {
+                continue;
               }
+
+              const inheritedName = symbol.classname ?? symbol.name;
+              if (inheritedName !== className) {
+                continue;
+              }
+
+              const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : 0;
+
+              const containingClass = parsedSymbols
+                .filter(
+                  s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine
+                )
+                .sort((a, b) => (b.position?.line ?? 0) - (a.position?.line ?? 0))[0];
+
+              if (!containingClass) {
+                continue;
+              }
+
+              const containingClassName = containingClass.name;
+              if (!containingClassName) {
+                continue;
+              }
+
+              const alreadyAdded = results.some(
+                r => r.uri === fileInfo.uri && r.name === containingClassName
+              );
+
+              if (alreadyAdded) {
+                continue;
+              }
+
+              const classLine = Math.max(0, (containingClass.position?.line ?? 1) - 1);
+              results.push({
+                name: containingClassName,
+                kind: SymbolKind.Class,
+                uri: fileInfo.uri,
+                range: {
+                  start: { line: classLine, character: 0 },
+                  end: { line: classLine, character: containingClassName.length },
+                },
+                selectionRange: {
+                  start: { line: classLine, character: 0 },
+                  end: { line: classLine, character: containingClassName.length },
+                },
+              });
             }
           } catch (err) {
             log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
@@ -988,33 +866,11 @@ export function registerHierarchyHandlers(
         }
       }
 
-      // Phase 5: Clear only type-hierarchy diagnostics, preserve others
-      const nonTypeHierarchyDiagnostics = cached.diagnostics.filter(
-        d => d.source !== 'pike-lsp' || d.code !== 'type-hierarchy'
-      );
-      connection.sendDiagnostics({
-        uri: classUri,
-        diagnostics: nonTypeHierarchyDiagnostics,
-      });
-
       return results; // Empty array = no children found (valid)
     } catch (err) {
       log.error(
         `Type hierarchy subtypes failed for ${params.item.name} in ${params.item.uri}: ${err instanceof Error ? err.message : String(err)}`
       );
-      // Publish error diagnostic with code
-      connection.sendDiagnostics({
-        uri: params.item.uri,
-        diagnostics: [
-          {
-            range: params.item.range,
-            severity: DiagnosticSeverity.Error,
-            message: `Type hierarchy analysis failed: ${err instanceof Error ? err.message : String(err)}`,
-            source: 'pike-lsp',
-            code: 'type-hierarchy',
-          },
-        ],
-      });
       return []; // Empty array signals error occurred
     }
   });

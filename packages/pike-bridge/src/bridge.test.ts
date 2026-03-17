@@ -271,7 +271,7 @@ describe('PikeBridge', () => {
     );
   });
 
-  it('should return definition locations for definition engine queries', async () => {
+  it('should decline lexical definition locations for definition engine queries', async () => {
     const response = await bridge.engineQuery({
       feature: 'definition',
       requestId: 'qe2-definition-query',
@@ -292,10 +292,7 @@ describe('PikeBridge', () => {
 
     const locations = resultView['locations'] as Array<Record<string, unknown>> | undefined;
     assert.ok(Array.isArray(locations), 'definition query should return locations array');
-    assert.ok(
-      (locations?.length ?? 0) >= 1,
-      'definition query should return at least one location'
-    );
+    assert.equal(locations?.length ?? 0, 0, 'definition query should decline lexical locations');
   });
 
   it('should return references locations for references engine queries', async () => {

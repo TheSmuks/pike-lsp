@@ -170,6 +170,7 @@ class UpdatedClass {
       fs.writeFileSync(testFilePath, 'int created = 1;');
 
       const scannerEvents: Array<{ type: string; uri: string }> = [];
+      const invalidatedIncludes: string[] = [];
       let watchedFilesHandler: ((params: { changes: Array<{ uri: string; type: number }> }) => Promise<void>) | null = null;
 
       const connection = {
@@ -200,6 +201,11 @@ class UpdatedClass {
           },
           removeFile(targetUri: string) {
             scannerEvents.push({ type: 'remove', uri: targetUri });
+          },
+        },
+        includeResolver: {
+          invalidate(filePath: string) {
+            invalidatedIncludes.push(filePath);
           },
         },
       };
@@ -233,6 +239,7 @@ class UpdatedClass {
         { type: 'invalidate', uri },
         { type: 'remove', uri },
       ]);
+      expect(invalidatedIncludes).toEqual([testFilePath, testFilePath, testFilePath]);
     });
   });
 });
