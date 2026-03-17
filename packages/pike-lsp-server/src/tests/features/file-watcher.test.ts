@@ -12,6 +12,7 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { FileChangeType, registerFileWatcher } from '../../features/file-watcher.js';
 
 describe('File Watching (Issue #184)', () => {
   let bridge: PikeBridge | null = null;
@@ -160,6 +161,78 @@ class UpdatedClass {
         Changed: 2,
         Deleted: 3,
       });
+    });
+  });
+
+  describe('WorkspaceScanner synchronization', () => {
+    it('updates scanner state for watched unopened file create/change/delete events', async () => {
+      const uri = `file://${testFilePath}`;
+      fs.writeFileSync(testFilePath, 'int created = 1;');
+
+      const scannerEvents: Array<{ type: string; uri: string }> = [];
+      let watchedFilesHandler: ((params: { changes: Array<{ uri: string; type: number }> }) => Promise<void>) | null = null;
+
+      const connection = {
+        onDidChangeWatchedFiles(handler: typeof watchedFilesHandler) {
+          watchedFilesHandler = handler;
+        },
+        console: {
+          log() {},
+          warn() {},
+          error() {},
+        },
+      };
+
+      const services = {
+        workspaceIndex: {
+          async indexDocument() {},
+          removeDocument() {},
+        },
+        documentCache: {
+          delete() {},
+        },
+        workspaceScanner: {
+          upsertFile(targetUri: string) {
+            scannerEvents.push({ type: 'upsert', uri: targetUri });
+          },
+          invalidateFile(targetUri: string) {
+            scannerEvents.push({ type: 'invalidate', uri: targetUri });
+          },
+          removeFile(targetUri: string) {
+            scannerEvents.push({ type: 'remove', uri: targetUri });
+          },
+        },
+      };
+
+      const documents = {
+        get() {
+          return undefined;
+        },
+      };
+
+      registerFileWatcher(connection as any, services as any, documents as any);
+      expect(watchedFilesHandler).not.toBeNull();
+
+      await watchedFilesHandler!({
+        changes: [{ uri, type: FileChangeType.Created }],
+      });
+
+      fs.writeFileSync(testFilePath, 'int changed = 2;');
+      await watchedFilesHandler!({
+        changes: [{ uri, type: FileChangeType.Changed }],
+      });
+
+      fs.rmSync(testFilePath);
+      await watchedFilesHandler!({
+        changes: [{ uri, type: FileChangeType.Deleted }],
+      });
+
+      expect(scannerEvents).toEqual([
+        { type: 'upsert', uri },
+        { type: 'upsert', uri },
+        { type: 'invalidate', uri },
+        { type: 'remove', uri },
+      ]);
     });
   });
 });
