@@ -13,6 +13,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import type { TypeDatabase } from '../../type-database.js';
 import type { WorkspaceIndex } from '../../workspace-index.js';
 import type { Logger } from '@pike-lsp/core';
+import type { ChangeClassification } from './change-detection.js';
 
 interface RegisterDiagnosticsLifecycleHandlersArgs {
   connection: Connection;
@@ -32,7 +33,7 @@ interface RegisterDiagnosticsLifecycleHandlersArgs {
   validationVersions: Map<string, number>;
   validateDocument: (
     document: TextDocument,
-    classification?: unknown,
+    classification?: ChangeClassification,
     checkpoint?: () => void
   ) => Promise<void>;
   validateDocumentDebounced: (document: TextDocument) => void;
