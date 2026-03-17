@@ -75,6 +75,34 @@ class MockPikeProcess extends EventEmitter {
 
 describe('PikeProcess', () => {
     describe('Unit tests (with mock)', () => {
+        it('should report liveness from exit and signal codes', () => {
+            const proc = new PikeProcess();
+            const fakeProcess: any = {
+                exitCode: null,
+                signalCode: null,
+                stdin: { writable: true, write: () => true },
+                kill: () => true,
+                killed: false,
+            };
+
+            (proc as any).process = fakeProcess;
+            assert.equal(proc.isAlive(), true, 'null exit/signal codes should be considered alive');
+
+            fakeProcess.exitCode = 0;
+            assert.equal(proc.isAlive(), false, 'non-null exit code should be considered not alive');
+
+            fakeProcess.exitCode = null;
+            fakeProcess.signalCode = 'SIGTERM';
+            assert.equal(proc.isAlive(), false, 'non-null signal code should be considered not alive');
+        });
+
+        it('should return false for kill methods when process is missing', () => {
+            const proc = new PikeProcess();
+
+            assert.equal(proc.kill(), false);
+            assert.equal(proc.forceKill(), false);
+        });
+
         it('should emit message events when receiving stdout lines', () => {
             const proc = new MockPikeProcess();
             const messages: string[] = [];
