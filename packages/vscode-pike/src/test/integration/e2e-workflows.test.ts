@@ -542,7 +542,8 @@ return 0;
       fileName: string,
       fileContent: string,
       targetText: string,
-      expectedIndentPattern: RegExp
+      expectedIndentPattern: RegExp,
+      movesUp: number = 1
     ): Promise<void> {
       const uri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
       await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(fileContent));
@@ -560,7 +561,9 @@ return 0;
 
         const linePos = new vscode.Position(targetLine, 0);
         editor.selection = new vscode.Selection(linePos, linePos);
-        await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+        for (let i = 0; i < movesUp; i++) {
+          await vscode.commands.executeCommand('editor.action.moveLinesUpAction');
+        }
 
         await waitFor(
           `move applied for ${fileName}`,
@@ -595,7 +598,7 @@ return 0;
 }
 `,
       'return s;',
-      /^\s{2}return s;$/,
+      /^\s{4}return s;$/,
       2
     );
 
