@@ -252,6 +252,21 @@ export class WorkspaceScanner {
         }
     }
 
+    upsertFile(uri: string, lastModified: number): void {
+        const existing = this.files.get(uri);
+        if (existing) {
+            existing.lastModified = lastModified;
+            existing.path = uri;
+            return;
+        }
+
+        this.files.set(uri, {
+            uri,
+            path: uri,
+            lastModified,
+        });
+    }
+
     /**
      * Invalidate cached data for a file (e.g., on file change).
      */
@@ -261,6 +276,10 @@ export class WorkspaceScanner {
             file.symbols = undefined;
             file.symbolPositions = undefined;
         }
+    }
+
+    removeFile(uri: string): void {
+        this.files.delete(uri);
     }
 
     /**
