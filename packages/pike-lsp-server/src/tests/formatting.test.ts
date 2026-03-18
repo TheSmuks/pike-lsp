@@ -365,34 +365,9 @@ void test() {
         assert.equal(format(input), expected);
     });
 
-    it('formats a single-line edge-case-heavy Pike snippet', () => {
+    it('preserves single-line snippets (no structural newline insertion)', () => {
         const input = 'class C{void f(){if(x){arr=({1,2,3});}else if(y){m=(["k":({1})]);}for(i=0;i<3;i++){sum+=i;}switch(v){case 1:foo();break;default:bar();}/* keep { } ; in comment */string s="brace { ; }";string q=\'semi;\';}}';
-
-        const expected = [
-            'class C{',
-            '    void f(){',
-            '        if(x){',
-            '            arr=({1,2,3});',
-            '        }',
-            '        else if(y){',
-            '            m=(["k":({1})]);',
-            '        }',
-            '        for(i=0;i<3;i++){',
-            '            sum+=i;',
-            '        }',
-            '        switch(v){',
-            '        case 1:foo();',
-            '            break;',
-            '        default:bar();',
-            '        }',
-            '        /* keep { } ; in comment */',
-            '        string s="brace { ; }";',
-            "        string q='semi;';",
-            '    }',
-            '}',
-        ].join('\n');
-
-        assert.equal(format(input), expected);
+        assert.equal(format(input), input);
     });
 
     // Issue #102: Tests for Pike-specific constructs

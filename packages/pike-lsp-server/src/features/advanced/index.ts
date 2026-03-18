@@ -28,7 +28,6 @@ import { registerCodeActionsHandler } from './code-actions.js';
 import { registerFormattingHandlers } from './formatting.js';
 import { registerDocumentLinksHandler } from './document-links.js';
 import { registerCodeLensHandlers } from './code-lens.js';
-import { registerOnTypeFormattingHandler } from './on-type-formatting.js';
 import { registerInlineValuesHandler } from './inline-values.js';
 import { registerMonikerHandler } from './moniker.js';
 
@@ -40,7 +39,6 @@ export { registerCodeActionsHandler } from './code-actions.js';
 export { registerFormattingHandlers } from './formatting.js';
 export { registerDocumentLinksHandler } from './document-links.js';
 export { registerCodeLensHandlers } from './code-lens.js';
-export { registerOnTypeFormattingHandler } from './on-type-formatting.js';
 export { registerInlineValuesHandler } from './inline-values.js';
 export { registerMonikerHandler } from './moniker.js';
 
@@ -64,7 +62,6 @@ export function registerAdvancedHandlers(
     registerFormattingHandlers(connection, services, documents);
     registerDocumentLinksHandler(connection, services, documents);
     registerCodeLensHandlers(connection, services, documents);
-    registerOnTypeFormattingHandler(connection, services, documents);
     registerInlineValuesHandler(connection, services, documents);
     registerMonikerHandler(connection, services, documents);
 }
