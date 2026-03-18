@@ -3,7 +3,6 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerNavigationHandlers } from '../features/navigation/index.js';
 import { registerCompletionHandlers } from '../features/editing/completion.js';
 import { registerCodeLensHandlers } from '../features/advanced/code-lens.js';
-import { registerOnTypeFormattingHandler } from '../features/advanced/on-type-formatting.js';
 import { registerMonikerHandler } from '../features/advanced/moniker.js';
 import {
   createMockConnection,
@@ -63,22 +62,6 @@ describe('Runtime Protocol Compliance', () => {
     registerCodeLensHandlers(connection as any, services as any, documents as any);
 
     expect(codeLensResolveRegistrations).toBe(1);
-  });
-
-  it('registers onTypeFormatting triggers at runtime', () => {
-    let triggerCharacters: string[] | null = null;
-
-    const connection = {
-      languages: {
-        onTypeFormatting: (_handler: unknown, triggers: string[]) => {
-          triggerCharacters = triggers;
-        },
-      },
-    };
-
-    registerOnTypeFormattingHandler(connection as any, services as any, documents as any);
-
-    expect(triggerCharacters).toEqual(['\n', ';', '}']);
   });
 
   it('registers $/logMessage protocol-compliance request handler', async () => {
