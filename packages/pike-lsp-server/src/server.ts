@@ -28,6 +28,7 @@ import { DocumentCache } from './services/document-cache.js';
 import { IncludeResolver } from './services/include-resolver.js';
 import { ModuleContext } from './services/module-context.js';
 import { WorkspaceScanner } from './services/workspace-scanner.js';
+import { FormattingService } from './services/formatting-service.js';
 import {
   Logger,
   anonymizeSensitivePaths,
@@ -95,6 +96,7 @@ const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
 const workspaceScanner = new WorkspaceScanner(logger, () => globalSettings);
 const moduleContext = new ModuleContext();
+const formattingService = new FormattingService();
 let stdlibIndex: StdlibIndexManager | null = null;
 let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
@@ -156,6 +158,7 @@ function createServices(): features.Services {
     workspaceScanner,
     globalSettings,
     includePaths,
+    formattingService,
     documentSnapshots,
   };
 }
@@ -369,10 +372,6 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         },
         documentFormattingProvider: true,
         documentRangeFormattingProvider: true,
-        documentOnTypeFormattingProvider: {
-          firstTriggerCharacter: ';',
-          moreTriggerCharacter: ['}', '\n'],
-        },
         documentLinkProvider: { resolveProvider: true },
         codeLensProvider: { resolveProvider: true },
         linkedEditingRangeProvider: true,

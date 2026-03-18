@@ -14,11 +14,8 @@ import {
   ExtensionContext,
   ConfigurationTarget,
   Position,
-  Range,
   Uri,
   Location,
-  TextEdit,
-  WorkspaceEdit,
   StatusBarAlignment,
   StatusBarItem,
   commands,
@@ -29,7 +26,6 @@ import {
   TextDocument as VSCodeTextDocument,
   TextDocumentChangeEvent,
 } from 'vscode';
-import { computeFormattingWindow, isIndentationSensitiveChange } from './format-on-change';
 import { PIKE_LANGUAGE_IDS } from './constants';
 import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
 import {
@@ -822,83 +818,6 @@ async function activateInternal(
     await autoDetectPikeConfiguration(runtime.getOutputChannel());
   });
   runtime.track(detectPikeDisposable);
-
-  const pendingFormatTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  const formattingDocuments = new Set<string>();
-  const autoFormatOnChangeDisposable = workspace.onDidChangeTextDocument(async event => {
-    if (runtime.isDisposed()) return;
-    if (!runtime.isTrackedLanguage(event.document.languageId)) return;
-    if (!runtime.isLspStarted()) return;
-
-    const uriKey = event.document.uri.toString();
-    if (formattingDocuments.has(uriKey)) {
-      return;
-    }
-
-    if (!isIndentationSensitiveChange(event)) {
-      return;
-    }
-
-    const previousTimer = pendingFormatTimers.get(uriKey);
-    if (previousTimer) {
-      clearTimeout(previousTimer);
-    }
-
-    const timer = setTimeout(async () => {
-      pendingFormatTimers.delete(uriKey);
-
-      if (runtime.isDisposed()) {
-        return;
-      }
-
-      const editor = window.visibleTextEditors.find(
-        e => e.document.uri.toString() === uriKey
-      );
-      const tabSize =
-        typeof editor?.options.tabSize === 'number' ? Math.max(1, editor.options.tabSize) : 4;
-      const insertSpaces =
-        typeof editor?.options.insertSpaces === 'boolean' ? editor.options.insertSpaces : true;
-
-      const range = computeFormattingWindow(event);
-
-      try {
-        formattingDocuments.add(uriKey);
-        const edits = await commands.executeCommand<TextEdit[]>(
-          'vscode.executeFormatRangeProvider',
-          event.document.uri,
-          new Range(new Position(range.startLine, 0), new Position(range.endLine, Number.MAX_SAFE_INTEGER)),
-          {
-            tabSize,
-            insertSpaces,
-          }
-        );
-
-        if (!edits || edits.length === 0) {
-          return;
-        }
-
-        const workspaceEdit = new WorkspaceEdit();
-        workspaceEdit.set(event.document.uri, edits);
-        await workspace.applyEdit(workspaceEdit);
-      } finally {
-        formattingDocuments.delete(uriKey);
-      }
-    }, 40);
-
-    pendingFormatTimers.set(uriKey, timer);
-  });
-
-  runtime.track(autoFormatOnChangeDisposable);
-
-  runtime.track({
-    dispose: () => {
-      for (const timer of pendingFormatTimers.values()) {
-        clearTimeout(timer);
-      }
-      pendingFormatTimers.clear();
-      formattingDocuments.clear();
-    },
-  });
 
   // Register deferred activation on first Pike file open
   const fileOpenDisposable = workspace.onDidOpenTextDocument(async doc => {

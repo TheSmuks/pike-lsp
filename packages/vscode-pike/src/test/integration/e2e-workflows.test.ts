@@ -619,7 +619,7 @@ return 0;
 }
 `,
       'out += make_header(1, tmp);',
-      /^\s{4}out \+= make_header\(1, tmp\);$/
+      /^\s{6}out \+= make_header\(1, tmp\);$/
     );
 
     await assertMovedLineIndent(

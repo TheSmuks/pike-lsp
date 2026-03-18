@@ -15,6 +15,7 @@ import type { TypeDatabase } from '../type-database.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
 import type { PikeSettings } from '../core/types.js';
+import type { FormattingService } from './formatting-service.js';
 
 /**
  * Services interface bundles all service dependencies.
@@ -45,6 +46,7 @@ export interface Services {
     globalSettings: PikeSettings;
     /** Include paths for module resolution (mutable, updated by configuration changes) */
     includePaths: string[];
+    formattingService?: FormattingService;
     documentSnapshots?: Map<string, string>;
 }
 
@@ -53,3 +55,4 @@ export { DocumentCache } from './document-cache.js';
 export { BridgeManager, type HealthStatus } from './bridge-manager.js';
 export { WorkspaceScanner } from './workspace-scanner.js';
 export { ModuleContext } from './module-context.js';
+export { FormattingService } from './formatting-service.js';
