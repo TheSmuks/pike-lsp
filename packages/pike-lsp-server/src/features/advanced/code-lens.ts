@@ -9,6 +9,7 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { buildCodeLensCommand } from '../../utils/code-lens.js';
+import { buildRunnableCodeLensCommand } from '../../utils/code-lens.js';
 import { Logger } from '@pike-lsp/core';
 
 /**
@@ -51,6 +52,12 @@ export function registerCodeLensHandlers(
       }
 
       const lenses: CodeLens[] = [];
+      const runnableConfig = (services.globalSettings as any).runnable ?? {};
+      const runnableEnabled = runnableConfig.showCodeLens !== false;
+      const testPattern =
+        typeof runnableConfig.testPattern === 'string' && runnableConfig.testPattern.length > 0
+          ? new RegExp(runnableConfig.testPattern)
+          : /^test_/;
 
       for (const symbol of cache.symbols) {
         // Show reference counts for classes, methods, variables, and constants
@@ -78,6 +85,38 @@ export function registerCodeLensHandlers(
               position,
             },
           });
+
+          if (runnableEnabled && symbol.kind === 'method') {
+            if (symbolName === 'main') {
+              lenses.push({
+                range: {
+                  start: { line, character: char },
+                  end: { line, character: char + symbolName.length },
+                },
+                data: {
+                  uri,
+                  symbolName,
+                  kind: symbol.kind,
+                  position,
+                  lensType: 'run-file',
+                },
+              });
+            } else if (testPattern.test(symbolName)) {
+              lenses.push({
+                range: {
+                  start: { line, character: char },
+                  end: { line, character: char + symbolName.length },
+                },
+                data: {
+                  uri,
+                  symbolName,
+                  kind: symbol.kind,
+                  position,
+                  lensType: 'run-test',
+                },
+              });
+            }
+          }
         }
       }
 
@@ -106,9 +145,15 @@ export function registerCodeLensHandlers(
         symbolName: string;
         kind: string;
         position: Position;
+        lensType?: 'run-file' | 'run-test';
       };
 
       if (!data) {
+        return lens;
+      }
+
+      if (data.lensType === 'run-file' || data.lensType === 'run-test') {
+        lens.command = buildRunnableCodeLensCommand(data.lensType, data.uri, data.symbolName);
         return lens;
       }
 

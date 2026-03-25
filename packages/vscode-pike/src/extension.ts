@@ -10,6 +10,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { spawn } from 'child_process';
 import {
   ExtensionContext,
   ConfigurationTarget,
@@ -549,6 +550,46 @@ async function activateInternal(
   const runtime = new ExtensionRuntime(context, testOutputChannel);
   activeRuntime = runtime;
 
+  const runWithPike = async (uri: string, symbolName?: string): Promise<void> => {
+    const parsed = Uri.parse(uri);
+    const config = workspace.getConfiguration('pike');
+    const configuredInterpreter = config.get<string>('runnable.interpreterPath', '');
+    const pikePath =
+      configuredInterpreter.trim().length > 0 ? configuredInterpreter : config.get<string>('pikePath', 'pike');
+    const interpreterArgs = config.get<string[]>('runnable.interpreterArgs', []);
+    const args = [...interpreterArgs, parsed.fsPath];
+    if (symbolName) {
+      args.push(symbolName);
+    }
+
+    runtime.getOutputChannel().show(true);
+    runtime.getOutputChannel().appendLine(`[pike.run] ${pikePath} ${args.join(' ')}`);
+
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(pikePath, args, {
+        cwd: workspace.workspaceFolders?.[0]?.uri.fsPath,
+        env: process.env,
+      });
+
+      child.stdout.on('data', data => {
+        runtime.getOutputChannel().append(data.toString());
+      });
+
+      child.stderr.on('data', data => {
+        runtime.getOutputChannel().append(data.toString());
+      });
+
+      child.on('error', err => {
+        reject(err);
+      });
+
+      child.on('close', code => {
+        runtime.getOutputChannel().appendLine(`[pike.run] process exited with code ${code ?? -1}`);
+        resolve();
+      });
+    });
+  };
+
   let disposable = commands.registerCommand('pike-module-path.add', async e => {
     if (runtime.isDisposed()) return;
     const rv = await addModulePathSetting(e.fsPath);
@@ -653,6 +694,45 @@ async function activateInternal(
   );
 
   runtime.track(showReferencesDisposable);
+
+  const runFileDisposable = commands.registerCommand('pike.lsp.runFile', async (uri: string) => {
+    if (runtime.isDisposed()) return;
+    if (!uri) {
+      window.showErrorMessage('Run command did not receive a file URI.');
+      return;
+    }
+
+    try {
+      await runWithPike(uri);
+    } catch (err) {
+      const safeMessage = anonymizeSensitivePaths(String(err));
+      runtime.getOutputChannel().appendLine(`[pike.lsp.runFile] Failed: ${safeMessage}`);
+      window.showErrorMessage(`Failed to run Pike file: ${safeMessage}`);
+    }
+  });
+
+  runtime.track(runFileDisposable);
+
+  const runTestDisposable = commands.registerCommand(
+    'pike.lsp.runTest',
+    async (uri: string, symbolName?: string) => {
+      if (runtime.isDisposed()) return;
+      if (!uri) {
+        window.showErrorMessage('Run test command did not receive a file URI.');
+        return;
+      }
+
+      try {
+        await runWithPike(uri, symbolName);
+      } catch (err) {
+        const safeMessage = anonymizeSensitivePaths(String(err));
+        runtime.getOutputChannel().appendLine(`[pike.lsp.runTest] Failed: ${safeMessage}`);
+        window.showErrorMessage(`Failed to run Pike test: ${safeMessage}`);
+      }
+    }
+  );
+
+  runtime.track(runTestDisposable);
 
   // Register showDiagnostics command - shows diagnostics for current document
   const showDiagnosticsDisposable = commands.registerCommand(
