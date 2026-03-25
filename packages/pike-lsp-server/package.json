@@ -15,6 +15,8 @@
     "clean": "rm -rf dist",
     "watch": "tsc --watch",
     "test": "bun test",
+    "test:snapshots:check": "bun test src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
+    "test:snapshots:update": "bun test --update-snapshots src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
     "test:smoke": "bun test src/tests/",
     "test:source-trees": "PIKE_SOURCE_TREE_TEST=1 bun test src/tests/source-tree-e2e.test.ts",
     "typecheck": "tsc --noEmit",

@@ -165,6 +165,28 @@ describe('Your Feature', () => {
 - Tests must pass before merging
 - Pike stdlib files must continue to parse (100% compatibility)
 
+### Snapshot Tests
+
+Snapshot tests for LSP output use Bun inline snapshots in `packages/pike-lsp-server`.
+
+```bash
+# Check mode (CI)
+cd packages/pike-lsp-server
+bun run test:snapshots:check
+
+# Update mode (intentional output change)
+cd packages/pike-lsp-server
+bun run test:snapshots:update
+```
+
+Fixture marker DSL for snapshot inputs:
+
+- `$0` marks cursor position
+- `[|...|]` marks an unnamed range
+- `{|name: ... |}` marks a labeled range
+
+Use `parseSnapshotFixture()` from `src/tests/helpers/snapshot-fixture.ts` to parse markers.
+
 ### Version Testing
 
 - **Local development:** Use Pike 8.1116
