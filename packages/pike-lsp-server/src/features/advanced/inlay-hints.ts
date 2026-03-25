@@ -21,6 +21,85 @@ import { PatternHelpers } from '../../utils/regex-patterns.js';
 import type { InlayHintsSettings } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 
+interface OffsetRange {
+    start: number;
+    end: number;
+}
+
+function buildExclusionRanges(text: string): OffsetRange[] {
+    const ranges: OffsetRange[] = [];
+
+    let i = 0;
+    while (i < text.length) {
+        const char = text[i]!;
+        const next = i + 1 < text.length ? text[i + 1]! : '';
+
+        if (char === '/' && next === '/') {
+            const start = i;
+            i += 2;
+            while (i < text.length && text[i] !== '\n') {
+                i += 1;
+            }
+            ranges.push({ start, end: i });
+            continue;
+        }
+
+        if (char === '/' && next === '*') {
+            const start = i;
+            i += 2;
+            while (i + 1 < text.length) {
+                if (text[i] === '*' && text[i + 1] === '/') {
+                    i += 2;
+                    break;
+                }
+                i += 1;
+            }
+            ranges.push({ start, end: i });
+            continue;
+        }
+
+        if (char === '"' || char === '\'') {
+            const quote = char;
+            const start = i;
+            i += 1;
+            while (i < text.length) {
+                if (text[i] === '\\') {
+                    i += 2;
+                    continue;
+                }
+                if (text[i] === quote) {
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            ranges.push({ start, end: i });
+            continue;
+        }
+
+        i += 1;
+    }
+
+    return ranges;
+}
+
+function isExcludedOffset(ranges: OffsetRange[], offset: number): boolean {
+    let lo = 0;
+    let hi = ranges.length - 1;
+    while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        const range = ranges[mid]!;
+        if (offset < range.start) {
+            hi = mid - 1;
+        } else if (offset >= range.end) {
+            lo = mid + 1;
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Register inlay hints handler.
  */
@@ -99,6 +178,7 @@ export function registerInlayHintsHandler(
 
             const hints: InlayHint[] = [];
             const text = document.getText();
+            const exclusionRanges = buildExclusionRanges(text);
 
             const methods = cached.symbols.filter(s => s.kind === 'method');
 
@@ -113,6 +193,11 @@ export function registerInlayHintsHandler(
                 let match: RegExpExecArray | null = callPattern.exec(text);
 
                 while (match !== null) {
+                    if (isExcludedOffset(exclusionRanges, match.index)) {
+                        match = callPattern.exec(text);
+                        continue;
+                    }
+
                     const callStart = match.index + match[0].length;
 
                     let parenDepth = 1;
