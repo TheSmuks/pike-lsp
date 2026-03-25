@@ -46,26 +46,6 @@ export function getFoldingRanges(document: TextDocument): FoldingRange[] {
             const line = lines[lineNum] ?? '';
             const trimmed = line.trim();
 
-            // Handle Pike multi-line strings: #" starts, "# ends
-            if (trimmed.includes('#"') && !inMultilineString) {
-                const startIndex = trimmed.indexOf('#"');
-                // Basic check to avoid matching inside regular strings
-                if (startIndex >= 0 && !trimmed.substring(0, startIndex).includes('"')) {
-                    inMultilineString = true;
-                    multilineStringStart = lineNum;
-                }
-            }
-            if (trimmed.includes('"#') && inMultilineString) {
-                if (multilineStringStart !== null && lineNum > multilineStringStart) {
-                    foldingRanges.push({
-                        startLine: multilineStringStart,
-                        endLine: lineNum,
-                    });
-                }
-                inMultilineString = false;
-                multilineStringStart = null;
-            }
-
             if (!inBlockComment && trimmed.startsWith('/*')) {
                 commentStart = lineNum;
                 inBlockComment = true;
@@ -95,6 +75,32 @@ export function getFoldingRanges(document: TextDocument): FoldingRange[] {
                     });
                 }
                 commentStart = null;
+            }
+
+            const lineCommentIndex = line.indexOf('//');
+            const inLineComment = lineCommentIndex >= 0 && lineCommentIndex <= line.search(/\S|$/);
+
+            if (!inBlockComment && !inLineComment) {
+                const multilineStartIndex = line.indexOf('#"');
+                if (multilineStartIndex >= 0 && !inMultilineString) {
+                    const prefix = line.slice(0, multilineStartIndex);
+                    if (!prefix.includes('"')) {
+                        inMultilineString = true;
+                        multilineStringStart = lineNum;
+                    }
+                }
+
+                const multilineEndIndex = line.indexOf('"#');
+                if (multilineEndIndex >= 0 && inMultilineString) {
+                    if (multilineStringStart !== null && lineNum > multilineStringStart) {
+                        foldingRanges.push({
+                            startLine: multilineStringStart,
+                            endLine: lineNum,
+                        });
+                    }
+                    inMultilineString = false;
+                    multilineStringStart = null;
+                }
             }
 
             for (let i = 0; i < line.length; i++) {
