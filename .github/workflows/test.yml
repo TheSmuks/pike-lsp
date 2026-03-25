@@ -81,6 +81,9 @@ jobs:
       - name: Run LSP Server tests
         run: cd packages/pike-lsp-server && bun test
 
+      - name: Check inline snapshots
+        run: cd packages/pike-lsp-server && bun run test:snapshots:check
+
       - name: Run LSP smoke tests
         run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
 
