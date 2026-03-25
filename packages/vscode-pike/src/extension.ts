@@ -304,6 +304,12 @@ class ExtensionRuntime {
         if (this.disposed) return Promise.resolve();
         return next(document);
       },
+      provideOnTypeFormattingEdits: (document, position, ch, options, token, next) => {
+        if (!workspace.getConfiguration('pike').get<boolean>('formatOnType', true)) {
+          return Promise.resolve([]);
+        }
+        return next(document, position, ch, options, token);
+      },
     };
   }
 
@@ -832,6 +838,10 @@ async function activateInternal(
 
     const uriKey = event.document.uri.toString();
     if (formattingDocuments.has(uriKey)) {
+      return;
+    }
+
+    if (!workspace.getConfiguration('pike').get<boolean>('formatOnChange', true)) {
       return;
     }
 

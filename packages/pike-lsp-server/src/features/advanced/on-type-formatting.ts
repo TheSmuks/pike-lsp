@@ -67,39 +67,20 @@ export function registerOnTypeFormattingHandler(
 
             // Calculate indentation for the new line
             const indentColumns = calculateIndentation(lineText, text, line - 1, tabSize);
-            const indent = toIndentText(indentColumns, indentUnit, tabSize, insertSpaces);
-            const insertPosition = { line, character: 0 };
+            const newIndent = toIndentText(indentColumns, indentUnit, tabSize, insertSpaces);
 
-            if (indent.length > 0) {
-                edits.push({
-                    range: {
-                        start: insertPosition,
-                        end: insertPosition,
-                    },
-                    newText: indent,
-                });
-            }
-        }
+            // Replace any existing leading whitespace on the new line (e.g. from VS Code
+            // auto-indent) so we don't stack indentation on top of it.
+            const newLineText = text.split('\n')[line] ?? '';
+            const existingIndentLen = (newLineText.match(/^(\s*)/) ?? ['', ''])[1].length;
 
-        // Format on semicolon - auto-indent current line if needed
-        if (ch === ';') {
-            const lineText = document.getText().split('\n')[line] ?? '';
-            const trimmed = lineText.trimLeft();
-
-            // Check if line needs extra indentation
-            if (trimmed.startsWith('}') || trimmed.startsWith('{')) {
-                // Closing/opening brace logic
-                const currentIndent = lineText.search(/\S|$/);
-                const expectedIndent = currentIndent + 2;
-
-                edits.push({
-                    range: {
-                        start: { line, character: currentIndent },
-                        end: { line, character: currentIndent },
-                    },
-                    newText: ' '.repeat(expectedIndent - currentIndent),
-                });
-            }
+            edits.push({
+                range: {
+                    start: { line, character: 0 },
+                    end: { line, character: existingIndentLen },
+                },
+                newText: newIndent,
+            });
         }
 
         // Format on closing brace - align with opening brace
@@ -144,32 +125,60 @@ function toIndentText(indentColumns: number, indentUnit: string, tabSize: number
 }
 
 /**
- * Calculate indentation for a new line based on previous line.
+ * Calculate indentation for a new line based on the previous line.
+ *
+ * Rules (in order):
+ *  1. Line ends with `{`                          → indent + 1 level
+ *  2. Line is a braceless control statement        → indent + 1 level
+ *     (if/else/while/for/foreach ending with `)`,
+ *      or bare "else" / "} else")
+ *  3. Otherwise                                    → keep current indent
  */
-export function calculateIndentation(lineText: string, fullText: string, lineNum: number, tabSize: number = 2): number {
+export function calculateIndentation(lineText: string, _fullText: string, _lineNum: number, tabSize: number = 2): number {
     const trimmed = lineText.trim();
     const currentIndent = getIndentColumns(lineText, tabSize);
 
-    // Increase indent after opening brace
+    // Opening brace at end of line → indent body
     if (trimmed.endsWith('{')) {
         return currentIndent + tabSize;
     }
 
-    // Check if we're inside a parenthesized expression
-    let openParens = 0;
-    for (let i = 0; i <= lineNum; i++) {
-        const checkLine = fullText.split('\n')[i] ?? '';
-        openParens += (checkLine.match(/\(/g) || []).length;
-        openParens -= (checkLine.match(/\)/g) || []).length;
+    // Braceless control statement (if/else/while/for/foreach without {})
+    if (isBracelessControlStatement(trimmed)) {
+        return currentIndent + tabSize;
     }
 
-    if (openParens > 0) {
-        // Indent to align with opening paren plus 4 spaces
-        return currentIndent + (tabSize * 2);
+    // Continuation indent: line ends with unbalanced open parens (e.g. function call split
+    // across lines). Count only parens on the current line — not across the whole file.
+    const netParens =
+        (lineText.match(/\(/g) || []).length - (lineText.match(/\)/g) || []).length;
+    if (netParens > 0) {
+        return currentIndent + tabSize * 2;
     }
 
-    // Otherwise maintain current indentation
     return currentIndent;
+}
+
+/**
+ * Returns true when a (trimmed) line is a braceless control statement that
+ * should cause the next line to be indented one extra level.
+ *
+ * Matches:
+ *   if (...)          } else if (...)
+ *   else              } else
+ *   while (...)       for (...)   foreach (...)
+ */
+function isBracelessControlStatement(trimmed: string): boolean {
+    // Lines that already open / close a block are not braceless
+    if (trimmed.endsWith('{') || trimmed.endsWith('}') || trimmed.endsWith(';')) {
+        return false;
+    }
+    // Plain "else" or closing-brace variant "} else"
+    if (trimmed === 'else' || /^\}\s*else$/.test(trimmed)) {
+        return true;
+    }
+    // Control keywords followed by a parenthesised expression
+    return /^(}\s*)?(if|else\s+if|while|for|foreach|do)\b.*\)$/.test(trimmed);
 }
 
 function getIndentColumns(lineText: string, tabSize: number): number {
