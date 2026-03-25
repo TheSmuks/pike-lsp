@@ -203,9 +203,51 @@ export function registerInlayHintsHandler(
                     let parenDepth = 1;
                     let argIndex = 0;
                     let currentArgStart = callStart;
+                    let inString = false;
+                    let stringQuote = '';
+                    let escaped = false;
+                    let inPikeMultilineString = false;
 
                     for (let i = callStart; i < text.length && parenDepth > 0; i++) {
                         const char = text[i];
+                        const next = i + 1 < text.length ? text[i + 1] : undefined;
+
+                        if (inPikeMultilineString) {
+                            if (char === '"' && next === '#') {
+                                inPikeMultilineString = false;
+                                i += 1;
+                            }
+                            continue;
+                        }
+
+                        if (inString) {
+                            if (escaped) {
+                                escaped = false;
+                                continue;
+                            }
+                            if (char === '\\') {
+                                escaped = true;
+                                continue;
+                            }
+                            if (char === stringQuote) {
+                                inString = false;
+                                stringQuote = '';
+                            }
+                            continue;
+                        }
+
+                        if (char === '#' && next === '"') {
+                            inPikeMultilineString = true;
+                            i += 1;
+                            continue;
+                        }
+
+                        if (char === '"' || char === '\'') {
+                            inString = true;
+                            stringQuote = char;
+                            escaped = false;
+                            continue;
+                        }
 
                         if (char === '(') {
                             parenDepth++;

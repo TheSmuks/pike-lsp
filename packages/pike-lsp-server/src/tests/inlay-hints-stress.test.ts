@@ -108,9 +108,9 @@ function extractInlayHints(
         if (!argNames || argNames.length === 0) continue;
 
         const callPattern = PatternHelpers.functionCallPattern(method.name);
-        let match;
+        let match: RegExpExecArray | null = callPattern.exec(text);
 
-        while ((match = callPattern.exec(text)) !== null) {
+        while (match !== null) {
             // Skip function definitions: check if preceded by a type identifier
             // Function definitions look like "returnType funcName(" or "void funcName("
             // Look at characters before the match to detect if it's a definition
@@ -120,16 +120,61 @@ function extractInlayHints(
             }
             // If there's an identifier before the whitespace, it's likely a definition
             const isDefinition = i >= 0 && /[a-zA-Z0-9_]/.test(text[i]);
-            if (isDefinition) continue;
+            if (isDefinition) {
+                match = callPattern.exec(text);
+                continue;
+            }
 
             const callStart = match.index + match[0].length;
 
             let parenDepth = 1;
             let argIndex = 0;
             let currentArgStart = callStart;
+            let inString = false;
+            let stringQuote = '';
+            let escaped = false;
+            let inPikeMultilineString = false;
 
             for (let i = callStart; i < text.length && parenDepth > 0; i++) {
                 const char = text[i];
+                const next = i + 1 < text.length ? text[i + 1] : undefined;
+
+                if (inPikeMultilineString) {
+                    if (char === '"' && next === '#') {
+                        inPikeMultilineString = false;
+                        i += 1;
+                    }
+                    continue;
+                }
+
+                if (inString) {
+                    if (escaped) {
+                        escaped = false;
+                        continue;
+                    }
+                    if (char === '\\') {
+                        escaped = true;
+                        continue;
+                    }
+                    if (char === stringQuote) {
+                        inString = false;
+                        stringQuote = '';
+                    }
+                    continue;
+                }
+
+                if (char === '#' && next === '"') {
+                    inPikeMultilineString = true;
+                    i += 1;
+                    continue;
+                }
+
+                if (char === '"' || char === '\'') {
+                    inString = true;
+                    stringQuote = char;
+                    escaped = false;
+                    continue;
+                }
 
                 if (char === '(') {
                     parenDepth++;
@@ -164,6 +209,8 @@ function extractInlayHints(
                     currentArgStart = i + 1;
                 }
             }
+
+            match = callPattern.exec(text);
         }
     }
 
@@ -586,6 +633,27 @@ formatted(
             const hints = extractInlayHints(code, symbols, defaultConfig);
 
             expect(hints.length).toBe(3);
+        });
+
+        it('should not split arguments on commas inside string literals', () => {
+            const code = `void greet(string message, int count) { }
+greet("hello, world", 2);`;
+
+            const symbols = [createMethod('greet', ['message', 'count'], ['string', 'int'])];
+            const hints = extractInlayHints(code, symbols, defaultConfig);
+
+            expect(hints.length).toBe(2);
+        });
+
+        it('should not split arguments on commas inside Pike multiline strings', () => {
+            const code = `void report(string body, int severity) { }
+report(#"line1,
+line2"#, 1);`;
+
+            const symbols = [createMethod('report', ['body', 'severity'], ['string', 'int'])];
+            const hints = extractInlayHints(code, symbols, defaultConfig);
+
+            expect(hints.length).toBe(2);
         });
 
         it('should handle empty arguments', () => {
