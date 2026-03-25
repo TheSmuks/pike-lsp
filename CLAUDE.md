@@ -66,6 +66,17 @@ And MUST reference:
 
 Use this repository-wide flow for implementation work.
 
+### 0) Before starting any work — sync with main
+
+**Always run `git pull origin main` (or `git fetch && git rebase origin/main`) before creating a branch or beginning implementation.** Main moves fast; working from a stale base causes merge conflicts, wasted effort, and duplicate fixes.
+
+```bash
+git checkout main && git pull origin main
+git checkout -b fix/my-topic
+```
+
+Never skip this step. If you find yourself resolving avoidable conflicts or re-implementing something already in main, this step was missed.
+
 ### 1) Branching
 
 - For query-engine-v2 rewrite work, follow the mandatory branch policy above.
