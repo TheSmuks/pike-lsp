@@ -43,6 +43,89 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
     log,
   } = args;
 
+  const createIndexingProgressReporter = async () => {
+    const progress = getClientSupportsWorkDoneProgress()
+      ? await connection.window.createWorkDoneProgress().catch(() => null)
+      : null;
+
+    if (progress) {
+      progress.begin('Pike LSP: Indexing workspace…', 0, 'Preparing workspace scan', false);
+      return {
+        report: (percentage: number, message: string) => {
+          const bounded = Math.max(0, Math.min(100, Math.floor(percentage)));
+          progress.report(bounded, message);
+        },
+        end: (message: string) => {
+          progress.report(100, message);
+          progress.done();
+        },
+      };
+    }
+
+    connection.window.showInformationMessage?.('Pike LSP: Indexing workspace…');
+    return {
+      report: (_percentage: number, _message: string) => undefined,
+      end: (message: string) => {
+        connection.window.showInformationMessage?.(`Pike LSP: ${message}`);
+      },
+    };
+  };
+
+  const indexWorkspaceFolders = async (
+    workspaceFolders: Array<{ uri: string; name: string }>
+  ): Promise<void> => {
+    connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
+    setImmediate(async () => {
+      const reporter = await createIndexingProgressReporter();
+
+      const folderPaths: string[] = [];
+      for (let i = 0; i < workspaceFolders.length; i += 1) {
+        const folder = workspaceFolders[i]!;
+        try {
+          const folderStart = Math.floor((i / workspaceFolders.length) * 90);
+          const folderSpan = Math.max(1, Math.floor(90 / workspaceFolders.length));
+
+          reporter.report(folderStart, `Indexing ${folder.name}`);
+
+          const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
+          folderPaths.push(folderPath);
+
+          const indexed = await workspaceIndex.indexDirectory(folderPath, true, progress => {
+            const localProgress =
+              progress.total > 0 ? Math.floor((progress.current / progress.total) * folderSpan) : 0;
+            reporter.report(
+              Math.min(95, folderStart + localProgress),
+              `${folder.name}: ${progress.message}`
+            );
+          });
+          connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
+        } catch (err) {
+          connection.console.warn(`Failed to index folder ${folder.name}: ${err}`);
+          log(`Indexing error for folder ${folder.name}: ${err}`);
+        }
+      }
+
+      const stats = workspaceIndex.getStats();
+      connection.console.log(
+        `Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`
+      );
+
+      try {
+        reporter.report(96, 'Building workspace scanner index');
+
+        await workspaceScanner.initialize(folderPaths);
+        const scannerStats = workspaceScanner.getStats();
+        connection.console.log(
+          `Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`
+        );
+      } catch (err) {
+        connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
+      } finally {
+        reporter.end('Indexing complete');
+      }
+    });
+  };
+
   connection.onInitialized(async () => {
     connection.console.log('Pike LSP Server initialized');
     connection.client.register(DidChangeConfigurationNotification.type, undefined);
@@ -139,14 +222,7 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
           return;
         }
 
-        for (const folder of currentFolders) {
-          try {
-            const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-            await workspaceIndex.indexDirectory(folderPath, true);
-          } catch (err) {
-            connection.console.warn(`Failed to re-index folder ${folder.name}: ${err}`);
-          }
-        }
+        await indexWorkspaceFolders(currentFolders);
       });
     }
 
@@ -221,60 +297,7 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
       log(
         `Engine workspace ack revision=${workspaceAck.revision} snapshot=${workspaceAck.snapshotId}`
       );
-
-      connection.console.log(`Indexing ${workspaceFolders.length} workspace folder(s)...`);
-      setImmediate(async () => {
-        const progress = getClientSupportsWorkDoneProgress()
-          ? await connection.window.createWorkDoneProgress().catch(() => null)
-          : null;
-
-        if (progress) {
-          progress.begin('Pike: indexing workspace', 0, 'Scanning project folders', false);
-        }
-
-        const folderPaths: string[] = [];
-        for (let i = 0; i < workspaceFolders.length; i += 1) {
-          const folder = workspaceFolders[i]!;
-          try {
-            if (progress) {
-              const percentage = Math.floor((i / workspaceFolders.length) * 90);
-              progress.report(percentage, `Indexing ${folder.name}`);
-            }
-
-            const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-            folderPaths.push(folderPath);
-            const indexed = await workspaceIndex.indexDirectory(folderPath, true);
-            connection.console.log(`Indexed ${indexed} files from ${folder.name}`);
-          } catch (err) {
-            connection.console.warn(`Failed to index folder ${folder.name}: ${err}`);
-            log(`Indexing error for folder ${folder.name}: ${err}`);
-          }
-        }
-
-        const stats = workspaceIndex.getStats();
-        connection.console.log(
-          `Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`
-        );
-
-        try {
-          if (progress) {
-            progress.report(95, 'Building workspace scanner index');
-          }
-
-          await workspaceScanner.initialize(folderPaths);
-          const scannerStats = workspaceScanner.getStats();
-          connection.console.log(
-            `Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`
-          );
-        } catch (err) {
-          connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
-        } finally {
-          if (progress) {
-            progress.report(100, 'Workspace ready');
-            progress.done();
-          }
-        }
-      });
+      await indexWorkspaceFolders(workspaceFolders);
     }
   });
 
