@@ -283,6 +283,37 @@ multi-line comment */`;
             const isComment = code.startsWith('/*');
             assert.ok(isComment, 'Is multi-line comment');
         });
+
+        it('should not start multiline string folding for #" inside line comments', () => {
+            const code = `// #" not a multiline string start
+int x = 42;`;
+
+            const document = createDocument(code);
+            const ranges = getFoldingRanges(document);
+
+            assert.equal(ranges.length, 0, 'Should not create folding from comment-contained #"');
+        });
+
+        it('should not start multiline string folding for #" inside autodoc comments', () => {
+            const code = `//! #" not a multiline string start
+int x = 42;`;
+
+            const document = createDocument(code);
+            const ranges = getFoldingRanges(document);
+
+            assert.equal(ranges.length, 0, 'Should not create folding from //! comment #"');
+        });
+
+        it('should still fold valid Pike multiline strings outside comments', () => {
+            const code = `#"
+line1
+"#`;
+
+            const document = createDocument(code);
+            const ranges = getFoldingRanges(document);
+
+            assert.ok(ranges.some(r => r.startLine === 0 && r.endLine === 2), 'Should fold actual multiline string');
+        });
     });
 
     /**
