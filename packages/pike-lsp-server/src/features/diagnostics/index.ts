@@ -65,6 +65,42 @@ export function applySkippedValidationCacheUpdate(
   cachedEntry.version = currentVersion;
 }
 
+export function buildStaleFallbackEntry(
+  existingEntry: DocumentCacheEntry | undefined,
+  version: number,
+  diagnostics: Diagnostic[],
+  contentHash: string,
+  lineHashes: number[]
+): DocumentCacheEntry {
+  if (existingEntry) {
+    return {
+      ...existingEntry,
+      version,
+      diagnostics,
+      contentHash,
+      lineHashes,
+      analysisState: {
+        isStale: true,
+        parseFailed: true,
+      },
+    };
+  }
+
+  return {
+    version,
+    symbols: [],
+    diagnostics,
+    symbolPositions: new Map(),
+    symbolNames: new Map(),
+    contentHash,
+    lineHashes,
+    analysisState: {
+      isStale: true,
+      parseFailed: true,
+    },
+  };
+}
+
 /**
  * Register diagnostics handlers with the LSP connection.
  *
@@ -593,6 +629,10 @@ export function registerDiagnosticsHandlers(
           lineHashes,
           // Store introspection for AutoDoc data including @deprecated tags
           introspection: introspectData.success ? introspectData : undefined,
+          analysisState: {
+            isStale: false,
+            parseFailed: false,
+          },
         };
         if (dependencies) {
           cacheEntry.dependencies = dependencies;
@@ -647,6 +687,10 @@ export function registerDiagnosticsHandlers(
           // INC-002: Store hashes for incremental change detection
           contentHash,
           lineHashes,
+          analysisState: {
+            isStale: false,
+            parseFailed: false,
+          },
         };
         if (dependencies) {
           cacheEntry.dependencies = dependencies;
@@ -662,6 +706,14 @@ export function registerDiagnosticsHandlers(
         });
       } else {
         log.debug('No parse result available for document', { uri });
+        const staleEntry = buildStaleFallbackEntry(
+          documentCache.get(uri),
+          version,
+          diagnostics,
+          contentHash,
+          lineHashes
+        );
+        documentCache.set(uri, staleEntry);
       }
 
       // Process diagnostics from unified analyze (includes syntax errors + uninitialized warnings)
