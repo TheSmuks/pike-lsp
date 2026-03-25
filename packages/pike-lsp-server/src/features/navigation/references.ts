@@ -368,6 +368,87 @@ export function registerReferencesHandlers(
         return null;
       }
 
+      const cached = documentCache.get(uri);
+
+      if (cached?.symbolPositions) {
+        const positions = cached.symbolPositions.get(word);
+        if (positions && positions.length > 0) {
+          const declarationLines = cached.symbols
+            .filter(symbol => symbol.name === word && symbol.position)
+            .map(symbol => Math.max(0, (symbol.position?.line ?? 1) - 1))
+            .sort((a, b) => a - b);
+
+          const cursorLine = params.position.line;
+          let activeDeclarationLine = declarationLines[0] ?? -1;
+          for (const line of declarationLines) {
+            if (line <= cursorLine) {
+              activeDeclarationLine = line;
+            }
+          }
+
+          let nextDeclarationLine = Number.POSITIVE_INFINITY;
+          if (activeDeclarationLine >= 0) {
+            for (const line of declarationLines) {
+              if (line > activeDeclarationLine) {
+                nextDeclarationLine = line;
+                break;
+              }
+            }
+          }
+
+          const escapeRegex = (value: string): string =>
+            value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const escapedWord = escapeRegex(word);
+          const declarationRegex = new RegExp(
+            `\\b(?:int|string|float|mapping|array|object|mixed|multiset|program|function|void)\\s+${escapedWord}\\b`
+          );
+
+          const isWriteOccurrence = (line: string, character: number): boolean => {
+            const before = line.slice(0, character);
+            const after = line.slice(character + word.length);
+            if (declarationRegex.test(line)) {
+              return true;
+            }
+            if (/^\s*(\+\+|--|[+\-*/%&|^]?=)/.test(after)) {
+              return true;
+            }
+            if (/(\+\+|--)\s*$/.test(before)) {
+              return true;
+            }
+            return false;
+          };
+
+          const lines = text.split('\n');
+          const semanticHighlights: DocumentHighlight[] = [];
+
+          for (const pos of positions) {
+            if (
+              activeDeclarationLine >= 0 &&
+              (pos.line < activeDeclarationLine || pos.line >= nextDeclarationLine)
+            ) {
+              continue;
+            }
+
+            const line = lines[pos.line] ?? '';
+            const kind = isWriteOccurrence(line, pos.character)
+              ? DocumentHighlightKind.Write
+              : DocumentHighlightKind.Read;
+
+            semanticHighlights.push({
+              range: {
+                start: pos,
+                end: { line: pos.line, character: pos.character + word.length },
+              },
+              kind,
+            });
+          }
+
+          if (semanticHighlights.length > 0) {
+            return semanticHighlights;
+          }
+        }
+      }
+
       const highlights: DocumentHighlight[] = [];
       const lines = text.split('\n');
 

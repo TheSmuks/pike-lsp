@@ -11,7 +11,6 @@
  * - Edge cases: empty cache, short words, large files
  */
 
-import { describe, it, expect } from 'bun:test';
 import { DocumentHighlightKind } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -27,6 +26,8 @@ import {
   createMockWorkspaceScanner,
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
+
+const { describe, it, expect } = require('bun:test');
 
 // =============================================================================
 // Setup helpers
@@ -1144,6 +1145,13 @@ describe('Document Highlight Provider', () => {
 count++;
 write(count);`;
 
+      const symbolPositions = new Map<string, { line: number; character: number }[]>();
+      symbolPositions.set('count', [
+        { line: 0, character: 4 },
+        { line: 1, character: 0 },
+        { line: 2, character: 6 },
+      ]);
+
       const { highlight } = setup({
         code,
         symbols: [
@@ -1154,6 +1162,7 @@ write(count);`;
             position: { file: 'test.pike', line: 1 },
           },
         ],
+        symbolPositions,
       });
 
       // Cursor on "count" at line 0, char 4
@@ -1161,10 +1170,9 @@ write(count);`;
       expect(result).not.toBeNull();
       expect(result!.length).toBe(3);
 
-      // All highlights should be DocumentHighlightKind.Text
-      for (const h of result!) {
-        expect(h.kind).toBe(DocumentHighlightKind.Text);
-      }
+      expect(result![0]!.kind).toBe(DocumentHighlightKind.Write);
+      expect(result![1]!.kind).toBe(DocumentHighlightKind.Write);
+      expect(result![2]!.kind).toBe(DocumentHighlightKind.Read);
     });
   });
 
@@ -1200,22 +1208,34 @@ x = 2;`;
   });
 
   describe('Scenario 7.3: Highlight symbol with different scopes', () => {
-    it('should highlight all text occurrences regardless of scope', async () => {
-      // The highlight handler uses text-based search, not scope-aware
+    it('should use semantic symbol positions to avoid cross-scope highlights', async () => {
       const code = `int xx = 1;
 void func() { int xx = 2; write(xx); }
 write(xx);`;
 
+      const symbolPositions = new Map<string, { line: number; character: number }[]>();
+      symbolPositions.set('xx', [
+        { line: 0, character: 4 },
+        { line: 2, character: 6 },
+      ]);
+
       const { highlight } = setup({
         code,
-        symbols: [],
+        symbols: [
+          {
+            name: 'xx',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        symbolPositions,
       });
 
       // Cursor on "xx" at line 0
       const result = await highlight(0, 5);
       expect(result).not.toBeNull();
-      // All 4 occurrences of "xx" are highlighted (no scope awareness)
-      expect(result!.length).toBe(4);
+      expect(result!.length).toBe(2);
     });
   });
 
