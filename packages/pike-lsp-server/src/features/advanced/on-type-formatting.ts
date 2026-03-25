@@ -72,7 +72,7 @@ export function registerOnTypeFormattingHandler(
             // Replace any existing leading whitespace on the new line (e.g. from VS Code
             // auto-indent) so we don't stack indentation on top of it.
             const newLineText = text.split('\n')[line] ?? '';
-            const existingIndentLen = (newLineText.match(/^(\s*)/) ?? ['', ''])[1].length;
+            const existingIndentLen = (newLineText.match(/^(\s*)/)?.[1] ?? '').length;
 
             edits.push({
                 range: {
