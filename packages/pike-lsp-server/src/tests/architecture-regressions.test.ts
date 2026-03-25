@@ -40,11 +40,15 @@ describe('Architecture regressions', () => {
   });
 
   it('cleans validationVersions state on document close', async () => {
-    const diagnosticsSource = await readServerFile('features/diagnostics/index.ts');
+    const diagnosticsSource = await readServerFile('features/diagnostics/lifecycle.ts');
     const didCloseIndex = diagnosticsSource.indexOf('documents.onDidClose(event => {');
     const cleanupIndex = diagnosticsSource.indexOf('validationVersions.delete(event.document.uri);');
 
-    assert.equal(didCloseIndex >= 0, true, 'expected diagnostics onDidClose handler block');
+    assert.equal(
+      didCloseIndex >= 0,
+      true,
+      'expected diagnostics lifecycle onDidClose handler block'
+    );
     assert.equal(
       cleanupIndex > didCloseIndex,
       true,

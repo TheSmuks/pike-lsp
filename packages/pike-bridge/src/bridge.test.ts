@@ -8,6 +8,8 @@
 import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
+import { PikeProcess } from './process.js';
+import { PROCESS_STARTUP_DELAY } from './constants.js';
 
 describe('PikeBridge', () => {
   let bridge: PikeBridge;
@@ -269,7 +271,7 @@ describe('PikeBridge', () => {
     );
   });
 
-  it('should return definition locations for definition engine queries', async () => {
+  it('should decline lexical definition locations for definition engine queries', async () => {
     const response = await bridge.engineQuery({
       feature: 'definition',
       requestId: 'qe2-definition-query',
@@ -290,10 +292,7 @@ describe('PikeBridge', () => {
 
     const locations = resultView['locations'] as Array<Record<string, unknown>> | undefined;
     assert.ok(Array.isArray(locations), 'definition query should return locations array');
-    assert.ok(
-      (locations?.length ?? 0) >= 1,
-      'definition query should return at least one location'
-    );
+    assert.equal(locations?.length ?? 0, 0, 'definition query should decline lexical locations');
   });
 
   it('should return references locations for references engine queries', async () => {
@@ -543,6 +542,247 @@ foo(@args);
     // All should return the same results
     assert.deepEqual(result1, result2, 'Results should be identical');
     assert.deepEqual(result2, result3, 'Results should be identical');
+  });
+
+  it('should reject startup when subprocess exits during startup delay', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      setTimeout(() => this.emit('exit', 1), 0);
+    };
+
+    const localBridge = new PikeBridge();
+
+    try {
+      await assert.rejects(
+        localBridge.start(),
+        /exited during startup|not alive after startup delay/,
+        'start() should reject when process exits before readiness'
+      );
+      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after failed start');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+    }
+  });
+
+  it('should wait for active startup before sending concurrent requests', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalSend = PikeProcess.prototype.send;
+    const localBridge = new PikeBridge();
+    const sendTimes: number[] = [];
+    const startedAt = Date.now();
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.send = function mockedSend(this: PikeProcess, json: string): void {
+      sendTimes.push(Date.now() - startedAt);
+      const request = JSON.parse(json) as { id: number };
+      setTimeout(() => {
+        this.emit('message', JSON.stringify({ id: request.id, result: { ok: 1 } }));
+      }, 0);
+    };
+
+    try {
+      const [first, second] = await Promise.all([
+        (localBridge as any).sendRequest('mock_method_one', {}),
+        (localBridge as any).sendRequest('mock_method_two', {}),
+      ]);
+
+      assert.equal((first as { ok: number }).ok, 1);
+      assert.equal((second as { ok: number }).ok, 1);
+      assert.equal(sendTimes.length, 2, 'Both requests should be sent');
+
+      const minExpectedDelay = Math.max(0, PROCESS_STARTUP_DELAY - 20);
+      assert.ok(
+        sendTimes.every(ms => ms >= minExpectedDelay),
+        `Requests should wait for startup delay, got send offsets: ${sendTimes.join(', ')}`
+      );
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.send = originalSend;
+      await localBridge.stop();
+    }
+  });
+
+  it('should share startup failure and allow retry after rejection', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalSend = PikeProcess.prototype.send;
+    const localBridge = new PikeBridge();
+    let spawnCalls = 0;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      spawnCalls++;
+      if (spawnCalls === 1) {
+        setTimeout(() => this.emit('exit', 1), 0);
+        return;
+      }
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.send = function mockedSend(this: PikeProcess, json: string): void {
+      const request = JSON.parse(json) as { id: number };
+      setTimeout(() => {
+        this.emit('message', JSON.stringify({ id: request.id, result: { ok: 1 } }));
+      }, 0);
+    };
+
+    try {
+      const [first, second] = await Promise.allSettled([
+        (localBridge as any).sendRequest('startup_fail_one', {}),
+        (localBridge as any).sendRequest('startup_fail_two', {}),
+      ]);
+
+      assert.equal(first.status, 'rejected');
+      assert.equal(second.status, 'rejected');
+      assert.equal(spawnCalls, 1, 'Concurrent startup failure should use a single spawn attempt');
+
+      const recovery = await (localBridge as any).sendRequest('startup_retry_ok', {});
+      assert.equal((recovery as { ok: number }).ok, 1);
+      assert.equal(spawnCalls, 2, 'Retry should trigger a new startup attempt after failure');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.send = originalSend;
+      await localBridge.stop();
+    }
+  });
+  it('should reject startup when stop is requested during startup', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const originalKill = PikeProcess.prototype.kill;
+    const originalForceKill = PikeProcess.prototype.forceKill;
+    const localBridge = new PikeBridge();
+    let forceKillCalls = 0;
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.kill = function mockedKill(): boolean {
+      return true;
+    };
+    PikeProcess.prototype.forceKill = function mockedForceKill(): boolean {
+      forceKillCalls++;
+      return true;
+    };
+
+    try {
+      const startupErrorPromise = localBridge.start().then(
+        () => null,
+        (error: Error) => error
+      );
+      await localBridge.stop();
+
+      const startupError = await startupErrorPromise;
+      assert.ok(startupError, 'start() should reject if stop() is called before startup settles');
+      assert.match(startupError.message, /stop requested during startup/);
+
+      assert.equal(forceKillCalls, 1, 'stop() should escalate when process stays alive');
+      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after interrupted startup');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      PikeProcess.prototype.kill = originalKill;
+      PikeProcess.prototype.forceKill = originalForceKill;
+    }
+  });
+
+  it('should clean pending request state when send throws synchronously', async () => {
+    const localBridge = new PikeBridge();
+    const failingProcess = {
+      isAlive: () => true,
+      send: () => {
+        throw new Error('stdin closed');
+      },
+    };
+
+    (localBridge as any).process = failingProcess;
+    (localBridge as any).started = true;
+
+    await assert.rejects(
+      (localBridge as any).sendRequest('parse', { code: 'int x = 1;', filename: 'test.pike' }),
+      /Failed to send request/,
+      'sendRequest should reject immediately on synchronous send failure'
+    );
+
+    assert.equal(
+      (localBridge as any).pendingRequests.size,
+      0,
+      'pendingRequests should be cleaned up after send failure'
+    );
+  });
+
+  it('should reject pending requests on stop even without exit event', async () => {
+    const localBridge = new PikeBridge();
+    let rejectedMessage = '';
+    let forceKillCalled = false;
+    const timeout = setTimeout(() => undefined, 10000);
+
+    try {
+      (localBridge as any).pendingRequests.set(999, {
+        resolve: () => undefined,
+        reject: (error: Error) => {
+          rejectedMessage = error.message;
+        },
+        timeout,
+      });
+
+      (localBridge as any).process = {
+        kill: () => undefined,
+        forceKill: () => {
+          forceKillCalled = true;
+        },
+        isAlive: () => true,
+      };
+      (localBridge as any).started = true;
+
+      await localBridge.stop();
+
+      assert.equal(
+        (localBridge as any).pendingRequests.size,
+        0,
+        'pendingRequests should be cleared during stop()'
+      );
+      if (!rejectedMessage) {
+        throw new Error('Pending request should be rejected during stop()');
+      }
+      assert.match(
+        rejectedMessage,
+        /stopped while requests were in flight/,
+        'Stop rejection should include deterministic shutdown message'
+      );
+      assert.equal(forceKillCalled, true, 'stop() should force-kill when process remains alive');
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+
+  it('should skip force-kill when process exits after graceful kill', async () => {
+    const localBridge = new PikeBridge();
+    let forceKillCalls = 0;
+
+    (localBridge as any).process = {
+      kill: () => undefined,
+      forceKill: () => {
+        forceKillCalls++;
+      },
+      isAlive: () => false,
+    };
+    (localBridge as any).started = true;
+
+    await localBridge.stop();
+
+    assert.equal(forceKillCalls, 0, 'stop() should not force-kill when process is already down');
   });
 
   it('should resolve local modules with currentFile context', async () => {

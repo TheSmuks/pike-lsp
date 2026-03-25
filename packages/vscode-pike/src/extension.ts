@@ -14,11 +14,8 @@ import {
   ExtensionContext,
   ConfigurationTarget,
   Position,
-  Range,
   Uri,
   Location,
-  TextEdit,
-  WorkspaceEdit,
   StatusBarAlignment,
   StatusBarItem,
   commands,
@@ -29,7 +26,6 @@ import {
   TextDocument as VSCodeTextDocument,
   TextDocumentChangeEvent,
 } from 'vscode';
-import { computeFormattingWindow, isIndentationSensitiveChange } from './format-on-change';
 import { PIKE_LANGUAGE_IDS } from './constants';
 import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
 import {
@@ -909,6 +905,7 @@ async function activateInternal(
       formattingDocuments.clear();
     },
   });
+
 
   // Register deferred activation on first Pike file open
   const fileOpenDisposable = workspace.onDidOpenTextDocument(async doc => {

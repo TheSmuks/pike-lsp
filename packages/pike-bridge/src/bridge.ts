@@ -152,11 +152,14 @@ export class PikeBridge extends EventEmitter {
   private moduleResolveCache = new Map<string, string | null>();
   /** PERF-003: Maximum number of cached documents */
   private readonly MAX_TOKEN_CACHE_SIZE = 50;
+  private startupPromise: Promise<void> | null = null;
 
   /** Internal options (excluding rateLimit which is handled separately) */
   private readonly options: InternalBridgeOptions;
 
   private started = false;
+  private startupInProgress = false;
+  private cancelStartup = false;
   private readonly logger = new Logger('PikeBridge');
   private debugLog: (message: string) => void;
   private rateLimiter: RateLimiter | null;
@@ -238,10 +241,21 @@ export class PikeBridge extends EventEmitter {
    * @emits started when the subprocess is ready.
    */
   async start(): Promise<void> {
-    if (this.process) {
+    if (this.started && this.process?.isAlive()) {
       this.debugLog('Process already running, skipping start');
       return;
     }
+
+    if (this.startupPromise) {
+      this.debugLog('Startup already in progress, waiting for readiness');
+      return this.startupPromise;
+    }
+
+    if (this.process && !this.process.isAlive()) {
+      this.process = null;
+    }
+    this.startupInProgress = true;
+    this.cancelStartup = false;
 
     this.debugLog(
       `Starting Pike subprocess: ${this.options.pikePath} ${this.options.analyzerPath}`
@@ -250,13 +264,69 @@ export class PikeBridge extends EventEmitter {
 
     const pikeProc = new PikeProcess();
 
-    return new Promise((resolve, reject) => {
-      // Set up event handlers before spawning
-      pikeProc.once('error', err => {
-        this.debugLog(`Process error event: ${err.message}`);
+    const startupPromise = new Promise<void>((resolve, reject) => {
+      let startupSettled = false;
+      let startupTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const cleanupStartupHandlers = (): void => {
+        pikeProc.removeListener('error', onStartupError);
+        pikeProc.removeListener('exit', onStartupExit);
+      };
+
+      const rejectStartup = (message: string): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        startupSettled = true;
+        this.startupInProgress = false;
+        if (startupTimer) {
+          clearTimeout(startupTimer);
+          startupTimer = null;
+        }
         this.started = false;
-        reject(new Error(`Failed to start Pike subprocess: ${err.message}`));
-      });
+        this.process = null;
+        cleanupStartupHandlers();
+        reject(new Error(message));
+      };
+
+      const resolveStartup = (): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        if (this.cancelStartup) {
+          rejectStartup('Pike bridge stop requested during startup');
+          return;
+        }
+
+        startupSettled = true;
+        this.startupInProgress = false;
+        startupTimer = null;
+        this.started = true;
+        cleanupStartupHandlers();
+        this.debugLog('Pike subprocess started successfully');
+        this.emit('started');
+        resolve();
+      };
+
+      const onStartupError = (err: Error): void => {
+        this.debugLog(`Process error event: ${err.message}`);
+        rejectStartup(`Failed to start Pike subprocess: ${err.message}`);
+      };
+
+      const onStartupExit = (code: number | null): void => {
+        if (startupSettled) {
+          return;
+        }
+
+        this.debugLog(`Process exited during startup with code: ${code}`);
+        rejectStartup(`Pike subprocess exited during startup with code ${code}`);
+      };
+
+      // Set up event handlers before spawning
+      pikeProc.on('error', onStartupError);
+      pikeProc.on('exit', onStartupExit);
 
       // Forward stderr events
       pikeProc.on('stderr', data => {
@@ -289,14 +359,7 @@ export class PikeBridge extends EventEmitter {
         this.process = null;
         this.emit('close', code);
 
-        // Reject all pending requests
-        for (const [_id, pending] of this.pendingRequests) {
-          clearTimeout(pending.timeout);
-          const error = new PikeError(`Pike process exited with code ${code}`);
-          this.debugLog(`Rejecting pending request: ${error.message}`);
-          pending.reject(error);
-        }
-        this.pendingRequests.clear();
+        this.rejectAllPendingRequests(`Pike process exited with code ${code}`);
       });
 
       // Spawn the process
@@ -306,18 +369,26 @@ export class PikeBridge extends EventEmitter {
         this.process = pikeProc;
 
         // Give the process a moment to start
-        setTimeout(() => {
-          this.started = true;
-          this.debugLog('Pike subprocess started successfully');
-          this.emit('started');
-          resolve();
+        startupTimer = setTimeout(() => {
+          if (!this.process || !this.process.isAlive()) {
+            rejectStartup('Pike subprocess is not alive after startup delay');
+            return;
+          }
+
+          resolveStartup();
         }, PROCESS_STARTUP_DELAY);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         this.debugLog(`Exception during start: ${message}`);
-        reject(new Error(`Failed to start Pike bridge: ${message}`));
+        rejectStartup(`Failed to start Pike bridge: ${message}`);
       }
     });
+
+    this.startupPromise = startupPromise.finally(() => {
+      this.startupPromise = null;
+    });
+
+    return this.startupPromise;
   }
 
   /**
@@ -330,23 +401,52 @@ export class PikeBridge extends EventEmitter {
    * @emits stopped when the subprocess has terminated.
    */
   async stop(): Promise<void> {
+    if (this.startupInProgress) {
+      this.cancelStartup = true;
+    }
+
     if (this.process) {
       this.debugLog('Stopping Pike subprocess...');
       const proc = this.process;
+      const waitForShutdown = async (): Promise<void> => {
+        await new Promise(resolve => setTimeout(resolve, GRACEFUL_SHUTDOWN_DELAY));
+      };
+
+      this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
 
       // Graceful shutdown via PikeProcess
       proc.kill();
 
       // Wait a moment for cleanup
-      await new Promise(resolve => setTimeout(resolve, GRACEFUL_SHUTDOWN_DELAY));
+      await waitForShutdown();
+
+      if (proc.isAlive()) {
+        this.debugLog('Graceful shutdown timed out, forcing SIGKILL');
+        proc.forceKill();
+        await waitForShutdown();
+      }
 
       this.debugLog('Pike subprocess stopped');
       this.process = null;
       this.started = false;
     }
+    this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
     this.requestCache.clear();
     this.clearResolutionCaches();
     this.emit('stopped');
+  }
+
+  private rejectAllPendingRequests(message: string): void {
+    if (this.pendingRequests.size === 0) {
+      return;
+    }
+
+    for (const [_id, pending] of this.pendingRequests) {
+      clearTimeout(pending.timeout);
+      pending.reject(new PikeError(message));
+    }
+
+    this.pendingRequests.clear();
   }
 
   private clearResolutionCaches(): void {
@@ -426,8 +526,23 @@ export class PikeBridge extends EventEmitter {
 
       const request: PikeRequest = { id, method: method as PikeRequest['method'], params };
       const json = JSON.stringify(request);
+      const process = this.process;
 
-      this.process?.send(json);
+      if (!process) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(id);
+        reject(new PikeError('Pike process is not running'));
+        return;
+      }
+
+      try {
+        process.send(json);
+      } catch (err) {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(id);
+        const message = err instanceof Error ? err.message : String(err);
+        reject(new PikeError(`Failed to send request ${id}: ${message}`));
+      }
     });
 
     // Track as inflight
@@ -436,11 +551,16 @@ export class PikeBridge extends EventEmitter {
     }
 
     // Remove from inflight when done (success or failure)
-    promise.finally(() => {
-      if (requestKey) {
-        this.requestCache.delete(requestKey);
-      }
-    });
+    if (requestKey) {
+      promise.then(
+        () => {
+          this.requestCache.delete(requestKey);
+        },
+        () => {
+          this.requestCache.delete(requestKey);
+        }
+      );
+    }
 
     // Apply runtime response validation if provided
     if (validate) {

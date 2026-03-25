@@ -176,7 +176,7 @@ describe('Indentation Rules Stress Tests', () => {
             // Opening paren must be at end of line
             expect(shouldIncreaseIndent('call(arg1,')).toBe(false);
             expect(shouldIncreaseIndent('        arg2,')).toBe(false);
-            expect(shouldDecreaseIndent('        arg3)')).toBe(true);
+            expect(shouldDecreaseIndent('        arg3)')).toBe(false);
         });
     });
 
@@ -237,8 +237,12 @@ describe('Indentation Rules Stress Tests', () => {
         test('should handle empty brackets', () => {
             // Empty brackets - { is matched anywhere in line
             expect(shouldIncreaseIndent('array a = ({}')).toBe(true);
-            // They DO match decrease pattern
-            expect(shouldDecreaseIndent('array a = ({})')).toBe(true);
+            expect(shouldDecreaseIndent('array a = ({})')).toBe(false);
+        });
+
+        test('should not outdent normal greater-than comparison lines', () => {
+            expect(shouldDecreaseIndent('if (a > b)')).toBe(false);
+            expect(shouldDecreaseIndent('value > threshold')).toBe(false);
         });
 
         test('should handle mixed operators - WORKS', () => {
@@ -293,6 +297,12 @@ describe('Indentation Rules Stress Tests', () => {
             expect(languageConfig.indentationRules).toBeDefined();
             expect(languageConfig.indentationRules.increaseIndentPattern).toBeDefined();
             expect(languageConfig.indentationRules.decreaseIndentPattern).toBeDefined();
+        });
+
+        test('should keep Pike multiset bracket pair consistent', () => {
+            expect(languageConfig.brackets).toBeDefined();
+            expect(Array.isArray(languageConfig.brackets)).toBe(true);
+            expect(languageConfig.brackets.some((pair: [string, string]) => pair[0] === '(<' && pair[1] === '>)')).toBe(true);
         });
 
         test('report test coverage and known gaps', () => {

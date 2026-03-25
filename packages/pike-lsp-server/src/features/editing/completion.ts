@@ -208,16 +208,15 @@ export function registerCompletionHandlers(
               }
             }
             inFlightCompletionRequests.set(uri, requestId);
+            const snapshotId = services.documentSnapshots?.get(uri);
 
             const qeResponse = await bridge.engineQuery({
               feature: 'completion',
               requestId,
-              snapshot: { mode: 'latest' },
+              snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
               queryParams: {
                 uri,
                 filename,
-                version: document.version,
-                text: document.getText(),
                 position: params.position,
                 context: params.context ?? null,
               },

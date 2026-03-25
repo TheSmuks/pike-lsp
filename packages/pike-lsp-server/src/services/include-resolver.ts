@@ -9,7 +9,7 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 /**
  * Cache for resolved includes with their symbols.
@@ -25,7 +25,6 @@ type IncludeCache = Map<string, ResolvedInclude>;
  */
 export class IncludeResolver {
   private cache: IncludeCache = new Map();
-  private readonly CACHE_TTL = 30_000; // 30 seconds
 
   constructor(
     private readonly bridge: BridgeManager | null,
@@ -123,23 +122,27 @@ export class IncludeResolver {
         return null;
       }
 
-      const cacheKey = result.path;
+      const normalizedPath = this.normalizeFilePath(result.path);
+      const cacheKey = normalizedPath;
       const cached = this.cache.get(cacheKey);
-      const now = Date.now();
+      const sourceLastModified = await this.getLastModifiedMs(normalizedPath);
 
-      // Return cached if still valid
-      if (cached && now - cached.lastModified < this.CACHE_TTL) {
+      if (cached && sourceLastModified !== null && cached.lastModified === sourceLastModified) {
+        return cached;
+      }
+
+      if (cached && sourceLastModified === null) {
         return cached;
       }
 
       // Parse the included file to get symbols
-      const symbols = await this.parseIncludedFile(result.path);
+      const symbols = await this.parseIncludedFile(normalizedPath);
 
       const resolved: ResolvedInclude = {
         originalPath: result.originalPath,
-        resolvedPath: result.path,
+        resolvedPath: normalizedPath,
         symbols,
-        lastModified: now,
+        lastModified: sourceLastModified ?? Date.now(),
       };
 
       this.cache.set(cacheKey, resolved);
@@ -175,12 +178,36 @@ export class IncludeResolver {
         return null;
       }
 
-      // Parse the module file to get symbols
-      const symbols = await this.parseIncludedFile(result.path);
+      const normalizedPath = this.normalizeFilePath(result.path);
+      const sourceLastModified = await this.getLastModifiedMs(normalizedPath);
+      const cached = this.cache.get(normalizedPath);
+
+      if (cached && sourceLastModified !== null && cached.lastModified === sourceLastModified) {
+        return {
+          symbols: cached.symbols,
+          resolvedPath: normalizedPath,
+        };
+      }
+
+      if (cached && sourceLastModified === null) {
+        return {
+          symbols: cached.symbols,
+          resolvedPath: normalizedPath,
+        };
+      }
+
+      const symbols = await this.parseIncludedFile(normalizedPath);
+
+      this.cache.set(normalizedPath, {
+        originalPath: modulePath,
+        resolvedPath: normalizedPath,
+        symbols,
+        lastModified: sourceLastModified ?? Date.now(),
+      });
 
       return {
         symbols,
-        resolvedPath: result.path,
+        resolvedPath: normalizedPath,
       };
     } catch (err) {
       this.logger.debug('Workspace import resolution failed', {
@@ -198,7 +225,7 @@ export class IncludeResolver {
    * @returns Array of symbols from the file
    */
   private async parseIncludedFile(filePath: string): Promise<PikeSymbol[]> {
-    if (!this.bridge?.bridge) {
+    if (!this.bridge) {
       return [];
     }
 
@@ -207,7 +234,30 @@ export class IncludeResolver {
       const content = await readFile(filePath, 'utf-8');
 
       // Use analyze to get symbols (parse operation only)
-      const response = await this.bridge.bridge.analyze(content, ['parse'], filePath);
+      const bridgeLike = this.bridge as unknown as {
+        analyze?: (
+          code: string,
+          include: ['parse'],
+          filename: string
+        ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
+        bridge?: {
+          analyze?: (
+            code: string,
+            include: ['parse'],
+            filename: string
+          ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
+        };
+      };
+
+      const response = bridgeLike.analyze
+        ? await bridgeLike.analyze(content, ['parse'], filePath)
+        : bridgeLike.bridge?.analyze
+          ? await bridgeLike.bridge.analyze(content, ['parse'], filePath)
+          : null;
+
+      if (!response) {
+        return [];
+      }
 
       if (response.result?.parse?.symbols) {
         return response.result.parse.symbols;
@@ -268,7 +318,9 @@ export class IncludeResolver {
    * @param filePath - Absolute path to invalidate
    */
   invalidate(filePath: string): void {
+    const normalized = this.normalizeFilePath(filePath);
     this.cache.delete(filePath);
+    this.cache.delete(normalized);
   }
 
   /**
@@ -291,5 +343,19 @@ export class IncludeResolver {
       cachedIncludes: this.cache.size,
       totalSymbols,
     };
+  }
+
+  private normalizeFilePath(filePath: string): string {
+    const pathWithoutScheme = filePath.replace(/^file:\/\//, '');
+    return decodeURIComponent(pathWithoutScheme);
+  }
+
+  private async getLastModifiedMs(filePath: string): Promise<number | null> {
+    try {
+      const fileStat = await stat(filePath);
+      return fileStat.mtimeMs;
+    } catch {
+      return null;
+    }
   }
 }

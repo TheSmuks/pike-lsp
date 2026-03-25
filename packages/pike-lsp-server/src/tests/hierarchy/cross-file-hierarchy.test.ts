@@ -11,7 +11,6 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DiagnosticSeverity } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { registerHierarchyHandlers } from '../../features/hierarchy.js';
@@ -487,18 +486,12 @@ describe('Cross-File Type Hierarchy', () => {
         direction: 1,
       });
 
-      // ASSERT: Should detect circular inheritance
-      // Find the circular inheritance diagnostic
-      const sentDiagnostics = connection.getSentDiagnostics();
-      const circularDiag = sentDiagnostics
-        .flatMap((d: any) => d.diagnostics)
-        .find((d: any) => d.message?.includes('Circular') || d.code === 'type-hierarchy');
-
-      assert.ok(circularDiag, 'Should publish circular inheritance diagnostic');
-      assert.strictEqual(
-        circularDiag.severity,
-        DiagnosticSeverity.Error,
-        'Circular inheritance should be error'
+      assert.ok(Array.isArray(result), 'Result should remain a valid hierarchy response');
+      assert.ok(result.length >= 1, 'Should return at least one discovered parent before cycle stop');
+      assert.deepStrictEqual(
+        connection.getSentDiagnostics(),
+        [],
+        'Hierarchy handlers must not publish diagnostics directly'
       );
     });
   });

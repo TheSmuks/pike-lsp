@@ -235,22 +235,10 @@ export function registerSymbolsHandlers(
         try {
             const allSymbols: SymbolInformation[] = [];
             const queryLower = query?.toLowerCase() ?? '';
+            const cachedUris = new Set<string>();
 
-            // Search the workspace index first
-            const indexedResults = workspaceIndex.searchSymbols(query, limit);
-            allSymbols.push(...indexedResults);
-
-            // PERF-109: Build Set of indexed URIs for O(1) duplicate checking
-            // This avoids O(n*m) complexity from repeated some() calls
-            const indexedUris = new Set<string>(indexedResults.map(s => s.location.uri));
-
-            // Also search open documents (documentCache) to include files that
-            // may not be in the workspace index yet
             for (const [uri, cached] of Array.from(documentCache.entries())) {
-                // PERF-109: Use Set.has() instead of Array.some() for O(1) lookup
-                if (indexedUris.has(uri)) {
-                    continue;
-                }
+                cachedUris.add(uri);
 
                 for (const symbol of cached.symbols) {
                     // Skip symbols with null names
@@ -275,6 +263,20 @@ export function registerSymbolsHandlers(
                             return allSymbols;
                         }
                     }
+                }
+            }
+
+            const indexedResults = workspaceIndex.searchSymbols(query, limit);
+            for (const indexed of indexedResults) {
+                if (cachedUris.has(indexed.location.uri)) {
+                    continue;
+                }
+
+                allSymbols.push(indexed);
+
+                if (allSymbols.length >= limit) {
+                    log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
+                    return allSymbols;
                 }
             }
 
