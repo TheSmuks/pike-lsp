@@ -25,10 +25,10 @@ import {
   window,
   OutputChannel,
   languages,
+  WorkspaceEdit,
   TextDocument as VSCodeTextDocument,
   TextDocumentChangeEvent,
   TextEdit,
-  WorkspaceEdit,
 } from 'vscode';
 import { computeFormattingWindow, isIndentationSensitiveChange } from './format-on-change';
 import { PIKE_LANGUAGE_IDS } from './constants';
@@ -40,6 +40,7 @@ import {
   State,
   TransportKind,
 } from 'vscode-languageclient/node';
+import { applyStructuralSearchReplace } from './structural-search-replace';
 
 function anonymizeSensitivePaths(value: string): string {
   const home = process.env['HOME'];
@@ -783,6 +784,66 @@ async function activateInternal(
   );
 
   runtime.track(showDiagnosticsDisposable);
+
+  const structuralSearchReplaceDisposable = commands.registerCommand(
+    'pike.lsp.structuralSearchReplace',
+    async () => {
+      if (runtime.isDisposed()) return;
+
+      const searchPattern = await window.showInputBox({
+        prompt: 'Structural search pattern (supports $name and $$args metavariables)',
+      });
+      if (!searchPattern) {
+        return;
+      }
+
+      const replacePattern = await window.showInputBox({
+        prompt: 'Replacement pattern',
+      });
+      if (replacePattern === undefined) {
+        return;
+      }
+
+      const files = await workspace.findFiles('**/*.{pike,pmod}');
+      const workspaceEdit = new WorkspaceEdit();
+      let totalMatches = 0;
+      let touchedFiles = 0;
+
+      for (const file of files) {
+        const doc = await workspace.openTextDocument(file);
+        const result = applyStructuralSearchReplace(doc.getText(), searchPattern, replacePattern);
+        if (result.matches.length === 0) {
+          continue;
+        }
+
+        touchedFiles += 1;
+        totalMatches += result.matches.length;
+        const fullRange = doc.validateRange(
+          new Range(doc.positionAt(0), doc.positionAt(doc.getText().length))
+        );
+        workspaceEdit.replace(file, fullRange, result.text);
+      }
+
+      if (totalMatches === 0) {
+        window.showInformationMessage('Pike SSR found no matches.');
+        return;
+      }
+
+      const choice = await window.showInformationMessage(
+        `Pike SSR found ${totalMatches} matches in ${touchedFiles} file(s). Apply changes?`,
+        'Apply',
+        'Cancel'
+      );
+      if (choice !== 'Apply') {
+        return;
+      }
+
+      await workspace.applyEdit(workspaceEdit);
+      window.showInformationMessage(`Pike SSR applied ${totalMatches} replacement(s).`);
+    }
+  );
+
+  runtime.track(structuralSearchReplaceDisposable);
 
   const showHealthDisposable = commands.registerCommand('pike.lsp.showHealth', async () => {
     if (runtime.isDisposed()) return;

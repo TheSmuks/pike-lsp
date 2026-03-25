@@ -298,6 +298,19 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
       expect(runTestCmd?.title).toBe('Run Pike Test');
       expect(runTestCmd?.category).toBe('Pike LSP');
     });
+
+    test('33.11 should register pike.lsp.structuralSearchReplace command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const ssrCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.structuralSearchReplace'
+      );
+
+      expect(ssrCmd).toBeDefined();
+      expect(ssrCmd?.title).toBe('Structural Search and Replace');
+      expect(ssrCmd?.category).toBe('Pike LSP');
+    });
   });
 
   /**
