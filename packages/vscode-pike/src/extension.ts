@@ -14,6 +14,7 @@ import {
   ExtensionContext,
   ConfigurationTarget,
   Position,
+  Range,
   Uri,
   Location,
   StatusBarAlignment,
@@ -25,7 +26,10 @@ import {
   languages,
   TextDocument as VSCodeTextDocument,
   TextDocumentChangeEvent,
+  TextEdit,
+  WorkspaceEdit,
 } from 'vscode';
+import { computeFormattingWindow, isIndentationSensitiveChange } from './format-on-change';
 import { PIKE_LANGUAGE_IDS } from './constants';
 import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
 import {
