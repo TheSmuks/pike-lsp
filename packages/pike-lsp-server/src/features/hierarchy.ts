@@ -206,7 +206,6 @@ export function registerHierarchyHandlers(
       const symbolPositions = buildSymbolPositionsFromTokens(tokens);
 
       services.workspaceScanner.updateFileData(fileInfo.uri, {
-        symbols: symbols as any,
         symbolPositions,
       });
 
