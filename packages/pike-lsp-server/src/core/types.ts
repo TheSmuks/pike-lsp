@@ -118,6 +118,10 @@ export interface DocumentCacheEntry {
     introspection?: import('@pike-lsp/pike-bridge').IntrospectionResult | undefined;
     /** Roxen-specific module information (Phase 3: Roxen LSP support) */
     roxenInfo?: import('../features/roxen/types.js').RoxenModuleInfo;
+    analysisState?: {
+        isStale: boolean;
+        parseFailed: boolean;
+    };
 }
 
 /**
