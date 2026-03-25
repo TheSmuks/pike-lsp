@@ -122,14 +122,16 @@ export function registerFormattingHandlers(
             const insertSpaces = options.insertSpaces ?? true;
             const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
 
-            const lines = text.split('\n');
             const startLine = params.range.start.line;
             const endLine = params.range.end.line;
 
-            const rangeText = lines.slice(startLine, endLine + 1).join('\n');
-            const formattedEdits = formatPikeCode(rangeText, indent, startLine);
-
-            return formattedEdits;
+            // Format the full document to get context-aware indentation (correct indent
+            // stack from line 0), then filter edits to the requested range.
+            const allEdits = formatPikeCode(text, indent);
+            return allEdits.filter(edit =>
+                edit.range.start.line >= startLine &&
+                edit.range.start.line <= endLine
+            );
         } catch (err) {
             if (err instanceof ResponseError) {
                 // Re-throw ResponseError as-is (validation errors)

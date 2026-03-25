@@ -1,74 +1,116 @@
 # Test Protocol
 
-This file defines the testing protocol for this repository under `test/`.
-
 ## Tooling
 
-- Use `bun` only (`bun run ...`, `bun test`, `bunx ...`).
-- Never use `npm`, `npx`, `yarn`, or `pnpm` in commands, docs, or issue text.
+- `bun test` for unit tests (pike-lsp-server).
+- `bun run build:test && bash scripts/test-headless.sh` for E2E (vscode-pike).
+- Never use `npm`, `npx`, `yarn`, or `pnpm`.
 
-## Test Design Rules
+## Two Layers — Pick the Right One
 
-- Prefer deterministic assertions over weak "no crash" checks.
-- Prefer semantic assertions (known symbols, expected diagnostics, expected navigation target).
-- Keep each test focused on one behavior with clear failure messages.
-- Pair behavior changes with regression tests whenever practical.
+| Layer | Where | When to use |
+|---|---|---|
+| Unit | `packages/pike-lsp-server/src/tests/` | Testing a function directly |
+| E2E | `packages/vscode-pike/src/test/integration/` | Testing the full VS Code → LSP → Pike chain |
 
-## Flake Prevention
+Do not write a unit test when the bug lives in the wiring.
+Do not write an E2E test for something a unit test can cover.
 
-- Do not add fixed sleeps when a readiness signal exists.
-- Use polling/readiness helpers instead of `setTimeout` sleeps.
-- For providers that may return empty results, first assert payload shape, then assert semantic expectations when non-empty.
-- Use bounded timeout wrappers for providers that can hang.
+## Assertion Rules
 
-## Fixture Strategy
+**Always assert a specific value, not just shape.**
 
-- Use stable fixture anchors and explicit markers.
-- Prefer regex/cursor helper utilities over duplicated index math.
-- Clean up temporary files in `finally` blocks.
-- Validate declaration content (line-level semantic target), not only URI path assumptions.
+```typescript
+// WRONG — passes even when the feature is broken
+assert.ok(Array.isArray(edits));
+assert.ok(edits.length > 0);
+assert.ok(result !== undefined, 'may be empty');
 
-## Assertion Quality Ladder
-
-For every test, assert in this order:
-
-1. Response shape is valid.
-2. Semantic expectation is met.
-3. Regression signal is strong (counts, expected labels/targets, severity).
-
-Avoid single-check assertions like `assert.ok(result !== undefined)` as sole verification.
-
-## Verification Before PR
-
-Minimum checks for test changes:
-
-```bash
-bun run lint
-bun run typecheck
-bun run build
+// CORRECT
+const edit = edits.find(e => e.range.start.line === targetLine);
+assert.ok(edit, 'Should have edit for "int class_x"');
+assert.strictEqual(edit!.newText, '        ', '8-space indent required — 2 levels deep inside class');
 ```
 
-For VSCode extension integration/e2e work, also run:
+Order of assertions for every test:
+1. Not null/undefined.
+2. Shape is valid.
+3. **At least one specific value matches.** Do not stop at step 2.
 
-```bash
-cd packages/vscode-pike
-bun run build:test
-bash scripts/test-headless.sh --grep "(Core Regression E2E Tests|E2E Workflow Tests|Stdlib E2E Tests|LSP Feature E2E Tests|Smart Completion E2E Tests|Include/Import/Inherit Navigation E2E Tests)"
+## E2E Rules
+
+**Wait for LSP readiness — never assume the server is ready.**
+
+```typescript
+await waitFor(
+  'symbols from LSP',
+  () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', uri),
+  (s: any) => Array.isArray(s) && s.length > 0,
+  20000
+);
 ```
 
-Adjust grep scope to changed areas, but always include at least one cross-feature regression suite.
+**Show documents, do not just open them.**
+`openTextDocument` alone does not send `didOpen` to the LSP server.
 
-## PR Linking Requirement
+```typescript
+const doc = await vscode.workspace.openTextDocument(uri);
+await vscode.window.showTextDocument(doc, { preview: false });
+await new Promise(r => setTimeout(r, 500)); // allow LSP sync
+```
 
-- PR title/body must include one closing keyword for an issue:
-  - `closes #N`
-  - `fixes #N`
-  - `resolves #N`
-- Lower/upper case is normalized in CI, but use lowercase by convention.
+**Locate lines by content pattern, not by line number.**
+Line numbers break whenever the fixture changes.
+
+```typescript
+// WRONG
+new vscode.Position(164, 0)
+
+// CORRECT
+positionForRegex(doc, /void class_method\(\)/).line
+```
+
+**Do not apply edits to fixture files inside tests.**
+Applied edits mutate the document and break subsequent tests in the same run.
+Check the returned `TextEdit[]` values directly.
+
+**Use `waitFor`, not `setTimeout`, for async providers.**
+
+## Fixture Rules
+
+- One fixture per concern. Do not add mis-formatted code to `test.pike` — other tests depend on it being valid.
+- Every identifier referenced by a test must be unique in the fixture so `positionForRegex` cannot return the wrong line.
+- Use K&R style in mis-formatted fixtures. Allman-style `{` on its own line produces ambiguous indent expectations.
+- Document line numbers as comments for humans, but use `positionForRegex` in tests.
+
+## Regression Tests
+
+When fixing a bug, state what value the broken code produced:
+
+```typescript
+// Before fix: indentStack started at [0], ignored class context → '    ' (4 spaces)
+// After fix: full-document formatting filtered to range → '        ' (8 spaces)
+assert.strictEqual(edit!.newText, '        ', 'Must be 8 spaces — not 4 (regression)');
+```
 
 ## Anti-Patterns
 
-- Fixed sleeps used as initialization strategy.
-- Copy-pasted provider normalization or label extraction helpers.
-- Tests that only verify non-throw behavior.
-- Broad refactors mixed into focused test-hardening tasks.
+- `assert.ok(Array.isArray(x))` as the only assertion.
+- `'(may be empty)'` in an assertion message — if empty is valid, say so in a comment; if not, assert it.
+- Running format-document on an already-formatted file and asserting the response is an array.
+- `setTimeout` for LSP readiness — use `waitFor`.
+- Hard-coded line numbers.
+- `openTextDocument` without `showTextDocument`.
+- Applying edits to shared fixtures inside a test.
+
+## Pre-PR Checklist
+
+```bash
+bun run lint && bun run typecheck && bun run build
+
+# E2E (run from packages/vscode-pike)
+bun run build:test
+bash scripts/test-headless.sh --grep "(Core Regression E2E Tests|LSP Feature E2E Tests)"
+```
+
+PR body must include `closes #N`, `fixes #N`, or `resolves #N`.
