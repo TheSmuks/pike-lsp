@@ -328,6 +328,11 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     return {
       capabilities: {
         textDocumentSync: TextDocumentSyncKind.Incremental,
+        diagnosticProvider: {
+          identifier: 'pike-lsp-diagnostics',
+          interFileDependencies: true,
+          workspaceDiagnostics: true,
+        },
         documentSymbolProvider: true,
         workspaceSymbolProvider: true,
         hoverProvider: true,

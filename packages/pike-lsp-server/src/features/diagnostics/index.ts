@@ -141,6 +141,7 @@ export function registerDiagnosticsHandlers(
   const pendingChangeStates = new Map<string, PendingChangeState>();
   const documentSnapshots = services.documentSnapshots ?? new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
+  const pullDiagnosticResultIds = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler();
   const SCHEDULER_METRICS_LOG_EVERY = 25;
   let validationCompletions = 0;
@@ -151,6 +152,87 @@ export function registerDiagnosticsHandlers(
     maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
     diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
   };
+
+  const computePullDiagnosticResultId = (uri: string): string => {
+    const cached = documentCache.get(uri);
+    const versionPart = cached?.version ?? 0;
+    const hashPart = cached?.contentHash ?? `diag-${cached?.diagnostics.length ?? 0}`;
+    return `${versionPart}:${hashPart}`;
+  };
+
+  connection.onRequest('textDocument/diagnostic', async (params: any) => {
+    const uri = params?.textDocument?.uri as string | undefined;
+    if (!uri) {
+      return { kind: 'full', items: [], resultId: '0:diag-0' };
+    }
+
+    await documentCache.waitFor(uri);
+    const cached = documentCache.get(uri);
+    const resultId = computePullDiagnosticResultId(uri);
+    pullDiagnosticResultIds.set(uri, resultId);
+
+    if (params?.previousResultId && params.previousResultId === resultId) {
+      return {
+        kind: 'unchanged',
+        resultId,
+      };
+    }
+
+    return {
+      kind: 'full',
+      items: cached?.diagnostics ?? [],
+      resultId,
+    };
+  });
+
+  connection.onRequest('workspace/diagnostic', async (params: any) => {
+    const previousByUri = new Map<string, string>();
+    const previousResultIds = Array.isArray(params?.previousResultIds)
+      ? params.previousResultIds
+      : [];
+
+    for (const previous of previousResultIds) {
+      const uri = previous?.uri;
+      const resultId = previous?.value;
+      if (typeof uri === 'string' && typeof resultId === 'string') {
+        previousByUri.set(uri, resultId);
+      }
+    }
+
+    const uris = new Set<string>();
+    for (const uri of documentCache.keys()) {
+      uris.add(uri);
+    }
+
+    for (const uri of workspaceIndex.getAllDocumentUris()) {
+      uris.add(uri);
+    }
+
+    const items: any[] = [];
+    for (const uri of uris) {
+      await documentCache.waitFor(uri);
+      const cached = documentCache.get(uri);
+      const resultId = computePullDiagnosticResultId(uri);
+      pullDiagnosticResultIds.set(uri, resultId);
+
+      if (previousByUri.get(uri) === resultId) {
+        items.push({
+          uri,
+          kind: 'unchanged',
+          resultId,
+        });
+      } else {
+        items.push({
+          uri,
+          kind: 'full',
+          items: cached?.diagnostics ?? [],
+          resultId,
+        });
+      }
+    }
+
+    return { items };
+  });
 
   function validateDocumentDebounced(document: TextDocument): void {
     const uri = document.uri;
