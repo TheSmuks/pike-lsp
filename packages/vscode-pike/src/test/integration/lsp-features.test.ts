@@ -979,52 +979,126 @@ int nested_symbol
   });
 
   /**
-   * Test: Document formatting returns formatting edits
-   * Category: Happy Path
+   * Test: Document formatting corrects indentation at every nesting level
+   * Category: Correctness
    *
-   * Arrange: Open the test document
-   * Act: Execute document formatting provider
-   * Assert: Returns formatting edits
+   * Arrange: Open test-formatting.pike which has deliberately mis-formatted code.
+   * Act:     Run document formatting provider.
+   * Assert:  The returned edits set the correct 4-space indentation at every
+   *          nesting level — top-level function body (4 sp), nested if body (8 sp),
+   *          class method body (8 sp), and doubly-nested if inside a class method (12 sp).
+   *
+   * Note: We verify edits without applying them so the fixture stays untouched
+   *       across test runs.
    */
-  test('Document formatting returns formatting edits', async function () {
+  test('Document formatting produces correct indentation edits', async function () {
     this.timeout(30000);
 
-    const formattingEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+    const formattingDocUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-formatting.pike');
+
+    // Open and show the document so the LSP server registers it.
+    const formattingDoc = await vscode.workspace.openTextDocument(formattingDocUri);
+    await vscode.window.showTextDocument(formattingDoc, { preview: false });
+
+    // Give the LSP server a moment to sync the new document.
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
       'vscode.executeFormatDocumentProvider',
-      testDocumentUri
+      formattingDocUri
     );
 
-    assert.ok(formattingEdits !== undefined, 'Should return formatting edits (may be empty)');
-    assert.ok(Array.isArray(formattingEdits), 'Formatting edits should be an array');
+    assert.ok(edits !== undefined && Array.isArray(edits), 'Should return formatting edits array');
+    assert.ok(edits.length > 0, 'Should produce edits — the fixture is intentionally mis-formatted');
+
+    // Helper: find the edit that corrects a given line (identified by its content).
+    const editForContent = (pattern: RegExp): vscode.TextEdit | undefined => {
+      const text = formattingDoc.getText();
+      const lineIndex = text.split('\n').findIndex(l => pattern.test(l));
+      if (lineIndex < 0) return undefined;
+      return edits.find(e => e.range.start.line === lineIndex);
+    };
+
+    // 'int top_a = 1;' is directly inside top_level_function → must be 4 spaces.
+    const editTopA = editForContent(/^int top_a = 1;/);
+    assert.ok(editTopA, 'Should have an edit for "int top_a = 1;" (unindented function body)');
+    assert.strictEqual(editTopA!.newText, '    ', '"int top_a = 1;" must be indented 4 spaces');
+
+    // 'int top_c = 2;' is inside an if block inside the function → must be 8 spaces.
+    const editTopC = editForContent(/^int top_c = 2;/);
+    assert.ok(editTopC, 'Should have an edit for "int top_c = 2;" (nested if body)');
+    assert.strictEqual(editTopC!.newText, '        ', '"int top_c = 2;" must be indented 8 spaces');
+
+    // 'void class_method()' is directly inside FormattingClass → must be 4 spaces.
+    const editClassMethod = editForContent(/^void class_method\(\)/);
+    assert.ok(editClassMethod, 'Should have an edit for "void class_method()" (unindented class member)');
+    assert.strictEqual(editClassMethod!.newText, '    ', '"void class_method()" must be indented 4 spaces');
+
+    // 'int class_x = 1;' is inside class_method → must be 8 spaces.
+    const editClassX = editForContent(/^int class_x = 1;/);
+    assert.ok(editClassX, 'Should have an edit for "int class_x = 1;" (class method body)');
+    assert.strictEqual(editClassX!.newText, '        ', '"int class_x = 1;" must be indented 8 spaces');
+
+    // 'int class_y = 2;' is inside an if inside a class method → must be 12 spaces.
+    const editClassY = editForContent(/^int class_y = 2;/);
+    assert.ok(editClassY, 'Should have an edit for "int class_y = 2;" (doubly-nested inside class)');
+    assert.strictEqual(editClassY!.newText, '            ', '"int class_y = 2;" must be indented 12 spaces');
   });
 
   /**
-   * Test: Range formatting formats selected range
-   * Category: Happy Path
+   * Test: Range formatting is context-aware (uses full document indent stack)
+   * Category: Regression — validates the fix for range formatting ignoring context
    *
-   * Arrange: Select a range with poorly formatted code
-   * Act: Execute range formatting provider
-   * Assert: Returns formatting edits for the range
+   * Arrange: Open test-formatting.pike. Identify the range covering only the body
+   *          of class_method (which sits 2 levels deep: inside FormattingClass).
+   * Act:     Run range formatting provider on that inner range only.
+   * Assert:  The edit for 'int class_x = 1;' uses 8-space indent, not 4-space.
+   *          Before the fix the range formatter started with indentStack=[0] so it
+   *          treated the class method body as top-level (4 spaces). After the fix
+   *          it formats the full document and filters, so it correctly sees 2 levels
+   *          of nesting and produces 8 spaces.
    */
-  test('Range formatting formats selected range', async function () {
+  test('Range formatting uses full document context for indentation', async function () {
     this.timeout(30000);
 
-    const startLine = positionForRegex(document, /void poorly_formatted/).line;
-    const endLine = startLine + 10; // Cover the function body
+    const formattingDocUri = vscode.Uri.joinPath(workspaceFolder.uri, 'test-formatting.pike');
+    const formattingDoc = await vscode.workspace.openTextDocument(formattingDocUri);
+    await vscode.window.showTextDocument(formattingDoc, { preview: false });
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Locate the range covering only the class_method body (from the method signature
+    // line to 8 lines later, which fully covers the 6-line method body).
+    const methodLine = positionForRegex(formattingDoc, /void class_method\(\)/).line;
 
     const range = new vscode.Range(
-      new vscode.Position(startLine, 0),
-      new vscode.Position(endLine, 0)
+      new vscode.Position(methodLine, 0),
+      new vscode.Position(methodLine + 8, 0)
     );
 
-    const formattingEdits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+    const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
       'vscode.executeFormatRangeProvider',
-      testDocumentUri,
+      formattingDocUri,
       range
     );
 
-    assert.ok(formattingEdits !== undefined, 'Should return range formatting edits (may be empty)');
-    assert.ok(Array.isArray(formattingEdits), 'Range formatting edits should be an array');
+    assert.ok(edits !== undefined && Array.isArray(edits), 'Should return range formatting edits array');
+    assert.ok(edits.length > 0, 'Should produce edits for the mis-formatted class method range');
+
+    // Find the edit for 'int class_x = 1;' — it is inside class_method, 2 levels deep.
+    const text = formattingDoc.getText();
+    const classXLine = text.split('\n').findIndex(l => /^int class_x = 1;/.test(l));
+    assert.ok(classXLine >= 0, 'Fixture must contain "int class_x = 1;"');
+
+    const editForClassX = edits.find(e => e.range.start.line === classXLine);
+    assert.ok(
+      editForClassX,
+      `Should have a range-formatting edit for "int class_x = 1;" on line ${classXLine}`
+    );
+    assert.strictEqual(
+      editForClassX!.newText,
+      '        ',
+      'Range formatting must respect outer class context and produce 8-space indent, not 4'
+    );
   });
 
   // =========================================================================

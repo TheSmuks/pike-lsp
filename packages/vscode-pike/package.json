@@ -191,6 +191,16 @@
           "minimum": 50,
           "maximum": 2000,
           "description": "Delay in milliseconds before running diagnostics after a document change"
+        },
+        "pike.formatOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Re-indent the affected lines automatically when code is inserted, deleted, or moved. Disable this if the formatter is producing incorrect indentation."
+        },
+        "pike.formatOnType": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically indent the new line when pressing Enter, or realign a closing brace when typing }. Disable this if the on-type indentation feels wrong."
         }
       }
     }

@@ -372,6 +372,10 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         },
         documentFormattingProvider: true,
         documentRangeFormattingProvider: true,
+        documentOnTypeFormattingProvider: {
+          firstTriggerCharacter: '\n',
+          moreTriggerCharacter: ['}'],
+        },
         documentLinkProvider: { resolveProvider: true },
         codeLensProvider: { resolveProvider: true },
         linkedEditingRangeProvider: true,
