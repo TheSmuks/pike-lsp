@@ -167,6 +167,62 @@ export function registerHierarchyHandlers(
     });
   };
 
+  const buildSymbolPositionsFromTokens = (tokens: any[]): Map<string, Array<{ line: number; character: number }>> => {
+    const symbolPositions = new Map<string, Array<{ line: number; character: number }>>();
+
+    for (const token of tokens) {
+      if (token?.type !== 'identifier' || typeof token.text !== 'string') {
+        continue;
+      }
+
+      const line = typeof token.line === 'number' ? Math.max(0, token.line - 1) : 0;
+      const character = typeof token.column === 'number' ? Math.max(0, token.column - 1) : 0;
+
+      const positions = symbolPositions.get(token.text) ?? [];
+      positions.push({ line, character });
+      symbolPositions.set(token.text, positions);
+    }
+
+    return symbolPositions;
+  };
+
+  const loadClosedWorkspaceFile = async (
+    fileInfo: { uri: string }
+  ): Promise<
+    | {
+        uri: string;
+        text: string;
+        symbols: PikeSymbol[];
+        symbolPositions: Map<string, Array<{ line: number; character: number }>>;
+      }
+    | null
+  > => {
+    try {
+      const filePath = decodeURIComponent(fileInfo.uri.replace(/^file:\/\//, ''));
+      const text = await fs.readFile(filePath, 'utf-8');
+      const analyzed = await services.bridge?.bridge?.analyze(text, ['parse', 'tokenize'], filePath);
+      const symbols = analyzed?.result?.parse?.symbols ?? [];
+      const tokens = analyzed?.result?.tokenize?.tokens ?? [];
+      const symbolPositions = buildSymbolPositionsFromTokens(tokens);
+
+      services.workspaceScanner.updateFileData(fileInfo.uri, {
+        symbolPositions,
+      });
+
+      return {
+        uri: fileInfo.uri,
+        text,
+        symbols,
+        symbolPositions,
+      };
+    } catch (err) {
+      log.debug(`Failed to read closed workspace file for call hierarchy: ${fileInfo.uri}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  };
+
   const resolveClassDefinition = (
     className: string,
     preferredUri?: string
@@ -268,7 +324,7 @@ export function registerHierarchyHandlers(
    * Incoming calls - who calls this function?
    * Uses symbolPositions from documentCache (built via Pike tokenization) for accuracy.
    */
-  connection.languages.callHierarchy.onIncomingCalls(params => {
+  connection.languages.callHierarchy.onIncomingCalls(async params => {
     log.debug('Call hierarchy incoming calls', { item: params.item.name });
     try {
       const results: CallHierarchyIncomingCall[] = [];
@@ -378,8 +434,26 @@ export function registerHierarchyHandlers(
         searchCachedDocument(docUri, cached, doc.getText());
       }
 
-      // Note: For workspace files not in cache, we skip them as they don't have
-      // Pike-tokenized symbolPositions. Users should open files to get accurate results.
+      if (services.workspaceScanner?.isReady()) {
+        const cachedUris = new Set(documentCache.keys());
+        const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+        for (const fileInfo of uncachedFiles) {
+          const loaded = await loadClosedWorkspaceFile(fileInfo);
+          if (!loaded) {
+            continue;
+          }
+
+          searchCachedDocument(
+            loaded.uri,
+            {
+              symbols: loaded.symbols,
+              symbolPositions: loaded.symbolPositions,
+            },
+            loaded.text
+          );
+        }
+      }
 
       return results;
     } catch (err) {
@@ -394,7 +468,7 @@ export function registerHierarchyHandlers(
    * Outgoing calls - what does this function call?
    * Uses symbolPositions from documentCache (built via Pike tokenization) for accuracy.
    */
-  connection.languages.callHierarchy.onOutgoingCalls(params => {
+  connection.languages.callHierarchy.onOutgoingCalls(async params => {
     log.debug('Call hierarchy outgoing calls', { item: params.item.name });
     try {
       const results: CallHierarchyOutgoingCall[] = [];
@@ -526,6 +600,31 @@ export function registerHierarchyHandlers(
               targetUri = docUri;
               targetLine = symbol.position.line - 1;
               break; // Found it
+            }
+          }
+
+          if (targetLine === null && services.workspaceScanner?.isReady()) {
+            const cachedUris = new Set(documentCache.keys());
+            const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+
+            for (const fileInfo of uncachedFiles) {
+              const loaded = await loadClosedWorkspaceFile(fileInfo);
+              if (!loaded) {
+                continue;
+              }
+
+              const symbol = loaded.symbols.find(s => s.name === funcName && s.kind === 'method');
+              if (!symbol?.position) {
+                continue;
+              }
+
+              if (symbol.position.line === undefined || symbol.position.column === undefined) {
+                continue;
+              }
+
+              targetUri = loaded.uri;
+              targetLine = symbol.position.line - 1;
+              break;
             }
           }
         }
