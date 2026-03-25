@@ -160,79 +160,81 @@ export function registerDiagnosticsHandlers(
     return `${versionPart}:${hashPart}`;
   };
 
-  connection.onRequest('textDocument/diagnostic', async (params: any) => {
-    const uri = params?.textDocument?.uri as string | undefined;
-    if (!uri) {
-      return { kind: 'full', items: [], resultId: '0:diag-0' };
-    }
-
-    await documentCache.waitFor(uri);
-    const cached = documentCache.get(uri);
-    const resultId = computePullDiagnosticResultId(uri);
-    pullDiagnosticResultIds.set(uri, resultId);
-
-    if (params?.previousResultId && params.previousResultId === resultId) {
-      return {
-        kind: 'unchanged',
-        resultId,
-      };
-    }
-
-    return {
-      kind: 'full',
-      items: cached?.diagnostics ?? [],
-      resultId,
-    };
-  });
-
-  connection.onRequest('workspace/diagnostic', async (params: any) => {
-    const previousByUri = new Map<string, string>();
-    const previousResultIds = Array.isArray(params?.previousResultIds)
-      ? params.previousResultIds
-      : [];
-
-    for (const previous of previousResultIds) {
-      const uri = previous?.uri;
-      const resultId = previous?.value;
-      if (typeof uri === 'string' && typeof resultId === 'string') {
-        previousByUri.set(uri, resultId);
+  if (typeof connection.onRequest === 'function') {
+    connection.onRequest('textDocument/diagnostic', async (params: any) => {
+      const uri = params?.textDocument?.uri as string | undefined;
+      if (!uri) {
+        return { kind: 'full', items: [], resultId: '0:diag-0' };
       }
-    }
 
-    const uris = new Set<string>();
-    for (const uri of documentCache.keys()) {
-      uris.add(uri);
-    }
-
-    for (const uri of workspaceIndex.getAllDocumentUris()) {
-      uris.add(uri);
-    }
-
-    const items: any[] = [];
-    for (const uri of uris) {
       await documentCache.waitFor(uri);
       const cached = documentCache.get(uri);
       const resultId = computePullDiagnosticResultId(uri);
       pullDiagnosticResultIds.set(uri, resultId);
 
-      if (previousByUri.get(uri) === resultId) {
-        items.push({
-          uri,
+      if (params?.previousResultId && params.previousResultId === resultId) {
+        return {
           kind: 'unchanged',
           resultId,
-        });
-      } else {
-        items.push({
-          uri,
-          kind: 'full',
-          items: cached?.diagnostics ?? [],
-          resultId,
-        });
+        };
       }
-    }
 
-    return { items };
-  });
+      return {
+        kind: 'full',
+        items: cached?.diagnostics ?? [],
+        resultId,
+      };
+    });
+
+    connection.onRequest('workspace/diagnostic', async (params: any) => {
+      const previousByUri = new Map<string, string>();
+      const previousResultIds = Array.isArray(params?.previousResultIds)
+        ? params.previousResultIds
+        : [];
+
+      for (const previous of previousResultIds) {
+        const uri = previous?.uri;
+        const resultId = previous?.value;
+        if (typeof uri === 'string' && typeof resultId === 'string') {
+          previousByUri.set(uri, resultId);
+        }
+      }
+
+      const uris = new Set<string>();
+      for (const uri of documentCache.keys()) {
+        uris.add(uri);
+      }
+
+      for (const uri of workspaceIndex.getAllDocumentUris()) {
+        uris.add(uri);
+      }
+
+      const items: any[] = [];
+      for (const uri of uris) {
+        await documentCache.waitFor(uri);
+        const cached = documentCache.get(uri);
+        const resultId = computePullDiagnosticResultId(uri);
+        pullDiagnosticResultIds.set(uri, resultId);
+
+        if (previousByUri.get(uri) === resultId) {
+          items.push({
+            uri,
+            kind: 'unchanged',
+            resultId,
+          });
+        } else {
+          items.push({
+            uri,
+            kind: 'full',
+            items: cached?.diagnostics ?? [],
+            resultId,
+          });
+        }
+      }
+
+      return { items };
+    });
+  }
 
   function validateDocumentDebounced(document: TextDocument): void {
     const uri = document.uri;
