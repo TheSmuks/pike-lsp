@@ -130,6 +130,11 @@
         "category": "Pike LSP"
       },
       {
+        "command": "pike.lsp.structuralSearchReplace",
+        "title": "Structural Search and Replace",
+        "category": "Pike LSP"
+      },
+      {
         "command": "pike.lsp.runFile",
         "title": "Run Pike File",
         "category": "Pike LSP"
