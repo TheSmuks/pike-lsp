@@ -77,34 +77,78 @@ export function getFoldingRanges(document: TextDocument): FoldingRange[] {
                 commentStart = null;
             }
 
-            const lineCommentIndex = line.indexOf('//');
-            const inLineComment = lineCommentIndex >= 0 && lineCommentIndex <= line.search(/\S|$/);
-
-            if (!inBlockComment && !inLineComment) {
-                const multilineStartIndex = line.indexOf('#"');
-                if (multilineStartIndex >= 0 && !inMultilineString) {
-                    const prefix = line.slice(0, multilineStartIndex);
-                    if (!prefix.includes('"')) {
-                        inMultilineString = true;
-                        multilineStringStart = lineNum;
-                    }
-                }
-
-                const multilineEndIndex = line.indexOf('"#');
-                if (multilineEndIndex >= 0 && inMultilineString) {
-                    if (multilineStringStart !== null && lineNum > multilineStringStart) {
-                        foldingRanges.push({
-                            startLine: multilineStringStart,
-                            endLine: lineNum,
-                        });
-                    }
-                    inMultilineString = false;
-                    multilineStringStart = null;
-                }
-            }
+            let inString = false;
+            let stringQuote = '';
+            let escaped = false;
+            let inBraceBlockComment = inBlockComment;
 
             for (let i = 0; i < line.length; i++) {
-                const char = line[i];
+                const char = line[i] ?? '';
+                const next = i + 1 < line.length ? line[i + 1] ?? '' : '';
+
+                if (inBraceBlockComment) {
+                    if (char === '*' && next === '/') {
+                        inBraceBlockComment = false;
+                        i += 1;
+                    }
+                    continue;
+                }
+
+                if (inMultilineString) {
+                    if (char === '"' && next === '#') {
+                        if (multilineStringStart !== null && lineNum > multilineStringStart) {
+                            foldingRanges.push({
+                                startLine: multilineStringStart,
+                                endLine: lineNum,
+                            });
+                        }
+                        inMultilineString = false;
+                        multilineStringStart = null;
+                        i += 1;
+                    }
+                    continue;
+                }
+
+                if (inString) {
+                    if (escaped) {
+                        escaped = false;
+                        continue;
+                    }
+                    if (char === '\\') {
+                        escaped = true;
+                        continue;
+                    }
+                    if (char === stringQuote) {
+                        inString = false;
+                        stringQuote = '';
+                    }
+                    continue;
+                }
+
+                if (char === '/' && next === '*') {
+                    inBraceBlockComment = true;
+                    i += 1;
+                    continue;
+                }
+
+                if (char === '/' && next === '/') {
+                    break;
+                }
+
+                if (char === '#' && next === '"') {
+                    inMultilineString = true;
+                    multilineStringStart = lineNum;
+                    i += 1;
+                    continue;
+                }
+
+                if (char === '"' || char === '\'') {
+                    inString = true;
+                    stringQuote = char;
+                    escaped = false;
+                    continue;
+                }
+
                 if (char === '{') {
                     let kind: FoldingRangeKind | undefined;
                     if (trimmed.startsWith('class ') || trimmed.startsWith('inherit ')) {
