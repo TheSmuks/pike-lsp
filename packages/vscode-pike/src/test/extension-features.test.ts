@@ -272,6 +272,32 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
       expect(openLogsCmd?.title).toBe('Open Logs');
       expect(openLogsCmd?.category).toBe('Pike LSP');
     });
+
+    test('33.9 should register pike.lsp.runFile command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const runFileCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.runFile'
+      );
+
+      expect(runFileCmd).toBeDefined();
+      expect(runFileCmd?.title).toBe('Run Pike File');
+      expect(runFileCmd?.category).toBe('Pike LSP');
+    });
+
+    test('33.10 should register pike.lsp.runTest command', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const runTestCmd = packageJson.contributes?.commands?.find(
+        (c: { command: string }) => c.command === 'pike.lsp.runTest'
+      );
+
+      expect(runTestCmd).toBeDefined();
+      expect(runTestCmd?.title).toBe('Run Pike Test');
+      expect(runTestCmd?.category).toBe('Pike LSP');
+    });
   });
 
   /**
@@ -367,6 +393,43 @@ describe('Phase 7: VSCode Extension Features (Categories 31-34)', () => {
       expect(delayConfig?.default).toBe(250);
       expect(delayConfig?.minimum).toBe(50);
       expect(delayConfig?.maximum).toBe(2000);
+    });
+
+    test('34.6 should support runnable test pattern configuration', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const testPatternConfig =
+        packageJson.contributes?.configuration?.properties?.['pike.runnable.testPattern'];
+      expect(testPatternConfig).toBeDefined();
+      expect(testPatternConfig?.type).toBe('string');
+      expect(testPatternConfig?.default).toBe('^test_');
+    });
+
+    test('34.7 should support runnable interpreter path and args configuration', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const pathConfig =
+        packageJson.contributes?.configuration?.properties?.['pike.runnable.interpreterPath'];
+      const argsConfig =
+        packageJson.contributes?.configuration?.properties?.['pike.runnable.interpreterArgs'];
+
+      expect(pathConfig).toBeDefined();
+      expect(pathConfig?.type).toBe('string');
+      expect(argsConfig).toBeDefined();
+      expect(argsConfig?.type).toBe('array');
+    });
+
+    test('34.8 should support runnable code lens visibility configuration', async () => {
+      const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+      const showCodeLensConfig =
+        packageJson.contributes?.configuration?.properties?.['pike.runnable.showCodeLens'];
+      expect(showCodeLensConfig).toBeDefined();
+      expect(showCodeLensConfig?.type).toBe('boolean');
+      expect(showCodeLensConfig?.default).toBe(true);
     });
   });
 

@@ -26,6 +26,12 @@ export interface PikeSettings {
     inlayHints?: InlayHintsSettings;
     /** Inline values configuration (optional) */
     inlineValues?: InlineValuesSettings;
+    runnable?: RunnableSettings;
+}
+
+export interface RunnableSettings {
+    testPattern?: string;
+    showCodeLens?: boolean;
 }
 
 /**
