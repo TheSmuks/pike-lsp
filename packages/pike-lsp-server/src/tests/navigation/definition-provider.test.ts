@@ -96,7 +96,7 @@ function setup(opts: SetupOptions) {
 // =============================================================================
 
 describe('Definition Provider', () => {
-  it('uses query-engine definition locations when available', async () => {
+  it('does not short-circuit definitions to query-engine lexical locations', async () => {
     const code = `int localValue = 1;\nint x = localValue;`;
 
     const { definition } = setup({
@@ -130,11 +130,10 @@ describe('Definition Provider', () => {
     });
 
     const result = await definition(1, 10);
-    expect(Array.isArray(result)).toBe(true);
-    const locations = result as Location[];
-    expect(locations).toHaveLength(1);
-    expect(locations[0]?.uri).toBe('file:///query-definition.pike');
-    expect(locations[0]?.range.start.line).toBe(7);
+    expect(result).not.toBeNull();
+    const location = result as Location;
+    expect(location.uri).toBe('file:///test.pike');
+    expect(location.range.start.line).toBe(0);
   });
 
   it('keeps parity with fallback when query returns stub', async () => {

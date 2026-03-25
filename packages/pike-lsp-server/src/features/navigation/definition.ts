@@ -13,7 +13,6 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { extractExpressionAtPosition } from './expression-utils.js';
-import { queryNavigationLocations } from './query-engine.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { readFile } from 'node:fs/promises';
 
@@ -51,7 +50,7 @@ export function registerDefinitionHandlers(
    * - Module path resolution (Stdio.File -> Pike stdlib)
    * - Member access navigation (file->read -> method definition)
    */
-  connection.onDefinition(async (params, cancellationToken): Promise<Location | Location[] | null> => {
+  connection.onDefinition(async (params): Promise<Location | Location[] | null> => {
     log.debug('Definition request', { uri: params.textDocument.uri });
     try {
       const uri = params.textDocument.uri;
@@ -59,19 +58,6 @@ export function registerDefinitionHandlers(
 
       if (!document) {
         return null;
-      }
-
-      const queryLocations = await queryNavigationLocations(
-        services,
-        'definition',
-        uri,
-        document,
-        params.position,
-        {},
-        cancellationToken
-      );
-      if (queryLocations && queryLocations.length > 0) {
-        return queryLocations;
       }
 
       const cached = documentCache.get(uri);
@@ -202,6 +188,7 @@ export function registerDefinitionHandlers(
             },
           };
         }
+
       }
 
       // Fallback to local symbol lookup
@@ -258,6 +245,11 @@ export function registerDefinitionHandlers(
                 end: { line, character: (includedSymbol.symbol.name || '').length },
               },
             };
+          }
+
+          const workspaceDefinition = findSymbolInWorkspaceCache(word, uri, documentCache);
+          if (workspaceDefinition) {
+            return workspaceDefinition;
           }
         }
 
@@ -1036,6 +1028,77 @@ function findSymbolInIncludedFiles(
   }
 
   return null;
+}
+
+function findSymbolInWorkspaceCache(
+  symbolName: string,
+  currentUri: string,
+  documentCache: DocumentCache
+): Location | null {
+  const declarationKinds = new Set([
+    'method',
+    'class',
+    'constant',
+    'typedef',
+    'enum',
+    'macro',
+    'program',
+  ]);
+
+  let bestMatch:
+    | {
+        uri: string;
+        symbol: PikeSymbol;
+      }
+    | undefined;
+  let bestScore = -1;
+
+  for (const [entryUri, entry] of Array.from(documentCache.entries())) {
+    if (entryUri === currentUri || !entry?.symbols?.length) {
+      continue;
+    }
+
+    for (const symbol of entry.symbols) {
+      if (!symbol.position) {
+        continue;
+      }
+
+      const symbolLabel = symbol.name || symbol.classname;
+      if (!symbolLabel || symbolLabel !== symbolName) {
+        continue;
+      }
+
+      let score = 0;
+      if (declarationKinds.has(symbol.kind)) {
+        score += 10;
+      }
+      if (symbol.kind === 'method') {
+        score += 3;
+      }
+      if (symbol.kind === 'class') {
+        score += 2;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { uri: entryUri, symbol };
+      }
+    }
+  }
+
+  if (!bestMatch?.symbol.position || bestScore < 0) {
+    return null;
+  }
+
+  const line = Math.max(0, (bestMatch.symbol.position.line ?? 1) - 1);
+  const label = bestMatch.symbol.name || bestMatch.symbol.classname || symbolName;
+  return {
+    uri: bestMatch.uri,
+    range: {
+      start: { line, character: 0 },
+      end: { line, character: label.length },
+    },
+  };
 }
 
 /**

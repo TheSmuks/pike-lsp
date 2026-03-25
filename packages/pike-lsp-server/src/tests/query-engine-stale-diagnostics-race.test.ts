@@ -202,6 +202,7 @@ describe('Query Engine stale diagnostics race', () => {
         },
       },
       workspaceIndex: {
+        indexDocument(): void {},
         removeDocument(): void {},
       },
       includeResolver: null,
@@ -378,6 +379,7 @@ describe('Query Engine stale diagnostics race', () => {
         },
       },
       workspaceIndex: {
+        indexDocument(): void {},
         removeDocument(): void {},
       },
       includeResolver: null,

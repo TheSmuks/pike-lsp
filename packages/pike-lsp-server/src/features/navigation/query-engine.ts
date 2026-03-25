@@ -84,15 +84,14 @@ export async function queryNavigationLocations(
   });
 
   try {
+    const snapshotId = services.documentSnapshots?.get(uri);
     const response = await bridge.engineQuery({
       feature,
       requestId,
-      snapshot: { mode: 'latest' },
+      snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
       queryParams: {
         uri,
         filename,
-        version: document.version,
-        text: document.getText(),
         position,
         ...extraParams,
       },

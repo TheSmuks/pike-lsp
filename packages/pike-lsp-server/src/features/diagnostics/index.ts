@@ -14,7 +14,6 @@ import type {
   Connection,
   TextDocuments,
   Diagnostic,
-  DidChangeConfigurationParams,
   Range,
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -27,6 +26,7 @@ import { computeContentHash, computeLineHashes } from '../../services/document-c
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+import { registerDiagnosticsLifecycleHandlers } from './lifecycle.js';
 
 interface PendingChangeState {
   range: Range | undefined;
@@ -103,7 +103,7 @@ export function registerDiagnosticsHandlers(
 
   // INC-002: Track change ranges for incremental parsing.
   const pendingChangeStates = new Map<string, PendingChangeState>();
-  const documentSnapshots = new Map<string, string>();
+  const documentSnapshots = services.documentSnapshots ?? new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler();
   const SCHEDULER_METRICS_LOG_EVERY = 25;
@@ -115,7 +115,6 @@ export function registerDiagnosticsHandlers(
     maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
     diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
   };
-  let globalSettings: PikeSettings = defaultSettings;
 
   function validateDocumentDebounced(document: TextDocument): void {
     const uri = document.uri;
@@ -188,7 +187,7 @@ export function registerDiagnosticsHandlers(
           error: err instanceof Error ? err.message : String(err),
         });
       });
-    }, globalSettings.diagnosticDelay);
+    }, services.globalSettings.diagnosticDelay);
 
     validationTimers.set(uri, timer);
   }
@@ -396,7 +395,7 @@ export function registerDiagnosticsHandlers(
       const seenDiagnostics = new Set<string>();
 
       const pushDiagnostic = (diagnostic: Diagnostic): void => {
-        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+        if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           return;
         }
 
@@ -434,7 +433,7 @@ export function registerDiagnosticsHandlers(
 
       // Process diagnostics from introspection
       for (const pikeDiag of introspectData.diagnostics) {
-        if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+        if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           break;
         }
         // Skip module resolution errors
@@ -672,7 +671,7 @@ export function registerDiagnosticsHandlers(
           count: diagnosticsData.diagnostics.length,
         });
         for (const diag of diagnosticsData.diagnostics) {
-          if (diagnostics.length >= globalSettings.maxNumberOfProblems) {
+          if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
             break;
           }
           // Determine severity: 'error' = 1 (Error), 'warning' = 2 (Warning), default = Error
@@ -767,191 +766,26 @@ export function registerDiagnosticsHandlers(
     }
   }
 
-  // Configuration change handler
-  connection.onDidChangeConfiguration((change: DidChangeConfigurationParams) => {
-    const settings = change.settings as { pike?: Partial<PikeSettings> } | undefined;
-    globalSettings = {
-      ...defaultSettings,
-      ...(settings?.pike ?? {}),
-    };
-
-    services.bridge
-      ?.engineUpdateConfig({
-        settings: {
-          pike: settings?.pike ?? {},
-        },
-      })
-      .catch(err => {
-        log.debug('Engine config update failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-
-    // Revalidate all open documents
-    documents.all().forEach(document => {
-      const promise = diagnosticsScheduler.schedule({
-        requestClass: 'background',
-        key: `diagnostics:${document.uri}`,
-        coalesceMs: globalSettings.diagnosticDelay,
-        run: async checkpoint => {
-          checkpoint();
-          await validateDocument(document, undefined, checkpoint);
-        },
-      });
-      documentCache.setPending(document.uri, promise);
-      promise.catch(err => {
-        if (err instanceof RequestSupersededError) {
-          return;
-        }
-        log.error('Config-change validation failed', {
-          uri: document.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    });
-  });
-
-  // Handle document open - validate immediately without debouncing
-  documents.onDidOpen(event => {
-    log.debug('Document opened', { uri: event.document.uri });
-    services.bridge
-      ?.engineOpenDocument({
-        uri: event.document.uri,
-        languageId: event.document.languageId,
-        version: event.document.version,
-        text: event.document.getText(),
-      })
-      .then(ack => {
-        documentSnapshots.set(event.document.uri, ack.snapshotId);
-      })
-      .catch(err => {
-        log.debug('Engine open document failed', {
-          uri: event.document.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-
-    const promise = validateDocument(event.document);
-    documentCache.setPending(event.document.uri, promise);
-    promise.catch(err => {
-      if (err instanceof RequestSupersededError) {
-        return;
-      }
-      log.error('Document open validation failed', {
-        uri: event.document.uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-  });
-
-  // Handle document changes - debounced validation (errors caught in setTimeout handler)
-  // INC-002: Capture change range for incremental parsing
-  documents.onDidChangeContent(change => {
-    validateDocumentDebounced(change.document);
-  });
-
-  // INC-002: Listen to raw LSP change notifications to capture change ranges
-  // This runs before TextDocuments processes the change, allowing us to capture the range
-  connection.onDidChangeTextDocument(params => {
-    const contentChanges = params.contentChanges;
-    let changeRange: Range | undefined;
-
-    if (contentChanges.length > 0) {
-      const firstChange = contentChanges[0];
-      // If range is present, it's an incremental change
-      // If range is absent, it's a full document replacement
-      if (firstChange && 'range' in firstChange && firstChange.range) {
-        changeRange = firstChange.range;
-      }
-    }
-
-    const existingChangeState = pendingChangeStates.get(params.textDocument.uri);
-    const hasMultipleChanges = Boolean(existingChangeState) || contentChanges.length > 1;
-
-    pendingChangeStates.set(params.textDocument.uri, {
-      range: changeRange,
-      hasMultipleChanges,
-    });
-
-    const changes = contentChanges.map(change => {
-      const record: Record<string, unknown> = {
-        text: change.text,
-      };
-      if ('range' in change && change.range) {
-        record['range'] = change.range;
-      }
-      return record;
-    });
-
-    services.bridge
-      ?.engineChangeDocument({
-        uri: params.textDocument.uri,
-        version: params.textDocument.version,
-        changes,
-      })
-      .then(ack => {
-        documentSnapshots.set(params.textDocument.uri, ack.snapshotId);
-      })
-      .catch(err => {
-        log.debug('Engine change document failed', {
-          uri: params.textDocument.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-  });
-
-  // Handle document save - validate immediately without debouncing
-  documents.onDidSave(event => {
-    const promise = validateDocument(event.document);
-    documentCache.setPending(event.document.uri, promise);
-    promise.catch(err => {
-      if (err instanceof RequestSupersededError) {
-        return;
-      }
-      log.error('Document save validation failed', {
-        uri: event.document.uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
-  });
-
-  // Handle document close
-  documents.onDidClose(event => {
-    services.bridge
-      ?.engineCloseDocument({
-        uri: event.document.uri,
-      })
-      .then(() => {
-        documentSnapshots.delete(event.document.uri);
-      })
-      .catch(err => {
-        log.debug('Engine close document failed', {
-          uri: event.document.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-
-    // Clear cache for closed document
-    documentCache.delete(event.document.uri);
-    pendingChangeStates.delete(event.document.uri);
-    documentSnapshots.delete(event.document.uri);
-    inFlightDiagnosticRequests.delete(event.document.uri);
-
-    // Clear from type database
-    typeDatabase.removeProgram(event.document.uri);
-
-    // Clear from workspace index
-    workspaceIndex.removeDocument(event.document.uri);
-
-    // Clear any pending validation timer
-    const timer = validationTimers.get(event.document.uri);
-    if (timer) {
-      clearTimeout(timer);
-      validationTimers.delete(event.document.uri);
-    }
-    validationVersions.delete(event.document.uri);
-
-    // Clear diagnostics for closed document
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+  registerDiagnosticsLifecycleHandlers({
+    connection,
+    documents,
+    services,
+    documentCache,
+    typeDatabase,
+    workspaceIndex,
+    diagnosticsScheduler,
+    defaultSettings,
+    getGlobalSettings: () => services.globalSettings,
+    setGlobalSettings: settings => {
+      services.globalSettings = settings;
+    },
+    pendingChangeStates,
+    documentSnapshots,
+    inFlightDiagnosticRequests,
+    validationTimers,
+    validationVersions,
+    validateDocument,
+    validateDocumentDebounced,
+    log,
   });
 }

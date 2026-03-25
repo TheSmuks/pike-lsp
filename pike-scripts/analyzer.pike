@@ -877,8 +877,8 @@ int main(int argc, array(string) argv) {
                     ])});
                 }
 
-                if (feature == "definition" && sizeof(locations) > 1) {
-                    locations = ({ locations[0] });
+                if (feature == "definition") {
+                    locations = ({});
                 }
 
                 return ([

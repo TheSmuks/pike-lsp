@@ -12,7 +12,7 @@
         ["(", ")"],
         ["({", "})"],
         ["([", "])"],
-        ["(<", ">"]
+        ["(<", ">)"]
     ],
     "autoClosingPairs": [
         {"open": "{", "close": "}"},
@@ -40,6 +40,42 @@
     },
     "indentationRules": {
         "increaseIndentPattern": "^(.*\\{.*|.*\\(\\[.*|.*\\(<.*|.*\\[[^\\]]*$|.*<[^>]*$|.*->\\s*|.*->.*\\()$",
-        "decreaseIndentPattern": "[\\]})>]"
-    }
+        "decreaseIndentPattern": "^\\s*(\\}|\\]|\\)|>\\))"
+    },
+    "onEnterRules": [
+        {
+            "beforeText": "^.*(\\{|\\(\\[|\\(<)\\s*$",
+            "action": {
+                "indent": "indent"
+            }
+        },
+        {
+            "beforeText": "^\\s*(case\\b[^:]*|default)\\s*:\\s*$",
+            "action": {
+                "indent": "indent"
+            }
+        },
+        {
+            "beforeText": "^\\s*//.*$",
+            "action": {
+                "indent": "none",
+                "appendText": "// "
+            }
+        },
+        {
+            "beforeText": "^\\s*/\\*\\*?.*$",
+            "afterText": "^\\s*\\*/$",
+            "action": {
+                "indent": "indentOutdent",
+                "appendText": " * "
+            }
+        },
+        {
+            "beforeText": "^\\s*/\\*\\*?.*$",
+            "action": {
+                "indent": "none",
+                "appendText": " * "
+            }
+        }
+    ]
 }

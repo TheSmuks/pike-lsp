@@ -508,6 +508,53 @@ describe('IncludeResolver - Cache Management', () => {
         assert.ok(result2);
     });
 
+    it('should refresh include symbols immediately after file invalidation', async () => {
+        const dir = await mkdtemp(join(tmpdir(), 'include-resolver-invalidate-'));
+        try {
+            const includePath = join(dir, 'dynamic.h');
+            await writeFile(includePath, 'int first_symbol = 1;\n', 'utf-8');
+
+            const bridge = {
+                bridge: {
+                    resolveInclude: async () => ({
+                        exists: true,
+                        path: includePath,
+                        originalPath: '"dynamic.h"',
+                    }),
+                    resolveStdlib: async () => ({ found: 0 }),
+                    analyze: async (content: string) => ({
+                        result: {
+                            parse: {
+                                symbols: [
+                                    {
+                                        name: content.includes('second_symbol')
+                                            ? 'second_symbol'
+                                            : 'first_symbol',
+                                        kind: 'variable' as const,
+                                    },
+                                ],
+                            },
+                        },
+                    }),
+                },
+            };
+
+            const resolver = new IncludeResolver(bridge as any, createMockLogger());
+            const first = await resolver.resolveInclude('"dynamic.h"', 'file:///test.pike');
+            assert.ok(first);
+            assert.equal(first!.symbols[0]!.name, 'first_symbol');
+
+            await writeFile(includePath, 'int second_symbol = 2;\n', 'utf-8');
+            resolver.invalidate(`file://${includePath}`);
+
+            const second = await resolver.resolveInclude('"dynamic.h"', 'file:///test.pike');
+            assert.ok(second);
+            assert.equal(second!.symbols[0]!.name, 'second_symbol');
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
+    });
+
     it('should resolve include symbols from real file content', async () => {
         const dir = await mkdtemp(join(tmpdir(), 'include-resolver-'));
         try {

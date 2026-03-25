@@ -24,7 +24,6 @@ import {
     OptionalVersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { readFile } from 'node:fs/promises';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -111,17 +110,6 @@ export function registerRenameHandlers(
         };
     });
 
-    /**
-     * Rename handler - scope-aware rename across files
-     *
-     * Uses symbolPositions index to rename only the specific symbol at cursor,
-     * not all text with the same name. This correctly handles:
-     * - Variables with same name in different scopes
-     * - Class/function/variable renaming without text collision
-     * - Cross-file rename with symbol-level precision
-     *
-     * Falls back to text-based search for uncached workspace files.
-     */
     connection.onRenameRequest(async (params): Promise<WorkspaceEdit | null> => {
         const uri = params.textDocument.uri;
         const document = documents.get(uri);
@@ -246,7 +234,6 @@ export function registerRenameHandlers(
             }
         };
 
-        // Helper to add edits from text search (fallback)
         const addEditsFromTextSearch = (targetUri: string, searchText: string): void => {
             const edits: TextEdit[] = [];
             const lines = searchText.split('\n');
@@ -261,7 +248,6 @@ export function registerRenameHandlers(
                     const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
                     const afterChar = matchIndex + oldName.length < line.length ? line[matchIndex + oldName.length] : ' ';
 
-                    // Check word boundaries
                     if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
                         edits.push({
                             range: {
@@ -277,7 +263,6 @@ export function registerRenameHandlers(
             }
 
             if (edits.length > 0) {
-                // Merge with existing edits for this URI
                 if (changes[targetUri]) {
                     changes[targetUri] = [...changes[targetUri], ...edits];
                 } else {
@@ -292,8 +277,6 @@ export function registerRenameHandlers(
             log.debug('Rename: using symbolPositions', { symbol: oldName, count: positions?.length ?? 0 });
             addEditsFromPositions(uri, positions);
         } else {
-            // Fallback to text-based search for current document
-            log.debug('Rename: falling back to text search for current document');
             addEditsFromTextSearch(uri, text);
         }
 
@@ -307,97 +290,9 @@ export function registerRenameHandlers(
                     addEditsFromPositions(otherUri, positions);
                 }
             } else {
-                // Fallback to text search for other documents
                 const otherDoc = documents.get(otherUri);
                 if (otherDoc) {
                     addEditsFromTextSearch(otherUri, otherDoc.getText());
-                }
-            }
-        }
-
-        // Search workspace files not currently open
-        if (services.workspaceScanner?.isReady()) {
-            if (!matchingSymbol) {
-                log.debug('Rename: skipping uncached workspace search without matched symbol');
-            } else {
-                const cachedUris = new Set(documentCache.keys());
-                const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
-                const maxWorkspaceFiles = Math.max(
-                    1,
-                    Number.parseInt(process.env['PIKE_LSP_RENAME_MAX_WORKSPACE_FILES'] ?? '150', 10)
-                );
-                const boundedFiles = uncachedFiles.slice(0, maxWorkspaceFiles);
-                const BATCH_SIZE = 10;
-                const YIELD_EVERY_N_BATCHES = 4;
-                const requestVersion = document.version;
-                let cancelled = false;
-                const isRequestCurrent = (): boolean => {
-                    const latest = documents.get(uri);
-                    return !!latest && latest.version === requestVersion;
-                };
-
-                log.debug('Rename: searching workspace files', {
-                    uncachedFileCount: uncachedFiles.length,
-                    boundedFileCount: boundedFiles.length,
-                });
-
-                for (let i = 0; i < boundedFiles.length; i += BATCH_SIZE) {
-                    if (!isRequestCurrent()) {
-                        cancelled = true;
-                        break;
-                    }
-
-                    const batch = boundedFiles.slice(i, Math.min(i + BATCH_SIZE, boundedFiles.length));
-
-                    const batchEdits = await Promise.all(batch.map(async file => {
-                        try {
-                            if (!isRequestCurrent()) {
-                                cancelled = true;
-                                return null;
-                            }
-
-                            const filePath = decodeURIComponent(file.uri.replace(/^file:\/\//, ''));
-                            const fileContent = await readFile(filePath, 'utf-8');
-
-                            if (!isRequestCurrent()) {
-                                cancelled = true;
-                                return null;
-                            }
-
-                            if (!fileContent.includes(oldName)) {
-                                return null;
-                            }
-
-                            return { uri: file.uri, content: fileContent };
-                        } catch (err) {
-                            log.warn('Failed to read file for rename', {
-                                uri: file.uri,
-                                error: err instanceof Error ? err.message : String(err)
-                            });
-                            return null;
-                        }
-                    }));
-
-                    for (const entry of batchEdits) {
-                        if (entry) {
-                            addEditsFromTextSearch(entry.uri, entry.content);
-                        }
-                    }
-
-                    if (cancelled) {
-                        break;
-                    }
-
-                    if ((i / BATCH_SIZE) % YIELD_EVERY_N_BATCHES === 0 && i > 0) {
-                        await new Promise(resolve => setImmediate(resolve));
-                    }
-                }
-
-                if (cancelled) {
-                    log.debug('Rename: workspace scan cancelled due to document version change', {
-                        uri,
-                        requestVersion,
-                    });
                 }
             }
         }
