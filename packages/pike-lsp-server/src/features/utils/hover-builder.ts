@@ -359,6 +359,82 @@ function generatePikeDocsUrl(path: string): string {
     return `https://pike.lysator.liu.se/generated/manual/modref/ex/${urlPath}.html`;
 }
 
+function buildMethodSignature(symbol: PikeSymbol): string {
+    const symRecord = symbol as unknown as Record<string, unknown>;
+
+    if (symRecord['type'] && typeof symRecord['type'] === 'object') {
+        const typeRecord = symRecord['type'] as Record<string, unknown>;
+        if (typeRecord['kind'] === 'function' || typeRecord['kind'] === 'method') {
+            const returnType = typeRecord['returnType']
+                ? formatPikeType(typeRecord['returnType'])
+                : (typeRecord['returnType'] ?? 'void');
+
+            let argList = '';
+
+            if (symRecord['parameters'] && Array.isArray(symRecord['parameters'])) {
+                const params = symRecord['parameters'] as Array<{ name?: string; type?: string }>;
+                argList = params.map(p => {
+                    const type = p.type ?? 'mixed';
+                    const name = p.name ?? 'arg';
+                    return `${type} ${name}`;
+                }).join(', ');
+            } else {
+                const args = (typeRecord['argTypes'] ?? typeRecord['arguments']) as unknown[] | undefined;
+                if (args && args.length > 0) {
+                    argList = args.map((arg, i) => {
+                        if (typeof arg === 'object' && arg !== null) {
+                            const argObj = arg as Record<string, unknown>;
+                            const type = formatPikeType(argObj['type'] ?? arg);
+                            const name = (argObj['name'] as string) ?? `arg${i}`;
+                            return `${type} ${name}`;
+                        }
+                        return `${formatPikeType(arg)} arg${i}`;
+                    }).join(', ');
+                }
+            }
+
+            return `${returnType} ${symbol.name}(${argList})`;
+        }
+    }
+
+    if (symbol.type && symbol.type.kind === 'function') {
+        const funcType = symbol.type as PikeFunctionType;
+        const returnType = funcType.returnType ? formatPikeType(funcType.returnType) : 'void';
+
+        let argList = '';
+        const funcTypeRaw = symbol.type as unknown as Record<string, unknown>;
+        const args = (funcType.argTypes ?? funcTypeRaw['arguments']) as unknown[] | undefined;
+        if (args && args.length > 0) {
+            argList = args.map((arg, i) => {
+                if (typeof arg === 'object' && arg !== null) {
+                    const argObj = arg as Record<string, unknown>;
+                    const type = formatPikeType(argObj['type'] ?? arg);
+                    const name = (argObj['name'] as string) ?? `arg${i}`;
+                    return `${type} ${name}`;
+                }
+                return `${formatPikeType(arg)} arg${i}`;
+            }).join(', ');
+        }
+
+        return `${returnType} ${symbol.name}(${argList})`;
+    }
+
+    const returnType = formatPikeType(symRecord['returnType']);
+    const argNames = symRecord['argNames'] as string[] | undefined;
+    const argTypes = symRecord['argTypes'] as unknown[] | undefined;
+
+    let argList = '';
+    if (argTypes && argNames) {
+        argList = argTypes.map((t, i) => {
+            const type = formatPikeType(t);
+            const name = argNames[i] ?? `arg${i}`;
+            return `${type} ${name}`;
+        }).join(', ');
+    }
+
+    return `${returnType} ${symbol.name}(${argList})`;
+}
+
 /**
  * Build markdown content for hover.
  */
@@ -391,91 +467,20 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
 
     // Build type signature using introspected type info if available
     if (symbol.kind === 'method') {
-        // Try introspected type first
-        const symRecord = symbol as unknown as Record<string, unknown>;
+        parts.push('```pike');
+        parts.push(buildMethodSignature(symbol));
+        parts.push('```');
 
-        // Check for test format: type: { kind: 'function', returnType: 'int' }, parameters: [...]
-        if (symRecord['type'] && typeof symRecord['type'] === 'object') {
-            const typeRecord = symRecord['type'] as Record<string, unknown>;
-            if (typeRecord['kind'] === 'function' || typeRecord['kind'] === 'method') {
-                const returnType = typeRecord['returnType']
-                    ? formatPikeType(typeRecord['returnType'])
-                    : (typeRecord['returnType'] ?? 'void');
-
-                let argList = '';
-
-                // Handle test format: parameters array
-                if (symRecord['parameters'] && Array.isArray(symRecord['parameters'])) {
-                    const params = symRecord['parameters'] as Array<{ name?: string; type?: string }>;
-                    argList = params.map(p => {
-                        const type = p.type ?? 'mixed';
-                        const name = p.name ?? 'arg';
-                        return `${type} ${name}`;
-                    }).join(', ');
-                }
-                // Handle introspection format: argTypes or arguments
-                else {
-                    const args = (typeRecord['argTypes'] ?? typeRecord['arguments']) as unknown[] | undefined;
-                    if (args && args.length > 0) {
-                        argList = args.map((arg, i) => {
-                            if (typeof arg === 'object' && arg !== null) {
-                                const argObj = arg as Record<string, unknown>;
-                                const type = formatPikeType(argObj['type'] ?? arg);
-                                const name = (argObj['name'] as string) ?? `arg${i}`;
-                                return `${type} ${name}`;
-                            }
-                            return `${formatPikeType(arg)} arg${i}`;
-                        }).join(', ');
-                    }
-                }
-
+        const variants = sym['variants'] as PikeSymbol[] | undefined;
+        if (variants && variants.length > 0) {
+            parts.push('');
+            parts.push('### Variants');
+            parts.push('');
+            for (const variant of variants) {
                 parts.push('```pike');
-                parts.push(`${returnType} ${symbol.name}(${argList})`);
+                parts.push(buildMethodSignature(variant));
                 parts.push('```');
             }
-        } else if (symbol.type && symbol.type.kind === 'function') {
-            const funcType = symbol.type as PikeFunctionType;
-            const returnType = funcType.returnType ? formatPikeType(funcType.returnType) : 'void';
-
-            let argList = '';
-            // Handle both 'argTypes' (from types.ts interface) and 'arguments' (from introspection)
-            const funcTypeRaw = symbol.type as unknown as Record<string, unknown>;
-            const args = (funcType.argTypes ?? funcTypeRaw['arguments']) as unknown[] | undefined;
-            if (args && args.length > 0) {
-                argList = args.map((arg, i) => {
-                    // Handle introspection format: {type: "string", name: "arg1"}
-                    // or argTypes format: PikeType object
-                    if (typeof arg === 'object' && arg !== null) {
-                        const argObj = arg as Record<string, unknown>;
-                        const type = formatPikeType(argObj['type'] ?? arg);
-                        const name = (argObj['name'] as string) ?? `arg${i}`;
-                        return `${type} ${name}`;
-                    }
-                    return `${formatPikeType(arg)} arg${i}`;
-                }).join(', ');
-            }
-
-            parts.push('```pike');
-            parts.push(`${returnType} ${symbol.name}(${argList})`);
-            parts.push('```');
-        } else {
-            // Fallback to old parse format
-            const returnType = formatPikeType(sym['returnType']);
-            const argNames = sym['argNames'] as string[] | undefined;
-            const argTypes = sym['argTypes'] as unknown[] | undefined;
-
-            let argList = '';
-            if (argTypes && argNames) {
-                argList = argTypes.map((t, i) => {
-                    const type = formatPikeType(t);
-                    const name = argNames[i] ?? `arg${i}`;
-                    return `${type} ${name}`;
-                }).join(', ');
-            }
-
-            parts.push('```pike');
-            parts.push(`${returnType} ${symbol.name}(${argList})`);
-            parts.push('```');
         }
     } else if (symbol.kind === 'variable' || symbol.kind === 'constant') {
         // Try introspected type first

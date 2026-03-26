@@ -14,6 +14,22 @@ import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo } from './keywords.js';
 
+function collectSymbolsByName(symbols: PikeSymbol[], name: string): PikeSymbol[] {
+  const matches: PikeSymbol[] = [];
+
+  for (const symbol of symbols) {
+    if (symbol.name === name) {
+      matches.push(symbol);
+    }
+
+    if (symbol.children && symbol.children.length > 0) {
+      matches.push(...collectSymbolsByName(symbol.children, name));
+    }
+  }
+
+  return matches;
+}
+
 /**
  * Register hover handler.
  */
@@ -110,6 +126,28 @@ export function registerHoverHandler(
 
       if (!symbol) {
         return null;
+      }
+
+      if (symbol.kind === 'method') {
+        const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name)
+          .filter(s => s.kind === 'method');
+
+        if (overloadCandidates.length > 0) {
+          const mainSymbol = overloadCandidates.find(s => !(s.modifiers?.includes('variant') ?? false));
+          const variantSymbols = overloadCandidates.filter(s => s.modifiers?.includes('variant') ?? false);
+
+          if (mainSymbol) {
+            symbol = {
+              ...mainSymbol,
+              variants: variantSymbols,
+            } as PikeSymbol;
+          } else if (variantSymbols.length > 0) {
+            symbol = {
+              ...symbol,
+              variants: variantSymbols.filter(s => s !== symbol),
+            } as PikeSymbol;
+          }
+        }
       }
 
       // Build hover content
