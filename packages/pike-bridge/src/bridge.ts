@@ -579,17 +579,26 @@ export class PikeBridge extends EventEmitter {
    * Handle a response from the Pike subprocess
    */
   private handleResponse(line: string): void {
+    let response: PikeResponse;
+
     try {
-      const response: PikeResponse = JSON.parse(line);
-      const pending = this.pendingRequests.get(response.id);
+      response = JSON.parse(line);
+    } catch {
+      // Ignore non-JSON lines (might be Pike debug output)
+      this.emit('stderr', line);
+      return;
+    }
 
-      if (!pending) {
-        return; // No pending request for this response
-      }
+    const pending = this.pendingRequests.get(response.id);
 
-      clearTimeout(pending.timeout);
-      this.pendingRequests.delete(response.id);
+    if (!pending) {
+      return; // No pending request for this response
+    }
 
+    clearTimeout(pending.timeout);
+    this.pendingRequests.delete(response.id);
+
+    try {
       if (response.error) {
         this.rejectPendingRequest(pending, response.error.message);
         return;
@@ -597,9 +606,14 @@ export class PikeBridge extends EventEmitter {
 
       const result = this.buildResponseResult(response);
       pending.resolve(result);
-    } catch {
-      // Ignore non-JSON lines (might be Pike debug output)
-      this.emit('stderr', line);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error('Failed to process Pike response', {
+        responseId: response.id,
+        raw: line,
+        error: message,
+      });
+      this.rejectPendingRequest(pending, `Failed to process Pike response: ${message}`);
     }
   }
 
