@@ -228,4 +228,180 @@ describe('Diagnostics lifecycle workspace index sync', () => {
     expect(invalidatedIncludePaths).toEqual([filePath, filePath]);
     rmSync(tempDir, { recursive: true, force: true });
   });
+
+  it('does not let close rehydrate overwrite a rapid reopen index update', async () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'pike-lsp-ws-index-reopen-race-'));
+    const filePath = path.join(tempDir, 'reopen-race.pike');
+    writeFileSync(filePath, 'class DiskSnapshot {}\n', 'utf-8');
+
+    const uri = `file://${filePath}`;
+    const initialDoc = TextDocument.create(uri, 'pike', 1, 'class InitialLive {}\n');
+    const reopenedDoc = TextDocument.create(uri, 'pike', 2, 'class ReopenedLive {}\n');
+    const documents = createMockDocuments();
+    const indexedVersions: number[] = [];
+    const indexedContents: string[] = [];
+    const removedUris: string[] = [];
+    const errorLogs: string[] = [];
+
+    registerDiagnosticsLifecycleHandlers({
+      connection: {
+        onDidChangeConfiguration() {},
+        onDidChangeTextDocument() {},
+        sendDiagnostics() {},
+      } as any,
+      documents: documents as any,
+      services: {
+        bridge: null,
+        includeResolver: {
+          invalidate() {},
+        },
+      } as any,
+      documentCache: {
+        setPending() {},
+        delete() {},
+      } as any,
+      typeDatabase: {
+        removeProgram() {},
+      } as any,
+      workspaceIndex: {
+        async indexDocument(_callUri: string, content: string, version: number) {
+          indexedVersions.push(version);
+          indexedContents.push(content);
+          if (version === 0) {
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+        },
+        removeDocument(callUri: string) {
+          removedUris.push(callUri);
+        },
+      } as any,
+      diagnosticsScheduler: {
+        schedule() {
+          return Promise.resolve();
+        },
+      } as any,
+      defaultSettings: {
+        pikePath: 'pike',
+        maxNumberOfProblems: 100,
+        diagnosticDelay: 0,
+      },
+      getGlobalSettings: () => ({
+        pikePath: 'pike',
+        maxNumberOfProblems: 100,
+        diagnosticDelay: 0,
+      }),
+      setGlobalSettings() {},
+      pendingChangeStates: new Map(),
+      documentSnapshots: new Map(),
+      inFlightDiagnosticRequests: new Map(),
+      validationTimers: new Map(),
+      validationVersions: new Map(),
+      validateDocument: async () => {},
+      validateDocumentDebounced: () => {},
+      log: {
+        debug() {},
+        error(message: string) {
+          errorLogs.push(message);
+        },
+      } as any,
+    });
+
+    documents.emitOpen(initialDoc);
+    documents.emitClose(initialDoc);
+    documents.emitOpen(reopenedDoc);
+
+    await new Promise(resolve => setTimeout(resolve, 60));
+
+    expect(indexedVersions.some(version => version === 0)).toBe(false);
+    expect(indexedVersions[indexedVersions.length - 1]).toBe(reopenedDoc.version);
+    expect(indexedContents[indexedContents.length - 1]).toBe(reopenedDoc.getText());
+    expect(removedUris).toEqual([]);
+    expect(errorLogs).toEqual([]);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('does not remove index entry from stale close rehydrate failure after rapid re-add', async () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'pike-lsp-ws-index-readd-race-'));
+    const filePath = path.join(tempDir, 'readd-race.pike');
+    writeFileSync(filePath, 'class Original {}\n', 'utf-8');
+
+    const uri = `file://${filePath}`;
+    const doc = TextDocument.create(uri, 'pike', 1, 'class Original {}\n');
+    const readdedDoc = TextDocument.create(uri, 'pike', 2, 'class Readded {}\n');
+    const documents = createMockDocuments();
+    const removedUris: string[] = [];
+    const errorLogs: string[] = [];
+
+    registerDiagnosticsLifecycleHandlers({
+      connection: {
+        onDidChangeConfiguration() {},
+        onDidChangeTextDocument() {},
+        sendDiagnostics() {},
+      } as any,
+      documents: documents as any,
+      services: {
+        bridge: null,
+        includeResolver: {
+          invalidate() {},
+        },
+      } as any,
+      documentCache: {
+        setPending() {},
+        delete() {},
+      } as any,
+      typeDatabase: {
+        removeProgram() {},
+      } as any,
+      workspaceIndex: {
+        async indexDocument() {},
+        removeDocument(callUri: string) {
+          removedUris.push(callUri);
+        },
+      } as any,
+      diagnosticsScheduler: {
+        schedule() {
+          return Promise.resolve();
+        },
+      } as any,
+      defaultSettings: {
+        pikePath: 'pike',
+        maxNumberOfProblems: 100,
+        diagnosticDelay: 0,
+      },
+      getGlobalSettings: () => ({
+        pikePath: 'pike',
+        maxNumberOfProblems: 100,
+        diagnosticDelay: 0,
+      }),
+      setGlobalSettings() {},
+      pendingChangeStates: new Map(),
+      documentSnapshots: new Map(),
+      inFlightDiagnosticRequests: new Map(),
+      validationTimers: new Map(),
+      validationVersions: new Map(),
+      validateDocument: async () => {},
+      validateDocumentDebounced: () => {},
+      log: {
+        debug() {},
+        error(message: string) {
+          errorLogs.push(message);
+        },
+      } as any,
+    });
+
+    documents.emitOpen(doc);
+    unlinkSync(filePath);
+    documents.emitClose(doc);
+
+    writeFileSync(filePath, 'class ReaddedOnDisk {}\n', 'utf-8');
+    documents.emitOpen(readdedDoc);
+
+    await new Promise(resolve => setTimeout(resolve, 30));
+
+    expect(removedUris).toEqual([]);
+    expect(errorLogs).toEqual([]);
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 });
