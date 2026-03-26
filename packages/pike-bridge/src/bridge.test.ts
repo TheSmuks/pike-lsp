@@ -7,6 +7,7 @@
 // @ts-ignore - Bun test types
 import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
+import { LogLevel, Logger } from '@pike-lsp/core';
 import { PikeBridge } from './bridge.js';
 import { PikeProcess } from './process.js';
 import { PROCESS_STARTUP_DELAY } from './constants.js';
@@ -48,6 +49,28 @@ describe('PikeBridge', () => {
     const version = await bridge.getVersion();
     assert.ok(version, 'Should return a version string');
     assert.match(version!, /\d+\.\d+/, 'Version should match pattern X.Y');
+  });
+
+  it('should emit startup debug logs at debug severity', () => {
+    const originalLevel = Logger.globalLevel;
+    const originalError = console.error;
+    const logs: string[] = [];
+
+    try {
+      Logger.setLevel(LogLevel.DEBUG);
+      console.error = (...args: unknown[]) => {
+        logs.push(args.map(value => String(value)).join(' '));
+      };
+
+      new PikeBridge({ debug: true, analyzerPath: '/tmp/analyzer.pike' });
+    } finally {
+      console.error = originalError;
+      Logger.setLevel(originalLevel);
+    }
+
+    assert.ok(logs.some(message => message.includes('[DEBUG][PikeBridge] Using provided analyzer path: /tmp/analyzer.pike')));
+    assert.ok(logs.some(message => message.includes('[DEBUG][PikeBridge] Initialized with pikePath="pike", analyzerPath="/tmp/analyzer.pike"')));
+    assert.ok(!logs.some(message => message.includes('[ERROR][PikeBridge] [DEBUG]')));
   });
 
   it('should expose query-engine protocol info', async () => {
