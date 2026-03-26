@@ -65,6 +65,14 @@ export function registerDiagnosticsLifecycleHandlers(
     log,
   } = args;
 
+  const workspaceRehydrateEpochs = new Map<string, number>();
+
+  const bumpWorkspaceRehydrateEpoch = (uri: string): number => {
+    const nextEpoch = (workspaceRehydrateEpochs.get(uri) ?? 0) + 1;
+    workspaceRehydrateEpochs.set(uri, nextEpoch);
+    return nextEpoch;
+  };
+
   const indexWorkspaceDocument = (document: TextDocument): void => {
     try {
       const indexResult = workspaceIndex.indexDocument?.(
@@ -87,17 +95,44 @@ export function registerDiagnosticsLifecycleHandlers(
     }
   };
 
-  const rehydrateWorkspaceDocumentFromDisk = (uri: string): void => {
+  const rehydrateWorkspaceDocumentFromDisk = async (uri: string, epoch: number): Promise<void> => {
     const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
-    readFile(filePath, 'utf-8')
-      .then(content => workspaceIndex.indexDocument(uri, content, 0))
-      .catch(err => {
+    try {
+      const content = await readFile(filePath, 'utf-8');
+      if (workspaceRehydrateEpochs.get(uri) !== epoch) {
+        return;
+      }
+
+      if (documents.get(uri)) {
+        return;
+      }
+
+      await workspaceIndex.indexDocument(uri, content, 0);
+
+      if (workspaceRehydrateEpochs.get(uri) !== epoch) {
+        const openDocument = documents.get(uri);
+        if (openDocument) {
+          await workspaceIndex.indexDocument(uri, openDocument.getText(), openDocument.version);
+        }
+      }
+    } catch (err) {
+      if (workspaceRehydrateEpochs.get(uri) !== epoch) {
+        return;
+      }
+
+      if (!documents.get(uri)) {
         workspaceIndex.removeDocument(uri);
-        log.debug('Workspace index rehydrate failed, removed entry', {
-          uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      }
+
+      log.error('Workspace index rehydrate failed', {
+        uri,
+        error: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      if (workspaceRehydrateEpochs.get(uri) === epoch) {
+        workspaceRehydrateEpochs.delete(uri);
+      }
+    }
   };
 
   const invalidateIncludeCacheForUri = (uri: string): void => {
@@ -150,6 +185,7 @@ export function registerDiagnosticsLifecycleHandlers(
 
   documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
+    bumpWorkspaceRehydrateEpoch(event.document.uri);
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
@@ -184,6 +220,7 @@ export function registerDiagnosticsLifecycleHandlers(
   });
 
   documents.onDidChangeContent(change => {
+    bumpWorkspaceRehydrateEpoch(change.document.uri);
     invalidateIncludeCacheForUri(change.document.uri);
     indexWorkspaceDocument(change.document);
     validateDocumentDebounced(change.document);
@@ -236,6 +273,7 @@ export function registerDiagnosticsLifecycleHandlers(
   });
 
   documents.onDidSave(event => {
+    bumpWorkspaceRehydrateEpoch(event.document.uri);
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
@@ -252,7 +290,7 @@ export function registerDiagnosticsLifecycleHandlers(
     });
   });
 
-  documents.onDidClose(event => {
+  documents.onDidClose(async event => {
     invalidateIncludeCacheForUri(event.document.uri);
     services.bridge
       ?.engineCloseDocument({
@@ -274,7 +312,8 @@ export function registerDiagnosticsLifecycleHandlers(
     inFlightDiagnosticRequests.delete(event.document.uri);
 
     typeDatabase.removeProgram(event.document.uri);
-    rehydrateWorkspaceDocumentFromDisk(event.document.uri);
+    const rehydrateEpoch = bumpWorkspaceRehydrateEpoch(event.document.uri);
+    await rehydrateWorkspaceDocumentFromDisk(event.document.uri, rehydrateEpoch);
 
     const timer = validationTimers.get(event.document.uri);
     if (timer) {
