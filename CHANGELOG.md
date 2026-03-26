@@ -16,6 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.33] - 2026-03-26
+
+### Added
+
+- **Analyzer runtime foundations** - implemented typed LRU and compilation cache layers, Pike compatibility runtime checks, and control-flow definite-assignment/uninitialized analysis coverage.
+
+### Fixed
+
+- **Diagnostics lifecycle and cancellation robustness** - fixed close-time rehydration races, stale in-flight diagnostics cleanup, debounce validation version cleanup, and surfaced cancellation/queue failure paths with explicit logging.
+- **Workspace index and URI correctness** - standardized URI-to-fs decoding in document links, added guarded workspace-symbol line normalization, targeted search-cache invalidation, and orphan prefix-index cleanup.
+- **Server/runtime observability and startup reliability** - made initialize fail fast on bridge startup failure, made debug log path configurable via `PIKE_LSP_LOG_FILE`, and surfaced log write failures via `window/logMessage` warnings.
+- **Type hierarchy and hover behavior** - completed recursive type hierarchy traversal coverage and grouped overload variants under primary hover signatures.
+
+### Changed
+
+- **Regression coverage expansion** - converted placeholder/skip-heavy suites into executable behavioral tests for scheduler, bridge health, analyzer caching, compatibility, and control-flow diagnostics.
+
 ## [0.1.0-alpha.32] - 2026-03-26
 
 ### Added
@@ -33,11 +50,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Contributor testing policy** - tightened docs to require regression-focused tests for all feature and bug-fix PRs.
 
-## [0.1.0-alpha.31] - 2026-03-18
-
-### Fixed
-
-- **Live formatting stability** - replaced broken live formatting paths and stabilized Pike indentation behavior.
-
+[0.1.0-alpha.33]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.33
 [0.1.0-alpha.32]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.32
-[0.1.0-alpha.31]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.31
