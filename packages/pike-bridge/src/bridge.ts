@@ -168,7 +168,7 @@ export class PikeBridge extends EventEmitter {
     super();
 
     const debug = options.debug ?? false;
-    this.debugLog = debug ? (message: string) => this.logger.error(`[DEBUG] ${message}`) : () => {};
+    this.debugLog = debug ? (message: string) => this.logger.debug(message) : () => {};
 
     // Determine analyzer path
     // If provided in options, use it. Otherwise, search for pike-scripts directory.
