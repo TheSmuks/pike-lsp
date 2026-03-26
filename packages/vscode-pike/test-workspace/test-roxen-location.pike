@@ -1,3 +1,5 @@
+#pragma strict_types
+
 // Test file for Roxen MODULE_LOCATION
 // This file tests MODULE_LOCATION pattern and query_location callback
 

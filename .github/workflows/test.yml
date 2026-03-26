@@ -74,6 +74,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Check Pike strict_types pragmas
+        run: bash scripts/check-pike-strict-types.sh
+
       - name: Check cross-package import boundaries
         run: bun run lint:package-boundaries
 
@@ -89,6 +92,9 @@ jobs:
         run: |
           pike --version
           which pike
+
+      - name: Check Pike strict_types pragmas
+        run: bash scripts/check-pike-strict-types.sh
 
       - name: Build all packages
         run: bun run build

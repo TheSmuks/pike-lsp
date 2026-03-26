@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Completions.pike - Code completion context analysis
 //!
 //! This file provides completion context analysis for Pike code.

@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Variables.pike - Variable analysis and occurrences
 //!
 //! This file provides variable analysis for Pike code, specifically

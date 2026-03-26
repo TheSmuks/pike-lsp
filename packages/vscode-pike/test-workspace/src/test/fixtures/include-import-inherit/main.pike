@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Main test file for include navigation
 //! Tests #include with relative path "../parent/globals.h"
 

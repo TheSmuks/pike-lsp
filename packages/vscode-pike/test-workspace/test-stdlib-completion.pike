@@ -1,3 +1,4 @@
+#pragma strict_types
 
 //! Test file for stdlib completion
 int test_variable = 42;

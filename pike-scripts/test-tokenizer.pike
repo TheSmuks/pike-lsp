@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test tokenizer behavior with "Module." pattern
 //! This documents the EXPECTED output format for cursor detection
 int main() {

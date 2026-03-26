@@ -1,3 +1,5 @@
+#pragma strict_types
+
 // Test file for RXML mixed content patterns
 // This file tests RXML tags inside Pike strings
 

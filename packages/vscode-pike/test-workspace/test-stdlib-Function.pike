@@ -1,4 +1,5 @@
 #pike __REAL_VERSION__
+#pragma strict_types
 
 constant defined = __builtin.function_defined;
 

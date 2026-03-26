@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Stdlib test fixture for intelligence tests
 //! Tests stdlib module resolution
 

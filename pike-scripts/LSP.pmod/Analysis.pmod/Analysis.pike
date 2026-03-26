@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Analysis.pike - Delegating analysis class for Pike LSP
 //!
 //! This class forwards requests to specialized handlers in the Analysis module:

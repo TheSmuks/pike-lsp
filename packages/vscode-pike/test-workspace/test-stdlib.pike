@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test file for stdlib E2E tests
 //! This file imports and uses real stdlib modules
 

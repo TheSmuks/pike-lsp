@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! LSP.pmod - Main module entry point for Pike LSP
 //!
 //! This module provides shared constants, error classes, JSON helper functions,

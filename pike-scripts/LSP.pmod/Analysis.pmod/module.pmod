@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! module.pmod - Shared helper functions for Analysis.pmod
 //!
 //! This module contains shared helper functions used across all classes

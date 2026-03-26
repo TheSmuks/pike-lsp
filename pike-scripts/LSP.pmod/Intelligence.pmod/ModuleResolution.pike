@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! ModuleResolution.pike - Import/include/inherit/require directive handling
 //!
 //! This file provides handlers for parsing and resolving Pike module imports

@@ -1,4 +1,6 @@
 #!/usr/bin/env pike
+#pragma strict_types
+
 //! LSP Cross-Version Handler Tests
 //!
 //! Validates all 12 LSP handlers work correctly on the current Pike version.

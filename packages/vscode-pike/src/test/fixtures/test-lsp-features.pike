@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test fixture file for LSP feature E2E tests
 //!
 //! This file contains known Pike constructs at predictable positions

@@ -1,4 +1,6 @@
 #!/usr/bin/env pike
+#pragma strict_types
+
 //! LSP Intelligence Tests
 //!
 //! Integration tests for LSP.Intelligence class:

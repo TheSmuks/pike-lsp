@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! RoxenStubs.pmod/module.pike - Module index for Roxen framework stubs
 //!
 //! This module provides stub implementations of Roxen framework classes

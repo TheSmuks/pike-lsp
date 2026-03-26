@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! LSP.CompilationCache - File-based compilation cache module
 //!
 //! Provides in-memory caching of compiled Pike programs to avoid recompiling
