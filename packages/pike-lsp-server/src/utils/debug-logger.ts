@@ -22,7 +22,9 @@ function runtimeEnv(): Record<string, string | undefined> {
   return runtimeProcess?.env ?? {};
 }
 
-export function resolveDebugLogFilePath(env: Record<string, string | undefined> = runtimeEnv()): string {
+export function resolveDebugLogFilePath(
+  env: Record<string, string | undefined> = runtimeEnv()
+): string {
   const configuredPath = env[LOG_FILE_ENV_VAR]?.trim();
   return configuredPath && configuredPath.length > 0 ? configuredPath : DEFAULT_LOG_FILE;
 }

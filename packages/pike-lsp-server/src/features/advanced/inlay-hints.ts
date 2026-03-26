@@ -9,11 +9,7 @@
  * - Configurable via inlayHints settings
  */
 
-import {
-    Connection,
-    InlayHint,
-    InlayHintKind,
-} from 'vscode-languageserver/node.js';
+import { Connection, InlayHint, InlayHintKind } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
@@ -22,284 +18,286 @@ import type { InlayHintsSettings } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 
 interface OffsetRange {
-    start: number;
-    end: number;
+  start: number;
+  end: number;
 }
 
 function buildExclusionRanges(text: string): OffsetRange[] {
-    const ranges: OffsetRange[] = [];
+  const ranges: OffsetRange[] = [];
 
-    let i = 0;
-    while (i < text.length) {
-        const char = text[i]!;
-        const next = i + 1 < text.length ? text[i + 1]! : '';
+  let i = 0;
+  while (i < text.length) {
+    const char = text[i]!;
+    const next = i + 1 < text.length ? text[i + 1]! : '';
 
-        if (char === '/' && next === '/') {
-            const start = i;
-            i += 2;
-            while (i < text.length && text[i] !== '\n') {
-                i += 1;
-            }
-            ranges.push({ start, end: i });
-            continue;
-        }
-
-        if (char === '/' && next === '*') {
-            const start = i;
-            i += 2;
-            while (i + 1 < text.length) {
-                if (text[i] === '*' && text[i + 1] === '/') {
-                    i += 2;
-                    break;
-                }
-                i += 1;
-            }
-            ranges.push({ start, end: i });
-            continue;
-        }
-
-        if (char === '"' || char === '\'') {
-            const quote = char;
-            const start = i;
-            i += 1;
-            while (i < text.length) {
-                if (text[i] === '\\') {
-                    i += 2;
-                    continue;
-                }
-                if (text[i] === quote) {
-                    i += 1;
-                    break;
-                }
-                i += 1;
-            }
-            ranges.push({ start, end: i });
-            continue;
-        }
-
+    if (char === '/' && next === '/') {
+      const start = i;
+      i += 2;
+      while (i < text.length && text[i] !== '\n') {
         i += 1;
+      }
+      ranges.push({ start, end: i });
+      continue;
     }
 
-    return ranges;
+    if (char === '/' && next === '*') {
+      const start = i;
+      i += 2;
+      while (i + 1 < text.length) {
+        if (text[i] === '*' && text[i + 1] === '/') {
+          i += 2;
+          break;
+        }
+        i += 1;
+      }
+      ranges.push({ start, end: i });
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      const quote = char;
+      const start = i;
+      i += 1;
+      while (i < text.length) {
+        if (text[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (text[i] === quote) {
+          i += 1;
+          break;
+        }
+        i += 1;
+      }
+      ranges.push({ start, end: i });
+      continue;
+    }
+
+    i += 1;
+  }
+
+  return ranges;
 }
 
 function isExcludedOffset(ranges: OffsetRange[], offset: number): boolean {
-    let lo = 0;
-    let hi = ranges.length - 1;
-    while (lo <= hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        const range = ranges[mid]!;
-        if (offset < range.start) {
-            hi = mid - 1;
-        } else if (offset >= range.end) {
-            lo = mid + 1;
-        } else {
-            return true;
-        }
+  let lo = 0;
+  let hi = ranges.length - 1;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const range = ranges[mid]!;
+    if (offset < range.start) {
+      hi = mid - 1;
+    } else if (offset >= range.end) {
+      lo = mid + 1;
+    } else {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 /**
  * Register inlay hints handler.
  */
 export function registerInlayHintsHandler(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    const { documentCache } = services;
-    const log = new Logger('Advanced');
+  const { documentCache } = services;
+  const log = new Logger('Advanced');
 
-    /**
-     * Extract type information from argTypes array.
-     * argTypes comes from Pike's symbol->argtypes and contains type strings.
-     */
-    function getParamType(argTypes: unknown[] | undefined, index: number): string | undefined {
-        if (!argTypes || index >= argTypes.length) return undefined;
+  /**
+   * Extract type information from argTypes array.
+   * argTypes comes from Pike's symbol->argtypes and contains type strings.
+   */
+  function getParamType(argTypes: unknown[] | undefined, index: number): string | undefined {
+    if (!argTypes || index >= argTypes.length) return undefined;
 
-        const typeInfo = argTypes[index];
-        if (typeof typeInfo === 'string') {
-            return typeInfo;
-        }
-        if (typeof typeInfo === 'object' && typeInfo !== null) {
-            const typeRec = typeInfo as Record<string, unknown>;
-            return typeRec['type'] as string | undefined;
-        }
-        return undefined;
+    const typeInfo = argTypes[index];
+    if (typeof typeInfo === 'string') {
+      return typeInfo;
     }
-
-    /**
-     * Get parameter name from argNames array, handling undefined elements.
-     */
-    function getParamName(argNames: string[] | undefined, index: number): string {
-        if (!argNames || index >= argNames.length) return `arg${index}`;
-        const name = argNames[index];
-        return name || `arg${index}`;
+    if (typeof typeInfo === 'object' && typeInfo !== null) {
+      const typeRec = typeInfo as Record<string, unknown>;
+      return typeRec['type'] as string | undefined;
     }
+    return undefined;
+  }
 
-    /**
-     * Format inlay hint label with parameter name and optional type.
-     * Examples:
-     * - "x:" (parameter name only)
-     * - "x: int" (parameter name with type)
-     */
-    function formatHintLabel(
-        paramName: string,
-        paramType: string | undefined,
-        config?: InlayHintsSettings
-    ): string {
-        // Only include type if typeHints is enabled
-        if (paramType && config?.typeHints) {
-            return `${paramName}: ${paramType}`;
-        }
-        return `${paramName}:`;
+  /**
+   * Get parameter name from argNames array, handling undefined elements.
+   */
+  function getParamName(argNames: string[] | undefined, index: number): string {
+    if (!argNames || index >= argNames.length) return `arg${index}`;
+    const name = argNames[index];
+    return name || `arg${index}`;
+  }
+
+  /**
+   * Format inlay hint label with parameter name and optional type.
+   * Examples:
+   * - "x:" (parameter name only)
+   * - "x: int" (parameter name with type)
+   */
+  function formatHintLabel(
+    paramName: string,
+    paramType: string | undefined,
+    config?: InlayHintsSettings
+  ): string {
+    // Only include type if typeHints is enabled
+    if (paramType && config?.typeHints) {
+      return `${paramName}: ${paramType}`;
     }
+    return `${paramName}:`;
+  }
 
-    /**
-     * Inlay Hints - show parameter names and types at call sites.
-     */
-    connection.languages.inlayHint.on((params): InlayHint[] | null => {
-        log.debug('Inlay hints request', { uri: params.textDocument.uri });
-        try {
-            // Check if inlay hints are enabled
-            const config = services.globalSettings?.inlayHints;
-            if (!config?.enabled) {
-                return null;
+  /**
+   * Inlay Hints - show parameter names and types at call sites.
+   */
+  connection.languages.inlayHint.on((params): InlayHint[] | null => {
+    log.debug('Inlay hints request', { uri: params.textDocument.uri });
+    try {
+      // Check if inlay hints are enabled
+      const config = services.globalSettings?.inlayHints;
+      if (!config?.enabled) {
+        return null;
+      }
+
+      const uri = params.textDocument.uri;
+      const cached = documentCache.get(uri);
+      const document = documents.get(uri);
+
+      if (!cached || !document) {
+        return null;
+      }
+
+      const hints: InlayHint[] = [];
+      const text = document.getText();
+      const exclusionRanges = buildExclusionRanges(text);
+
+      const methods = cached.symbols.filter(s => s.kind === 'method');
+
+      for (const method of methods) {
+        const methodRec = method as unknown as Record<string, unknown>;
+        const argNames = methodRec['argNames'] as string[] | undefined;
+        const argTypes = methodRec['argTypes'] as unknown[] | undefined;
+
+        if (!argNames || argNames.length === 0) continue;
+
+        const callPattern = PatternHelpers.functionCallPattern(method.name);
+        let match: RegExpExecArray | null = callPattern.exec(text);
+
+        while (match !== null) {
+          if (isExcludedOffset(exclusionRanges, match.index)) {
+            match = callPattern.exec(text);
+            continue;
+          }
+
+          const callStart = match.index + match[0].length;
+
+          let parenDepth = 1;
+          let argIndex = 0;
+          let currentArgStart = callStart;
+          let inString = false;
+          let stringQuote = '';
+          let escaped = false;
+          let inPikeMultilineString = false;
+
+          for (let i = callStart; i < text.length && parenDepth > 0; i++) {
+            const char = text[i];
+            const next = i + 1 < text.length ? text[i + 1] : undefined;
+
+            if (inPikeMultilineString) {
+              if (char === '"' && next === '#') {
+                inPikeMultilineString = false;
+                i += 1;
+              }
+              continue;
             }
 
-            const uri = params.textDocument.uri;
-            const cached = documentCache.get(uri);
-            const document = documents.get(uri);
-
-            if (!cached || !document) {
-                return null;
+            if (inString) {
+              if (escaped) {
+                escaped = false;
+                continue;
+              }
+              if (char === '\\') {
+                escaped = true;
+                continue;
+              }
+              if (char === stringQuote) {
+                inString = false;
+                stringQuote = '';
+              }
+              continue;
             }
 
-            const hints: InlayHint[] = [];
-            const text = document.getText();
-            const exclusionRanges = buildExclusionRanges(text);
+            if (char === '#' && next === '"') {
+              inPikeMultilineString = true;
+              i += 1;
+              continue;
+            }
 
-            const methods = cached.symbols.filter(s => s.kind === 'method');
+            if (char === '"' || char === "'") {
+              inString = true;
+              stringQuote = char;
+              escaped = false;
+              continue;
+            }
 
-            for (const method of methods) {
-                const methodRec = method as unknown as Record<string, unknown>;
-                const argNames = methodRec['argNames'] as string[] | undefined;
-                const argTypes = methodRec['argTypes'] as unknown[] | undefined;
-
-                if (!argNames || argNames.length === 0) continue;
-
-                const callPattern = PatternHelpers.functionCallPattern(method.name);
-                let match: RegExpExecArray | null = callPattern.exec(text);
-
-                while (match !== null) {
-                    if (isExcludedOffset(exclusionRanges, match.index)) {
-                        match = callPattern.exec(text);
-                        continue;
-                    }
-
-                    const callStart = match.index + match[0].length;
-
-                    let parenDepth = 1;
-                    let argIndex = 0;
-                    let currentArgStart = callStart;
-                    let inString = false;
-                    let stringQuote = '';
-                    let escaped = false;
-                    let inPikeMultilineString = false;
-
-                    for (let i = callStart; i < text.length && parenDepth > 0; i++) {
-                        const char = text[i];
-                        const next = i + 1 < text.length ? text[i + 1] : undefined;
-
-                        if (inPikeMultilineString) {
-                            if (char === '"' && next === '#') {
-                                inPikeMultilineString = false;
-                                i += 1;
-                            }
-                            continue;
-                        }
-
-                        if (inString) {
-                            if (escaped) {
-                                escaped = false;
-                                continue;
-                            }
-                            if (char === '\\') {
-                                escaped = true;
-                                continue;
-                            }
-                            if (char === stringQuote) {
-                                inString = false;
-                                stringQuote = '';
-                            }
-                            continue;
-                        }
-
-                        if (char === '#' && next === '"') {
-                            inPikeMultilineString = true;
-                            i += 1;
-                            continue;
-                        }
-
-                        if (char === '"' || char === '\'') {
-                            inString = true;
-                            stringQuote = char;
-                            escaped = false;
-                            continue;
-                        }
-
-                        if (char === '(') {
-                            parenDepth++;
-                        } else if (char === ')') {
-                            parenDepth--;
-                            if (parenDepth === 0) {
-                                const argText = text.slice(currentArgStart, i).trim();
-                                if (argText && argIndex < argNames.length) {
-                                    const argPos = document.positionAt(currentArgStart);
-                                    const paramType = getParamType(argTypes, argIndex);
-                                    hints.push({
-                                        position: argPos,
-                                        label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
-                                        kind: InlayHintKind.Parameter,
-                                        paddingRight: true,
-                                    });
-                                }
-                            }
-                        } else if (char === ',' && parenDepth === 1) {
-                            const argText = text.slice(currentArgStart, i).trim();
-                            if (argText && argIndex < argNames.length) {
-                                const argPos = document.positionAt(currentArgStart);
-                                const paramType = getParamType(argTypes, argIndex);
-                                hints.push({
-                                    position: argPos,
-                                    label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
-                                    kind: InlayHintKind.Parameter,
-                                    paddingRight: true,
-                                });
-                            }
-                            argIndex++;
-                            currentArgStart = i + 1;
-                        }
-                    }
-
-                    match = callPattern.exec(text);
+            if (char === '(') {
+              parenDepth++;
+            } else if (char === ')') {
+              parenDepth--;
+              if (parenDepth === 0) {
+                const argText = text.slice(currentArgStart, i).trim();
+                if (argText && argIndex < argNames.length) {
+                  const argPos = document.positionAt(currentArgStart);
+                  const paramType = getParamType(argTypes, argIndex);
+                  hints.push({
+                    position: argPos,
+                    label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
+                    kind: InlayHintKind.Parameter,
+                    paddingRight: true,
+                  });
                 }
+              }
+            } else if (char === ',' && parenDepth === 1) {
+              const argText = text.slice(currentArgStart, i).trim();
+              if (argText && argIndex < argNames.length) {
+                const argPos = document.positionAt(currentArgStart);
+                const paramType = getParamType(argTypes, argIndex);
+                hints.push({
+                  position: argPos,
+                  label: formatHintLabel(getParamName(argNames, argIndex), paramType, config),
+                  kind: InlayHintKind.Parameter,
+                  paddingRight: true,
+                });
+              }
+              argIndex++;
+              currentArgStart = i + 1;
             }
+          }
 
-            return hints.length > 0 ? hints : null;
-        } catch (err) {
-            log.error(`Inlay hints failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`);
-            return null;
+          match = callPattern.exec(text);
         }
-    });
+      }
 
-    /**
-     * Inlay Hint resolve handler - can provide additional info lazily.
-     * Currently not used, but kept for future enhancements (e.g., tooltips).
-     */
-    connection.languages.inlayHint.resolve?.((hint): InlayHint => {
-        // Could add tooltip with full type info here
-        return hint;
-    });
+      return hints.length > 0 ? hints : null;
+    } catch (err) {
+      log.error(
+        `Inlay hints failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return null;
+    }
+  });
+
+  /**
+   * Inlay Hint resolve handler - can provide additional info lazily.
+   * Currently not used, but kept for future enhancements (e.g., tooltips).
+   */
+  connection.languages.inlayHint.resolve?.((hint): InlayHint => {
+    // Could add tooltip with full type info here
+    return hint;
+  });
 }

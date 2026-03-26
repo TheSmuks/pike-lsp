@@ -15,7 +15,8 @@ function escapeRegex(value: string): string {
 
 function isLikelyCodeMatch(text: string, startIndex: number): boolean {
   const lineStart = text.lastIndexOf('\n', startIndex) + 1;
-  const lineEnd = text.indexOf('\n', startIndex) >= 0 ? text.indexOf('\n', startIndex) : text.length;
+  const lineEnd =
+    text.indexOf('\n', startIndex) >= 0 ? text.indexOf('\n', startIndex) : text.length;
   const line = text.slice(lineStart, lineEnd);
   const inLineIndex = startIndex - lineStart;
   const before = line.slice(0, inLineIndex);

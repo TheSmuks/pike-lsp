@@ -20,19 +20,19 @@ import type { Position, Range } from 'vscode-languageserver';
  * @returns Position with line and character (0-indexed)
  */
 export function positionAt(text: string, offset: number): Position {
-    let line = 0;
-    let character = 0;
+  let line = 0;
+  let character = 0;
 
-    for (let i = 0; i < offset && i < text.length; i++) {
-        if (text[i] === '\n') {
-            line++;
-            character = 0;
-        } else {
-            character++;
-        }
+  for (let i = 0; i < offset && i < text.length; i++) {
+    if (text[i] === '\n') {
+      line++;
+      character = 0;
+    } else {
+      character++;
     }
+  }
 
-    return { line, character };
+  return { line, character };
 }
 
 /**
@@ -43,22 +43,22 @@ export function positionAt(text: string, offset: number): Position {
  * @returns Character offset (0-indexed)
  */
 export function offsetAt(text: string, position: Position): number {
-    let offset = 0;
-    let currentLine = 0;
+  let offset = 0;
+  let currentLine = 0;
 
-    for (let i = 0; i < text.length; i++) {
-        if (currentLine === position.line) {
-            return Math.min(offset + position.character, text.length);
-        }
-
-        if (text[i] === '\n') {
-            currentLine++;
-            offset = i + 1;
-        }
+  for (let i = 0; i < text.length; i++) {
+    if (currentLine === position.line) {
+      return Math.min(offset + position.character, text.length);
     }
 
-    // If we didn't find the line, return end of text
-    return text.length;
+    if (text[i] === '\n') {
+      currentLine++;
+      offset = i + 1;
+    }
+  }
+
+  // If we didn't find the line, return end of text
+  return text.length;
 }
 
 /**
@@ -72,15 +72,15 @@ export function offsetAt(text: string, position: Position): number {
  * @returns Array of character offsets where each line starts
  */
 export function buildLineOffsets(text: string): number[] {
-    const offsets = [0];
-    let offset = 0;
+  const offsets = [0];
+  let offset = 0;
 
-    while ((offset = text.indexOf('\n', offset)) !== -1) {
-        offsets.push(offset + 1); // Next line starts after newline
-        offset++;
-    }
+  while ((offset = text.indexOf('\n', offset)) !== -1) {
+    offsets.push(offset + 1); // Next line starts after newline
+    offset++;
+  }
 
-    return offsets;
+  return offsets;
 }
 
 /**
@@ -93,23 +93,23 @@ export function buildLineOffsets(text: string): number[] {
  * @returns Position with line and character (0-indexed)
  */
 export function offsetToPosition(offset: number, lineOffsets: number[]): Position {
-    // Binary search for the line
-    let line = 0;
-    let low = 0;
-    let high = lineOffsets.length - 1;
+  // Binary search for the line
+  let line = 0;
+  let low = 0;
+  let high = lineOffsets.length - 1;
 
-    while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (lineOffsets[mid]! <= offset) {
-            line = mid;
-            low = mid + 1;
-        } else {
-            high = mid - 1;
-        }
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (lineOffsets[mid]! <= offset) {
+      line = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
     }
+  }
 
-    const character = offset - (lineOffsets[line] ?? 0);
-    return { line, character };
+  const character = offset - (lineOffsets[line] ?? 0);
+  return { line, character };
 }
 
 /**
@@ -122,11 +122,11 @@ export function offsetToPosition(offset: number, lineOffsets: number[]): Positio
  * @returns Character offset (0-indexed)
  */
 export function positionToOffset(position: Position, lineOffsets: number[]): number {
-    if (position.line >= lineOffsets.length) {
-        return lineOffsets[lineOffsets.length - 1] ?? 0;
-    }
+  if (position.line >= lineOffsets.length) {
+    return lineOffsets[lineOffsets.length - 1] ?? 0;
+  }
 
-    return (lineOffsets[position.line] ?? 0) + position.character;
+  return (lineOffsets[position.line] ?? 0) + position.character;
 }
 
 /**
@@ -137,13 +137,12 @@ export function positionToOffset(position: Position, lineOffsets: number[]): num
  * @returns true if position is within or on the boundary of the range
  */
 export function isPositionInRange(position: Position, range: Range): boolean {
-    return (
-        position.line > range.start.line ||
-        (position.line === range.start.line && position.character >= range.start.character)
-    ) && (
-        position.line < range.end.line ||
-        (position.line === range.end.line && position.character <= range.end.character)
-    );
+  return (
+    (position.line > range.start.line ||
+      (position.line === range.start.line && position.character >= range.start.character)) &&
+    (position.line < range.end.line ||
+      (position.line === range.end.line && position.character <= range.end.character))
+  );
 }
 
 /**
@@ -154,13 +153,13 @@ export function isPositionInRange(position: Position, range: Range): boolean {
  * @returns -1 if a < b, 0 if a === b, 1 if a > b
  */
 export function comparePositions(a: Position, b: Position): number {
-    if (a.line !== b.line) {
-        return a.line < b.line ? -1 : 1;
-    }
-    if (a.character !== b.character) {
-        return a.character < b.character ? -1 : 1;
-    }
-    return 0;
+  if (a.line !== b.line) {
+    return a.line < b.line ? -1 : 1;
+  }
+  if (a.character !== b.character) {
+    return a.character < b.character ? -1 : 1;
+  }
+  return 0;
 }
 
 /**
@@ -170,7 +169,7 @@ export function comparePositions(a: Position, b: Position): number {
  * @returns true if the range is valid
  */
 export function isValidRange(range: Range): boolean {
-    return comparePositions(range.start, range.end) <= 0;
+  return comparePositions(range.start, range.end) <= 0;
 }
 
 /**
@@ -180,11 +179,11 @@ export function isValidRange(range: Range): boolean {
  * @returns Range covering the entire document
  */
 export function getFullRange(text: string): Range {
-    const lines = text.split('\n');
-    return {
-        start: { line: 0, character: 0 },
-        end: { line: lines.length - 1, character: (lines[lines.length - 1] ?? '').length }
-    };
+  const lines = text.split('\n');
+  return {
+    start: { line: 0, character: 0 },
+    end: { line: lines.length - 1, character: (lines[lines.length - 1] ?? '').length },
+  };
 }
 
 /**
@@ -196,15 +195,15 @@ export function getFullRange(text: string): Range {
  * @returns Position of the substring, or null if not found
  */
 export function findSubstringPosition(
-    text: string,
-    substring: string,
-    startOffset = 0
+  text: string,
+  substring: string,
+  startOffset = 0
 ): Position | null {
-    const offset = text.indexOf(substring, startOffset);
-    if (offset === -1) {
-        return null;
-    }
-    return positionAt(text, offset);
+  const offset = text.indexOf(substring, startOffset);
+  if (offset === -1) {
+    return null;
+  }
+  return positionAt(text, offset);
 }
 
 /**
@@ -215,9 +214,9 @@ export function findSubstringPosition(
  * @returns The substring within the range
  */
 export function extractRange(text: string, range: Range): string {
-    const startOffset = offsetAt(text, range.start);
-    const endOffset = offsetAt(text, range.end);
-    return text.substring(startOffset, endOffset);
+  const startOffset = offsetAt(text, range.start);
+  const endOffset = offsetAt(text, range.end);
+  return text.substring(startOffset, endOffset);
 }
 
 /**
@@ -228,7 +227,7 @@ export function extractRange(text: string, range: Range): string {
  * @returns Number of lines (inclusive of start, exclusive of end)
  */
 export function countLinesBetween(start: Position, end: Position): number {
-    return end.line - start.line;
+  return end.line - start.line;
 }
 
 /**
@@ -239,11 +238,11 @@ export function countLinesBetween(start: Position, end: Position): number {
  * @returns Length of the line, excluding the newline character
  */
 export function getLineLength(text: string, lineNumber: number): number {
-    const lines = text.split('\n');
-    if (lineNumber < 0 || lineNumber >= lines.length) {
-        return 0;
-    }
-    return (lines[lineNumber] ?? '').length;
+  const lines = text.split('\n');
+  if (lineNumber < 0 || lineNumber >= lines.length) {
+    return 0;
+  }
+  return (lines[lineNumber] ?? '').length;
 }
 
 /**
@@ -256,10 +255,10 @@ export function getLineLength(text: string, lineNumber: number): number {
  * @returns Position with 0-indexed line and character
  */
 export function pikePositionToLSP(pikePosition: { line: number; column: number }): Position {
-    return {
-        line: Math.max(0, pikePosition.line - 1),
-        character: Math.max(0, pikePosition.column - 1)
-    };
+  return {
+    line: Math.max(0, pikePosition.line - 1),
+    character: Math.max(0, pikePosition.column - 1),
+  };
 }
 
 /**
@@ -269,10 +268,10 @@ export function pikePositionToLSP(pikePosition: { line: number; column: number }
  * @returns Position with 1-indexed line and column
  */
 export function lspPositionToPike(lspPosition: Position): { line: number; column: number } {
-    return {
-        line: lspPosition.line + 1,
-        column: lspPosition.character + 1
-    };
+  return {
+    line: lspPosition.line + 1,
+    column: lspPosition.character + 1,
+  };
 }
 
 /**
@@ -282,11 +281,11 @@ export function lspPositionToPike(lspPosition: Position): { line: number; column
  * @returns Range with 0-indexed positions
  */
 export function pikeRangeToLSP(pikeRange: {
-    start: { line: number; column: number };
-    end: { line: number; column: number };
+  start: { line: number; column: number };
+  end: { line: number; column: number };
 }): Range {
-    return {
-        start: pikePositionToLSP(pikeRange.start),
-        end: pikePositionToLSP(pikeRange.end)
-    };
+  return {
+    start: pikePositionToLSP(pikeRange.start),
+    end: pikePositionToLSP(pikeRange.end),
+  };
 }

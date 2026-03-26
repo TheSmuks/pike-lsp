@@ -14,10 +14,7 @@
  * Each handler includes try/catch with logging fallback (SRV-12).
  */
 
-import {
-    Connection,
-    TextDocuments,
-} from 'vscode-languageserver/node.js';
+import { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { registerFoldingRangeHandler } from './folding.js';
@@ -52,19 +49,19 @@ export { registerOnTypeFormattingHandler } from './on-type-formatting.js';
  * @param documents - TextDocuments manager for LSP document synchronization
  */
 export function registerAdvancedHandlers(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    registerFoldingRangeHandler(connection, services, documents);
-    registerSemanticTokensHandler(connection, services, documents);
-    registerInlayHintsHandler(connection, services, documents);
-    registerSelectionRangesHandler(connection, services, documents);
-    registerCodeActionsHandler(connection, services, documents);
-    registerFormattingHandlers(connection, services, documents);
-    registerDocumentLinksHandler(connection, services, documents);
-    registerCodeLensHandlers(connection, services, documents);
-    registerInlineValuesHandler(connection, services, documents);
-    registerMonikerHandler(connection, services, documents);
-    registerOnTypeFormattingHandler(connection, services, documents);
+  registerFoldingRangeHandler(connection, services, documents);
+  registerSemanticTokensHandler(connection, services, documents);
+  registerInlayHintsHandler(connection, services, documents);
+  registerSelectionRangesHandler(connection, services, documents);
+  registerCodeActionsHandler(connection, services, documents);
+  registerFormattingHandlers(connection, services, documents);
+  registerDocumentLinksHandler(connection, services, documents);
+  registerCodeLensHandlers(connection, services, documents);
+  registerInlineValuesHandler(connection, services, documents);
+  registerMonikerHandler(connection, services, documents);
+  registerOnTypeFormattingHandler(connection, services, documents);
 }

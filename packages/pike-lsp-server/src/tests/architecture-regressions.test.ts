@@ -42,7 +42,9 @@ describe('Architecture regressions', () => {
   it('cleans validationVersions state on document close', async () => {
     const diagnosticsSource = await readServerFile('features/diagnostics/lifecycle.ts');
     const didCloseIndex = diagnosticsSource.indexOf('documents.onDidClose(async event => {');
-    const cleanupIndex = diagnosticsSource.indexOf('validationVersions.delete(event.document.uri);');
+    const cleanupIndex = diagnosticsSource.indexOf(
+      'validationVersions.delete(event.document.uri);'
+    );
 
     assert.equal(
       didCloseIndex >= 0,

@@ -22,172 +22,171 @@ import { getFoldingRanges } from '../../features/advanced/folding.js';
  * Helper: Create a mock TextDocument
  */
 function createDocument(code: string, uri: string = 'test://test.pike'): TextDocument {
-    return TextDocument.create(uri, 'pike', 1, code);
+  return TextDocument.create(uri, 'pike', 1, code);
 }
 
 /**
  * Helper: Create a mock FoldingRange
  */
 function createFoldingRange(overrides: Partial<FoldingRange> = {}): FoldingRange {
-    return {
-        startLine: 0,
-        endLine: 10,
-        kind: undefined,
-        ...overrides
-    };
+  return {
+    startLine: 0,
+    endLine: 10,
+    kind: undefined,
+    ...overrides,
+  };
 }
 
 describe('Folding Range Provider', () => {
-
-    /**
-     * Test 15.1: Folding - Class Definitions
-     * GIVEN: A Pike document with a class definition
-     * WHEN: The folding ranges are requested
-     * THEN: Return folding range for the entire class body
-     */
-    describe('Scenario 15.1: Folding - Class definitions', () => {
-        it('should create folding range for simple class', () => {
-            const code = `class MyClass {
+  /**
+   * Test 15.1: Folding - Class Definitions
+   * GIVEN: A Pike document with a class definition
+   * WHEN: The folding ranges are requested
+   * THEN: Return folding range for the entire class body
+   */
+  describe('Scenario 15.1: Folding - Class definitions', () => {
+    it('should create folding range for simple class', () => {
+      const code = `class MyClass {
     int x;
 }`;
 
-            const lines = code.split('\n');
-            const classStart = lines.findIndex(l => l.includes('class'));
-            const classEnd = lines.findIndex(l => l.trim() === '}' && lines.indexOf(l) > classStart);
+      const lines = code.split('\n');
+      const classStart = lines.findIndex(l => l.includes('class'));
+      const classEnd = lines.findIndex(l => l.trim() === '}' && lines.indexOf(l) > classStart);
 
-            assert.equal(classStart, 0, 'Class starts at line 0');
-            assert.equal(classEnd, 2, 'Class ends at line 2');
-            // FoldingRange would be { startLine: 0, endLine: 2 }
-        });
+      assert.equal(classStart, 0, 'Class starts at line 0');
+      assert.equal(classEnd, 2, 'Class ends at line 2');
+      // FoldingRange would be { startLine: 0, endLine: 2 }
+    });
 
-        it('should fold class with methods', () => {
-            const code = `class MyClass {
+    it('should fold class with methods', () => {
+      const code = `class MyClass {
     void method1() { }
     void method2() { }
 }`;
 
-            const lines = code.split('\n');
-            const classLine = lines.findIndex(l => l.includes('class '));
-            const lastBrace = lines.findLastIndex(l => l.trim() === '}');
+      const lines = code.split('\n');
+      const classLine = lines.findIndex(l => l.includes('class '));
+      const lastBrace = lines.findLastIndex(l => l.trim() === '}');
 
-            assert.ok(classLine >= 0, 'Found class definition');
-            assert.ok(lastBrace > classLine, 'Found closing brace');
-        });
+      assert.ok(classLine >= 0, 'Found class definition');
+      assert.ok(lastBrace > classLine, 'Found closing brace');
+    });
 
-        it('should fold nested classes', () => {
-            const code = `class Outer {
+    it('should fold nested classes', () => {
+      const code = `class Outer {
     class Inner {
         int x;
     }
 }`;
 
-            // Should have folding ranges for both Outer and Inner
-            const classCount = (code.match(/class /g) || []).length;
-            assert.equal(classCount, 2, 'Should find 2 classes');
-        });
+      // Should have folding ranges for both Outer and Inner
+      const classCount = (code.match(/class /g) || []).length;
+      assert.equal(classCount, 2, 'Should find 2 classes');
     });
+  });
 
-    /**
-     * Test 15.2: Folding - Function Definitions
-     * GIVEN: A Pike document with function definitions
-     * WHEN: The folding ranges are requested
-     * THEN: Return folding range for function bodies
-     */
-    describe('Scenario 15.2: Folding - Function definitions', () => {
-        it('should create folding range for simple function', () => {
-            const code = `void myFunction() {
+  /**
+   * Test 15.2: Folding - Function Definitions
+   * GIVEN: A Pike document with function definitions
+   * WHEN: The folding ranges are requested
+   * THEN: Return folding range for function bodies
+   */
+  describe('Scenario 15.2: Folding - Function definitions', () => {
+    it('should create folding range for simple function', () => {
+      const code = `void myFunction() {
     int x = 42;
     return x;
 }`;
 
-            const lines = code.split('\n');
-            const funcStart = lines.findIndex(l => l.includes('void myFunction'));
-            const funcEnd = lines.findIndex(l => l.trim() === '}' && lines.indexOf(l) > funcStart);
+      const lines = code.split('\n');
+      const funcStart = lines.findIndex(l => l.includes('void myFunction'));
+      const funcEnd = lines.findIndex(l => l.trim() === '}' && lines.indexOf(l) > funcStart);
 
-            assert.equal(funcStart, 0, 'Function starts at line 0');
-            assert.equal(funcEnd, 3, 'Function ends at line 3');
-        });
+      assert.equal(funcStart, 0, 'Function starts at line 0');
+      assert.equal(funcEnd, 3, 'Function ends at line 3');
+    });
 
-        it('should fold function with nested blocks', () => {
-            const code = `void myFunction() {
+    it('should fold function with nested blocks', () => {
+      const code = `void myFunction() {
     if (true) {
         int x = 42;
     }
 }`;
 
-            // Should fold both function and if-statement
-            const braceCount = (code.match(/\{/g) || []).length;
-            assert.equal(braceCount, 2, 'Should have 2 opening braces');
-        });
+      // Should fold both function and if-statement
+      const braceCount = (code.match(/\{/g) || []).length;
+      assert.equal(braceCount, 2, 'Should have 2 opening braces');
+    });
 
-        it('should fold lambda functions', () => {
-            const code = `lambda(function(int x) {
+    it('should fold lambda functions', () => {
+      const code = `lambda(function(int x) {
     return x * 2;
 })`;
 
-            const lambdaStart = code.indexOf('lambda');
-            const lambdaEnd = code.lastIndexOf('}');
+      const lambdaStart = code.indexOf('lambda');
+      const lambdaEnd = code.lastIndexOf('}');
 
-            assert.ok(lambdaStart >= 0, 'Found lambda start');
-            assert.ok(lambdaEnd > lambdaStart, 'Found lambda end');
-        });
+      assert.ok(lambdaStart >= 0, 'Found lambda start');
+      assert.ok(lambdaEnd > lambdaStart, 'Found lambda end');
     });
+  });
 
-    /**
-     * Test 15.3: Folding - Region Comments
-     * GIVEN: A Pike document with region markers (// #region, // #endregion)
-     * WHEN: The folding ranges are requested
-     * THEN: Return folding range for the region
-     */
-    describe('Scenario 15.3: Folding - Region comments', () => {
-        it('should create folding range for #region', () => {
-            const code = `// #region my region
+  /**
+   * Test 15.3: Folding - Region Comments
+   * GIVEN: A Pike document with region markers (// #region, // #endregion)
+   * WHEN: The folding ranges are requested
+   * THEN: Return folding range for the region
+   */
+  describe('Scenario 15.3: Folding - Region comments', () => {
+    it('should create folding range for #region', () => {
+      const code = `// #region my region
 int x = 42;
 // #endregion`;
 
-            const regionStart = code.indexOf('#region');
-            const regionEnd = code.indexOf('#endregion');
+      const regionStart = code.indexOf('#region');
+      const regionEnd = code.indexOf('#endregion');
 
-            assert.ok(regionStart >= 0, 'Found region start');
-            assert.ok(regionEnd > regionStart, 'Found region end');
-        });
+      assert.ok(regionStart >= 0, 'Found region start');
+      assert.ok(regionEnd > regionStart, 'Found region end');
+    });
 
-        it('should handle nested #region blocks', () => {
-            const code = `// #region outer
+    it('should handle nested #region blocks', () => {
+      const code = `// #region outer
 // #region inner
 int x = 42;
 // #endregion
 // #endregion`;
 
-            const regionCount = (code.match(/#region/g) || []).length;
-            const endCount = (code.match(/#endregion/g) || []).length;
+      const regionCount = (code.match(/#region/g) || []).length;
+      const endCount = (code.match(/#endregion/g) || []).length;
 
-            assert.equal(regionCount, 2, 'Should have 2 regions');
-            assert.equal(endCount, 2, 'Should have 2 endregion markers');
-        });
-
-        it('should ignore unmatched #endregion', () => {
-            const code = `// #endregion
-int x = 42;`;
-
-            // Unmatched endregion should be ignored
-            const regionStart = code.indexOf('#region');
-            const regionEnd = code.indexOf('#endregion');
-
-            assert.ok(regionStart === -1, 'No region start');
-            assert.ok(regionEnd >= 0, 'Has endregion (should be ignored)');
-        });
+      assert.equal(regionCount, 2, 'Should have 2 regions');
+      assert.equal(endCount, 2, 'Should have 2 endregion markers');
     });
 
-    /**
-     * Test 15.4: Folding - Nested Structures
-     * GIVEN: A Pike document with deeply nested structures
-     * WHEN: The folding ranges are requested
-     * THEN: Return folding ranges for all nested levels
-     */
-    describe('Scenario 15.4: Folding - Nested structures', () => {
-        it('should create folding ranges for multiple nesting levels', () => {
-            const code = `void outer() {
+    it('should ignore unmatched #endregion', () => {
+      const code = `// #endregion
+int x = 42;`;
+
+      // Unmatched endregion should be ignored
+      const regionStart = code.indexOf('#region');
+      const regionEnd = code.indexOf('#endregion');
+
+      assert.ok(regionStart === -1, 'No region start');
+      assert.ok(regionEnd >= 0, 'Has endregion (should be ignored)');
+    });
+  });
+
+  /**
+   * Test 15.4: Folding - Nested Structures
+   * GIVEN: A Pike document with deeply nested structures
+   * WHEN: The folding ranges are requested
+   * THEN: Return folding ranges for all nested levels
+   */
+  describe('Scenario 15.4: Folding - Nested structures', () => {
+    it('should create folding ranges for multiple nesting levels', () => {
+      const code = `void outer() {
     void middle() {
         void inner() {
             int x;
@@ -195,12 +194,12 @@ int x = 42;`;
     }
 }`;
 
-            const braceCount = (code.match(/\{/g) || []).length;
-            assert.equal(braceCount, 3, 'Should have 3 nesting levels');
-        });
+      const braceCount = (code.match(/\{/g) || []).length;
+      assert.equal(braceCount, 3, 'Should have 3 nesting levels');
+    });
 
-        it('should handle class containing function containing if-statement', () => {
-            const code = `class MyClass {
+    it('should handle class containing function containing if-statement', () => {
+      const code = `class MyClass {
     void myMethod() {
         if (true) {
             int x = 42;
@@ -208,239 +207,251 @@ int x = 42;`;
     }
 }`;
 
-            const hasClass = code.includes('class');
-            const hasFunction = code.includes('void myMethod');
-            const hasIf = code.includes('if (');
+      const hasClass = code.includes('class');
+      const hasFunction = code.includes('void myMethod');
+      const hasIf = code.includes('if (');
 
-            assert.ok(hasClass && hasFunction && hasIf, 'Has class, function, and if-statement');
-        });
-
-        it('should order ranges from outermost to innermost', () => {
-            const ranges = [
-                { startLine: 0, endLine: 10, kind: 'class' },
-                { startLine: 1, endLine: 9, kind: 'function' },
-                { startLine: 2, endLine: 8, kind: 'if' }
-            ];
-
-            // Outermost should come first
-            assert.equal(ranges[0]!.startLine, 0, 'Outermost is first');
-            assert.ok(ranges[1]!.startLine > ranges[0]!.startLine, 'Inner comes after outer');
-        });
+      assert.ok(hasClass && hasFunction && hasIf, 'Has class, function, and if-statement');
     });
 
-    /**
-     * Edge Cases
-     */
-    describe('Edge Cases', () => {
-        it('should handle empty file', () => {
-            const code = ``;
+    it('should order ranges from outermost to innermost', () => {
+      const ranges = [
+        { startLine: 0, endLine: 10, kind: 'class' },
+        { startLine: 1, endLine: 9, kind: 'function' },
+        { startLine: 2, endLine: 8, kind: 'if' },
+      ];
 
-            assert.equal(code.length, 0, 'File is empty');
-            // Should return empty array of folding ranges
-        });
+      // Outermost should come first
+      assert.equal(ranges[0]!.startLine, 0, 'Outermost is first');
+      assert.ok(ranges[1]!.startLine > ranges[0]!.startLine, 'Inner comes after outer');
+    });
+  });
 
-        it('should return empty array for file with no foldable structures', () => {
-            const code = `int x = 42;
+  /**
+   * Edge Cases
+   */
+  describe('Edge Cases', () => {
+    it('should handle empty file', () => {
+      const code = ``;
+
+      assert.equal(code.length, 0, 'File is empty');
+      // Should return empty array of folding ranges
+    });
+
+    it('should return empty array for file with no foldable structures', () => {
+      const code = `int x = 42;
 string y = "hello";`;
 
-            const hasBraces = code.includes('{');
-            assert.ok(!hasBraces, 'No braces means no foldable structures');
+      const hasBraces = code.includes('{');
+      assert.ok(!hasBraces, 'No braces means no foldable structures');
 
-            // Expected behavior: getFoldingRanges returns empty array, not null
-            // This is verified by the handler contract - always return FoldingRange[]
-            const expectedResult: FoldingRange[] = [];
-            assert.strictEqual(expectedResult.length, 0, 'Should return empty array, not null');
-        });
+      // Expected behavior: getFoldingRanges returns empty array, not null
+      // This is verified by the handler contract - always return FoldingRange[]
+      const expectedResult: FoldingRange[] = [];
+      assert.strictEqual(expectedResult.length, 0, 'Should return empty array, not null');
+    });
 
-        it('should throw ResponseError when document not found', () => {
-            // Handler behavior: When document is not in cache, should handle gracefully
-            // The connection.onFoldingRanges handler checks: const document = documents.get(params.textDocument.uri);
-            // If document is undefined, handler returns empty array (not an error)
-            // This is the expected LSP behavior - return empty result, don't throw
-            const documentNotFoundBehavior = {
-                returnsEmptyArray: true,
-                throwsError: false,
-                reason: 'LSP spec: return empty result for unknown documents'
-            };
-            assert.ok(documentNotFoundBehavior.returnsEmptyArray, 'Returns empty array for missing documents');
-            assert.strictEqual(documentNotFoundBehavior.throwsError, false, 'Does not throw for missing documents');
-        });
+    it('should throw ResponseError when document not found', () => {
+      // Handler behavior: When document is not in cache, should handle gracefully
+      // The connection.onFoldingRanges handler checks: const document = documents.get(params.textDocument.uri);
+      // If document is undefined, handler returns empty array (not an error)
+      // This is the expected LSP behavior - return empty result, don't throw
+      const documentNotFoundBehavior = {
+        returnsEmptyArray: true,
+        throwsError: false,
+        reason: 'LSP spec: return empty result for unknown documents',
+      };
+      assert.ok(
+        documentNotFoundBehavior.returnsEmptyArray,
+        'Returns empty array for missing documents'
+      );
+      assert.strictEqual(
+        documentNotFoundBehavior.throwsError,
+        false,
+        'Does not throw for missing documents'
+      );
+    });
 
-        it('should handle incomplete class definition', () => {
-            const code = `class MyClass {
+    it('should handle incomplete class definition', () => {
+      const code = `class MyClass {
     int x;`;
 
-            const hasOpenBrace = code.includes('{');
-            const hasCloseBrace = code.includes('}');
+      const hasOpenBrace = code.includes('{');
+      const hasCloseBrace = code.includes('}');
 
-            assert.ok(hasOpenBrace && !hasCloseBrace, 'Incomplete class has opening but no closing brace');
-        });
+      assert.ok(
+        hasOpenBrace && !hasCloseBrace,
+        'Incomplete class has opening but no closing brace'
+      );
+    });
 
-        it('should handle multi-line comments', () => {
-            const code = `/* This is a
+    it('should handle multi-line comments', () => {
+      const code = `/* This is a
 multi-line comment */`;
 
-            const isComment = code.startsWith('/*');
-            assert.ok(isComment, 'Is multi-line comment');
-        });
+      const isComment = code.startsWith('/*');
+      assert.ok(isComment, 'Is multi-line comment');
+    });
 
-        it('should ignore braces inside block comments when computing code folds', () => {
-            const code = `/*
+    it('should ignore braces inside block comments when computing code folds', () => {
+      const code = `/*
 { this brace pair is comment content }
 */
 void run() {
     int x = 1;
 }`;
 
-            const document = createDocument(code);
-            const ranges = getFoldingRanges(document);
+      const document = createDocument(code);
+      const ranges = getFoldingRanges(document);
 
-            const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
-            assert.equal(codeRangeCount, 1, 'Only the function body should produce a code fold');
-        });
+      const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
+      assert.equal(codeRangeCount, 1, 'Only the function body should produce a code fold');
+    });
 
-        it('should ignore braces inside string literals when computing code folds', () => {
-            const code = `void run() {
+    it('should ignore braces inside string literals when computing code folds', () => {
+      const code = `void run() {
     string s = "{ not a code block }";
     int x = 1;
 }`;
 
-            const document = createDocument(code);
-            const ranges = getFoldingRanges(document);
+      const document = createDocument(code);
+      const ranges = getFoldingRanges(document);
 
-            const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
-            assert.equal(codeRangeCount, 1, 'String literal braces must not create extra folds');
-        });
+      const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
+      assert.equal(codeRangeCount, 1, 'String literal braces must not create extra folds');
+    });
 
-        it('should not start multiline string folding for #" inside line comments', () => {
-            const code = `// #" not a multiline string start
+    it('should not start multiline string folding for #" inside line comments', () => {
+      const code = `// #" not a multiline string start
 int x = 42;`;
 
-            const document = createDocument(code);
-            const ranges = getFoldingRanges(document);
+      const document = createDocument(code);
+      const ranges = getFoldingRanges(document);
 
-            assert.equal(ranges.length, 0, 'Should not create folding from comment-contained #"');
-        });
+      assert.equal(ranges.length, 0, 'Should not create folding from comment-contained #"');
+    });
 
-        it('should not start multiline string folding for #" inside autodoc comments', () => {
-            const code = `//! #" not a multiline string start
+    it('should not start multiline string folding for #" inside autodoc comments', () => {
+      const code = `//! #" not a multiline string start
 int x = 42;`;
 
-            const document = createDocument(code);
-            const ranges = getFoldingRanges(document);
+      const document = createDocument(code);
+      const ranges = getFoldingRanges(document);
 
-            assert.equal(ranges.length, 0, 'Should not create folding from //! comment #"');
-        });
+      assert.equal(ranges.length, 0, 'Should not create folding from //! comment #"');
+    });
 
-        it('should still fold valid Pike multiline strings outside comments', () => {
-            const code = `#"
+    it('should still fold valid Pike multiline strings outside comments', () => {
+      const code = `#"
 line1
 "#`;
 
-            const document = createDocument(code);
-            const ranges = getFoldingRanges(document);
+      const document = createDocument(code);
+      const ranges = getFoldingRanges(document);
 
-            assert.ok(ranges.some(r => r.startLine === 0 && r.endLine === 2), 'Should fold actual multiline string');
-        });
+      assert.ok(
+        ranges.some(r => r.startLine === 0 && r.endLine === 2),
+        'Should fold actual multiline string'
+      );
+    });
+  });
+
+  /**
+   * Performance Tests
+   */
+  describe('Performance', () => {
+    it('should compute folding ranges for large file within 200ms', () => {
+      const lines: string[] = ['class MyClass {'];
+      for (let i = 0; i < 1000; i++) {
+        lines.push(`    void method${i}() { }`);
+      }
+      lines.push('}');
+
+      const code = lines.join('\n');
+      const braceCount = (code.match(/\{/g) || []).length;
+
+      assert.equal(braceCount, 1001, 'Generated large file with 1001 braces');
+      // Performance test would time actual execution
+    });
+  });
+
+  /**
+   * Folding Range Kinds
+   */
+  describe('Folding Range Kinds', () => {
+    it('should mark class ranges with correct kind', () => {
+      const code = `class MyClass { }`;
+
+      const hasClass = code.includes('class');
+      assert.ok(hasClass, 'Code contains class definition');
+
+      // FoldingRangeKind would be FoldingRangeKind.Region or similar
+      const kind = 'region';
+      assert.equal(typeof kind, 'string', 'Kind is string');
     });
 
-    /**
-     * Performance Tests
-     */
-    describe('Performance', () => {
-        it('should compute folding ranges for large file within 200ms', () => {
-            const lines: string[] = ['class MyClass {'];
-            for (let i = 0; i < 1000; i++) {
-                lines.push(`    void method${i}() { }`);
-            }
-            lines.push('}');
+    it('should mark function ranges with correct kind', () => {
+      const code = `void myFunction() { }`;
 
-            const code = lines.join('\n');
-            const braceCount = (code.match(/\{/g) || []).length;
+      const hasFunction = code.includes('void myFunction');
+      assert.ok(hasFunction, 'Code contains function definition');
 
-            assert.equal(braceCount, 1001, 'Generated large file with 1001 braces');
-            // Performance test would time actual execution
-        });
+      // Could use FoldingRangeKind.Function or undefined
+      const kind = undefined;
+      assert.ok(kind === undefined || typeof kind === 'string', 'Kind is valid');
     });
 
-    /**
-     * Folding Range Kinds
-     */
-    describe('Folding Range Kinds', () => {
-        it('should mark class ranges with correct kind', () => {
-            const code = `class MyClass { }`;
-
-            const hasClass = code.includes('class');
-            assert.ok(hasClass, 'Code contains class definition');
-
-            // FoldingRangeKind would be FoldingRangeKind.Region or similar
-            const kind = 'region';
-            assert.equal(typeof kind, 'string', 'Kind is string');
-        });
-
-        it('should mark function ranges with correct kind', () => {
-            const code = `void myFunction() { }`;
-
-            const hasFunction = code.includes('void myFunction');
-            assert.ok(hasFunction, 'Code contains function definition');
-
-            // Could use FoldingRangeKind.Function or undefined
-            const kind = undefined;
-            assert.ok(kind === undefined || typeof kind === 'string', 'Kind is valid');
-        });
-
-        it('should mark comment ranges with correct kind', () => {
-            const code = `/* Multi-line
+    it('should mark comment ranges with correct kind', () => {
+      const code = `/* Multi-line
 comment */`;
 
-            const isComment = code.includes('/*');
-            assert.ok(isComment, 'Code contains multi-line comment');
+      const isComment = code.includes('/*');
+      assert.ok(isComment, 'Code contains multi-line comment');
 
-            // FoldingRangeKind.Comment
-            const kind = 'comment';
-            assert.equal(kind, 'comment', 'Comment kind');
-        });
+      // FoldingRangeKind.Comment
+      const kind = 'comment';
+      assert.equal(kind, 'comment', 'Comment kind');
     });
+  });
 
-    /**
-     * Protocol Compliance Tests (Phase 1)
-     *
-     * Tests for LSP protocol fixes:
-     * - Return empty array (not null) for no folding ranges
-     * - Throw ResponseError for missing documents (not silent null return)
-     */
-    describe('Protocol Compliance', () => {
-        it('should return empty array (not null) for document with no folding ranges', () => {
-            const code = `int x = 42;
+  /**
+   * Protocol Compliance Tests (Phase 1)
+   *
+   * Tests for LSP protocol fixes:
+   * - Return empty array (not null) for no folding ranges
+   * - Throw ResponseError for missing documents (not silent null return)
+   */
+  describe('Protocol Compliance', () => {
+    it('should return empty array (not null) for document with no folding ranges', () => {
+      const code = `int x = 42;
 string y = "hello";`;
 
-            const document = createDocument(code);
+      const document = createDocument(code);
 
-            // Call handler - must return [], not null
-            const result = getFoldingRanges(document);
+      // Call handler - must return [], not null
+      const result = getFoldingRanges(document);
 
-            // RED: This will fail until we fix the implementation
-            assert.ok(Array.isArray(result), 'Result must be an array');
-            assert.equal(result.length, 0, 'Result must be empty array');
-            assert.notEqual(result, null, 'Result must not be null');
-        });
-
-        it('should throw ResponseError when document not found', () => {
-            // Test error propagation - should throw ResponseError, not return null
-            const code = `class MyClass { }`;
-
-            // Pass document without URI to simulate missing document
-            const document = createDocument(code, '');
-
-            // RED: This will fail until we fix the implementation
-            assert.throws(
-                () => getFoldingRanges(document),
-                (err: unknown) => {
-                    return err instanceof ResponseError &&
-                           err.code === ErrorCodes.InvalidRequest;
-                },
-                'Should throw ResponseError with InvalidRequest code'
-            );
-        });
+      // RED: This will fail until we fix the implementation
+      assert.ok(Array.isArray(result), 'Result must be an array');
+      assert.equal(result.length, 0, 'Result must be empty array');
+      assert.notEqual(result, null, 'Result must not be null');
     });
+
+    it('should throw ResponseError when document not found', () => {
+      // Test error propagation - should throw ResponseError, not return null
+      const code = `class MyClass { }`;
+
+      // Pass document without URI to simulate missing document
+      const document = createDocument(code, '');
+
+      // RED: This will fail until we fix the implementation
+      assert.throws(
+        () => getFoldingRanges(document),
+        (err: unknown) => {
+          return err instanceof ResponseError && err.code === ErrorCodes.InvalidRequest;
+        },
+        'Should throw ResponseError with InvalidRequest code'
+      );
+    });
+  });
 });

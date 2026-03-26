@@ -10,12 +10,7 @@
  * - change-detection.ts: Incremental change detection
  */
 
-import type {
-  Connection,
-  TextDocuments,
-  Diagnostic,
-  Range,
-} from 'vscode-languageserver/node.js';
+import type { Connection, TextDocuments, Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { PikeSettings, DocumentCacheEntry } from '../../core/types.js';
@@ -742,7 +737,12 @@ export function registerDiagnosticsHandlers(
             ? extractDeprecatedFromSymbols(parseData.symbols)
             : legacySymbols;
 
-        const symbolPositions = await buildSymbolPositionIndex(text, legacySymbols, tokenizeData, bridge);
+        const symbolPositions = await buildSymbolPositionIndex(
+          text,
+          legacySymbols,
+          tokenizeData,
+          bridge
+        );
         if (!ensureLatest('post_symbol_index_build')) {
           return;
         }

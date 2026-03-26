@@ -194,7 +194,6 @@ export function registerDefinitionHandlers(
             },
           };
         }
-
       }
 
       // Fallback to local symbol lookup

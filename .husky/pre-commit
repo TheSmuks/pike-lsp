@@ -63,7 +63,27 @@ if [ -n "$ANALYSIS_REPORTS" ]; then
   exit 1
 fi
 
-# 4. Fast regression check (Carlini protocol: new commits can't break existing tests)
+# 4. Keep Prettier configuration immutable
+PRETTIER_CONFIG_CHANGE=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^\.prettierrc$' || true)
+
+if [ -n "$PRETTIER_CONFIG_CHANGE" ]; then
+  echo "FAILED: .prettierrc is immutable and cannot be changed in regular commits."
+  exit 1
+fi
+
+# 5. Enforce formatting before commit for package source files
+CHANGED_FORMAT_TARGETS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^packages/.*\.(ts|tsx|js|json|md)$' || true)
+
+if [ -n "$CHANGED_FORMAT_TARGETS" ]; then
+  echo "[Pre-commit] Running format check for packages..."
+  bun run format:check || {
+    echo ""
+    echo "FAILED: Prettier check failed for package files. Run 'bun run format'."
+    exit 1
+  }
+fi
+
+# 6. Fast regression check (Carlini protocol: new commits can't break existing tests)
 # Only run if source files were changed (skip for docs-only commits)
 CHANGED_SRC=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|pike)$' || true)
 
@@ -82,7 +102,7 @@ if [ -n "$CHANGED_SRC" ]; then
   fi
 fi
 
-# 5. Test quality regression check - placeholder ratio must not increase
+# 7. Test quality regression check - placeholder ratio must not increase
 # Only check if test files were changed
 CHANGED_TESTS=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(test|spec)\.(ts|js)$' || true)
 

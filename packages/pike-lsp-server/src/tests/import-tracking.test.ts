@@ -81,14 +81,14 @@ void main() {
       expect(Array.isArray(introspectResult.inherits)).toBe(true);
 
       // Check if MyClass symbols are available
-      const hasMyClass = introspectResult.symbols?.some(symbol =>
-        symbol.name === 'MyClass' || symbol.inheritedFrom === 'MyClass'
+      const hasMyClass = introspectResult.symbols?.some(
+        symbol => symbol.name === 'MyClass' || symbol.inheritedFrom === 'MyClass'
       );
 
       // If MyClass is found, verify its methods are available
       if (hasMyClass) {
-        const hasMethod = introspectResult.symbols?.some(symbol =>
-          symbol.name === 'method' || symbol.inherited
+        const hasMethod = introspectResult.symbols?.some(
+          symbol => symbol.name === 'method' || symbol.inherited
         );
         expect(hasMethod).toBe(true);
       }
@@ -136,7 +136,9 @@ void main() {
     expect(Array.isArray(result.symbols)).toBe(true);
 
     // Check if MyModule class is defined
-    const hasMyModule = result.symbols?.some(symbol => symbol.name === 'MyClass' || symbol.name === 'MyModule');
+    const hasMyModule = result.symbols?.some(
+      symbol => symbol.name === 'MyClass' || symbol.name === 'MyModule'
+    );
     expect(hasMyModule).toBe(true);
 
     // Test inheritance with a known working class
@@ -189,8 +191,8 @@ void main() {
     expect(Array.isArray(result.symbols)).toBe(true);
 
     // Check if classes are defined
-    const hasNestedClass = result.symbols?.some(symbol =>
-      symbol.name === 'NestedClass' || symbol.name.endsWith('.NestedClass')
+    const hasNestedClass = result.symbols?.some(
+      symbol => symbol.name === 'NestedClass' || symbol.name.endsWith('.NestedClass')
     );
     expect(hasNestedClass).toBe(true);
 
@@ -322,8 +324,8 @@ void main() {
     expect(Array.isArray(result.symbols)).toBe(true);
 
     // Check if LocalModule is found (might be normalized without dot prefix)
-    const hasLocalModule = result.symbols?.some(symbol =>
-      symbol.name === 'LocalModule' || symbol.name.includes('LocalModule')
+    const hasLocalModule = result.symbols?.some(
+      symbol => symbol.name === 'LocalModule' || symbol.name.includes('LocalModule')
     );
     expect(hasLocalModule).toBe(true);
 
@@ -446,6 +448,8 @@ void main() {
 
     // If no inheritance found, that's acceptable since the classes might not be properly defined
     // The test is more about ensuring no crashes occur
-    expect(foundInheritance || includeInheritance.found === 0 || localInheritance.found === 0).toBe(true);
+    expect(foundInheritance || includeInheritance.found === 0 || localInheritance.found === 0).toBe(
+      true
+    );
   });
 });

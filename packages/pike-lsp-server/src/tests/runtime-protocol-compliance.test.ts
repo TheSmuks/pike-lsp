@@ -125,7 +125,10 @@ describe('Runtime Protocol Compliance', () => {
     registerMonikerHandler(connection as any, servicesWithCache as any, documentsWithFile as any);
 
     const monikerHandler = connection.monikerHandler;
-    const result = await monikerHandler({ textDocument: { uri }, position: { line: 0, character: 5 } });
+    const result = await monikerHandler({
+      textDocument: { uri },
+      position: { line: 0, character: 5 },
+    });
 
     expect(result).not.toBeNull();
     expect(result).toHaveLength(1);

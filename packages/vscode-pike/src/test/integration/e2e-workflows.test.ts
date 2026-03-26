@@ -396,7 +396,11 @@ return 0;
         `Moved line should be tab-indented for nested mapping immediately. Got: ${movedLineText}`
       );
     } finally {
-      await editorConfig.update('insertSpaces', previousInsertSpaces, vscode.ConfigurationTarget.Workspace);
+      await editorConfig.update(
+        'insertSpaces',
+        previousInsertSpaces,
+        vscode.ConfigurationTarget.Workspace
+      );
       await editorConfig.update('tabSize', previousTabSize, vscode.ConfigurationTarget.Workspace);
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       await vscode.workspace.fs.delete(moveUri);
@@ -685,7 +689,8 @@ return 0;
     this.timeout(30000);
 
     const oneLineUri = vscode.Uri.joinPath(workspaceFolder.uri, 'one-line-real-style-program.pike');
-    const oneLineProgram = 'int main(){mapping constants=(["GLUT_RGB":0,"GLUT_RGBA":0]);array(int) xs=({1,2,3});if(sizeof(xs)){for(int i=0;i<sizeof(xs);i++){switch(xs[i]){case 1:constants["A"]=i;break;default:constants["B"]=i;break;}}}return 0;}';
+    const oneLineProgram =
+      'int main(){mapping constants=(["GLUT_RGB":0,"GLUT_RGBA":0]);array(int) xs=({1,2,3});if(sizeof(xs)){for(int i=0;i<sizeof(xs);i++){switch(xs[i]){case 1:constants["A"]=i;break;default:constants["B"]=i;break;}}}return 0;}';
     await vscode.workspace.fs.writeFile(oneLineUri, new TextEncoder().encode(oneLineProgram));
 
     try {
@@ -704,7 +709,11 @@ return 0;
         workspaceEdit.set(oneLineUri, edits);
         const applied = await vscode.workspace.applyEdit(workspaceEdit);
         assert.ok(applied, 'Formatting edits should apply successfully');
-        await waitFor('one-line formatting applied', () => doc.version, version => version > beforeVersion);
+        await waitFor(
+          'one-line formatting applied',
+          () => doc.version,
+          version => version > beforeVersion
+        );
       }
 
       const diagnostics = await waitFor(
@@ -714,7 +723,11 @@ return 0;
       );
 
       const errors = diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error);
-      assert.equal(errors.length, 0, `One-line real-style program should remain valid. Errors: ${errors.map(e => e.message).join(' | ')}`);
+      assert.equal(
+        errors.length,
+        0,
+        `One-line real-style program should remain valid. Errors: ${errors.map(e => e.message).join(' | ')}`
+      );
     } finally {
       await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
       await vscode.workspace.fs.delete(oneLineUri);

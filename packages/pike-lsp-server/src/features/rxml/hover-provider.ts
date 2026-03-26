@@ -60,8 +60,8 @@ function getTagHover(tagName: string): Hover | null {
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: `**${tagName}**\n\nUnknown RXML tag. This may be a custom tag defined in a Roxen module.`
-      }
+        value: `**${tagName}**\n\nUnknown RXML tag. This may be a custom tag defined in a Roxen module.`,
+      },
     };
   }
 
@@ -89,8 +89,8 @@ function getTagHover(tagName: string): Hover | null {
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: markdown
-    }
+      value: markdown,
+    },
   };
 }
 
@@ -111,8 +111,8 @@ function getAttributeHover(tagName: string, attrName: string): Hover | null {
     return {
       contents: {
         kind: MarkupKind.Markdown,
-        value: `**${attrName}**\n\nAttribute for \`${tagName}\` tag. Not in catalog - may be a custom attribute.`
-      }
+        value: `**${attrName}**\n\nAttribute for \`${tagName}\` tag. Not in catalog - may be a custom attribute.`,
+      },
     };
   }
 
@@ -139,8 +139,8 @@ function getAttributeHover(tagName: string, attrName: string): Hover | null {
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: markdown
-    }
+      value: markdown,
+    },
   };
 }
 
@@ -149,17 +149,17 @@ function getAttributeHover(tagName: string, attrName: string): Hover | null {
  */
 function getEntityHover(entityName: string): Hover | null {
   const entityDocs: Record<string, string> = {
-    'roxen': 'Roxen server entity. Provides access to server information and configuration.',
-    'form': 'Form input entity. Access submitted form data.',
-    'cache': 'Cache entity. Store and retrieve cached data.',
-    'config': 'Configuration entity. Access server configuration values.',
-    'usr': 'User entity. Access authenticated user information.',
-    'page': 'Page entity. Access current page metadata.',
-    'client': 'Client entity. Access client request information (browser, IP, etc.).',
-    'date': 'Date/time entity. Format and display dates.',
-    'header': 'HTTP header entity. Set response headers.',
-    'insert': 'Insert entity. Include files or data.',
-    'output': 'Output entity. Display variable values.',
+    roxen: 'Roxen server entity. Provides access to server information and configuration.',
+    form: 'Form input entity. Access submitted form data.',
+    cache: 'Cache entity. Store and retrieve cached data.',
+    config: 'Configuration entity. Access server configuration values.',
+    usr: 'User entity. Access authenticated user information.',
+    page: 'Page entity. Access current page metadata.',
+    client: 'Client entity. Access client request information (browser, IP, etc.).',
+    date: 'Date/time entity. Format and display dates.',
+    header: 'HTTP header entity. Set response headers.',
+    insert: 'Insert entity. Include files or data.',
+    output: 'Output entity. Display variable values.',
   };
 
   const doc = entityDocs[entityName];
@@ -171,8 +171,8 @@ function getEntityHover(entityName: string): Hover | null {
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: `**&${entityName}.***\n\n${doc}`
-    }
+      value: `**&${entityName}.***\n\n${doc}`,
+    },
   };
 }
 
@@ -199,7 +199,10 @@ function findTagAtPosition(content: string, offset: number): { tagName: string }
 /**
  * Find attribute at given offset
  */
-function findAttributeAtPosition(content: string, offset: number): { tagName: string; attrName: string } | null {
+function findAttributeAtPosition(
+  content: string,
+  offset: number
+): { tagName: string; attrName: string } | null {
   const before = content.substring(Math.max(0, offset - 200), offset);
   const attrMatch = before.match(/(\w+)\s*=\s*["']?[^"']*$/);
   if (attrMatch && attrMatch[1]) {
@@ -235,17 +238,17 @@ function findEntityAtPosition(content: string, offset: number): { entityName: st
  */
 export function getModuleConstantHover(constantName: string): Hover | null {
   const moduleDocs: Record<string, string> = {
-    'MODULE_TAG': 'Module provides custom RXML tags.',
-    'MODULE_LOCATION': 'Module provides file location services.',
-    'MODULE_PARSER': 'Module extends the RXML parser.',
-    'MODULE_AUTH': 'Module provides authentication services.',
-    'MODULE_DIRECTORY': 'Module provides directory listings.',
-    'MODULE_FILE_EXTENSION': 'Module handles specific file extensions.',
-    'MODULE_URL': 'Module provides URL mapping.',
-    'MODULE_LOGGER': 'Module provides logging services.',
-    'MODULE_PROXY': 'Module acts as a proxy.',
-    'MODULE_FILTER': 'Module filters content.',
-    'MODULE_LAST': 'Marker for last module type.',
+    MODULE_TAG: 'Module provides custom RXML tags.',
+    MODULE_LOCATION: 'Module provides file location services.',
+    MODULE_PARSER: 'Module extends the RXML parser.',
+    MODULE_AUTH: 'Module provides authentication services.',
+    MODULE_DIRECTORY: 'Module provides directory listings.',
+    MODULE_FILE_EXTENSION: 'Module handles specific file extensions.',
+    MODULE_URL: 'Module provides URL mapping.',
+    MODULE_LOGGER: 'Module provides logging services.',
+    MODULE_PROXY: 'Module acts as a proxy.',
+    MODULE_FILTER: 'Module filters content.',
+    MODULE_LAST: 'Marker for last module type.',
   };
 
   const doc = moduleDocs[constantName];
@@ -257,8 +260,8 @@ export function getModuleConstantHover(constantName: string): Hover | null {
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: `**${constantName}**\n\n${doc}`
-    }
+      value: `**${constantName}**\n\n${doc}`,
+    },
   };
 }
 
@@ -289,7 +292,7 @@ export function getDefvarHover(
   return {
     contents: {
       kind: MarkupKind.Markdown,
-      value: markdown
-    }
+      value: markdown,
+    },
   };
 }
