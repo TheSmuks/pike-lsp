@@ -379,9 +379,7 @@ export function registerDiagnosticsHandlers(
       log.debug('Calling unified analyze', { filename, version });
       const requestId = `${uri}:${version}:${Date.now()}`;
       const clearInFlightRequest = (): void => {
-        if (inFlightDiagnosticRequests.get(uri) === requestId) {
-          inFlightDiagnosticRequests.delete(uri);
-        }
+        inFlightDiagnosticRequests.delete(uri);
       };
       let analyzeResult: import('@pike-lsp/pike-bridge').AnalyzeResponse | null = null;
 
@@ -398,6 +396,18 @@ export function registerDiagnosticsHandlers(
             });
           }
         }
+
+        const liveBeforeTrack = documents.get(uri);
+        if (!liveBeforeTrack || liveBeforeTrack.version !== version) {
+          log.debug('Skipping diagnostics request tracking for closed/stale document', {
+            uri,
+            requestId,
+            validatedVersion: version,
+            latestVersion: liveBeforeTrack?.version,
+          });
+          return;
+        }
+
         inFlightDiagnosticRequests.set(uri, requestId);
 
         const snapshotId = documentSnapshots.get(uri);
