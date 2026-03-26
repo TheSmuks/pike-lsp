@@ -1,4 +1,10 @@
+import { Logger } from '@pike-lsp/core';
+
 export type RequestClass = 'typing' | 'interactive' | 'background';
+
+interface RequestSchedulerLogger {
+  error: (message: string, meta?: Record<string, unknown>) => void;
+}
 
 export interface RequestSchedulerMetrics {
   scheduled: number;
@@ -70,6 +76,7 @@ interface PendingTaskHandle {
 
 interface RequestSchedulerOptions {
   maxConcurrent?: number;
+  logger?: RequestSchedulerLogger;
 }
 
 export class RequestScheduler {
@@ -78,6 +85,7 @@ export class RequestScheduler {
   private dispatching = false;
   private activeWorkers = 0;
   private readonly maxConcurrent: number;
+  private readonly logger: RequestSchedulerLogger;
   private readonly activeByClass: Record<RequestClass, number> = {
     typing: 0,
     interactive: 0,
@@ -107,6 +115,7 @@ export class RequestScheduler {
   constructor(options: RequestSchedulerOptions = {}) {
     const configuredMax = Math.floor(options.maxConcurrent ?? 2);
     this.maxConcurrent = configuredMax > 0 ? configuredMax : 1;
+    this.logger = options.logger ?? new Logger('request-scheduler');
   }
 
   async schedule<T>(request: ScheduleRequest<T>): Promise<T> {
@@ -142,7 +151,9 @@ export class RequestScheduler {
             },
           });
         }
-        this.processQueue().catch(() => {});
+        this.processQueue().catch(error => {
+          this.logSchedulerError('schedule:processQueue', error);
+        });
       };
 
       const coalesceMs = request.coalesceMs ?? 0;
@@ -241,14 +252,18 @@ export class RequestScheduler {
         this.activeWorkers += 1;
         this.activeByClass[next.requestClass] += 1;
         this.runTask(next)
-          .catch(() => {})
+          .catch(error => {
+            this.logSchedulerError('runTask', error, { requestClass: next.requestClass, id: next.id });
+          })
           .finally(() => {
             this.activeWorkers -= 1;
             this.activeByClass[next.requestClass] = Math.max(
               0,
               this.activeByClass[next.requestClass] - 1
             );
-            this.processQueue().catch(() => {});
+            this.processQueue().catch(error => {
+              this.logSchedulerError('finally:processQueue', error);
+            });
           });
       }
     } finally {
@@ -256,8 +271,23 @@ export class RequestScheduler {
     }
 
     if (this.activeWorkers < this.maxConcurrent && this.hasQueuedTasks()) {
-      this.processQueue().catch(() => {});
+      this.processQueue().catch(error => {
+        this.logSchedulerError('tail:processQueue', error);
+      });
     }
+  }
+
+  private logSchedulerError(
+    location: string,
+    error: unknown,
+    extra: Record<string, unknown> = {}
+  ): void {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logger.error('Request scheduler internal async error', {
+      location,
+      error: errorMessage,
+      ...extra,
+    });
   }
 
   private dequeueNextTask(): QueuedTask | undefined {
