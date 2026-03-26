@@ -268,7 +268,7 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-  vscode-e2e:
+  vscode-e2e-category:
     name: vscode-e2e (${{ matrix.category }})
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
@@ -369,6 +369,21 @@ jobs:
           echo "- Grep: ${{ matrix.grep }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the 'Run VSCode E2E category suite' step above for results." >> $GITHUB_STEP_SUMMARY
+
+  vscode-e2e:
+    name: vscode-e2e
+    runs-on: ubuntu-24.04
+    needs: [vscode-e2e-category]
+    if: always()
+
+    steps:
+      - name: Validate matrix aggregate result
+        run: |
+          if [ "${{ needs.vscode-e2e-category.result }}" != "success" ]; then
+            echo "Required VSCode E2E categories failed."
+            exit 1
+          fi
+          echo "Required VSCode E2E categories passed."
 
   vscode-e2e-source-trees:
     runs-on: ubuntu-24.04
