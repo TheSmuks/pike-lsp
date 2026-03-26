@@ -20,6 +20,7 @@ import type {
 } from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
+import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
  * Register signature help handler.
@@ -79,8 +80,8 @@ export function registerSignatureHelpHandler(
     const funcName = qualifiedMatch[1]!;
     let funcSymbol: PikeSymbol | null = null;
 
-    // Check if this is a qualified stdlib symbol
-    if (funcName.includes('.') && stdlibIndex) {
+      // Check if this is a qualified stdlib symbol
+      if (funcName.includes('.') && stdlibIndex) {
       const lastDotIndex = funcName.lastIndexOf('.');
       const modulePath = funcName.substring(0, lastDotIndex);
       const symbolName = funcName.substring(lastDotIndex + 1);
@@ -88,7 +89,7 @@ export function registerSignatureHelpHandler(
       logger.debug('Signature help for qualified symbol', { modulePath, symbolName });
 
       try {
-        const currentFile = decodeURIComponent(uri.replace(new RegExp('^file://', ''), ''));
+        const currentFile = uriToFsPath(uri);
         const module = await stdlibIndex.getModule(modulePath);
 
         if (module?.symbols && module.symbols.has(symbolName)) {
