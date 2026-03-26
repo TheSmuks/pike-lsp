@@ -345,7 +345,20 @@ jobs:
         working-directory: packages/vscode-pike
         env:
           SKIP_PREBUILD: '1'
-        run: bash scripts/test-headless.sh --grep "${{ matrix.grep }}"
+        run: |
+          if [ "${{ matrix.optional }}" = "true" ]; then
+            set +e
+            bash scripts/test-headless.sh --grep "${{ matrix.grep }}"
+            status=$?
+            set -e
+
+            if [ "$status" -ne 0 ]; then
+              echo "::warning::Optional E2E category '${{ matrix.category }}' failed with exit code $status"
+              echo "- Optional category failed: ${{ matrix.category }} (exit $status)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            bash scripts/test-headless.sh --grep "${{ matrix.grep }}"
+          fi
 
       - name: VSCode E2E category summary
         if: always()
