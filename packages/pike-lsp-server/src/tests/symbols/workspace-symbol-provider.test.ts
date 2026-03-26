@@ -14,7 +14,6 @@
  */
 
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { SymbolKind } from 'vscode-languageserver/node.js';
 import { WorkspaceIndex } from '../../workspace-index.js';
 
 /**
@@ -25,7 +24,11 @@ class TestableWorkspaceIndex extends WorkspaceIndex {
     /**
      * Add a document with symbols directly (for testing without bridge)
      */
-    addTestDocument(uri: string, symbols: Array<{ name: string; kind: string; line: number; parentName?: string }>): void {
+    addTestDocument(
+        uri: string,
+        symbols: Array<{ name: string; kind: string; line: number; parentName?: string }>,
+        lineCount?: number
+    ): void {
         const docSymbols = symbols.map(s => ({
             name: s.name,
             kind: s.kind,
@@ -40,7 +43,8 @@ class TestableWorkspaceIndex extends WorkspaceIndex {
             uri,
             symbols: docSymbols,
             version: 1,
-            lastModified: Date.now()
+            lastModified: Date.now(),
+            lineCount,
         });
 
         // Add to lookup
@@ -52,7 +56,8 @@ class TestableWorkspaceIndex extends WorkspaceIndex {
                 name: symbol.name,
                 kind: symbol.kind,
                 uri,
-                line: symbol.line,
+                line: symbol.position.line,
+                maxLine: lineCount,
                 parentName: (symbol as { parentName?: string }).parentName
             };
             let entriesByUri = symbolLookup.get(nameLower);
@@ -259,6 +264,60 @@ describe('Workspace Symbol Provider', () => {
             expect(stats.documents).toBe(1);
             expect(stats.symbols).toBe(1);
         });
+
+        it('clamps out-of-range lines to document upper bound', () => {
+            index.addTestDocument(
+                'file:///test.pike',
+                [{ name: 'tooHigh', kind: 'method', line: 999 }],
+                12
+            );
+
+            const results = index.searchSymbols('tooHigh');
+
+            expect(results.length).toBe(1);
+            expect(results[0].location.range.start.line).toBe(11);
+            expect(results[0].location.range.end.line).toBe(11);
+        });
+
+        it('applies the same upper bound protection for empty-query results', () => {
+            index.addTestDocument(
+                'file:///test-empty-query.pike',
+                [{ name: 'emptyQuerySymbol', kind: 'method', line: 999 }],
+                3
+            );
+
+            const results = index.searchSymbols('');
+            const symbol = results.find(result => result.name === 'emptyQuerySymbol');
+
+            expect(symbol).toBeDefined();
+            expect(symbol!.location.range.start.line).toBe(2);
+            expect(symbol!.location.range.end.line).toBe(2);
+        });
+
+        it('normalizes non-finite and non-integer lines to a safe range', () => {
+            index.addTestDocument(
+                'file:///test-numbers.pike',
+                [
+                    { name: 'nanSymbol', kind: 'method', line: Number.NaN },
+                    { name: 'infinitySymbol', kind: 'method', line: Number.POSITIVE_INFINITY },
+                    { name: 'floatSymbol', kind: 'method', line: 2.5 }
+                ],
+                8
+            );
+
+            const nanResult = index.searchSymbols('nanSymbol');
+            const infinityResult = index.searchSymbols('infinitySymbol');
+            const floatResult = index.searchSymbols('floatSymbol');
+
+            expect(nanResult.length).toBe(1);
+            expect(nanResult[0].location.range.start.line).toBe(0);
+
+            expect(infinityResult.length).toBe(1);
+            expect(infinityResult[0].location.range.start.line).toBe(0);
+
+            expect(floatResult.length).toBe(1);
+            expect(floatResult[0].location.range.start.line).toBe(0);
+        });
     });
 
     /**
@@ -268,7 +327,7 @@ describe('Workspace Symbol Provider', () => {
         it('should search many symbols quickly', () => {
             // Add 1000 symbols
             for (let i = 0; i < 10; i++) {
-                const symbols = [];
+                const symbols: Array<{ name: string; kind: string; line: number }> = [];
                 for (let j = 0; j < 100; j++) {
                     symbols.push({ name: `symbol${i * 100 + j}`, kind: 'method', line: j + 1 });
                 }
