@@ -121,15 +121,6 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives/*.deb
-          key: apt-${{ runner.os }}-build-extension-pike8.0
-          restore-keys: |
-            apt-${{ runner.os }}-build-extension-
-            apt-${{ runner.os }}-
-
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives/*.deb
           key: apt-${{ runner.os }}-pike-${{ matrix.pike-version }}
           restore-keys: |
             apt-${{ runner.os }}-pike-
@@ -248,11 +239,6 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
-      - name: Install Pike
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pike8.0
-
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -274,6 +260,15 @@ jobs:
   vscode-e2e:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        suite-group:
+          - id: lsp-and-navigation
+            grep: '(LSP Feature E2E Tests|Waterfall Loading E2E Tests|Smart Completion E2E Tests|Include/Import/Inherit Navigation E2E Tests)'
+          - id: regression-and-workflows
+            grep: '(Core Regression E2E Tests|E2E Workflow Tests|Stdlib E2E Tests|Responsiveness E2E Tests|Error Handling Tests|Performance Benchmark Tests)'
 
     steps:
       - name: Checkout code
@@ -308,27 +303,22 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build all packages
-        run: bun run build
-
-      - name: Bundle LSP server
-        run: cd packages/vscode-pike && bun run bundle-server
-
-      - name: Build VSCode extension tests
-        run: cd packages/vscode-pike && bun run build:test
-
       - name: Run VSCode unit tests
+        if: matrix.suite-group.id == 'lsp-and-navigation'
         working-directory: packages/vscode-pike
         run: bun test src/test/mockOutputChannel.test.ts
 
-      - name: Run VSCode E2E Tests (full suite)
+      - name: Run VSCode E2E Tests (${{ matrix.suite-group.id }})
         working-directory: packages/vscode-pike
-        run: bun run test:e2e
+        run: bun run test:headless --grep "${{ matrix.suite-group.grep }}"
 
       - name: LSP Feature Test Summary
         if: always()
         run: |
           echo "### LSP Feature Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Shard**: ${{ matrix.suite-group.id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Grep**: \\`${{ matrix.suite-group.grep }}\\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The LSP feature tests verify:" >> $GITHUB_STEP_SUMMARY
           echo "- Document symbols (outline view)" >> $GITHUB_STEP_SUMMARY
@@ -363,6 +353,14 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/*.deb
+          key: apt-${{ runner.os }}-vscode-e2e
+          restore-keys: |
+            apt-${{ runner.os }}-
 
       - name: Install system dependencies
         run: |
