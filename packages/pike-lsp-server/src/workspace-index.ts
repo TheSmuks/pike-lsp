@@ -21,6 +21,7 @@ interface IndexedDocument {
     symbols: Array<FlattenedSymbolEntry | PikeSymbol>;
     version: number;
     lastModified: number;
+    lineCount?: number;
 }
 
 interface FlattenedSymbolEntry {
@@ -36,6 +37,7 @@ interface SymbolEntry {
     kind: string;
     uri: string;
     line: number;
+    maxLine?: number;
     parentName?: string;  // WS-001: Parent symbol name for containerName field
 }
 
@@ -208,6 +210,31 @@ export class WorkspaceIndex {
         return flat;
     }
 
+    private countLines(content: string): number {
+        if (content.length === 0) {
+            return 1;
+        }
+        return content.split('\n').length;
+    }
+
+    private normalizeLineToZeroBased(line: number | undefined, maxLineCount?: number): number {
+        if (typeof line !== 'number' || !Number.isFinite(line) || !Number.isInteger(line)) {
+            return 0;
+        }
+
+        let oneBasedLine = Math.max(1, line);
+        if (
+            typeof maxLineCount === 'number'
+            && Number.isFinite(maxLineCount)
+            && Number.isInteger(maxLineCount)
+            && maxLineCount > 0
+        ) {
+            oneBasedLine = Math.min(oneBasedLine, maxLineCount);
+        }
+
+        return oneBasedLine - 1;
+    }
+
     /**
      * Index a single document
      */
@@ -223,6 +250,7 @@ export class WorkspaceIndex {
             const result = await this.bridge.analyze(content, ['parse'], filename);
             const parsedSymbols = result.result?.parse?.symbols ?? [];
             const symbols = this.flattenSymbols(parsedSymbols);
+            const lineCount = this.countLines(content);
 
             // Remove old entries from lookup
             const existing = this.documents.get(uri);
@@ -236,10 +264,11 @@ export class WorkspaceIndex {
                 symbols,
                 version,
                 lastModified: Date.now(),
+                lineCount,
             });
 
             // Add to lookup
-            this.addToLookup(uri, symbols);
+            this.addToLookup(uri, symbols, lineCount);
 
             // PERF-430: Invalidate search cache when document changes
             this.searchCache.clear();
@@ -297,7 +326,7 @@ export class WorkspaceIndex {
                     const symbol = normalizedEntry.symbol;
                     // Skip symbols with null names
                     if (!symbol.name) continue;
-                    results.push(this.toSymbolInformation(symbol, uri, normalizedEntry.parentName));
+                    results.push(this.toSymbolInformation(symbol, uri, normalizedEntry.parentName, doc.lineCount));
                     if (results.length >= limit) {
                         return results;
                     }
@@ -352,8 +381,8 @@ export class WorkspaceIndex {
                     location: {
                         uri: entry.uri,
                         range: {
-                            start: { line: Math.max(0, entry.line - 1), character: 0 },
-                            end: { line: Math.max(0, entry.line - 1), character: entry.name.length },
+                            start: { line: this.normalizeLineToZeroBased(entry.line, entry.maxLine), character: 0 },
+                            end: { line: this.normalizeLineToZeroBased(entry.line, entry.maxLine), character: entry.name.length },
                         },
                     },
                 };
@@ -546,7 +575,7 @@ export class WorkspaceIndex {
             const chunkReadStart = performance.now();
 
             // PERF-008: Read only this chunk (lazy loading)
-            const chunkData: Array<{ code: string; filename: string; lastModified: number }> = [];
+            const chunkData: Array<{ code: string; filename: string; lastModified: number; lineCount: number }> = [];
             for (const fileInfo of chunk) {
                 try {
                     const content = await readFile(fileInfo.path, 'utf-8');
@@ -554,6 +583,7 @@ export class WorkspaceIndex {
                         code: content,
                         filename: fileInfo.path,
                         lastModified: fileInfo.lastModified,
+                        lineCount: this.countLines(content),
                     });
                 } catch {
                     // Skip files that can't be read
@@ -606,10 +636,11 @@ export class WorkspaceIndex {
                         symbols,
                         version: 1,
                         lastModified: fileInfo.lastModified,
+                        lineCount: fileInfo.lineCount,
                     });
 
                     // Add to lookup
-                    this.addToLookup(uri, symbols);
+                    this.addToLookup(uri, symbols, fileInfo.lineCount);
                     indexed++;
                 }
 
@@ -647,10 +678,11 @@ export class WorkspaceIndex {
                             symbols,
                             version: 1,
                             lastModified: fileData.lastModified,
+                            lineCount: fileData.lineCount,
                         });
 
                         // Add to lookup
-                        this.addToLookup(uri, symbols);
+                        this.addToLookup(uri, symbols, fileData.lineCount);
                         indexed++;
                     } catch {
                         // Skip files that fail to parse
@@ -723,7 +755,7 @@ export class WorkspaceIndex {
 
     // Private helpers
 
-    private addToLookup(uri: string, symbols: FlattenedSymbolEntry[]): void {
+    private addToLookup(uri: string, symbols: FlattenedSymbolEntry[], maxLineCount?: number): void {
         let symbolNames = this.uriToSymbols.get(uri);
         if (!symbolNames) {
             symbolNames = new Set<string>();
@@ -745,6 +777,9 @@ export class WorkspaceIndex {
                 uri,
                 line: symbol.position?.line ?? 1,
             };
+            if (typeof maxLineCount === 'number') {
+                entry.maxLine = maxLineCount;
+            }
             if (entryData.parentName !== undefined) {
                 entry.parentName = entryData.parentName;
             }
@@ -856,8 +891,13 @@ export class WorkspaceIndex {
         return files;
     }
 
-    private toSymbolInformation(symbol: PikeSymbol, uri: string, parentName?: string): SymbolInformation {
-        const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+    private toSymbolInformation(
+        symbol: PikeSymbol,
+        uri: string,
+        parentName?: string,
+        maxLineCount?: number
+    ): SymbolInformation {
+        const line = this.normalizeLineToZeroBased(symbol.position?.line, maxLineCount);
 
         const result: SymbolInformation = {
             name: symbol.name,
