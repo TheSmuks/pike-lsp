@@ -89,6 +89,60 @@ describe('WorkspaceIndex file loading', () => {
     }
   });
 
+  it('invalidates only affected search cache entries on removeDocument', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'workspace-index-cache-remove-'));
+    try {
+      const fileAlpha = join(dir, 'alpha.pike');
+      const fileBeta = join(dir, 'beta.pike');
+      await writeFile(fileAlpha, 'int alphaValue = 1;\n', 'utf-8');
+      await writeFile(fileBeta, 'int betaValue = 2;\n', 'utf-8');
+
+      const bridge = {
+        isRunning: () => true,
+        batchParse: async (files: Array<{ filename: string }>) => ({
+          results: files.map(file => ({
+            filename: file.filename,
+            symbols: [
+              {
+                name: file.filename.includes('alpha.pike') ? 'alphaValue' : 'betaValue',
+                kind: 'variable',
+                position: { line: 1 },
+              },
+            ],
+          })),
+        }),
+        parse: async (_code: string, filename: string) => ({
+          filename,
+          symbols: [{ name: 'fallback', kind: 'variable', position: { line: 1 } }],
+        }),
+      };
+
+      const index = new WorkspaceIndex(bridge as any);
+      await index.indexDirectory(dir, false);
+
+      index.searchSymbols('alpha');
+      index.searchSymbols('beta');
+      expect((index as any).searchCacheMisses).toBe(2);
+      expect((index as any).searchCacheHits).toBe(0);
+      expect((index as any).searchCache.size).toBe(2);
+
+      index.removeDocument(`file://${fileAlpha}`);
+      expect((index as any).searchCache.size).toBe(1);
+
+      const betaAfterRemoval = index.searchSymbols('beta');
+      expect((index as any).searchCacheHits).toBe(1);
+      expect((index as any).searchCacheMisses).toBe(2);
+      expect(betaAfterRemoval.length).toBe(1);
+      expect(betaAfterRemoval[0]?.location.uri).toBe(`file://${fileBeta}`);
+
+      const alphaAfterRemoval = index.searchSymbols('alpha');
+      expect((index as any).searchCacheMisses).toBe(3);
+      expect(alphaAfterRemoval.length).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('keeps container metadata without mutating source symbols', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'workspace-index-container-'));
     try {
