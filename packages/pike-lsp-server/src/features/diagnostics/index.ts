@@ -33,6 +33,35 @@ interface PendingChangeState {
   hasMultipleChanges: boolean;
 }
 
+interface TextDocumentDiagnosticRequestParams {
+  textDocument?: {
+    uri?: string;
+  };
+  previousResultId?: string;
+}
+
+interface WorkspacePreviousResultIdEntry {
+  uri?: string;
+  value?: string;
+}
+
+interface WorkspaceDiagnosticRequestParams {
+  previousResultIds?: WorkspacePreviousResultIdEntry[];
+}
+
+type WorkspaceDiagnosticReportItem =
+  | {
+      uri: string;
+      kind: 'unchanged';
+      resultId: string;
+    }
+  | {
+      uri: string;
+      kind: 'full';
+      items: Diagnostic[];
+      resultId: string;
+    };
+
 // Import from split modules
 export {
   convertDiagnostic,
@@ -161,8 +190,9 @@ export function registerDiagnosticsHandlers(
   };
 
   if (typeof connection.onRequest === 'function') {
-    connection.onRequest('textDocument/diagnostic', async (params: any) => {
-      const uri = params?.textDocument?.uri as string | undefined;
+    connection.onRequest('textDocument/diagnostic', async params => {
+      const requestParams = (params ?? {}) as TextDocumentDiagnosticRequestParams;
+      const uri = requestParams.textDocument?.uri;
       if (!uri) {
         return { kind: 'full', items: [], resultId: '0:diag-0' };
       }
@@ -172,7 +202,7 @@ export function registerDiagnosticsHandlers(
       const resultId = computePullDiagnosticResultId(uri);
       pullDiagnosticResultIds.set(uri, resultId);
 
-      if (params?.previousResultId && params.previousResultId === resultId) {
+      if (requestParams.previousResultId && requestParams.previousResultId === resultId) {
         return {
           kind: 'unchanged',
           resultId,
@@ -186,10 +216,11 @@ export function registerDiagnosticsHandlers(
       };
     });
 
-    connection.onRequest('workspace/diagnostic', async (params: any) => {
+    connection.onRequest('workspace/diagnostic', async params => {
+      const requestParams = (params ?? {}) as WorkspaceDiagnosticRequestParams;
       const previousByUri = new Map<string, string>();
-      const previousResultIds = Array.isArray(params?.previousResultIds)
-        ? params.previousResultIds
+      const previousResultIds = Array.isArray(requestParams.previousResultIds)
+        ? requestParams.previousResultIds
         : [];
 
       for (const previous of previousResultIds) {
@@ -209,7 +240,7 @@ export function registerDiagnosticsHandlers(
         uris.add(uri);
       }
 
-      const items: any[] = [];
+      const items: WorkspaceDiagnosticReportItem[] = [];
       for (const uri of uris) {
         await documentCache.waitFor(uri);
         const cached = documentCache.get(uri);
