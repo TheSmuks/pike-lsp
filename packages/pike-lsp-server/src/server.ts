@@ -12,6 +12,7 @@ import {
   ProposedFeatures,
   InitializeParams,
   InitializeResult,
+  MessageType,
   TextDocumentSyncKind,
   TextDocuments,
 } from 'vscode-languageserver/node.js';
@@ -40,6 +41,7 @@ import * as features from './features/index.js';
 import { registerServerRuntimeHandlers } from './runtime/server-runtime.js';
 import { ensureBridgeStartupOrThrow } from './runtime/bridge-startup.js';
 import { createServiceRuntimeContext } from './runtime/service-runtime-context.js';
+import { createLogger, resolveDebugLogFilePath } from './utils/debug-logger.js';
 
 // Semantic tokens legend (defined here for capabilities)
 const tokenTypes = [
@@ -168,14 +170,16 @@ function createServices(): features.Services {
 // Debug Logging
 // ============================================================================
 
-const logFile = '/tmp/pike-lsp-debug.log';
-const log = (msg: string) => {
-  try {
-    fsSync.appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`);
-  } catch {
-    // Silently ignore logging failures to prevent cascading errors
-  }
-};
+const logFile = resolveDebugLogFilePath();
+const log = createLogger(logFile, {
+  onWriteFailure: (failedLogFile, error) => {
+    const summary = toErrorSummary(error);
+    connection.sendNotification('window/logMessage', {
+      type: MessageType.Warning,
+      message: `Failed to write debug log to ${failedLogFile}: ${summary}`,
+    });
+  },
+});
 
 function toErrorSummary(err: unknown): string {
   if (err instanceof Error) {
