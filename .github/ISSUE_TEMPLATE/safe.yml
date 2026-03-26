@@ -7,26 +7,39 @@ assignees: ''
 ---
 
 ## Description
+
 <!-- Required: What needs to be done. Be specific — vague descriptions produce vague fixes. -->
 
+## Required Labels
+
+<!-- Required: Add exactly one priority label (`P0-broken`..`P4-perf`) and exactly one
+     type label (`type:bug`, `type:feature`, `type:performance`, `type:test`,
+     `type:tech-debt`, `type:docs`). Example: `P2-feature` + `type:feature` -->
+
 ## Problem
+
 <!-- Required: What is wrong or missing right now? Include error messages, logs, or
      observed behavior if applicable. -->
 
 ## Expected Behavior
+
 <!-- Required: What should happen after this is fixed? -->
 
 ## Suggested Approach
+
 <!-- Required: Concrete steps or pointers to relevant files/functions.
      If unsure, explain what you have investigated so far. -->
 
 ## Affected Files
+
 <!-- Required: List files or packages likely involved. Agents must read these before starting. -->
 
 ## Acceptance
+
 <!-- Required: How will we know this is fixed? What should pass or be observable? -->
 
 ## Environment
+
 - Pike binary: <!-- output of: pike --version -->
 - Bun version: <!-- output of: bun --version -->
 - $PIKE_SRC set: <!-- YES/NO -->

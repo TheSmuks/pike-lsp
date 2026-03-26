@@ -18,12 +18,63 @@ jobs:
             const body = issue.body || '';
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const feedbackMarker = '<!-- issue-template-enforcement -->';
 
-            // Only enforce on safe issues
+            async function upsertFeedbackComment(message) {
+              const commentBody = `${feedbackMarker}\n${message}`;
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page: 100
+              });
+
+              const existing = comments.find(comment => {
+                return comment.user?.type === 'Bot' && comment.body?.includes(feedbackMarker);
+              });
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body: commentBody
+                });
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: commentBody
+              });
+            }
+
             const labels = issue.labels.map(l => l.name);
-            if (!labels.includes('safe')) {
-              console.log(`Issue #${issue.number} not labeled safe, skipping`);
-              return;
+            const isSafeIssue = labels.includes('safe');
+
+            const allowedPriorityLabels = ['P0-broken', 'P1-tests', 'P2-feature', 'P3-refactor', 'P4-perf'];
+            const allowedTypeLabels = ['type:bug', 'type:feature', 'type:performance', 'type:test', 'type:tech-debt', 'type:docs'];
+
+            const priorityLabels = labels.filter(label => allowedPriorityLabels.includes(label));
+            const typeLabels = labels.filter(label => allowedTypeLabels.includes(label));
+            const missingClassification = [];
+
+            if (priorityLabels.length !== 1) {
+              missingClassification.push(
+                priorityLabels.length === 0
+                  ? 'Add exactly one priority label (`P0-broken`, `P1-tests`, `P2-feature`, `P3-refactor`, or `P4-perf`).'
+                  : `Keep exactly one priority label (currently ${priorityLabels.length}: ${priorityLabels.map(l => `\`${l}\``).join(', ')}).`
+              );
+            }
+
+            if (typeLabels.length !== 1) {
+              missingClassification.push(
+                typeLabels.length === 0
+                  ? 'Add exactly one type label (`type:bug`, `type:feature`, `type:performance`, `type:test`, `type:tech-debt`, or `type:docs`).'
+                  : `Keep exactly one type label (currently ${typeLabels.length}: ${typeLabels.map(l => `\`${l}\``).join(', ')}).`
+              );
             }
 
             const required = [
@@ -46,7 +97,10 @@ jobs:
               return !content.replace(/<!--[\s\S]*?-->/g, '').trim();
             });
 
-            if (missing.length > 0) {
+            const safeTemplateProblems = isSafeIssue && missing.length > 0;
+            const classificationProblems = missingClassification.length > 0;
+
+            if (safeTemplateProblems || classificationProblems) {
               try {
                 await github.rest.issues.addLabels({
                   owner, repo,
@@ -55,34 +109,52 @@ jobs:
                 });
               } catch (e) {}
 
-              await github.rest.issues.createComment({
-                owner, repo,
-                issue_number: issue.number,
-                body:
-                  `⚠️ This issue is missing required sections or has empty content:\n\n` +
+              const feedbackBlocks = [];
+
+              if (classificationProblems) {
+                feedbackBlocks.push(
+                  `### Required issue labels\n` +
+                  `Every new/edited issue must have exactly one priority label and one type label.\n\n` +
+                  missingClassification.map(problem => `- ${problem}`).join('\n') +
+                  `\n\nExamples:\n` +
+                  `- Priority: \`P0-broken\`, \`P1-tests\`, \`P2-feature\`, \`P3-refactor\`, \`P4-perf\`\n` +
+                  `- Type: \`type:bug\`, \`type:feature\`, \`type:performance\`, \`type:test\`, \`type:tech-debt\`, \`type:docs\``
+                );
+              }
+
+              if (safeTemplateProblems) {
+                feedbackBlocks.push(
+                  `### Required safe issue sections\n` +
+                  `This issue is labeled \`safe\`, so all safe template sections must be present with substantive content:\n\n` +
                   missing.map(s => `- \`${s}\``).join('\n') +
-                  `\n\nAll sections must have substantive content — not placeholders ` +
-                  `or HTML comments.\n\n` +
-                  `Agents will not pick up issues labeled \`needs-template\`. ` +
-                  `Update the issue body to remove this label.`
-              });
+                  `\n\nAll sections must include real content (not placeholders or HTML comments).`
+                );
+              }
+
+              await upsertFeedbackComment(
+                `⚠️ Issue template enforcement failed for #${issue.number}.\n\n` +
+                feedbackBlocks.join('\n\n') +
+                `\n\nThe \`needs-template\` label will be removed automatically after these items are fixed and the issue is edited.`
+              );
 
               core.setFailed(
-                `Issue #${issue.number} missing sections: ${missing.join(', ')}`
+                `Issue #${issue.number} failed template enforcement` +
+                (classificationProblems ? ` | classification issues: ${missingClassification.join(' ')}` : '') +
+                (safeTemplateProblems ? ` | missing safe sections: ${missing.join(', ')}` : '')
               );
               return;
             }
 
-            // All sections present — remove needs-template if exists
+            // Requirements satisfied — remove needs-template if exists
             try {
               await github.rest.issues.removeLabel({
                 owner, repo,
                 issue_number: issue.number,
                 name: 'needs-template'
               });
-              console.log(`Issue #${issue.number}: template OK, removed needs-template`);
+              console.log(`Issue #${issue.number}: issue requirements OK, removed needs-template`);
             } catch (e) {}
 
-            console.log(`Issue #${issue.number}: template format OK`);
+            console.log(`Issue #${issue.number}: issue requirements OK`);
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
