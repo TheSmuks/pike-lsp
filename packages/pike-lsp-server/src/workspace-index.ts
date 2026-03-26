@@ -413,18 +413,9 @@ export class WorkspaceIndex {
         // Return top results
         const finalResults = matched.slice(0, limit).map(m => m.result);
 
-        // PERF-430: Store in cache (with LRU eviction)
         if (this.searchCache.size >= WorkspaceIndex.SEARCH_CACHE_MAX_SIZE) {
-            // Remove oldest entry
-            let oldestKey: string | null = null;
-            let oldestTime = Infinity;
-            for (const [key, entry] of this.searchCache) {
-                if (entry.timestamp < oldestTime) {
-                    oldestTime = entry.timestamp;
-                    oldestKey = key;
-                }
-            }
-            if (oldestKey) {
+            const oldestKey = this.searchCache.keys().next().value;
+            if (oldestKey !== undefined) {
                 this.searchCache.delete(oldestKey);
             }
         }

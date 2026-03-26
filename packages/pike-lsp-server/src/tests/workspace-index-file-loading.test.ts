@@ -143,6 +143,25 @@ describe('WorkspaceIndex file loading', () => {
     }
   });
 
+  it('evicts the oldest search cache entry when the cache is full', () => {
+    const index = new WorkspaceIndex({ isRunning: () => true } as any);
+
+    for (let i = 0; i < 100; i++) {
+      const results = index.searchSymbols(`query-${i}`, 1);
+      expect(results).toEqual([]);
+    }
+
+    expect((index as any).searchCache.size).toBe(100);
+    expect(Array.from((index as any).searchCache.keys())[0]).toBe('query-0:1');
+
+    const evictedResults = index.searchSymbols('query-100', 1);
+    expect(evictedResults).toEqual([]);
+    expect((index as any).searchCache.size).toBe(100);
+    expect((index as any).searchCache.has('query-0:1')).toBe(false);
+    expect((index as any).searchCache.has('query-1:1')).toBe(true);
+    expect((index as any).searchCache.has('query-100:1')).toBe(true);
+  });
+
   it('keeps container metadata without mutating source symbols', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'workspace-index-container-'));
     try {
