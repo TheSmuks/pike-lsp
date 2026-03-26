@@ -10,6 +10,22 @@ import { WorkspaceIndex } from './workspace-index.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('WorkspaceIndex', () => {
+  const addPrefixes = (prefixIndex: Map<string, Set<string>>, nameLower: string): void => {
+    if (nameLower.length < 2) {
+      return;
+    }
+
+    for (let i = 2; i <= nameLower.length; i++) {
+      const prefix = nameLower.slice(0, i);
+      let prefixSet = prefixIndex.get(prefix);
+      if (!prefixSet) {
+        prefixSet = new Set<string>();
+        prefixIndex.set(prefix, prefixSet);
+      }
+      prefixSet.add(nameLower);
+    }
+  };
+
   it('should create an empty index', () => {
     const index = new WorkspaceIndex();
     const stats = index.getStats();
@@ -145,6 +161,65 @@ describe('WorkspaceIndex', () => {
     assert.ok(Array.isArray(results), 'Should return an array');
 
     await bridge.stop();
+  });
+
+  it('should remove orphaned prefix entries when symbol lookup entry is missing', () => {
+    const index = new WorkspaceIndex();
+    const uri = 'file:///orphan.pike';
+    const nameLower = 'orphansymbol';
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<string, Map<string, unknown>>;
+    };
+
+    privateState.uriToSymbols.set(uri, new Set([nameLower]));
+    addPrefixes(privateState.prefixIndex, nameLower);
+
+    assert.equal(privateState.symbolLookup.has(nameLower), false, 'Precondition: symbolLookup must be missing entry');
+    assert.ok(privateState.prefixIndex.get('or')?.has(nameLower), 'Precondition: prefix index should contain orphan name');
+
+    index.removeDocument(uri);
+
+    assert.equal(privateState.uriToSymbols.has(uri), false, 'Reverse index entry should be removed');
+    assert.equal(privateState.prefixIndex.get('or')?.has(nameLower) ?? false, false, 'Orphan name must be removed from shared prefix set');
+    assert.equal(privateState.prefixIndex.has(nameLower), false, 'Full-length prefix bucket should be deleted when empty');
+  });
+
+  it('should keep non-orphan names when cleaning orphaned prefix entries', () => {
+    const index = new WorkspaceIndex();
+    const orphanUri = 'file:///orphan.pike';
+    const liveUri = 'file:///live.pike';
+    const orphanName = 'foobar';
+    const liveName = 'foobaz';
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<string, Map<string, { name: string; kind: string; uri: string; line: number }>>;
+    };
+
+    privateState.uriToSymbols.set(orphanUri, new Set([orphanName]));
+    privateState.uriToSymbols.set(liveUri, new Set([liveName]));
+
+    addPrefixes(privateState.prefixIndex, orphanName);
+    addPrefixes(privateState.prefixIndex, liveName);
+
+    privateState.symbolLookup.set(
+      liveName,
+      new Map([
+        [liveUri, { name: 'foobaz', kind: 'method', uri: liveUri, line: 1 }],
+      ])
+    );
+
+    index.removeDocument(orphanUri);
+
+    assert.equal(privateState.prefixIndex.get('fo')?.has(orphanName) ?? false, false, 'Orphan name should be removed from shared prefix bucket');
+    assert.equal(privateState.prefixIndex.get('fo')?.has(liveName) ?? false, true, 'Live name should remain in shared prefix bucket');
+    assert.equal(privateState.prefixIndex.has('foobar'), false, 'Unique orphan full-prefix bucket should be removed');
+    assert.equal(privateState.prefixIndex.get('foobaz')?.has(liveName) ?? false, true, 'Live full-prefix bucket should remain');
+    assert.equal(privateState.symbolLookup.get(liveName)?.has(liveUri) ?? false, true, 'Live symbol lookup entry should remain intact');
   });
 
   it('should respect search result limit', async () => {
