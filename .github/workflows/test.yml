@@ -89,11 +89,8 @@ jobs:
       - name: Build all packages
         run: bun run build
 
-      - name: Run Pike Bridge tests
-        run: cd packages/pike-bridge && bun test
-
-      - name: Run LSP Server tests
-        run: cd packages/pike-lsp-server && bun test
+      - name: Run package test suite
+        run: bun run test:packages
 
       - name: Check inline snapshots
         run: cd packages/pike-lsp-server && bun run test:snapshots:check

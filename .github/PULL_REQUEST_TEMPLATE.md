@@ -30,6 +30,12 @@ closes #
      CI will verify independently — this is for human reviewers to understand
      what you checked and how. -->
 
+## Checklist
+
+- [ ] If this PR changes feature behavior or fixes a bug, I added or updated automated tests that fail without this change.
+- [ ] I ran `bun run test:packages` and included the result in Verification.
+- [ ] If test coverage is still missing for any changed behavior, I added an entry to `docs/testing-coverage-triage.md` with owner + follow-up issue.
+
 ## Notes for Reviewer
 
 <!-- Optional: Anything unusual, tradeoffs made, follow-up issues created, etc. -->
