@@ -263,6 +263,7 @@ jobs:
   vscode-e2e:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
+    timeout-minutes: 35
 
     steps:
       - name: Checkout code
@@ -331,6 +332,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
     if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
+    timeout-minutes: 35
 
     env:
       PIKE_SRC: ${{ vars.PIKE_SRC }}
