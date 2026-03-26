@@ -53,8 +53,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get the last published GitHub Release tag
-          PREV_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+          CURRENT_TAG="v${{ steps.version.outputs.version }}"
+          PREV_TAG=""
+
+          while IFS= read -r tag; do
+            if [ "$tag" != "$CURRENT_TAG" ]; then
+              PREV_TAG="$tag"
+              break
+            fi
+          done < <(gh release list --limit 20 --json tagName --jq '.[].tagName' 2>/dev/null || true)
+
           echo "previous_tag=$PREV_TAG" >> $GITHUB_OUTPUT
           echo "Previous release tag: $PREV_TAG"
 
@@ -107,17 +115,22 @@ jobs:
           PREV_TAG="${{ steps.prev_release.outputs.previous_tag }}"
           VSIX=$(ls packages/vscode-pike/vscode-pike-*.vsix)
 
-          ARGS=(
-            "$TAG"
-            --title "Release $TAG"
-            --generate-notes
-          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; uploading VSIX asset with --clobber"
+            gh release upload "$TAG" "$VSIX" --clobber
+          else
+            ARGS=(
+              "$TAG"
+              --title "Release $TAG"
+              --generate-notes
+            )
 
-          if [ -n "$PREV_TAG" ]; then
-            ARGS+=(--notes-start-tag "$PREV_TAG")
+            if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG" ]; then
+              ARGS+=(--notes-start-tag "$PREV_TAG")
+            fi
+
+            gh release create "${ARGS[@]}" "$VSIX"
           fi
-
-          gh release create "${ARGS[@]}" "$VSIX"
 
       - name: Upload VSIX to artifact
         uses: actions/upload-artifact@v4
