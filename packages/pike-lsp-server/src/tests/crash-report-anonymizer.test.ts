@@ -8,7 +8,7 @@ import {
   EnvironmentScrubber,
   CatchAllScanner,
   AnonymizerPipeline,
-} from '../../../core/src/crash-report-anonymizer.js';
+} from '@pike-lsp/core/dist/src/crash-report-anonymizer.js';
 
 describe('PathSanitizer', () => {
   it('replaces absolute workspace prefix with placeholder', () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { enhanceRoxenSymbols } from '../../../features/roxen/symbols';
-import { RoxenModuleInfo } from '../../../../pike-bridge/src/types';
+import type { RoxenModuleInfo } from '@pike-lsp/pike-bridge/dist/src/types.js';
 
 describe('Roxen Symbols - enhanceRoxenSymbols', () => {
     const baseSymbols = [
