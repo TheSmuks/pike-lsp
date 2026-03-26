@@ -56,3 +56,10 @@ export { BridgeManager, type HealthStatus } from './bridge-manager.js';
 export { WorkspaceScanner } from './workspace-scanner.js';
 export { ModuleContext } from './module-context.js';
 export { FormattingService } from './formatting-service.js';
+export { LRUCache, type LRUCacheOptions, type LRUCacheStats } from './lru-cache.js';
+export {
+    CompilationCache,
+    type CompilationCacheEntry,
+    type CompilationCacheOptions,
+    type CompilationCacheStats,
+} from './compilation-cache.js';
