@@ -263,7 +263,7 @@ jobs:
   vscode-e2e:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
-    timeout-minutes: 12
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code

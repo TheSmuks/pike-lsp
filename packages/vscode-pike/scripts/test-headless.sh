@@ -18,7 +18,7 @@ E2E_TIMEOUT_MINUTES="${E2E_TIMEOUT_MINUTES:-25}"
 
 run_with_timeout() {
     if command -v timeout >/dev/null 2>&1; then
-        timeout --foreground "${E2E_TIMEOUT_MINUTES}m" "$@"
+        timeout --foreground --signal=TERM --kill-after=30s "${E2E_TIMEOUT_MINUTES}m" "$@"
     else
         "$@"
     fi
