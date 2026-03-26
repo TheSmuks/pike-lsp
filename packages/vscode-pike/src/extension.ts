@@ -18,6 +18,7 @@ import {
   Range,
   Uri,
   Location,
+  LocationLink,
   StatusBarAlignment,
   StatusBarItem,
   commands,
@@ -55,6 +56,32 @@ function anonymizeSensitivePaths(value: string): string {
   }
 
   return output;
+}
+
+function isLocationLink(value: Location | LocationLink): value is LocationLink {
+  return 'targetUri' in value && 'targetRange' in value;
+}
+
+function normalizeReferencesResult(
+  references: Location[] | LocationLink[] | Location | undefined
+): Location[] {
+  if (!references) {
+    return [];
+  }
+
+  if (Array.isArray(references)) {
+    if (references.length === 0) {
+      return [];
+    }
+
+    if (isLocationLink(references[0])) {
+      return references.map(link => new Location(link.targetUri, link.targetRange));
+    }
+
+    return references;
+  }
+
+  return [references];
 }
 
 let activeRuntime: ExtensionRuntime | undefined;
@@ -656,7 +683,7 @@ async function activateInternal(
       }
 
       // Use our LSP server's reference provider directly
-      const references = await commands.executeCommand(
+      const references = await commands.executeCommand<Location[] | LocationLink[] | Location>(
         'vscode.executeReferenceProvider',
         refUri,
         refPosition
@@ -670,23 +697,7 @@ async function activateInternal(
 
       // Normalize to array (can be Location, Location[], or LocationLink[])
       runtime.getOutputChannel().show(true);
-      let locations: Location[] = [];
-      if (!references) {
-        locations = [];
-      } else if (Array.isArray(references)) {
-        // Check if it's LocationLink array
-        if (references.length > 0 && 'targetUri' in references[0]) {
-          // Convert LocationLink to Location
-          locations = (references as any[]).map(
-            ll => new Location((ll as any).targetUri, (ll as any).targetRange)
-          );
-        } else {
-          locations = references as any as Location[];
-        }
-      } else {
-        // Single Location
-        locations = [references as any as Location];
-      }
+      const locations = normalizeReferencesResult(references);
 
       // Use VSCode's built-in references peek view (same as "Go to References")
       // This provides the standard references UI that users expect

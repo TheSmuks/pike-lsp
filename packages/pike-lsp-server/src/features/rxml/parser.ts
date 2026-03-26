@@ -79,6 +79,15 @@ export interface RXMLAttribute {
     range: Range;
 }
 
+interface DOMNodeLike {
+    type?: string;
+    name?: string;
+    startIndex?: number | null;
+    endIndex?: number | null;
+    attribs?: Record<string, unknown>;
+    children?: DOMNodeLike[];
+}
+
 /**
  * Parse RXML template and extract all RXML tags
  *
@@ -126,12 +135,15 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
  * @returns Array of RXML tags found (with nested children)
  */
  
-function walkDOM(nodes: any[], sourceCode: string): RXMLTag[] {
+function walkDOM(nodes: DOMNodeLike[], sourceCode: string): RXMLTag[] {
     const tags: RXMLTag[] = [];
 
     for (const node of nodes) {
         if (node.type === 'tag') {
-            const tagName = node.name.toLowerCase();
+            const tagName = node.name?.toLowerCase();
+            if (!tagName) {
+                continue;
+            }
 
             // Check if this is an RXML tag
             if (isRXMLTag(tagName)) {
@@ -168,8 +180,11 @@ function walkDOM(nodes: any[], sourceCode: string): RXMLTag[] {
  * @returns RXML tag info or null if extraction fails
  */
  
-function extractTagInfo(node: any, sourceCode: string): RXMLTag | null {
+function extractTagInfo(node: DOMNodeLike, sourceCode: string): RXMLTag | null {
     const tagName = node.name;
+    if (!tagName) {
+        return null;
+    }
 
     // Determine if container or simple
     // Tag type is determined by the tag name, not by whether it has children
@@ -199,12 +214,12 @@ function extractTagInfo(node: any, sourceCode: string): RXMLTag | null {
  * @returns Range covering the entire tag (open to close, or just open if self-closing)
  */
  
-function calculateTagRange(node: any, sourceCode: string): Range {
+function calculateTagRange(node: DOMNodeLike, sourceCode: string): Range {
     // htmlparser2 provides startIndex and endIndex for nodes
     // We need to convert these to line/column positions
 
-    const startPos = positionAt(node.startIndex, sourceCode);
-    const endPos = positionAt(node.endIndex, sourceCode);
+    const startPos = positionAt(node.startIndex ?? 0, sourceCode);
+    const endPos = positionAt(node.endIndex ?? node.startIndex ?? 0, sourceCode);
 
     return {
         start: startPos,
@@ -242,7 +257,7 @@ function positionAt(offset: number, sourceCode: string): { line: number; charact
  * @returns Array of attributes with ranges
  */
  
-export function getTagAttributes(tagElement: any): RXMLAttribute[] {
+export function getTagAttributes(tagElement: DOMNodeLike): RXMLAttribute[] {
     const attributes: RXMLAttribute[] = [];
 
     if (!tagElement.attribs || typeof tagElement.attribs !== 'object') {

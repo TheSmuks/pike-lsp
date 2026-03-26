@@ -8,6 +8,7 @@
  */
 
 import {
+    Connection,
     TextEdit,
     TextDocuments,
 } from 'vscode-languageserver/node.js';
@@ -20,7 +21,7 @@ import { Logger } from '@pike-lsp/core';
  */
 export function registerOnTypeFormattingHandler(
      
-    connection: any,
+    connection: Connection,
     _services: Services,
     documents: TextDocuments<TextDocument>
 ): void {

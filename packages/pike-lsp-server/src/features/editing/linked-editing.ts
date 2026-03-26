@@ -1,5 +1,6 @@
 import type { Services } from '../../services/index.js';
 import type {
+    Connection,
     LinkedEditingRangeParams,
     LinkedEditingRanges,
     Range,
@@ -9,7 +10,7 @@ import type { TextDocument } from 'vscode-languageserver-textdocument';
 
 export function registerLinkedEditingHandler(
      
-    connection: any,
+    connection: Connection,
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
