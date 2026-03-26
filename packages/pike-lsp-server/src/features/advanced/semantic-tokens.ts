@@ -142,42 +142,138 @@ export function registerSemanticTokensHandler(
     const text = document.getText();
     const lines = text.split('\n');
 
-    const isInsideComment = (line: string, charPos: number): boolean => {
-      const trimmed = line.trimStart();
-      if (PatternHelpers.isCommentLine(trimmed)) {
-        return true;
+    type IgnoredRange = { start: number; end: number };
+
+    const addIgnoredRange = (
+      ignoredRangesByLine: IgnoredRange[][],
+      lineNum: number,
+      start: number,
+      end: number
+    ): void => {
+      if (start >= end || lineNum < 0 || lineNum >= ignoredRangesByLine.length) {
+        return;
       }
-      const lineCommentPos = line.indexOf('//');
-      if (lineCommentPos >= 0 && lineCommentPos < charPos) {
-        return true;
+      ignoredRangesByLine[lineNum]!.push({ start, end });
+    };
+
+    const buildIgnoredRangesByLine = (sourceLines: string[]): IgnoredRange[][] => {
+      const ignoredRangesByLine: IgnoredRange[][] = sourceLines.map(() => []);
+      let inBlockComment = false;
+      let inString = false;
+      let inMultilineString = false;
+
+      for (let lineNum = 0; lineNum < sourceLines.length; lineNum++) {
+        const line = sourceLines[lineNum] ?? '';
+        let i = 0;
+
+        while (i < line.length) {
+          if (inBlockComment) {
+            const closeIndex = line.indexOf('*/', i);
+            if (closeIndex < 0) {
+              addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
+              i = line.length;
+              continue;
+            }
+
+            const end = closeIndex + 2;
+            addIgnoredRange(ignoredRangesByLine, lineNum, i, end);
+            i = end;
+            inBlockComment = false;
+            continue;
+          }
+
+          if (inMultilineString) {
+            const closeIndex = line.indexOf('"#', i);
+            if (closeIndex < 0) {
+              addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
+              i = line.length;
+              continue;
+            }
+
+            const end = closeIndex + 2;
+            addIgnoredRange(ignoredRangesByLine, lineNum, i, end);
+            i = end;
+            inMultilineString = false;
+            continue;
+          }
+
+          if (inString) {
+            const start = i;
+            let escaped = false;
+            while (i < line.length) {
+              const char = line[i];
+              if (escaped) {
+                escaped = false;
+                i++;
+                continue;
+              }
+
+              if (char === '\\') {
+                escaped = true;
+                i++;
+                continue;
+              }
+
+              if (char === '"') {
+                i++;
+                inString = false;
+                break;
+              }
+
+              i++;
+            }
+
+            addIgnoredRange(ignoredRangesByLine, lineNum, start, i);
+
+            if (inString && i >= line.length) {
+              inString = false;
+            }
+
+            continue;
+          }
+
+          if (line.startsWith('//', i)) {
+            addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
+            break;
+          }
+
+          if (line.startsWith('/*', i)) {
+            inBlockComment = true;
+            continue;
+          }
+
+          if (line.startsWith('#"', i)) {
+            inMultilineString = true;
+            continue;
+          }
+
+          if (line[i] === '"') {
+            inString = true;
+            continue;
+          }
+
+          i++;
+        }
       }
-      const blockOpenPos = line.lastIndexOf('/*', charPos);
-      if (blockOpenPos >= 0) {
-        const blockClosePos = line.indexOf('*/', blockOpenPos);
-        if (blockClosePos < 0 || blockClosePos > charPos) {
+
+      return ignoredRangesByLine;
+    };
+
+    const ignoredRangesByLine = buildIgnoredRangesByLine(lines);
+
+    const isIgnoredPosition = (lineNum: number, charPos: number): boolean => {
+      const ranges = ignoredRangesByLine[lineNum];
+      if (!ranges || ranges.length === 0) {
+        return false;
+      }
+
+      for (const range of ranges) {
+        if (charPos >= range.start && charPos < range.end) {
           return true;
         }
       }
-      return false;
-    };
 
-    const isInsideString = (line: string, charPos: number): boolean => {
-      let inString = false;
-      let escaped = false;
-      for (let i = 0; i < charPos; i++) {
-        if (escaped) {
-          escaped = false;
-          continue;
-        }
-        if (line[i] === '\\') {
-          escaped = true;
-          continue;
-        }
-        if (line[i] === '"') {
-          inString = !inString;
-        }
-      }
-      return inString;
+      return false;
     };
 
     const declarationBit = 1 << tokenModifiers.indexOf('declaration');
@@ -262,7 +358,7 @@ export function registerSemanticTokensHandler(
         while (match !== null) {
           const matchIndex = match.index;
 
-          if (!(isInsideComment(line, matchIndex) || isInsideString(line, matchIndex))) {
+          if (!isIgnoredPosition(lineNum, matchIndex)) {
             const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
             const modifiers = isDeclaration ? declModifiers : 0;
             builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
@@ -289,7 +385,7 @@ export function registerSemanticTokensHandler(
         while (match !== null) {
           const matchIndex = match.index;
 
-          if (!(isInsideComment(line, matchIndex) || isInsideString(line, matchIndex))) {
+          if (!isIgnoredPosition(lineNum, matchIndex)) {
             builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
           }
 

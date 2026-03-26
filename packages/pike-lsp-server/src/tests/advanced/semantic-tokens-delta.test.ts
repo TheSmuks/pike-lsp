@@ -20,6 +20,50 @@ import {
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
+const TOKEN_TYPE = {
+  variable: 8,
+};
+
+function decodeTokens(tokensData: number[]): Array<{
+  line: number;
+  startChar: number;
+  length: number;
+  tokenType: number;
+}> {
+  const decoded: Array<{
+    line: number;
+    startChar: number;
+    length: number;
+    tokenType: number;
+  }> = [];
+
+  let currentLine = 0;
+  let currentStartChar = 0;
+
+  for (let i = 0; i < tokensData.length; i += 5) {
+    const deltaLine = tokensData[i] ?? 0;
+    const deltaStart = tokensData[i + 1] ?? 0;
+    const length = tokensData[i + 2] ?? 0;
+    const tokenType = tokensData[i + 3] ?? 0;
+
+    if (deltaLine === 0) {
+      currentStartChar += deltaStart;
+    } else {
+      currentLine += deltaLine;
+      currentStartChar = deltaStart;
+    }
+
+    decoded.push({
+      line: currentLine,
+      startChar: currentStartChar,
+      length,
+      tokenType,
+    });
+  }
+
+  return decoded;
+}
+
 describe('Semantic Tokens Delta Handler', () => {
   describe('Handler Registration', () => {
     it('should register semanticTokens full handler', () => {
@@ -221,6 +265,46 @@ int main() { return x; }`;
 
       expect(second.resultId).toBe(first.resultId);
       expect(second.data).toEqual(first.data);
+    });
+
+    it('skips identifiers inside multiline #"..."# string bodies but keeps nearby code tokens', () => {
+      const uri = 'file:///multiline-string-filter.pike';
+      const code = `int target = 1;
+string template = #"
+target should stay plain text here
+target should also stay plain text here
+"#;
+if (target > 0) {
+    target--;
+}`;
+
+      const doc = TextDocument.create(uri, 'pike', 1, code);
+      const docsMap = new Map<string, TextDocument>();
+      docsMap.set(uri, doc);
+
+      const cacheEntry: DocumentCacheEntry = makeCacheEntry({
+        symbols: [sym('target', 'variable', { position: { line: 1, character: 4 } })],
+      });
+
+      const services = createMockServices({
+        cacheEntries: new Map([[uri, cacheEntry]]),
+      });
+      const documents = createMockDocuments(docsMap);
+      const conn = createMockConnection();
+
+      registerSemanticTokensHandler(conn as any, services as any, documents as any);
+
+      const result = conn.semanticTokensHandler({
+        textDocument: { uri },
+      });
+
+      const decoded = decodeTokens(result.data);
+      const targetTokens = decoded.filter(
+        token => token.tokenType === TOKEN_TYPE.variable && token.length === 'target'.length
+      );
+
+      expect(targetTokens.map(token => token.line).sort((a, b) => a - b)).toEqual([0, 5, 6]);
+      expect(targetTokens.some(token => token.line === 2 || token.line === 3)).toBe(false);
     });
   });
 
