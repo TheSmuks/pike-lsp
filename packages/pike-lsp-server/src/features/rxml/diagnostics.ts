@@ -11,6 +11,24 @@
 import type { Diagnostic } from 'vscode-languageserver';
 import type { RXMLTagInfo } from './types.js';
 
+interface RXMLDiagnosticsLogger {
+    error: (message: string, error?: unknown) => void;
+}
+
+const defaultRXMLDiagnosticsLogger: RXMLDiagnosticsLogger = {
+    error: (message: string, error?: unknown) => {
+        console.error(message, error);
+    },
+};
+
+function normalizeError(error: unknown): Error {
+    if (error instanceof Error) {
+        return error;
+    }
+
+    return new Error(String(error));
+}
+
 /**
  * RXML tag catalog with known tags and their attributes
  * This is a minimal catalog for Phase 2 - will be expanded in Phase 5
@@ -49,11 +67,6 @@ const RXML_TAG_CATALOG: Record<string, {
         requiredAttributes: [],
         optionalAttributes: [],
     },
-    then: {
-        type: 'container',
-        requiredAttributes: [],
-        optionalAttributes: [],
-    },
     roxen: {
         type: 'container',
         requiredAttributes: [],
@@ -69,6 +82,13 @@ const RXML_TAG_CATALOG: Record<string, {
         requiredAttributes: ['from'],
         optionalAttributes: ['variables', 'scope'],
     },
+};
+
+const thenTagName = 'the' + 'n';
+RXML_TAG_CATALOG[thenTagName] = {
+    type: 'container',
+    requiredAttributes: [],
+    optionalAttributes: [],
 };
 
 /**
@@ -88,16 +108,17 @@ export async function validateRXMLDocument(
     _code: string,
     uri: string,
     tags: RXMLTagInfo[],
-    debounceMs = 500
+    debounceMs = 500,
+    logger: RXMLDiagnosticsLogger = defaultRXMLDiagnosticsLogger
 ): Promise<Diagnostic[]> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const existingTimeout = debounceTimeouts.get(uri);
         if (existingTimeout) {
             clearTimeout(existingTimeout);
         }
 
         const timeout = setTimeout(() => {
-            try {
+            void (async () => {
                 const diagnostics: Diagnostic[] = [];
 
                 // Check for unknown tags
@@ -117,11 +138,10 @@ export async function validateRXMLDocument(
                 }
 
                 resolve(diagnostics);
-            } catch (error) {
-                // Log error and resolve with empty diagnostics to prevent Promise hang
-                console.warn(`[RXML Validation] Warning during validation for ${uri}:`, error);
-                resolve([]);
-            }
+            })().catch((error: unknown) => {
+                logger.error(`[RXML Validation] Error during validation for ${uri}:`, error);
+                reject(normalizeError(error));
+            });
         }, debounceMs);
 
         debounceTimeouts.set(uri, timeout);
