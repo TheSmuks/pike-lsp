@@ -34,8 +34,108 @@
  */
 
 import { Position, Range, DocumentSymbol, SymbolKind } from 'vscode-languageserver/node.js';
-import type { PikeBridge } from '@pike-lsp/pike-bridge';
+import type { PikeBridge, RXMLStringResult as BridgeRXMLStringResult } from '@pike-lsp/pike-bridge';
 import { BridgeManager } from '../../services/bridge-manager.js';
+
+interface LegacyRXMLStringResult {
+  content: string;
+  range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  fullRange: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  };
+  confidence?: number;
+  markers?: Array<{
+    type: 'tag' | 'entity' | 'directive';
+    name: string;
+    position: { line: number; character: number };
+  }>;
+}
+
+type SupportedRXMLStringResult = BridgeRXMLStringResult | LegacyRXMLStringResult;
+
+function isLegacyRXMLStringResult(
+  value: SupportedRXMLStringResult
+): value is LegacyRXMLStringResult {
+  return 'range' in value && 'fullRange' in value;
+}
+
+function normalizeRXMLStringResult(raw: SupportedRXMLStringResult): RXMLStringLiteral {
+  const confidence = raw.confidence ?? 0;
+
+  if (isLegacyRXMLStringResult(raw)) {
+    return {
+      content: raw.content,
+      range: {
+        start: {
+          line: raw.range.start.line,
+          character: raw.range.start.character,
+        },
+        end: {
+          line: raw.range.end.line,
+          character: raw.range.end.character,
+        },
+      },
+      fullRange: {
+        start: {
+          line: raw.fullRange.start.line,
+          character: raw.fullRange.start.character,
+        },
+        end: {
+          line: raw.fullRange.end.line,
+          character: raw.fullRange.end.character,
+        },
+      },
+      confidence,
+      markers:
+        raw.markers?.map(marker => ({
+          type: marker.type,
+          name: marker.name,
+          position: {
+            line: marker.position.line,
+            character: marker.position.character,
+          },
+        })) ?? [],
+    };
+  }
+
+  return {
+    content: raw.content,
+    range: {
+      start: {
+        line: raw.start.line - 1,
+        character: raw.start.column - 1,
+      },
+      end: {
+        line: raw.end.line - 1,
+        character: raw.end.column - 1,
+      },
+    },
+    fullRange: {
+      start: {
+        line: raw.quote_start.line - 1,
+        character: raw.quote_start.column - 1,
+      },
+      end: {
+        line: raw.quote_end.line - 1,
+        character: raw.quote_end.column - 1,
+      },
+    },
+    confidence,
+    markers:
+      raw.markers?.map(marker => ({
+        type: marker.type,
+        name: marker.name,
+        position: {
+          line: marker.line - 1,
+          character: marker.column - 1,
+        },
+      })) ?? [],
+  };
+}
 
 /**
  * RXML string literal found in Pike code
@@ -144,37 +244,12 @@ export async function detectRXMLStrings(
 
   const result = await extractor.roxenExtractRXMLStrings(code, uri);
 
-  if (!result || !result.strings) {
+  if (!result || !Array.isArray(result.strings)) {
     return [];
   }
 
   // Transform Pike-side results to TypeScript types
-
-  return result.strings.map((s: any) => ({
-    content: s.content,
-    range: {
-      start: {
-        line: s.range.start.line - 1, // Convert 1-indexed to 0-indexed
-        character: s.range.start.column - 1,
-      },
-      end: {
-        line: s.range.end.line - 1,
-        character: s.range.end.column - 1,
-      },
-    },
-    fullRange: {
-      start: {
-        line: s.fullRange.start.line - 1,
-        character: s.fullRange.start.column - 1,
-      },
-      end: {
-        line: s.fullRange.end.line - 1,
-        character: s.fullRange.end.column - 1,
-      },
-    },
-    confidence: s.confidence || 0,
-    markers: s.markers || [],
-  }));
+  return result.strings.map(normalizeRXMLStringResult);
 }
 
 /**
@@ -271,9 +346,13 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
 
     // Detect opening tags: <tagname or </tagname
     const tagRegex = /<\/?([a-z][a-z0-9_]*)/gi;
-    let match;
+    let match: RegExpExecArray | null = null;
 
-    while ((match = tagRegex.exec(line)) !== null) {
+    while (true) {
+      match = tagRegex.exec(line);
+      if (match === null) {
+        break;
+      }
       if (!match[1] || match.index === undefined) continue;
       const tagName: string = match[1].toLowerCase();
 
@@ -292,7 +371,11 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
     // Detect RXML entities: &roxen.*, &form.*, etc.
     const entityRegex = /\&([a-z][a-z0-9_]*)\./gi;
 
-    while ((match = entityRegex.exec(line)) !== null) {
+    while (true) {
+      match = entityRegex.exec(line);
+      if (match === null) {
+        break;
+      }
       if (!match[1] || match.index === undefined) continue;
       const entityPrefix: string = match[1].toLowerCase();
 

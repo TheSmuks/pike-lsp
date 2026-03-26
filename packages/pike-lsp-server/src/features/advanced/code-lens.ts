@@ -52,7 +52,7 @@ export function registerCodeLensHandlers(
       }
 
       const lenses: CodeLens[] = [];
-      const runnableConfig = (services.globalSettings as any).runnable ?? {};
+      const runnableConfig = services.globalSettings.runnable ?? {};
       const runnableEnabled = runnableConfig.showCodeLens !== false;
       const testPattern =
         typeof runnableConfig.testPattern === 'string' && runnableConfig.testPattern.length > 0

@@ -42,6 +42,13 @@ const VALID_KINDS: Set<PikeSymbolKind> = new Set<PikeSymbolKind>([
   'module' as PikeSymbolKind,
 ]);
 
+interface HierarchyToken {
+  type?: string;
+  text?: string;
+  line?: number;
+  column?: number;
+}
+
 /**
  * Validate symbol kind and log warnings for unknown values
  */
@@ -167,7 +174,9 @@ export function registerHierarchyHandlers(
     });
   };
 
-  const buildSymbolPositionsFromTokens = (tokens: any[]): Map<string, Array<{ line: number; character: number }>> => {
+  const buildSymbolPositionsFromTokens = (
+    tokens: HierarchyToken[]
+  ): Map<string, Array<{ line: number; character: number }>> => {
     const symbolPositions = new Map<string, Array<{ line: number; character: number }>>();
 
     for (const token of tokens) {
