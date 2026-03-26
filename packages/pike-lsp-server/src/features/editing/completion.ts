@@ -179,7 +179,13 @@ export function registerCompletionHandlers(
       let cancelledByToken = false;
       const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
         cancelledByToken = true;
-        void bridge.engineCancelRequest({ requestId }).catch(() => undefined);
+        void bridge.engineCancelRequest({ requestId }).catch(error => {
+          logger.warn('Completion cancellation request failed', {
+            uri,
+            requestId,
+            error,
+          });
+        });
       });
       const clearInFlight = (): void => {
         if (inFlightCompletionRequests.get(uri) === requestId) {

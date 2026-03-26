@@ -84,11 +84,11 @@ function createMockConnection(): MockConnection {
 
 /** Silent logger */
 const silentLogger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  log: () => {},
+  debug: (..._args: unknown[]) => {},
+  info: (..._args: unknown[]) => {},
+  warn: (..._args: unknown[]) => {},
+  error: (..._args: unknown[]) => {},
+  log: (..._args: unknown[]) => {},
 };
 
 /** Build a minimal DocumentCacheEntry */
@@ -206,6 +206,7 @@ interface SetupOptions {
   noBridge?: boolean;
   bridge?: any;
   noCache?: boolean;
+  logger?: typeof silentLogger;
 }
 
 /**
@@ -240,7 +241,7 @@ function setup(opts: SetupOptions) {
     bridge: opts.noBridge
       ? null
       : (opts.bridge ?? createMockBridge(opts.bridgeContext, opts.queryItems)),
-    logger: silentLogger,
+    logger: opts.logger ?? silentLogger,
     documentCache,
     stdlibIndex: opts.stdlibModules ? createMockStdlibIndex(opts.stdlibModules) : null,
     includeResolver: opts.includeSymbols ? {} : null,
@@ -259,11 +260,21 @@ function setup(opts: SetupOptions) {
   registerCompletionHandlers(conn as any, services as any, documents as any);
 
   return {
-    complete: (line: number, character: number) =>
-      conn.completionHandler({
-        textDocument: { uri },
-        position: { line, character },
-      }),
+    complete: (
+      line: number,
+      character: number,
+      cancellationToken?: {
+        isCancellationRequested: boolean;
+        onCancellationRequested: (callback: () => void) => { dispose: () => void };
+      }
+    ) =>
+      (conn.completionHandler as any)(
+        {
+          textDocument: { uri },
+          position: { line, character },
+        },
+        cancellationToken
+      ),
     resolve: (item: CompletionItem) => conn.completionResolveHandler(item),
     uri,
   };
@@ -378,6 +389,68 @@ describe('Completion Provider', () => {
 
       await Promise.all([first, second]);
       expect(cancelled.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('logs warning when cancellation bridge call fails', async () => {
+      const cancellationError = new Error('cancel bridge failed');
+      const warnings: Array<{ message: string; payload: Record<string, unknown> }> = [];
+      const bridge = {
+        isRunning: () => true,
+        engineCancelRequest: async () => {
+          throw cancellationError;
+        },
+        engineQuery: async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          return { result: { result: { status: 'stub' } } };
+        },
+        getCompletionContext: async (): Promise<PikeCompletionContext> => ({
+          context: 'identifier',
+          objectName: '',
+          prefix: '',
+          operator: '',
+        }),
+      };
+      const logger = {
+        ...silentLogger,
+        warn: (...args: unknown[]) => {
+          const message = typeof args[0] === 'string' ? args[0] : String(args[0]);
+          const payload =
+            args[1] && typeof args[1] === 'object' && !Array.isArray(args[1])
+              ? (args[1] as Record<string, unknown>)
+              : {};
+          warnings.push({ message, payload: payload ?? {} });
+        },
+      };
+
+      const cancellationCallbacks: Array<() => void> = [];
+      const cancellationToken = {
+        isCancellationRequested: false,
+        onCancellationRequested: (callback: () => void) => {
+          cancellationCallbacks.push(callback);
+          return { dispose: () => undefined };
+        },
+      };
+
+      const { complete, uri } = setup({
+        code: 'int localVar = 1;',
+        bridge,
+        logger,
+      });
+
+      const completionPromise = complete(0, 3, cancellationToken);
+      cancellationToken.isCancellationRequested = true;
+      for (const callback of cancellationCallbacks) {
+        callback();
+      }
+
+      await completionPromise;
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]?.message).toBe('Completion cancellation request failed');
+      expect(warnings[0]?.payload['uri']).toBe(uri);
+      expect(String(warnings[0]?.payload['requestId']).startsWith(`completion:${uri}:1:`)).toBe(true);
+      expect(warnings[0]?.payload['error']).toBe(cancellationError);
     });
 
     it('keeps completion p95 non-regressing for query stub fallback path', async () => {
