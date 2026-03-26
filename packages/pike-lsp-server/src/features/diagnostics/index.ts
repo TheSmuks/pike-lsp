@@ -142,7 +142,7 @@ export function registerDiagnosticsHandlers(
   const documentSnapshots = services.documentSnapshots ?? new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const pullDiagnosticResultIds = new Map<string, string>();
-  const diagnosticsScheduler = new RequestScheduler();
+  const diagnosticsScheduler = new RequestScheduler({ logger: log });
   const SCHEDULER_METRICS_LOG_EVERY = 25;
   let validationCompletions = 0;
 

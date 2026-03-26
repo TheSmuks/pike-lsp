@@ -50,7 +50,7 @@ export function registerCompletionHandlers(
 ): void {
   // Note: stdlibIndex accessed via services.stdlibIndex for late binding (initialized after registration)
   const { logger, documentCache, moduleContext } = services;
-  const completionScheduler = new RequestScheduler();
+  const completionScheduler = new RequestScheduler({ logger });
   const COMPLETION_SCHEDULER_LOG_EVERY = 50;
   let completionRequestsObserved = 0;
 
