@@ -62,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Build all packages
+        run: bun run build
+
       - name: Install Pike
         run: |
           sudo apt-get update
@@ -318,7 +321,7 @@ jobs:
           echo "### LSP Feature Tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Shard**: ${{ matrix.suite-group.id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Grep**: \\`${{ matrix.suite-group.grep }}\\`" >> $GITHUB_STEP_SUMMARY
+          echo '- **Grep**: `${{ matrix.suite-group.grep }}`' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The LSP feature tests verify:" >> $GITHUB_STEP_SUMMARY
           echo "- Document symbols (outline view)" >> $GITHUB_STEP_SUMMARY
