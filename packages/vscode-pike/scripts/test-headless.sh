@@ -53,11 +53,10 @@ is_ci() {
     [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] || [ -n "$JENKINS_URL" ]
 }
 
-# Build tests first
-bun run build:test
-
-# Build bundled server (required for LSP to work)
-bun run bundle-server
+if [ "${SKIP_PREBUILD:-0}" != "1" ]; then
+    bun run build:test
+    bun run bundle-server
+fi
 
 # Keep extension E2E on the stable completion path unless explicitly overridden.
 export PIKE_LSP_QE2_COMPLETION="${PIKE_LSP_QE2_COMPLETION:-0}"

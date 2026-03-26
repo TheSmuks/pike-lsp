@@ -315,7 +315,8 @@ jobs:
         working-directory: packages/vscode-pike
         env:
           E2E_TIMEOUT_MINUTES: '6'
-        run: bun run test:e2e
+          SKIP_PREBUILD: '1'
+        run: bash scripts/test-headless.sh
 
       - name: LSP Feature Test Summary
         if: always()
