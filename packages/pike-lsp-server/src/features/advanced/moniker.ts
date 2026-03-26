@@ -11,11 +11,12 @@
  */
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import { Connection, Moniker, MonikerParams } from 'vscode-languageserver/node.js';
+import { Connection, Moniker, MonikerParams, UniquenessLevel } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
+import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
  * Supported moniker schemes for Pike
@@ -57,8 +58,7 @@ export function registerMonikerHandler(
     return {
       scheme: scheme,
       identifier: uniqueId,
-      // @ts-expect-error - unique is optional in older LSP versions
-      unique: uniqueId,
+      unique: UniquenessLevel.scheme,
     };
   }
 
@@ -137,7 +137,7 @@ export function registerMonikerHandler(
       }
 
       // Generate moniker for the found symbol
-      const filePath = uri.replace(/^file:\/\//, '').replace(/^\//, '');
+      const filePath = uriToFsPath(uri);
       const scheme = getSchemeForKind(foundSymbol.kind);
 
       const moniker = generateMoniker(foundSymbol.name, foundSymbol.kind, filePath, scheme);
@@ -154,8 +154,8 @@ export function registerMonikerHandler(
   /**
    * Handler for $/logMessage - log message from client (noop, for protocol compliance)
    */
-  connection.onRequest('$/logMessage', async params => {
-    log.debug('Log message request', params);
+  connection.onRequest('$/logMessage', async (params: unknown) => {
+    log.debug('Log message request', { params });
     return null;
   });
 

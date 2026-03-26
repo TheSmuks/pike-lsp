@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'bun:test';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerNavigationHandlers } from '../features/navigation/index.js';
 import { registerCompletionHandlers } from '../features/editing/completion.js';
@@ -8,7 +7,11 @@ import {
   createMockConnection,
   createMockDocuments,
   createMockServices,
+  makeCacheEntry,
+  sym,
 } from './helpers/mock-services.js';
+
+const { describe, it, expect } = require('bun:test');
 
 const documents = createMockDocuments(new Map<string, TextDocument>());
 const services = createMockServices();
@@ -94,5 +97,41 @@ describe('Runtime Protocol Compliance', () => {
     const result = await cancelRequestHandler?.({ id: 42 });
     expect(result).toBeNull();
     expect(seen).toEqual(['42']);
+  });
+
+  it('decodes encoded file URIs when generating monikers', async () => {
+    const uri = 'file:///tmp/encoded%20dir/alpha%23beta.pike';
+    const document = TextDocument.create(uri, 'pike', 1, 'void encodedSymbol() {}\n');
+    const documentsWithFile = createMockDocuments(new Map([[uri, document]]));
+    const servicesWithCache = createMockServices({
+      cacheEntries: new Map([
+        [
+          uri,
+          makeCacheEntry({
+            symbols: [
+              sym('encodedSymbol', 'function', {
+                range: {
+                  start: { line: 0, character: 0 },
+                  end: { line: 0, character: 22 },
+                },
+              }),
+            ],
+          }),
+        ],
+      ]),
+    });
+
+    const connection = createMockConnection();
+    registerMonikerHandler(connection as any, servicesWithCache as any, documentsWithFile as any);
+
+    const monikerHandler = connection.monikerHandler;
+    const result = await monikerHandler({ textDocument: { uri }, position: { line: 0, character: 5 } });
+
+    expect(result).not.toBeNull();
+    expect(result).toHaveLength(1);
+    expect(result?.[0]).toMatchObject({
+      scheme: 'pike',
+      identifier: '/tmp/encoded dir/alpha#beta/encodedSymbol',
+    });
   });
 });
