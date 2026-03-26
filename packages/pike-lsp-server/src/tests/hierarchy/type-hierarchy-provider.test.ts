@@ -16,11 +16,21 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import {
     TypeHierarchyItem,
     Range,
     DiagnosticSeverity
 } from 'vscode-languageserver/node.js';
+import type { DocumentCacheEntry } from '../../core/types.js';
+import { registerHierarchyHandlers } from '../../features/hierarchy.js';
+import {
+    createMockConnection,
+    createMockDocuments,
+    createMockServices,
+    makeCacheEntry,
+    sym,
+} from '../helpers/mock-services.js';
 
 // Define TypeHierarchyDirection locally (not exported from vscode-languageserver in this version)
 const TypeHierarchyDirection = {
@@ -954,31 +964,126 @@ class MyClass {
      * Performance
      */
     describe('Performance', () => {
-        it('should build hierarchy quickly for small codebase', () => {
-            const code = `class Base { }
-class D1 { inherit Base; }
-class D2 { inherit Base; }`;
+        it('should recursively resolve supertypes in a deep inheritance chain', async () => {
+            const uri = 'file:///test/deep-chain.pike';
+            const classCount = 20;
+            const symbols: Array<ReturnType<typeof sym>> = [];
 
-            const start = Date.now();
-            // TODO: Build type hierarchy
-            const elapsed = Date.now() - start;
+            for (let level = 0; level < classCount; level++) {
+                const className = `Level${level}`;
+                const classLine = level * 2 + 1;
 
-            assert.ok(elapsed < 200, `Should build hierarchy in < 200ms, took ${elapsed}ms`);
+                symbols.push(sym(className, 'class', {
+                    position: { line: classLine, column: 0 },
+                }));
+
+                if (level > 0) {
+                    symbols.push(sym(`Level${level - 1}`, 'inherit', {
+                        classname: `Level${level - 1}`,
+                        position: { line: classLine + 1, column: 4 },
+                    }));
+                }
+            }
+
+            const code = Array.from({ length: classCount }, (_, level) => {
+                if (level === 0) {
+                    return `class Level0 { }`;
+                }
+                return `class Level${level} { inherit Level${level - 1}; }`;
+            }).join('\n');
+
+            const doc = TextDocument.create(uri, 'pike', 1, code);
+            const documents = createMockDocuments(new Map([[uri, doc]]));
+            const services = createMockServices({
+                cacheEntries: new Map<string, DocumentCacheEntry>([
+                    [uri, makeCacheEntry({ symbols })],
+                ]),
+            });
+            const connection = createMockConnection();
+            registerHierarchyHandlers(connection as any, services as any, documents as any);
+
+            const result = await connection.typeHierarchySupertypesHandler({
+                item: {
+                    name: 'Level19',
+                    kind: 5,
+                    uri,
+                    range: { start: { line: 38, character: 0 }, end: { line: 38, character: 7 } },
+                    selectionRange: { start: { line: 38, character: 0 }, end: { line: 38, character: 7 } },
+                    detail: 'class Level19',
+                },
+                direction: 'parents',
+            });
+
+            assert.ok(Array.isArray(result), 'Supertypes result should be an array');
+            assert.ok(result !== null, 'Supertypes result should not be null');
+            assert.strictEqual(
+                result.length,
+                classCount - 1,
+                'Deep chain should return all ancestors recursively'
+            );
+            assert.strictEqual(result[0]?.name, 'Level18', 'First supertype should be direct parent');
+            assert.strictEqual(result[result.length - 1]?.name, 'Level0', 'Last supertype should be root');
         });
 
-        it('should handle large number of classes', () => {
-            // Generate 100 classes
-            const lines: string[] = ['class Base { }'];
-            for (let i = 0; i < 100; i++) {
-                lines.push(`class Derived${i} { inherit Base; }`);
+        it('should recursively resolve subtypes in a deep inheritance chain', async () => {
+            const uri = 'file:///test/deep-chain-subtypes.pike';
+            const classCount = 20;
+            const symbols: Array<ReturnType<typeof sym>> = [];
+
+            for (let level = 0; level < classCount; level++) {
+                const className = `Level${level}`;
+                const classLine = level * 2 + 1;
+
+                symbols.push(sym(className, 'class', {
+                    position: { line: classLine, column: 0 },
+                }));
+
+                if (level > 0) {
+                    symbols.push(sym(`Level${level - 1}`, 'inherit', {
+                        classname: `Level${level - 1}`,
+                        position: { line: classLine + 1, column: 4 },
+                    }));
+                }
             }
-            const code = lines.join('\n');
 
-            const start = Date.now();
-            // TODO: Build hierarchy
-            const elapsed = Date.now() - start;
+            const code = Array.from({ length: classCount }, (_, level) => {
+                if (level === 0) {
+                    return `class Level0 { }`;
+                }
+                return `class Level${level} { inherit Level${level - 1}; }`;
+            }).join('\n');
 
-            assert.ok(elapsed < 500, `Should handle 100 classes in < 500ms, took ${elapsed}ms`);
+            const doc = TextDocument.create(uri, 'pike', 1, code);
+            const documents = createMockDocuments(new Map([[uri, doc]]));
+            const services = createMockServices({
+                cacheEntries: new Map<string, DocumentCacheEntry>([
+                    [uri, makeCacheEntry({ symbols })],
+                ]),
+            });
+            const connection = createMockConnection();
+            registerHierarchyHandlers(connection as any, services as any, documents as any);
+
+            const result = await connection.typeHierarchySubtypesHandler({
+                item: {
+                    name: 'Level0',
+                    kind: 5,
+                    uri,
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+                    selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+                    detail: 'class Level0',
+                },
+                direction: 'children',
+            });
+
+            assert.ok(Array.isArray(result), 'Subtypes result should be an array');
+            assert.ok(result !== null, 'Subtypes result should not be null');
+            assert.strictEqual(
+                result.length,
+                classCount - 1,
+                'Deep chain should return all descendants recursively'
+            );
+            assert.strictEqual(result[0]?.name, 'Level1', 'First subtype should be direct child');
+            assert.strictEqual(result[result.length - 1]?.name, 'Level19', 'Last subtype should be leaf');
         });
 
         it('should cache type hierarchy results', () => {

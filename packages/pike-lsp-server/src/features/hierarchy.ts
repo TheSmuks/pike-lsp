@@ -854,48 +854,59 @@ export function registerHierarchyHandlers(
         return results; // Empty array = no hierarchy found
       }
 
-      // Search all documents for classes that inherit from this class
-      const entries = Array.from(documentCache.entries());
-      for (const [docUri, cached] of entries) {
-        for (const symbol of cached.symbols) {
+      const inheritanceIndex = new Map<
+        string,
+        Array<{ name: string; uri: string; line: number }>
+      >();
+
+      const addDirectSubtype = (parentName: string, subtype: { name: string; uri: string; line: number }) => {
+        const existing = inheritanceIndex.get(parentName) ?? [];
+        existing.push(subtype);
+        inheritanceIndex.set(parentName, existing);
+      };
+
+      const indexDocumentSymbols = (docUri: string, symbols: PikeSymbol[]) => {
+        for (const symbol of symbols) {
           if (symbol.kind !== 'inherit') {
             validateSymbolKind(symbol, 'subtypes traversal');
             continue;
           }
 
           const inheritedName = symbol.classname ?? symbol.name;
-          if (inheritedName !== className) continue;
+          if (!inheritedName) {
+            continue;
+          }
 
-          // Find the class that contains this inherit
           const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : 0;
 
           // Find the class that declared this inherit (closest class at or before inherit line)
-          const containingClass = cached.symbols
-            .filter(
-              s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine
-            )
+          const containingClass = symbols
+            .filter(s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine)
             .sort((a, b) => (b.position?.line ?? 0) - (a.position?.line ?? 0))[0];
 
-          if (containingClass) {
-            const classLine = Math.max(0, (containingClass.position?.line ?? 1) - 1);
-            results.push({
-              name: containingClass.name,
-              kind: SymbolKind.Class,
-              uri: docUri,
-              range: {
-                start: { line: classLine, character: 0 },
-                end: { line: classLine, character: containingClass.name.length },
-              },
-              selectionRange: {
-                start: { line: classLine, character: 0 },
-                end: { line: classLine, character: containingClass.name.length },
-              },
-            });
+          if (!containingClass) {
+            continue;
           }
+
+          const containingClassName = containingClass.name;
+          if (!containingClassName) {
+            continue;
+          }
+
+          const classLine = Math.max(0, (containingClass.position?.line ?? 1) - 1);
+          addDirectSubtype(inheritedName, {
+            name: containingClassName,
+            uri: docUri,
+            line: classLine,
+          });
         }
+      };
+
+      const entries = Array.from(documentCache.entries());
+      for (const [docUri, cachedDoc] of entries) {
+        indexDocumentSymbols(docUri, cachedDoc.symbols);
       }
 
-      // Phase 6: Search workspace files not in cache
       if (services.workspaceScanner?.isReady()) {
         const cachedUris = new Set(documentCache.keys());
         const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
@@ -906,62 +917,47 @@ export function registerHierarchyHandlers(
             const content = await fs.readFile(filePath, 'utf-8');
             const parsed = await services.bridge?.bridge?.analyze(content, ['parse'], filePath);
             const parsedSymbols = parsed?.result?.parse?.symbols ?? [];
-
-            for (const symbol of parsedSymbols) {
-              if (symbol.kind !== 'inherit') {
-                continue;
-              }
-
-              const inheritedName = symbol.classname ?? symbol.name;
-              if (inheritedName !== className) {
-                continue;
-              }
-
-              const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : 0;
-
-              const containingClass = parsedSymbols
-                .filter(
-                  s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine
-                )
-                .sort((a, b) => (b.position?.line ?? 0) - (a.position?.line ?? 0))[0];
-
-              if (!containingClass) {
-                continue;
-              }
-
-              const containingClassName = containingClass.name;
-              if (!containingClassName) {
-                continue;
-              }
-
-              const alreadyAdded = results.some(
-                r => r.uri === fileInfo.uri && r.name === containingClassName
-              );
-
-              if (alreadyAdded) {
-                continue;
-              }
-
-              const classLine = Math.max(0, (containingClass.position?.line ?? 1) - 1);
-              results.push({
-                name: containingClassName,
-                kind: SymbolKind.Class,
-                uri: fileInfo.uri,
-                range: {
-                  start: { line: classLine, character: 0 },
-                  end: { line: classLine, character: containingClassName.length },
-                },
-                selectionRange: {
-                  start: { line: classLine, character: 0 },
-                  end: { line: classLine, character: containingClassName.length },
-                },
-              });
-            }
+            indexDocumentSymbols(fileInfo.uri, parsedSymbols);
           } catch (err) {
             log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
               error: err instanceof Error ? err.message : String(err),
             });
           }
+        }
+      }
+
+      const seenParents = new Set<string>();
+      const seenResults = new Set<string>();
+      const queue = [className];
+
+      while (queue.length > 0) {
+        const parent = queue.shift()!;
+        if (seenParents.has(parent)) {
+          continue;
+        }
+        seenParents.add(parent);
+
+        const directSubtypes = inheritanceIndex.get(parent) ?? [];
+        for (const subtype of directSubtypes) {
+          const subtypeKey = `${subtype.uri}:${subtype.name}`;
+          if (!seenResults.has(subtypeKey)) {
+            seenResults.add(subtypeKey);
+            results.push({
+              name: subtype.name,
+              kind: SymbolKind.Class,
+              uri: subtype.uri,
+              range: {
+                start: { line: subtype.line, character: 0 },
+                end: { line: subtype.line, character: subtype.name.length },
+              },
+              selectionRange: {
+                start: { line: subtype.line, character: 0 },
+                end: { line: subtype.line, character: subtype.name.length },
+              },
+            });
+          }
+
+          queue.push(subtype.name);
         }
       }
 
