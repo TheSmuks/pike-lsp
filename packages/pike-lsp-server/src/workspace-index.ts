@@ -784,7 +784,7 @@ export class WorkspaceIndex {
         // Remove each symbol entry for this URI
         for (const nameLower of symbolNames) {
             const entriesByUri = this.symbolLookup.get(nameLower);
-            let removeNameFromPrefixIndex = false;
+            let removeNameFromPrefixIndex = !entriesByUri;
 
             if (entriesByUri) {
                 entriesByUri.delete(uri);
