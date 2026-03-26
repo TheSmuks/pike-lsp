@@ -20,6 +20,16 @@ Design per CONTEXT.md:
 
 This file acts as a class - instantiate with Parser() from LSP.Parser
 
+## Approved Pike source parsing pattern
+
+For any logic that interprets Pike source syntax (e.g. `import`, `inherit`,
+declaration discovery, symbol extraction), use `Parser.Pike.split()` / `Parser.Pike.tokenize()`
+or `LSP.Parser` handlers.
+
+Do **not** parse Pike source structure with ad-hoc line scanning or regex shortcuts.
+Regex/string matching is still acceptable for non-source concerns such as log filtering,
+protocol message shaping, and external tool output parsing.
+
 Create a new Parser instance
 
 Parse Pike source code and extract symbols
@@ -159,4 +169,3 @@ Detects load_module() and compile_file() calls with string literal arguments
 | `improve_syntax_error_message` | function | 1478 |
 | `type_to_json` | function | 1536 |
 | `content` | function | 1655 |
-
