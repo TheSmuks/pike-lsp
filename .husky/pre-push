@@ -52,9 +52,13 @@ if ! bun run build > "$BUILD_LOG" 2>&1; then
   grep -iP '(error|TS\d{4})' "$BUILD_LOG" | head -15
   echo "---"
   echo "Full log: $BUILD_LOG"
-  rm -f "$BUILD_LOG"
-  exit 1
-  fi
+   rm -f "$BUILD_LOG"
+   exit 1
+   fi
+
+# 2.5 Pike strict_types pragma guard
+echo "[Pre-push] Checking Pike strict_types pragmas..."
+bash scripts/check-pike-strict-types.sh
 
 # 3. Pike compile check (skip if SKIP_E2E=1)
 if [ "$SKIP_E2E" = "1" ]; then
