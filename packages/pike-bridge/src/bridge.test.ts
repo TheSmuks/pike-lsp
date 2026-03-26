@@ -6,6 +6,7 @@
 
 // @ts-ignore - Bun test types
 import { describe, it, beforeAll, afterAll } from 'bun:test';
+import { EventEmitter } from 'events';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
 import { PikeProcess } from './process.js';
@@ -546,12 +547,14 @@ foo(@args);
 
   it('should reject startup when subprocess exits during startup delay', async () => {
     const originalSpawn = PikeProcess.prototype.spawn;
+    const closeEvents: Array<number | null> = [];
 
     PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
       setTimeout(() => this.emit('exit', 1), 0);
     };
 
     const localBridge = new PikeBridge();
+    localBridge.on('close', code => closeEvents.push(code));
 
     try {
       await assert.rejects(
@@ -559,9 +562,51 @@ foo(@args);
         /exited during startup|not alive after startup delay/,
         'start() should reject when process exits before readiness'
       );
+      await new Promise(resolve => setTimeout(resolve, 10));
       assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after failed start');
+      assert.equal(closeEvents.length, 0, 'Startup failure must not emit close');
     } finally {
       PikeProcess.prototype.spawn = originalSpawn;
+    }
+  });
+
+  it('should emit close after startup has completed when process exits', async () => {
+    const originalSpawn = PikeProcess.prototype.spawn;
+    const originalIsAlive = PikeProcess.prototype.isAlive;
+    const localBridge = new PikeBridge();
+    let activeProcess: PikeProcess | null = null;
+    const closeEvents: Array<number | null> = [];
+
+    PikeProcess.prototype.spawn = function mockedSpawn(this: PikeProcess): void {
+      activeProcess = this;
+      this.emit('stderr', 'mock-started');
+    };
+    PikeProcess.prototype.isAlive = function mockedIsAlive(): boolean {
+      return true;
+    };
+
+    localBridge.on('close', code => closeEvents.push(code));
+
+    try {
+      await localBridge.start();
+
+      assert.equal(localBridge.isRunning(), true, 'Bridge should be running after startup');
+      assert.ok(activeProcess, 'Startup should retain the active process handle');
+
+      const runtimeProcess = activeProcess;
+      if (!runtimeProcess) {
+        throw new Error('Startup should retain the active process handle');
+      }
+
+      EventEmitter.prototype.emit.call(runtimeProcess, 'exit', 0);
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      assert.deepEqual(closeEvents, [0], 'Runtime exit should emit close with exit code');
+      assert.equal(localBridge.isRunning(), false, 'Bridge should stop running after exit');
+    } finally {
+      PikeProcess.prototype.spawn = originalSpawn;
+      PikeProcess.prototype.isAlive = originalIsAlive;
+      await localBridge.stop();
     }
   });
 

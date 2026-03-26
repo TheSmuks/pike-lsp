@@ -354,6 +354,11 @@ export class PikeBridge extends EventEmitter {
 
       // Handle exit events - reject pending requests
       pikeProc.on('exit', code => {
+        if (!this.started) {
+          this.debugLog(`Process exited before startup completed with code: ${code}`);
+          return;
+        }
+
         this.debugLog(`Process closed with code: ${code}`);
         this.started = false;
         this.process = null;
