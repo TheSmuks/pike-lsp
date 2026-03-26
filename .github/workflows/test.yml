@@ -327,7 +327,12 @@ jobs:
         working-directory: packages/vscode-pike
         env:
           SKIP_PREBUILD: '1'
-        run: bash scripts/test-headless.sh
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash scripts/test-headless.sh --grep "LSP Feature E2E Tests"
+          else
+            bash scripts/test-headless.sh
+          fi
 
       - name: LSP Feature Test Summary
         if: always()
