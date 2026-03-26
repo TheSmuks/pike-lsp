@@ -447,4 +447,163 @@ describe('Query Engine stale diagnostics race', () => {
     );
     assert.equal(diagnosticsPublished.length, 1, 'Validation should still publish diagnostics once');
   });
+
+  it('does not retain stale in-flight requests after close during cancellation race', async () => {
+    let onDidChangeConfigurationHandler:
+      | ((params: DidChangeConfigurationParams) => void)
+      | undefined;
+
+    const canceledRequestIds: string[] = [];
+    const documentsLike = createStatefulMockDocuments();
+    let revision = 0;
+
+    const connectionLike = {
+      sendDiagnostics(): void {},
+      onDidChangeConfiguration(handler: (params: DidChangeConfigurationParams) => void): void {
+        onDidChangeConfigurationHandler = handler;
+      },
+      onDidChangeTextDocument(): void {},
+      console: {
+        log(): void {},
+        warn(): void {},
+        error(): void {},
+      },
+    };
+
+    const servicesLike = {
+      bridge: {
+        isRunning(): boolean {
+          return true;
+        },
+        async start(): Promise<void> {},
+        async engineOpenDocument(): Promise<{ revision: number; snapshotId: string }> {
+          revision += 1;
+          return { revision, snapshotId: `open-${revision}` };
+        },
+        async engineChangeDocument(): Promise<{ revision: number; snapshotId: string }> {
+          revision += 1;
+          return { revision, snapshotId: `change-${revision}` };
+        },
+        async engineCloseDocument(): Promise<{ revision: number; snapshotId: string }> {
+          revision += 1;
+          return { revision, snapshotId: `close-${revision}` };
+        },
+        async engineUpdateConfig(): Promise<{ revision: number; snapshotId: string }> {
+          revision += 1;
+          return { revision, snapshotId: `config-${revision}` };
+        },
+        async engineCancelRequest(params: { requestId: string }): Promise<{ accepted: boolean }> {
+          canceledRequestIds.push(params.requestId);
+          await new Promise(resolve => setTimeout(resolve, 30));
+          return { accepted: true };
+        },
+        async engineQuery(params: { queryParams?: { version?: number } }): Promise<{
+          snapshotIdUsed: string;
+          result: Record<string, unknown>;
+          metrics: Record<string, unknown>;
+        }> {
+          const version = params.queryParams?.version ?? 0;
+          await new Promise(resolve => setTimeout(resolve, 120));
+
+          return {
+            snapshotIdUsed: `snp-v${version}`,
+            result: {
+              analyzeResult: {
+                result: {
+                  parse: { symbols: [], diagnostics: [] },
+                  introspect: {
+                    success: 0,
+                    symbols: [],
+                    functions: [],
+                    variables: [],
+                    classes: [],
+                    inherits: [],
+                    diagnostics: [],
+                  },
+                  diagnostics: { diagnostics: [] },
+                },
+              },
+              revision,
+            },
+            metrics: { durationMs: 120 },
+          };
+        },
+        async analyze(): Promise<never> {
+          throw new Error('analyze fallback should not be used in this test');
+        },
+      },
+      documentCache: {
+        get(): undefined {
+          return undefined;
+        },
+        setPending(): void {},
+        set(): void {},
+        delete(): void {},
+      },
+      typeDatabase: {
+        setProgram(): void {},
+        removeProgram(): void {},
+        getMemoryStats(): {
+          programCount: number;
+          symbolCount: number;
+          totalBytes: number;
+          utilizationPercent: number;
+        } {
+          return {
+            programCount: 0,
+            symbolCount: 0,
+            totalBytes: 0,
+            utilizationPercent: 0,
+          };
+        },
+      },
+      workspaceIndex: {
+        indexDocument(): void {},
+        removeDocument(): void {},
+      },
+      includeResolver: null,
+      logger: {
+        debug(): void {},
+        info(): void {},
+        warn(): void {},
+        error(): void {},
+      },
+    };
+
+    registerDiagnosticsHandlers(
+      connectionLike as unknown as Connection,
+      servicesLike as unknown as Services,
+      documentsLike as unknown as TextDocuments<TextDocument>
+    );
+
+    if (onDidChangeConfigurationHandler) {
+      onDidChangeConfigurationHandler({ settings: { pike: { diagnosticDelay: 0 } } });
+    }
+
+    const uri = 'file:///tmp/in-flight-close-race.pike';
+    const v1 = TextDocument.create(uri, 'pike', 1, 'int x = 1;\n');
+    const v2 = TextDocument.create(uri, 'pike', 2, 'int x = 2;\n');
+    const v3 = TextDocument.create(uri, 'pike', 3, 'int x = 3;\n');
+
+    documentsLike.emitOpen(v1);
+    documentsLike.emitSave(v2);
+
+    await new Promise(resolve => setTimeout(resolve, 5));
+    documentsLike.emitClose(v2);
+
+    await new Promise(resolve => setTimeout(resolve, 40));
+    documentsLike.emitOpen(v3);
+
+    await new Promise(resolve => setTimeout(resolve, 15));
+
+    assert.equal(
+      canceledRequestIds.length,
+      1,
+      'Close-race must not retain a stale in-flight request that gets canceled on next open'
+    );
+    assert.ok(
+      canceledRequestIds[0]?.includes(`${uri}:1:`),
+      'The only cancellation should target the original version-1 request'
+    );
+  });
 });
