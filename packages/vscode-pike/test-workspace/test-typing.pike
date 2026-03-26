@@ -1,3 +1,5 @@
+#pragma strict_types
+
 // Test fixture for responsiveness typing simulation
 // This file will be edited rapidly during E2E tests
 

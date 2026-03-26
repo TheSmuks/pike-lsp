@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test fixture for Waterfall Loading E2E tests
 //!
 //! This file validates the NEW module resolution system with ModuleContext:

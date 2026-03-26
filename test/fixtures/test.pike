@@ -1,3 +1,5 @@
+#pragma strict_types
+
 // Test file for Pike LSP extension
 // This file contains various Pike constructs to test diagnostics and symbols
 

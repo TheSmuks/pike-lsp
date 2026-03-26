@@ -1,4 +1,6 @@
 #!/usr/bin/env pike
+#pragma strict_types
+
 //! LSP Smoke Test
 //!
 //! End-to-end verification that the refactored LSP codebase works correctly.

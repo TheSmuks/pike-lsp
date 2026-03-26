@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Simple class fixture for intelligence tests
 //! This fixture provides basic class structure for introspection testing
 

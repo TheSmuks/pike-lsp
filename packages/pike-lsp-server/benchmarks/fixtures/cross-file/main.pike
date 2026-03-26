@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Main class that inherits from utils - for dependency tracking tests
 inherit "lib/utils.pike";
 

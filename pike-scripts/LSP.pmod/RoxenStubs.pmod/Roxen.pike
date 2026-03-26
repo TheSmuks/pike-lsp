@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Roxen.pike - Stub module for Roxen framework LSP support
 //!
 //! This provides minimal stub implementations of Roxen framework classes

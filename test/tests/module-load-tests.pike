@@ -1,4 +1,6 @@
 #!/usr/bin/env pike
+#pragma strict_types
+
 //! LSP Module Loading Tests
 //!
 //! Smoke tests to verify all LSP modules load correctly on the installed Pike version.
