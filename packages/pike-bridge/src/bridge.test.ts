@@ -767,6 +767,64 @@ foo(@args);
     );
   });
 
+  it('should emit stderr for non-JSON response lines', () => {
+    const localBridge = new PikeBridge();
+    const stderrMessages: string[] = [];
+
+    localBridge.on('stderr', message => {
+      stderrMessages.push(message);
+    });
+
+    (localBridge as any).handleResponse('not-json-at-all');
+
+    assert.deepEqual(stderrMessages, ['not-json-at-all']);
+    assert.equal((localBridge as any).pendingRequests.size, 0);
+  });
+
+  it('should reject pending requests when response processing fails', () => {
+    const localBridge = new PikeBridge();
+    const timeout = setTimeout(() => undefined, 10000);
+    let rejectedMessage = '';
+    let loggerErrorArgs: unknown[] | null = null;
+    const originalLoggerError = (localBridge as any).logger.error;
+    const originalBuildResponseResult = (localBridge as any).buildResponseResult;
+
+    (localBridge as any).logger.error = (...args: unknown[]) => {
+      loggerErrorArgs = args;
+    };
+    (localBridge as any).buildResponseResult = () => {
+      throw new Error('boom after parse');
+    };
+    (localBridge as any).pendingRequests.set(7, {
+      resolve: () => undefined,
+      reject: (error: Error) => {
+        rejectedMessage = error.message;
+      },
+      timeout,
+    });
+
+    try {
+      (localBridge as any).handleResponse(JSON.stringify({ id: 7, result: { ok: 1 } }));
+
+      assert.equal((localBridge as any).pendingRequests.size, 0);
+      assert.match(
+        rejectedMessage,
+        /Failed to process Pike response: boom after parse/,
+        'Processing failures should reject the pending request immediately'
+      );
+      assert.ok(loggerErrorArgs, 'Processing failures should be logged as errors');
+      assert.equal(loggerErrorArgs?.[0], 'Failed to process Pike response');
+
+      const details = loggerErrorArgs?.[1] as Record<string, unknown> | undefined;
+      assert.equal(details?.['responseId'], 7);
+      assert.equal(details?.['error'], 'boom after parse');
+    } finally {
+      clearTimeout(timeout);
+      (localBridge as any).logger.error = originalLoggerError;
+      (localBridge as any).buildResponseResult = originalBuildResponseResult;
+    }
+  });
+
   it('should reject pending requests on stop even without exit event', async () => {
     const localBridge = new PikeBridge();
     let rejectedMessage = '';
