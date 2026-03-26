@@ -16,6 +16,8 @@ import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { readFile } from 'node:fs/promises';
 
+const uriDecodeLog = new Logger('Navigation');
+
 /**
  * Convert a file:// URI to a filesystem path.
  * Needed because bridge methods expect filesystem paths, not URIs.
@@ -24,7 +26,11 @@ function uriToFilePath(uri: string): string {
   if (uri.startsWith('file://')) {
     try {
       return decodeURIComponent(new URL(uri).pathname);
-    } catch {
+    } catch (error) {
+      uriDecodeLog.debug('Failed to decode file URI, using prefix-strip fallback', {
+        uri,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Fallback: strip file:// prefix
       return uri.replace(/^file:\/\//, '');
     }

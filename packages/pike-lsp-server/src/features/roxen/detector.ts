@@ -1,10 +1,12 @@
 import type { RoxenModuleInfo } from './types.js';
+import { Logger } from '@pike-lsp/core';
 
 type RoxenDetectorBridge = {
   roxenDetect(code: string, filename?: string): Promise<RoxenModuleInfo>;
 };
 
 const cache = new Map<string, RoxenModuleInfo | null>();
+const log = new Logger('RoxenDetector');
 
 function hasMarkers(code: string): boolean {
   const hasRoxenInheritance =
@@ -39,7 +41,11 @@ export async function detectRoxenModule(
     const info = result.is_roxen_module === 1 ? result : null;
     cache.set(uri, info);
     return info;
-  } catch {
+  } catch (error) {
+    log.debug('Roxen detection failed', {
+      uri,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }

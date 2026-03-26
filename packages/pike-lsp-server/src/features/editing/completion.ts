@@ -668,8 +668,11 @@ export function registerCompletionHandlers(
                   }
                   return toCompletionList(completions);
                 }
-              } catch {
-                logger.debug('Type not in stdlib (obj-> workaround)', { typeName });
+              } catch (err) {
+                logger.debug('Type not in stdlib (obj-> workaround)', {
+                  typeName,
+                  error: err instanceof Error ? err.message : String(err),
+                });
               }
             }
 
@@ -795,8 +798,11 @@ export function registerCompletionHandlers(
             typeName = objectRef;
             logger.debug('Resolved as stdlib module', { typeName, count: testModule.symbols.size });
           }
-        } catch {
-          logger.debug('Not a stdlib module', { objectRef });
+        } catch (err) {
+          logger.debug('Not a stdlib module', {
+            objectRef,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
@@ -831,8 +837,11 @@ export function registerCompletionHandlers(
             }
             return toCompletionList(completions);
           }
-        } catch {
-          logger.debug('Type not in stdlib', { typeName });
+        } catch (err) {
+          logger.debug('Type not in stdlib', {
+            typeName,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
 
         // If not in stdlib, try to find it in workspace documents

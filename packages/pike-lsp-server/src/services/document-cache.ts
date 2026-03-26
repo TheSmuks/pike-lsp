@@ -7,6 +7,9 @@
 
 import type { DocumentCacheEntry } from '../core/types.js';
 import { createHash } from 'crypto';
+import { Logger } from '@pike-lsp/core';
+
+const log = new Logger('DocumentCache');
 
 /**
  * INC-002: Compute SHA-256 hash of document content.
@@ -138,8 +141,11 @@ export class DocumentCache {
         if (pending) {
             try {
                 await pending;
-            } catch {
-                // Ignore errors, caller will check cache
+            } catch (error) {
+                log.debug('Pending document validation failed while waiting', {
+                    uri,
+                    error: error instanceof Error ? error.message : String(error),
+                });
             }
         }
     }

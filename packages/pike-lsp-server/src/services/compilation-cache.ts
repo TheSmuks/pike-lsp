@@ -1,4 +1,7 @@
 import { LRUCache, type LRUCacheOptions, type LRUCacheStats } from './lru-cache.js';
+import { Logger } from '@pike-lsp/core';
+
+const log = new Logger('CompilationCache');
 
 export interface CompilationCacheEntry<TResult> {
     code: string;
@@ -185,7 +188,10 @@ export class CompilationCache<TResult> {
                     record.entry.timestamp
                 );
             }
-        } catch {
+        } catch (error) {
+            log.warn('Failed to deserialize compilation cache payload', {
+                error: error instanceof Error ? error.message : String(error),
+            });
             return cache;
         }
 

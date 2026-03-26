@@ -3,6 +3,7 @@
  */
 
 import type { Diagnostic } from 'vscode-languageserver';
+import { Logger } from '@pike-lsp/core';
 
 type RoxenRawDiagnostic = {
   line?: number;
@@ -21,6 +22,7 @@ type PendingDebounce = {
 };
 
 const pendingDebounces = new Map<string, PendingDebounce>();
+const log = new Logger('RoxenDiagnostics');
 
 export async function provideRoxenDiagnostics(
   uri: string,
@@ -63,7 +65,11 @@ export async function provideRoxenDiagnostics(
             };
           })
         );
-      } catch {
+      } catch (error) {
+        log.warn('Roxen diagnostics validation failed', {
+          uri,
+          error: error instanceof Error ? error.message : String(error),
+        });
         resolve([]);
       } finally {
         if (pendingDebounces.get(uri) === pending) {
