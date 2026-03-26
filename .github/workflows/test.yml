@@ -263,7 +263,7 @@ jobs:
   vscode-e2e:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
-    timeout-minutes: 35
+    timeout-minutes: 12
 
     steps:
       - name: Checkout code
@@ -313,6 +313,8 @@ jobs:
 
       - name: Run VSCode E2E Tests (full suite)
         working-directory: packages/vscode-pike
+        env:
+          E2E_TIMEOUT_MINUTES: '6'
         run: bun run test:e2e
 
       - name: LSP Feature Test Summary
