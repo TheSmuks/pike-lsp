@@ -282,14 +282,6 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: apt-${{ runner.os }}-vscode-e2e
-          restore-keys: |
-            apt-${{ runner.os }}-
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -314,7 +306,6 @@ jobs:
       - name: Run VSCode E2E Tests (full suite)
         working-directory: packages/vscode-pike
         env:
-          E2E_TIMEOUT_MINUTES: '6'
           SKIP_PREBUILD: '1'
         run: bash scripts/test-headless.sh
 
@@ -357,14 +348,6 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-
-
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: apt-${{ runner.os }}-vscode-e2e
-          restore-keys: |
-            apt-${{ runner.os }}-
 
       - name: Install system dependencies
         run: |

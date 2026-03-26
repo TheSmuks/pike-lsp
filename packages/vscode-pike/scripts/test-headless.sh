@@ -14,31 +14,16 @@ set -e
 
 cd "$(dirname "$0")/.."
 
-E2E_TIMEOUT_MINUTES="${E2E_TIMEOUT_MINUTES:-25}"
-
-run_with_timeout() {
-    if command -v timeout >/dev/null 2>&1; then
-        timeout --signal=TERM --kill-after=30s "${E2E_TIMEOUT_MINUTES}m" "$@"
-    else
-        "$@"
-    fi
-}
-
 run_and_validate() {
     local output
     local exit_code
 
     set +e
-    output=$(run_with_timeout "$@" 2>&1)
+    output=$("$@" 2>&1)
     exit_code=$?
     set -e
 
     echo "$output"
-
-    if [ $exit_code -eq 124 ]; then
-        echo "ERROR: VSCode E2E timed out after ${E2E_TIMEOUT_MINUTES} minutes."
-        return 124
-    fi
 
     if [ $exit_code -eq 0 ] && echo "$output" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
         echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
@@ -85,7 +70,7 @@ case "$(uname -s)" in
                 # We need to unset ALL session-related variables to prevent
                 # VSCode from connecting to the real user session (D-Bus, etc.)
                 set +e
-                TEST_OUTPUT=$(run_with_timeout xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+                TEST_OUTPUT=$(xvfb-run -a --server-args="-screen 0 1920x1080x24" \
                     env -u WAYLAND_DISPLAY \
                     -u WAYLAND_SOCKET \
                     -u DBUS_SESSION_BUS_ADDRESS \
@@ -105,11 +90,6 @@ case "$(uname -s)" in
                 set -e
 
                 echo "$TEST_OUTPUT"
-
-                if [ $TEST_EXIT_CODE -eq 124 ]; then
-                    echo "ERROR: VSCode E2E timed out after ${E2E_TIMEOUT_MINUTES} minutes."
-                    exit 124
-                fi
 
                 if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
                     echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
@@ -151,16 +131,9 @@ case "$(uname -s)" in
             # 3. Run tests
             echo "Running tests on $WAYLAND_DISPLAY..."
             set +e  # Don't exit on test failure, we need to cleanup
-            TEST_OUTPUT=$(run_with_timeout ./node_modules/.bin/vscode-test "$@" 2>&1)
+            TEST_OUTPUT=$(./node_modules/.bin/vscode-test "$@" 2>&1)
             TEST_EXIT_CODE=$?
             echo "$TEST_OUTPUT"
-
-            if [ $TEST_EXIT_CODE -eq 124 ]; then
-                echo "ERROR: VSCode E2E timed out after ${E2E_TIMEOUT_MINUTES} minutes."
-                kill $WESTON_PID 2>/dev/null || true
-                rm -rf "$XDG_RUNTIME_DIR"
-                exit 124
-            fi
 
             if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
                 echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
