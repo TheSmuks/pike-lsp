@@ -7,6 +7,20 @@
  * Target: Pike 8.0.1116 (per ADR-002)
  */
 
+const UNKNOWN_VERSION: PikeVersionInfo = {
+    major: 0,
+    minor: 0,
+    build: 0,
+    string: 'Unknown',
+};
+
+const MIN_SUPPORTED_VERSION: PikeVersionInfo = {
+    major: 8,
+    minor: 0,
+    build: 1116,
+    string: 'Pike v8.0.1116',
+};
+
 /**
  * Pike version information.
  */
@@ -30,6 +44,7 @@ export interface CompatibilityResult {
  * Feature detection cache for API availability checks.
  */
 const featureCache = new Map<string, boolean>();
+const versionCache = new Map<string, PikeVersionInfo>();
 
 /**
  * Known Pike stdlib modules that should be available.
@@ -47,6 +62,37 @@ const KNOWN_MODULES = new Set([
     'Protocols.HTTP',
 ]);
 
+type VersionLike = PikeVersionInfo | string;
+
+interface FeatureRule {
+    module?: string;
+    minVersion?: PikeVersionInfo;
+    maxMajor?: number;
+}
+
+const FEATURE_RULES: Record<string, FeatureRule> = {
+    'Parser.Pike.split': {
+        module: 'Parser.Pike',
+        minVersion: { major: 7, minor: 0, build: 0, string: 'Pike v7.0.0' },
+    },
+    'Tools.AutoDoc.PikeParser': {
+        module: 'Tools.AutoDoc',
+        minVersion: { major: 7, minor: 0, build: 0, string: 'Pike v7.0.0' },
+    },
+    'Stdio.File.open': {
+        module: 'Stdio.File',
+        minVersion: { major: 7, minor: 0, build: 0, string: 'Pike v7.0.0' },
+    },
+    'String.trim': {
+        module: 'String',
+        minVersion: { major: 8, minor: 0, build: 0, string: 'Pike v8.0.0' },
+    },
+    'String.trim_all_whites': {
+        module: 'String',
+        maxMajor: 7,
+    },
+};
+
 /**
  * Parses a Pike version string into version components.
  *
@@ -54,11 +100,13 @@ const KNOWN_MODULES = new Set([
  * @returns Parsed version info or null if parsing fails
  */
 export function parseVersion(versionString: string): PikeVersionInfo | null {
-    // Handle both "Pike v8.0.1116" and "8.0.1116" formats
-    const match = versionString.match(/(\d+)\.(\d+)\.(\d+)/);
+    const match = versionString.match(/(?:Pike\s*v?)?(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?/i);
     if (!match) {
         return null;
     }
+
+    const normalizedCore = `${match[1]}.${match[2]}.${match[3]}`;
+    const suffix = match[4] ? `-${match[4]}` : '';
 
     return {
         major: parseInt(match[1]!, 10),
@@ -66,7 +114,84 @@ export function parseVersion(versionString: string): PikeVersionInfo | null {
         build: parseInt(match[3]!, 10),
         string: versionString.includes('Pike')
             ? versionString
-            : `Pike v${versionString}`,
+            : `Pike v${normalizedCore}${suffix}`,
+    };
+}
+
+export function detectVersion(
+    source?: string | { __VERSION__?: string; versionString?: string }
+): PikeVersionInfo {
+    const key = typeof source === 'string'
+        ? source
+        : source?.__VERSION__ ?? source?.versionString ?? 'Unknown';
+
+    const cached = versionCache.get(key);
+    if (cached) {
+        return cached;
+    }
+
+    const rawVersion = typeof source === 'string'
+        ? source
+        : source?.__VERSION__ ?? source?.versionString ?? 'Unknown';
+
+    const parsed = parseVersion(rawVersion);
+    const version = parsed ?? {
+        ...UNKNOWN_VERSION,
+        string: rawVersion,
+    };
+
+    versionCache.set(key, version);
+    return version;
+}
+
+export function compareVersions(a: VersionLike, b: VersionLike): -1 | 0 | 1 {
+    const versionA = typeof a === 'string' ? (parseVersion(a) ?? UNKNOWN_VERSION) : a;
+    const versionB = typeof b === 'string' ? (parseVersion(b) ?? UNKNOWN_VERSION) : b;
+
+    if (versionA.major !== versionB.major) {
+        return versionA.major > versionB.major ? 1 : -1;
+    }
+
+    if (versionA.minor !== versionB.minor) {
+        return versionA.minor > versionB.minor ? 1 : -1;
+    }
+
+    if (versionA.build !== versionB.build) {
+        return versionA.build > versionB.build ? 1 : -1;
+    }
+
+    return 0;
+}
+
+export function checkMinimumVersion(current: VersionLike, required: VersionLike): boolean {
+    return compareVersions(current, required) >= 0;
+}
+
+export function getCompatibilityInfo(
+    current: VersionLike,
+    required: VersionLike = MIN_SUPPORTED_VERSION
+): CompatibilityResult {
+    const currentVersion = typeof current === 'string' ? detectVersion(current) : current;
+    const requiredVersion = typeof required === 'string' ? (parseVersion(required) ?? MIN_SUPPORTED_VERSION) : required;
+
+    const issues: string[] = [];
+    if (currentVersion.major === 0 && currentVersion.minor === 0 && currentVersion.build === 0) {
+        issues.push(`Unable to parse Pike version from '${currentVersion.string}'`);
+    }
+
+    if (!checkMinimumVersion(currentVersion, requiredVersion)) {
+        issues.push(
+            `Minimum required version is ${requiredVersion.major}.${requiredVersion.minor}.${requiredVersion.build}`
+        );
+        issues.push(
+            `Current version is ${currentVersion.major}.${currentVersion.minor}.${currentVersion.build}`
+        );
+    }
+
+    return {
+        compatible: issues.length === 0,
+        version: currentVersion.string,
+        issues,
     };
 }
 
@@ -144,25 +269,121 @@ export function checkModuleAvailability(moduleName: string): {
  * @returns true if the feature is available
  */
 export function detectFeature(featureName: string): boolean {
-    // Check cache first
-    if (featureCache.has(featureName)) {
-        return featureCache.get(featureName)!;
+    return detectFeatureForVersion(featureName, MIN_SUPPORTED_VERSION);
+}
+
+export function detectFeatureForVersion(
+    featureName: string,
+    version: VersionLike
+): boolean {
+    const versionInfo = typeof version === 'string' ? detectVersion(version) : version;
+    const cacheKey = `${featureName}@${versionInfo.major}.${versionInfo.minor}.${versionInfo.build}`;
+    if (featureCache.has(cacheKey)) {
+        return featureCache.get(cacheKey)!;
+    }
+
+    const rule = FEATURE_RULES[featureName];
+    if (rule) {
+        const moduleOk = rule.module ? detectModule(rule.module) : true;
+        const minOk = rule.minVersion ? checkMinimumVersion(versionInfo, rule.minVersion) : true;
+        const maxOk = rule.maxMajor !== undefined ? versionInfo.major <= rule.maxMajor : true;
+        const available = moduleOk && minOk && maxOk;
+        featureCache.set(cacheKey, available);
+        return available;
     }
 
     // Extract module from feature name (e.g., "Parser.Pike.split" -> "Parser.Pike")
     const parts = featureName.split('.');
     if (parts.length < 2) {
-        featureCache.set(featureName, false);
+        featureCache.set(cacheKey, false);
         return false;
     }
 
-    // For features, check if the parent module exists
-    // In a real implementation, this would check actual feature availability
     const moduleName = parts.slice(0, 2).join('.');
     const isAvailable = detectModule(moduleName);
 
-    featureCache.set(featureName, isAvailable);
+    featureCache.set(cacheKey, isAvailable);
     return isAvailable;
+}
+
+export interface TrimSupport {
+    nativeTrim: boolean;
+    trimAllWhites: boolean;
+    strategy: 'native' | 'trim_all_whites' | 'regex';
+}
+
+export function detectTrimSupport(): TrimSupport {
+    const sample = '  test  ' as string & { trim_all_whites?: () => string };
+    const nativeTrim = typeof sample.trim === 'function';
+    const trimAllWhites = typeof sample.trim_all_whites === 'function';
+
+    if (nativeTrim) {
+        return { nativeTrim, trimAllWhites, strategy: 'native' };
+    }
+
+    if (trimAllWhites) {
+        return { nativeTrim, trimAllWhites, strategy: 'trim_all_whites' };
+    }
+
+    return { nativeTrim, trimAllWhites, strategy: 'regex' };
+}
+
+function normalizeInput(value: string | null | undefined): string {
+    return typeof value === 'string' ? value : '';
+}
+
+export function createTrimWrapper(version: VersionLike): (value: string | null | undefined) => string {
+    const versionInfo = typeof version === 'string' ? detectVersion(version) : version;
+    const trimSupport = detectTrimSupport();
+
+    if (versionInfo.major <= 7 && trimSupport.trimAllWhites) {
+        return (value: string | null | undefined): string => {
+            const input = normalizeInput(value) as string & { trim_all_whites?: () => string };
+            if (typeof input.trim_all_whites === 'function') {
+                return input.trim_all_whites();
+            }
+            return input.replace(/^\s+|\s+$/gu, '');
+        };
+    }
+
+    if (trimSupport.nativeTrim) {
+        return (value: string | null | undefined): string => normalizeInput(value).trim();
+    }
+
+    return (value: string | null | undefined): string => normalizeInput(value).replace(/^\s+|\s+$/gu, '');
+}
+
+export function trim(value: string | null | undefined, version: VersionLike = MIN_SUPPORTED_VERSION): string {
+    return createTrimWrapper(version)(value);
+}
+
+export function trimLeft(value: string | null | undefined): string {
+    return normalizeInput(value).replace(/^\s+/u, '');
+}
+
+export function trimRight(value: string | null | undefined): string {
+    return normalizeInput(value).replace(/\s+$/u, '');
+}
+
+export interface CompatibilityApiLayer {
+    version: PikeVersionInfo;
+    trim: (value: string | null | undefined) => string;
+    trimLeft: (value: string | null | undefined) => string;
+    trimRight: (value: string | null | undefined) => string;
+    hasModule: (moduleName: string) => boolean;
+    hasFeature: (featureName: string) => boolean;
+}
+
+export function createAPILayer(version: VersionLike): CompatibilityApiLayer {
+    const resolvedVersion = typeof version === 'string' ? detectVersion(version) : version;
+    return {
+        version: resolvedVersion,
+        trim: (value) => trim(value, resolvedVersion),
+        trimLeft,
+        trimRight,
+        hasModule: detectModule,
+        hasFeature: (featureName: string) => detectFeatureForVersion(featureName, resolvedVersion),
+    };
 }
 
 /**
@@ -171,6 +392,7 @@ export function detectFeature(featureName: string): boolean {
  */
 export function clearFeatureCache(): void {
     featureCache.clear();
+    versionCache.clear();
 }
 
 /**
