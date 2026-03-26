@@ -15,22 +15,25 @@ set -e
 cd "$(dirname "$0")/.."
 
 run_and_validate() {
-    local output
+    local output_file
     local exit_code
 
+    output_file=$(mktemp)
+
     set +e
-    output=$("$@" 2>&1)
-    exit_code=$?
+    "$@" 2>&1 | tee "$output_file"
+    exit_code=${PIPESTATUS[0]}
     set -e
 
-    echo "$output"
-
-    if [ $exit_code -eq 0 ] && echo "$output" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+    if [ "$exit_code" -eq 0 ] && grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)' "$output_file"; then
+        rm -f "$output_file"
         echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
         return 1
     fi
 
-    return $exit_code
+    rm -f "$output_file"
+
+    return "$exit_code"
 }
 
 # Detect if running in CI environment
@@ -38,11 +41,10 @@ is_ci() {
     [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ] || [ -n "$GITLAB_CI" ] || [ -n "$JENKINS_URL" ]
 }
 
-# Build tests first
-bun run build:test
-
-# Build bundled server (required for LSP to work)
-bun run bundle-server
+if [ "${SKIP_PREBUILD:-0}" != "1" ]; then
+    bun run build:test
+    bun run bundle-server
+fi
 
 # Keep extension E2E on the stable completion path unless explicitly overridden.
 export PIKE_LSP_QE2_COMPLETION="${PIKE_LSP_QE2_COMPLETION:-0}"
@@ -52,7 +54,7 @@ export PIKE_LSP_ENABLE_TEST_COMMANDS="${PIKE_LSP_ENABLE_TEST_COMMANDS:-1}"
 case "$(uname -s)" in
     Linux*)
         # 1. If we already have a display (e.g. xvfb-run or local X11), use it IF we are in CI or user explicitly requested it
-        if ([ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]) && { is_ci || [ -n "$USE_CURRENT_DISPLAY" ]; }; then
+        if { [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; } && { is_ci || [ -n "$USE_CURRENT_DISPLAY" ]; }; then
             echo "Display detected (DISPLAY=$DISPLAY, WAYLAND_DISPLAY=$WAYLAND_DISPLAY). Running tests..."
             # In CI or headless environments, we still want these flags
             export ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox"
@@ -71,7 +73,8 @@ case "$(uname -s)" in
                 # We need to unset ALL session-related variables to prevent
                 # VSCode from connecting to the real user session (D-Bus, etc.)
                 set +e
-                TEST_OUTPUT=$(xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+                TEST_OUTPUT_FILE=$(mktemp)
+                xvfb-run -a --server-args="-screen 0 1920x1080x24" \
                     env -u WAYLAND_DISPLAY \
                     -u WAYLAND_SOCKET \
                     -u DBUS_SESSION_BUS_ADDRESS \
@@ -86,18 +89,18 @@ case "$(uname -s)" in
                     ELECTRON_EXTRA_LAUNCH_ARGS="--disable-gpu --disable-dev-shm-usage --no-sandbox --disable-features=UseOzonePlatform" \
                     GDK_BACKEND=x11 \
                     QT_QPA_PLATFORM=xcb \
-                    ./node_modules/.bin/vscode-test "$@" 2>&1)
-                TEST_EXIT_CODE=$?
+                    ./node_modules/.bin/vscode-test "$@" 2>&1 | tee "$TEST_OUTPUT_FILE"
+                TEST_EXIT_CODE=${PIPESTATUS[0]}
                 set -e
 
-                echo "$TEST_OUTPUT"
-
-                if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+                if [ "$TEST_EXIT_CODE" -eq 0 ] && grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)' "$TEST_OUTPUT_FILE"; then
                     echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
                     TEST_EXIT_CODE=1
                 fi
 
-                exit $TEST_EXIT_CODE
+                rm -f "$TEST_OUTPUT_FILE"
+
+                exit "$TEST_EXIT_CODE"
             fi
         fi
 
@@ -107,7 +110,8 @@ case "$(uname -s)" in
 
             # 1. Set up XDG_RUNTIME_DIR
             # Wayland requires this directory to store its socket
-            export XDG_RUNTIME_DIR="/tmp/vscode-wayland-test-$(date +%s)"
+            XDG_RUNTIME_DIR="/tmp/vscode-wayland-test-$(date +%s)"
+            export XDG_RUNTIME_DIR
             mkdir -p "$XDG_RUNTIME_DIR"
             chmod 0700 "$XDG_RUNTIME_DIR"
 
@@ -131,11 +135,11 @@ case "$(uname -s)" in
             # 3. Run tests
             echo "Running tests on $WAYLAND_DISPLAY..."
             set +e  # Don't exit on test failure, we need to cleanup
-            TEST_OUTPUT=$(./node_modules/.bin/vscode-test "$@" 2>&1)
-            TEST_EXIT_CODE=$?
-            echo "$TEST_OUTPUT"
+            TEST_OUTPUT_FILE=$(mktemp)
+            ./node_modules/.bin/vscode-test "$@" 2>&1 | tee "$TEST_OUTPUT_FILE"
+            TEST_EXIT_CODE=${PIPESTATUS[0]}
 
-            if [ $TEST_EXIT_CODE -eq 0 ] && echo "$TEST_OUTPUT" | grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)'; then
+            if [ "$TEST_EXIT_CODE" -eq 0 ] && grep -Eq '(^|[[:space:]])0 passing([[:space:]]|$)' "$TEST_OUTPUT_FILE"; then
                 echo "ERROR: VSCode E2E runner reported 0 passing tests. Failing to avoid false green."
                 TEST_EXIT_CODE=1
             fi
@@ -146,14 +150,17 @@ case "$(uname -s)" in
 
             # 5. Handle Electron SIGSEGV during teardown (known Linux issue)
             # If all tests passed but process crashed during cleanup, treat as success
-            if [ $TEST_EXIT_CODE -ne 0 ]; then
-                if echo "$TEST_OUTPUT" | grep -q "passing" && ! echo "$TEST_OUTPUT" | grep -q "[0-9]\+ fail"; then
+            if [ "$TEST_EXIT_CODE" -ne 0 ]; then
+                if grep -q "passing" "$TEST_OUTPUT_FILE" && ! grep -q "[0-9]\+ fail" "$TEST_OUTPUT_FILE"; then
                     echo "Note: Tests passed but Electron crashed during cleanup (known Linux issue). Treating as success."
+                    rm -f "$TEST_OUTPUT_FILE"
                     exit 0
                 fi
             fi
 
-            exit $TEST_EXIT_CODE
+            rm -f "$TEST_OUTPUT_FILE"
+
+            exit "$TEST_EXIT_CODE"
         fi
 
         # No display server available

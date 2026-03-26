@@ -919,6 +919,56 @@ int x = myVar;`;
       // Falls back to text search
       expect(result.length).toBe(2);
     });
+
+    it('fallback text search ignores matches inside comments and strings', async () => {
+      const code = `int myVar = 42;
+// myVar in comment
+string s = "myVar in string";
+int x = myVar;`;
+
+      const { references } = setup({
+        code,
+        symbols: [
+          {
+            name: 'myVar',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        symbolPositions: new Map(),
+      });
+
+      const result = await references(0, 5);
+      expect(result.length).toBe(2);
+      expect(result.some(ref => ref.range.start.line === 1)).toBe(false);
+      expect(result.some(ref => ref.range.start.line === 2)).toBe(false);
+    });
+
+    it('fallback text search ignores multiline block comment matches', async () => {
+      const code = `int myVar = 1;
+/*
+  myVar inside block comment
+*/
+int y = myVar;`;
+
+      const { references } = setup({
+        code,
+        symbols: [
+          {
+            name: 'myVar',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        symbolPositions: new Map(),
+      });
+
+      const result = await references(0, 5);
+      expect(result.length).toBe(2);
+      expect(result.some(ref => ref.range.start.line === 2)).toBe(false);
+    });
   });
 
   /**

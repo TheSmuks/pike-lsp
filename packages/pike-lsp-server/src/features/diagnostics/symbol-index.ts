@@ -7,7 +7,7 @@
 
 import type { Position } from 'vscode-languageserver/node.js';
 import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
-import { PatternHelpers } from '../../utils/regex-patterns.js';
+import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
 import { Logger } from '@pike-lsp/core';
 
 const log = new Logger('symbol-index');
@@ -108,6 +108,7 @@ export async function buildSymbolPositionIndex(
     bridge?: { isRunning: () => boolean; findOccurrences: (text: string) => Promise<{ occurrences: Array<{ text: string; line: number; character: number }> }> }
 ): Promise<Map<string, Position[]>> {
     const index = new Map<string, Position[]>();
+    const exclusions = createLexicalExclusionMap(text);
 
     // Build set of symbol names we care about AND map to definition lines
     const symbolNames = new Set<string>();
@@ -147,6 +148,10 @@ export async function buildSymbolPositionIndex(
                 }
 
                 if (lineIdx >= 0 && lineIdx < lines.length) {
+                    if (exclusions.isCommentPosition(lineIdx, token.character)) {
+                        continue;
+                    }
+
                     const line = lines[lineIdx];
                     if (!line) continue;
 
@@ -184,6 +189,10 @@ export async function buildSymbolPositionIndex(
             // Group occurrences by symbol name
             for (const occ of result.occurrences) {
                 if (symbolNames.has(occ.text)) {
+                    if (exclusions.isCommentPosition(occ.line - 1, occ.character)) {
+                        continue;
+                    }
+
                     // Skip definition line (don't count definition as reference)
                     const defLine = definitionLines.get(occ.text);
                     if (defLine !== undefined && occ.line === defLine) {
@@ -223,26 +232,7 @@ export async function buildSymbolPositionIndex(
 export function buildSymbolPositionIndexRegex(text: string, symbols: PikeSymbol[]): Map<string, Position[]> {
     const index = new Map<string, Position[]>();
     const lines = text.split('\n');
-
-    // Helper to check if position is inside comment
-    const isInsideComment = (line: string, charPos: number): boolean => {
-        const trimmed = line.trimStart();
-        if (PatternHelpers.isCommentLine(trimmed)) {
-            return true;
-        }
-        const lineCommentPos = line.indexOf('//');
-        if (lineCommentPos >= 0 && lineCommentPos < charPos) {
-            return true;
-        }
-        const blockOpenPos = line.lastIndexOf('/*', charPos);
-        if (blockOpenPos >= 0) {
-            const blockClosePos = line.indexOf('*/', blockOpenPos);
-            if (blockClosePos < 0 || blockClosePos > charPos) {
-                return true;
-            }
-        }
-        return false;
-    };
+    const exclusions = createLexicalExclusionMap(text);
 
     // Index all symbol names and their positions
     for (const symbol of symbols) {
@@ -259,17 +249,16 @@ export function buildSymbolPositionIndexRegex(text: string, symbols: PikeSymbol[
             if (!line) continue;
 
             let searchStart = 0;
-            let matchIndex: number;
+            let matchIndex = line.indexOf(symbol.name, searchStart);
 
-            while ((matchIndex = line.indexOf(symbol.name, searchStart)) !== -1) {
+            while (matchIndex !== -1) {
                 const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
                 const afterChar = matchIndex + symbol.name.length < line.length ?
                     line[matchIndex + symbol.name.length] : ' ';
 
                 // Check for word boundary
                 if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                    // Skip comments
-                    if (!isInsideComment(line, matchIndex)) {
+                    if (!exclusions.isCommentPosition(lineNum, matchIndex)) {
                         // Skip definition line (don't count definition as reference)
                         // Parse symbols have .line, introspection symbols have .position?.line
                         const defLine = (symbol as { line?: number; position?: { line?: number } }).line ?? symbol.position?.line;
@@ -285,6 +274,7 @@ export function buildSymbolPositionIndexRegex(text: string, symbols: PikeSymbol[
                     }
                 }
                 searchStart = matchIndex + 1;
+                matchIndex = line.indexOf(symbol.name, searchStart);
             }
         }
 
