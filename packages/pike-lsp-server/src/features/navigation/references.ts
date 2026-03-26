@@ -16,6 +16,7 @@ import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
 import { basename } from 'node:path';
+import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
 
 /**
  * Register references handlers.
@@ -143,6 +144,7 @@ export function registerReferencesHandlers(
 
       if (references.length === 0) {
         const lines = text.split('\n');
+        const exclusions = createLexicalExclusionMap(text);
         for (let lineNum = 0; lineNum < lines.length; lineNum++) {
           const line = lines[lineNum];
           if (!line) continue;
@@ -155,6 +157,12 @@ export function registerReferencesHandlers(
               matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
 
             if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+              if (exclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
+                searchStart = matchIndex + 1;
+                matchIndex = line.indexOf(word, searchStart);
+                continue;
+              }
+
               references.push({
                 uri,
                 range: {
@@ -192,6 +200,7 @@ export function registerReferencesHandlers(
             if (otherDoc) {
               const otherText = otherDoc.getText();
               const otherLines = otherText.split('\n');
+              const otherExclusions = createLexicalExclusionMap(otherText);
               for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
                 const line = otherLines[lineNum];
                 if (!line) continue;
@@ -204,6 +213,12 @@ export function registerReferencesHandlers(
                     matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
 
                   if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                    if (otherExclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
+                      searchStart = matchIndex + 1;
+                      matchIndex = line.indexOf(word, searchStart);
+                      continue;
+                    }
+
                     references.push({
                       uri: otherUri,
                       range: {

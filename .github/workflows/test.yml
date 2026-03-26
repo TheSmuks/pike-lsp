@@ -50,6 +50,14 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
+      - name: Cache Pike latest toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pike/8.0.1956
+            ~/.cache/pike/distfiles
+          key: pike-toolchain-${{ runner.os }}-8.0.1956-v1
+
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
@@ -263,6 +271,7 @@ jobs:
   vscode-e2e:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
@@ -281,18 +290,22 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: apt-${{ runner.os }}-vscode-e2e
-          restore-keys: |
-            apt-${{ runner.os }}-
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb pike8.0
+          sudo apt-get install -y xvfb
+
+          PIKE_PREFIX="$HOME/.cache/pike/8.0.1956"
+          if [ -x "$PIKE_PREFIX/bin/pike" ]; then
+            echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
+          else
+            sudo apt-get install -y pike8.0
+          fi
+
+      - name: Verify Pike installation
+        run: |
+          pike --version
+          which pike
 
       - name: Install dependencies
         run: bun install
@@ -312,7 +325,14 @@ jobs:
 
       - name: Run VSCode E2E Tests (full suite)
         working-directory: packages/vscode-pike
-        run: bun run test:e2e
+        env:
+          SKIP_PREBUILD: '1'
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash scripts/test-headless.sh --grep "LSP Feature E2E Tests"
+          else
+            bash scripts/test-headless.sh
+          fi
 
       - name: LSP Feature Test Summary
         if: always()
@@ -331,6 +351,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
     if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
+    timeout-minutes: 35
 
     env:
       PIKE_SRC: ${{ vars.PIKE_SRC }}
@@ -352,14 +373,6 @@ jobs:
           key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             bun-${{ runner.os }}-
-
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives/*.deb
-          key: apt-${{ runner.os }}-vscode-e2e
-          restore-keys: |
-            apt-${{ runner.os }}-
 
       - name: Install system dependencies
         run: |
