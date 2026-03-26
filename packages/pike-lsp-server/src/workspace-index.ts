@@ -575,8 +575,11 @@ export class WorkspaceIndex {
                         lastModified: fileInfo.lastModified,
                         lineCount: this.countLines(content),
                     });
-                } catch {
-                    // Skip files that can't be read
+                } catch (error) {
+                    this.log.debug('Skipping unreadable file during indexing', {
+                        path: fileInfo.path,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
                 }
             }
 
@@ -674,8 +677,11 @@ export class WorkspaceIndex {
                         // Add to lookup
                         this.addToLookup(uri, symbols, fileData.lineCount);
                         indexed++;
-                    } catch {
-                        // Skip files that fail to parse
+                    } catch (error) {
+                        this.log.debug('Sequential parse fallback failed for file', {
+                            path: fileData.filename,
+                            error: error instanceof Error ? error.message : String(error),
+                        });
                     }
                 }
             }
@@ -862,8 +868,11 @@ export class WorkspaceIndex {
             let entries: Dirent[];
             try {
                 entries = await readdir(dir, { withFileTypes: true });
-            } catch {
-                // Skip directories we can't read
+            } catch (error) {
+                this.log.debug('Skipping unreadable directory while scanning workspace', {
+                    path: dir,
+                    error: error instanceof Error ? error.message : String(error),
+                });
                 return;
             }
 
@@ -882,8 +891,11 @@ export class WorkspaceIndex {
                                 path: fullPath,
                                 lastModified: stats.mtimeMs,
                             });
-                        } catch {
-                            // Skip files we can't stat
+                        } catch (error) {
+                            this.log.debug('Skipping file with unreadable metadata', {
+                                path: fullPath,
+                                error: error instanceof Error ? error.message : String(error),
+                            });
                         }
                     }
                 }

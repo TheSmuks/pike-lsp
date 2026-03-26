@@ -13,6 +13,7 @@ import { Location, ReferenceContext } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
 import { readFile, stat } from 'fs/promises';
+import { Logger } from '@pike-lsp/core';
 import { parseRXMLTemplate, type RXMLTag } from './parser.js';
 import { GlobCache } from './glob-cache.js';
 
@@ -35,6 +36,7 @@ const tagDeclarationIndexCache = new Map<
   }
 >();
 const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
+const log = new Logger('RXMLReferences');
 
 function uriToFilePath(uri: string): string {
   return decodeURIComponent(uri.replace(/^file:\/\//, ''));
@@ -55,7 +57,11 @@ async function readFileCached(filePath: string): Promise<string> {
     const content = await readFile(filePath, 'utf-8');
     fileContentCache.set(filePath, { mtimeMs: fileStats.mtimeMs, content });
     return content;
-  } catch {
+  } catch (error) {
+    log.debug('RXML read-through cache miss fallback', {
+      filePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return await readFile(filePath, 'utf-8');
   }
 }

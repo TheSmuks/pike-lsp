@@ -189,8 +189,12 @@ export function registerInlineValuesHandler(
                             text: ` = ${formattedValue}`,
                         });
                     }
-                } catch {
-                    // Silently skip variables that can't be evaluated
+                } catch (error) {
+                    log.debug('Inline value evaluation skipped', {
+                        expression: valueExpr,
+                        uri: document.uri,
+                        error: error instanceof Error ? error.message : String(error),
+                    });
                 }
             }
 
