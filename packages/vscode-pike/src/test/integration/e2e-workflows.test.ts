@@ -7,7 +7,7 @@ import { labelOf, normalizeLocations, positionForRegex, waitFor } from './helper
 let vscode: any;
 let vscodeAvailable = true;
 try {
-// eslint-disable-next-line @typescript-eslint/no-var-requires -- VS Code integration tests use CommonJS require for the vscode runtime module
+  // eslint-disable-next-line @typescript-eslint/no-var-requires -- VS Code integration tests use CommonJS require for the vscode runtime module
   vscode = require('vscode');
 } catch {
   vscodeAvailable = false;
