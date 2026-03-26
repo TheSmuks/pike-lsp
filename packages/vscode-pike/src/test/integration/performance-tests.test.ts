@@ -33,7 +33,7 @@ import { suite, test } from 'mocha';
 let vscode: any;
 let vscodeAvailable = true;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires -- VS Code integration tests use CommonJS require for the vscode runtime module
   vscode = require('vscode');
   vscodeAvailable = true;
 } catch {
@@ -54,8 +54,9 @@ suite('Performance Benchmark Tests', () => {
     }
     this.timeout(60000);
 
-    workspaceFolder = vscode.workspace.workspaceFolders?.[0]!;
-    assert.ok(workspaceFolder, 'Workspace folder should exist');
+    const firstWorkspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(firstWorkspaceFolder, 'Workspace folder should exist');
+    workspaceFolder = firstWorkspaceFolder;
 
     const extension = vscode.extensions.getExtension('pike-lsp.vscode-pike');
     assert.ok(extension, 'Extension should be found');
