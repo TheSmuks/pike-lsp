@@ -245,8 +245,10 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
           });
 
           if (!bridgeManager.bridge.isRunning()) {
-            log('Starting bridge after initialize handshake...');
-            await bridgeManager.bridge.start();
+            connection.console.warn(
+              'Pike bridge is not running after initialize handshake. Features may be degraded.'
+            );
+            log('Bridge reported not running after initialize handshake');
           }
 
           connection.console.log(

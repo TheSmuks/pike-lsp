@@ -38,6 +38,7 @@ import {
 import { PikeSettings, defaultSettings } from './core/types.js';
 import * as features from './features/index.js';
 import { registerServerRuntimeHandlers } from './runtime/server-runtime.js';
+import { ensureBridgeStartupOrThrow } from './runtime/bridge-startup.js';
 import { createServiceRuntimeContext } from './runtime/service-runtime-context.js';
 
 // Semantic tokens legend (defined here for capabilities)
@@ -321,6 +322,13 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     workspaceIndex.setErrorCallback((message, uri) => {
       connection.console.warn(message + (uri ? ` (${uri})` : ''));
       log(`[WorkspaceIndex Error] ${message} (${uri})`);
+    });
+
+    await ensureBridgeStartupOrThrow({
+      bridgeManager,
+      log,
+      reportConsoleError: (message: string) => connection.console.error(message),
+      showErrorMessage: (message: string) => connection.window.showErrorMessage?.(message),
     });
 
     log('onInitialize completing');
