@@ -476,7 +476,7 @@ protected string read_source_file(string path, void|int max_bytes) {
 //! @param source_path Path to the stdlib source file (may have line number suffix)
 //! @returns Mapping of symbol name to parsed documentation
 //!
-//! Uses extract_autodoc_comments and extract_symbol_name helpers from module.pmod.
+//! Uses extract_autodoc_comments helper and LSP.Parser symbol extraction.
 protected mapping parse_stdlib_documentation(string source_path) {
     // Get helper functions from module.pmod
     program module_program = master()->resolv("LSP.Intelligence.module");
@@ -485,9 +485,8 @@ protected mapping parse_stdlib_documentation(string source_path) {
     }
 
     function extract_autodoc_comments = module_program->extract_autodoc_comments;
-    function extract_symbol_name = module_program->extract_symbol_name;
 
-    if (!extract_autodoc_comments || !extract_symbol_name) {
+    if (!extract_autodoc_comments) {
         return ([]);
     }
 
@@ -517,49 +516,46 @@ protected mapping parse_stdlib_documentation(string source_path) {
         return docs;
     }
 
-    // Parse using Tools.AutoDoc.PikeParser
+    // Parse with LSP.Parser to avoid ad-hoc line parsing.
+    // Associate each symbol with autodoc extracted for its declaration line.
     mixed parse_err = catch {
-        // Extract autodoc comments
         mapping(int:string) autodoc_by_line = extract_autodoc_comments(code);
+        program TypeAnalysisClass = master()->resolv("LSP.Intelligence.TypeAnalysis");
+        object type_analyzer = TypeAnalysisClass ? TypeAnalysisClass(context) : 0;
 
-        // Use simple regex-based extraction for function/method documentation
-        // Look for patterns like: //! @decl type name(args)
-        // or autodoc blocks followed by function definitions
+        program ParserClass = master()->resolv("LSP.Parser");
+        if (!ParserClass) {
+            return 0;
+        }
 
-        array(string) lines = code / "\n";
-        string current_doc = "";
+        object parser = ParserClass();
+        mapping parsed = parser->parse_request(([
+            "code": code,
+            "filename": clean_path,
+            "line": 1
+        ]));
 
-        for (int i = 0; i < sizeof(lines); i++) {
-            string line = lines[i];
-            string trimmed = LSP.Compat.trim_whites(line);
+        array(mapping) symbols = parsed && parsed->result ? parsed->result->symbols || ({}) : ({});
 
-            // Collect autodoc comments
-            if (has_prefix(trimmed, "//!")) {
-                if (sizeof(current_doc) > 0) {
-                    current_doc += "\n" + trimmed[3..];
-                } else {
-                    current_doc = trimmed[3..];
-                }
+        foreach (symbols, mapping sym) {
+            if (!sym || !sym->name || docs[sym->name]) {
                 continue;
             }
 
-            // If we have accumulated docs and hit a non-doc line, try to associate
-            if (sizeof(current_doc) > 0) {
-                // Look for function/method definition
-                // Pattern: type name( or PIKEFUN type name(
-                string name = extract_symbol_name(trimmed);
-                if (sizeof(name) > 0) {
-                    // Get parse_autodoc from sibling TypeAnalysis class
-                    program TypeAnalysisClass = master()->resolv("LSP.Intelligence.TypeAnalysis");
-                    if (TypeAnalysisClass) {
-                        object type_analyzer = TypeAnalysisClass(context);
-                        docs[name] = type_analyzer->parse_autodoc(current_doc);
-                    } else {
-                        // Fallback: store raw doc
-                        docs[name] = ([ "text": current_doc ]);
-                    }
-                }
-                current_doc = "";
+            int decl_line = 0;
+            if (sym->position && intp(sym->position->line)) {
+                decl_line = sym->position->line;
+            }
+
+            if (decl_line <= 0 || !autodoc_by_line[decl_line]) {
+                continue;
+            }
+
+            string doc_text = autodoc_by_line[decl_line];
+            if (type_analyzer) {
+                docs[sym->name] = type_analyzer->parse_autodoc(doc_text);
+            } else {
+                docs[sym->name] = ([ "text": doc_text ]);
             }
         }
     };

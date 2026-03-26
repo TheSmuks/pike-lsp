@@ -336,7 +336,7 @@ class DependencyTrackingCompiler {
         _diagnostics = ({});
     }
 
-    //! Extract dependencies from Pike code using simple regex-based parsing
+    //! Extract dependencies from Pike code using Parser.Pike tokenization
     //! Finds inherit and import directives to track module dependencies
     //! @param code The source code to analyze
     //! @param current_file The file being compiled (for resolving relative paths)
@@ -344,60 +344,73 @@ class DependencyTrackingCompiler {
     private array(string) extract_dependencies(string code, string current_file) {
         array(string) deps = ({});
         array(string) imports = ({});
-        array(string) lines = code / "\n";
+        program PikeParserModule = master()->resolv("Parser.Pike");
 
-        foreach (lines, string line) {
-            // Skip comments
-            line = String.trim_all_whites(line);
-            if (has_prefix(line, "//") || sizeof(line) == 0) continue;
+        if (!PikeParserModule) {
+            return deps;
+        }
 
-            // Look for inherit directives: inherit "path" or inherit Module.Name
-            if (has_prefix(line, "inherit ")) {
-                string rest = line[8..]; // Skip "inherit "
-                rest = String.trim_all_whites(rest);
+        array(string) tokens = PikeParserModule->split(code);
 
-                // Remove trailing semicolon and comments
-                int semicolon = search(rest, ";");
-                if (semicolon >= 0) {
-                    rest = rest[0..semicolon-1];
-                }
-                int comment = search(rest, "//");
-                if (comment >= 0) {
-                    rest = rest[0..comment-1];
-                }
-                rest = String.trim_all_whites(rest);
+        // Normalize directive target extracted from tokens.
+        // Handles quoted inherits and labels (inherit Foo : Label;).
+        string normalize_target(string raw, int is_inherit) {
+            string target = String.trim_all_whites(raw);
+            if (sizeof(target) == 0) {
+                return "";
+            }
 
-                // Remove quotes if present
-                if (has_prefix(rest, "\"") && has_suffix(rest, "\"")) {
-                    rest = rest[1..sizeof(rest)-2];
-                }
-
-                if (sizeof(rest) > 0) {
-                    deps += ({rest});
+            if (is_inherit) {
+                int label_pos = search(target, ":");
+                if (label_pos > 0) {
+                    target = String.trim_all_whites(target[..label_pos - 1]);
                 }
             }
 
-            // Look for import directives: import Module.Name
-            if (has_prefix(line, "import ")) {
-                string rest = line[7..]; // Skip "import "
-                rest = String.trim_all_whites(rest);
+            if (sizeof(target) > 1 &&
+                ((target[0] == '"' && target[-1] == '"') ||
+                 (target[0] == '\'' && target[-1] == '\''))) {
+                target = target[1..<1];
+            }
 
-                // Remove trailing semicolon and comments
-                int semicolon = search(rest, ";");
-                if (semicolon >= 0) {
-                    rest = rest[0..semicolon-1];
-                }
-                int comment = search(rest, "//");
-                if (comment >= 0) {
-                    rest = rest[0..comment-1];
-                }
-                rest = String.trim_all_whites(rest);
+            return String.trim_all_whites(target);
+        };
 
-                if (sizeof(rest) > 0) {
-                    imports += ({rest});
-                    deps += ({rest});
+        for (int i = 0; i < sizeof(tokens); i++) {
+            string tok = String.trim_all_whites(tokens[i]);
+            int is_import = tok == "import";
+            int is_inherit = tok == "inherit";
+
+            if (!is_import && !is_inherit) {
+                continue;
+            }
+
+            int j = i + 1;
+            string raw_target = "";
+
+            while (j < sizeof(tokens)) {
+                string next = tokens[j];
+                string next_trimmed = String.trim_all_whites(next);
+
+                if (has_value(next, "\n") || next_trimmed == ";") {
+                    break;
+                }
+
+                if (sizeof(next_trimmed) > 0) {
+                    raw_target += next_trimmed;
+                }
+                j++;
+            }
+
+            string target = normalize_target(raw_target, is_inherit);
+            if (sizeof(target) > 0) {
+                deps += ({ target });
+                if (is_import) {
+                    imports += ({ target });
                 }
             }
+
+            i = j;
         }
 
         // Add imports to compilation context if available
