@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.34] - 2026-03-26
+
+### Added
+
+- **Repository policy enforcement guards** - added lockfile/package-manager guardrails, eslint-disable reason checks, strict Pike `#pragma strict_types` coverage checks, and pre-push strict-types validation with explicit non-compliance listing.
+
+### Fixed
+
+- **Strict typing and runtime capability registration** - fixed strict-mode regressions around on-type formatting, linked editing, and VS Code reference result normalization.
+- **CI throughput and merge safety defaults** - enabled fail-fast behavior across test matrices used by PR validation and stabilized workflow execution order for policy checks.
+
+### Changed
+
+- **Formatting governance for packages** - enforced package-scoped Prettier formatting checks in pre-commit and standardized package source formatting to keep `.prettierrc` policy-compliant and reproducible.
+
 ## [0.1.0-alpha.33] - 2026-03-26
 
 ### Added
@@ -33,22 +48,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Regression coverage expansion** - converted placeholder-heavy and skip-heavy suites into executable behavioral tests for scheduler, bridge health, analyzer caching, compatibility, and control-flow diagnostics.
 
-## [0.1.0-alpha.32] - 2026-03-26
-
-### Added
-
-- **Pull diagnostics and snapshot-driven editor tooling** - shipped pull-diagnostics handlers/capabilities, inline snapshot hover test infrastructure, runnable/test code lens commands, and workspace indexing progress reporting.
-- **Structural search and replace command** - added command surface and extension wiring for structural search/replace workflows.
-
-### Fixed
-
-- **Language correctness in edge syntax contexts** - fixed references, inlay hints, semantic tokens, and folding behavior to ignore comments and string literals in tricky multiline and inline cases.
-- **Formatting reliability and on-type behavior** - stabilized formatting context/on-type indentation behavior and added regression coverage around formatter depth handling.
-- **CI/E2E throughput and merge gating** - parallelized VS Code E2E by category matrix, kept flaky reliability slice non-blocking when needed, and restored required `vscode-e2e` status gating compatibility.
-
-### Changed
-
-- **Contributor testing policy** - tightened docs to require regression-focused tests for all feature and bug-fix PRs.
-
+[0.1.0-alpha.34]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.34
 [0.1.0-alpha.33]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.33
-[0.1.0-alpha.32]: https://github.com/TheSmuks/pike-lsp/releases/tag/v0.1.0-alpha.32
