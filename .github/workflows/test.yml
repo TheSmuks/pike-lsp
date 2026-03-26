@@ -30,12 +30,16 @@ jobs:
     runs-on: ubuntu-24.04
 
     strategy:
+      fail-fast: true
       matrix:
         node-version: [20.x]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -114,6 +118,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -237,6 +244,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -294,6 +304,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
