@@ -256,8 +256,7 @@ export class WorkspaceIndex {
     removeDocument(uri: string): void {
         this.removeFromLookup(uri);
         this.documents.delete(uri);
-        // PERF-430: Invalidate search cache when document is removed
-        this.searchCache.clear();
+        this.invalidateSearchCacheForUri(uri);
     }
 
     /**
@@ -811,6 +810,19 @@ export class WorkspaceIndex {
 
         // Clean up reverse index
         this.uriToSymbols.delete(uri);
+    }
+
+    private invalidateSearchCacheForUri(uri: string): void {
+        if (this.searchCache.size === 0) {
+            return;
+        }
+
+        for (const [cacheKey, cacheEntry] of this.searchCache) {
+            const referencesRemovedUri = cacheEntry.results.some(result => result.location.uri === uri);
+            if (referencesRemovedUri) {
+                this.searchCache.delete(cacheKey);
+            }
+        }
     }
 
     /**
