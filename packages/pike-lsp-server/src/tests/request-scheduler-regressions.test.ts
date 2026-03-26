@@ -133,4 +133,34 @@ describe('RequestScheduler regressions (#882)', () => {
     assert.equal(metrics.failed, 1);
     assert.equal(metrics.canceled, 0);
   });
+
+  it('logs processQueue scheduling failures instead of swallowing them silently (#871)', async () => {
+    const logged: Array<{ message: string; meta?: Record<string, unknown> }> = [];
+    const scheduler = new RequestScheduler({
+      logger: {
+        error: (message, meta) => {
+          logged.push({ message, meta });
+        },
+      },
+    });
+
+    const internal = scheduler as unknown as {
+      processQueue: () => Promise<void>;
+    };
+    internal.processQueue = async () => {
+      throw new Error('forced processQueue failure');
+    };
+
+    void scheduler.schedule({
+      requestClass: 'typing',
+      run: async () => 'ok',
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.equal(logged.length, 1);
+    assert.equal(logged[0]?.message, 'Request scheduler internal async error');
+    assert.equal(logged[0]?.meta?.location, 'schedule:processQueue');
+    assert.equal(logged[0]?.meta?.error, 'forced processQueue failure');
+  });
 });
