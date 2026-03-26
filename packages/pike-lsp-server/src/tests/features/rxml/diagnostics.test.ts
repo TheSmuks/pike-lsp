@@ -111,5 +111,41 @@ describe('RXML Diagnostics', () => {
       const diagnostics = await validateRXMLDocument(code, 'test.rxml', tags);
       assert.equal(diagnostics.length, 0, 'Empty document should have no diagnostics');
     });
+
+    test('Debounced diagnostics failure logs and rejects instead of silently swallowing', async () => {
+      const validationError = new Error('Injected RXML validation failure');
+      const loggedErrors: Array<{ message: string; error?: unknown }> = [];
+      const logger = {
+        error: (message: string, error?: unknown) => {
+          loggedErrors.push({ message, error });
+        },
+      };
+
+      const brokenTag = {
+        name: 'set',
+        type: 'container',
+        position: { line: 0, column: 0 },
+        get attributes() {
+          throw validationError;
+        },
+      } as unknown as RXMLTagInfo;
+
+      await assert.rejects(
+        validateRXMLDocument('<set>', 'test.rxml', [brokenTag], 0, logger),
+        { message: 'Injected RXML validation failure' }
+      );
+
+      assert.equal(loggedErrors.length, 1, 'Validation error should be logged once');
+      assert.match(
+        loggedErrors[0].message,
+        /\[RXML Validation\] Error during validation for test\.rxml:/,
+        'Logged message should include validation context and URI'
+      );
+      assert.strictEqual(
+        loggedErrors[0].error,
+        validationError,
+        'Logger should receive the original error object'
+      );
+    });
   });
 });
