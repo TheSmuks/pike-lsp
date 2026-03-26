@@ -80,7 +80,14 @@ export async function queryNavigationLocations(
   let cancelled = false;
   const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
     cancelled = true;
-    void bridge.engineCancelRequest({ requestId }).catch(() => undefined);
+    void bridge.engineCancelRequest({ requestId }).catch(error => {
+      services.logger.warn('Navigation cancellation request failed', {
+        feature,
+        uri,
+        requestId,
+        error,
+      });
+    });
   });
 
   try {
