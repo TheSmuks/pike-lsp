@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Regression coverage expansion** - converted placeholder/skip-heavy suites into executable behavioral tests for scheduler, bridge health, analyzer caching, compatibility, and control-flow diagnostics.
+- **Regression coverage expansion** - converted placeholder-heavy and skip-heavy suites into executable behavioral tests for scheduler, bridge health, analyzer caching, compatibility, and control-flow diagnostics.
 
 ## [0.1.0-alpha.32] - 2026-03-26
 
