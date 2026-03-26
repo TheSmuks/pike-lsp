@@ -1009,7 +1009,10 @@ int nested_symbol
     );
 
     assert.ok(edits !== undefined && Array.isArray(edits), 'Should return formatting edits array');
-    assert.ok(edits.length > 0, 'Should produce edits — the fixture is intentionally mis-formatted');
+    assert.ok(
+      edits.length > 0,
+      'Should produce edits — the fixture is intentionally mis-formatted'
+    );
 
     // Helper: find the edit that corrects a given line (identified by its content).
     const editForContent = (pattern: RegExp): vscode.TextEdit | undefined => {
@@ -1031,18 +1034,36 @@ int nested_symbol
 
     // 'void class_method()' is directly inside FormattingClass → must be 4 spaces.
     const editClassMethod = editForContent(/^void class_method\(\)/);
-    assert.ok(editClassMethod, 'Should have an edit for "void class_method()" (unindented class member)');
-    assert.strictEqual(editClassMethod!.newText, '    ', '"void class_method()" must be indented 4 spaces');
+    assert.ok(
+      editClassMethod,
+      'Should have an edit for "void class_method()" (unindented class member)'
+    );
+    assert.strictEqual(
+      editClassMethod!.newText,
+      '    ',
+      '"void class_method()" must be indented 4 spaces'
+    );
 
     // 'int class_x = 1;' is inside class_method → must be 8 spaces.
     const editClassX = editForContent(/^int class_x = 1;/);
     assert.ok(editClassX, 'Should have an edit for "int class_x = 1;" (class method body)');
-    assert.strictEqual(editClassX!.newText, '        ', '"int class_x = 1;" must be indented 8 spaces');
+    assert.strictEqual(
+      editClassX!.newText,
+      '        ',
+      '"int class_x = 1;" must be indented 8 spaces'
+    );
 
     // 'int class_y = 2;' is inside an if inside a class method → must be 12 spaces.
     const editClassY = editForContent(/^int class_y = 2;/);
-    assert.ok(editClassY, 'Should have an edit for "int class_y = 2;" (doubly-nested inside class)');
-    assert.strictEqual(editClassY!.newText, '            ', '"int class_y = 2;" must be indented 12 spaces');
+    assert.ok(
+      editClassY,
+      'Should have an edit for "int class_y = 2;" (doubly-nested inside class)'
+    );
+    assert.strictEqual(
+      editClassY!.newText,
+      '            ',
+      '"int class_y = 2;" must be indented 12 spaces'
+    );
   });
 
   /**
@@ -1081,7 +1102,10 @@ int nested_symbol
       range
     );
 
-    assert.ok(edits !== undefined && Array.isArray(edits), 'Should return range formatting edits array');
+    assert.ok(
+      edits !== undefined && Array.isArray(edits),
+      'Should return range formatting edits array'
+    );
     assert.ok(edits.length > 0, 'Should produce edits for the mis-formatted class method range');
 
     // Find the edit for 'int class_x = 1;' — it is inside class_method, 2 levels deep.

@@ -57,11 +57,11 @@ Represents a multiline string that may contain RXML:
 
 ```typescript
 interface RXMLStringLiteral {
-    content: string;              // The RXML content (excluding quotes)
-    range: Range;                 // Content position in document
-    fullRange: Range;             // Position including #"..." quotes
-    confidence: number;           // 0-1 score of RXML likelihood
-    markers: RXMLMarker[];        // Detected RXML tags/entities
+  content: string; // The RXML content (excluding quotes)
+  range: Range; // Content position in document
+  fullRange: Range; // Position including #"..." quotes
+  confidence: number; // 0-1 score of RXML likelihood
+  markers: RXMLMarker[]; // Detected RXML tags/entities
 }
 ```
 
@@ -71,9 +71,9 @@ Individual RXML pattern found in content:
 
 ```typescript
 interface RXMLMarker {
-    type: 'tag' | 'entity' | 'directive';
-    name: string;                 // e.g., "roxen", "set", "emit"
-    position: Position;           // Position within RXML content
+  type: 'tag' | 'entity' | 'directive';
+  name: string; // e.g., "roxen", "set", "emit"
+  position: Position; // Position within RXML content
 }
 ```
 
@@ -83,10 +83,10 @@ Bidirectional mapping between document and extracted content:
 
 ```typescript
 interface PositionMapping {
-    documentRange: Range;
-    contentOffset: number;
-    lineOffset: number;           // Document line - content line
-    characterOffset: number;      // Char offset on first line
+  documentRange: Range;
+  contentOffset: number;
+  lineOffset: number; // Document line - content line
+  characterOffset: number; // Char offset on first line
 }
 ```
 
@@ -97,11 +97,13 @@ interface PositionMapping {
 ### Detection
 
 **`detectRXMLStrings(code, uri, bridge)`**
+
 - Calls Pike-side `roxenExtractRXMLStrings()`
 - Transforms Pike results to TypeScript types
 - Converts 1-indexed Pike positions to 0-indexed LSP positions
 
 **`calculateRXMLConfidence(content)`**
+
 - Scores content (0-1) based on RXML indicators:
   - `<roxen>` tags: +0.4
   - `<set>`, `<emit>`: +0.2 each
@@ -111,6 +113,7 @@ interface PositionMapping {
 - Strings with confidence < 0.3 are filtered out
 
 **`detectRXMLMarkers(content)`**
+
 - Scans for known RXML tags (27 standard tags)
 - Detects RXML entity prefixes
 - Returns positions within RXML content
@@ -118,20 +121,24 @@ interface PositionMapping {
 ### Position Mapping
 
 **`mapContentToDocumentPosition(position, mapping)`**
+
 - Maps position from RXML content to original document
 - Used for diagnostics, symbols, completions
 
 **`mapDocumentToContentPosition(position, rxmlString)`**
+
 - Maps document position to RXML content position
 - Returns `null` if position is outside RXML string
 
 **`findRXMLStringAtPosition(position, rxmlStrings)`**
+
 - Determines if cursor is within an RXML string
 - Enables context-aware completion (Pike vs RXML)
 
 ### Symbol Tree Merging
 
 **`mergeSymbolTrees(pikeSymbols, rxmlStrings)`**
+
 - Creates unified symbol tree
 - Adds "RXML Template" container symbols (SymbolKind.Namespace)
 - Nests RXML markers as children
@@ -142,6 +149,7 @@ interface PositionMapping {
 ## Pike-Side Implementation
 
 ### File to Create
+
 `pike-scripts/LSP.pmod/Roxen.pmod/MixedContent.pike`
 
 ### Key Algorithm
@@ -167,6 +175,7 @@ mixed roxen_extract_rxml_strings(mapping params) {
 ### Position Tracking
 
 Uses existing helpers from `Roxen.pike`:
+
 - `build_newline_offsets()` - O(1) line/column lookup
 - `offset_to_position()` - Convert byte offset to position
 - `find_token_position()` - Find token in source code
@@ -207,6 +216,7 @@ async roxenExtractRXMLStrings(
 ### Detecting RXML in Pike Code
 
 **Input Pike Code:**
+
 ```pike
 // my_template.pike
 inherit "module";
@@ -221,24 +231,28 @@ string simpletag_foo(string tag_name, mapping args, string contents, RequestID i
 ```
 
 **Detection Result:**
+
 ```typescript
 {
-    strings: [{
-        content: "\n        <set variable='foo'>bar</set>\n        <emit source='sql'>SELECT * FROM table</emit>\n    ",
-        range: {
-            start: { line: 6, character: 15 },
-            end: { line: 8, character: 5 }
-        },
-        fullRange: {
-            start: { line: 6, character: 12 },
-            end: { line: 8, character: 6 }
-        },
-        confidence: 0.8,
-        markers: [
-            { type: 'tag', name: 'set', position: { line: 1, character: 9 } },
-            { type: 'tag', name: 'emit', position: { line: 2, character: 9 } }
-        ]
-    }]
+  strings: [
+    {
+      content:
+        "\n        <set variable='foo'>bar</set>\n        <emit source='sql'>SELECT * FROM table</emit>\n    ",
+      range: {
+        start: { line: 6, character: 15 },
+        end: { line: 8, character: 5 },
+      },
+      fullRange: {
+        start: { line: 6, character: 12 },
+        end: { line: 8, character: 6 },
+      },
+      confidence: 0.8,
+      markers: [
+        { type: 'tag', name: 'set', position: { line: 1, character: 9 } },
+        { type: 'tag', name: 'emit', position: { line: 2, character: 9 } },
+      ],
+    },
+  ];
 }
 ```
 
@@ -273,16 +287,16 @@ string simpletag_foo(string tag_name, mapping args, string contents, RequestID i
 ```typescript
 import { detectRXMLStrings, mergeSymbolTrees } from './features/rxml/mixed-content.js';
 
-connection.onDocumentSymbol(async (params) => {
-    const pikeSymbols = await documentCache.getSymbols(uri);
+connection.onDocumentSymbol(async params => {
+  const pikeSymbols = await documentCache.getSymbols(uri);
 
-    // Detect RXML strings
-    const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
+  // Detect RXML strings
+  const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
 
-    // Merge symbol trees
-    const mergedSymbols = mergeSymbolTrees(pikeSymbols, rxmlStrings);
+  // Merge symbol trees
+  const mergedSymbols = mergeSymbolTrees(pikeSymbols, rxmlStrings);
 
-    return mergedSymbols;
+  return mergedSymbols;
 });
 ```
 
@@ -293,17 +307,17 @@ connection.onDocumentSymbol(async (params) => {
 ```typescript
 import { findRXMLStringAtPosition } from './features/rxml/mixed-content.js';
 
-connection.onCompletion(async (params) => {
-    const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
-    const inRXML = findRXMLStringAtPosition(params.position, rxmlStrings);
+connection.onCompletion(async params => {
+  const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
+  const inRXML = findRXMLStringAtPosition(params.position, rxmlStrings);
 
-    if (inRXML) {
-        // Provide RXML tag/attribute completions
-        return getRXMLCompletions(inRXML, params.position);
-    } else {
-        // Provide Pike completions
-        return getPikeCompletions(params);
-    }
+  if (inRXML) {
+    // Provide RXML tag/attribute completions
+    return getRXMLCompletions(inRXML, params.position);
+  } else {
+    // Provide Pike completions
+    return getPikeCompletions(params);
+  }
 });
 ```
 
@@ -314,24 +328,24 @@ connection.onCompletion(async (params) => {
 ```typescript
 import { detectRXMLStrings, mapContentToDocumentPosition } from './features/rxml/mixed-content.js';
 
-connection.onDiagnostics(async (params) => {
-    const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
-    const diagnostics = [];
+connection.onDiagnostics(async params => {
+  const rxmlStrings = await detectRXMLStrings(code, uri, bridge);
+  const diagnostics = [];
 
-    for (const rxmlString of rxmlStrings) {
-        // Validate RXML content
-        const rxmlDiags = await validateRXML(rxmlString.content);
+  for (const rxmlString of rxmlStrings) {
+    // Validate RXML content
+    const rxmlDiags = await validateRXML(rxmlString.content);
 
-        // Map positions back to document
-        for (const diag of rxmlDiags) {
-            diagnostics.push({
-                ...diag,
-                range: mapContentToDocumentPosition(diag.range, rxmlString)
-            });
-        }
+    // Map positions back to document
+    for (const diag of rxmlDiags) {
+      diagnostics.push({
+        ...diag,
+        range: mapContentToDocumentPosition(diag.range, rxmlString),
+      });
     }
+  }
 
-    return diagnostics;
+  return diagnostics;
 });
 ```
 
@@ -394,24 +408,28 @@ connection.onDiagnostics(async (params) => {
 ## Implementation Order
 
 ### Phase 1: Pike-Side (Priority: HIGH)
+
 1. Create `LSP.pmod/Roxen.pmod/MixedContent.pike`
 2. Implement `roxen_extract_rxml_strings()`
 3. Add unit tests in `tests/test_mixed_content.pike`
 4. Register handler in `analyzer.pike`
 
 ### Phase 2: Bridge Layer (Priority: HIGH)
+
 1. Add `roxenExtractRXMLStrings()` to `PikeBridge`
 2. Add TypeScript types
 3. Add bridge tests
 4. Verify position format conversion
 
 ### Phase 3: TypeScript Layer (Priority: MEDIUM)
+
 1. Create `mixed-content.ts` (DONE ✓)
 2. Add unit tests
 3. Implement position mapping tests
 4. Implement confidence scoring tests
 
 ### Phase 4: Integration (Priority: MEDIUM)
+
 1. Integrate with document symbols provider
 2. Integrate with completion provider
 3. Integrate with diagnostics provider

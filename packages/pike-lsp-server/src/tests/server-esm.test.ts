@@ -26,12 +26,16 @@ describe('ESM Compatibility', () => {
 
     // The bundled server should accept analyzerPath from init options
     // This avoids the need for runtime path discovery
-    assert.ok(serverCode.includes('analyzerPath'),
-      'server.js should accept analyzerPath from initialization options');
+    assert.ok(
+      serverCode.includes('analyzerPath'),
+      'server.js should accept analyzerPath from initialization options'
+    );
 
     // The server should handle initialization without crashing
-    assert.ok(serverCode.includes('initializationOptions'),
-      'server.js should handle initialization options');
+    assert.ok(
+      serverCode.includes('initializationOptions'),
+      'server.js should handle initialization options'
+    );
   });
 
   it('LSP server supports ESM mode via import.meta.url', async () => {
@@ -42,11 +46,15 @@ describe('ESM Compatibility', () => {
     const bridgeSource = readFileSync(bridgeSourcePath, 'utf-8');
 
     // The bridge source must use import.meta.url (not __filename)
-    assert.ok(bridgeSource.includes('import.meta.url'),
-      'bridge.ts source should use import.meta.url for ESM compatibility');
+    assert.ok(
+      bridgeSource.includes('import.meta.url'),
+      'bridge.ts source should use import.meta.url for ESM compatibility'
+    );
 
     // Should NOT use __filename in the source
-    assert.ok(!bridgeSource.includes('__filename'),
-      'bridge.ts source should not use __filename (only works in CJS)');
+    assert.ok(
+      !bridgeSource.includes('__filename'),
+      'bridge.ts source should not use __filename (only works in CJS)'
+    );
   });
 });

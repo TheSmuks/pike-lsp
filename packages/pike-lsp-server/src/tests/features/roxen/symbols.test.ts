@@ -3,182 +3,176 @@ import { enhanceRoxenSymbols } from '../../../features/roxen/symbols';
 import type { RoxenModuleInfo } from '@pike-lsp/pike-bridge/dist/src/types.js';
 
 describe('Roxen Symbols - enhanceRoxenSymbols', () => {
-    const baseSymbols = [
-        {
-            name: 'TestModule',
-            kind: 5,
-            range: {
-                start: { line: 0, character: 0 },
-                end: { line: 10, character: 0 }
-            },
-            selectionRange: {
-                start: { line: 0, character: 0 },
-                end: { line: 0, character: 10 }
-            },
-            children: []
+  const baseSymbols = [
+    {
+      name: 'TestModule',
+      kind: 5,
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 10, character: 0 },
+      },
+      selectionRange: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 10 },
+      },
+      children: [],
+    },
+  ];
+
+  test('null moduleInfo -> returns base symbols unchanged', () => {
+    const result = enhanceRoxenSymbols(baseSymbols, null);
+
+    assert.strictEqual(result, baseSymbols, 'Should return same symbols reference');
+    assert.deepStrictEqual(result, baseSymbols, 'Should not modify symbols');
+  });
+
+  test('is_roxen_module=0 -> returns base symbols unchanged', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 0,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [],
+      tags: [],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+
+    assert.deepStrictEqual(result, baseSymbols, 'Should not enhance non-Roxen modules');
+  });
+
+  test('with variables -> adds "Module Variables" group', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 1,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [{ name: 'var1', type: 'string', position: { line: 5, column: 4 } }],
+      tags: [],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+
+    assert.ok(result[0].children, 'Should have children');
+    const variablesGroup = result[0].children?.find(c => c.name === 'Module Variables');
+    assert.ok(variablesGroup, 'Should have "Module Variables" group');
+    assert.ok(variablesGroup?.children, 'Variables group should have children');
+  });
+
+  test('with tags -> adds "RXML Tags" group', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 1,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [],
+      tags: [{ name: 'tag1', has_container: 0, position: { line: 3, column: 4 } }],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+
+    assert.ok(result[0].children, 'Should have children');
+    const tagsGroup = result[0].children?.find(c => c.name === 'RXML Tags');
+    assert.ok(tagsGroup, 'Should have "RXML Tags" group');
+  });
+
+  test('All symbols have selectionRange property', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 1,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [{ name: 'var1', type: 'string', position: { line: 5, column: 4 } }],
+      tags: [],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+
+    // Check all symbols have selectionRange
+    const checkSelectionRange = (symbols: any[]) => {
+      for (const symbol of symbols) {
+        assert.ok(symbol.selectionRange, `Symbol ${symbol.name} missing selectionRange`);
+        if (symbol.children) {
+          checkSelectionRange(symbol.children);
         }
-    ];
+      }
+    };
 
-    test('null moduleInfo -> returns base symbols unchanged', () => {
-        const result = enhanceRoxenSymbols(baseSymbols, null);
+    checkSelectionRange(result);
+  });
 
-        assert.strictEqual(result, baseSymbols, 'Should return same symbols reference');
-        assert.deepStrictEqual(result, baseSymbols, 'Should not modify symbols');
-    });
+  test('Variable positions use real line numbers from Pike', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 1,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [
+        { name: 'var1', type: 'string', position: { line: 5, column: 4 } },
+        { name: 'var2', type: 'int', position: { line: 10, column: 4 } },
+      ],
+      tags: [],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
 
-    test('is_roxen_module=0 -> returns base symbols unchanged', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 0,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [],
-            tags: [],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 }
-        };
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
 
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+    const variablesGroup = result[0].children?.find(c => c.name === 'Module Variables');
+    assert.ok(variablesGroup?.children);
 
-        assert.deepStrictEqual(result, baseSymbols, 'Should not enhance non-Roxen modules');
-    });
+    // var1 at line 5 -> LSP line 4
+    const var1 = variablesGroup.children.find((c: any) => c.name === 'var1');
+    assert.strictEqual(var1.range.start.line, 4, 'var1 should be at LSP line 4');
+    assert.strictEqual(var1.range.start.character, 3, 'var1 should be at LSP char 3');
 
-    test('with variables -> adds "Module Variables" group', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 1,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [
-                { name: 'var1', type: 'string', position: { line: 5, column: 4 } }
-            ],
-            tags: [],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 }
-        };
+    // var2 at line 10 -> LSP line 9
+    const var2 = variablesGroup.children.find((c: any) => c.name === 'var2');
+    assert.strictEqual(var2.range.start.line, 9, 'var2 should be at LSP line 9');
+  });
 
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+  test('selectionRange is contained in range for all generated symbols', () => {
+    const moduleInfo: RoxenModuleInfo = {
+      is_roxen_module: 1,
+      module_type: ['module'],
+      module_name: 'TestModule',
+      inherits: [],
+      variables: [{ name: 'var1', type: 'string', position: { line: 5, column: 4 } }],
+      tags: [{ name: 'tag1', has_container: 0, position: { line: 8, column: 10 } }],
+      lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
+    };
 
-        assert.ok(result[0].children, 'Should have children');
-        const variablesGroup = result[0].children?.find(c => c.name === 'Module Variables');
-        assert.ok(variablesGroup, 'Should have "Module Variables" group');
-        assert.ok(variablesGroup?.children, 'Variables group should have children');
-    });
+    const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
 
-    test('with tags -> adds "RXML Tags" group', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 1,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [],
-            tags: [
-                { name: 'tag1', has_container: 0, position: { line: 3, column: 4 } }
-            ],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 }
-        };
+    const positionGte = (
+      left: { line: number; character: number },
+      right: { line: number; character: number }
+    ): boolean => {
+      return (
+        left.line > right.line || (left.line === right.line && left.character >= right.character)
+      );
+    };
 
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
+    const validateRanges = (symbols: ReturnType<typeof enhanceRoxenSymbols>): void => {
+      for (const symbol of symbols) {
+        assert.ok(
+          positionGte(symbol.selectionRange.start, symbol.range.start),
+          `${symbol.name}: selectionRange.start must be >= range.start`
+        );
+        assert.ok(
+          positionGte(symbol.range.end, symbol.selectionRange.end),
+          `${symbol.name}: selectionRange.end must be <= range.end`
+        );
 
-        assert.ok(result[0].children, 'Should have children');
-        const tagsGroup = result[0].children?.find(c => c.name === 'RXML Tags');
-        assert.ok(tagsGroup, 'Should have "RXML Tags" group');
-    });
+        if (symbol.children) {
+          validateRanges(symbol.children);
+        }
+      }
+    };
 
-    test('All symbols have selectionRange property', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 1,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [
-                { name: 'var1', type: 'string', position: { line: 5, column: 4 } }
-            ],
-            tags: [],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 }
-        };
-
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
-
-        // Check all symbols have selectionRange
-        const checkSelectionRange = (symbols: any[]) => {
-            for (const symbol of symbols) {
-                assert.ok(symbol.selectionRange, `Symbol ${symbol.name} missing selectionRange`);
-                if (symbol.children) {
-                    checkSelectionRange(symbol.children);
-                }
-            }
-        };
-
-        checkSelectionRange(result);
-    });
-
-    test('Variable positions use real line numbers from Pike', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 1,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [
-                { name: 'var1', type: 'string', position: { line: 5, column: 4 } },
-                { name: 'var2', type: 'int', position: { line: 10, column: 4 } }
-            ],
-            tags: [],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 }
-        };
-
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
-
-        const variablesGroup = result[0].children?.find(c => c.name === 'Module Variables');
-        assert.ok(variablesGroup?.children);
-
-        // var1 at line 5 -> LSP line 4
-        const var1 = variablesGroup.children.find((c: any) => c.name === 'var1');
-        assert.strictEqual(var1.range.start.line, 4, 'var1 should be at LSP line 4');
-        assert.strictEqual(var1.range.start.character, 3, 'var1 should be at LSP char 3');
-
-        // var2 at line 10 -> LSP line 9
-        const var2 = variablesGroup.children.find((c: any) => c.name === 'var2');
-        assert.strictEqual(var2.range.start.line, 9, 'var2 should be at LSP line 9');
-    });
-
-    test('selectionRange is contained in range for all generated symbols', () => {
-        const moduleInfo: RoxenModuleInfo = {
-            is_roxen_module: 1,
-            module_type: ['module'],
-            module_name: 'TestModule',
-            inherits: [],
-            variables: [{ name: 'var1', type: 'string', position: { line: 5, column: 4 } }],
-            tags: [{ name: 'tag1', has_container: 0, position: { line: 8, column: 10 } }],
-            lifecycle: { has_create: 0, has_start: 0, has_stop: 0 },
-        };
-
-        const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
-
-        const positionGte = (
-            left: { line: number; character: number },
-            right: { line: number; character: number }
-        ): boolean => {
-            return (
-                left.line > right.line || (left.line === right.line && left.character >= right.character)
-            );
-        };
-
-        const validateRanges = (symbols: ReturnType<typeof enhanceRoxenSymbols>): void => {
-            for (const symbol of symbols) {
-                assert.ok(
-                    positionGte(symbol.selectionRange.start, symbol.range.start),
-                    `${symbol.name}: selectionRange.start must be >= range.start`
-                );
-                assert.ok(
-                    positionGte(symbol.range.end, symbol.selectionRange.end),
-                    `${symbol.name}: selectionRange.end must be <= range.end`
-                );
-
-                if (symbol.children) {
-                    validateRanges(symbol.children);
-                }
-            }
-        };
-
-        validateRanges(result);
-    });
+    validateRanges(result);
+  });
 });

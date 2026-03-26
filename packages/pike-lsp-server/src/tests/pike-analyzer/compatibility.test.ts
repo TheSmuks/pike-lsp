@@ -73,7 +73,9 @@ describe('Compatibility - Version Detection and Comparison', () => {
   it('returns compatibility issues for unsupported and unknown versions', () => {
     const unsupported = getCompatibilityInfo('Pike v7.6.0', 'Pike v7.8.0');
     assert.equal(unsupported.compatible, false);
-    assert.ok(unsupported.issues.some(issue => issue.includes('Minimum required version is 7.8.0')));
+    assert.ok(
+      unsupported.issues.some(issue => issue.includes('Minimum required version is 7.8.0'))
+    );
     assert.ok(unsupported.issues.some(issue => issue.includes('Current version is 7.6.0')));
 
     const unknown = getCompatibilityInfo('Unknown Version');

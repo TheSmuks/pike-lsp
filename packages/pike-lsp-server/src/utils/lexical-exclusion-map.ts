@@ -20,7 +20,12 @@ function buildLineStarts(text: string): number[] {
   return starts;
 }
 
-function toOffset(lineStarts: number[], line: number, character: number, textLength: number): number {
+function toOffset(
+  lineStarts: number[],
+  line: number,
+  character: number,
+  textLength: number
+): number {
   if (line < 0 || line >= lineStarts.length) {
     return -1;
   }
@@ -82,7 +87,7 @@ export function createLexicalExclusionMap(text: string): LexicalExclusionMap {
       continue;
     }
 
-    if (char === '"' || char === '\'') {
+    if (char === '"' || char === "'") {
       const quote = char;
       const start = i;
       i += 1;

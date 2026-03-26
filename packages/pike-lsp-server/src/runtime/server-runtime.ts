@@ -142,7 +142,8 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
 
       if (health) {
         const uptime = Math.floor(health.serverUptime / 1000);
-        const uptimeStr = uptime > 60 ? `${Math.floor(uptime / 60)}m ${uptime % 60}s` : `${uptime}s`;
+        const uptimeStr =
+          uptime > 60 ? `${Math.floor(uptime / 60)}m ${uptime % 60}s` : `${uptime}s`;
 
         lines.push(`Server Uptime: ${uptimeStr}`);
         lines.push(`Bridge Connected: ${health.bridgeConnected ? 'YES' : 'NO'}`);
@@ -309,6 +310,8 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
   });
 
   connection.onExit(() => {
-    getBridgeManager()?.stop().catch(() => undefined);
+    getBridgeManager()
+      ?.stop()
+      .catch(() => undefined);
   });
 }

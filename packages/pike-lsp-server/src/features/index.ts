@@ -10,9 +10,21 @@ export { registerSymbolsHandlers } from './symbols.js';
 
 // Diagnostics feature - validation and document lifecycle
 export { registerDiagnosticsHandlers } from './diagnostics/index.js';
-export { convertDiagnostic, isDeprecatedSymbolDiagnostic, extractDeprecatedFromSymbols } from './diagnostics/index.js';
-export { buildSymbolPositionIndex, buildSymbolPositionIndexRegex, flattenSymbols } from './diagnostics/index.js';
-export { classifyChange, stripLineComments, type ChangeClassification } from './diagnostics/index.js';
+export {
+  convertDiagnostic,
+  isDeprecatedSymbolDiagnostic,
+  extractDeprecatedFromSymbols,
+} from './diagnostics/index.js';
+export {
+  buildSymbolPositionIndex,
+  buildSymbolPositionIndexRegex,
+  flattenSymbols,
+} from './diagnostics/index.js';
+export {
+  classifyChange,
+  stripLineComments,
+  type ChangeClassification,
+} from './diagnostics/index.js';
 
 // Navigation feature - go to definition, references, etc.
 export { registerNavigationHandlers } from './navigation/index.js';
@@ -40,12 +52,9 @@ export {
   parseRXMLTemplate,
   getTagInfo,
   RXML_TAG_CATALOG,
-  SCOPE_VARIABLES
+  SCOPE_VARIABLES,
 } from './rxml/index.js';
-export type {
-  RXMLTagInfo,
-  RXMLTagCatalogEntry
-} from './rxml/index.js';
+export type { RXMLTagInfo, RXMLTagCatalogEntry } from './rxml/index.js';
 
 // Export Services type for convenience
 export type { Services } from '../services/index.js';

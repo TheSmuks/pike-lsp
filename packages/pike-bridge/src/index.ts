@@ -17,4 +17,3 @@ export type { ErrorLayer } from '@pike-lsp/core';
 
 // Export Logger for consumers who need logging
 export { Logger, LogLevel } from '@pike-lsp/core';
-

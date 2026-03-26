@@ -1,8 +1,4 @@
-import {
-  ErrorCodes,
-  ResponseError,
-  TextEdit,
-} from 'vscode-languageserver/node.js';
+import { ErrorCodes, ResponseError, TextEdit } from 'vscode-languageserver/node.js';
 import { INDENT_PATTERNS } from '../utils/regex-patterns.js';
 
 export interface FormattingOptions {

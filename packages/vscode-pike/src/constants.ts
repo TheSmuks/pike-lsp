@@ -28,4 +28,3 @@ export const DEBUG_PORT = 6009;
  * Must match the language IDs declared in package.json contributes.languages.
  */
 export const PIKE_LANGUAGE_IDS = ['pike', 'rxml', 'rjs'] as const;
-

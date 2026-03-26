@@ -195,21 +195,22 @@ export function registerHierarchyHandlers(
     return symbolPositions;
   };
 
-  const loadClosedWorkspaceFile = async (
-    fileInfo: { uri: string }
-  ): Promise<
-    | {
-        uri: string;
-        text: string;
-        symbols: PikeSymbol[];
-        symbolPositions: Map<string, Array<{ line: number; character: number }>>;
-      }
-    | null
-  > => {
+  const loadClosedWorkspaceFile = async (fileInfo: {
+    uri: string;
+  }): Promise<{
+    uri: string;
+    text: string;
+    symbols: PikeSymbol[];
+    symbolPositions: Map<string, Array<{ line: number; character: number }>>;
+  } | null> => {
     try {
       const filePath = decodeURIComponent(fileInfo.uri.replace(/^file:\/\//, ''));
       const text = await fs.readFile(filePath, 'utf-8');
-      const analyzed = await services.bridge?.bridge?.analyze(text, ['parse', 'tokenize'], filePath);
+      const analyzed = await services.bridge?.bridge?.analyze(
+        text,
+        ['parse', 'tokenize'],
+        filePath
+      );
       const symbols = analyzed?.result?.parse?.symbols ?? [];
       const tokens = analyzed?.result?.tokenize?.tokens ?? [];
       const symbolPositions = buildSymbolPositionsFromTokens(tokens);
@@ -868,7 +869,10 @@ export function registerHierarchyHandlers(
         Array<{ name: string; uri: string; line: number }>
       >();
 
-      const addDirectSubtype = (parentName: string, subtype: { name: string; uri: string; line: number }) => {
+      const addDirectSubtype = (
+        parentName: string,
+        subtype: { name: string; uri: string; line: number }
+      ) => {
         const existing = inheritanceIndex.get(parentName) ?? [];
         existing.push(subtype);
         inheritanceIndex.set(parentName, existing);
@@ -890,7 +894,9 @@ export function registerHierarchyHandlers(
 
           // Find the class that declared this inherit (closest class at or before inherit line)
           const containingClass = symbols
-            .filter(s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine)
+            .filter(
+              s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine
+            )
             .sort((a, b) => (b.position?.line ?? 0) - (a.position?.line ?? 0))[0];
 
           if (!containingClass) {

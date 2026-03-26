@@ -80,7 +80,7 @@ async function prepareTagRename(
   }
 
   const edit: WorkspaceEdit = {
-    documentChanges: []
+    documentChanges: [],
   };
 
   // Find all references to the tag
@@ -96,7 +96,7 @@ async function prepareTagRename(
 
     changesByFile.get(loc.uri)!.push({
       range: loc.range,
-      newText: newTagName
+      newText: newTagName,
     });
   }
 
@@ -110,11 +110,11 @@ async function prepareTagRename(
     const patterns = [
       {
         regex: new RegExp(`(simpletag\\s+)${escapeRegExp(oldTagName)}\\b`, 'g'),
-        replacement: `$1${newTagName}`
+        replacement: `$1${newTagName}`,
       },
       {
         regex: new RegExp(`(container\\s+)${escapeRegExp(oldTagName)}\\b`, 'g'),
-        replacement: `$1${newTagName}`
+        replacement: `$1${newTagName}`,
       },
     ];
 
@@ -136,10 +136,10 @@ async function prepareTagRename(
             start: position,
             end: {
               line: position.line,
-              character: position.character + (end - start)
-            }
+              character: position.character + (end - start),
+            },
           },
-          newText: newTagName
+          newText: newTagName,
         });
       }
     }
@@ -149,7 +149,7 @@ async function prepareTagRename(
   for (const [uri, changes] of changesByFile.entries()) {
     const textDocumentEdit: TextDocumentEdit = {
       textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
-      edits: changes
+      edits: changes,
     };
 
     edit.documentChanges!.push(textDocumentEdit);
@@ -195,7 +195,7 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
     const matches = await glob('**/*.pike', {
       cwd: folder,
       absolute: true,
-      ignore: ['**/node_modules/**', '**/.git/**']
+      ignore: ['**/node_modules/**', '**/.git/**'],
     });
     files.push(...matches);
 
@@ -229,6 +229,6 @@ function findPositionForMatch(content: string, match: RegExpExecArray): Position
 
   return {
     line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length
+    character: (lines[lines.length - 1] || '').length,
   };
 }

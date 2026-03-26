@@ -181,58 +181,58 @@ export function registerReferencesHandlers(
       for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
         if (otherUri === uri) continue;
 
-          // Use symbolPositions if available
-          if (otherCached.symbolPositions) {
-            const positions = otherCached.symbolPositions.get(word);
-            if (positions) {
-              for (const pos of positions) {
-                references.push({
-                  uri: otherUri,
-                  range: {
-                    start: pos,
-                    end: { line: pos.line, character: pos.character + word.length },
-                  },
-                });
-              }
+        // Use symbolPositions if available
+        if (otherCached.symbolPositions) {
+          const positions = otherCached.symbolPositions.get(word);
+          if (positions) {
+            for (const pos of positions) {
+              references.push({
+                uri: otherUri,
+                range: {
+                  start: pos,
+                  end: { line: pos.line, character: pos.character + word.length },
+                },
+              });
             }
-          } else {
-            const otherDoc = documents.get(otherUri);
-            if (otherDoc) {
-              const otherText = otherDoc.getText();
-              const otherLines = otherText.split('\n');
-              const otherExclusions = createLexicalExclusionMap(otherText);
-              for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
-                const line = otherLines[lineNum];
-                if (!line) continue;
-                let searchStart = 0;
-                let matchIndex = line.indexOf(word, searchStart);
+          }
+        } else {
+          const otherDoc = documents.get(otherUri);
+          if (otherDoc) {
+            const otherText = otherDoc.getText();
+            const otherLines = otherText.split('\n');
+            const otherExclusions = createLexicalExclusionMap(otherText);
+            for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
+              const line = otherLines[lineNum];
+              if (!line) continue;
+              let searchStart = 0;
+              let matchIndex = line.indexOf(word, searchStart);
 
-                while (matchIndex !== -1) {
-                  const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                  const afterChar =
-                    matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
+              while (matchIndex !== -1) {
+                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
+                const afterChar =
+                  matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
 
-                  if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                    if (otherExclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
-                      searchStart = matchIndex + 1;
-                      matchIndex = line.indexOf(word, searchStart);
-                      continue;
-                    }
-
-                    references.push({
-                      uri: otherUri,
-                      range: {
-                        start: { line: lineNum, character: matchIndex },
-                        end: { line: lineNum, character: matchIndex + word.length },
-                      },
-                    });
+                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+                  if (otherExclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
+                    searchStart = matchIndex + 1;
+                    matchIndex = line.indexOf(word, searchStart);
+                    continue;
                   }
-                  searchStart = matchIndex + 1;
-                  matchIndex = line.indexOf(word, searchStart);
+
+                  references.push({
+                    uri: otherUri,
+                    range: {
+                      start: { line: lineNum, character: matchIndex },
+                      end: { line: lineNum, character: matchIndex + word.length },
+                    },
+                  });
                 }
+                searchStart = matchIndex + 1;
+                matchIndex = line.indexOf(word, searchStart);
               }
             }
           }
+        }
       }
 
       if (queryLocations && queryLocations.length > 0) {
@@ -291,7 +291,10 @@ export function registerReferencesHandlers(
           }
 
           for (const candidate of declarationUris) {
-            if (normalizedRef.endsWith(`/${candidate}`) || candidate.endsWith(`/${normalizedRef}`)) {
+            if (
+              normalizedRef.endsWith(`/${candidate}`) ||
+              candidate.endsWith(`/${normalizedRef}`)
+            ) {
               return true;
             }
           }

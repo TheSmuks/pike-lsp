@@ -6,60 +6,60 @@
  */
 
 interface CacheEntry<T> {
-    data: T;
-    timestamp: number;
+  data: T;
+  timestamp: number;
 }
 
 export class GlobCache<T> {
-    private cache = new Map<string, CacheEntry<T>>();
-    private readonly ttlMs: number;
+  private cache = new Map<string, CacheEntry<T>>();
+  private readonly ttlMs: number;
 
-    constructor(ttlSeconds: number = 30) {
-        this.ttlMs = ttlSeconds * 1000;
+  constructor(ttlSeconds: number = 30) {
+    this.ttlMs = ttlSeconds * 1000;
+  }
+
+  private makeKey(pattern: string, cwd: string): string {
+    return `${pattern}:${cwd}`;
+  }
+
+  get(pattern: string, cwd: string): T | undefined {
+    const key = this.makeKey(pattern, cwd);
+    const entry = this.cache.get(key);
+
+    if (!entry) {
+      return undefined;
     }
 
-    private makeKey(pattern: string, cwd: string): string {
-        return `${pattern}:${cwd}`;
+    if (Date.now() - entry.timestamp > this.ttlMs) {
+      this.cache.delete(key);
+      return undefined;
     }
 
-    get(pattern: string, cwd: string): T | undefined {
-        const key = this.makeKey(pattern, cwd);
-        const entry = this.cache.get(key);
+    return entry.data;
+  }
 
-        if (!entry) {
-            return undefined;
-        }
+  set(pattern: string, cwd: string, data: T): void {
+    const key = this.makeKey(pattern, cwd);
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
 
-        if (Date.now() - entry.timestamp > this.ttlMs) {
-            this.cache.delete(key);
-            return undefined;
-        }
-
-        return entry.data;
+  invalidate(cwd: string): void {
+    // Remove all entries for a given cwd
+    for (const key of this.cache.keys()) {
+      if (key.endsWith(`:${cwd}`)) {
+        this.cache.delete(key);
+      }
     }
+  }
 
-    set(pattern: string, cwd: string, data: T): void {
-        const key = this.makeKey(pattern, cwd);
-        this.cache.set(key, {
-            data,
-            timestamp: Date.now(),
-        });
-    }
+  clear(): void {
+    this.cache.clear();
+  }
 
-    invalidate(cwd: string): void {
-        // Remove all entries for a given cwd
-        for (const key of this.cache.keys()) {
-            if (key.endsWith(`:${cwd}`)) {
-                this.cache.delete(key);
-            }
-        }
-    }
-
-    clear(): void {
-        this.cache.clear();
-    }
-
-    getStats(): { size: number } {
-        return { size: this.cache.size };
-    }
+  getStats(): { size: number } {
+    return { size: this.cache.size };
+  }
 }

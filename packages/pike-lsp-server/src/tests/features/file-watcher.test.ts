@@ -171,7 +171,9 @@ class UpdatedClass {
 
       const scannerEvents: Array<{ type: string; uri: string }> = [];
       const invalidatedIncludes: string[] = [];
-      let watchedFilesHandler: ((params: { changes: Array<{ uri: string; type: number }> }) => Promise<void>) | null = null;
+      let watchedFilesHandler:
+        | ((params: { changes: Array<{ uri: string; type: number }> }) => Promise<void>)
+        | null = null;
 
       const connection = {
         onDidChangeWatchedFiles(handler: typeof watchedFilesHandler) {

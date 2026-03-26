@@ -21,471 +21,458 @@ import { WorkspaceIndex } from '../../workspace-index.js';
  * Uses reflection to access private methods for test setup
  */
 class TestableWorkspaceIndex extends WorkspaceIndex {
-    /**
-     * Add a document with symbols directly (for testing without bridge)
-     */
-    addTestDocument(
-        uri: string,
-        symbols: Array<{ name: string; kind: string; line: number; parentName?: string }>,
-        lineCount?: number
-    ): void {
-        const docSymbols = symbols.map(s => ({
-            name: s.name,
-            kind: s.kind,
-            position: { line: s.line, character: 0 },
-            children: [],
-            ...(s.parentName ? { parentName: s.parentName } : {})
-        }));
+  /**
+   * Add a document with symbols directly (for testing without bridge)
+   */
+  addTestDocument(
+    uri: string,
+    symbols: Array<{ name: string; kind: string; line: number; parentName?: string }>,
+    lineCount?: number
+  ): void {
+    const docSymbols = symbols.map(s => ({
+      name: s.name,
+      kind: s.kind,
+      position: { line: s.line, character: 0 },
+      children: [],
+      ...(s.parentName ? { parentName: s.parentName } : {}),
+    }));
 
-        // Store document
-        const documents = (this as unknown as { documents: Map<string, unknown> }).documents;
-        documents.set(uri, {
-            uri,
-            symbols: docSymbols,
-            version: 1,
-            lastModified: Date.now(),
-            lineCount,
-        });
+    // Store document
+    const documents = (this as unknown as { documents: Map<string, unknown> }).documents;
+    documents.set(uri, {
+      uri,
+      symbols: docSymbols,
+      version: 1,
+      lastModified: Date.now(),
+      lineCount,
+    });
 
-        // Add to lookup
-        const symbolLookup = (this as unknown as { symbolLookup: Map<string, Map<string, unknown>> }).symbolLookup;
-        for (const symbol of docSymbols) {
-            if (!symbol.name) continue;
-            const nameLower = symbol.name.toLowerCase();
-            const entry = {
-                name: symbol.name,
-                kind: symbol.kind,
-                uri,
-                line: symbol.position.line,
-                maxLine: lineCount,
-                parentName: (symbol as { parentName?: string }).parentName
-            };
-            let entriesByUri = symbolLookup.get(nameLower);
-            if (!entriesByUri) {
-                entriesByUri = new Map();
-                symbolLookup.set(nameLower, entriesByUri);
-            }
-            entriesByUri.set(uri, entry);
-        }
+    // Add to lookup
+    const symbolLookup = (this as unknown as { symbolLookup: Map<string, Map<string, unknown>> })
+      .symbolLookup;
+    for (const symbol of docSymbols) {
+      if (!symbol.name) continue;
+      const nameLower = symbol.name.toLowerCase();
+      const entry = {
+        name: symbol.name,
+        kind: symbol.kind,
+        uri,
+        line: symbol.position.line,
+        maxLine: lineCount,
+        parentName: (symbol as { parentName?: string }).parentName,
+      };
+      let entriesByUri = symbolLookup.get(nameLower);
+      if (!entriesByUri) {
+        entriesByUri = new Map();
+        symbolLookup.set(nameLower, entriesByUri);
+      }
+      entriesByUri.set(uri, entry);
     }
+  }
 }
 
 describe('Workspace Symbol Provider', () => {
-    let index: TestableWorkspaceIndex;
+  let index: TestableWorkspaceIndex;
 
-    beforeEach(() => {
-        index = new TestableWorkspaceIndex();
+  beforeEach(() => {
+    index = new TestableWorkspaceIndex();
+  });
+
+  /**
+   * Test 12.1: Search Symbol - Exact Match
+   */
+  describe('Scenario 12.1: Search symbol - exact match', () => {
+    it('should find all occurrences across workspace', () => {
+      index.addTestDocument('file:///file1.pike', [
+        { name: 'myFunction', kind: 'method', line: 1 },
+      ]);
+      index.addTestDocument('file:///file2.pike', [
+        { name: 'MyClass', kind: 'class', line: 1 },
+        { name: 'myFunction', kind: 'method', line: 5 },
+      ]);
+
+      const results = index.searchSymbols('myFunction');
+
+      expect(results.length).toBe(2);
+      expect(results[0].name).toBe('myFunction');
+      expect(results[1].name).toBe('myFunction');
+      expect(results.some(r => r.location.uri === 'file:///file1.pike')).toBe(true);
+      expect(results.some(r => r.location.uri === 'file:///file2.pike')).toBe(true);
     });
 
-    /**
-     * Test 12.1: Search Symbol - Exact Match
-     */
-    describe('Scenario 12.1: Search symbol - exact match', () => {
-        it('should find all occurrences across workspace', () => {
-            index.addTestDocument('file:///file1.pike', [
-                { name: 'myFunction', kind: 'method', line: 1 }
-            ]);
-            index.addTestDocument('file:///file2.pike', [
-                { name: 'MyClass', kind: 'class', line: 1 },
-                { name: 'myFunction', kind: 'method', line: 5 }
-            ]);
+    it('should return exact matches first', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'calculate', kind: 'method', line: 1 },
+        { name: 'calculateSum', kind: 'method', line: 5 },
+        { name: 'calculateAverage', kind: 'method', line: 10 },
+      ]);
 
-            const results = index.searchSymbols('myFunction');
+      const results = index.searchSymbols('calculate');
 
-            expect(results.length).toBe(2);
-            expect(results[0].name).toBe('myFunction');
-            expect(results[1].name).toBe('myFunction');
-            expect(results.some(r => r.location.uri === 'file:///file1.pike')).toBe(true);
-            expect(results.some(r => r.location.uri === 'file:///file2.pike')).toBe(true);
-        });
+      expect(results.length).toBe(3);
+      // Exact match should be first (highest score)
+      expect(results[0].name).toBe('calculate');
+    });
+  });
 
-        it('should return exact matches first', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'calculate', kind: 'method', line: 1 },
-                { name: 'calculateSum', kind: 'method', line: 5 },
-                { name: 'calculateAverage', kind: 'method', line: 10 }
-            ]);
+  /**
+   * Test 12.2: Search Symbol - Partial Match
+   */
+  describe('Scenario 12.2: Search symbol - partial match', () => {
+    it('should return symbols containing search string', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'calculate', kind: 'method', line: 1 },
+        { name: 'calculateSum', kind: 'method', line: 5 },
+        { name: 'calculateAverage', kind: 'method', line: 10 },
+      ]);
 
-            const results = index.searchSymbols('calculate');
+      const results = index.searchSymbols('calc');
 
-            expect(results.length).toBe(3);
-            // Exact match should be first (highest score)
-            expect(results[0].name).toBe('calculate');
-        });
+      expect(results.length).toBe(3);
     });
 
-    /**
-     * Test 12.2: Search Symbol - Partial Match
-     */
-    describe('Scenario 12.2: Search symbol - partial match', () => {
-        it('should return symbols containing search string', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'calculate', kind: 'method', line: 1 },
-                { name: 'calculateSum', kind: 'method', line: 5 },
-                { name: 'calculateAverage', kind: 'method', line: 10 }
-            ]);
+    it('should be case-insensitive by default', () => {
+      index.addTestDocument('file:///test1.pike', [
+        { name: 'MyFunction', kind: 'method', line: 1 },
+      ]);
+      index.addTestDocument('file:///test2.pike', [
+        { name: 'myfunction', kind: 'method', line: 5 },
+      ]);
 
-            const results = index.searchSymbols('calc');
+      const results = index.searchSymbols('MyFunction');
 
-            expect(results.length).toBe(3);
-        });
+      expect(results.length).toBe(2);
+    });
+  });
 
-        it('should be case-insensitive by default', () => {
-            index.addTestDocument('file:///test1.pike', [
-                { name: 'MyFunction', kind: 'method', line: 1 }
-            ]);
-            index.addTestDocument('file:///test2.pike', [
-                { name: 'myfunction', kind: 'method', line: 5 }
-            ]);
+  /**
+   * Test 12.3: Search Symbol - Case Sensitivity
+   */
+  describe('Scenario 12.3: Search symbol - case sensitivity', () => {
+    it('should find both case variants with case-insensitive search', () => {
+      index.addTestDocument('file:///test1.pike', [
+        { name: 'MyFunction', kind: 'method', line: 1 },
+      ]);
+      index.addTestDocument('file:///test2.pike', [
+        { name: 'myfunction', kind: 'method', line: 5 },
+      ]);
 
-            const results = index.searchSymbols('MyFunction');
+      const results = index.searchSymbols('myfunction');
 
-            expect(results.length).toBe(2);
-        });
+      // Case-insensitive finds both
+      expect(results.length).toBe(2);
+    });
+  });
+
+  /**
+   * Test 12.4: Search Symbol - Limit Results
+   */
+  describe('Scenario 12.4: Search symbol - limit results', () => {
+    it('should limit results to specified maximum', () => {
+      for (let i = 0; i < 10; i++) {
+        index.addTestDocument(`file:///file${i}.pike`, [
+          { name: `symbol${i}`, kind: 'method', line: 1 },
+        ]);
+      }
+
+      const results = index.searchSymbols('symbol', 5);
+
+      expect(results.length).toBe(5);
     });
 
-    /**
-     * Test 12.3: Search Symbol - Case Sensitivity
-     */
-    describe('Scenario 12.3: Search symbol - case sensitivity', () => {
-        it('should find both case variants with case-insensitive search', () => {
-            index.addTestDocument('file:///test1.pike', [
-                { name: 'MyFunction', kind: 'method', line: 1 }
-            ]);
-            index.addTestDocument('file:///test2.pike', [
-                { name: 'myfunction', kind: 'method', line: 5 }
-            ]);
+    it('should return all results if fewer than limit', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'func1', kind: 'method', line: 1 },
+        { name: 'func2', kind: 'method', line: 5 },
+      ]);
 
-            const results = index.searchSymbols('myfunction');
+      const results = index.searchSymbols('func', 100);
 
-            // Case-insensitive finds both
-            expect(results.length).toBe(2);
-        });
+      expect(results.length).toBe(2);
+    });
+  });
+
+  /**
+   * Test 12.5: Search Symbol - Not Found
+   */
+  describe('Scenario 12.5: Search symbol - not found', () => {
+    it('should return empty array when symbol not found', () => {
+      index.addTestDocument('file:///test.pike', [{ name: 'myFunction', kind: 'method', line: 1 }]);
+
+      const results = index.searchSymbols('NonExistentSymbol');
+
+      expect(results).toEqual([]);
     });
 
-    /**
-     * Test 12.4: Search Symbol - Limit Results
-     */
-    describe('Scenario 12.4: Search symbol - limit results', () => {
-        it('should limit results to specified maximum', () => {
-            for (let i = 0; i < 10; i++) {
-                index.addTestDocument(`file:///file${i}.pike`, [
-                    { name: `symbol${i}`, kind: 'method', line: 1 }
-                ]);
-            }
+    it('should handle empty query', () => {
+      index.addTestDocument('file:///test.pike', [{ name: 'myFunction', kind: 'method', line: 1 }]);
 
-            const results = index.searchSymbols('symbol', 5);
+      const results = index.searchSymbols('');
 
-            expect(results.length).toBe(5);
-        });
+      // Empty query returns some symbols from each file
+      expect(results.length).toBeGreaterThanOrEqual(0);
+    });
+  });
 
-        it('should return all results if fewer than limit', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'func1', kind: 'method', line: 1 },
-                { name: 'func2', kind: 'method', line: 5 }
-            ]);
+  /**
+   * Test 12.6: Search Symbol - Stdlib Symbols
+   */
+  describe('Scenario 12.6: Search symbol - stdlib symbols', () => {
+    it('should search stdlib symbols if indexed', () => {
+      index.addTestDocument('file:///usr/local/pike/8.0.1116/lib/modules/Array.pmod', [
+        { name: 'map', kind: 'method', line: 1 },
+      ]);
 
-            const results = index.searchSymbols('func', 100);
+      const results = index.searchSymbols('map');
 
-            expect(results.length).toBe(2);
-        });
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('map');
+    });
+  });
+
+  /**
+   * Edge Cases
+   */
+  describe('Edge Cases', () => {
+    it('should handle empty workspace', () => {
+      const results = index.searchSymbols('anything');
+
+      expect(results).toEqual([]);
     });
 
-    /**
-     * Test 12.5: Search Symbol - Not Found
-     */
-    describe('Scenario 12.5: Search symbol - not found', () => {
-        it('should return empty array when symbol not found', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'myFunction', kind: 'method', line: 1 }
-            ]);
+    it('should handle special characters in search query', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'my_symbol-123', kind: 'method', line: 1 },
+      ]);
 
-            const results = index.searchSymbols('NonExistentSymbol');
+      const results = index.searchSymbols('my_symbol-123');
 
-            expect(results).toEqual([]);
-        });
-
-        it('should handle empty query', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'myFunction', kind: 'method', line: 1 }
-            ]);
-
-            const results = index.searchSymbols('');
-
-            // Empty query returns some symbols from each file
-            expect(results.length).toBeGreaterThanOrEqual(0);
-        });
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('my_symbol-123');
     });
 
-    /**
-     * Test 12.6: Search Symbol - Stdlib Symbols
-     */
-    describe('Scenario 12.6: Search symbol - stdlib symbols', () => {
-        it('should search stdlib symbols if indexed', () => {
-            index.addTestDocument('file:///usr/local/pike/8.0.1116/lib/modules/Array.pmod', [
-                { name: 'map', kind: 'method', line: 1 }
-            ]);
+    it('should track document count in stats', () => {
+      index.addTestDocument('file:///src/myFile.pike', [{ name: 'func', kind: 'method', line: 1 }]);
 
-            const results = index.searchSymbols('map');
+      const stats = index.getStats();
 
-            expect(results.length).toBeGreaterThan(0);
-            expect(results[0].name).toBe('map');
-        });
+      expect(stats.documents).toBe(1);
+      expect(stats.symbols).toBe(1);
     });
 
-    /**
-     * Edge Cases
-     */
-    describe('Edge Cases', () => {
-        it('should handle empty workspace', () => {
-            const results = index.searchSymbols('anything');
+    it('clamps out-of-range lines to document upper bound', () => {
+      index.addTestDocument(
+        'file:///test.pike',
+        [{ name: 'tooHigh', kind: 'method', line: 999 }],
+        12
+      );
 
-            expect(results).toEqual([]);
-        });
+      const results = index.searchSymbols('tooHigh');
 
-        it('should handle special characters in search query', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'my_symbol-123', kind: 'method', line: 1 }
-            ]);
-
-            const results = index.searchSymbols('my_symbol-123');
-
-            expect(results.length).toBe(1);
-            expect(results[0].name).toBe('my_symbol-123');
-        });
-
-        it('should track document count in stats', () => {
-            index.addTestDocument('file:///src/myFile.pike', [
-                { name: 'func', kind: 'method', line: 1 }
-            ]);
-
-            const stats = index.getStats();
-
-            expect(stats.documents).toBe(1);
-            expect(stats.symbols).toBe(1);
-        });
-
-        it('clamps out-of-range lines to document upper bound', () => {
-            index.addTestDocument(
-                'file:///test.pike',
-                [{ name: 'tooHigh', kind: 'method', line: 999 }],
-                12
-            );
-
-            const results = index.searchSymbols('tooHigh');
-
-            expect(results.length).toBe(1);
-            expect(results[0].location.range.start.line).toBe(11);
-            expect(results[0].location.range.end.line).toBe(11);
-        });
-
-        it('applies the same upper bound protection for empty-query results', () => {
-            index.addTestDocument(
-                'file:///test-empty-query.pike',
-                [{ name: 'emptyQuerySymbol', kind: 'method', line: 999 }],
-                3
-            );
-
-            const results = index.searchSymbols('');
-            const symbol = results.find(result => result.name === 'emptyQuerySymbol');
-
-            expect(symbol).toBeDefined();
-            expect(symbol!.location.range.start.line).toBe(2);
-            expect(symbol!.location.range.end.line).toBe(2);
-        });
-
-        it('normalizes non-finite and non-integer lines to a safe range', () => {
-            index.addTestDocument(
-                'file:///test-numbers.pike',
-                [
-                    { name: 'nanSymbol', kind: 'method', line: Number.NaN },
-                    { name: 'infinitySymbol', kind: 'method', line: Number.POSITIVE_INFINITY },
-                    { name: 'floatSymbol', kind: 'method', line: 2.5 }
-                ],
-                8
-            );
-
-            const nanResult = index.searchSymbols('nanSymbol');
-            const infinityResult = index.searchSymbols('infinitySymbol');
-            const floatResult = index.searchSymbols('floatSymbol');
-
-            expect(nanResult.length).toBe(1);
-            expect(nanResult[0].location.range.start.line).toBe(0);
-
-            expect(infinityResult.length).toBe(1);
-            expect(infinityResult[0].location.range.start.line).toBe(0);
-
-            expect(floatResult.length).toBe(1);
-            expect(floatResult[0].location.range.start.line).toBe(0);
-        });
+      expect(results.length).toBe(1);
+      expect(results[0].location.range.start.line).toBe(11);
+      expect(results[0].location.range.end.line).toBe(11);
     });
 
-    /**
-     * Performance
-     */
-    describe('Performance', () => {
-        it('should search many symbols quickly', () => {
-            // Add 1000 symbols
-            for (let i = 0; i < 10; i++) {
-                const symbols: Array<{ name: string; kind: string; line: number }> = [];
-                for (let j = 0; j < 100; j++) {
-                    symbols.push({ name: `symbol${i * 100 + j}`, kind: 'method', line: j + 1 });
-                }
-                index.addTestDocument(`file:///file${i}.pike`, symbols);
-            }
+    it('applies the same upper bound protection for empty-query results', () => {
+      index.addTestDocument(
+        'file:///test-empty-query.pike',
+        [{ name: 'emptyQuerySymbol', kind: 'method', line: 999 }],
+        3
+      );
 
-            const start = Date.now();
-            const results = index.searchSymbols('symbol');
-            const elapsed = Date.now() - start;
+      const results = index.searchSymbols('');
+      const symbol = results.find(result => result.name === 'emptyQuerySymbol');
 
-            expect(elapsed).toBeLessThan(1000);
-            expect(results.length).toBeGreaterThan(0);
-        });
+      expect(symbol).toBeDefined();
+      expect(symbol!.location.range.start.line).toBe(2);
+      expect(symbol!.location.range.end.line).toBe(2);
     });
 
-    /**
-     * Result Ranking
-     */
-    describe('Result ranking', () => {
-        it('should rank exact matches higher than partial matches', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'myVarFunction', kind: 'method', line: 1 },
-                { name: 'myVar', kind: 'variable', line: 5 },
-                { name: 'myVarClass', kind: 'class', line: 10 }
-            ]);
+    it('normalizes non-finite and non-integer lines to a safe range', () => {
+      index.addTestDocument(
+        'file:///test-numbers.pike',
+        [
+          { name: 'nanSymbol', kind: 'method', line: Number.NaN },
+          { name: 'infinitySymbol', kind: 'method', line: Number.POSITIVE_INFINITY },
+          { name: 'floatSymbol', kind: 'method', line: 2.5 },
+        ],
+        8
+      );
 
-            const results = index.searchSymbols('myVar');
+      const nanResult = index.searchSymbols('nanSymbol');
+      const infinityResult = index.searchSymbols('infinitySymbol');
+      const floatResult = index.searchSymbols('floatSymbol');
 
-            // Exact match 'myVar' should be first (highest score)
-            expect(results[0].name).toBe('myVar');
-        });
+      expect(nanResult.length).toBe(1);
+      expect(nanResult[0].location.range.start.line).toBe(0);
 
-        it('should prefer shorter names within same match type', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'calculateSum', kind: 'method', line: 1 },
-                { name: 'calculate', kind: 'method', line: 5 }
-            ]);
+      expect(infinityResult.length).toBe(1);
+      expect(infinityResult[0].location.range.start.line).toBe(0);
 
-            const results = index.searchSymbols('calc');
+      expect(floatResult.length).toBe(1);
+      expect(floatResult[0].location.range.start.line).toBe(0);
+    });
+  });
 
-            // Both are prefix matches, but 'calculate' is shorter
-            expect(results[0].name).toBe('calculate');
-        });
+  /**
+   * Performance
+   */
+  describe('Performance', () => {
+    it('should search many symbols quickly', () => {
+      // Add 1000 symbols
+      for (let i = 0; i < 10; i++) {
+        const symbols: Array<{ name: string; kind: string; line: number }> = [];
+        for (let j = 0; j < 100; j++) {
+          symbols.push({ name: `symbol${i * 100 + j}`, kind: 'method', line: j + 1 });
+        }
+        index.addTestDocument(`file:///file${i}.pike`, symbols);
+      }
+
+      const start = Date.now();
+      const results = index.searchSymbols('symbol');
+      const elapsed = Date.now() - start;
+
+      expect(elapsed).toBeLessThan(1000);
+      expect(results.length).toBeGreaterThan(0);
+    });
+  });
+
+  /**
+   * Result Ranking
+   */
+  describe('Result ranking', () => {
+    it('should rank exact matches higher than partial matches', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'myVarFunction', kind: 'method', line: 1 },
+        { name: 'myVar', kind: 'variable', line: 5 },
+        { name: 'myVarClass', kind: 'class', line: 10 },
+      ]);
+
+      const results = index.searchSymbols('myVar');
+
+      // Exact match 'myVar' should be first (highest score)
+      expect(results[0].name).toBe('myVar');
     });
 
-    /**
-     * File Paths
-     */
-    describe('File paths in results', () => {
-        it('should include file paths in results', () => {
-            index.addTestDocument('file:///src/myFile.pike', [
-                { name: 'myFunction', kind: 'method', line: 1 }
-            ]);
+    it('should prefer shorter names within same match type', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'calculateSum', kind: 'method', line: 1 },
+        { name: 'calculate', kind: 'method', line: 5 },
+      ]);
 
-            const results = index.searchSymbols('myFunction');
+      const results = index.searchSymbols('calc');
 
-            expect(results.length).toBe(1);
-            expect(results[0].location.uri).toBe('file:///src/myFile.pike');
-        });
+      // Both are prefix matches, but 'calculate' is shorter
+      expect(results[0].name).toBe('calculate');
+    });
+  });
 
-        it('should handle URIs with encoded characters', () => {
-            index.addTestDocument('file:///src/my%20file.pike', [
-                { name: 'func', kind: 'method', line: 1 }
-            ]);
+  /**
+   * File Paths
+   */
+  describe('File paths in results', () => {
+    it('should include file paths in results', () => {
+      index.addTestDocument('file:///src/myFile.pike', [
+        { name: 'myFunction', kind: 'method', line: 1 },
+      ]);
 
-            const results = index.searchSymbols('func');
+      const results = index.searchSymbols('myFunction');
 
-            expect(results.length).toBe(1);
-            expect(results[0].location.uri).toContain('my%20file.pike');
-        });
+      expect(results.length).toBe(1);
+      expect(results[0].location.uri).toBe('file:///src/myFile.pike');
     });
 
-    /**
-     * Query Parsing
-     */
-    describe('Query parsing', () => {
-        it('should handle lowercase queries', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'MyFunction', kind: 'method', line: 1 }
-            ]);
+    it('should handle URIs with encoded characters', () => {
+      index.addTestDocument('file:///src/my%20file.pike', [
+        { name: 'func', kind: 'method', line: 1 },
+      ]);
 
-            const results = index.searchSymbols('myfunction');
+      const results = index.searchSymbols('func');
 
-            expect(results.length).toBe(1);
-        });
+      expect(results.length).toBe(1);
+      expect(results[0].location.uri).toContain('my%20file.pike');
+    });
+  });
 
-        it('should handle single character queries', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'm', kind: 'method', line: 1 },
-                { name: 'myFunction', kind: 'method', line: 5 }
-            ]);
+  /**
+   * Query Parsing
+   */
+  describe('Query parsing', () => {
+    it('should handle lowercase queries', () => {
+      index.addTestDocument('file:///test.pike', [{ name: 'MyFunction', kind: 'method', line: 1 }]);
 
-            const results = index.searchSymbols('m');
+      const results = index.searchSymbols('myfunction');
 
-            // Should find both 'm' (exact) and 'myFunction' (prefix)
-            expect(results.length).toBeGreaterThan(0);
-        });
+      expect(results.length).toBe(1);
     });
 
-    /**
-     * Workspace Index Integration
-     */
-    describe('Workspace index integration', () => {
-        it('should return index statistics', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'func1', kind: 'method', line: 1 },
-                { name: 'func2', kind: 'method', line: 5 }
-            ]);
+    it('should handle single character queries', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'm', kind: 'method', line: 1 },
+        { name: 'myFunction', kind: 'method', line: 5 },
+      ]);
 
-            const stats = index.getStats();
+      const results = index.searchSymbols('m');
 
-            expect(stats.documents).toBe(1);
-            expect(stats.symbols).toBe(2);
-            expect(stats.uniqueNames).toBe(2);
-        });
+      // Should find both 'm' (exact) and 'myFunction' (prefix)
+      expect(results.length).toBeGreaterThan(0);
+    });
+  });
 
-        it('should clear index', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'func', kind: 'method', line: 1 }
-            ]);
+  /**
+   * Workspace Index Integration
+   */
+  describe('Workspace index integration', () => {
+    it('should return index statistics', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'func1', kind: 'method', line: 1 },
+        { name: 'func2', kind: 'method', line: 5 },
+      ]);
 
-            index.clear();
-            const stats = index.getStats();
+      const stats = index.getStats();
 
-            expect(stats.documents).toBe(0);
-            expect(stats.symbols).toBe(0);
-        });
-
-        it('should get all document URIs', () => {
-            index.addTestDocument('file:///test1.pike', [
-                { name: 'func1', kind: 'method', line: 1 }
-            ]);
-            index.addTestDocument('file:///test2.pike', [
-                { name: 'func2', kind: 'method', line: 1 }
-            ]);
-
-            const uris = index.getAllDocumentUris();
-
-            expect(uris.length).toBe(2);
-            expect(uris).toContain('file:///test1.pike');
-            expect(uris).toContain('file:///test2.pike');
-        });
+      expect(stats.documents).toBe(1);
+      expect(stats.symbols).toBe(2);
+      expect(stats.uniqueNames).toBe(2);
     });
 
-    /**
-     * Container Name Support
-     */
-    describe('Container name support', () => {
-        it('should include containerName for nested symbols', () => {
-            index.addTestDocument('file:///test.pike', [
-                { name: 'MyClass', kind: 'class', line: 1 },
-                { name: 'myMethod', kind: 'method', line: 5, parentName: 'MyClass' }
-            ]);
+    it('should clear index', () => {
+      index.addTestDocument('file:///test.pike', [{ name: 'func', kind: 'method', line: 1 }]);
 
-            const results = index.searchSymbols('myMethod');
+      index.clear();
+      const stats = index.getStats();
 
-            expect(results.length).toBe(1);
-            expect(results[0].containerName).toBe('MyClass');
-        });
+      expect(stats.documents).toBe(0);
+      expect(stats.symbols).toBe(0);
     });
+
+    it('should get all document URIs', () => {
+      index.addTestDocument('file:///test1.pike', [{ name: 'func1', kind: 'method', line: 1 }]);
+      index.addTestDocument('file:///test2.pike', [{ name: 'func2', kind: 'method', line: 1 }]);
+
+      const uris = index.getAllDocumentUris();
+
+      expect(uris.length).toBe(2);
+      expect(uris).toContain('file:///test1.pike');
+      expect(uris).toContain('file:///test2.pike');
+    });
+  });
+
+  /**
+   * Container Name Support
+   */
+  describe('Container name support', () => {
+    it('should include containerName for nested symbols', () => {
+      index.addTestDocument('file:///test.pike', [
+        { name: 'MyClass', kind: 'class', line: 1 },
+        { name: 'myMethod', kind: 'method', line: 5, parentName: 'MyClass' },
+      ]);
+
+      const results = index.searchSymbols('myMethod');
+
+      expect(results.length).toBe(1);
+      expect(results[0].containerName).toBe('MyClass');
+    });
+  });
 });

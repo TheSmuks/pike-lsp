@@ -17,14 +17,14 @@ import type { Range } from 'vscode-languageserver';
  * outputting values or performing side effects.
  */
 const SIMPLE_TAGS = new Set([
-    'output',
-    'input',
-    'config',
-    'header',
-    'cache',
-    'insert',
-    'date',
-    'apre',
+  'output',
+  'input',
+  'config',
+  'header',
+  'cache',
+  'insert',
+  'date',
+  'apre',
 ]);
 
 /**
@@ -33,59 +33,59 @@ const SIMPLE_TAGS = new Set([
  * These tags wrap content and can contain nested RXML or HTML.
  */
 const CONTAINER_TAGS = new Set([
-    'set',
-    'emit',
-    'if',
-    'elseif',
-    'else',
-    'roxen',
-    'container',
-    'contents',
-    'then',
-    'elseif',
-    'for',
-    'foreach',
-    'while',
-    'case',
-    'switch',
-    'default',
+  'set',
+  'emit',
+  'if',
+  'elseif',
+  'else',
+  'roxen',
+  'container',
+  'contents',
+  'then',
+  'elseif',
+  'for',
+  'foreach',
+  'while',
+  'case',
+  'switch',
+  'default',
 ]);
 
 /**
  * RXML tag information extracted from template
  */
 export interface RXMLTag {
-    /** Tag name (e.g., "set", "emit", "if") */
-    name: string;
-    /** Tag type - simple (self-closing) or container (has closing tag) */
-    type: 'simple' | 'container';
-    /** Position of the tag in the document */
-    range: Range;
-    /** Attributes defined on the tag */
-    attributes: RXMLAttribute[];
-    /** Nested child tags (only for container tags) */
-    children?: RXMLTag[];
+  /** Tag name (e.g., "set", "emit", "if") */
+  name: string;
+  /** Tag type - simple (self-closing) or container (has closing tag) */
+  type: 'simple' | 'container';
+  /** Position of the tag in the document */
+  range: Range;
+  /** Attributes defined on the tag */
+  attributes: RXMLAttribute[];
+  /** Nested child tags (only for container tags) */
+  children?: RXMLTag[];
 }
 
 /**
  * RXML tag attribute
  */
 export interface RXMLAttribute {
-    /** Attribute name */
-    name: string;
-    /** Attribute value (unquoted) */
-    value: string;
-    /** Position of the attribute in the document */
-    range: Range;
+  /** Attribute name */
+  name: string;
+  /** Attribute value (unquoted) */
+  value: string;
+  /** Position of the attribute in the document */
+  range: Range;
 }
 
 interface DOMNodeLike {
-    type?: string;
-    name?: string;
-    startIndex?: number | null;
-    endIndex?: number | null;
-    attribs?: Record<string, unknown>;
-    children?: DOMNodeLike[];
+  type?: string;
+  name?: string;
+  startIndex?: number | null;
+  endIndex?: number | null;
+  attribs?: Record<string, unknown>;
+  children?: DOMNodeLike[];
 }
 
 /**
@@ -99,32 +99,32 @@ interface DOMNodeLike {
  * @returns Array of RXML tags found in the document
  */
 export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
-    try {
-        // Check if this is a .rjs file (JavaScript with embedded RXML)
-        const isRJS = uri.endsWith('.rjs');
+  try {
+    // Check if this is a .rjs file (JavaScript with embedded RXML)
+    const isRJS = uri.endsWith('.rjs');
 
-        let contentToParse = code;
+    let contentToParse = code;
 
-        if (isRJS) {
-            // For .rjs files, extract string literals that may contain RXML
-            // This handles both template literals (`...`) and regular strings ("...")
-            contentToParse = extractRXMLFromJavaScript(code);
-        }
-
-        const document = parseDocument(contentToParse, {
-            withStartIndices: true,
-            withEndIndices: true,
-            xmlMode: true,  // RXML is XML-like with proper self-closing tags
-            lowerCaseTags: true,
-        });
-
-        // Walk the DOM tree to find RXML tags with hierarchy preserved
-        return walkDOM(document.children, contentToParse);
-    } catch (error) {
-        // Log parsing errors but don't fail - return empty array
-        console.warn(`[RXML Parser] Warning: failed to parse template in ${uri}:`, error);
-        return [];
+    if (isRJS) {
+      // For .rjs files, extract string literals that may contain RXML
+      // This handles both template literals (`...`) and regular strings ("...")
+      contentToParse = extractRXMLFromJavaScript(code);
     }
+
+    const document = parseDocument(contentToParse, {
+      withStartIndices: true,
+      withEndIndices: true,
+      xmlMode: true, // RXML is XML-like with proper self-closing tags
+      lowerCaseTags: true,
+    });
+
+    // Walk the DOM tree to find RXML tags with hierarchy preserved
+    return walkDOM(document.children, contentToParse);
+  } catch (error) {
+    // Log parsing errors but don't fail - return empty array
+    console.warn(`[RXML Parser] Warning: failed to parse template in ${uri}:`, error);
+    return [];
+  }
 }
 
 /**
@@ -134,42 +134,42 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
  * @param sourceCode - Original source code for position calculations
  * @returns Array of RXML tags found (with nested children)
  */
- 
+
 function walkDOM(nodes: DOMNodeLike[], sourceCode: string): RXMLTag[] {
-    const tags: RXMLTag[] = [];
+  const tags: RXMLTag[] = [];
 
-    for (const node of nodes) {
-        if (node.type === 'tag') {
-            const tagName = node.name?.toLowerCase();
-            if (!tagName) {
-                continue;
-            }
+  for (const node of nodes) {
+    if (node.type === 'tag') {
+      const tagName = node.name?.toLowerCase();
+      if (!tagName) {
+        continue;
+      }
 
-            // Check if this is an RXML tag
-            if (isRXMLTag(tagName)) {
-                const tag = extractTagInfo(node, sourceCode);
-                if (tag) {
-                    // Recursively extract child tags
-                    if (node.children && node.children.length > 0) {
-                        tag.children = walkDOM(node.children, sourceCode);
-                    }
-                    tags.push(tag);
-                }
-            } else {
-                // Not an RXML tag, but check its children for RXML tags
-                if (node.children && node.children.length > 0) {
-                    const childTags = walkDOM(node.children, sourceCode);
-                    tags.push(...childTags);
-                }
-            }
-        } else if (node.children && node.children.length > 0) {
-            // Text node or other - check children
-            const childTags = walkDOM(node.children, sourceCode);
-            tags.push(...childTags);
+      // Check if this is an RXML tag
+      if (isRXMLTag(tagName)) {
+        const tag = extractTagInfo(node, sourceCode);
+        if (tag) {
+          // Recursively extract child tags
+          if (node.children && node.children.length > 0) {
+            tag.children = walkDOM(node.children, sourceCode);
+          }
+          tags.push(tag);
         }
+      } else {
+        // Not an RXML tag, but check its children for RXML tags
+        if (node.children && node.children.length > 0) {
+          const childTags = walkDOM(node.children, sourceCode);
+          tags.push(...childTags);
+        }
+      }
+    } else if (node.children && node.children.length > 0) {
+      // Text node or other - check children
+      const childTags = walkDOM(node.children, sourceCode);
+      tags.push(...childTags);
     }
+  }
 
-    return tags;
+  return tags;
 }
 
 /**
@@ -179,31 +179,31 @@ function walkDOM(nodes: DOMNodeLike[], sourceCode: string): RXMLTag[] {
  * @param sourceCode - Original source code
  * @returns RXML tag info or null if extraction fails
  */
- 
+
 function extractTagInfo(node: DOMNodeLike, sourceCode: string): RXMLTag | null {
-    const tagName = node.name;
-    if (!tagName) {
-        return null;
-    }
+  const tagName = node.name;
+  if (!tagName) {
+    return null;
+  }
 
-    // Determine if container or simple
-    // Tag type is determined by the tag name, not by whether it has children
-    // Container tags (set, emit, if, etc.) are always "container" type
-    // Simple tags (output, config, etc.) are always "simple" type
-    const isSimple = isContainerTag(tagName) === false;
+  // Determine if container or simple
+  // Tag type is determined by the tag name, not by whether it has children
+  // Container tags (set, emit, if, etc.) are always "container" type
+  // Simple tags (output, config, etc.) are always "simple" type
+  const isSimple = isContainerTag(tagName) === false;
 
-    // Calculate range
-    const range = calculateTagRange(node, sourceCode);
+  // Calculate range
+  const range = calculateTagRange(node, sourceCode);
 
-    // Extract attributes
-    const attributes = getTagAttributes(node);
+  // Extract attributes
+  const attributes = getTagAttributes(node);
 
-    return {
-        name: tagName,
-        type: isSimple ? 'simple' : 'container',
-        range,
-        attributes,
-    };
+  return {
+    name: tagName,
+    type: isSimple ? 'simple' : 'container',
+    range,
+    attributes,
+  };
 }
 
 /**
@@ -213,18 +213,18 @@ function extractTagInfo(node: DOMNodeLike, sourceCode: string): RXMLTag | null {
  * @param sourceCode - Original source code
  * @returns Range covering the entire tag (open to close, or just open if self-closing)
  */
- 
+
 function calculateTagRange(node: DOMNodeLike, sourceCode: string): Range {
-    // htmlparser2 provides startIndex and endIndex for nodes
-    // We need to convert these to line/column positions
+  // htmlparser2 provides startIndex and endIndex for nodes
+  // We need to convert these to line/column positions
 
-    const startPos = positionAt(node.startIndex ?? 0, sourceCode);
-    const endPos = positionAt(node.endIndex ?? node.startIndex ?? 0, sourceCode);
+  const startPos = positionAt(node.startIndex ?? 0, sourceCode);
+  const endPos = positionAt(node.endIndex ?? node.startIndex ?? 0, sourceCode);
 
-    return {
-        start: startPos,
-        end: endPos,
-    };
+  return {
+    start: startPos,
+    end: endPos,
+  };
 }
 
 /**
@@ -235,19 +235,19 @@ function calculateTagRange(node: DOMNodeLike, sourceCode: string): Range {
  * @returns Position with line and character
  */
 function positionAt(offset: number, sourceCode: string): { line: number; character: number } {
-    let line = 0;
-    let character = 0;
+  let line = 0;
+  let character = 0;
 
-    for (let i = 0; i < offset && i < sourceCode.length; i++) {
-        if (sourceCode[i] === '\n') {
-            line++;
-            character = 0;
-        } else {
-            character++;
-        }
+  for (let i = 0; i < offset && i < sourceCode.length; i++) {
+    if (sourceCode[i] === '\n') {
+      line++;
+      character = 0;
+    } else {
+      character++;
     }
+  }
 
-    return { line, character };
+  return { line, character };
 }
 
 /**
@@ -256,29 +256,29 @@ function positionAt(offset: number, sourceCode: string): { line: number; charact
  * @param tagElement - DOM element node
  * @returns Array of attributes with ranges
  */
- 
+
 export function getTagAttributes(tagElement: DOMNodeLike): RXMLAttribute[] {
-    const attributes: RXMLAttribute[] = [];
+  const attributes: RXMLAttribute[] = [];
 
-    if (!tagElement.attribs || typeof tagElement.attribs !== 'object') {
-        return attributes;
-    }
-
-    // htmlparser2 doesn't provide attribute positions in the DOM
-    // We'll return attributes without precise ranges for now
-    // Future improvement: parse the source string to find attribute positions
-    for (const [name, value] of Object.entries(tagElement.attribs)) {
-        attributes.push({
-            name,
-            value: String(value),
-            range: {
-                start: { line: 0, character: 0 },
-                end: { line: 0, character: 0 },
-            },
-        });
-    }
-
+  if (!tagElement.attribs || typeof tagElement.attribs !== 'object') {
     return attributes;
+  }
+
+  // htmlparser2 doesn't provide attribute positions in the DOM
+  // We'll return attributes without precise ranges for now
+  // Future improvement: parse the source string to find attribute positions
+  for (const [name, value] of Object.entries(tagElement.attribs)) {
+    attributes.push({
+      name,
+      value: String(value),
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: 0 },
+      },
+    });
+  }
+
+  return attributes;
 }
 
 /**
@@ -288,38 +288,55 @@ export function getTagAttributes(tagElement: DOMNodeLike): RXMLAttribute[] {
  * @returns true if this is a known RXML tag
  */
 function isRXMLTag(tagName: string): boolean {
-    // Known RXML tags from Roxen documentation
-    const knownTags = [
-        // Control flow
-        'if', 'elseif', 'else', 'then', 'case', 'switch', 'default',
-        'for', 'foreach', 'while',
+  // Known RXML tags from Roxen documentation
+  const knownTags = [
+    // Control flow
+    'if',
+    'elseif',
+    'else',
+    'then',
+    'case',
+    'switch',
+    'default',
+    'for',
+    'foreach',
+    'while',
 
-        // Output and variables
-        'set', 'output', 'insert',
+    // Output and variables
+    'set',
+    'output',
+    'insert',
 
-        // Database and queries
-        'emit', 'sqlquery',
+    // Database and queries
+    'emit',
+    'sqlquery',
 
-        // Page structure
-        'roxen', 'container', 'contents',
+    // Page structure
+    'roxen',
+    'container',
+    'contents',
 
-        // Configuration
-        'config', 'header',
+    // Configuration
+    'config',
+    'header',
 
-        // Caching
-        'cache',
+    // Caching
+    'cache',
 
-        // Forms and input
-        'input',
+    // Forms and input
+    'input',
 
-        // Date/time
-        'date',
+    // Date/time
+    'date',
 
-        // Other common RXML tags
-        'apre', 'locale', 'referrer', 'user',
-    ];
+    // Other common RXML tags
+    'apre',
+    'locale',
+    'referrer',
+    'user',
+  ];
 
-    return knownTags.includes(tagName);
+  return knownTags.includes(tagName);
 }
 
 /**
@@ -331,20 +348,20 @@ function isRXMLTag(tagName: string): boolean {
  * @returns true if this is a container tag
  */
 export function isContainerTag(tagName: string): boolean {
-    const name = tagName.toLowerCase();
+  const name = tagName.toLowerCase();
 
-    // Known simple tags
-    if (SIMPLE_TAGS.has(name)) {
-        return false;
-    }
+  // Known simple tags
+  if (SIMPLE_TAGS.has(name)) {
+    return false;
+  }
 
-    // Known container tags
-    if (CONTAINER_TAGS.has(name)) {
-        return true;
-    }
-
-    // Default to container for unknown tags (safe default)
+  // Known container tags
+  if (CONTAINER_TAGS.has(name)) {
     return true;
+  }
+
+  // Default to container for unknown tags (safe default)
+  return true;
 }
 
 /**
@@ -360,90 +377,90 @@ export function isContainerTag(tagName: string): boolean {
  * @returns Concatenated string content from all string literals
  */
 function extractRXMLFromJavaScript(code: string): string {
-    const contents: string[] = [];
-    let i = 0;
+  const contents: string[] = [];
+  let i = 0;
 
-    while (i < code.length) {
-        const char = code[i];
+  while (i < code.length) {
+    const char = code[i];
 
-        // Skip single-line comments
-        if (char === '/' && i + 1 < code.length && code[i + 1] === '/') {
-            while (i < code.length && code[i] !== '\n') {
-                i++;
-            }
-            i++;
-            continue;
-        }
-
-        // Skip multi-line comments
-        if (char === '/' && i + 1 < code.length && code[i + 1] === '*') {
-            i += 2;
-            while (i < code.length && !(code[i] === '*' && i + 1 < code.length && code[i + 1] === '/')) {
-                i++;
-            }
-            i += 2;
-            continue;
-        }
-
-        // Match template literals: `...`
-        if (char === '`' && (i === 0 || code[i - 1] !== '\\')) {
-            i++; // Skip opening backtick
-            let content = '';
-
-            while (i < code.length) {
-                if (code[i] === '`' && code[i - 1] !== '\\') {
-                    // Found closing backtick
-                    contents.push(content);
-                    break;
-                }
-                content += code[i];
-                i++;
-            }
-            i++;
-            continue;
-        }
-
-        // Match single-quoted strings: '...'
-        if (char === '\'' && (i === 0 || code[i - 1] !== '\\')) {
-            i++; // Skip opening quote
-            let content = '';
-
-            while (i < code.length) {
-                if (code[i] === '\'' && code[i - 1] !== '\\') {
-                    // Found closing quote
-                    contents.push(content);
-                    break;
-                }
-                content += code[i];
-                i++;
-            }
-            i++;
-            continue;
-        }
-
-        // Match double-quoted strings: "..."
-        if (char === '"' && (i === 0 || code[i - 1] !== '\\')) {
-            i++; // Skip opening quote
-            let content = '';
-
-            while (i < code.length) {
-                if (code[i] === '"' && code[i - 1] !== '\\') {
-                    // Found closing quote
-                    contents.push(content);
-                    break;
-                }
-                content += code[i];
-                i++;
-            }
-            i++;
-            continue;
-        }
-
+    // Skip single-line comments
+    if (char === '/' && i + 1 < code.length && code[i + 1] === '/') {
+      while (i < code.length && code[i] !== '\n') {
         i++;
+      }
+      i++;
+      continue;
     }
 
-    // Join all extracted strings with newlines for parsing
-    return contents.join('\n');
+    // Skip multi-line comments
+    if (char === '/' && i + 1 < code.length && code[i + 1] === '*') {
+      i += 2;
+      while (i < code.length && !(code[i] === '*' && i + 1 < code.length && code[i + 1] === '/')) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+
+    // Match template literals: `...`
+    if (char === '`' && (i === 0 || code[i - 1] !== '\\')) {
+      i++; // Skip opening backtick
+      let content = '';
+
+      while (i < code.length) {
+        if (code[i] === '`' && code[i - 1] !== '\\') {
+          // Found closing backtick
+          contents.push(content);
+          break;
+        }
+        content += code[i];
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    // Match single-quoted strings: '...'
+    if (char === "'" && (i === 0 || code[i - 1] !== '\\')) {
+      i++; // Skip opening quote
+      let content = '';
+
+      while (i < code.length) {
+        if (code[i] === "'" && code[i - 1] !== '\\') {
+          // Found closing quote
+          contents.push(content);
+          break;
+        }
+        content += code[i];
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    // Match double-quoted strings: "..."
+    if (char === '"' && (i === 0 || code[i - 1] !== '\\')) {
+      i++; // Skip opening quote
+      let content = '';
+
+      while (i < code.length) {
+        if (code[i] === '"' && code[i - 1] !== '\\') {
+          // Found closing quote
+          contents.push(content);
+          break;
+        }
+        content += code[i];
+        i++;
+      }
+      i++;
+      continue;
+    }
+
+    i++;
+  }
+
+  // Join all extracted strings with newlines for parsing
+  return contents.join('\n');
 }
 
 /**
@@ -455,14 +472,14 @@ function extractRXMLFromJavaScript(code: string): string {
  * @returns Flat array of all tags
  */
 export function flattenTags(tags: RXMLTag[]): RXMLTag[] {
-    const result: RXMLTag[] = [];
+  const result: RXMLTag[] = [];
 
-    for (const tag of tags) {
-        result.push(tag);
-        if (tag.children && tag.children.length > 0) {
-            result.push(...flattenTags(tag.children));
-        }
+  for (const tag of tags) {
+    result.push(tag);
+    if (tag.children && tag.children.length > 0) {
+      result.push(...flattenTags(tag.children));
     }
+  }
 
-    return result;
+  return result;
 }

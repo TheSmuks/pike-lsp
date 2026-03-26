@@ -449,7 +449,9 @@ describe('Completion Provider', () => {
       expect(warnings.length).toBe(1);
       expect(warnings[0]?.message).toBe('Completion cancellation request failed');
       expect(warnings[0]?.payload['uri']).toBe(uri);
-      expect(String(warnings[0]?.payload['requestId']).startsWith(`completion:${uri}:1:`)).toBe(true);
+      expect(String(warnings[0]?.payload['requestId']).startsWith(`completion:${uri}:1:`)).toBe(
+        true
+      );
       expect(warnings[0]?.payload['error']).toBe(cancellationError);
     });
 

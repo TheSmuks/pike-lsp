@@ -30,12 +30,12 @@ import type { BridgeManager } from '../../services/index.js';
  * Cache entry structure
  */
 interface CacheEntry {
-    /** Parsed RXML tag catalog */
-    catalog: RXMLTagCatalogEntry[];
-    /** Server instance identifier (e.g., "localhost:9000") */
-    server: string;
-    /** Cache timestamp (used for TTL and cache key) */
-    timestamp: number;
+  /** Parsed RXML tag catalog */
+  catalog: RXMLTagCatalogEntry[];
+  /** Server instance identifier (e.g., "localhost:9000") */
+  server: string;
+  /** Cache timestamp (used for TTL and cache key) */
+  timestamp: number;
 }
 
 /**
@@ -48,146 +48,142 @@ interface CacheEntry {
  * accurate cache invalidation when the server restarts.
  */
 export class RXMLTagCatalogCache {
-    private cache = new Map<string, CacheEntry>();
-    private readonly TTL_MS = 5 * 60 * 1000; // 5 minutes
-    private bridgeManager: BridgeManager | null = null;
+  private cache = new Map<string, CacheEntry>();
+  private readonly TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private bridgeManager: BridgeManager | null = null;
 
-    /**
-     * Set the bridge manager for PID tracking.
-     *
-     * When a bridge manager is set, the cache can automatically
-     * get the current Pike subprocess PID for cache key generation.
-     *
-     * @param bridgeManager - Bridge manager instance or null to clear
-     */
-    setBridgeManager(bridgeManager: BridgeManager | null): void {
-        this.bridgeManager = bridgeManager;
+  /**
+   * Set the bridge manager for PID tracking.
+   *
+   * When a bridge manager is set, the cache can automatically
+   * get the current Pike subprocess PID for cache key generation.
+   *
+   * @param bridgeManager - Bridge manager instance or null to clear
+   */
+  setBridgeManager(bridgeManager: BridgeManager | null): void {
+    this.bridgeManager = bridgeManager;
+  }
+
+  /**
+   * Get the current Pike subprocess PID from BridgeManager.
+   *
+   * Returns the PID from the health status, which is tracked
+   * by the bridge manager. Returns undefined if no bridge is set
+   * or the bridge is not running.
+   *
+   * @returns Pike subprocess PID or undefined if not available
+   */
+  async getPikePid(): Promise<number | undefined> {
+    if (!this.bridgeManager) {
+      return undefined;
+    }
+    const health = await this.bridgeManager.getHealth();
+    return health.pikePid ?? undefined;
+  }
+
+  /**
+   * Get a cache entry for the given server instance
+   *
+   * @param serverPid - Server process ID or identifier
+   * @param serverName - Human-readable server identifier (e.g., "localhost:9000")
+   * @returns Cache entry or undefined if not found/expired
+   */
+  get(serverPid: number | string, serverName: string): RXMLTagCatalogEntry[] | undefined {
+    const key = this.createCacheKey(serverPid, serverName);
+    const entry = this.cache.get(key);
+
+    if (!entry) {
+      return undefined;
     }
 
-    /**
-     * Get the current Pike subprocess PID from BridgeManager.
-     *
-     * Returns the PID from the health status, which is tracked
-     * by the bridge manager. Returns undefined if no bridge is set
-     * or the bridge is not running.
-     *
-     * @returns Pike subprocess PID or undefined if not available
-     */
-    async getPikePid(): Promise<number | undefined> {
-        if (!this.bridgeManager) {
-            return undefined;
-        }
-        const health = await this.bridgeManager.getHealth();
-        return health.pikePid ?? undefined;
+    // Check TTL expiration
+    if (this.isExpired(entry.timestamp)) {
+      this.cache.delete(key);
+      return undefined;
     }
 
-    /**
-     * Get a cache entry for the given server instance
-     *
-     * @param serverPid - Server process ID or identifier
-     * @param serverName - Human-readable server identifier (e.g., "localhost:9000")
-     * @returns Cache entry or undefined if not found/expired
-     */
-    get(serverPid: number | string, serverName: string): RXMLTagCatalogEntry[] | undefined {
-        const key = this.createCacheKey(serverPid, serverName);
-        const entry = this.cache.get(key);
+    return entry.catalog;
+  }
 
-        if (!entry) {
-            return undefined;
-        }
+  /**
+   * Set a cache entry for the given server instance
+   *
+   * @param serverPid - Server process ID or identifier
+   * @param serverName - Human-readable server identifier
+   * @param catalog - Parsed tag catalog
+   */
+  set(serverPid: number | string, serverName: string, catalog: RXMLTagCatalogEntry[]): void {
+    const key = this.createCacheKey(serverPid, serverName);
+    const entry: CacheEntry = {
+      catalog,
+      server: serverName,
+      timestamp: Date.now(),
+    };
 
-        // Check TTL expiration
-        if (this.isExpired(entry.timestamp)) {
-            this.cache.delete(key);
-            return undefined;
-        }
+    // Map.set() is atomic in Node.js - thread-safe by default
+    this.cache.set(key, entry);
+  }
 
-        return entry.catalog;
-    }
+  /**
+   * Invalidate cache for a specific server instance
+   *
+   * @param serverPid - Server process ID or identifier
+   * @param serverName - Human-readable server identifier
+   */
+  invalidate(serverPid: number | string, serverName: string): void {
+    const key = this.createCacheKey(serverPid, serverName);
+    this.cache.delete(key);
+  }
 
-    /**
-     * Set a cache entry for the given server instance
-     *
-     * @param serverPid - Server process ID or identifier
-     * @param serverName - Human-readable server identifier
-     * @param catalog - Parsed tag catalog
-     */
-    set(
-        serverPid: number | string,
-        serverName: string,
-        catalog: RXMLTagCatalogEntry[]
-    ): void {
-        const key = this.createCacheKey(serverPid, serverName);
-        const entry: CacheEntry = {
-            catalog,
-            server: serverName,
-            timestamp: Date.now(),
-        };
+  /**
+   * Invalidate all cached entries
+   *
+   * Use this when server restarts and all caches should be rebuilt.
+   */
+  clear(): void {
+    this.cache.clear();
+  }
 
-        // Map.set() is atomic in Node.js - thread-safe by default
-        this.cache.set(key, entry);
-    }
+  /**
+   * Get cache statistics for debugging
+   *
+   * @returns Object with cache size and entry details
+   */
+  getStats(): {
+    size: number;
+    keys: string[];
+  } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys()),
+    };
+  }
 
-    /**
-     * Invalidate cache for a specific server instance
-     *
-     * @param serverPid - Server process ID or identifier
-     * @param serverName - Human-readable server identifier
-     */
-    invalidate(serverPid: number | string, serverName: string): void {
-        const key = this.createCacheKey(serverPid, serverName);
-        this.cache.delete(key);
-    }
+  /**
+   * Create a cache key from server identifier
+   *
+   * The key combines PID and server name for unique identification.
+   * TTL expiration is handled separately via the entry timestamp.
+   *
+   * @param serverPid - Server process ID
+   * @param serverName - Server identifier string
+   * @returns Unique cache key
+   */
+  private createCacheKey(serverPid: number | string, serverName: string): string {
+    // Combine PID and name for unique identification
+    // TTL is handled via entry.timestamp in isExpired()
+    return `${serverName}:${serverPid}`;
+  }
 
-    /**
-     * Invalidate all cached entries
-     *
-     * Use this when server restarts and all caches should be rebuilt.
-     */
-    clear(): void {
-        this.cache.clear();
-    }
-
-    /**
-     * Get cache statistics for debugging
-     *
-     * @returns Object with cache size and entry details
-     */
-    getStats(): {
-        size: number;
-        keys: string[];
-    } {
-        return {
-            size: this.cache.size,
-            keys: Array.from(this.cache.keys()),
-        };
-    }
-
-    /**
-     * Create a cache key from server identifier
-     *
-     * The key combines PID and server name for unique identification.
-     * TTL expiration is handled separately via the entry timestamp.
-     *
-     * @param serverPid - Server process ID
-     * @param serverName - Server identifier string
-     * @returns Unique cache key
-     */
-    private createCacheKey(serverPid: number | string, serverName: string): string {
-        // Combine PID and name for unique identification
-        // TTL is handled via entry.timestamp in isExpired()
-        return `${serverName}:${serverPid}`;
-    }
-
-    /**
-     * Check if a cache entry has expired
-     *
-     * @param timestamp - Entry timestamp
-     * @returns true if expired
-     */
-    private isExpired(timestamp: number): boolean {
-        return Date.now() - timestamp > this.TTL_MS;
-    }
+  /**
+   * Check if a cache entry has expired
+   *
+   * @param timestamp - Entry timestamp
+   * @returns true if expired
+   */
+  private isExpired(timestamp: number): boolean {
+    return Date.now() - timestamp > this.TTL_MS;
+  }
 }
 
 /**

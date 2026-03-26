@@ -88,7 +88,7 @@ describe('server runtime indexing progress', () => {
       workspaceIndex: workspaceIndex as any,
       workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
-      getGlobalSettings: () => ({ diagnosticDelay: 250 } as any),
+      getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],
       getClientSupportsWorkDoneProgress: () => true,
       setStdlibIndex: () => undefined,
@@ -101,7 +101,9 @@ describe('server runtime indexing progress', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(progressEvents.some(e => e.type === 'begin')).toBeTrue();
-    expect(progressEvents.some(e => e.type === 'report' && e.message?.includes('Reading files'))).toBeTrue();
+    expect(
+      progressEvents.some(e => e.type === 'report' && e.message?.includes('Reading files'))
+    ).toBeTrue();
     expect(progressEvents.some(e => e.type === 'done')).toBeTrue();
   });
 
@@ -160,7 +162,7 @@ describe('server runtime indexing progress', () => {
       workspaceIndex: workspaceIndex as any,
       workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
-      getGlobalSettings: () => ({ diagnosticDelay: 250 } as any),
+      getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],
       getClientSupportsWorkDoneProgress: () => false,
       setStdlibIndex: () => undefined,

@@ -28,12 +28,16 @@ interface ComparisonResult {
 describe('Oracle Tests', { timeout: 30000 }, () => {
   let bridge: PikeBridge;
 
-  beforeAll(async () => { bridge = new PikeBridge();
-  await bridge.start();
-  // Suppress stderr noise
-  bridge.on('stderr', () => {}); });
+  beforeAll(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    // Suppress stderr noise
+    bridge.on('stderr', () => {});
+  });
 
-  afterAll(async () => { await bridge.stop(); });
+  afterAll(async () => {
+    await bridge.stop();
+  });
 
   /**
    * Helper: Compare parser output vs Pike compiler introspection

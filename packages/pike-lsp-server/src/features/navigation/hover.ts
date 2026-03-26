@@ -129,12 +129,17 @@ export function registerHoverHandler(
       }
 
       if (symbol.kind === 'method') {
-        const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name)
-          .filter(s => s.kind === 'method');
+        const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name).filter(
+          s => s.kind === 'method'
+        );
 
         if (overloadCandidates.length > 0) {
-          const mainSymbol = overloadCandidates.find(s => !(s.modifiers?.includes('variant') ?? false));
-          const variantSymbols = overloadCandidates.filter(s => s.modifiers?.includes('variant') ?? false);
+          const mainSymbol = overloadCandidates.find(
+            s => !(s.modifiers?.includes('variant') ?? false)
+          );
+          const variantSymbols = overloadCandidates.filter(
+            s => s.modifiers?.includes('variant') ?? false
+          );
 
           if (mainSymbol) {
             symbol = {

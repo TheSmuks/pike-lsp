@@ -22,14 +22,18 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
   let bridge: PikeBridge;
 
-  beforeAll(async () => { bridge = new PikeBridge();
-  await bridge.start();
-  // Suppress stderr output during tests
-  bridge.on('stderr', () => {}); });
+  beforeAll(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    // Suppress stderr output during tests
+    bridge.on('stderr', () => {});
+  });
 
-  afterAll(async () => { if (bridge) {
-    await bridge.stop();
-  } });
+  afterAll(async () => {
+    if (bridge) {
+      await bridge.stop();
+    }
+  });
 
   // =========================================================================
   // 45.1 Method: parse
@@ -95,7 +99,10 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
       const tokens = await bridge.tokenize('int x;');
 
       if (tokens.length > 0) {
-        assert.ok('text' in tokens[0] || 'type' in tokens[0], 'Token should have text or type property');
+        assert.ok(
+          'text' in tokens[0] || 'type' in tokens[0],
+          'Token should have text or type property'
+        );
       }
     });
 
@@ -233,7 +240,10 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
       const result = await bridge.resolveStdlib('Stdio');
 
       assert.ok(result, 'resolveStdlib should return a result');
-      assert.ok(result.path !== undefined || result.found !== undefined, 'Should have path or found field');
+      assert.ok(
+        result.path !== undefined || result.found !== undefined,
+        'Should have path or found field'
+      );
     });
 
     it('should handle unknown stdlib module', async () => {
@@ -509,7 +519,10 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
       );
 
       const results = await Promise.all(promises);
-      assert.ok(results.every(r => r !== undefined), 'Should handle cache pressure');
+      assert.ok(
+        results.every(r => r !== undefined),
+        'Should handle cache pressure'
+      );
     });
   });
 
@@ -552,17 +565,23 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
 
       assert.ok(result, 'Should handle partial failures');
       // Parse should succeed even if import fails
-      assert.ok(result.result !== undefined || result.failures !== undefined,
-        'Should have either successful results or recorded failures');
+      assert.ok(
+        result.result !== undefined || result.failures !== undefined,
+        'Should have either successful results or recorded failures'
+      );
 
       // Verify the result structure includes failure tracking
-      assert.ok('result' in result || 'failures' in result,
-        'Result should track both successes and failures');
+      assert.ok(
+        'result' in result || 'failures' in result,
+        'Result should track both successes and failures'
+      );
 
       // Parse operation should succeed even with missing imports
       if (result.result?.parse) {
-        assert.ok(Array.isArray(result.result.parse.symbols),
-          'Parse result should have symbols array even with import errors');
+        assert.ok(
+          Array.isArray(result.result.parse.symbols),
+          'Parse result should have symbols array even with import errors'
+        );
       }
     });
 
@@ -660,7 +679,10 @@ describe('Phase 9: JSON-RPC Methods', { timeout: 60000 }, () => {
       if (result) {
         assert.ok('display' in result, 'Should have display version');
         // display is a number (e.g., 8.01116 for Pike 8.0.1116), not a string
-        assert.ok(typeof result.display === 'number' || typeof result.display === 'string', 'Display should be number or string');
+        assert.ok(
+          typeof result.display === 'number' || typeof result.display === 'string',
+          'Display should be number or string'
+        );
       }
     });
 

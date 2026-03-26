@@ -579,7 +579,9 @@ async function activateInternal(
     const config = workspace.getConfiguration('pike');
     const configuredInterpreter = config.get<string>('runnable.interpreterPath', '');
     const pikePath =
-      configuredInterpreter.trim().length > 0 ? configuredInterpreter : config.get<string>('pikePath', 'pike');
+      configuredInterpreter.trim().length > 0
+        ? configuredInterpreter
+        : config.get<string>('pikePath', 'pike');
     const interpreterArgs = config.get<string[]>('runnable.interpreterArgs', []);
     const args = [...interpreterArgs, parsed.fsPath];
     if (symbolName) {
@@ -1009,9 +1011,7 @@ async function activateInternal(
         return;
       }
 
-      const editor = window.visibleTextEditors.find(
-        e => e.document.uri.toString() === uriKey
-      );
+      const editor = window.visibleTextEditors.find(e => e.document.uri.toString() === uriKey);
       const tabSize =
         typeof editor?.options.tabSize === 'number' ? Math.max(1, editor.options.tabSize) : 4;
       const insertSpaces =
@@ -1024,7 +1024,10 @@ async function activateInternal(
         const edits = await commands.executeCommand<TextEdit[]>(
           'vscode.executeFormatRangeProvider',
           event.document.uri,
-          new Range(new Position(range.startLine, 0), new Position(range.endLine, Number.MAX_SAFE_INTEGER)),
+          new Range(
+            new Position(range.startLine, 0),
+            new Position(range.endLine, Number.MAX_SAFE_INTEGER)
+          ),
           {
             tabSize,
             insertSpaces,
@@ -1057,7 +1060,6 @@ async function activateInternal(
       formattingDocuments.clear();
     },
   });
-
 
   // Register deferred activation on first Pike file open
   const fileOpenDisposable = workspace.onDidOpenTextDocument(async doc => {

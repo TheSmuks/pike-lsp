@@ -69,8 +69,18 @@ describe('PikeBridge', () => {
       Logger.setLevel(originalLevel);
     }
 
-    assert.ok(logs.some(message => message.includes('[DEBUG][PikeBridge] Using provided analyzer path: /tmp/analyzer.pike')));
-    assert.ok(logs.some(message => message.includes('[DEBUG][PikeBridge] Initialized with pikePath="pike", analyzerPath="/tmp/analyzer.pike"')));
+    assert.ok(
+      logs.some(message =>
+        message.includes('[DEBUG][PikeBridge] Using provided analyzer path: /tmp/analyzer.pike')
+      )
+    );
+    assert.ok(
+      logs.some(message =>
+        message.includes(
+          '[DEBUG][PikeBridge] Initialized with pikePath="pike", analyzerPath="/tmp/analyzer.pike"'
+        )
+      )
+    );
     assert.ok(!logs.some(message => message.includes('[ERROR][PikeBridge] [DEBUG]')));
   });
 
@@ -225,7 +235,8 @@ describe('PikeBridge', () => {
       },
     });
 
-    const fixedResult = (fixedResponse.result['result'] as Record<string, unknown>) ?? fixedResponse.result;
+    const fixedResult =
+      (fixedResponse.result['result'] as Record<string, unknown>) ?? fixedResponse.result;
     const latestResult =
       (latestResponse.result['result'] as Record<string, unknown>) ?? latestResponse.result;
 
@@ -586,7 +597,11 @@ foo(@args);
         'start() should reject when process exits before readiness'
       );
       await new Promise(resolve => setTimeout(resolve, 10));
-      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after failed start');
+      assert.equal(
+        localBridge.isRunning(),
+        false,
+        'Bridge should not be running after failed start'
+      );
       assert.equal(closeEvents.length, 0, 'Startup failure must not emit close');
     } finally {
       PikeProcess.prototype.spawn = originalSpawn;
@@ -756,7 +771,11 @@ foo(@args);
       assert.match(startupError.message, /stop requested during startup/);
 
       assert.equal(forceKillCalls, 1, 'stop() should escalate when process stays alive');
-      assert.equal(localBridge.isRunning(), false, 'Bridge should not be running after interrupted startup');
+      assert.equal(
+        localBridge.isRunning(),
+        false,
+        'Bridge should not be running after interrupted startup'
+      );
     } finally {
       PikeProcess.prototype.spawn = originalSpawn;
       PikeProcess.prototype.isAlive = originalIsAlive;

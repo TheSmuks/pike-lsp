@@ -62,28 +62,28 @@ export const DIAGNOSTIC_DELAY_DEFAULT = 250;
  * LSP-related limits
  */
 export const LSP = {
-    /**
-     * Maximum number of completions to return
-     */
-    MAX_COMPLETION_ITEMS: 100,
+  /**
+   * Maximum number of completions to return
+   */
+  MAX_COMPLETION_ITEMS: 100,
 
-    /**
-     * Maximum number of workspace symbols to return
-     */
-    MAX_WORKSPACE_SYMBOLS: 1000,
+  /**
+   * Maximum number of workspace symbols to return
+   */
+  MAX_WORKSPACE_SYMBOLS: 1000,
 
-    /**
-     * Maximum number of document symbols to return
-     */
-    MAX_DOCUMENT_SYMBOLS: 1000,
+  /**
+   * Maximum number of document symbols to return
+   */
+  MAX_DOCUMENT_SYMBOLS: 1000,
 
-    /**
-     * Maximum context lines for hover
-     */
-    HOVER_CONTEXT_LINES: 3,
+  /**
+   * Maximum context lines for hover
+   */
+  HOVER_CONTEXT_LINES: 3,
 
-    /**
-     * Maximum number of references to find
-     */
-    MAX_REFERENCES: 100,
+  /**
+   * Maximum number of references to find
+   */
+  MAX_REFERENCES: 100,
 } as const;

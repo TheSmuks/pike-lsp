@@ -65,7 +65,7 @@ describe('server runtime workspace folder sync', () => {
       workspaceIndex: workspaceIndex as any,
       workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
-      getGlobalSettings: () => ({ diagnosticDelay: 250 } as any),
+      getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],
       getClientSupportsWorkDoneProgress: () => false,
       setStdlibIndex: () => undefined,

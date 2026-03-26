@@ -21,9 +21,9 @@ export function isRoxenModule(cache: DocumentCacheEntry | undefined): boolean {
     return false;
   }
 
-  return cache.inherits.some((inh: InheritanceInfo) =>
-    inh.path?.toLowerCase().includes('module') ||
-    inh.path?.toLowerCase().includes('roxen')
+  return cache.inherits.some(
+    (inh: InheritanceInfo) =>
+      inh.path?.toLowerCase().includes('module') || inh.path?.toLowerCase().includes('roxen')
   );
 }
 
@@ -31,36 +31,36 @@ export function isRoxenModule(cache: DocumentCacheEntry | undefined): boolean {
  * Get MODULE_* completions from constants.ts
  */
 function getModuleTypeCompletions(): CompletionItem[] {
-    return Object.entries(MODULE_CONSTANTS).map(([name, info]) => ({
-        label: name,
-        kind: CompletionItemKind.Constant,
-        detail: `${info.value} - ${info.description}`,
-        documentation: info.description,
-    }));
+  return Object.entries(MODULE_CONSTANTS).map(([name, info]) => ({
+    label: name,
+    kind: CompletionItemKind.Constant,
+    detail: `${info.value} - ${info.description}`,
+    documentation: info.description,
+  }));
 }
 
 /**
  * Get TYPE_* completions from constants.ts
  */
 function getVarTypeCompletions(): CompletionItem[] {
-    return Object.entries(TYPE_CONSTANTS).map(([name, info]) => ({
-        label: name,
-        kind: CompletionItemKind.Constant,
-        detail: `${info.value} - ${info.description}`,
-        documentation: info.description,
-    }));
+  return Object.entries(TYPE_CONSTANTS).map(([name, info]) => ({
+    label: name,
+    kind: CompletionItemKind.Constant,
+    detail: `${info.value} - ${info.description}`,
+    documentation: info.description,
+  }));
 }
 
 /**
  * Get VAR_* completions from constants.ts
  */
 function getVarFlagCompletions(): CompletionItem[] {
-    return Object.entries(VAR_FLAGS).map(([name, info]) => ({
-        label: name,
-        kind: CompletionItemKind.Constant,
-        detail: `${info.value} - ${info.description}`,
-        documentation: info.description,
-    }));
+  return Object.entries(VAR_FLAGS).map(([name, info]) => ({
+    label: name,
+    kind: CompletionItemKind.Constant,
+    detail: `${info.value} - ${info.description}`,
+    documentation: info.description,
+  }));
 }
 
 export function provideRoxenCompletions(
@@ -85,12 +85,15 @@ export function provideRoxenCompletions(
 
   // defvar snippet - trigger when typing "defvar" as a word
   if (/\bdefvar\s*\(\s*$/.test(line)) {
-    return [{
-      label: 'defvar',
-      kind: CompletionItemKind.Snippet,
-      insertTextFormat: 2,
-      insertText: 'defvar("${1:varname}", "${2:Name String}", TYPE_${3|STRING,FILE,INT,DIR,FLAG,TEXT|}, "${4:Documentation}", ${5:0});',
-    }];
+    return [
+      {
+        label: 'defvar',
+        kind: CompletionItemKind.Snippet,
+        insertTextFormat: 2,
+        insertText:
+          'defvar("${1:varname}", "${2:Name String}", TYPE_${3|STRING,FILE,INT,DIR,FLAG,TEXT|}, "${4:Documentation}", ${5:0});',
+      },
+    ];
   }
 
   return null;

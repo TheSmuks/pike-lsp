@@ -12,17 +12,17 @@ import * as path from 'path';
 import { describe, test } from 'bun:test';
 
 describe('LSP Smoke Test', () => {
-    describe('Server Path Detection', () => {
-        test('should resolve server paths correctly', () => {
-            const possiblePaths = [
-                path.resolve(__dirname, '../../../packages/pike-lsp-server/dist/server.js'),
-                path.resolve(__dirname, '../../../../packages/pike-lsp-server/dist/server.js'),
-            ];
+  describe('Server Path Detection', () => {
+    test('should resolve server paths correctly', () => {
+      const possiblePaths = [
+        path.resolve(__dirname, '../../../packages/pike-lsp-server/dist/server.js'),
+        path.resolve(__dirname, '../../../../packages/pike-lsp-server/dist/server.js'),
+      ];
 
-            console.log('Checking LSP server paths:');
-            possiblePaths.forEach(p => {
-                console.log(`  ${p}`);
-            });
-        });
+      console.log('Checking LSP server paths:');
+      possiblePaths.forEach(p => {
+        console.log(`  ${p}`);
+      });
     });
+  });
 });

@@ -1,9 +1,4 @@
-import {
-  Connection,
-  ErrorCodes,
-  ResponseError,
-  TextEdit,
-} from 'vscode-languageserver/node.js';
+import { Connection, ErrorCodes, ResponseError, TextEdit } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { Logger } from '@pike-lsp/core';

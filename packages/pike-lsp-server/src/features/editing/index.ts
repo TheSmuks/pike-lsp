@@ -10,10 +10,7 @@
  * - Linked editing: simultaneous editing of linked symbols
  */
 
-import {
-    Connection,
-    TextDocuments,
-} from 'vscode-languageserver/node.js';
+import { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { registerCompletionHandlers } from './completion.js';
@@ -34,12 +31,12 @@ export { registerLinkedEditingHandler } from './linked-editing.js';
  * @param documents - The text documents manager
  */
 export function registerEditingHandlers(
-    connection: Connection,
-    services: Services,
-    documents: TextDocuments<TextDocument>
+  connection: Connection,
+  services: Services,
+  documents: TextDocuments<TextDocument>
 ): void {
-    registerCompletionHandlers(connection, services, documents);
-    registerSignatureHelpHandler(connection, services, documents);
-    registerRenameHandlers(connection, services, documents);
-    registerLinkedEditingHandler(connection, services, documents);
+  registerCompletionHandlers(connection, services, documents);
+  registerSignatureHelpHandler(connection, services, documents);
+  registerRenameHandlers(connection, services, documents);
+  registerLinkedEditingHandler(connection, services, documents);
 }

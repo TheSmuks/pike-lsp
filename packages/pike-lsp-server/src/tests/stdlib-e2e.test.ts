@@ -14,20 +14,20 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('Pike Stdlib E2E - Parser.Pike Module', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    beforeEach(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+  beforeEach(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {});
+  });
 
-    afterEach(async () => {
-        await bridge.stop();
-    });
+  afterEach(async () => {
+    await bridge.stop();
+  });
 
-    it('should resolve Parser.Pike import in user code', async () => {
-        const code = `
+  it('should resolve Parser.Pike import in user code', async () => {
+    const code = `
 import Parser.Pike;
 
 void main() {
@@ -35,21 +35,21 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_parser_import.pike');
+    const result = await bridge.parse(code, '/tmp/test_parser_import.pike');
 
-        expect(result.symbols).toBeDefined();
+    expect(result.symbols).toBeDefined();
 
-        // Should find the import - extracted as name "Pike" with classname "Parser.Pike"
-        const imports = result.symbols.filter(s => s.kind === 'import');
-        expect(imports.length).toBeGreaterThan(0);
+    // Should find the import - extracted as name "Pike" with classname "Parser.Pike"
+    const imports = result.symbols.filter(s => s.kind === 'import');
+    expect(imports.length).toBeGreaterThan(0);
 
-        const parserImport = imports.find(i => i.name === 'Pike' && i.classname === 'Parser.Pike');
-        expect(parserImport).toBeDefined();
-    });
+    const parserImport = imports.find(i => i.name === 'Pike' && i.classname === 'Parser.Pike');
+    expect(parserImport).toBeDefined();
+  });
 
-    it('should extract symbols from code using Parser.Pike.Split context', async () => {
-        // Parser.Pike.split is commonly used for tokenization
-        const code = `
+  it('should extract symbols from code using Parser.Pike.Split context', async () => {
+    // Parser.Pike.split is commonly used for tokenization
+    const code = `
 import Parser.Pike;
 
 void main() {
@@ -57,29 +57,29 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_parser_split.pike');
+    const result = await bridge.parse(code, '/tmp/test_parser_split.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-    });
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
 });
 
 describe('Pike Stdlib E2E - Stdio Module', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    beforeEach(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+  beforeEach(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {});
+  });
 
-    afterEach(async () => {
-        await bridge.stop();
-    });
+  afterEach(async () => {
+    await bridge.stop();
+  });
 
-    it('should extract Stdio.File class symbols', async () => {
-        // Stdio.File is a core class for file I/O
-        const code = `
+  it('should extract Stdio.File class symbols', async () => {
+    // Stdio.File is a core class for file I/O
+    const code = `
 import Stdio;
 
 void main() {
@@ -88,21 +88,21 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_stdio_file.pike');
+    const result = await bridge.parse(code, '/tmp/test_stdio_file.pike');
 
-        expect(result.symbols).toBeDefined();
+    expect(result.symbols).toBeDefined();
 
-        // Should find the import
-        const imports = result.symbols.filter(s => s.kind === 'import');
-        expect(imports.length).toBeGreaterThan(0);
+    // Should find the import
+    const imports = result.symbols.filter(s => s.kind === 'import');
+    expect(imports.length).toBeGreaterThan(0);
 
-        // Should find Stdio import
-        const stdioImport = imports.find(i => i.name === 'Stdio');
-        expect(stdioImport).toBeDefined();
-    });
+    // Should find Stdio import
+    const stdioImport = imports.find(i => i.name === 'Stdio');
+    expect(stdioImport).toBeDefined();
+  });
 
-    it('should resolve Stdio.stdout, Stdio.stderr, Stdio.stdin', async () => {
-        const code = `
+  it('should resolve Stdio.stdout, Stdio.stderr, Stdio.stdin', async () => {
+    const code = `
 import Stdio;
 
 void main() {
@@ -112,14 +112,14 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_stdio_streams.pike');
+    const result = await bridge.parse(code, '/tmp/test_stdio_streams.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-    });
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
 
-    it('should extract Stdio.File methods (open, close, read, write)', async () => {
-        const code = `
+  it('should extract Stdio.File methods (open, close, read, write)', async () => {
+    const code = `
 import Stdio;
 
 void test_file_ops() {
@@ -131,36 +131,35 @@ void test_file_ops() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_stdio_methods.pike');
+    const result = await bridge.parse(code, '/tmp/test_stdio_methods.pike');
 
-        expect(result.symbols).toBeDefined();
+    expect(result.symbols).toBeDefined();
 
-        // Find method calls
-        const methodCalls = result.symbols.filter(s =>
-            s.kind === 'method' ||
-            (s.children && s.children.some(c => c.kind === 'method'))
-        );
+    // Find method calls
+    const methodCalls = result.symbols.filter(
+      s => s.kind === 'method' || (s.children && s.children.some(c => c.kind === 'method'))
+    );
 
-        // Should have multiple method references
-        expect(methodCalls.length).toBeGreaterThan(0);
-    });
+    // Should have multiple method references
+    expect(methodCalls.length).toBeGreaterThan(0);
+  });
 });
 
 describe('Pike Stdlib E2E - Array Module', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    beforeEach(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+  beforeEach(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {});
+  });
 
-    afterEach(async () => {
-        await bridge.stop();
-    });
+  afterEach(async () => {
+    await bridge.stop();
+  });
 
-    it('should complete Array methods (sort, filter, map)', async () => {
-        const code = `
+  it('should complete Array methods (sort, filter, map)', async () => {
+    const code = `
 import Array;
 
 void main() {
@@ -171,19 +170,19 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_array_methods.pike');
+    const result = await bridge.parse(code, '/tmp/test_array_methods.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
 
-        // Should find the import
-        const imports = result.symbols.filter(s => s.kind === 'import');
-        const arrayImport = imports.find(i => i.name === 'Array');
-        expect(arrayImport).toBeDefined();
-    });
+    // Should find the import
+    const imports = result.symbols.filter(s => s.kind === 'import');
+    const arrayImport = imports.find(i => i.name === 'Array');
+    expect(arrayImport).toBeDefined();
+  });
 
-    it('should resolve array utilities (uniq, sum)', async () => {
-        const code = `
+  it('should resolve array utilities (uniq, sum)', async () => {
+    const code = `
 import Array;
 
 void test_utils() {
@@ -193,29 +192,29 @@ void test_utils() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_array_utils.pike');
+    const result = await bridge.parse(code, '/tmp/test_array_utils.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-    });
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
 });
 
 describe('Pike Stdlib E2E - String Module', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    beforeEach(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+  beforeEach(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {});
+  });
 
-    afterEach(async () => {
-        await bridge.stop();
-    });
+  afterEach(async () => {
+    await bridge.stop();
+  });
 
-    it('should complete String methods (trim_all_whites, split)', async () => {
-        // Note: String.trim() doesn't exist in Pike 8.0 - use trim_all_whites()
-        const code = `
+  it('should complete String methods (trim_all_whites, split)', async () => {
+    // Note: String.trim() doesn't exist in Pike 8.0 - use trim_all_whites()
+    const code = `
 import String;
 
 void main() {
@@ -226,14 +225,14 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_string_methods.pike');
+    const result = await bridge.parse(code, '/tmp/test_string_methods.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-    });
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
 
-    it('should resolve String formatting functions', async () => {
-        const code = `
+  it('should resolve String formatting functions', async () => {
+    const code = `
 import String;
 
 void test_format() {
@@ -242,33 +241,33 @@ void test_format() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_string_format.pike');
+    const result = await bridge.parse(code, '/tmp/test_string_format.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
 
-        // Should find String import
-        const imports = result.symbols.filter(s => s.kind === 'import');
-        const stringImport = imports.find(i => i.name === 'String');
-        expect(stringImport).toBeDefined();
-    });
+    // Should find String import
+    const imports = result.symbols.filter(s => s.kind === 'import');
+    const stringImport = imports.find(i => i.name === 'String');
+    expect(stringImport).toBeDefined();
+  });
 });
 
 describe('Pike Stdlib E2E - Multi-module Integration', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    beforeEach(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-        bridge.on('stderr', () => {});
-    });
+  beforeEach(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+    bridge.on('stderr', () => {});
+  });
 
-    afterEach(async () => {
-        await bridge.stop();
-    });
+  afterEach(async () => {
+    await bridge.stop();
+  });
 
-    it('should handle code using multiple stdlib modules together', async () => {
-        const code = `
+  it('should handle code using multiple stdlib modules together', async () => {
+    const code = `
 import Stdio;
 import Array;
 import String;
@@ -289,23 +288,23 @@ void main() {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_multi_module.pike');
+    const result = await bridge.parse(code, '/tmp/test_multi_module.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
 
-        // Should find all three imports
-        const imports = result.symbols.filter(s => s.kind === 'import');
-        expect(imports.length).toBeGreaterThanOrEqual(3);
+    // Should find all three imports
+    const imports = result.symbols.filter(s => s.kind === 'import');
+    expect(imports.length).toBeGreaterThanOrEqual(3);
 
-        const importNames = imports.map(i => i.name);
-        expect(importNames).toContain('Stdio');
-        expect(importNames).toContain('Array');
-        expect(importNames).toContain('String');
-    });
+    const importNames = imports.map(i => i.name);
+    expect(importNames).toContain('Stdio');
+    expect(importNames).toContain('Array');
+    expect(importNames).toContain('String');
+  });
 
-    it('should resolve chained method calls across stdlib modules', async () => {
-        const code = `
+  it('should resolve chained method calls across stdlib modules', async () => {
+    const code = `
 import Stdio;
 import Array;
 import String;
@@ -318,9 +317,9 @@ void process_data(string input) {
 }
 `;
 
-        const result = await bridge.parse(code, '/tmp/test_chained_calls.pike');
+    const result = await bridge.parse(code, '/tmp/test_chained_calls.pike');
 
-        expect(result.symbols).toBeDefined();
-        expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
-    });
+    expect(result.symbols).toBeDefined();
+    expect(result.diagnostics.filter(d => d.severity === 'error').length).toBe(0);
+  });
 });

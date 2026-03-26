@@ -31,13 +31,17 @@ describe('call hierarchy across closed workspace files', () => {
       [
         file1Uri,
         makeCacheEntry({
-          symbols: [sym('caller', 'method', { position: { file: 'file1.pike', line: 1, column: 1 } })],
+          symbols: [
+            sym('caller', 'method', { position: { file: 'file1.pike', line: 1, column: 1 } }),
+          ],
           symbolPositions: new Map([['helper', [{ line: 1, character: 1 }]]]),
         }),
       ],
     ]);
 
-    const workspaceScanner = createMockWorkspaceScanner([{ uri: file2Uri, content: 'void helper() {}\n' }]);
+    const workspaceScanner = createMockWorkspaceScanner([
+      { uri: file2Uri, content: 'void helper() {}\n' },
+    ]);
     const bridge = {
       bridge: {
         analyze: async (_code: string, _features: string[], filePath: string) => {
@@ -45,7 +49,14 @@ describe('call hierarchy across closed workspace files', () => {
             return {
               result: {
                 parse: {
-                  symbols: [{ name: 'helper', kind: 'method', modifiers: [], position: { line: 1, column: 1 } }],
+                  symbols: [
+                    {
+                      name: 'helper',
+                      kind: 'method',
+                      modifiers: [],
+                      position: { line: 1, column: 1 },
+                    },
+                  ],
                 },
                 tokenize: { tokens: [{ text: 'helper', type: 'identifier', line: 1, column: 6 }] },
               },
@@ -114,7 +125,9 @@ describe('call hierarchy across closed workspace files', () => {
       [
         targetUri,
         makeCacheEntry({
-          symbols: [sym('helper', 'method', { position: { file: 'target.pike', line: 1, column: 1 } })],
+          symbols: [
+            sym('helper', 'method', { position: { file: 'target.pike', line: 1, column: 1 } }),
+          ],
           symbolPositions: new Map([['helper', [{ line: 0, character: 5 }]]]),
         }),
       ],
@@ -131,7 +144,14 @@ describe('call hierarchy across closed workspace files', () => {
             return {
               result: {
                 parse: {
-                  symbols: [{ name: 'caller', kind: 'method', modifiers: [], position: { line: 1, column: 1 } }],
+                  symbols: [
+                    {
+                      name: 'caller',
+                      kind: 'method',
+                      modifiers: [],
+                      position: { line: 1, column: 1 },
+                    },
+                  ],
                 },
                 tokenize: {
                   tokens: [
