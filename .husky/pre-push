@@ -24,6 +24,10 @@ fi
 echo "[Pre-push] Checking for forbidden node:test imports..."
 bash scripts/check-no-node-test.sh
 
+# 1.6 Prevent tracked or present package-lock/yarn.lock files
+echo "[Pre-push] Checking for forbidden package manager lockfiles..."
+bun run check:lockfiles
+
 # Discover tools: check common locations if not already on PATH
 for dir in "$HOME/.bun/bin" /usr/local/bin; do
   [ -d "$dir" ] && export PATH="$dir:$PATH"
