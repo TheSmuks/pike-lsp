@@ -269,9 +269,22 @@ jobs:
           if-no-files-found: error
 
   vscode-e2e:
+    name: vscode-e2e (${{ matrix.category }})
     runs-on: ubuntu-24.04
     needs: [test, pike-test]
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - category: core-lsp
+            grep: "LSP Feature E2E Tests|Core Regression E2E Tests"
+          - category: completion-navigation
+            grep: "Smart Completion E2E Tests|Include/Import/Inherit Navigation E2E Tests|Stdlib E2E Tests"
+          - category: reliability-workflows
+            grep: "Error Handling Tests|Responsiveness E2E Tests|E2E Workflow Tests|Waterfall Loading E2E Tests"
+          - category: performance
+            grep: "Performance Benchmark Tests"
 
     steps:
       - name: Checkout code
@@ -323,29 +336,21 @@ jobs:
         working-directory: packages/vscode-pike
         run: bun test src/test/mockOutputChannel.test.ts
 
-      - name: Run VSCode E2E Tests (full suite)
+      - name: Run VSCode E2E category suite
         working-directory: packages/vscode-pike
         env:
           SKIP_PREBUILD: '1'
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            bash scripts/test-headless.sh --grep "LSP Feature E2E Tests"
-          else
-            bash scripts/test-headless.sh
-          fi
+        run: bash scripts/test-headless.sh --grep "${{ matrix.grep }}"
 
-      - name: LSP Feature Test Summary
+      - name: VSCode E2E category summary
         if: always()
         run: |
-          echo "### LSP Feature Tests" >> $GITHUB_STEP_SUMMARY
+          echo "### VSCode E2E Category" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The LSP feature tests verify:" >> $GITHUB_STEP_SUMMARY
-          echo "- Document symbols (outline view)" >> $GITHUB_STEP_SUMMARY
-          echo "- Hover (type information)" >> $GITHUB_STEP_SUMMARY
-          echo "- Go-to-definition (navigation)" >> $GITHUB_STEP_SUMMARY
-          echo "- Completion (autocomplete)" >> $GITHUB_STEP_SUMMARY
+          echo "- Category: ${{ matrix.category }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Grep: ${{ matrix.grep }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Check the 'Run VSCode LSP Feature Tests' step above for results." >> $GITHUB_STEP_SUMMARY
+          echo "Check the 'Run VSCode E2E category suite' step above for results." >> $GITHUB_STEP_SUMMARY
 
   vscode-e2e-source-trees:
     runs-on: ubuntu-24.04
