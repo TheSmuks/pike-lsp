@@ -297,8 +297,20 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                     mapping branch = branch_stack[k];
                     if ((branch->type == "if" || branch->type == "switch") && branch->scope_level == scope_depth) {
-                        // Save final branch states
-                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                        // Save final branch states.
+                        // For switch, only save if a case/default branch has started.
+                        if (branch->type == "switch") {
+                            if (branch->in_case) {
+                                branch->branch_states += ({ save_variable_states_fn(variables) });
+                            }
+
+                            // A switch without default has an implicit non-matching path.
+                            if (!branch->has_default) {
+                                branch->branch_states += ({ branch->saved_states });
+                            }
+                        } else {
+                            branch->branch_states += ({ save_variable_states_fn(variables) });
+                        }
 
                         // Merge all branch states
                         mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
@@ -648,7 +660,9 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 "saved_states": saved_states,
                 "branch_states": ({}),
                 "scope_level": scope_depth + 1,
-                "case_count": 0
+                "case_count": 0,
+                "in_case": 0,
+                "has_default": 0
             ]) });
         }
 
@@ -658,11 +672,14 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                 mapping branch = branch_stack[k];
                 if (branch->type == "switch") {
-                    // Save current state as a case branch
-                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                    // Save the previous case branch before starting a new one.
+                    if (branch->in_case) {
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                    }
                     branch->case_count = (branch->case_count || 0) + 1;
                     // Restore switch's original state for this case
                     restore_variable_states_fn(variables, branch->saved_states);
+                    branch->in_case = 1;
                     break;
                 }
             }
@@ -674,11 +691,15 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                 mapping branch = branch_stack[k];
                 if (branch->type == "switch") {
-                    // Save current state as default branch
-                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                    // Save the previous case branch before starting default.
+                    if (branch->in_case) {
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                    }
                     branch->case_count = (branch->case_count || 0) + 1;
                     // Restore switch's original state for default
                     restore_variable_states_fn(variables, branch->saved_states);
+                    branch->in_case = 1;
+                    branch->has_default = 1;
                     break;
                 }
             }

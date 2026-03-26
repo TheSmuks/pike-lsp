@@ -292,13 +292,10 @@ mapping merge_branch_states(mapping(string:mapping) variables, array(mapping) br
             }
 
             if (all_same) {
-                // All branches agree
-                if (first_state == STATE_INITIALIZED && pre_state == STATE_UNINITIALIZED) {
-                    // Variable initialized in all branches but not before if
-                    merged[var_name] = STATE_MAYBE_INIT;
-                } else {
-                    merged[var_name] = first_state;
-                }
+                // All branches agree.
+                // For multi-branch control flow (if/else, switch with complete coverage),
+                // an initialized state in every branch is definitely initialized.
+                merged[var_name] = first_state;
             } else {
                 // Branches disagree - check if any branch has uninitialized
                 int has_uninit = 0;

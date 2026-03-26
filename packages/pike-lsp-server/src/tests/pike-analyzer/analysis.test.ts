@@ -21,41 +21,36 @@
  * These tests will be implemented once the Pike analyzer supports the corresponding methods.
  */
 
-import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
-import { DiagnosticSeverity } from 'vscode-languageserver/node.js';
+import { PikeBridge } from '@pike-lsp/pike-bridge';
+
+declare const describe: any;
+declare const it: any;
+declare const beforeAll: any;
+declare const afterAll: any;
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-/**
- * Creates a mock diagnostic.
- */
-function createMockDiagnostic(
-  overrides: {
-    message?: string;
-    severity?: DiagnosticSeverity;
-    range?: {
-      start: { line: number; character: number };
-      end: { line: number; character: number };
-    };
-  } = {}
-): any {
-  return {
-    message: overrides.message ?? 'Test diagnostic',
-    severity: overrides.severity ?? DiagnosticSeverity.Error,
-    range: overrides.range ?? {
-      start: { line: 0, character: 0 },
-      end: { line: 0, character: 10 },
-    },
-    ...overrides,
-  };
+let bridge: PikeBridge;
+
+beforeAll(async () => {
+  bridge = new PikeBridge();
+  await bridge.start();
+  bridge.on('stderr', () => {});
+});
+
+afterAll(async () => {
+  if (bridge) {
+    await bridge.stop();
+  }
+});
+
+async function analyze(code: string, filename: string = 'analysis-test.pike') {
+  return bridge.analyzeUninitialized(code, filename);
 }
 
-/**
- * Creates a mock completion item.
- */
 function createMockCompletion(
   overrides: {
     label?: string;
@@ -77,9 +72,6 @@ function createMockCompletion(
   };
 }
 
-/**
- * Creates a mock variable reference.
- */
 function createMockReference(
   overrides: {
     uri?: string;
@@ -99,198 +91,112 @@ function createMockReference(
   };
 }
 
+function diagnosticForVariable(result: { diagnostics: Array<{ variable?: string; message: string }> }, name: string) {
+  return result.diagnostics.find(d => d.variable === name);
+}
+
 // ============================================================================
 // Phase 8 Task 42.1: Analysis - Diagnostics (Uninitialized Variables)
 // ============================================================================
 
-describe.skip('Phase 8 Task 42.1: Analysis - Diagnostics Uninitialized Variables', () => {
-  it('42.1.1: should detect simple uninitialized variable', async () => {
-    // TODO: Implement analysis.analyze() for uninitialized variables
-    const code = 'int x; write(x);';
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 0, character: 11 },
-        end: { line: 0, character: 12 },
-      },
-    });
+describe('Phase 8 Task 42.1: Analysis - Diagnostics Uninitialized Variables', () => {
+  it('42.1.1: should detect simple uninitialized variable read', async () => {
+    const result = await analyze(`
+void test() {
+    string value;
+    write(value);
+}
+`);
 
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
-    assert.ok(result.message.includes('uninitialized'));
+    assert.ok(Array.isArray(result.diagnostics), 'Diagnostics should be an array');
+    const diag = diagnosticForVariable(result, 'value');
+    assert.ok(diag, 'Should emit diagnostic for uninitialized string variable');
+    assert.ok(
+      diag.message.includes('uninitialized') || diag.message.includes('may not be initialized'),
+      'Message should explicitly indicate the variable may not be initialized'
+    );
   });
 
-  it('42.1.2: should detect uninitialized variable in conditional branch', async () => {
-    // TODO: Implement analysis.analyze() for conditionals
-    const code = `
-        int x;
-        if (condition) {
-            x = 5;
-        }
-        write(x);
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 5, character: 9 },
-        end: { line: 5, character: 10 },
-      },
-    });
+  it('42.1.2: should warn for maybe-assigned variable after single-branch if', async () => {
+    const result = await analyze(`
+void test(int condition) {
+    string maybe;
+    if (condition) {
+        maybe = "ok";
+    }
+    write(maybe);
+}
+`);
 
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
+    const diag = diagnosticForVariable(result, 'maybe');
+    assert.ok(diag, 'Variable assigned only in if branch must still warn');
+    assert.ok(diag.message.includes('may be uninitialized'), 'Diagnostic should be maybe-uninitialized warning');
   });
 
-  it('42.1.3: should detect uninitialized variable when both branches assign', async () => {
-    // TODO: Implement analysis.analyze() for both branches
-    const code = `
-        int x;
-        if (condition) {
-            x = 5;
-        } else {
-            x = 10;
-        }
-        write(x);
-        `;
-    const diagnostics: any[] = []; // Should be empty - x is always initialized
+  it('42.1.3: should treat if/else assignment as definite assignment', async () => {
+    const result = await analyze(`
+void test(int condition) {
+    string assigned;
+    if (condition) {
+        assigned = "left";
+    } else {
+        assigned = "right";
+    }
+    write(assigned);
+}
+`);
 
-    assert.equal(diagnostics.length, 0);
+    const diag = diagnosticForVariable(result, 'assigned');
+    assert.equal(diag, undefined, 'Variable initialized in both if/else branches must not warn');
   });
 
-  it('42.1.4: should detect uninitialized variable in nested scope', async () => {
-    // TODO: Implement analysis.analyze() for nested scope
-    const code = `
-        int x;
-        void foo() {
-            write(x);
-        }
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 3, character: 13 },
-        end: { line: 3, character: 14 },
-      },
-    });
+  it('42.1.4: should treat switch with default assignment as definite assignment', async () => {
+    const result = await analyze(`
+void test(int selector) {
+    string choice;
+    switch (selector) {
+        case 1:
+            choice = "one";
+            break;
+        default:
+            choice = "other";
+            break;
+    }
+    write(choice);
+}
+`);
 
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
+    const diag = diagnosticForVariable(result, 'choice');
+    assert.equal(diag, undefined, 'Switch with default assigning variable on all branches must not warn');
   });
 
-  it('42.1.5: should detect uninitialized function parameter', async () => {
-    // TODO: Implement analysis.analyze() for parameters
-    const code = 'void foo(int x) { write(x); }';
-    const diagnostics: any[] = []; // Parameters are initialized by caller
+  it('42.1.5: should warn for switch without default when assignment is not guaranteed', async () => {
+    const result = await analyze(`
+void test(int selector) {
+    string maybeChoice;
+    switch (selector) {
+        case 1:
+            maybeChoice = "one";
+            break;
+    }
+    write(maybeChoice);
+}
+`);
 
-    assert.equal(diagnostics.length, 0);
+    const diag = diagnosticForVariable(result, 'maybeChoice');
+    assert.ok(diag, 'Switch without default should keep variable maybe-uninitialized');
+    assert.ok(diag.message.includes('uninitialized'), 'Expected uninitialized warning for switch without default');
   });
 
-  it('42.1.6: should detect uninitialized variable in loop', async () => {
-    // TODO: Implement analysis.analyze() for loops
-    const code = `
-        int x;
-        while (condition) {
-            write(x);
-            x = 5;
-        }
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 3, character: 13 },
-        end: { line: 3, character: 14 },
-      },
-    });
+  it('42.1.6: should not warn for initialized function parameters', async () => {
+    const result = await analyze(`
+void test(string param) {
+    write(param);
+}
+`);
 
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
-  });
-
-  it('42.1.7: should detect uninitialized variable in switch', async () => {
-    // TODO: Implement analysis.analyze() for switch
-    const code = `
-        int x;
-        switch (value) {
-            case 1:
-                x = 5;
-                break;
-        }
-        write(x);
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 8, character: 9 },
-        end: { line: 8, character: 10 },
-      },
-    });
-
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
-  });
-
-  it('42.1.8: should not warn when variable is definitely assigned', async () => {
-    // TODO: Implement analysis.analyze() definite assignment
-    const code = 'int x = 5; write(x);';
-    const diagnostics: any[] = []; // x is initialized
-
-    assert.equal(diagnostics.length, 0);
-  });
-
-  it('42.1.9: should handle multiple uninitialized variables', async () => {
-    // TODO: Implement analysis.analyze() multiple variables
-    const code = 'int x, y, z; write(x); write(y); write(z);';
-    const diagnostics = [
-      createMockDiagnostic({ message: 'Variable "x" may be used uninitialized' }),
-      createMockDiagnostic({ message: 'Variable "y" may be used uninitialized' }),
-      createMockDiagnostic({ message: 'Variable "z" may be used uninitialized' }),
-    ];
-
-    assert.equal(diagnostics.length, 3);
-  });
-
-  it('42.1.10: should detect uninitialized in ternary operator', async () => {
-    // TODO: Implement analysis.analyze() ternary
-    const code = `
-        int x;
-        int y = condition ? x : 0;
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 2, character: 25 },
-        end: { line: 2, character: 26 },
-      },
-    });
-
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
-  });
-
-  it('42.1.11: should detect uninitialized in logical expression', async () => {
-    // TODO: Implement analysis.analyze() logical expression
-    const code = `
-        int x;
-        bool result = x > 0 && true;
-        `;
-    const result = createMockDiagnostic({
-      message: 'Variable "x" may be used uninitialized',
-      severity: DiagnosticSeverity.Warning,
-      range: {
-        start: { line: 2, character: 21 },
-        end: { line: 2, character: 22 },
-      },
-    });
-
-    assert.equal(result.severity, DiagnosticSeverity.Warning);
-  });
-
-  it('42.1.12: should handle uninitialized variable errors gracefully', async () => {
-    // TODO: Implement analysis.analyze() error handling
-    const code = 'int x = ';
-    const diagnostics = [createMockDiagnostic({ message: 'Syntax error' })];
-
-    assert.equal(diagnostics.length, 1);
+    const diag = diagnosticForVariable(result, 'param');
+    assert.equal(diag, undefined, 'Function parameters are definitely initialized by caller');
   });
 });
 
