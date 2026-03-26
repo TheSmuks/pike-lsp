@@ -254,10 +254,10 @@ export function registerDiagnosticsHandlers(
     // Set new timer
     const timer = setTimeout(() => {
       validationTimers.delete(uri);
-      validationVersions.delete(uri);
 
       const liveDocument = documents.get(uri);
       if (!liveDocument) {
+        validationVersions.delete(uri);
         pendingChangeStates.delete(uri);
         return;
       }
@@ -265,6 +265,7 @@ export function registerDiagnosticsHandlers(
       // INC-563: Check if this validation is stale (a newer version was scheduled)
       const currentVersion = liveDocument.version;
       if (currentVersion !== expectedVersion) {
+        validationVersions.delete(uri);
         // Clear pending change range since we're skipping
         pendingChangeStates.delete(uri);
         return;
@@ -278,6 +279,7 @@ export function registerDiagnosticsHandlers(
         : classifyChange(liveDocument, changeState?.range, cachedEntry);
 
       if (classification.canSkip) {
+        validationVersions.delete(uri);
         // Skip parsing entirely - just update cache metadata
         if (cachedEntry) {
           applySkippedValidationCacheUpdate(cachedEntry, currentVersion, classification);
@@ -298,6 +300,9 @@ export function registerDiagnosticsHandlers(
         },
       });
       documentCache.setPending(uri, promise);
+      promise.finally(() => {
+        validationVersions.delete(uri);
+      });
       promise.catch(err => {
         if (err instanceof RequestSupersededError) {
           return;

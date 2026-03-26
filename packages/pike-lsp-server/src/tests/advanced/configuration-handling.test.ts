@@ -81,6 +81,9 @@ function createMockDocuments(seedDocs: TextDocument[]) {
         closeHandler({ document });
       }
     },
+    dropWithoutClose(uri: string): void {
+      docs.delete(uri);
+    },
   };
 }
 
@@ -351,5 +354,74 @@ describe('Configuration Handling', () => {
     await waitFor(() => harness.getQueryCount() >= 1, 200);
     const published = harness.diagnosticsPublished.find(entry => entry.uri === uri);
     assert.ok(published, 'diagnostics should be published for changed document');
+  });
+
+  it('cleans version tracking when debounce runs after document disappears without close event', async () => {
+    type TrackedMapOperation = {
+      map: Map<unknown, unknown>;
+      op: 'set' | 'delete';
+      key: unknown;
+      value?: unknown;
+    };
+
+    const trackedOps: TrackedMapOperation[] = [];
+    const OriginalMap = globalThis.Map;
+
+    class TrackingMap<K, V> extends OriginalMap<K, V> {
+      override set(key: K, value: V): this {
+        trackedOps.push({ map: this as unknown as Map<unknown, unknown>, op: 'set', key, value });
+        return super.set(key, value);
+      }
+
+      override delete(key: K): boolean {
+        trackedOps.push({ map: this as unknown as Map<unknown, unknown>, op: 'delete', key });
+        return super.delete(key);
+      }
+    }
+
+    (globalThis as unknown as { Map: typeof Map }).Map = TrackingMap as unknown as typeof Map;
+
+    try {
+      const harness = createHarness([]);
+      const onConfig = harness.getConfigHandler();
+      onConfig({ settings: { pike: { diagnosticDelay: 0 } } });
+
+      const uri = 'file:///tmp/config-debounce-disappeared-doc.pike';
+      const changedDoc = TextDocument.create(uri, 'pike', 9, 'int orphaned = 1;\n');
+
+      harness.documentsLike.emitChange(changedDoc);
+      harness.documentsLike.dropWithoutClose(uri);
+
+      await sleep(20);
+
+      assert.equal(
+        harness.getQueryCount(),
+        0,
+        'Debounced validation should stop when live document is missing'
+      );
+
+      const mapsWithVersionSet = new Set(
+        trackedOps
+          .filter(op => op.op === 'set' && op.key === uri && typeof op.value === 'number')
+          .map(op => op.map)
+      );
+
+      assert.ok(
+        mapsWithVersionSet.size > 0,
+        'Expected debounce path to store validation version for changed URI'
+      );
+
+      const versionMapDeleteSeen = trackedOps.some(
+        op => op.op === 'delete' && op.key === uri && mapsWithVersionSet.has(op.map)
+      );
+
+      assert.equal(
+        versionMapDeleteSeen,
+        true,
+        'Debounce path must always clear validationVersions entry when document is no longer live'
+      );
+    } finally {
+      (globalThis as unknown as { Map: typeof Map }).Map = OriginalMap;
+    }
   });
 });
