@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test fixture for find_occurrences
 
 int myVariable = 5;

@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Small fixture for benchmarking
 class Small {
   int x;

@@ -1,3 +1,5 @@
+#pragma strict_types
+
 // Deliberately mis-formatted Pike code for formatter e2e tests.
 // Tests use positionForRegex() to locate lines, so line numbers do not need to be stable.
 void top_level_function() {

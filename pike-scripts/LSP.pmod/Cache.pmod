@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! LSP Cache Module
 //!
 //! Provides LRU caching infrastructure for program_cache and stdlib_cache.

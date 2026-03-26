@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Intelligence.pmod/module.pmod - Shared helper functions for AutoDoc parsing
 //!
 //! This module provides shared helper functions used across the Intelligence.pmod

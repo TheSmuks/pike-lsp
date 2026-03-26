@@ -1,4 +1,6 @@
 #!/usr/bin/env pike
+#pragma strict_types
+
 //! LSP Response Format Tests
 //!
 //! Schema-style tests for JSON-RPC response format verification.

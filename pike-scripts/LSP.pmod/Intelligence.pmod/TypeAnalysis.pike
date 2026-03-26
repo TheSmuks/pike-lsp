@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! TypeAnalysis.pike - Type inheritance and AutoDoc parsing handlers
 //!
 //! This file provides handlers for type inheritance traversal and AutoDoc

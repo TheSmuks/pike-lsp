@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Large fixture for benchmarking (~1000 lines)
 
 class BaseComponent {

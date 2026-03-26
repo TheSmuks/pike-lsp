@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Compat.pmod - Version compatibility layer for LSP.pmod
 //!
 //! This module provides a unified API across Pike versions 7.6, 7.8, and 8.0.x.

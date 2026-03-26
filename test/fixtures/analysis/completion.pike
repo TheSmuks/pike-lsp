@@ -1,3 +1,5 @@
+#pragma strict_types
+
 //! Test fixture for completion context
 
 class MyClass {
