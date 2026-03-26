@@ -15,6 +15,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
 import * as path from 'path';
 import * as fsSync from 'fs';
+import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
  * Register document links handler.
@@ -197,8 +198,7 @@ function resolveIncludePath(
  * Get the directory path from a file URI
  */
 function getDocumentDirectory(uri: string): string {
-    // Decode URI-encoded characters (e.g., %20 -> space)
-    const filePath = decodeURIComponent(uri.replace(/^file:\/\/\/?/, ''));
+    const filePath = uriToFsPath(uri);
     const lastSlash = filePath.lastIndexOf('/');
     return lastSlash >= 0 ? filePath.substring(0, lastSlash) : filePath;
 }
