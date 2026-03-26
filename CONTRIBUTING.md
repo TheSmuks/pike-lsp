@@ -161,7 +161,9 @@ describe('Your Feature', () => {
 
 ### Test Requirements
 
-- All new features must have tests
+- **All new features and bug fixes MUST have tests.**
+  - **Features**: Tests must cover the primary functional requirements and edge cases.
+  - **Bug Fixes**: Tests must specifically cover the reported regression to prevent future recurrence.
 - Tests must pass before merging
 - Pike stdlib files must continue to parse (100% compatibility)
 

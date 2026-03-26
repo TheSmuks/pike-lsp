@@ -120,6 +120,9 @@ cd packages/vscode-pike && xvfb-run --auto-servernum bun run test:e2e && cd ../.
 
 Every PR must include:
 
+- **Meaningful Tests**: All new features and bug fixes MUST include corresponding tests.
+  - **Features**: Tests must cover the primary functional requirements and edge cases.
+  - **Bug Fixes**: Tests must specifically cover the reported regression to prevent future recurrence.
 - concise summary
 - root cause/problem statement
 - file-level change rationale
