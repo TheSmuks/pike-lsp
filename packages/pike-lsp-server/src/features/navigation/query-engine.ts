@@ -132,7 +132,13 @@ export async function queryNavigationLocations(
     if (nestedLocation) {
       return [nestedLocation];
     }
-  } catch {
+  } catch (error) {
+    services.logger.warn('Navigation query engine request failed', {
+      feature,
+      uri,
+      requestId,
+      error,
+    });
     return undefined;
   } finally {
     cancellationDisposable?.dispose();

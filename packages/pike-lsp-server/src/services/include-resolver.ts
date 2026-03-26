@@ -287,7 +287,11 @@ export class IncludeResolver {
     try {
       const result = await this.bridge.bridge.resolveStdlib(modulePath);
       return result.found === 1;
-    } catch {
+    } catch (err) {
+      this.logger.debug('Failed stdlib module resolution', {
+        modulePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return false;
     }
   }
@@ -354,7 +358,11 @@ export class IncludeResolver {
     try {
       const fileStat = await stat(filePath);
       return fileStat.mtimeMs;
-    } catch {
+    } catch (err) {
+      this.logger.debug('Failed to stat include file', {
+        filePath,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   }
