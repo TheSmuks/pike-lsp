@@ -37,6 +37,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check forbidden lockfiles
+        run: bun run check:lockfiles
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -114,6 +117,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bun run check:lockfiles
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -237,6 +243,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check forbidden lockfiles
+        run: bun run check:lockfiles
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -294,6 +303,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bun run check:lockfiles
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
