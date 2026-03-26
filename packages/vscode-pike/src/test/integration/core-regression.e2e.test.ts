@@ -7,7 +7,7 @@ import { hoverText, labelOf, normalizeLocations, positionForRegex, waitFor } fro
 let vscode: any;
 let vscodeAvailable = true;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-var-requires -- VS Code integration tests use CommonJS require for the vscode runtime module
   vscode = require('vscode');
 } catch {
   vscodeAvailable = false;
