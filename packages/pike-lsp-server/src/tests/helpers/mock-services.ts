@@ -131,6 +131,7 @@ export interface MockConnection {
   typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
   semanticTokensHandler: any;
   semanticTokensDeltaHandler: any;
+  monikerHandler: any;
   getRequestHandler(method: string): ((params: unknown) => unknown) | undefined;
 }
 
@@ -153,6 +154,7 @@ export function createMockConnection(): MockConnection {
   let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
   let _semanticTokensHandler: any = null;
   let _semanticTokensDeltaHandler: any = null;
+  let _monikerHandler: any = null;
   const _requestHandlers = new Map<string, (params: unknown) => unknown>();
 
   return {
@@ -220,7 +222,9 @@ export function createMockConnection(): MockConnection {
         },
       },
       moniker: {
-        on(_handler: any) {},
+        on(handler: any) {
+          _monikerHandler = handler;
+        },
       },
     },
     get definitionHandler(): DefinitionHandler {
@@ -279,6 +283,10 @@ export function createMockConnection(): MockConnection {
       if (!_semanticTokensDeltaHandler)
         throw new Error('No semantic tokens delta handler registered');
       return _semanticTokensDeltaHandler;
+    },
+    get monikerHandler(): any {
+      if (!_monikerHandler) throw new Error('No moniker handler registered');
+      return _monikerHandler;
     },
     getRequestHandler(method: string): ((params: unknown) => unknown) | undefined {
       return _requestHandlers.get(method);
