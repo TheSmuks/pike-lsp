@@ -8,19 +8,26 @@ import type {
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 
+type LinkedEditingCapableConnection = Connection & {
+    onLinkedEditingRange?: (
+        handler: (params: LinkedEditingRangeParams) => LinkedEditingRanges | null
+    ) => void;
+};
+
 export function registerLinkedEditingHandler(
-     
     connection: Connection,
     services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
+    const linkedEditingConnection = connection as LinkedEditingCapableConnection;
+
     // Check if the connection supports linked editing ranges
-    if (typeof connection.onLinkedEditingRange !== 'function') {
+    if (typeof linkedEditingConnection.onLinkedEditingRange !== 'function') {
         services.logger.warn('Linked editing ranges not supported by this LSP connection version');
         return;
     }
 
-    connection.onLinkedEditingRange((params: LinkedEditingRangeParams): LinkedEditingRanges | null => {
+    linkedEditingConnection.onLinkedEditingRange((params: LinkedEditingRangeParams): LinkedEditingRanges | null => {
         const uri = params.textDocument.uri;
         const cached = services.documentCache.get(uri);
         const document = documents.get(uri);

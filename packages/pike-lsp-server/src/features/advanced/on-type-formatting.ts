@@ -16,19 +16,38 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 
+type OnTypeFormattingRequest = {
+    textDocument: { uri: string };
+    position: { line: number };
+    ch: string;
+    options: {
+        tabSize?: number;
+        insertSpaces?: boolean;
+    };
+};
+
+type OnTypeFormattingCapableConnection = Connection & {
+    languages: Connection['languages'] & {
+        onTypeFormatting?: (
+            handler: (params: OnTypeFormattingRequest) => Promise<TextEdit[]>,
+            triggerCharacters: string[]
+        ) => void;
+    };
+};
+
 /**
  * Register on-type formatting handler.
  */
 export function registerOnTypeFormattingHandler(
-     
     connection: Connection,
     _services: Services,
     documents: TextDocuments<TextDocument>
 ): void {
+    const onTypeFormattingConnection = connection as OnTypeFormattingCapableConnection;
     const log = new Logger('OnTypeFormatting');
 
     // Check if the connection supports on-type formatting
-    if (typeof connection.languages.onTypeFormatting !== 'function') {
+    if (typeof onTypeFormattingConnection.languages.onTypeFormatting !== 'function') {
         log.debug('On-type formatting support not available in this LSP connection version');
         return;
     }
@@ -37,7 +56,7 @@ export function registerOnTypeFormattingHandler(
     const triggerCharacters = ['\n', ';', '}'];
 
     // Register the handler
-    connection.languages.onTypeFormatting(async (params): Promise<TextEdit[]> => {
+    onTypeFormattingConnection.languages.onTypeFormatting(async (params): Promise<TextEdit[]> => {
         log.debug('On-type format request', {
             uri: params.textDocument.uri,
             trigger: params.ch[0],

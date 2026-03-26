@@ -70,15 +70,11 @@ function normalizeReferencesResult(
   }
 
   if (Array.isArray(references)) {
-    if (references.length === 0) {
-      return [];
-    }
-
-    if (isLocationLink(references[0])) {
-      return references.map(link => new Location(link.targetUri, link.targetRange));
-    }
-
-    return references;
+    return references.map(reference =>
+      isLocationLink(reference)
+        ? new Location(reference.targetUri, reference.targetRange)
+        : reference
+    );
   }
 
   return [references];
