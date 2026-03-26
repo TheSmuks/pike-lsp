@@ -14,7 +14,7 @@
 import { describe, it, beforeAll } from 'bun:test';
 import assert from 'node:assert';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { FoldingRange } from 'vscode-languageserver/node.js';
+import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node.js';
 import { ErrorCodes, ResponseError } from 'vscode-languageserver/node.js';
 import { getFoldingRanges } from '../../features/advanced/folding.js';
 
@@ -282,6 +282,34 @@ multi-line comment */`;
 
             const isComment = code.startsWith('/*');
             assert.ok(isComment, 'Is multi-line comment');
+        });
+
+        it('should ignore braces inside block comments when computing code folds', () => {
+            const code = `/*
+{ this brace pair is comment content }
+*/
+void run() {
+    int x = 1;
+}`;
+
+            const document = createDocument(code);
+            const ranges = getFoldingRanges(document);
+
+            const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
+            assert.equal(codeRangeCount, 1, 'Only the function body should produce a code fold');
+        });
+
+        it('should ignore braces inside string literals when computing code folds', () => {
+            const code = `void run() {
+    string s = "{ not a code block }";
+    int x = 1;
+}`;
+
+            const document = createDocument(code);
+            const ranges = getFoldingRanges(document);
+
+            const codeRangeCount = ranges.filter(r => r.kind !== FoldingRangeKind.Comment).length;
+            assert.equal(codeRangeCount, 1, 'String literal braces must not create extra folds');
         });
 
         it('should not start multiline string folding for #" inside line comments', () => {
