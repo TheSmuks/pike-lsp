@@ -253,7 +253,10 @@ export class RequestScheduler {
         this.activeByClass[next.requestClass] += 1;
         this.runTask(next)
           .catch(error => {
-            this.logSchedulerError('runTask', error, { requestClass: next.requestClass, id: next.id });
+            this.logSchedulerError('runTask', error, {
+              requestClass: next.requestClass,
+              id: next.id,
+            });
           })
           .finally(() => {
             this.activeWorkers -= 1;
@@ -291,7 +294,11 @@ export class RequestScheduler {
   }
 
   private dequeueNextTask(): QueuedTask | undefined {
-    return this.queues.typing.shift() ?? this.queues.interactive.shift() ?? this.queues.background.shift();
+    return (
+      this.queues.typing.shift() ??
+      this.queues.interactive.shift() ??
+      this.queues.background.shift()
+    );
   }
 
   private hasQueuedTasks(): boolean {

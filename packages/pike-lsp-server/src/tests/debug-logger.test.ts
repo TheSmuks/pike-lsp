@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createLogger, DEFAULT_LOG_FILE, resolveDebugLogFilePath } from '../utils/debug-logger.js';
 
-const testProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+const testProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+  .process;
 
 function getEnv(name: string): string | undefined {
   return testProcess?.env?.[name];

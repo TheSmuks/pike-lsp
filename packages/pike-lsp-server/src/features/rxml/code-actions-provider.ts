@@ -17,7 +17,7 @@ import {
   Diagnostic,
   Range,
   OptionalVersionedTextDocumentIdentifier,
-  WorkspaceEdit
+  WorkspaceEdit,
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Position } from 'vscode-languageserver';
@@ -104,18 +104,14 @@ function createWrapInSetAction(document: TextDocument, range: Range): CodeAction
         edits: [
           {
             range,
-            newText: `<set variable="name">${selectedText}</set>`
-          }
-        ]
-      }
-    ]
+            newText: `<set variable="name">${selectedText}</set>`,
+          },
+        ],
+      },
+    ],
   };
 
-  const action = CodeAction.create(
-    'Wrap in <set> tag',
-    edit,
-    CodeActionKind.Refactor
-  );
+  const action = CodeAction.create('Wrap in <set> tag', edit, CodeActionKind.Refactor);
 
   return action;
 }
@@ -138,18 +134,14 @@ function createExtractToTagAction(document: TextDocument, range: Range): CodeAct
         edits: [
           {
             range,
-            newText: `<custom_tag>${selectedText}</custom_tag>`
-          }
-        ]
-      }
-    ]
+            newText: `<custom_tag>${selectedText}</custom_tag>`,
+          },
+        ],
+      },
+    ],
   };
 
-  const action = CodeAction.create(
-    'Extract to custom tag',
-    edit,
-    CodeActionKind.RefactorExtract
-  );
+  const action = CodeAction.create('Extract to custom tag', edit, CodeActionKind.RefactorExtract);
 
   return action;
 }
@@ -157,7 +149,10 @@ function createExtractToTagAction(document: TextDocument, range: Range): CodeAct
 /**
  * Create "Add missing query_location()" action
  */
-function createAddQueryLocationAction(document: TextDocument, _moduleInfo: ExtendedModuleInfo): CodeAction {
+function createAddQueryLocationAction(
+  document: TextDocument,
+  _moduleInfo: ExtendedModuleInfo
+): CodeAction {
   const content = document.getText();
   const insertPosition = findInsertPosition(content);
 
@@ -178,20 +173,16 @@ string query_location() {
           {
             range: {
               start: insertPosition,
-              end: insertPosition
+              end: insertPosition,
             },
-            newText: codeToInsert
-          }
-        ]
-      }
-    ]
+            newText: codeToInsert,
+          },
+        ],
+      },
+    ],
   };
 
-  const action = CodeAction.create(
-    'Add missing query_location()',
-    edit,
-    CodeActionKind.QuickFix
-  );
+  const action = CodeAction.create('Add missing query_location()', edit, CodeActionKind.QuickFix);
 
   return action;
 }
@@ -199,7 +190,10 @@ string query_location() {
 /**
  * Create "Add missing start()/stop()" action
  */
-function createAddLifecycleMethodsAction(document: TextDocument, moduleInfo: ExtendedModuleInfo): CodeAction {
+function createAddLifecycleMethodsAction(
+  document: TextDocument,
+  moduleInfo: ExtendedModuleInfo
+): CodeAction {
   const content = document.getText();
   const insertPosition = findInsertPosition(content);
 
@@ -235,20 +229,16 @@ void stop() {
           {
             range: {
               start: insertPosition,
-              end: insertPosition
+              end: insertPosition,
             },
-            newText: codeToInsert
-          }
-        ]
-      }
-    ]
+            newText: codeToInsert,
+          },
+        ],
+      },
+    ],
   };
 
-  const action = CodeAction.create(
-    'Add missing start()/stop()',
-    edit,
-    CodeActionKind.QuickFix
-  );
+  const action = CodeAction.create('Add missing start()/stop()', edit, CodeActionKind.QuickFix);
 
   return action;
 }
@@ -284,20 +274,16 @@ string simpletag_my_tag(string tag_name, mapping args, string contents, RequestI
           {
             range: {
               start: insertPosition,
-              end: insertPosition
+              end: insertPosition,
             },
-            newText: stubCode
-          }
-        ]
-      }
-    ]
+            newText: stubCode,
+          },
+        ],
+      },
+    ],
   };
 
-  const action = CodeAction.create(
-    'Create tag function stub',
-    edit,
-    CodeActionKind.Refactor
-  );
+  const action = CodeAction.create('Create tag function stub', edit, CodeActionKind.Refactor);
 
   return action;
 }
@@ -312,7 +298,7 @@ function analyzePikeModule(content: string, uri: string): ExtendedModuleInfo {
     hasQueryLocation: content.includes('query_location()'),
     hasStart: content.includes('void start('),
     hasStop: content.includes('void stop('),
-    filePath: uri
+    filePath: uri,
   };
 
   // Detect module type
@@ -337,7 +323,7 @@ function findInsertPosition(_content: string): Position {
   // In production, would parse to find last inherit/constant
   return {
     line: 0,
-    character: 0
+    character: 0,
   };
 }
 
@@ -345,8 +331,7 @@ function findInsertPosition(_content: string): Position {
  * Check if range is empty (cursor position)
  */
 function isRangeEmpty(range: Range): boolean {
-  return range.start.line === range.end.line &&
-         range.start.character === range.end.character;
+  return range.start.line === range.end.line && range.start.character === range.end.character;
 }
 
 /**
@@ -360,7 +345,6 @@ export async function provideRXMLQuickFix(
   _document: TextDocument,
   diagnostic: Diagnostic
 ): Promise<CodeAction | null> {
-
   // Fix unknown tag by suggesting similar tag
   if (diagnostic.message.includes('Unknown RXML tag')) {
     // Could suggest similar built-in tags

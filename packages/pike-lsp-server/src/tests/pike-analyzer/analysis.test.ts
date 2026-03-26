@@ -24,7 +24,10 @@ async function analyze(code: string, filename: string = 'analysis-test.pike') {
   return bridge.analyzeUninitialized(code, filename);
 }
 
-function diagnosticForVariable(result: { diagnostics: Array<{ variable?: string; message: string }> }, name: string) {
+function diagnosticForVariable(
+  result: { diagnostics: Array<{ variable?: string; message: string }> },
+  name: string
+) {
   return result.diagnostics.find(d => d.variable === name);
 }
 
@@ -59,7 +62,10 @@ void test(int condition) {
 
     const diag = diagnosticForVariable(result, 'maybe');
     assert.ok(diag, 'Variable assigned only in if branch must still warn');
-    assert.ok(diag!.message.includes('may be uninitialized'), 'Diagnostic should be maybe-uninitialized warning');
+    assert.ok(
+      diag!.message.includes('may be uninitialized'),
+      'Diagnostic should be maybe-uninitialized warning'
+    );
   });
 
   it('42.1.3: should treat if/else assignment as definite assignment', async () => {
@@ -96,7 +102,11 @@ void test(int selector) {
 `);
 
     const diag = diagnosticForVariable(result, 'choice');
-    assert.equal(diag, undefined, 'Switch with default assigning variable on all branches must not warn');
+    assert.equal(
+      diag,
+      undefined,
+      'Switch with default assigning variable on all branches must not warn'
+    );
   });
 
   it('42.1.5: should warn for switch without default when assignment is not guaranteed', async () => {
@@ -114,7 +124,10 @@ void test(int selector) {
 
     const diag = diagnosticForVariable(result, 'maybeChoice');
     assert.ok(diag, 'Switch without default should keep variable maybe-uninitialized');
-    assert.ok(diag!.message.includes('uninitialized'), 'Expected uninitialized warning for switch without default');
+    assert.ok(
+      diag!.message.includes('uninitialized'),
+      'Expected uninitialized warning for switch without default'
+    );
   });
 
   it('42.1.6: should not warn for initialized function parameters', async () => {

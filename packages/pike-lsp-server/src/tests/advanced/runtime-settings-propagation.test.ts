@@ -71,7 +71,10 @@ describe('Runtime settings propagation', () => {
 
   it('uses latest inline value settings from services', async () => {
     let inlineHandler:
-      | ((params: { textDocument: { uri: string }; range: { start: { line: number }; end: { line: number } } }) => Promise<unknown>)
+      | ((params: {
+          textDocument: { uri: string };
+          range: { start: { line: number }; end: { line: number } };
+        }) => Promise<unknown>)
       | null = null;
 
     const connection = {

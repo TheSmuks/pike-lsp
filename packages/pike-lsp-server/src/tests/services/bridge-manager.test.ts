@@ -20,12 +20,9 @@ function createBridge(running: boolean, pid: number | null) {
   };
 }
 
-function classifyHealthState(health: HealthStatus):
-  | 'not-started'
-  | 'version-pending'
-  | 'running'
-  | 'crashed'
-  | 'unknown' {
+function classifyHealthState(
+  health: HealthStatus
+): 'not-started' | 'version-pending' | 'running' | 'crashed' | 'unknown' {
   if (!health.bridgeConnected && health.pikePid === null) {
     return 'not-started';
   }

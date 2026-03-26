@@ -296,7 +296,12 @@ describe('Configuration Handling', () => {
     onConfig({ settings: { pike: { diagnosticDelay: 30 } } });
     await waitFor(() => harness.engineUpdateConfigCalls.length === 1, 100);
 
-    const changedDoc = TextDocument.create('file:///tmp/config-delay.pike', 'pike', 1, 'int x = 1;\n');
+    const changedDoc = TextDocument.create(
+      'file:///tmp/config-delay.pike',
+      'pike',
+      1,
+      'int x = 1;\n'
+    );
     harness.documentsLike.emitChange(changedDoc);
 
     await sleep(10);

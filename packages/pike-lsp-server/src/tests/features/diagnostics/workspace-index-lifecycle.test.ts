@@ -137,8 +137,16 @@ describe('Diagnostics lifecycle workspace index sync', () => {
     await new Promise(resolve => setTimeout(resolve, 25));
 
     expect(indexCalls[0]).toEqual({ uri, content: openDoc.getText(), version: openDoc.version });
-    expect(indexCalls[1]).toEqual({ uri, content: changedDoc.getText(), version: changedDoc.version });
-    expect(indexCalls[2]).toEqual({ uri, content: changedDoc.getText(), version: changedDoc.version });
+    expect(indexCalls[1]).toEqual({
+      uri,
+      content: changedDoc.getText(),
+      version: changedDoc.version,
+    });
+    expect(indexCalls[2]).toEqual({
+      uri,
+      content: changedDoc.getText(),
+      version: changedDoc.version,
+    });
 
     const closeRehydrateCall = indexCalls[indexCalls.length - 1];
     expect(closeRehydrateCall.uri).toBe(uri);

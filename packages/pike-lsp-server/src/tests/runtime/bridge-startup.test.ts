@@ -59,7 +59,9 @@ describe('bridge startup during initialize', () => {
     expect(caughtError).toBeInstanceOf(ResponseError);
     const responseError = caughtError as ResponseError<unknown>;
     expect(responseError.code).toBe(ErrorCodes.InternalError);
-    expect(responseError.message).toContain('failed to start the Pike bridge during initialization');
+    expect(responseError.message).toContain(
+      'failed to start the Pike bridge during initialization'
+    );
     expect(responseError.message).toContain('spawn ENOENT');
 
     expect(userMessages).toEqual([
@@ -67,6 +69,8 @@ describe('bridge startup during initialize', () => {
     ]);
     expect(consoleErrors).toHaveLength(1);
     expect(consoleErrors[0]).toContain('spawn ENOENT');
-    expect(logs.some(message => message.includes('Bridge startup error during initialize'))).toBeTrue();
+    expect(
+      logs.some(message => message.includes('Bridge startup error during initialize'))
+    ).toBeTrue();
   });
 });

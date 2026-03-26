@@ -14,7 +14,7 @@ export function enhanceRoxenSymbols(
     kind: 2, // Module
     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
     selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
-    children: []
+    children: [],
   };
 
   if (moduleInfo.variables && moduleInfo.variables.length > 0) {
@@ -23,7 +23,7 @@ export function enhanceRoxenSymbols(
       kind: 2, // Module
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 17 } },
       selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 17 } },
-      children: moduleInfo.variables.map((v) => {
+      children: moduleInfo.variables.map(v => {
         // Convert 1-based Pike line/column to 0-based LSP
         const line = Math.max(0, (v.position?.line ?? 1) - 1);
         const column = Math.max(0, (v.position?.column ?? 1) - 1);
@@ -39,9 +39,9 @@ export function enhanceRoxenSymbols(
             start: { line, character: column },
             end: { line, character: column + v.name.length },
           },
-          detail: v.type
+          detail: v.type,
         };
-      })
+      }),
     };
     roxenContainer.children!.push(variablesGroup);
   }
@@ -52,7 +52,7 @@ export function enhanceRoxenSymbols(
       kind: 2, // Module
       range: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
       selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
-      children: moduleInfo.tags.map((t) => {
+      children: moduleInfo.tags.map(t => {
         // Convert 1-based Pike line/column to 0-based LSP
         const line = Math.max(0, (t.position?.line ?? 1) - 1);
         const column = Math.max(0, (t.position?.column ?? 1) - 1);
@@ -68,9 +68,9 @@ export function enhanceRoxenSymbols(
             start: { line, character: column },
             end: { line, character: column + t.name.length },
           },
-          detail: t.type
+          detail: t.type,
         };
-      })
+      }),
     };
     roxenContainer.children!.push(tagsGroup);
   }

@@ -16,82 +16,82 @@ import { DEFAULT_MAX_PROBLEMS, DIAGNOSTIC_DELAY_DEFAULT } from '../constants/ind
  * including the Pike executable path and validation behavior.
  */
 export interface PikeSettings {
-    /** Path to the Pike executable (e.g., 'pike', '/usr/bin/pike') */
-    pikePath: string;
-    /** Maximum number of problems to report per document */
-    maxNumberOfProblems: number;
-    /** Delay in milliseconds before validating after document change */
-    diagnosticDelay: number;
-    /** Inlay hints configuration (optional) */
-    inlayHints?: InlayHintsSettings;
-    /** Inline values configuration (optional) */
-    inlineValues?: InlineValuesSettings;
-    runnable?: RunnableSettings;
+  /** Path to the Pike executable (e.g., 'pike', '/usr/bin/pike') */
+  pikePath: string;
+  /** Maximum number of problems to report per document */
+  maxNumberOfProblems: number;
+  /** Delay in milliseconds before validating after document change */
+  diagnosticDelay: number;
+  /** Inlay hints configuration (optional) */
+  inlayHints?: InlayHintsSettings;
+  /** Inline values configuration (optional) */
+  inlineValues?: InlineValuesSettings;
+  runnable?: RunnableSettings;
 }
 
 export interface RunnableSettings {
-    testPattern?: string;
-    showCodeLens?: boolean;
+  testPattern?: string;
+  showCodeLens?: boolean;
 }
 
 /**
  * Inlay hints configuration.
  */
 export interface InlayHintsSettings {
-    /** Enable inlay hints */
-    enabled: boolean;
-    /** Show parameter name hints */
-    parameterNames: boolean;
-    /** Show type hints (not implemented yet) */
-    typeHints: boolean;
+  /** Enable inlay hints */
+  enabled: boolean;
+  /** Show parameter name hints */
+  parameterNames: boolean;
+  /** Show type hints (not implemented yet) */
+  typeHints: boolean;
 }
 
 /**
  * Inline values configuration.
  */
 export interface InlineValuesSettings {
-    /** Enable inline values */
-    enabled: boolean;
+  /** Enable inline values */
+  enabled: boolean;
 }
 
 /**
  * Resolved include dependency with cached symbols.
  */
 export interface ResolvedInclude {
-    /** Original include path from source (e.g., '"utils.pike"' or '<Stdio.h>') */
-    originalPath: string;
-    /** Resolved absolute file path */
-    resolvedPath: string;
-    /** Symbols from the included file (cached for completion) */
-    symbols: PikeSymbol[];
-    /** Last modified time for cache invalidation */
-    lastModified: number;
+  /** Original include path from source (e.g., '"utils.pike"' or '<Stdio.h>') */
+  originalPath: string;
+  /** Resolved absolute file path */
+  resolvedPath: string;
+  /** Symbols from the included file (cached for completion) */
+  symbols: PikeSymbol[];
+  /** Last modified time for cache invalidation */
+  lastModified: number;
 }
 
 /**
  * Resolved import dependency with cached symbols.
  */
 export interface ResolvedImport {
-    /** Module path (e.g., 'Stdio' or 'Parser.Pike') */
-    modulePath: string;
-    /** Whether this is a stdlib module (vs local module) */
-    isStdlib: boolean;
-    /** Symbols from the imported module (cached for completion) */
-    symbols?: import('@pike-lsp/pike-bridge').PikeSymbol[];
-    /** Last accessed timestamp for cache invalidation */
-    lastAccessed?: number;
-    /** Resolved file path (for workspace modules) */
-    resolvedPath?: string;
+  /** Module path (e.g., 'Stdio' or 'Parser.Pike') */
+  modulePath: string;
+  /** Whether this is a stdlib module (vs local module) */
+  isStdlib: boolean;
+  /** Symbols from the imported module (cached for completion) */
+  symbols?: import('@pike-lsp/pike-bridge').PikeSymbol[];
+  /** Last accessed timestamp for cache invalidation */
+  lastAccessed?: number;
+  /** Resolved file path (for workspace modules) */
+  resolvedPath?: string;
 }
 
 /**
  * Document dependencies tracking for include/import statements.
  */
 export interface DocumentDependencies {
-    /** Resolved #include dependencies */
-    includes: ResolvedInclude[];
-    /** Resolved import dependencies */
-    imports: ResolvedImport[];
+  /** Resolved #include dependencies */
+  includes: ResolvedInclude[];
+  /** Resolved import dependencies */
+  imports: ResolvedImport[];
 }
 
 /**
@@ -102,32 +102,32 @@ export interface DocumentDependencies {
  * where a symbol is referenced within a document.
  */
 export interface DocumentCacheEntry {
-    /** Document version */
-    version: number;
-    /** Symbols extracted from the document */
-    symbols: PikeSymbol[];
-    /** Diagnostics from parsing/validation */
-    diagnostics: Diagnostic[];
-    /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
-    symbolPositions: Map<string, Position[]>;
-    /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
-    symbolNames: Map<string, PikeSymbol>;
-    /** Include and import dependencies (optional, populated lazily) */
-    dependencies?: DocumentDependencies;
-    /** Inheritance information from introspection */
-    inherits?: import("@pike-lsp/pike-bridge").InheritanceInfo[];
-    /** INC-002: SHA-256 hash of document content for incremental change detection */
-    contentHash?: string;
-    /** INC-002: Hash of each line's semantic content (comments stripped) */
-    lineHashes?: number[];
-    /** Introspection result with AutoDoc data including @deprecated tags */
-    introspection?: import('@pike-lsp/pike-bridge').IntrospectionResult | undefined;
-    /** Roxen-specific module information (Phase 3: Roxen LSP support) */
-    roxenInfo?: import('../features/roxen/types.js').RoxenModuleInfo;
-    analysisState?: {
-        isStale: boolean;
-        parseFailed: boolean;
-    };
+  /** Document version */
+  version: number;
+  /** Symbols extracted from the document */
+  symbols: PikeSymbol[];
+  /** Diagnostics from parsing/validation */
+  diagnostics: Diagnostic[];
+  /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
+  symbolPositions: Map<string, Position[]>;
+  /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
+  symbolNames: Map<string, PikeSymbol>;
+  /** Include and import dependencies (optional, populated lazily) */
+  dependencies?: DocumentDependencies;
+  /** Inheritance information from introspection */
+  inherits?: import('@pike-lsp/pike-bridge').InheritanceInfo[];
+  /** INC-002: SHA-256 hash of document content for incremental change detection */
+  contentHash?: string;
+  /** INC-002: Hash of each line's semantic content (comments stripped) */
+  lineHashes?: number[];
+  /** Introspection result with AutoDoc data including @deprecated tags */
+  introspection?: import('@pike-lsp/pike-bridge').IntrospectionResult | undefined;
+  /** Roxen-specific module information (Phase 3: Roxen LSP support) */
+  roxenInfo?: import('../features/roxen/types.js').RoxenModuleInfo;
+  analysisState?: {
+    isStale: boolean;
+    parseFailed: boolean;
+  };
 }
 
 /**
@@ -136,15 +136,15 @@ export interface DocumentCacheEntry {
  * Provides sensible defaults for the LSP server configuration.
  */
 export const defaultSettings: PikeSettings = {
-    pikePath: 'pike',
-    maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
-    diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
-    inlayHints: {
-        enabled: true,
-        parameterNames: true,
-        typeHints: false,
-    },
-    inlineValues: {
-        enabled: true,
-    },
+  pikePath: 'pike',
+  maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
+  diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
+  inlayHints: {
+    enabled: true,
+    parameterNames: true,
+    typeHints: false,
+  },
+  inlineValues: {
+    enabled: true,
+  },
 };

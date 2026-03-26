@@ -80,8 +80,8 @@ export function registerSignatureHelpHandler(
     const funcName = qualifiedMatch[1]!;
     let funcSymbol: PikeSymbol | null = null;
 
-      // Check if this is a qualified stdlib symbol
-      if (funcName.includes('.') && stdlibIndex) {
+    // Check if this is a qualified stdlib symbol
+    if (funcName.includes('.') && stdlibIndex) {
       const lastDotIndex = funcName.lastIndexOf('.');
       const modulePath = funcName.substring(0, lastDotIndex);
       const symbolName = funcName.substring(lastDotIndex + 1);
@@ -205,7 +205,7 @@ function findMethodFromModuleSymbols(
 
   const args = functionType.arguments ?? [];
   const argNames =
-    args.length > 0 ? args.map(arg => arg.name) : functionType.argTypes?.map(() => null) ?? [];
+    args.length > 0 ? args.map(arg => arg.name) : (functionType.argTypes?.map(() => null) ?? []);
   const argTypes = functionType.argTypes ?? args.map(() => ({ kind: 'mixed' as const }));
 
   return {

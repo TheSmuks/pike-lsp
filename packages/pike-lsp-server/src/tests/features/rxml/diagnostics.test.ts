@@ -130,10 +130,9 @@ describe('RXML Diagnostics', () => {
         },
       } as unknown as RXMLTagInfo;
 
-      await assert.rejects(
-        validateRXMLDocument('<set>', 'test.rxml', [brokenTag], 0, logger),
-        { message: 'Injected RXML validation failure' }
-      );
+      await assert.rejects(validateRXMLDocument('<set>', 'test.rxml', [brokenTag], 0, logger), {
+        message: 'Injected RXML validation failure',
+      });
 
       assert.equal(loggedErrors.length, 1, 'Validation error should be logged once');
       assert.match(

@@ -58,9 +58,9 @@ describe('query-engine cancellation wiring', () => {
     cancellationToken.cancel();
 
     expect(cancelledRequestIds.length).toBe(1);
-    expect(cancelledRequestIds[0]?.startsWith(`definition:${document.uri}:${document.version}:`)).toBe(
-      true
-    );
+    expect(
+      cancelledRequestIds[0]?.startsWith(`definition:${document.uri}:${document.version}:`)
+    ).toBe(true);
 
     const firstResolveQuery = resolveQuery;
     if (typeof firstResolveQuery === 'function') {
@@ -132,9 +132,9 @@ describe('query-engine cancellation wiring', () => {
     expect(warnings[0]?.message).toBe('Navigation cancellation request failed');
     expect(warnings[0]?.payload['feature']).toBe('references');
     expect(warnings[0]?.payload['uri']).toBe(document.uri);
-    expect(String(warnings[0]?.payload['requestId']).startsWith(`references:${document.uri}:1:`)).toBe(
-      true
-    );
+    expect(
+      String(warnings[0]?.payload['requestId']).startsWith(`references:${document.uri}:1:`)
+    ).toBe(true);
     expect(warnings[0]?.payload['error']).toBe(cancellationError);
   });
 });

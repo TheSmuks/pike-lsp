@@ -12,83 +12,86 @@ import type { Diagnostic } from 'vscode-languageserver';
 import type { RXMLTagInfo } from './types.js';
 
 interface RXMLDiagnosticsLogger {
-    error: (message: string, error?: unknown) => void;
+  error: (message: string, error?: unknown) => void;
 }
 
 const defaultRXMLDiagnosticsLogger: RXMLDiagnosticsLogger = {
-    error: (message: string, error?: unknown) => {
-        console.error(message, error);
-    },
+  error: (message: string, error?: unknown) => {
+    console.error(message, error);
+  },
 };
 
 function normalizeError(error: unknown): Error {
-    if (error instanceof Error) {
-        return error;
-    }
+  if (error instanceof Error) {
+    return error;
+  }
 
-    return new Error(String(error));
+  return new Error(String(error));
 }
 
 /**
  * RXML tag catalog with known tags and their attributes
  * This is a minimal catalog for Phase 2 - will be expanded in Phase 5
  */
-const RXML_TAG_CATALOG: Record<string, {
+const RXML_TAG_CATALOG: Record<
+  string,
+  {
     type: 'simple' | 'container';
     requiredAttributes: string[];
     optionalAttributes: string[];
     enumeratedAttributes?: Record<string, string[]>;
-}> = {
-    set: {
-        type: 'container',
-        requiredAttributes: ['variable'],
-        optionalAttributes: ['scope', 'prestate'],
+  }
+> = {
+  set: {
+    type: 'container',
+    requiredAttributes: ['variable'],
+    optionalAttributes: ['scope', 'prestate'],
+  },
+  emit: {
+    type: 'container',
+    requiredAttributes: ['source'],
+    optionalAttributes: ['query', 'rowinfo', 'scope'],
+    enumeratedAttributes: {
+      source: ['sql', 'file', 'dir', 'variables', 'users', 'groups'],
     },
-    emit: {
-        type: 'container',
-        requiredAttributes: ['source'],
-        optionalAttributes: ['query', 'rowinfo', 'scope'],
-        enumeratedAttributes: {
-            source: ['sql', 'file', 'dir', 'variables', 'users', 'groups'],
-        },
-    },
-    if: {
-        type: 'container',
-        requiredAttributes: ['variable', 'matches'],
-        optionalAttributes: ['scope'],
-    },
-    elseif: {
-        type: 'container',
-        requiredAttributes: ['variable', 'matches'],
-        optionalAttributes: ['scope'],
-    },
-    else: {
-        type: 'simple',
-        requiredAttributes: [],
-        optionalAttributes: [],
-    },
-    roxen: {
-        type: 'container',
-        requiredAttributes: [],
-        optionalAttributes: [],
-    },
-    configimage: {
-        type: 'simple',
-        requiredAttributes: ['src'],
-        optionalAttributes: ['alt', 'align', 'border'],
-    },
-    insert: {
-        type: 'container',
-        requiredAttributes: ['from'],
-        optionalAttributes: ['variables', 'scope'],
-    },
+  },
+  if: {
+    type: 'container',
+    requiredAttributes: ['variable', 'matches'],
+    optionalAttributes: ['scope'],
+  },
+  elseif: {
+    type: 'container',
+    requiredAttributes: ['variable', 'matches'],
+    optionalAttributes: ['scope'],
+  },
+  else: {
+    type: 'simple',
+    requiredAttributes: [],
+    optionalAttributes: [],
+  },
+  roxen: {
+    type: 'container',
+    requiredAttributes: [],
+    optionalAttributes: [],
+  },
+  configimage: {
+    type: 'simple',
+    requiredAttributes: ['src'],
+    optionalAttributes: ['alt', 'align', 'border'],
+  },
+  insert: {
+    type: 'container',
+    requiredAttributes: ['from'],
+    optionalAttributes: ['variables', 'scope'],
+  },
 };
 
 const thenTagName = 'the' + 'n';
 RXML_TAG_CATALOG[thenTagName] = {
-    type: 'container',
-    requiredAttributes: [],
-    optionalAttributes: [],
+  type: 'container',
+  requiredAttributes: [],
+  optionalAttributes: [],
 };
 
 /**
@@ -105,47 +108,47 @@ const debounceTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
  * @returns Promise that resolves to array of diagnostics
  */
 export async function validateRXMLDocument(
-    _code: string,
-    uri: string,
-    tags: RXMLTagInfo[],
-    debounceMs = 500,
-    logger: RXMLDiagnosticsLogger = defaultRXMLDiagnosticsLogger
+  _code: string,
+  uri: string,
+  tags: RXMLTagInfo[],
+  debounceMs = 500,
+  logger: RXMLDiagnosticsLogger = defaultRXMLDiagnosticsLogger
 ): Promise<Diagnostic[]> {
-    return new Promise((resolve, reject) => {
-        const existingTimeout = debounceTimeouts.get(uri);
-        if (existingTimeout) {
-            clearTimeout(existingTimeout);
+  return new Promise((resolve, reject) => {
+    const existingTimeout = debounceTimeouts.get(uri);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    const timeout = setTimeout(() => {
+      void (async () => {
+        const diagnostics: Diagnostic[] = [];
+
+        // Check for unknown tags
+        diagnostics.push(...checkUnknownTags(tags));
+
+        // Check for missing required attributes
+        for (const tag of tags) {
+          diagnostics.push(...checkMissingRequiredAttributes(tag));
         }
 
-        const timeout = setTimeout(() => {
-            void (async () => {
-                const diagnostics: Diagnostic[] = [];
+        // Check for unclosed container tags
+        diagnostics.push(...checkUnclosedContainerTags(tags));
 
-                // Check for unknown tags
-                diagnostics.push(...checkUnknownTags(tags));
+        // Check for invalid attribute values
+        for (const tag of tags) {
+          diagnostics.push(...checkInvalidAttributeValues(tag));
+        }
 
-                // Check for missing required attributes
-                for (const tag of tags) {
-                    diagnostics.push(...checkMissingRequiredAttributes(tag));
-                }
+        resolve(diagnostics);
+      })().catch((error: unknown) => {
+        logger.error(`[RXML Validation] Error during validation for ${uri}:`, error);
+        reject(normalizeError(error));
+      });
+    }, debounceMs);
 
-                // Check for unclosed container tags
-                diagnostics.push(...checkUnclosedContainerTags(tags));
-
-                // Check for invalid attribute values
-                for (const tag of tags) {
-                    diagnostics.push(...checkInvalidAttributeValues(tag));
-                }
-
-                resolve(diagnostics);
-            })().catch((error: unknown) => {
-                logger.error(`[RXML Validation] Error during validation for ${uri}:`, error);
-                reject(normalizeError(error));
-            });
-        }, debounceMs);
-
-        debounceTimeouts.set(uri, timeout);
-    });
+    debounceTimeouts.set(uri, timeout);
+  });
 }
 
 /**
@@ -154,24 +157,24 @@ export async function validateRXMLDocument(
  * @returns Array of diagnostics for unknown tags
  */
 export function checkUnknownTags(tags: RXMLTagInfo[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
-    for (const tag of tags) {
-        const knownTag = RXML_TAG_CATALOG[tag.name];
-        if (!knownTag) {
-            diagnostics.push({
-                range: {
-                    start: { line: tag.position.line, character: tag.position.column },
-                    end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
-                },
-                severity: 1, // Error
-                message: `Unknown RXML tag '<${tag.name}>'`,
-                source: 'rxml',
-            });
-        }
+  for (const tag of tags) {
+    const knownTag = RXML_TAG_CATALOG[tag.name];
+    if (!knownTag) {
+      diagnostics.push({
+        range: {
+          start: { line: tag.position.line, character: tag.position.column },
+          end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
+        },
+        severity: 1, // Error
+        message: `Unknown RXML tag '<${tag.name}>'`,
+        source: 'rxml',
+      });
     }
+  }
 
-    return diagnostics;
+  return diagnostics;
 }
 
 /**
@@ -180,28 +183,28 @@ export function checkUnknownTags(tags: RXMLTagInfo[]): Diagnostic[] {
  * @returns Array of diagnostics for missing required attributes
  */
 export function checkMissingRequiredAttributes(tag: RXMLTagInfo): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-    const catalogEntry = RXML_TAG_CATALOG[tag.name];
+  const diagnostics: Diagnostic[] = [];
+  const catalogEntry = RXML_TAG_CATALOG[tag.name];
 
-    if (!catalogEntry) {
-        return diagnostics; // Unknown tag - already reported by checkUnknownTags
+  if (!catalogEntry) {
+    return diagnostics; // Unknown tag - already reported by checkUnknownTags
+  }
+
+  for (const requiredAttr of catalogEntry.requiredAttributes) {
+    if (!(requiredAttr in tag.attributes)) {
+      diagnostics.push({
+        range: {
+          start: { line: tag.position.line, character: tag.position.column },
+          end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
+        },
+        severity: 1, // Error
+        message: `Tag '<${tag.name}>' is missing required attribute '${requiredAttr}'`,
+        source: 'rxml',
+      });
     }
+  }
 
-    for (const requiredAttr of catalogEntry.requiredAttributes) {
-        if (!(requiredAttr in tag.attributes)) {
-            diagnostics.push({
-                range: {
-                    start: { line: tag.position.line, character: tag.position.column },
-                    end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
-                },
-                severity: 1, // Error
-                message: `Tag '<${tag.name}>' is missing required attribute '${requiredAttr}'`,
-                source: 'rxml',
-            });
-        }
-    }
-
-    return diagnostics;
+  return diagnostics;
 }
 
 /**
@@ -210,24 +213,24 @@ export function checkMissingRequiredAttributes(tag: RXMLTagInfo): Diagnostic[] {
  * @returns Array of diagnostics for unclosed container tags
  */
 export function checkUnclosedContainerTags(tags: RXMLTagInfo[]): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
+  const diagnostics: Diagnostic[] = [];
 
-    for (const tag of tags) {
-        // Check if this is a container tag that's unclosed
-        if (tag.type === 'container' && tag.isUnclosed && !tag.isSelfClosing) {
-            diagnostics.push({
-                range: {
-                    start: { line: tag.position.line, character: tag.position.column },
-                    end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
-                },
-                severity: 1, // Error
-                message: `Unclosed container tag '<${tag.name}>'`,
-                source: 'rxml',
-            });
-        }
+  for (const tag of tags) {
+    // Check if this is a container tag that's unclosed
+    if (tag.type === 'container' && tag.isUnclosed && !tag.isSelfClosing) {
+      diagnostics.push({
+        range: {
+          start: { line: tag.position.line, character: tag.position.column },
+          end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
+        },
+        severity: 1, // Error
+        message: `Unclosed container tag '<${tag.name}>'`,
+        source: 'rxml',
+      });
     }
+  }
 
-    return diagnostics;
+  return diagnostics;
 }
 
 /**
@@ -236,27 +239,27 @@ export function checkUnclosedContainerTags(tags: RXMLTagInfo[]): Diagnostic[] {
  * @returns Array of diagnostics for invalid attribute values
  */
 export function checkInvalidAttributeValues(tag: RXMLTagInfo): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-    const catalogEntry = RXML_TAG_CATALOG[tag.name];
+  const diagnostics: Diagnostic[] = [];
+  const catalogEntry = RXML_TAG_CATALOG[tag.name];
 
-    if (!catalogEntry || !catalogEntry.enumeratedAttributes) {
-        return diagnostics;
-    }
-
-    for (const [attrName, validValues] of Object.entries(catalogEntry.enumeratedAttributes)) {
-        const attrValue = tag.attributes[attrName];
-        if (attrValue && !validValues.includes(attrValue)) {
-            diagnostics.push({
-                range: {
-                    start: { line: tag.position.line, character: tag.position.column },
-                    end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
-                },
-                severity: 2, // Warning
-                message: `Invalid value '${attrValue}' for attribute '${attrName}' on tag '<${tag.name}>'. Valid values: ${validValues.join(', ')}`,
-                source: 'rxml',
-            });
-        }
-    }
-
+  if (!catalogEntry || !catalogEntry.enumeratedAttributes) {
     return diagnostics;
+  }
+
+  for (const [attrName, validValues] of Object.entries(catalogEntry.enumeratedAttributes)) {
+    const attrValue = tag.attributes[attrName];
+    if (attrValue && !validValues.includes(attrValue)) {
+      diagnostics.push({
+        range: {
+          start: { line: tag.position.line, character: tag.position.column },
+          end: { line: tag.position.line, character: tag.position.column + tag.name.length + 1 },
+        },
+        severity: 2, // Warning
+        message: `Invalid value '${attrValue}' for attribute '${attrName}' on tag '<${tag.name}>'. Valid values: ${validValues.join(', ')}`,
+        source: 'rxml',
+      });
+    }
+  }
+
+  return diagnostics;
 }

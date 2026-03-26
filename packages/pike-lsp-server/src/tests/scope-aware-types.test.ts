@@ -5,10 +5,14 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 describe('Scope-Aware Type Inference', () => {
   let bridge: PikeBridge;
 
-  beforeAll(async () => { bridge = new PikeBridge();
-  await bridge.start(); });
+  beforeAll(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+  });
 
-  afterAll(async () => { await bridge.stop(); });
+  afterAll(async () => {
+    await bridge.stop();
+  });
 
   it('should resolve global variable type', async () => {
     const code = `string qsa;`;

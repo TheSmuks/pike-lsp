@@ -487,7 +487,10 @@ describe('Cross-File Type Hierarchy', () => {
       });
 
       assert.ok(Array.isArray(result), 'Result should remain a valid hierarchy response');
-      assert.ok(result.length >= 1, 'Should return at least one discovered parent before cycle stop');
+      assert.ok(
+        result.length >= 1,
+        'Should return at least one discovered parent before cycle stop'
+      );
       assert.deepStrictEqual(
         connection.getSentDiagnostics(),
         [],

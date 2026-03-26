@@ -445,7 +445,11 @@ describe('Query Engine stale diagnostics race', () => {
       1,
       'Multiple pending change batches should force one validation instead of semantic-skip'
     );
-    assert.equal(diagnosticsPublished.length, 1, 'Validation should still publish diagnostics once');
+    assert.equal(
+      diagnosticsPublished.length,
+      1,
+      'Validation should still publish diagnostics once'
+    );
   });
 
   it('does not retain stale in-flight requests after close during cancellation race', async () => {
