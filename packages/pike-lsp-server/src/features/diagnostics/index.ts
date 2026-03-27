@@ -313,6 +313,15 @@ export function registerDiagnosticsHandlers(
 
         // Clear the pending change range
         pendingChangeStates.delete(uri);
+
+        // Always publish diagnostics even when skipping, so the client stays in sync.
+        // Without this, stale error diagnostics from a previous parse can persist
+        // after the user fixes the code on a different line.
+        connection.sendDiagnostics({
+          uri,
+          version: currentVersion,
+          diagnostics: cachedEntry?.diagnostics ?? [],
+        });
         return;
       }
 

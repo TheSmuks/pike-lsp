@@ -18,6 +18,49 @@ function makeCachedEntry(text: string): DocumentCacheEntry {
 }
 
 describe('classifyChange', () => {
+  it('does not skip when previous parse had errors (parseFailed)', () => {
+    const previousText = 'int x = ;\n'; // syntax error
+    const currentText = 'int x = 1;\n'; // fixed
+    const cachedEntry = makeCachedEntry(previousText);
+    // Simulate a previous parse failure
+    cachedEntry.analysisState = { isStale: false, parseFailed: true };
+
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      {
+        start: { line: 0, character: 8 },
+        end: { line: 0, character: 8 },
+      },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('previous_parse_failed');
+  });
+
+  it('skips when previous parse succeeded and only whitespace changed', () => {
+    const previousText = 'int x = 1;\n';
+    const currentText = 'int x = 1;   \n';
+    const cachedEntry = makeCachedEntry(previousText);
+    cachedEntry.analysisState = { isStale: false, parseFailed: false };
+
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      {
+        start: { line: 0, character: 10 },
+        end: { line: 0, character: 10 },
+      },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(true);
+    expect(result.reason).toBe('semantic_unchanged');
+  });
+
   it('does not skip when a code line is deleted to empty text', () => {
     const previousText = 'int x = 1;\nint y = 2;\n';
     const currentText = 'int x = 1;\n\n';
