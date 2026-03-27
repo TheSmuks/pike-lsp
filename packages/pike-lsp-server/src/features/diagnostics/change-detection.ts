@@ -60,6 +60,11 @@ export function classifyChange(
     return { canSkip: false, reason: 'no_cache' };
   }
 
+  // Never skip when previous parse had errors — must re-validate to detect fixes
+  if (cachedEntry.analysisState?.parseFailed) {
+    return { canSkip: false, reason: 'previous_parse_failed' };
+  }
+
   const text = document.getText();
 
   // Strategy 1: Check if change range is provided
