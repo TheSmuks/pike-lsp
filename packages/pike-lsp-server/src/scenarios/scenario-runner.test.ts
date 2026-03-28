@@ -25,6 +25,12 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { classifyChange } from '../features/diagnostics/change-detection.js';
+import {
+  PIKE_PREDEFINED_MACROS,
+  MACRO_MAP,
+  isPikeMacro,
+  getMacroInfo,
+} from '../features/navigation/keywords.js';
 import type { Services } from '../services/index.js';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
@@ -379,5 +385,90 @@ describe('Scenario: rapid error-fix-error cycle', () => {
       makeEntry(true)
     );
     assert.strictEqual(r3.canSkip, false, 'Cycle 3: must not skip with error');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario: Pike predefined macros are available for completion and hover
+// ---------------------------------------------------------------------------
+
+describe('Scenario: Pike predefined macros', () => {
+  const EXPECTED_MACROS = [
+    '__LINE__',
+    '__FILE__',
+    '__DIR__',
+    '__DATE__',
+    '__TIME__',
+    '__VERSION__',
+    '__MAJOR__',
+    '__MINOR__',
+    '__BUILD__',
+    '__REAL_VERSION__',
+    '__REAL_MAJOR__',
+    '__REAL_MINOR__',
+    '__REAL_BUILD__',
+    '__PIKE__',
+  ];
+
+  it('must include all expected predefined macros in PIKE_PREDEFINED_MACROS', () => {
+    const definedNames = new Set(PIKE_PREDEFINED_MACROS.map(m => m.name));
+    const missing = EXPECTED_MACROS.filter(name => !definedNames.has(name));
+    assert.deepStrictEqual(
+      missing,
+      [],
+      `Missing predefined macros: ${missing.join(', ')}`
+    );
+  });
+
+  it('must expose all expected macros through MACRO_MAP lookup', () => {
+    for (const name of EXPECTED_MACROS) {
+      assert.ok(MACRO_MAP.has(name), `MACRO_MAP missing: ${name}`);
+    }
+  });
+
+  it('must return true from isPikeMacro for all predefined macros', () => {
+    for (const name of EXPECTED_MACROS) {
+      assert.strictEqual(isPikeMacro(name), true, `isPikeMacro(${name}) should be true`);
+    }
+  });
+
+  it('must return info from getMacroInfo for all predefined macros', () => {
+    for (const name of EXPECTED_MACROS) {
+      const info = getMacroInfo(name);
+      assert.ok(info, `getMacroInfo(${name}) should return info`);
+      assert.ok(info!.description, `getMacroInfo(${name}).description should be non-empty`);
+      assert.ok(info!.expandedValue, `getMacroInfo(${name}).expandedValue should be non-empty`);
+    }
+  });
+
+  it('must NOT match non-macro identifiers like __attribute__', () => {
+    assert.strictEqual(isPikeMacro('__attribute__'), false);
+    assert.strictEqual(getMacroInfo('__attribute__'), undefined);
+  });
+
+  it('must have correct types for version macros', () => {
+    const versionMacro = getMacroInfo('__VERSION__');
+    assert.strictEqual(versionMacro?.expandedValue, 'float', '__VERSION__ should expand to float');
+
+    const realVersionMacro = getMacroInfo('__REAL_VERSION__');
+    assert.strictEqual(
+      realVersionMacro?.expandedValue,
+      'float',
+      '__REAL_VERSION__ should expand to float'
+    );
+  });
+
+  it('must have int type for line/build/major/minor macros', () => {
+    for (const name of ['__LINE__', '__BUILD__', '__MAJOR__', '__MINOR__']) {
+      const info = getMacroInfo(name);
+      assert.strictEqual(info?.expandedValue, 'int', `${name} should expand to int`);
+    }
+  });
+
+  it('must have string type for file/dir/date/time macros', () => {
+    for (const name of ['__FILE__', '__DIR__', '__DATE__', '__TIME__']) {
+      const info = getMacroInfo(name);
+      assert.strictEqual(info?.expandedValue, 'string', `${name} should expand to string`);
+    }
   });
 });

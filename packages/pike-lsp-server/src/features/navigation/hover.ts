@@ -12,7 +12,7 @@ import type { PikeSymbol, PikeType } from '@pike-lsp/pike-bridge';
 import { buildHoverContent } from '../utils/hover-builder.js';
 import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
-import { getKeywordInfo } from './keywords.js';
+import { getKeywordInfo, getMacroInfo } from './keywords.js';
 
 function collectSymbolsByName(symbols: PikeSymbol[], name: string): PikeSymbol[] {
   const matches: PikeSymbol[] = [];
@@ -70,6 +70,19 @@ export function registerHoverHandler(
           keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
         // Use code blocks for consistency with symbol hover format
         const hoverContent = `**\`${keywordInfo.name}\`**\n\n\`\`\`pike\nkeyword\n\`\`\`\n\n*${categoryLabel}*\n\n${keywordInfo.description}`;
+        return {
+          contents: {
+            kind: MarkupKind.Markdown,
+            value: hoverContent,
+          },
+          range,
+        };
+      }
+
+      // 0b. Check if it's a Pike predefined macro
+      const macroInfo = getMacroInfo(word);
+      if (macroInfo) {
+        const hoverContent = `**\`${macroInfo.name}\`**\n\n\`\`\`pike\n${macroInfo.expandedValue}\n\`\`\`\n\n*Pike predefined macro*\n\n${macroInfo.description}`;
         return {
           contents: {
             kind: MarkupKind.Markdown,

@@ -18,6 +18,7 @@ import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
 import { buildCompletionItem, extractTypeName } from './completion-helpers.js';
 import { getAutoDocCompletion } from './autodoc.js';
 import { buildHoverContent } from '../utils/hover-builder.js';
+import { PIKE_PREDEFINED_MACROS } from '../navigation/keywords.js';
 import { provideRoxenCompletions } from '../roxen/index.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -38,6 +39,32 @@ function getSymbolClassname(symbol: PikeSymbol): string | undefined {
     return symbol.classname;
   }
   return undefined;
+}
+
+/**
+ * Add Pike predefined macros (__FILE__, __LINE__, etc.) to completions.
+ * Only adds macros that match the prefix.
+ */
+function addMacrosToCompletions(
+  completions: CompletionItem[],
+  existingNames: Set<string>,
+  prefix: string
+): void {
+  const prefixLower = prefix.toLowerCase();
+  for (const macro of PIKE_PREDEFINED_MACROS) {
+    if (existingNames.has(macro.name)) continue;
+    if (prefix && !macro.name.toLowerCase().startsWith(prefixLower)) continue;
+    completions.push({
+      label: macro.name,
+      kind: CompletionItemKind.Constant,
+      detail: `${macro.expandedValue} — Pike predefined macro`,
+      documentation: {
+        kind: MarkupKind.Markdown,
+        value: `**${macro.name}** — ${macro.description}\n\nExpanded type: \`${macro.expandedValue}\``,
+      },
+    });
+    existingNames.add(macro.name);
+  }
 }
 
 /**
@@ -383,6 +410,8 @@ export function registerCompletionHandlers(
           }
 
           maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
+          const macroNames = new Set(completions.map(c => c.label));
+          addMacrosToCompletions(completions, macroNames, prefix);
           return toCompletionList(dedupeCompletionItems(completions));
         }
         maybeLogCompletionSchedulerMetrics(uri, 'qe_empty');
@@ -1184,6 +1213,8 @@ export function registerCompletionHandlers(
       }
     }
 
+    const existingNames = new Set(completions.map(c => c.label));
+    addMacrosToCompletions(completions, existingNames, prefix ?? '');
     return toCompletionList(dedupeCompletionItems(completions));
   });
 

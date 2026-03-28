@@ -231,6 +231,51 @@ export const PIKE_KEYWORDS: PikeKeyword[] = [
 ];
 
 /**
+ * Pike predefined macros
+ * These are built-in constants available in all Pike programs.
+ */
+export interface PikeMacro {
+  name: string;
+  description: string;
+  /** The expanded value (for hover display) */
+  expandedValue: string;
+}
+
+export const PIKE_PREDEFINED_MACROS: PikeMacro[] = [
+  { name: '__LINE__', description: 'Current line number (1-indexed)', expandedValue: 'int' },
+  { name: '__FILE__', description: 'Current source file path', expandedValue: 'string' },
+  {
+    name: '__DIR__',
+    description: 'Directory containing current source file',
+    expandedValue: 'string',
+  },
+  {
+    name: '__DATE__',
+    description: 'Compilation date (e.g., "Mar 28 2026")',
+    expandedValue: 'string',
+  },
+  { name: '__TIME__', description: 'Compilation time (e.g., "17:55:00")', expandedValue: 'string' },
+  { name: '__VERSION__', description: 'Pike version number', expandedValue: 'float' },
+  { name: '__MAJOR__', description: 'Pike major version', expandedValue: 'int' },
+  { name: '__MINOR__', description: 'Pike minor version', expandedValue: 'int' },
+  { name: '__BUILD__', description: 'Pike build number', expandedValue: 'int' },
+  { name: '__REAL_VERSION__', description: 'Full Pike version as float', expandedValue: 'float' },
+  { name: '__REAL_MAJOR__', description: 'Pike major version (real)', expandedValue: 'int' },
+  { name: '__REAL_MINOR__', description: 'Pike minor version (real)', expandedValue: 'int' },
+  { name: '__REAL_BUILD__', description: 'Pike build number (real)', expandedValue: 'int' },
+  { name: '__PIKE__', description: 'Defined as 1 when compiling with Pike', expandedValue: 'int' },
+  { name: '__AUTO_BIGNUM__', description: 'Defined if Pike supports bignum', expandedValue: 'int' },
+  { name: '__NT__', description: 'Defined on Windows (NT-based)', expandedValue: 'int' },
+  { name: '__amigaos__', description: 'Defined on AmigaOS', expandedValue: 'int' },
+  { name: '__APPLE__', description: 'Defined on macOS', expandedValue: 'int' },
+  { name: '__linux__', description: 'Defined on Linux', expandedValue: 'int' },
+];
+
+export const MACRO_MAP: Map<string, PikeMacro> = new Map(
+  PIKE_PREDEFINED_MACROS.map(m => [m.name, m])
+);
+
+/**
  * Map from keyword name to keyword info for O(1) lookup.
  */
 export const KEYWORD_MAP: Map<string, PikeKeyword> = new Map(
@@ -245,8 +290,22 @@ export function isPikeKeyword(word: string): boolean {
 }
 
 /**
+ * Check if a word is a Pike predefined macro.
+ */
+export function isPikeMacro(word: string): boolean {
+  return MACRO_MAP.has(word);
+}
+
+/**
  * Get keyword info for a word.
  */
 export function getKeywordInfo(word: string): PikeKeyword | undefined {
   return KEYWORD_MAP.get(word);
+}
+
+/**
+ * Get macro info for a word.
+ */
+export function getMacroInfo(word: string): PikeMacro | undefined {
+  return MACRO_MAP.get(word);
 }
