@@ -132,4 +132,45 @@ if [ -n "$CHANGED_TESTS" ]; then
   fi
 fi
 
+# 8. Quality gate — complexity/dead code/unused imports
+if [ -n "$CHANGED_SRC" ]; then
+  echo "[Pre-commit] Running quality gate..."
+  if [ -f "scripts/quality-gate.sh" ]; then
+    bash scripts/quality-gate.sh || {
+      echo ""
+      echo "FAILED: Quality gate failed. Fix complexity/dead code issues."
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
+# 9. Scenario tests — must pass if behavior changed
+if [ -n "$CHANGED_SRC" ]; then
+  echo "[Pre-commit] Running scenario tests..."
+  if command -v bun >/dev/null 2>&1; then
+    bun test packages/pike-lsp-server/src/scenarios/ 2>&1 | tail -5 || {
+      echo ""
+      echo "FAILED: Scenario tests failed. Fix the behavior."
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
+# 10. Anti-cheat: if scenarios were added, verify they actually test something
+ADDED_SCENARIOS=$(git diff --cached --name-only --diff-filter=A | grep "scenarios/" || true)
+if [ -n "$ADDED_SCENARIOS" ]; then
+  echo "[Pre-commit] Anti-cheat: checking new scenarios aren't trivial..."
+  for f in $ADDED_SCENARIOS; do
+    # A scenario that only checks diagnosticCount === 0 is suspicious
+    # unless it's a "stays clean" type test
+    trivial=$(grep -c "diagnosticCount: 0" "$f" 2>/dev/null || echo 0)
+    has_edit_action=$(grep -c '"edit"' "$f" 2>/dev/null || echo 0)
+    if [ "$trivial" -gt 0 ] && [ "$has_edit_action" -eq 0 ]; then
+      echo "WARN: $f has diagnosticCount: 0 but no edit actions — may be trivial"
+    fi
+  done
+fi
+
 echo "[Pre-commit] All checks passed!"
