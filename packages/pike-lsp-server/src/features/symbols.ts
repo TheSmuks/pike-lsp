@@ -234,7 +234,7 @@ export function registerSymbolsHandlers(
    * NOTE: Current LSP version is 3.17 (vscode-languageserver 9.0.1).
    * WorkspaceSymbolParams.limit was added in LSP 3.18.
    * We implement server-side limiting to avoid overwhelming the client.
-   * Upgrade tracking: https://github.com/TheSmuks/pike-lsp/issues/XXX
+   * Upgrade tracking: track under a future LSP 3.18 milestone
    */
   connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
     const query = params.query;
