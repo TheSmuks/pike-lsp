@@ -1,3 +1,4 @@
+#pragma strict_types
 //! Add two numbers
 //! @param a First number
 //! @param b Second number
