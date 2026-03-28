@@ -158,4 +158,19 @@ if [ -n "$CHANGED_SRC" ]; then
   fi
 fi
 
+# 10. Anti-cheat: if scenarios were added, verify they actually test something
+ADDED_SCENARIOS=$(git diff --cached --name-only --diff-filter=A | grep "scenarios/" || true)
+if [ -n "$ADDED_SCENARIOS" ]; then
+  echo "[Pre-commit] Anti-cheat: checking new scenarios aren't trivial..."
+  for f in $ADDED_SCENARIOS; do
+    # A scenario that only checks diagnosticCount === 0 is suspicious
+    # unless it's a "stays clean" type test
+    trivial=$(grep -c "diagnosticCount: 0" "$f" 2>/dev/null || echo 0)
+    has_edit_action=$(grep -c '"edit"' "$f" 2>/dev/null || echo 0)
+    if [ "$trivial" -gt 0 ] && [ "$has_edit_action" -eq 0 ]; then
+      echo "WARN: $f has diagnosticCount: 0 but no edit actions — may be trivial"
+    fi
+  done
+fi
+
 echo "[Pre-commit] All checks passed!"

@@ -261,6 +261,8 @@ Located in `src/scenarios/scenario-runner.test.ts`.
 3. **When adding a feature**: add a scenario describing the expected editor behavior.
 4. **Do not write unit tests for your own changes** — write scenarios instead.
 5. **Do not add code without a scenario** — if there's no scenario requiring it, don't add it.
+6. **PROVE THE FIX IS REAL**: Run `scripts/verify-fix.sh <scenario-name>` to verify the scenario
+   fails before the fix and passes after. If it passes in both states, you cheated.
 
 ### What NOT to do
 
