@@ -8,3 +8,4 @@ class MyClass {
   int value;
   void create(int v) { value = v; }
 }
+
