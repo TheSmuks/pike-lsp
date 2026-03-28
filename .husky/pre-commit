@@ -132,4 +132,30 @@ if [ -n "$CHANGED_TESTS" ]; then
   fi
 fi
 
+# 8. Quality gate — complexity/dead code/unused imports
+if [ -n "$CHANGED_SRC" ]; then
+  echo "[Pre-commit] Running quality gate..."
+  if [ -f "scripts/quality-gate.sh" ]; then
+    bash scripts/quality-gate.sh || {
+      echo ""
+      echo "FAILED: Quality gate failed. Fix complexity/dead code issues."
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
+# 9. Scenario tests — must pass if behavior changed
+if [ -n "$CHANGED_SRC" ]; then
+  echo "[Pre-commit] Running scenario tests..."
+  if command -v bun >/dev/null 2>&1; then
+    bun test packages/pike-lsp-server/src/scenarios/ 2>&1 | tail -5 || {
+      echo ""
+      echo "FAILED: Scenario tests failed. Fix the behavior."
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
 echo "[Pre-commit] All checks passed!"
