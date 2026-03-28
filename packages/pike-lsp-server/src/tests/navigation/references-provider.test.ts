@@ -845,12 +845,10 @@ int x = myVar;`;
       expect(Array.isArray(result)).toBe(true);
     });
 
-    it('workspace-only results not filtered by includeDeclaration', async () => {
-      // This tests the documented limitation: workspace results don't have
-      // symbol position info so includeDeclaration filtering doesn't apply
-      // Workspace search only happens for .pmod files, not .pike files
-      // This test verifies the limitation is documented
-      expect(true).toBe(true);
+    it.skip('workspace-only results not filtered by includeDeclaration', () => {
+      // Documented limitation: workspace results from .pmod files don't have
+      // symbol position info, so includeDeclaration filtering doesn't apply.
+      // Requires real bridge + workspace scanning — not testable with mocks.
     });
   });
 
