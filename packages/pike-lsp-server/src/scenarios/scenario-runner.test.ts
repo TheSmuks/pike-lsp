@@ -37,7 +37,6 @@ describe('Scenario: classifyChange with parseFailed', () => {
   function makeEntry(text: string, parseFailed: boolean): DocumentCacheEntry {
     const lines = text.split('\n');
     // Simple hash function matching the real one
-    let hash = 2166136261;
     const lineHashes = lines.map(line => {
       const semantic = line.replace(/\/\/.*/, '').trim();
       let h = 2166136261;
