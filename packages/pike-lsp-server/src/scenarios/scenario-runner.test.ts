@@ -413,11 +413,7 @@ describe('Scenario: Pike predefined macros', () => {
   it('must include all expected predefined macros in PIKE_PREDEFINED_MACROS', () => {
     const definedNames = new Set(PIKE_PREDEFINED_MACROS.map(m => m.name));
     const missing = EXPECTED_MACROS.filter(name => !definedNames.has(name));
-    assert.deepStrictEqual(
-      missing,
-      [],
-      `Missing predefined macros: ${missing.join(', ')}`
-    );
+    assert.deepStrictEqual(missing, [], `Missing predefined macros: ${missing.join(', ')}`);
   });
 
   it('must expose all expected macros through MACRO_MAP lookup', () => {

@@ -28,7 +28,7 @@ done
 
 # Auto-discover Pike if not on PATH
 if ! command -v pike &>/dev/null; then
-  for pike_dir in /usr/local/pike/*/bin "$HOME"/*/Pike-*/bin "$HOME"/OpenCode/Pike-*/bin; do
+  for pike_dir in /usr/local/pike/*/bin "$HOME"/*/Pike-*/bin "$HOME"/OpenCode/Pike-*/bin "$HOME"/pike-install/pike/*/bin; do
     if [ -x "$pike_dir/pike" ]; then
       export PATH="$pike_dir:$PATH"
       break
