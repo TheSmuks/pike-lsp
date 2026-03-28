@@ -1,3 +1,4 @@
+#pragma strict_types
 class Foo {
   int alpha;
   int beta;

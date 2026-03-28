@@ -1,3 +1,4 @@
+#pragma strict_types
 int global_var = 42;
 string global_str = "hello";
 
