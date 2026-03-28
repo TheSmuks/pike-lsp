@@ -1,3 +1,4 @@
+#pragma strict_types
 int shared_var = 10;
 
 void caller() {
