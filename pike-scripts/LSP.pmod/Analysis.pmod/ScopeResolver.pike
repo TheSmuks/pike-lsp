@@ -180,21 +180,91 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
             }
         }
 
-        // Detect variable declarations
-        if (mod->is_type_keyword(text)) {
+        // Detect constant declarations: constant NAME = value;
+        if (text == "constant") {
+            mapping const_info = try_parse_constant(tokens, i, end_idx);
+            if (const_info && const_info->name) {
+                int end_line = sizeof(scope_end_stack) > 0 ? scope_end_stack[-1] : 999999;
+                if (!scope_map[const_info->name]) {
+                    scope_map[const_info->name] = ({});
+                }
+                scope_map[const_info->name] += ({
+                    ([
+                        "type": const_info->type,
+                        "scope_depth": scope_depth,
+                        "decl_line": line,
+                        "end_line": end_line
+                    ])
+                });
+                i = const_info->end_idx;
+                continue;
+            }
+        }
+
+        // Detect enum declarations: enum Name { MEMBER1 = val, ... }
+        if (text == "enum") {
+            mapping enum_info = try_parse_enum(tokens, i, end_idx);
+            if (enum_info) {
+                int end_line = sizeof(scope_end_stack) > 0 ? scope_end_stack[-1] : 999999;
+                foreach (enum_info->members, mapping member) {
+                    if (!scope_map[member->name]) {
+                        scope_map[member->name] = ({});
+                    }
+                    scope_map[member->name] += ({
+                        ([
+                            "type": "int",
+                            "scope_depth": scope_depth,
+                            "decl_line": member->line,
+                            "end_line": end_line
+                        ])
+                    });
+                }
+                if (enum_info->name && sizeof(enum_info->name) > 0) {
+                    if (!scope_map[enum_info->name]) {
+                        scope_map[enum_info->name] = ({});
+                    }
+                    scope_map[enum_info->name] += ({
+                        ([
+                            "type": "type",
+                            "scope_depth": scope_depth,
+                            "decl_line": line,
+                            "end_line": end_line
+                        ])
+                    });
+                }
+                i = enum_info->end_idx;
+                continue;
+            }
+        }
+
+        // Detect inherit statements: inherit ClassName;
+        if (text == "inherit") {
+            mapping inherit_info = try_parse_inherit(tokens, i, end_idx);
+            if (inherit_info && inherit_info->class_name && sizeof(inherit_info->class_name) > 0) {
+                // Cycle detection: track visited classes
+                multiset(string) visited = (<>);
+                register_inherited_members(tokens, end_idx, inherit_info->class_name, scope_map, scope_depth, scope_end_stack, visited);
+                i = inherit_info->end_idx;
+                continue;
+            }
+        }
+
+        // Detect variable declarations (built-in types or custom enum/class types)
+        if (mod->is_type_keyword(text) || is_known_type(tokens, i, end_idx, scope_map)) {
             mapping decl_info = mod->try_parse_declaration(tokens, i, end_idx);
+            if (!decl_info || !decl_info->is_declaration) {
+                decl_info = try_parse_declaration_with_custom_type(tokens, i, end_idx, scope_map);
+            }
             if (decl_info && decl_info->is_declaration && decl_info->name && sizeof(decl_info->name) > 0) {
                 string var_name = decl_info->name;
                 string var_type = decl_info->type || text;
                 
-                // Determine scope end line (innermost scope)
                 int end_line = sizeof(scope_end_stack) > 0 ? scope_end_stack[-1] : 999999;
                 
                 if (!scope_map[var_name]) {
                     scope_map[var_name] = ({});
                 }
                 
-                // Add this declaration to the variable's scope list
                 scope_map[var_name] += ({
                     ([
                         "type": var_type,
@@ -205,6 +275,42 @@ protected mapping build_scope_map(array tokens, array(string) lines, string file
                 });
                 
                 i = decl_info->end_idx;
+                continue;
+            }
+        }
+
+        // Detect implicit variable assignments (no type keyword): x = value;
+        if (mod->is_identifier(text) && !mod->is_type_keyword(text) &&
+            text != "class" && text != "enum" && text != "constant" && text != "inherit" &&
+            text != "if" && text != "else" && text != "for" && text != "while" && text != "do" &&
+            text != "switch" && text != "case" && text != "return" && text != "void" &&
+            text != "lambda" && text != "catch" && text != "throw" && text != "foreach" &&
+            text != "break" && text != "continue") {
+
+            mapping implicit_info = try_parse_implicit_assignment(tokens, i, end_idx, scope_map, scope_depth);
+            if (implicit_info && implicit_info->name) {
+                int end_line = sizeof(scope_end_stack) > 0 ? scope_end_stack[-1] : 999999;
+                if (!scope_map[implicit_info->name]) {
+                    scope_map[implicit_info->name] = ({});
+                }
+                int already_declared = 0;
+                foreach (scope_map[implicit_info->name], mapping existing) {
+                    if (existing->scope_depth == scope_depth && existing->decl_line <= line) {
+                        already_declared = 1;
+                        break;
+                    }
+                }
+                if (!already_declared) {
+                    scope_map[implicit_info->name] += ({
+                        ([
+                            "type": "mixed",
+                            "scope_depth": scope_depth,
+                            "decl_line": line,
+                            "end_line": end_line
+                        ])
+                    });
+                }
+                i = implicit_info->end_idx;
                 continue;
             }
         }
@@ -481,4 +587,296 @@ protected array(mapping) get_visible_variables_with_lambda_support(array tokens,
     }
 
     return visible;
+}
+
+//! Try to parse a constant declaration: constant NAME = value;
+protected mapping|int try_parse_constant(array tokens, int start_idx, int end_idx) {
+    if (start_idx >= sizeof(tokens) || tokens[start_idx]->text != "constant") return 0;
+
+    int i = start_idx + 1;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens) || !mod->is_identifier(tokens[i]->text)) return 0;
+
+    string name = tokens[i]->text;
+    i++;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens) || tokens[i]->text != "=") return 0;
+    i++;
+
+    string type = infer_type_from_initializer(tokens, i, end_idx);
+
+    int end_search = i;
+    while (end_search < end_idx && end_search < sizeof(tokens)) {
+        string t = tokens[end_search]->text;
+        if (t == ";") { end_search++; break; }
+        if (t == ",") break;
+        end_search++;
+    }
+
+    return (["name": name, "type": type, "end_idx": end_search]);
+}
+
+//! Infer Pike type from initializer expression
+protected string infer_type_from_initializer(array tokens, int start_idx, int end_idx) {
+    int i = start_idx;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens)) return "mixed";
+
+    string text = tokens[i]->text;
+    if (has_prefix(text, "\"") || has_prefix(text, "#\"") || has_prefix(text, "#'")) return "string";
+    if (sizeof(text) > 0) {
+        int fc = text[0];
+        if (fc >= '0' && fc <= '9') {
+            return has_value(text, '.') || has_value(text, 'e') ? "float" : "int";
+        }
+        if (fc == '-' && sizeof(text) > 1 && text[1] >= '0' && text[1] <= '9') {
+            return has_value(text, '.') ? "float" : "int";
+        }
+    }
+    if (text == "({") return "array";
+    if (text == "(" && i + 1 < end_idx && tokens[i + 1]->text == "{") return "array";
+    if (text == "([") return "mapping";
+    if (text == "(<") return "multiset";
+    if (text == "lambda") return "function";
+    if (text == "UNDEFINED") return "mixed";
+    if (text == "true" || text == "false") return "int";
+    return "mixed";
+}
+
+//! Try to parse enum: enum Name { MEMBER1 = val, ... }
+protected mapping|int try_parse_enum(array tokens, int start_idx, int end_idx) {
+    if (start_idx >= sizeof(tokens) || tokens[start_idx]->text != "enum") return 0;
+
+    int i = start_idx + 1;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens)) return 0;
+
+    string enum_name = 0;
+    if (mod->is_identifier(tokens[i]->text) && tokens[i]->text != "{") {
+        enum_name = tokens[i]->text;
+        i++;
+        while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    }
+
+    if (i >= end_idx || i >= sizeof(tokens) || tokens[i]->text != "{") return 0;
+    int brace_end = mod->find_matching_brace(tokens, i, end_idx);
+    if (brace_end < 0) return 0;
+
+    array(mapping) members = ({});
+    int next_value = 0;
+    int j = i + 1;
+
+    while (j < brace_end) {
+        while (j < brace_end && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+        if (j >= brace_end) break;
+        if (tokens[j]->text == ",") { j++; continue; }
+
+        if (!mod->is_identifier(tokens[j]->text)) { j++; continue; }
+        string member_name = tokens[j]->text;
+        int member_line = tokens[j]->line;
+        j++;
+
+        while (j < brace_end && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+        if (j < brace_end && tokens[j]->text == "=") {
+            j++;
+            while (j < brace_end && sizeof(LSP.Compat.trim_whites(tokens[j]->text)) == 0) j++;
+            if (j < brace_end) {
+                int parsed = (int)tokens[j]->text;
+                if ((string)parsed == tokens[j]->text) next_value = parsed;
+                j++;
+            }
+        }
+        members += ({ (["name": member_name, "value": next_value, "line": member_line]) });
+        next_value++;
+    }
+
+    return (["name": enum_name, "members": members, "end_idx": brace_end + 1]);
+}
+
+//! Try to parse inherit: inherit ClassName; or inherit "path";
+protected mapping|int try_parse_inherit(array tokens, int start_idx, int end_idx) {
+    if (start_idx >= sizeof(tokens) || tokens[start_idx]->text != "inherit") return 0;
+
+    int i = start_idx + 1;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens)) return 0;
+
+    // Skip optional "predef::"
+    if (tokens[i]->text == "predef") {
+        i++;
+        if (i < end_idx && i < sizeof(tokens) && tokens[i]->text == "::") i++;
+        while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    }
+
+    string class_name;
+    if (has_prefix(tokens[i]->text, "\"")) {
+        string path = tokens[i]->text;
+        if (has_suffix(path, "\"")) path = path[1..sizeof(path)-2];
+        array(string) parts = path / "/";
+        class_name = parts[-1];
+        if (has_suffix(class_name, ".pmod")) class_name = class_name[0..sizeof(class_name)-6];
+        if (has_suffix(class_name, ".pike")) class_name = class_name[0..sizeof(class_name)-6];
+        i++;
+    } else if (mod->is_identifier(tokens[i]->text)) {
+        class_name = tokens[i]->text;
+        i++;
+        while (i < end_idx && i < sizeof(tokens) && tokens[i]->text == ".") {
+            i++;
+            if (i < end_idx && i < sizeof(tokens) && mod->is_identifier(tokens[i]->text)) {
+                class_name = tokens[i]->text;
+                i++;
+            }
+        }
+    } else {
+        return 0;
+    }
+
+    while (i < end_idx && i < sizeof(tokens) && tokens[i]->text != ";") i++;
+    if (i < end_idx) i++;
+
+    return (["class_name": class_name, "end_idx": i]);
+}
+
+//! Register members from inherited class into scope map (with cycle detection)
+protected void register_inherited_members(array tokens, int end_idx, string class_name,
+    mapping scope_map, int scope_depth, array(int) scope_end_stack, multiset(string) visited) {
+
+    // Cycle detection
+    if (visited[class_name]) return;
+    visited[class_name] = 1;
+
+    int class_body_start = -1;
+    int class_body_end = -1;
+
+    for (int i = 0; i < end_idx && i < sizeof(tokens); i++) {
+        if (tokens[i]->text == "class") {
+            int next = i + 1;
+            while (next < end_idx && next < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[next]->text)) == 0) next++;
+            if (next < end_idx && next < sizeof(tokens) && tokens[next]->text == class_name) {
+                int brace = mod->find_next_token(tokens, next, end_idx, "{");
+                if (brace >= 0) {
+                    class_body_start = brace + 1;
+                    int close = mod->find_matching_brace(tokens, brace, end_idx);
+                    if (close >= 0) class_body_end = close;
+                }
+                break;
+            }
+        }
+    }
+
+    if (class_body_start < 0 || class_body_end < 0) return;
+
+    int end_line = sizeof(scope_end_stack) > 0 ? scope_end_stack[-1] : 999999;
+    int j = class_body_start;
+
+    while (j < class_body_end) {
+        string text = tokens[j]->text;
+
+        if (mod->is_type_keyword(text) || is_known_type(tokens, j, class_body_end, scope_map)) {
+            mapping decl = mod->try_parse_declaration(tokens, j, class_body_end);
+            if (decl && decl->is_declaration && decl->name) {
+                if (!scope_map[decl->name]) scope_map[decl->name] = ({});
+                scope_map[decl->name] += ({ (["type": decl->type || text, "scope_depth": scope_depth, "decl_line": tokens[j]->line, "end_line": end_line]) });
+                j = decl->end_idx;
+                continue;
+            }
+        }
+        if (text == "constant") {
+            mapping ci = try_parse_constant(tokens, j, class_body_end);
+            if (ci && ci->name) {
+                if (!scope_map[ci->name]) scope_map[ci->name] = ({});
+                scope_map[ci->name] += ({ (["type": ci->type, "scope_depth": scope_depth, "decl_line": tokens[j]->line, "end_line": end_line]) });
+                j = ci->end_idx;
+                continue;
+            }
+        }
+        if (text == "enum") {
+            mapping ei = try_parse_enum(tokens, j, class_body_end);
+            if (ei) {
+                foreach (ei->members, mapping m) {
+                    if (!scope_map[m->name]) scope_map[m->name] = ({});
+                    scope_map[m->name] += ({ (["type": "int", "scope_depth": scope_depth, "decl_line": m->line, "end_line": end_line]) });
+                }
+                j = ei->end_idx;
+                continue;
+            }
+        }
+        // Nested inherit — pass visited set for cycle detection
+        if (text == "inherit") {
+            mapping ii = try_parse_inherit(tokens, j, class_body_end);
+            if (ii && ii->class_name) {
+                register_inherited_members(tokens, class_body_end, ii->class_name, scope_map, scope_depth, scope_end_stack, visited);
+                j = ii->end_idx;
+                continue;
+            }
+        }
+        j++;
+    }
+}
+
+//! Check if token at start_idx is a known custom type (enum/class name)
+protected int is_known_type(array tokens, int start_idx, int end_idx, mapping scope_map) {
+    if (start_idx >= sizeof(tokens)) return 0;
+    string text = tokens[start_idx]->text;
+    if (!mod->is_identifier(text)) return 0;
+    if (scope_map[text]) {
+        foreach (scope_map[text], mapping decl) {
+            if (decl->type == "type") return 1;
+        }
+    }
+    return 0;
+}
+
+//! Parse variable declaration with custom type (enum name, class name)
+protected mapping try_parse_declaration_with_custom_type(array tokens, int start_idx, int end_idx, mapping scope_map) {
+    if (start_idx >= end_idx || start_idx >= sizeof(tokens)) return (["is_declaration": 0]);
+    if (!mod->is_identifier(tokens[start_idx]->text)) return (["is_declaration": 0]);
+
+    string type_name = tokens[start_idx]->text;
+    int is_type = 0;
+    if (scope_map[type_name]) {
+        foreach (scope_map[type_name], mapping decl) {
+            if (decl->type == "type") { is_type = 1; break; }
+        }
+    }
+    if (!is_type) return (["is_declaration": 0]);
+
+    int i = start_idx + 1;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens) || !mod->is_identifier(tokens[i]->text)) return (["is_declaration": 0]);
+
+    string var_name = tokens[i]->text;
+    i++;
+
+    int has_init = 0;
+    int nm = mod->find_next_meaningful_token(tokens, i, end_idx);
+    if (nm >= 0 && nm < sizeof(tokens)) {
+        string nt = tokens[nm]->text;
+        if (nt == "=") {
+            has_init = 1;
+            i = mod->find_next_token(tokens, nm, end_idx, ";");
+            if (i < 0) i = end_idx;
+        } else if (nt == ";") {
+            i = nm + 1;
+        }
+    }
+
+    return (["is_declaration": 1, "name": var_name, "type": type_name, "has_initializer": has_init, "end_idx": i]);
+}
+
+//! Try to parse implicit variable assignment: identifier = value;
+protected mapping|int try_parse_implicit_assignment(array tokens, int start_idx, int end_idx, mapping scope_map, int scope_depth) {
+    if (start_idx >= sizeof(tokens)) return 0;
+    string text = tokens[start_idx]->text;
+    if (!mod->is_identifier(text)) return 0;
+
+    int i = start_idx + 1;
+    while (i < end_idx && i < sizeof(tokens) && sizeof(LSP.Compat.trim_whites(tokens[i]->text)) == 0) i++;
+    if (i >= end_idx || i >= sizeof(tokens) || !mod->is_assignment_operator(tokens[i]->text)) return 0;
+
+    i++;
+    while (i < end_idx && i < sizeof(tokens) && tokens[i]->text != ";") i++;
+    if (i < end_idx) i++;
+
+    return (["name": text, "end_idx": i]);
 }
