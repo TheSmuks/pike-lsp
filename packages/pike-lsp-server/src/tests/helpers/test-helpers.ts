@@ -45,16 +45,40 @@ export function createMockDocuments(): MockDocuments {
   const docs = new Map<string, TextDocument>();
 
   return {
-    get(uri: string) { return docs.get(uri); },
-    all() { return [...docs.values()]; },
-    onDidOpen(handler: OpenHandler) { openHandler = handler; },
-    onDidSave(handler: SaveHandler) { saveHandler = handler; },
-    onDidChangeContent(handler: ChangeHandler) { changeHandler = handler; },
-    onDidClose(handler: CloseHandler) { closeHandler = handler; },
-    emitOpen(document: TextDocument) { docs.set(document.uri, document); openHandler?.({ document }); },
-    emitSave(document: TextDocument) { docs.set(document.uri, document); saveHandler?.({ document }); },
-    emitChange(document: TextDocument) { docs.set(document.uri, document); changeHandler?.({ document }); },
-    emitClose(document: TextDocument) { docs.delete(document.uri); closeHandler?.({ document }); },
+    get(uri: string) {
+      return docs.get(uri);
+    },
+    all() {
+      return [...docs.values()];
+    },
+    onDidOpen(handler: OpenHandler) {
+      openHandler = handler;
+    },
+    onDidSave(handler: SaveHandler) {
+      saveHandler = handler;
+    },
+    onDidChangeContent(handler: ChangeHandler) {
+      changeHandler = handler;
+    },
+    onDidClose(handler: CloseHandler) {
+      closeHandler = handler;
+    },
+    emitOpen(document: TextDocument) {
+      docs.set(document.uri, document);
+      openHandler?.({ document });
+    },
+    emitSave(document: TextDocument) {
+      docs.set(document.uri, document);
+      saveHandler?.({ document });
+    },
+    emitChange(document: TextDocument) {
+      docs.set(document.uri, document);
+      changeHandler?.({ document });
+    },
+    emitClose(document: TextDocument) {
+      docs.delete(document.uri);
+      closeHandler?.({ document });
+    },
   };
 }
 
@@ -93,20 +117,40 @@ export function createMockBridge(config: MockBridgeConfig = {}): MockBridge {
   const analyzeResult = config.analyzeResult ?? (() => ({ hasError: false }));
 
   return {
-    get callCount() { return callCount; },
-    isRunning() { return true; },
+    get callCount() {
+      return callCount;
+    },
+    isRunning() {
+      return true;
+    },
     async start() {},
-    async engineOpenDocument() { return { revision: 1, snapshotId: 'snap-1' }; },
-    async engineChangeDocument() { return { revision: 1, snapshotId: 'snap-2' }; },
-    async engineCloseDocument() { return { revision: 1, snapshotId: 'snap-3' }; },
-    async engineUpdateConfig() { return { revision: 1, snapshotId: 'snap-4' }; },
-    async engineCancelRequest() { return { accepted: true }; },
+    async engineOpenDocument() {
+      return { revision: 1, snapshotId: 'snap-1' };
+    },
+    async engineChangeDocument() {
+      return { revision: 1, snapshotId: 'snap-2' };
+    },
+    async engineCloseDocument() {
+      return { revision: 1, snapshotId: 'snap-3' };
+    },
+    async engineUpdateConfig() {
+      return { revision: 1, snapshotId: 'snap-4' };
+    },
+    async engineCancelRequest() {
+      return { accepted: true };
+    },
     async engineQuery(params: { queryParams?: { text?: string } }) {
       callCount++;
       const text = params.queryParams?.text ?? '';
       const analysis = analyzeResult(text);
       const diags = analysis.hasError
-        ? [{ message: analysis.errorMessage ?? 'Syntax error', severity: 'error', position: { line: 1, character: 0 } }]
+        ? [
+            {
+              message: analysis.errorMessage ?? 'Syntax error',
+              severity: 'error',
+              position: { line: 1, character: 0 },
+            },
+          ]
         : [];
       if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
       return {
@@ -115,7 +159,15 @@ export function createMockBridge(config: MockBridgeConfig = {}): MockBridge {
           analyzeResult: {
             result: {
               parse: { symbols: [], diagnostics: [] },
-              introspect: { success: analysis.hasError ? 0 : 1, symbols: [], functions: [], variables: [], classes: [], inherits: [], diagnostics: [] },
+              introspect: {
+                success: analysis.hasError ? 0 : 1,
+                symbols: [],
+                functions: [],
+                variables: [],
+                classes: [],
+                inherits: [],
+                diagnostics: [],
+              },
               diagnostics: { diagnostics: diags },
             },
           },
@@ -124,8 +176,12 @@ export function createMockBridge(config: MockBridgeConfig = {}): MockBridge {
         metrics: { durationMs: delayMs },
       };
     },
-    async analyze() { throw new Error('analyze fallback should not be used'); },
-    async findOccurrences() { return { occurrences: [] }; },
+    async analyze() {
+      throw new Error('analyze fallback should not be used');
+    },
+    async findOccurrences() {
+      return { occurrences: [] };
+    },
   };
 }
 
@@ -136,7 +192,12 @@ export function createMockBridge(config: MockBridgeConfig = {}): MockBridge {
 export interface MockConnection {
   sendDiagnostics(params: { uri: string; diagnostics: unknown[] }): void;
   onDidChangeConfiguration(handler: (params: { settings: Record<string, unknown> }) => void): void;
-  onDidChangeTextDocument(handler: (params: { textDocument: { uri: string; version: number }; contentChanges: unknown[] }) => void): void;
+  onDidChangeTextDocument(
+    handler: (params: {
+      textDocument: { uri: string; version: number };
+      contentChanges: unknown[];
+    }) => void
+  ): void;
   console: { log(): void; warn(): void; error(): void };
 }
 
@@ -145,7 +206,9 @@ export function createMockConnection(): MockConnection & { diagnosticsPublished:
 
   return {
     diagnosticsPublished,
-    sendDiagnostics(params: { uri: string; diagnostics: unknown[] }) { diagnosticsPublished.push(params); },
+    sendDiagnostics(params: { uri: string; diagnostics: unknown[] }) {
+      diagnosticsPublished.push(params);
+    },
     onDidChangeConfiguration() {},
     onDidChangeTextDocument() {},
     console: { log() {}, warn() {}, error() {} },
@@ -176,28 +239,40 @@ export function makeCachedEntry(
 // Full services mock (for registerDiagnosticsHandlers, etc.)
 // ---------------------------------------------------------------------------
 
-export function createMockServices(uri: string, bridge: MockBridge, cachedEntry?: DocumentCacheEntry) {
+export function createMockServices(
+  uri: string,
+  bridge: MockBridge,
+  cachedEntry?: DocumentCacheEntry
+) {
   let entry = cachedEntry;
 
   return {
     services: {
       bridge,
       documentCache: {
-        get(requestedUri: string) { return requestedUri === uri ? entry : undefined; },
+        get(requestedUri: string) {
+          return requestedUri === uri ? entry : undefined;
+        },
         setPending() {},
-        set(requestedUri: string, e: DocumentCacheEntry) { if (requestedUri === uri) entry = e; },
+        set(requestedUri: string, e: DocumentCacheEntry) {
+          if (requestedUri === uri) entry = e;
+        },
         delete() {},
       },
       typeDatabase: {
         setProgram() {},
         removeProgram() {},
-        getMemoryStats() { return { programCount: 0, symbolCount: 0, totalBytes: 0, utilizationPercent: 0 }; },
+        getMemoryStats() {
+          return { programCount: 0, symbolCount: 0, totalBytes: 0, utilizationPercent: 0 };
+        },
       },
       workspaceIndex: { indexDocument() {}, removeDocument() {} },
       includeResolver: null,
       logger: { debug() {}, info() {}, warn() {}, error() {} },
     } as unknown as Services,
-    get cachedEntry() { return entry; },
+    get cachedEntry() {
+      return entry;
+    },
   };
 }
 
