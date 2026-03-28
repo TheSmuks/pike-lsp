@@ -278,3 +278,56 @@ Located in `src/scenarios/scenario-runner.test.ts`.
 
 Run `scripts/quality-gate.sh` to check complexity, dead code, and unused imports.
 This runs automatically in pre-commit hooks.
+
+---
+
+## 📏 Test Standards
+
+All tests MUST follow these patterns. No exceptions.
+
+### Import pattern (STRICT)
+
+```typescript
+// ✅ CORRECT — use these EXACT imports
+import { describe, it } from 'bun:test';
+import assert from 'node:assert/strict';
+import { createMockDocuments, createMockBridge, createMockServices, makeCachedEntry } from '../helpers/test-helpers.js';
+
+// ❌ WRONG — do not use any of these
+import * as assert from 'node:assert/strict';  // use default import
+import { describe, expect, it } from 'bun:test';  // use assert, not expect
+import assert from 'node:assert';  // use strict
+const { describe, it } = require('bun:test');  // never use require
+```
+
+### Mock pattern
+
+Use the shared helpers from `tests/helpers/test-helpers.ts`:
+- `createMockDocuments()` — for document state
+- `createMockBridge(config)` — for Pike bridge simulation
+- `createMockConnection()` — for LSP connection
+- `makeCachedEntry(text, options)` — for cache entries
+- `createMockServices(uri, bridge, entry)` — for full services mock
+
+Do NOT create inline mock factories. If the shared helpers don't cover your case,
+extend the helpers file instead of creating new ones.
+
+### File naming
+
+- One test file per feature (e.g., `hover-provider.test.ts`)
+- Use kebab-case: `my-feature.test.ts`
+- No `*-stress.test.ts` in src/tests/ — put stress tests in `benchmarks/stress/*.bench.ts`
+
+### Test naming
+
+```typescript
+describe('Feature Name', () => {
+  it('should do X when Y', () => {
+    // ...
+  });
+});
+```
+
+- `describe` = feature/component name
+- `it` = starts with "should"
+- No `test()` — always use `it()`
