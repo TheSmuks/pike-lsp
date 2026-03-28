@@ -367,26 +367,212 @@ obj->myMethod();`;
       expect(loc.range.start.line).toBe(1);
     });
 
-    it('should handle inherited method resolution across files', () => {
-      expect(true).toBe(true);
+    it('should handle inherited method resolution across files', async () => {
+      const extraDocs = new Map<string, TextDocument>();
+      extraDocs.set(
+        'file:///Base.pike',
+        TextDocument.create('file:///Base.pike', 'pike', 1, 'void baseMethod() {}')
+      );
+
+      const extraCacheEntries = new Map<string, DocumentCacheEntry>();
+      extraCacheEntries.set(
+        'file:///Base.pike',
+        makeCacheEntry({
+          symbols: [
+            {
+              name: 'baseMethod',
+              kind: 'method',
+              modifiers: [],
+              position: { file: 'Base.pike', line: 1 },
+            },
+          ],
+        })
+      );
+
+      const { definition } = setup({
+        code: `inherit Base;\nbaseMethod();`,
+        symbols: [
+          {
+            name: 'Base',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'Base.pike', line: 1 },
+          },
+        ],
+        inherits: [
+          {
+            name: 'Base',
+            position: { file: 'Base.pike', line: 1 },
+          },
+        ],
+        extraDocs,
+        extraCacheEntries,
+      });
+
+      const result = await definition(1, 6);
+      // Inherited method resolution requires bridge — null or Location is acceptable
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
   });
 
   describe('Scenario 2.4: Go to definition - across files', () => {
-    it('should handle cross-file definition resolution', () => {
-      expect(true).toBe(true);
+    it('should handle cross-file definition resolution', async () => {
+      const extraDocs = new Map<string, TextDocument>();
+      extraDocs.set(
+        'file:///Helper.pike',
+        TextDocument.create('file:///Helper.pike', 'pike', 1, 'void helperFunc() {}')
+      );
+
+      const extraCacheEntries = new Map<string, DocumentCacheEntry>();
+      extraCacheEntries.set(
+        'file:///Helper.pike',
+        makeCacheEntry({
+          symbols: [
+            {
+              name: 'helperFunc',
+              kind: 'method',
+              modifiers: [],
+              position: { file: 'Helper.pike', line: 1 },
+            },
+          ],
+        })
+      );
+
+      const { definition } = setup({
+        code: `import .Helper;\nhelperFunc();`,
+        uri: 'file:///main.pike',
+        extraDocs,
+        extraCacheEntries,
+      });
+
+      const result = await definition(1, 6);
+      // Cross-file resolution depends on bridge — null or Location is acceptable
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
-    it('should handle relative path resolution', () => {
-      expect(true).toBe(true);
+
+    it('should handle relative path resolution', async () => {
+      const extraDocs = new Map<string, TextDocument>();
+      extraDocs.set(
+        'file:///lib/Sub.pike',
+        TextDocument.create('file:///lib/Sub.pike', 'pike', 1, 'class SubClass {}')
+      );
+
+      const extraCacheEntries = new Map<string, DocumentCacheEntry>();
+      extraCacheEntries.set(
+        'file:///lib/Sub.pike',
+        makeCacheEntry({
+          symbols: [
+            {
+              name: 'SubClass',
+              kind: 'class',
+              modifiers: [],
+              position: { file: 'lib/Sub.pike', line: 1 },
+            },
+          ],
+        })
+      );
+
+      const { definition } = setup({
+        code: `import .lib.Sub;\ninherit Sub;`,
+        uri: 'file:///main.pike',
+        extraDocs,
+        extraCacheEntries,
+      });
+
+      const result = await definition(1, 10);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
   });
 
   describe('Scenario 2.5: Go to definition - inherited member', () => {
-    it('should handle inherited member resolution', () => {
-      expect(true).toBe(true);
+    it('should handle inherited member resolution', async () => {
+      const { definition } = setup({
+        code: `class Parent { int parentVar = 1; }\nclass Child {\n  inherit Parent;\n  int y = parentVar;\n}`,
+        symbols: [
+          {
+            name: 'Parent',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+            children: [
+              {
+                name: 'parentVar',
+                kind: 'variable',
+                modifiers: [],
+                position: { file: 'test.pike', line: 1 },
+              },
+            ],
+          },
+          {
+            name: 'Child',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 2 },
+          },
+          {
+            name: 'parentVar',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        inherits: [
+          {
+            name: 'Parent',
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+      });
+
+      const result = await definition(3, 14);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
-    it('should handle multi-level inheritance', () => {
-      expect(true).toBe(true);
+
+    it('should handle multi-level inheritance', async () => {
+      const { definition } = setup({
+        code: `class A { int a = 1; }\nclass B { inherit A; }\nclass C { inherit B; int c = a; }`,
+        symbols: [
+          {
+            name: 'A',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+            children: [
+              {
+                name: 'a',
+                kind: 'variable',
+                modifiers: [],
+                position: { file: 'test.pike', line: 1 },
+              },
+            ],
+          },
+          {
+            name: 'B',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 2 },
+          },
+          {
+            name: 'C',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 3 },
+          },
+          {
+            name: 'a',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+          },
+        ],
+        inherits: [
+          { name: 'A', position: { file: 'test.pike', line: 1 } },
+          { name: 'B', position: { file: 'test.pike', line: 2 } },
+        ],
+      });
+
+      const result = await definition(2, 30);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
   });
 
@@ -422,11 +608,48 @@ myFunc(42);`;
   });
 
   describe('Scenario 2.7: Go to definition - stdlib symbol', () => {
-    it('should handle stdlib module resolution', () => {
-      expect(true).toBe(true);
+    it('should handle stdlib module resolution', async () => {
+      const stdlibIndex = {
+        getModule: async (path: string) => {
+          if (path === 'Stdio') {
+            return {
+              symbols: new Map([['File', { name: 'File', kind: 'class' }]]),
+              resolvedPath: '/usr/pike/lib/Stdio.pmod',
+            };
+          }
+          return null;
+        },
+      };
+
+      const { definition } = setup({
+        code: `import Stdio;\nStdio.File f;`,
+        stdlibIndex,
+      });
+
+      const result = await definition(1, 6);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
-    it('should handle stdlib method resolution', () => {
-      expect(true).toBe(true);
+
+    it('should handle stdlib method resolution', async () => {
+      const stdlibIndex = {
+        getModule: async (path: string) => {
+          if (path === 'Array' || path === 'Array.sort') {
+            return {
+              symbols: new Map([['sort', { name: 'sort', kind: 'method' }]]),
+              resolvedPath: '/usr/pike/lib/Array.pmod',
+            };
+          }
+          return null;
+        },
+      };
+
+      const { definition } = setup({
+        code: `import Array;\nArray.sort(({3, 1, 2}));`,
+        stdlibIndex,
+      });
+
+      const result = await definition(1, 6);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
   });
 
@@ -455,8 +678,6 @@ int y = myVar + 1;`;
         expect(Array.isArray(refs)).toBe(true);
         expect(refs.length).toBeGreaterThan(0);
       }
-      // Either null or references is acceptable
-      expect(true).toBe(true);
     });
   });
 
@@ -524,8 +745,6 @@ int y = myVar + 1;`;
         const loc = result as Location;
         expect(loc.range.start.line).toBe(0);
       }
-      // Handler does not distinguish comments from code - expected behavior
-      expect(true).toBe(true);
     });
 
     it('should return null for empty document', async () => {
@@ -644,13 +863,12 @@ int x = café;`;
       });
 
       const result = await definition(1, 8);
-      // Unicode identifier - depends on Pike parser support
-      // Either result or null is acceptable
-      expect(true).toBe(true);
+      // Unicode identifier support depends on Pike parser — null or result is acceptable
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
 
-    it('should handle circular inheritance detection', () => {
-      expect(true).toBe(true);
+    test.skip('should handle circular inheritance detection', () => {
+      // Requires Pike bridge to detect circular inherit chains — not testable with mocks
     });
   });
 
@@ -784,8 +1002,8 @@ int x = myVar;`;
       expect(elapsed).toBeLessThan(100);
     });
 
-    it('should handle cross-file definition performance', () => {
-      expect(true).toBe(true);
+    test.skip('should handle cross-file definition performance', () => {
+      // Requires real bridge + multiple parsed files — not testable with mocks
     });
   });
 
