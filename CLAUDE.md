@@ -8,13 +8,13 @@ You are operating in an autonomous forever loop. Follow the protocol below based
 
 This project uses **bun** exclusively. This is non-negotiable.
 
-| WRONG | RIGHT |
-|---|---|
+| WRONG       | RIGHT       |
+| ----------- | ----------- |
 | npm install | bun install |
-| npm run x | bun run x |
-| npx tool | bunx tool |
-| yarn | bun |
-| pnpm | bun |
+| npm run x   | bun run x   |
+| npx tool    | bunx tool   |
+| yarn        | bun         |
+| pnpm        | bun         |
 
 The hook blocks any npm/npx/yarn/pnpm command immediately.
 Do NOT create issues referencing npm — use bun terminology.
@@ -179,6 +179,7 @@ git describe --tags --abbrev=0
 ### Step 2: Update Version Numbers
 
 Update the version in both files:
+
 - `package.json`
 - `packages/vscode-pike/package.json`
 
@@ -208,6 +209,7 @@ git push origin v0.1.0-alpha.NEW
 ```
 
 The release workflow (`.github/workflows/release.yml`) will automatically:
+
 1. Build and test the project
 2. Create the VSIX package
 3. Publish the GitHub Release with auto-generated notes
@@ -242,3 +244,37 @@ gh release create v0.1.0-alpha.NEW \
   --notes-start-tag v0.1.0-alpha.PREVIOUS \
   --title "Release v0.1.0-alpha.NEW"
 ```
+
+---
+
+## 🎯 Scenario-Driven Development
+
+This project uses **scenario tests** instead of unit tests for behavior verification.
+
+### What are scenarios?
+
+Scenarios simulate what an editor does: open files, make edits, check diagnostics.
+Located in `src/scenarios/scenario-runner.test.ts`.
+
+### Rules
+
+1. **Before every commit**: run `bun test packages/pike-lsp-server/src/scenarios/` — must pass.
+2. **When fixing a bug**: add a scenario FIRST that reproduces it, then fix the code.
+3. **When adding a feature**: add a scenario describing the expected editor behavior.
+4. **Do not write unit tests for your own changes** — write scenarios instead.
+5. **Do not add code without a scenario** — if there's no scenario requiring it, don't add it.
+6. **PROVE THE FIX IS REAL**: Run `scripts/verify-fix.sh <scenario-name>` to verify the scenario
+   fails before the fix and passes after. If it passes in both states, you cheated.
+
+### What NOT to do
+
+- Do not add abstractions "for future use"
+- Do not add defensive code for edge cases without a scenario
+- Do not refactor working code unless a scenario requires it
+- Do not touch files unrelated to your fix
+- Do not exceed 500 lines per source file (tests excluded)
+
+### Quality gate
+
+Run `scripts/quality-gate.sh` to check complexity, dead code, and unused imports.
+This runs automatically in pre-commit hooks.
