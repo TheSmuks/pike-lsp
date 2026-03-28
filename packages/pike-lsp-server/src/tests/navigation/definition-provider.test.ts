@@ -867,8 +867,52 @@ int x = café;`;
       expect(result === null || !!(result as Location).uri).toBe(true);
     });
 
-    test.skip('should handle circular inheritance detection', () => {
-      // Requires Pike bridge to detect circular inherit chains — not testable with mocks
+    it('should handle circular inheritance without hanging', async () => {
+      const code = `class A { inherit B; int a = 1; }
+class B { inherit A; int b = 2; }
+class C { inherit A; int c = a; }`;
+
+      const { definition } = setup({
+        code,
+        symbols: [
+          {
+            name: 'A',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1 },
+            children: [
+              {
+                name: 'a',
+                kind: 'variable',
+                modifiers: [],
+                position: { file: 'test.pike', line: 1 },
+              },
+            ],
+          },
+          {
+            name: 'B',
+            kind: 'class',
+            modifiers: [],
+            position: { file: 'test.pike', line: 2 },
+            children: [
+              {
+                name: 'b',
+                kind: 'variable',
+                modifiers: [],
+                position: { file: 'test.pike', line: 2 },
+              },
+            ],
+          },
+        ],
+        inherits: [
+          { name: 'B', position: { file: 'test.pike', line: 1 } },
+          { name: 'A', position: { file: 'test.pike', line: 2 } },
+        ],
+      });
+
+      // Should complete without hanging or throwing
+      const result = await definition(2, 22);
+      expect(result === null || !!(result as Location).uri).toBe(true);
     });
   });
 
