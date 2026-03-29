@@ -1046,8 +1046,62 @@ int x = myVar;`;
       expect(elapsed).toBeLessThan(100);
     });
 
-    test.skip('should handle cross-file definition performance', () => {
-      // Requires real bridge + multiple parsed files — not testable with mocks
+    it('should handle cross-file definition performance within 100ms', async () => {
+      const numFiles = 10;
+      const symbolsPerFile = 10;
+      const symbols: PikeSymbol[] = [];
+      const extraCacheEntries = new Map<string, DocumentCacheEntry>();
+
+      for (let f = 0; f < numFiles; f++) {
+        const fileSymbols: PikeSymbol[] = [];
+        for (let i = 0; i < symbolsPerFile; i++) {
+          const name = `helper_${f}_func_${i}`;
+          fileSymbols.push({
+            name,
+            kind: 'method',
+            modifiers: [],
+            position: { file: `Helper_${f}.pike`, line: i + 1 },
+          });
+        }
+        extraCacheEntries.set(`file:///Helper_${f}.pike`, makeCacheEntry({ symbols: fileSymbols }));
+        symbols.push(...fileSymbols);
+      }
+
+      const mainCode = `import .Helper_5;\nhelper_5_func_7();`;
+      const mainDoc = TextDocument.create('file:///main.pike', 'pike', 1, mainCode);
+      const extraDocs = new Map<string, TextDocument>();
+      extraDocs.set('file:///main.pike', mainDoc);
+
+      const { definition } = setup({
+        code: mainCode,
+        uri: 'file:///main.pike',
+        symbols,
+        extraDocs,
+        extraCacheEntries,
+        bridge: {
+          isRunning: () => true,
+          engineQuery: async () => ({
+            requestId: 'req-cross-perf',
+            snapshotIdUsed: 'snp-cross-perf',
+            result: {
+              result: { status: 'stub' },
+            },
+          }),
+        },
+      });
+
+      const iterations = 20;
+      let maxTime = 0;
+
+      for (let i = 0; i < iterations; i++) {
+        const start = performance.now();
+        const result = await definition(1, 14);
+        const elapsed = performance.now() - start;
+        if (elapsed > maxTime) maxTime = elapsed;
+        expect(result === null || !!(result as Location).uri).toBe(true);
+      }
+
+      expect(maxTime).toBeLessThan(100);
     });
   });
 
