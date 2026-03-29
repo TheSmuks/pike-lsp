@@ -101,14 +101,14 @@ export async function handleDirectiveNavigation(
 
   // Handle inherit statements
   const inheritMatch = lineText.match(/^inherit\s+([^;:]+)/);
-  if (inheritMatch && services.bridge?.bridge) {
+  if (inheritMatch) {
     const inheritPath = (inheritMatch[1] ?? '').trim().replace(/["\s]/g, '');
     log.debug('Definition: directive inherit navigation', { inheritPath });
 
-    // Check cached inherits
+    // Check cached inherits first
     if (cached.inherits) {
       for (const inh of cached.inherits) {
-        if (inh.path === inheritPath || inh.path === inheritPath) {
+        if (inh.source_name === inheritPath || inh.path === inheritPath) {
           if (inh.path) {
             return {
               uri: `file://${inh.path}`,
@@ -119,20 +119,22 @@ export async function handleDirectiveNavigation(
       }
     }
 
-    // Fall back to bridge resolution
-    try {
-      const result = await services.bridge.bridge.resolveImport('inherit', inheritPath, filePath);
-      if (result.exists && result.path) {
-        return {
-          uri: `file://${result.path}`,
-          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-        };
+    // Fall back to bridge resolution if available
+    if (services.bridge?.bridge) {
+      try {
+        const result = await services.bridge.bridge.resolveImport('inherit', inheritPath, filePath);
+        if (result.exists && result.path) {
+          return {
+            uri: `file://${result.path}`,
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+          };
+        }
+      } catch (err) {
+        log.debug('Definition: inherit resolution failed', {
+          inheritPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      log.debug('Definition: inherit resolution failed', {
-        inheritPath,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
     return null;
   }

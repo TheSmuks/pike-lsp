@@ -11,7 +11,13 @@ import {
   isPikeIdentifierStart,
   isPikeIdentifierChar,
   getWordRangeAtPosition,
+  getWordAtPosition,
+  getWordAtOffset,
 } from '../features/utils/pike-identifier.js';
+
+function createDocument(source: string): TextDocument {
+  return TextDocument.create('test://test.pike', 'pike', 1, source);
+}
 
 describe('isPikeIdentifierStart', () => {
   it('should return true for lowercase letters', () => {
@@ -182,10 +188,6 @@ describe('isPikeIdentifierChar', () => {
 });
 
 describe('getWordRangeAtPosition', () => {
-  function createDocument(source: string): TextDocument {
-    return TextDocument.create('test://test.pike', 'pike', 1, source);
-  }
-
   describe('Simple identifiers', () => {
     it('should return word and range for simple identifier', () => {
       const source = 'int myVariable = 42;';
@@ -519,5 +521,97 @@ describe('getWordRangeAtPosition', () => {
       assert.ok(result, 'Should return identifier');
       assert.strictEqual(result!.word, 'File');
     });
+  });
+});
+
+describe('getWordAtPosition', () => {
+  it('should return word string for valid identifier', () => {
+    const source = 'myVariable = 42;';
+    const doc = createDocument(source);
+    const pos = { line: 0, character: 3 };
+
+    const result = getWordAtPosition(doc, pos);
+
+    assert.strictEqual(result, 'myVariable');
+  });
+
+  it('should return null for position on whitespace', () => {
+    const source = '  myVariable  ';
+    const doc = createDocument(source);
+    const pos = { line: 0, character: 0 };
+
+    const result = getWordAtPosition(doc, pos);
+
+    assert.strictEqual(result, null);
+  });
+
+  it('should return null for position on operator', () => {
+    const source = 'x + y';
+    const doc = createDocument(source);
+    const pos = { line: 0, character: 2 };
+
+    const result = getWordAtPosition(doc, pos);
+
+    assert.strictEqual(result, null);
+  });
+
+  it('should return word for underscore-prefixed identifier', () => {
+    const source = '_internalVar';
+    const doc = createDocument(source);
+    const pos = { line: 0, character: 5 };
+
+    const result = getWordAtPosition(doc, pos);
+
+    assert.strictEqual(result, '_internalVar');
+  });
+});
+
+describe('getWordAtOffset', () => {
+  it('should return word and offsets for valid identifier', () => {
+    const source = 'myVariable = 42;';
+    const result = getWordAtOffset(source, 3);
+
+    assert.ok(result, 'Should return result');
+    assert.strictEqual(result!.word, 'myVariable');
+    assert.strictEqual(result!.startOffset, 0);
+    assert.strictEqual(result!.endOffset, 10);
+  });
+
+  it('should return null for offset on whitespace', () => {
+    const source = '  myVariable  ';
+    const result = getWordAtOffset(source, 0);
+
+    assert.strictEqual(result, null);
+  });
+
+  it('should return null for offset on operator', () => {
+    const source = 'x + y';
+    const result = getWordAtOffset(source, 2);
+
+    assert.strictEqual(result, null);
+  });
+
+  it('should handle offset in middle of identifier', () => {
+    const source = 'myIdentifier';
+    const result = getWordAtOffset(source, 5);
+
+    assert.ok(result, 'Should return result');
+    assert.strictEqual(result!.word, 'myIdentifier');
+    assert.strictEqual(result!.startOffset, 0);
+    assert.strictEqual(result!.endOffset, 12);
+  });
+
+  it('should return null for negative offset', () => {
+    const source = 'myVariable';
+    const result = getWordAtOffset(source, -1);
+
+    assert.strictEqual(result, null);
+  });
+
+  it('should return null for offset beyond text length', () => {
+    const source = 'short';
+    const result = getWordAtOffset(source, 100);
+
+    assert.strictEqual(result, null);
   });
 });
