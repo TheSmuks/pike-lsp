@@ -105,7 +105,7 @@ export async function handleDirectiveNavigation(
     const inheritPath = (inheritMatch[1] ?? '').trim().replace(/["\s]/g, '');
     log.debug('Definition: directive inherit navigation', { inheritPath });
 
-    // Check cached inherits first
+    // Check cached inherits first (works even without bridge)
     if (cached.inherits) {
       for (const inh of cached.inherits) {
         if (inh.source_name === inheritPath || inh.path === inheritPath) {
@@ -119,7 +119,7 @@ export async function handleDirectiveNavigation(
       }
     }
 
-    // Fall back to bridge resolution if available
+    // Fall back to bridge resolution
     if (services.bridge?.bridge) {
       try {
         const result = await services.bridge.bridge.resolveImport('inherit', inheritPath, filePath);
