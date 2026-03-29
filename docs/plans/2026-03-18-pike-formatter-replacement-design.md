@@ -171,15 +171,15 @@ This means:
 
 This ownership split must be explicit and enforced.
 
-| Behavior | Owner | Why |
-|---|---|---|
-| Enter indentation | VS Code language configuration | native editor behavior, immediate, tab-aware |
-| Tab / Shift+Tab | VS Code editor | editor already owns indentation commands |
-| Move line up/down reindent | VS Code language configuration | official indentation-rules responsibility |
-| Paste auto-indent | VS Code language configuration | editor-native indentation |
-| Format on paste | LSP range formatting | VS Code routes this through formatting providers |
-| Format selection | LSP range formatting | explicit command |
-| Format document | LSP document formatting | explicit command |
+| Behavior                   | Owner                          | Why                                              |
+| -------------------------- | ------------------------------ | ------------------------------------------------ |
+| Enter indentation          | VS Code language configuration | native editor behavior, immediate, tab-aware     |
+| Tab / Shift+Tab            | VS Code editor                 | editor already owns indentation commands         |
+| Move line up/down reindent | VS Code language configuration | official indentation-rules responsibility        |
+| Paste auto-indent          | VS Code language configuration | editor-native indentation                        |
+| Format on paste            | LSP range formatting           | VS Code routes this through formatting providers |
+| Format selection           | LSP range formatting           | explicit command                                 |
+| Format document            | LSP document formatting        | explicit command                                 |
 
 If future behavior crosses those boundaries, it must justify why the native owner is insufficient.
 
@@ -493,7 +493,6 @@ Verification must be split by ownership boundary.
 Target:
 
 - `packages/vscode-pike/language-configuration.json`
-- `packages/vscode-pike/src/test/indentation-stress.test.ts`
 
 Add coverage for:
 
