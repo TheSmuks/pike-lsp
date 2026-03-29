@@ -309,7 +309,11 @@ describe('Scenario: sendDiagnostics on skip path', () => {
       });
     }
 
-    await new Promise(r => setTimeout(r, 200));
+    // Wait for diagnostics to be published (polling for up to 2 seconds)
+    const startTime = Date.now();
+    while (diags.length <= openCount && Date.now() - startTime < 2000) {
+      await new Promise(r => setTimeout(r, 50));
+    }
 
     // MUST have published again (even if skipped, sendDiagnostics must be called)
     assert.ok(
