@@ -11,6 +11,7 @@ import type { Services } from '../../services/index.js';
 import { buildCodeLensCommand } from '../../utils/code-lens.js';
 import { buildRunnableCodeLensCommand } from '../../utils/code-lens.js';
 import { Logger } from '@pike-lsp/core';
+import { isTestFile, discoverTestFunctions, getTestPattern } from '../testing/test-discovery.js';
 
 /**
  * Register code lens handlers.
@@ -54,10 +55,10 @@ export function registerCodeLensHandlers(
       const lenses: CodeLens[] = [];
       const runnableConfig = services.globalSettings.runnable ?? {};
       const runnableEnabled = runnableConfig.showCodeLens !== false;
-      const testPattern =
-        typeof runnableConfig.testPattern === 'string' && runnableConfig.testPattern.length > 0
-          ? new RegExp(runnableConfig.testPattern)
-          : /^test_/;
+      const testPattern = getTestPattern(runnableConfig.testPattern);
+      const isFileTestFile = isTestFile(uri);
+      const testFunctions = isFileTestFile ? discoverTestFunctions(cache.symbols, testPattern) : [];
+      const testFunctionNames = new Set(testFunctions.map(t => t.name));
 
       for (const symbol of cache.symbols) {
         // Show reference counts for classes, methods, variables, and constants
@@ -101,7 +102,7 @@ export function registerCodeLensHandlers(
                   lensType: 'run-file',
                 },
               });
-            } else if (testPattern.test(symbolName)) {
+            } else if (testFunctionNames.has(symbolName)) {
               lenses.push({
                 range: {
                   start: { line, character: char },
