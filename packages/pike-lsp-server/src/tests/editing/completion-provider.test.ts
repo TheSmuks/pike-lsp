@@ -51,7 +51,7 @@ type CompletionHandler = (params: {
   context?: { triggerKind: number; triggerCharacter?: string };
 }) => Promise<CompletionItem[]>;
 
-type CompletionResolveHandler = (item: CompletionItem) => CompletionItem;
+type CompletionResolveHandler = (item: CompletionItem) => CompletionItem | Promise<CompletionItem>;
 
 interface MockConnection {
   onCompletion: (handler: CompletionHandler) => void;
@@ -1479,7 +1479,7 @@ describe('Completion Provider', () => {
         data: { uri, name: 'my_var' },
       };
 
-      const resolved = resolve(item);
+      const resolved = await resolve(item);
       // Should have documentation added
       expect(resolved.documentation).toBeDefined();
       if (resolved.documentation && typeof resolved.documentation === 'object') {

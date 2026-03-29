@@ -329,15 +329,15 @@ export function registerCompletionHandlers(
                       for (const [name, symbol] of moduleInfo.symbols) {
                         if (existingNames.has(name)) continue;
                         if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
-                          completions.push(
-                            buildCompletionItem(
-                              name,
-                              symbol,
-                              `From ${imp.modulePath}`,
-                              undefined,
-                              completionContext
-                            )
+                          const item = buildCompletionItem(
+                            name,
+                            symbol,
+                            `From ${imp.modulePath}`,
+                            undefined,
+                            completionContext
                           );
+                          item.data = { modulePath: imp.modulePath, name, isStdlib: true };
+                          completions.push(item);
                           existingNames.add(name);
                         }
                       }
@@ -354,15 +354,19 @@ export function registerCompletionHandlers(
                   for (const symbol of imp.symbols) {
                     if (!symbol.name || existingNames.has(symbol.name)) continue;
                     if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                      completions.push(
-                        buildCompletionItem(
-                          symbol.name,
-                          symbol,
-                          `From ${imp.modulePath}`,
-                          undefined,
-                          completionContext
-                        )
+                      const item = buildCompletionItem(
+                        symbol.name,
+                        symbol,
+                        `From ${imp.modulePath}`,
+                        undefined,
+                        completionContext
                       );
+                      item.data = {
+                        modulePath: imp.modulePath,
+                        name: symbol.name,
+                        isStdlib: false,
+                      };
+                      completions.push(item);
                       existingNames.add(symbol.name);
                     }
                   }
@@ -1042,15 +1046,15 @@ export function registerCompletionHandlers(
                   }
 
                   if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
-                    completions.push(
-                      buildCompletionItem(
-                        name,
-                        symbol,
-                        `From ${imp.modulePath}`,
-                        undefined,
-                        completionContext
-                      )
+                    const item = buildCompletionItem(
+                      name,
+                      symbol,
+                      `From ${imp.modulePath}`,
+                      undefined,
+                      completionContext
                     );
+                    item.data = { modulePath: imp.modulePath, name, isStdlib: true };
+                    completions.push(item);
                   }
                 }
               }
@@ -1073,15 +1077,15 @@ export function registerCompletionHandlers(
               }
 
               if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                completions.push(
-                  buildCompletionItem(
-                    symbol.name,
-                    symbol,
-                    `From ${imp.modulePath}`,
-                    undefined,
-                    completionContext
-                  )
+                const item = buildCompletionItem(
+                  symbol.name,
+                  symbol,
+                  `From ${imp.modulePath}`,
+                  undefined,
+                  completionContext
                 );
+                item.data = { modulePath: imp.modulePath, name: symbol.name, isStdlib: false };
+                completions.push(item);
               }
             }
           }
@@ -1219,11 +1223,16 @@ export function registerCompletionHandlers(
   });
 
   /**
-   * Completion item resolve - add documentation for the selected item
+   * Completion item resolve - add documentation and additionalTextEdits for auto-import
    */
-  connection.onCompletionResolve((item): CompletionItem => {
-    const data = item.data as { uri?: string; name?: string } | undefined;
-    if (data?.uri && data?.name) {
+  connection.onCompletionResolve(async (item): Promise<CompletionItem> => {
+    const data = item.data as
+      | { uri?: string; name?: string }
+      | { modulePath?: string; name?: string; isStdlib?: boolean }
+      | undefined;
+
+    // Handle local symbol resolution (existing behavior)
+    if (data && 'uri' in data && data.uri && data.name) {
       const cached = documentCache.get(data.uri);
       if (cached) {
         const symbol = cached.symbols.find(s => s.name === data.name);
@@ -1234,7 +1243,52 @@ export function registerCompletionHandlers(
           };
         }
       }
+      return item;
     }
+
+    // Handle import symbol resolution (new auto-import feature)
+    if (data && 'modulePath' in data && data.modulePath && data.name) {
+      const modulePath = data.modulePath;
+      const symbolName = data.name;
+      const isStdlib = data.isStdlib ?? true;
+
+      // Look up the symbol to get documentation (async)
+      if (services.stdlibIndex && isStdlib) {
+        try {
+          const moduleInfo = await services.stdlibIndex.getModule(modulePath);
+          if (moduleInfo?.symbols) {
+            const symbol = moduleInfo.symbols.get(symbolName);
+            if (symbol) {
+              item.documentation = {
+                kind: MarkupKind.Markdown,
+                value: buildHoverContent(symbol as PikeSymbol, modulePath) ?? '',
+              };
+            }
+          }
+        } catch (err) {
+          logger.debug('Failed to get symbol for completion resolve', {
+            modulePath,
+            symbolName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      // Add auto-import additionalTextEdits
+      // We add the import statement unconditionally - the editor will handle duplicates
+      const importStatement = isStdlib ? `import ${modulePath};\n` : `import .${modulePath};\n`;
+
+      item.additionalTextEdits = [
+        {
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+          },
+          newText: importStatement,
+        },
+      ];
+    }
+
     return item;
   });
 }
