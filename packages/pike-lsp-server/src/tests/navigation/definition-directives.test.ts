@@ -185,9 +185,7 @@ describe('handleDirectiveNavigation', () => {
   });
 
   describe('inherit statement', () => {
-    it('should return Location from bridge (cached inherits matching is not based on resolved path)', async () => {
-      // Note: The cached inherits lookup compares inh.path with the source string (e.g., "module")
-      // This test verifies the fallback to bridge.resolveImport works correctly
+    it('should use cached when source_name matches, fallback to bridge otherwise', async () => {
       const doc = createDocument('inherit "module";');
       const services = createMockServices({
         importResult: { exists: true, path: '/path/to/module.pike' },
@@ -195,7 +193,8 @@ describe('handleDirectiveNavigation', () => {
       const cached = createMockCached({
         inherits: [
           {
-            path: '/path/to/module.pike', // This is the resolved path, not the source string
+            source_name: 'different_module',
+            path: '/path/to/other.pike',
           },
         ],
       } as unknown as DocumentCacheEntry);
@@ -209,8 +208,9 @@ describe('handleDirectiveNavigation', () => {
         log
       );
 
-      // Falls back to bridge because cached inherit path doesn't match source string
+      // Falls back to bridge because cached source_name doesn't match "module"
       assert.ok(result, 'Should return a Location from bridge fallback');
+      assert.strictEqual(result!.uri, 'file:///path/to/module.pike');
     });
 
     it('should fall back to bridge.resolveImport when not in cache', async () => {
@@ -249,6 +249,95 @@ describe('handleDirectiveNavigation', () => {
       );
 
       assert.strictEqual(result, null);
+    });
+
+    it('should use cached inherit when source_name matches', async () => {
+      const doc = createDocument('inherit "Parent";');
+      const services = createMockServices({
+        importResult: { exists: true, path: '/fallback/Parent.pike' },
+      });
+      const cached = createMockCached({
+        inherits: [
+          {
+            source_name: 'Parent',
+            path: '/workspace/Parent.pike',
+          },
+        ],
+      } as unknown as DocumentCacheEntry);
+
+      const result = await handleDirectiveNavigation(
+        doc,
+        { line: 0, character: 5 },
+        'file:///test.pike',
+        services,
+        cached,
+        log
+      );
+
+      assert.ok(result, 'Should return a Location from cache');
+      assert.strictEqual(result!.uri, 'file:///workspace/Parent.pike');
+    });
+
+    it('should fallback to bridge when cached source_name does not match', async () => {
+      let bridgeCalled = false;
+      const doc = createDocument('inherit "Other";');
+      const services = {
+        bridge: {
+          bridge: {
+            resolveImport: async () => {
+              bridgeCalled = true;
+              return { exists: true, path: '/fallback/Other.pike' };
+            },
+          },
+          isRunning: () => true,
+        },
+      } as unknown as Services;
+      const cached = createMockCached({
+        inherits: [
+          {
+            source_name: 'Parent',
+            path: '/workspace/Parent.pike',
+          },
+        ],
+      } as unknown as DocumentCacheEntry);
+
+      const result = await handleDirectiveNavigation(
+        doc,
+        { line: 0, character: 5 },
+        'file:///test.pike',
+        services,
+        cached,
+        log
+      );
+
+      assert.strictEqual(bridgeCalled, true, 'Should fallback to bridge');
+      assert.ok(result, 'Should return a Location from bridge');
+      assert.strictEqual(result!.uri, 'file:///fallback/Other.pike');
+    });
+
+    it('should work without bridge when cached hit exists', async () => {
+      const doc = createDocument('inherit "CachedModule";');
+      const services = {} as Services;
+      const cached = createMockCached({
+        inherits: [
+          {
+            source_name: 'CachedModule',
+            path: '/workspace/CachedModule.pike',
+          },
+        ],
+      } as unknown as DocumentCacheEntry);
+
+      const result = await handleDirectiveNavigation(
+        doc,
+        { line: 0, character: 5 },
+        'file:///test.pike',
+        services,
+        cached,
+        log
+      );
+
+      assert.ok(result, 'Should return a Location from cache without bridge');
+      assert.strictEqual(result!.uri, 'file:///workspace/CachedModule.pike');
     });
   });
 

@@ -62,6 +62,7 @@ export {
   convertDiagnostic,
   isDeprecatedSymbolDiagnostic,
   extractDeprecatedFromSymbols,
+  type DiagnosticRelatedLocation,
 } from './utils.js';
 export { buildSymbolNameIndex } from './symbol-index.js';
 export {
@@ -601,6 +602,25 @@ export function registerDiagnosticsHandlers(
         return skipPatterns.some(pattern => pattern.test(msg));
       };
 
+      // Build a map of symbol names to their positions for related info lookup
+      // Use flattened parse symbols since they have position data
+      const symbolPositionMap = new Map<
+        string,
+        { line: number; character: number; name: string }
+      >();
+      if (parseData && parseData.symbols.length > 0) {
+        const flatSymbols = flattenSymbols(parseData.symbols);
+        for (const sym of flatSymbols) {
+          if (sym.name && sym.position) {
+            symbolPositionMap.set(sym.name, {
+              name: sym.name,
+              line: sym.position.line ?? 1,
+              character: sym.position.column ?? 1,
+            });
+          }
+        }
+      }
+
       // Process diagnostics from introspection
       for (const pikeDiag of introspectData.diagnostics) {
         if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
@@ -614,7 +634,48 @@ export function registerDiagnosticsHandlers(
         // Check if this diagnostic is about a deprecated symbol
         const isDeprecated = isDeprecatedSymbolDiagnostic(pikeDiag.message, introspectData.symbols);
 
-        pushDiagnostic(convertDiagnostic(pikeDiag, document, { deprecated: isDeprecated }, lines));
+        // Add related information for unused variable diagnostics
+        let relatedLocation: import('./utils.js').DiagnosticRelatedLocation | undefined;
+        const msgLower = pikeDiag.message.toLowerCase();
+        if (msgLower.includes('unused')) {
+          // Try to extract the variable name from the message
+          // Common patterns: "unused variable x", "x is unused", "unused x"
+          const unusedMatch = pikeDiag.message.match(
+            /(?:unused\s+(?:variable\s+)?|is\s+unused[,.]\s*)(['"]?)([a-zA-Z_][a-zA-Z0-9_]*)\1/i
+          );
+          if (unusedMatch && unusedMatch[2]) {
+            const varName = unusedMatch[2];
+            const pos = symbolPositionMap.get(varName);
+            if (
+              pos &&
+              (pos.line !== pikeDiag.position.line || pos.character !== pikeDiag.position.column)
+            ) {
+              relatedLocation = {
+                uri,
+                range: {
+                  start: {
+                    line: Math.max(0, pos.line - 1),
+                    character: Math.max(0, pos.character - 1),
+                  },
+                  end: {
+                    line: Math.max(0, pos.line - 1),
+                    character: pos.character + varName.length,
+                  },
+                },
+                message: 'declared here',
+              };
+            }
+          }
+        }
+
+        pushDiagnostic(
+          convertDiagnostic(
+            pikeDiag,
+            document,
+            { deprecated: isDeprecated, relatedLocation },
+            lines
+          )
+        );
       }
 
       // Update type database with introspected symbols if compilation succeeded
