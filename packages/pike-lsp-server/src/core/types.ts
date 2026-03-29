@@ -27,6 +27,11 @@ export interface PikeSettings {
   /** Inline values configuration (optional) */
   inlineValues?: InlineValuesSettings;
   runnable?: RunnableSettings;
+  organizeImports?: OrganizeImportsSettings;
+}
+
+export interface OrganizeImportsSettings {
+  removeUnused: boolean;
 }
 
 export interface RunnableSettings {
@@ -146,5 +151,8 @@ export const defaultSettings: PikeSettings = {
   },
   inlineValues: {
     enabled: true,
+  },
+  organizeImports: {
+    removeUnused: true,
   },
 };
