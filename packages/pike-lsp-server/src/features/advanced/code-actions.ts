@@ -78,66 +78,114 @@ export function registerCodeActionsHandler(
         });
         // Continue - will just return empty actions if nothing matches
       }
-      const lineText = lines[startLine] ?? '';
-      const trimmed = lineText.trim();
-
       // Organize Imports - only if filter allows
       if (matchesFilter(CodeActionKind.SourceOrganizeImports)) {
-        if (
-          trimmed.startsWith('inherit') ||
-          trimmed.startsWith('import') ||
-          trimmed.startsWith('#include')
-        ) {
-          const importLines: { line: number; text: string; type: string }[] = [];
-          for (let i = 0; i < lines.length; i++) {
-            const lt = (lines[i] ?? '').trim();
-            if (lt.startsWith('inherit ')) {
-              importLines.push({ line: i, text: lines[i] ?? '', type: 'inherit' });
-            } else if (lt.startsWith('import ')) {
-              importLines.push({ line: i, text: lines[i] ?? '', type: 'import' });
-            } else if (lt.startsWith('#include ')) {
-              importLines.push({ line: i, text: lines[i] ?? '', type: 'include' });
+        const importLines: { line: number; text: string; type: string; moduleName?: string }[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          const lt = (lines[i] ?? '').trim();
+          if (lt.startsWith('inherit ')) {
+            const match = lt.match(/^inherit\s+([A-Za-z_][A-Za-z0-9_]*)/);
+            const entry: { line: number; text: string; type: string; moduleName?: string } = {
+              line: i,
+              text: lines[i] ?? '',
+              type: 'inherit',
+            };
+            if (match?.[1]) entry.moduleName = match[1];
+            importLines.push(entry);
+          } else if (lt.startsWith('import ')) {
+            const match = lt.match(
+              /^import\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/
+            );
+            const entry: { line: number; text: string; type: string; moduleName?: string } = {
+              line: i,
+              text: lines[i] ?? '',
+              type: 'import',
+            };
+            if (match?.[1]) entry.moduleName = match[1];
+            importLines.push(entry);
+          } else if (lt.startsWith('#include ')) {
+            importLines.push({ line: i, text: lines[i] ?? '', type: 'include' });
+          }
+        }
+
+        if (importLines.length === 0) {
+          return actions;
+        }
+
+        const unusedImports = new Set<number>();
+        const importModuleNames = importLines
+          .filter(imp => imp.moduleName !== undefined)
+          .map(imp => imp.moduleName as string);
+
+        if (importModuleNames.length > 0) {
+          // Get code after the last import line to find actual symbol references
+          const lastImportLine = importLines[importLines.length - 1]!.line;
+          const codeOnlyLines = lines.slice(lastImportLine + 1).join('\n');
+          const allReferences = codeOnlyLines.match(/\b([A-Z][A-Za-z0-9_]*)\b/g) || [];
+          const referenceSet = new Set(allReferences);
+
+          for (const imp of importLines) {
+            const moduleName = imp.moduleName;
+            if (moduleName !== undefined && !referenceSet.has(moduleName)) {
+              unusedImports.add(imp.line);
             }
           }
+        }
 
-          if (importLines.length > 1) {
-            const sorted = [...importLines].sort((a, b) => {
-              const typeOrder = { include: 0, import: 1, inherit: 2 };
-              const typeA = typeOrder[a.type as keyof typeof typeOrder] ?? 3;
-              const typeB = typeOrder[b.type as keyof typeof typeOrder] ?? 3;
-              if (typeA !== typeB) return typeA - typeB;
-              return a.text.localeCompare(b.text);
-            });
+        const usedImportLines = importLines.filter(imp => !unusedImports.has(imp.line));
 
-            const needsSort = importLines.some((item, i) => item.text !== sorted[i]?.text);
+        if (importLines.length > 1 || unusedImports.size > 0) {
+          const sorted = [...usedImportLines].sort((a, b) => {
+            const typeOrder = { include: 0, import: 1, inherit: 2 };
+            const typeA = typeOrder[a.type as keyof typeof typeOrder] ?? 3;
+            const typeB = typeOrder[b.type as keyof typeof typeOrder] ?? 3;
+            if (typeA !== typeB) return typeA - typeB;
+            return a.text.localeCompare(b.text);
+          });
 
-            if (needsSort) {
-              const edits: TextEdit[] = [];
-              for (let i = 0; i < importLines.length; i++) {
-                const original = importLines[i];
-                const replacement = sorted[i];
-                if (original && replacement && original.text !== replacement.text) {
-                  edits.push({
-                    range: {
-                      start: { line: original.line, character: 0 },
-                      end: { line: original.line, character: original.text.length },
-                    },
-                    newText: replacement.text,
-                  });
-                }
-              }
+          const needsSort = importLines.some((item, i) => item.text !== sorted[i]?.text);
+          const hasRemovals = unusedImports.size > 0;
 
-              if (edits.length > 0) {
-                actions.push({
-                  title: 'Organize Imports',
-                  kind: CodeActionKind.SourceOrganizeImports,
-                  edit: {
-                    changes: {
-                      [uri]: edits,
-                    },
+          if (needsSort || hasRemovals) {
+            const edits: TextEdit[] = [];
+
+            for (const unusedLine of unusedImports) {
+              const imp = importLines.find(i => i.line === unusedLine);
+              if (imp) {
+                edits.push({
+                  range: {
+                    start: { line: imp.line, character: 0 },
+                    end: { line: imp.line, character: imp.text.length },
                   },
+                  newText: '',
                 });
               }
+            }
+
+            for (let i = 0; i < usedImportLines.length; i++) {
+              const original = usedImportLines[i];
+              const replacement = sorted[i];
+              if (original && replacement && original.text !== replacement.text) {
+                edits.push({
+                  range: {
+                    start: { line: original.line, character: 0 },
+                    end: { line: original.line, character: original.text.length },
+                  },
+                  newText: replacement.text,
+                });
+              }
+            }
+
+            if (edits.length > 0) {
+              actions.push({
+                title: 'Organize Imports',
+                kind: CodeActionKind.SourceOrganizeImports,
+                edit: {
+                  changes: {
+                    [uri]: edits,
+                  },
+                },
+              });
             }
           }
         }
