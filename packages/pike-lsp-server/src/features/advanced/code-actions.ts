@@ -80,6 +80,7 @@ export function registerCodeActionsHandler(
       }
       // Organize Imports - only if filter allows
       if (matchesFilter(CodeActionKind.SourceOrganizeImports)) {
+        const removeUnused = services.globalSettings.organizeImports?.removeUnused ?? true;
         const importLines: { line: number; text: string; type: string; moduleName?: string }[] = [];
         for (let i = 0; i < lines.length; i++) {
           const lt = (lines[i] ?? '').trim();
@@ -113,21 +114,23 @@ export function registerCodeActionsHandler(
         }
 
         const unusedImports = new Set<number>();
-        const importModuleNames = importLines
-          .filter(imp => imp.moduleName !== undefined)
-          .map(imp => imp.moduleName as string);
+        if (removeUnused) {
+          const importModuleNames = importLines
+            .filter(imp => imp.moduleName !== undefined)
+            .map(imp => imp.moduleName as string);
 
-        if (importModuleNames.length > 0) {
-          // Get code after the last import line to find actual symbol references
-          const lastImportLine = importLines[importLines.length - 1]!.line;
-          const codeOnlyLines = lines.slice(lastImportLine + 1).join('\n');
-          const allReferences = codeOnlyLines.match(/\b([A-Z][A-Za-z0-9_]*)\b/g) || [];
-          const referenceSet = new Set(allReferences);
+          if (importModuleNames.length > 0) {
+            // Get code after the last import line to find actual symbol references
+            const lastImportLine = importLines[importLines.length - 1]!.line;
+            const codeOnlyLines = lines.slice(lastImportLine + 1).join('\n');
+            const allReferences = codeOnlyLines.match(/\b([A-Z][A-Za-z0-9_]*)\b/g) || [];
+            const referenceSet = new Set(allReferences);
 
-          for (const imp of importLines) {
-            const moduleName = imp.moduleName;
-            if (moduleName !== undefined && !referenceSet.has(moduleName)) {
-              unusedImports.add(imp.line);
+            for (const imp of importLines) {
+              const moduleName = imp.moduleName;
+              if (moduleName !== undefined && !referenceSet.has(moduleName)) {
+                unusedImports.add(imp.line);
+              }
             }
           }
         }
