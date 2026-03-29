@@ -5,7 +5,8 @@
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { Range } from 'vscode-languageserver/node.js';
+import type { Range, Position } from 'vscode-languageserver/node.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 /**
  * Result from getWordRangeAtPosition
@@ -105,4 +106,209 @@ export function getWordRangeAtPosition(
   };
 
   return { word, range };
+}
+
+/**
+ * Get just the word string at a document position.
+ * Wrapper around getWordRangeAtPosition that returns only the word.
+ *
+ * @param document - The text document
+ * @param position - Position in the document
+ * @returns The word at position, or null if no identifier found
+ */
+export function getWordAtPosition(
+  document: TextDocument,
+  position: { line: number; character: number }
+): string | null {
+  const result = getWordRangeAtPosition(document, position);
+  return result?.word ?? null;
+}
+
+/**
+ * Get word at position using generic word boundary detection.
+ * Uses /\w/ regex which matches any word character (letters, digits, underscore).
+ * This is the generic version for backwards compatibility.
+ *
+ * @param document - The text document
+ * @param position - Position in the document
+ * @returns The word at position, or null if no word found
+ */
+export function getWordAtPositionGeneric(
+  document: TextDocument,
+  position: { line: number; character: number }
+): string | null {
+  const text = document.getText();
+  const offset = document.offsetAt(position);
+
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
+
+  const word = text.slice(start, end);
+  return word || null;
+}
+
+/**
+ * Extract the word (identifier) at the given text offset.
+ * Respects Pike identifier rules for boundary detection.
+ *
+ * @param text - The full document text
+ * @param offset - Character offset in the text
+ * @returns Object with word and offsets, or null if no identifier found
+ */
+export function getWordAtOffset(
+  text: string,
+  offset: number
+): { word: string; startOffset: number; endOffset: number } | null {
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+
+  const mockDocument = {
+    getText: () => text,
+    offsetAt: (pos: { line: number; character: number }) => pos.character,
+    positionAt: (o: number) => ({ line: 0, character: o }),
+  } as unknown as TextDocument;
+
+  const result = getWordRangeAtPosition(mockDocument, { line: 0, character: offset });
+  if (!result) {
+    return null;
+  }
+
+  const startOffset = mockDocument.offsetAt(result.range.start);
+  const endOffset = mockDocument.offsetAt(result.range.end);
+
+  return {
+    word: result.word,
+    startOffset,
+    endOffset,
+  };
+}
+
+/**
+ * Extract the word at the given text offset using generic word boundary detection.
+ * Uses /\w/ regex which matches any word character (letters, digits, underscore).
+ * This is the generic version for backwards compatibility.
+ *
+ * @param text - The full document text
+ * @param offset - Character offset in the text
+ * @returns Object with word and offsets, or null if no word found
+ */
+export function getWordAtOffsetGeneric(
+  text: string,
+  offset: number
+): { word: string; startOffset: number; endOffset: number } | null {
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
+
+  if (start === end) {
+    return null;
+  }
+
+  return {
+    word: text.slice(start, end),
+    startOffset: start,
+    endOffset: end,
+  };
+}
+
+/**
+ * Get word at offset in text using generic word boundary detection.
+ * Uses /\w/ regex which matches any word character.
+ * Returns empty string if no word found (for backwards compatibility with completion.ts).
+ *
+ * @param text - The text
+ * @param offset - Character offset in the text
+ * @returns The word at offset, or empty string if not found
+ */
+export function getWordAtOffsetString(text: string, offset: number): string {
+  if (offset < 0 || offset >= text.length) {
+    return '';
+  }
+
+  let start = offset;
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+
+  let end = offset;
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
+
+  return text.slice(start, end);
+}
+
+/**
+ * Find symbol at given position in document by extracting word and searching symbols.
+ *
+ * @param symbols - Array of symbols to search
+ * @param position - Position in the document
+ * @param document - The text document (optional, for word extraction)
+ * @returns The matching symbol, or null if not found
+ */
+export function findSymbolAtPosition(
+  symbols: PikeSymbol[],
+  position: Position,
+  document?: TextDocument
+): PikeSymbol | null {
+  if (!document) {
+    return null;
+  }
+
+  const text = document.getText();
+  const offset = document.offsetAt(position);
+
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
+    start--;
+  }
+  while (end < text.length && /\w/.test(text[end] ?? '')) {
+    end++;
+  }
+
+  const word = text.slice(start, end);
+  if (!word) {
+    return null;
+  }
+
+  for (const symbol of symbols) {
+    if (symbol.name === word) {
+      return symbol;
+    }
+
+    if (symbol.kind === 'inherit' || symbol.kind === 'import' || symbol.kind === 'include') {
+      const classname = (symbol as { classname?: string }).classname?.replace(/['"]/g, '');
+      if (classname === word) {
+        return symbol;
+      }
+    }
+  }
+
+  return null;
 }

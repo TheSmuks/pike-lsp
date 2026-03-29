@@ -3,10 +3,13 @@
  *
  * Pure utility functions for go-to-definition functionality.
  * Extracted from definition.ts for testability.
+ *
+ * @deprecated Import directly from pike-identifier.ts instead.
  */
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
 
 /**
  * Get word at position in document.
@@ -15,34 +18,13 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
  * @param document - The text document
  * @param position - The position in the document (0-based)
  * @returns The word at position, or null if no word found
+ * @deprecated Use getWordAtPositionGeneric from pike-identifier.ts
  */
 export function getWordAtPosition(
   document: TextDocument,
   position: { line: number; character: number }
 ): string | null {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-
-  // Validate offset is within document
-  if (offset < 0 || offset >= text.length) {
-    return null;
-  }
-
-  let start = offset;
-  let end = offset;
-
-  // Expand start backwards to find word boundary
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-
-  // Expand end forwards to find word boundary
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-
-  const word = text.slice(start, end);
-  return word || null;
+  return getWordAtPositionGeneric(document, position);
 }
 
 /**

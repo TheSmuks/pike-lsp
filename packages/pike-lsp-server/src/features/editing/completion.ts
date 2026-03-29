@@ -29,6 +29,7 @@ import {
   getRXMLAttributeCompletions,
 } from '../rxml/mixed-content.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+import { getWordAtOffsetString } from '../utils/pike-identifier.js';
 
 const inFlightCompletionRequests = new Map<string, string>();
 const completionRequestSequence = new Map<string, number>();
@@ -283,7 +284,7 @@ export function registerCompletionHandlers(
           const completions = [...scheduledItems];
           const text = document.getText();
           const offset = document.offsetAt(params.position);
-          const prefix = getWordAtPosition(text, offset);
+          const prefix = getWordAtOffsetString(text, offset);
           const prefixLower = prefix.toLowerCase();
           const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
           const lineText = text.slice(lineStart, offset);
@@ -931,7 +932,7 @@ export function registerCompletionHandlers(
     }
 
     // General completion - suggest all symbols from current document
-    const prefix = getWordAtPosition(text, offset);
+    const prefix = getWordAtOffsetString(text, offset);
 
     // PERF-096: Pre-compute lowercase prefix once for case-insensitive comparison
     const prefixLower = prefix.toLowerCase();
@@ -1240,21 +1241,6 @@ export function registerCompletionHandlers(
 }
 
 // ==================== Helper Functions ====================
-
-/**
- * Get word at position in text
- */
-function getWordAtPosition(text: string, offset: number): string {
-  let start = offset;
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-  let end = offset;
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-  return text.slice(start, end);
-}
 
 /**
  * Determine completion context from text before cursor
