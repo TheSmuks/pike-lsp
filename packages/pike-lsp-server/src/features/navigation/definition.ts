@@ -16,6 +16,7 @@ import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { readFile } from 'node:fs/promises';
 import { handleDirectiveNavigation } from './definition-directives.js';
+import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
 
 const uriDecodeLog = new Logger('Navigation');
 
@@ -116,7 +117,7 @@ export function registerDefinitionHandlers(
         }
       }
 
-      const wordAtCursor = getWordAtPosition(document, params.position);
+      const wordAtCursor = getWordAtPositionGeneric(document, params.position);
       if (wordAtCursor) {
         if (!cached.dependencies && services.includeResolver) {
           try {
@@ -648,25 +649,6 @@ export function registerDefinitionHandlers(
       return null;
     }
   });
-}
-
-function getWordAtPosition(
-  document: TextDocument,
-  position: { line: number; character: number }
-): string {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-  let start = offset;
-  let end = offset;
-
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-
-  return text.slice(start, end);
 }
 
 async function findSymbolTextInIncludedFiles(
