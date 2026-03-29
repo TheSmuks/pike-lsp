@@ -10,10 +10,5 @@
     "outDir": "../../dist/test",
     "rootDir": "."
   },
-  "include": [
-    "./bun-test.d.ts",
-    "./mockOutputChannel.test.ts",
-    "./extension-features.test.ts",
-    "./indentation-stress.test.ts"
-  ]
+  "include": ["./bun-test.d.ts", "./mockOutputChannel.test.ts", "./extension-features.test.ts"]
 }

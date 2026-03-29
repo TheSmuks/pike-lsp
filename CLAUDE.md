@@ -291,18 +291,24 @@ All tests MUST follow these patterns. No exceptions.
 // ✅ CORRECT — use these EXACT imports
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import { createMockDocuments, createMockBridge, createMockServices, makeCachedEntry } from '../helpers/test-helpers.js';
+import {
+  createMockDocuments,
+  createMockBridge,
+  createMockServices,
+  makeCachedEntry,
+} from '../helpers/test-helpers.js';
 
 // ❌ WRONG — do not use any of these
-import * as assert from 'node:assert/strict';  // use default import
-import { describe, expect, it } from 'bun:test';  // use assert, not expect
-import assert from 'node:assert';  // use strict
-const { describe, it } = require('bun:test');  // never use require
+import * as assert from 'node:assert/strict'; // use default import
+import { describe, expect, it } from 'bun:test'; // use assert, not expect
+import assert from 'node:assert'; // use strict
+const { describe, it } = require('bun:test'); // never use require
 ```
 
 ### Mock pattern
 
 Use the shared helpers from `tests/helpers/test-helpers.ts`:
+
 - `createMockDocuments()` — for document state
 - `createMockBridge(config)` — for Pike bridge simulation
 - `createMockConnection()` — for LSP connection
@@ -316,7 +322,6 @@ extend the helpers file instead of creating new ones.
 
 - One test file per feature (e.g., `hover-provider.test.ts`)
 - Use kebab-case: `my-feature.test.ts`
-- No `*-stress.test.ts` in src/tests/ — put stress tests in `benchmarks/stress/*.bench.ts`
 
 ### Test naming
 
