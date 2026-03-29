@@ -57,6 +57,15 @@ export function convertSeverity(severity: string): DiagnosticSeverity {
 }
 
 /**
+ * Related location info for diagnostics (see also links)
+ */
+export interface DiagnosticRelatedLocation {
+  uri: string;
+  range: { start: { line: number; character: number }; end: { line: number; character: number } };
+  message: string;
+}
+
+/**
  * Convert Pike diagnostic to LSP diagnostic
  *
  * Adds Diagnostic.code and Diagnostic.tags:
@@ -69,7 +78,7 @@ export function convertSeverity(severity: string): DiagnosticSeverity {
 export function convertDiagnostic(
   pikeDiag: PikeDiagnostic,
   document: TextDocument,
-  options?: { deprecated?: boolean; code?: string },
+  options?: { deprecated?: boolean; code?: string; relatedLocation?: DiagnosticRelatedLocation },
   linesArg?: string[] // PERF-420: Optional pre-split lines for performance
 ): Diagnostic {
   const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
@@ -173,6 +182,19 @@ export function convertDiagnostic(
   // Add tags for deprecated symbols
   if (options?.deprecated) {
     diagnostic.tags = [DiagnosticTag.Deprecated];
+  }
+
+  // Add related information (see also links)
+  if (options?.relatedLocation) {
+    diagnostic.relatedInformation = [
+      {
+        location: {
+          uri: options.relatedLocation.uri,
+          range: options.relatedLocation.range,
+        },
+        message: options.relatedLocation.message,
+      },
+    ];
   }
 
   return diagnostic;
