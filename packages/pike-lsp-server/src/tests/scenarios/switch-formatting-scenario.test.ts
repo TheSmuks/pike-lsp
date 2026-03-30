@@ -52,23 +52,27 @@ break;
     
     // Line 1 (case 1:) should have 4 spaces (1 level)
     const caseLine = lines[1];
+    const caseIndent = caseLine?.match(/^(\s*)/)?.[1] ?? '';
     console.log('\ncase line:', JSON.stringify(caseLine));
-    assert.ok(caseLine?.startsWith('    '), `case should be indented 1 level, got: ${JSON.stringify(caseLine)}`);
+    assert.strictEqual(caseIndent, '    ', `case should be indented 1 level, got ${caseIndent.length} spaces`);
     
     // Line 2 (break;) should have 8 spaces (2 levels)
     const breakLine = lines[2];
+    const breakIndent = breakLine?.match(/^(\s*)/)?.[1] ?? '';
     console.log('break line:', JSON.stringify(breakLine));
-    assert.ok(breakLine?.startsWith('        '), `break should be indented 2 levels, got: ${JSON.stringify(breakLine)}`);
+    assert.strictEqual(breakIndent, '        ', `break should be indented 2 levels, got ${breakIndent.length} spaces`);
     
     // Line 3 (default:) should have 4 spaces
     const defaultLine = lines[3];
+    const defaultIndent = defaultLine?.match(/^(\s*)/)?.[1] ?? '';
     console.log('default line:', JSON.stringify(defaultLine));
-    assert.ok(defaultLine?.startsWith('    '), `default should be indented 1 level, got: ${JSON.stringify(defaultLine)}`);
+    assert.strictEqual(defaultIndent, '    ', `default should be indented 1 level, got ${defaultIndent.length} spaces`);
     
     // Line 4 (break;) should have 8 spaces
     const defaultBreakLine = lines[4];
+    const defaultBreakIndent = defaultBreakLine?.match(/^(\s*)/)?.[1] ?? '';
     console.log('default break line:', JSON.stringify(defaultBreakLine));
-    assert.ok(defaultBreakLine?.startsWith('        '), `default break should be indented 2 levels, got: ${JSON.stringify(defaultBreakLine)}`);
+    assert.strictEqual(defaultBreakIndent, '        ', `default break should be indented 2 levels, got ${defaultBreakIndent.length} spaces`);
   });
   
   it('should handle nested switch statements', () => {
@@ -92,23 +96,27 @@ break;
     
     // case 1: should be at 1 level (4 spaces)
     const case1Line = lines[1];
+    const case1Indent = case1Line?.match(/^(\s*)/)?.[1] ?? '';
     console.log('case 1:', JSON.stringify(case1Line));
-    assert.ok(case1Line?.startsWith('    '), `outer case should be at 1 level`);
+    assert.strictEqual(case1Indent, '    ', `outer case should be at 1 level`);
     
     // inner switch should be at 2 levels (8 spaces)
     const innerSwitch = lines[2];
+    const innerSwitchIndent = innerSwitch?.match(/^(\s*)/)?.[1] ?? '';
     console.log('inner switch:', JSON.stringify(innerSwitch));
-    assert.ok(innerSwitch?.startsWith('        '), `inner switch should be at 2 levels`);
+    assert.strictEqual(innerSwitchIndent, '        ', `inner switch should be at 2 levels`);
     
     // case 2: should be at 3 levels (12 spaces)
     const case2Line = lines[3];
+    const case2Indent = case2Line?.match(/^(\s*)/)?.[1] ?? '';
     console.log('case 2:', JSON.stringify(case2Line));
-    assert.ok(case2Line?.startsWith('            '), `inner case should be at 3 levels`);
+    assert.strictEqual(case2Indent, '            ', `inner case should be at 3 levels`);
     
     // inner break should be at 4 levels (16 spaces)
     const innerBreak = lines[4];
+    const innerBreakIndent = innerBreak?.match(/^(\s*)/)?.[1] ?? '';
     console.log('inner break:', JSON.stringify(innerBreak));
-    assert.ok(innerBreak?.startsWith('                '), `inner break should be at 4 levels`);
+    assert.strictEqual(innerBreakIndent, '                ', `inner break should be at 4 levels`);
   });
   
   it('should handle case with statement on same line', () => {
