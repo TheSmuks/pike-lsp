@@ -16,6 +16,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.38] - 2026-03-30
+
+### Added
+
+- **Test coverage expansion** - added tests for definition-utils (+31), getters-setters (+16), module-scanner (+20), catalog-manager (+15), glob-cache (+15), and request-id (+10) modules. Total: +107 new tests.
+
+## [0.1.0-alpha.37] - 2026-03-30
+
+### Added
+
+- **Test coverage expansion** - added tests for keywords.ts (+26), symbol-index.ts (+12), inline-values (+5), and on-type-formatting (+54).
+
+### Fixed
+
+- **Flaky test fix** - replaced fixed timeout with polling loop in "sendDiagnostics on skip path" test for more reliable CI.
+
+## [0.1.0-alpha.36] - 2026-03-29
+
+### Added
+
+- **Completion item resolving** - added `onCompletionResolve` handler with `additionalTextEdits` for auto-import support.
+- **Test discovery** - added automatic test file detection for Pike test files with code lens integration.
+- **Settings toggle** - added `pike.organizeImports.removeUnused` setting to control unused import removal.
+
+### Fixed
+
+- **Flaky skip path test** - improved polling mechanism for more reliable test execution.
+
+## [0.1.0-alpha.35] - 2026-03-29
+
+### Added
+
+- **Organize imports with unused removal** - implemented goimports-style unused import detection and removal.
+- **vscode-go architectural patterns** - adopted vscode-go patterns for better code organization.
+- **Scenario-driven development framework** - added anti-cheat test verification and standardized test helpers.
+
+### Fixed
+
+- **Syntax error diagnostics persistence** - added regression tests for diagnostics behavior.
+
 ## [0.1.0-alpha.34] - 2026-03-26
 
 ### Added
