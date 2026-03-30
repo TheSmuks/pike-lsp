@@ -10,6 +10,7 @@
  * - Document Formatting: code formatting
  * - Document Links: clickable file paths
  * - Code Lens: reference counts and quick actions
+ * - Color Presentation: hex color detection and color picker
  *
  * Each handler includes try/catch with logging fallback (SRV-12).
  */
@@ -28,6 +29,7 @@ import { registerCodeLensHandlers } from './code-lens.js';
 import { registerInlineValuesHandler } from './inline-values.js';
 import { registerMonikerHandler } from './moniker.js';
 import { registerOnTypeFormattingHandler } from './on-type-formatting.js';
+import { registerColorPresentationHandler } from './color-presentation.js';
 
 export { registerFoldingRangeHandler } from './folding.js';
 export { registerSemanticTokensHandler } from './semantic-tokens.js';
@@ -40,6 +42,7 @@ export { registerCodeLensHandlers } from './code-lens.js';
 export { registerInlineValuesHandler } from './inline-values.js';
 export { registerMonikerHandler } from './moniker.js';
 export { registerOnTypeFormattingHandler } from './on-type-formatting.js';
+export { registerColorPresentationHandler } from './color-presentation.js';
 
 /**
  * Register all advanced feature handlers with the LSP connection.
@@ -64,4 +67,5 @@ export function registerAdvancedHandlers(
   registerInlineValuesHandler(connection, services, documents);
   registerMonikerHandler(connection, services, documents);
   registerOnTypeFormattingHandler(connection, services, documents);
+  registerColorPresentationHandler(connection, services, documents);
 }
