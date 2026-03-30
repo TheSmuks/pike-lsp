@@ -75,6 +75,7 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
   let inMultilineComment = false;
   let inMultilineString = false;
   let switchBaseLevel: number | null = null;
+  const switchBaseLevelStack: number[] = [];
   let caseExtraIndent = false;
 
   const controlKeywords = ['if', 'else', 'while', 'for', 'foreach', 'do'];
@@ -143,19 +144,33 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
       pendingIndent = false;
     }
 
-    if (/^switch\s*\(/.test(trimmed) && switchBaseLevel === null) {
-      switchBaseLevel = -1;
-    }
+    const wasCaseExtraIndent = caseExtraIndent;
 
-    if (switchBaseLevel !== null && switchBaseLevel > 0 && isCaseLabel) {
-      currentLevel = switchBaseLevel;
-      caseExtraIndent = true;
-    } else if (caseExtraIndent) {
-      if (switchBaseLevel !== null && switchBaseLevel > 0) {
+    if (/^switch\s*\(/.test(trimmed)) {
+      // For nested switch, calculate level based on current context
+      if (caseExtraIndent) {
+        // We're inside a case body - nested switch goes at case body level
+        currentLevel = (switchBaseLevel ?? 0) + 2;
+      } else if (switchBaseLevel !== null && switchBaseLevel >= 0) {
+        // Normal case after outer switch's brace
         currentLevel = switchBaseLevel + 1;
-      } else {
-        currentLevel++;
       }
+      // Push current switch state if we're already in a switch
+      if (switchBaseLevel !== null) {
+        switchBaseLevelStack.push(switchBaseLevel);
+      }
+      // Mark that we're entering a switch - will set base level when we hit the {
+      switchBaseLevel = -1;
+      caseExtraIndent = false;
+    } else if (switchBaseLevel !== null && isCaseLabel) {
+      // Case labels go at switchBaseLevel + 1, or +2 if already in a nested case body
+      currentLevel = caseExtraIndent ? switchBaseLevel + 2 : switchBaseLevel + 1;
+      // Only set caseExtraIndent if there's a block after the case (opening brace on same or next line)
+      const hasBlockAfterCase = trimmed.includes('{');
+      caseExtraIndent = hasBlockAfterCase;
+    } else if (caseExtraIndent && switchBaseLevel !== null) {
+      // Code inside a case body goes at switchBaseLevel + 2
+      currentLevel = switchBaseLevel + 2;
       if (!isCaseLabel) {
         caseExtraIndent = false;
       }
@@ -171,8 +186,14 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
     }
 
     if (trimmed.startsWith('}') && switchBaseLevel !== null) {
-      switchBaseLevel = null;
-      caseExtraIndent = false;
+      if (switchBaseLevel <= 0) {
+        switchBaseLevel = switchBaseLevelStack.pop() ?? null;
+        if (switchBaseLevel === null || switchBaseLevel < 0) {
+          caseExtraIndent = false;
+        }
+      } else {
+        switchBaseLevel--;
+      }
     }
 
     const expectedIndent = indent.repeat(currentLevel);
@@ -200,11 +221,28 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
         trackingLevel++;
         indentStack.push(trackingLevel);
         if (switchBaseLevel === -1) {
-          switchBaseLevel = trackingLevel - 1;
+          if (wasCaseExtraIndent) {
+            // Inside a case body - switchBaseLevel should be currentLevel
+            // (the case body is already at switchBaseLevel + 2, so the nested switch
+            // should have its base at the current level)
+            switchBaseLevel = currentLevel;
+            caseExtraIndent = true;
+          } else {
+            switchBaseLevel = trackingLevel - 1;
+          }
         }
       } else if (match[0] === '}') {
         indentStack.pop();
         trackingLevel = indentStack[indentStack.length - 1] ?? 0;
+        // When exiting a switch block, restore outer switch state
+        if (switchBaseLevel !== null && switchBaseLevel > 0 && trimmed.startsWith('}')) {
+          switchBaseLevel--;
+          if (switchBaseLevel === 0) {
+            // We've closed the outermost switch
+            switchBaseLevel = switchBaseLevelStack.pop() ?? null;
+            caseExtraIndent = false;
+          }
+        }
       }
       match = braceRegex.exec(originalLine);
     }
