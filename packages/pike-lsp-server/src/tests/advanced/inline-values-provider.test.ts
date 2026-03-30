@@ -19,9 +19,8 @@ describe('Inline Values Provider', () => {
 
     it('should format strings with quotes', async () => {
       // Import the handler registration function
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
       // Create mock services with inline values enabled
       const inlineValues: InlineValue[] = [];
@@ -52,22 +51,18 @@ describe('Inline Values Provider', () => {
         get: () => TextDocument.create('file:///test.pike', 'pike', 1, 'int x = 42;'),
       };
 
-      registerInlineValuesHandler(
-        connection as any,
-        services as any,
-        documents as any
-      );
+      registerInlineValuesHandler(connection as any, services as any, documents as any);
 
       // Handler was registered
       assert.ok((connection as any)._inlineValueHandler, 'Handler should be registered');
     });
 
     it('should return null when inline values disabled', async () => {
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
-      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null = null;
+      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null =
+        null;
 
       const connection = {
         languages: {
@@ -97,7 +92,10 @@ describe('Inline Values Provider', () => {
       const params: InlineValueParams = {
         textDocument: { uri: 'file:///test.pike' },
         range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
-        context: { frameId: 0, stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
       };
 
       assert.ok(registeredHandler, 'Handler should be registered');
@@ -106,12 +104,12 @@ describe('Inline Values Provider', () => {
     });
 
     it('should return null when no document in cache', async () => {
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
       let capturedResult: InlineValue[] | null = undefined;
-      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null = null;
+      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null =
+        null;
 
       const connection = {
         languages: {
@@ -140,7 +138,10 @@ describe('Inline Values Provider', () => {
         const params: InlineValueParams = {
           textDocument: { uri: 'file:///test.pike' },
           range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
-          context: { frameId: 0, stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } } },
+          context: {
+            frameId: 0,
+            stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+          },
         };
         capturedResult = await registeredHandler(params);
       }
@@ -152,11 +153,11 @@ describe('Inline Values Provider', () => {
   describe('Variable detection', () => {
     it('should detect local variables from symbols', async () => {
       // This tests that the handler uses cached symbols for variable detection
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
-      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null = null;
+      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null =
+        null;
 
       const connection = {
         languages: {
@@ -196,11 +197,11 @@ describe('Inline Values Provider', () => {
     });
 
     it('should detect local variables in methods', async () => {
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
-      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null = null;
+      let registeredHandler: ((params: InlineValueParams) => Promise<InlineValue[] | null>) | null =
+        null;
 
       const connection = {
         languages: {
@@ -252,9 +253,8 @@ describe('Inline Values Provider', () => {
 
   describe('Configuration', () => {
     it('should respect inlineValues.enabled setting', async () => {
-      const { registerInlineValuesHandler } = await import(
-        '../../features/advanced/inline-values.js'
-      );
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
 
       // Test that handler is registered regardless of config (config checked at call time)
       let handlerRegistered = false;
@@ -269,11 +269,7 @@ describe('Inline Values Provider', () => {
         sendDiagnostics: () => {},
       };
 
-      registerInlineValuesHandler(
-        connection as any,
-        { globalSettings: {} } as any,
-        {} as any
-      );
+      registerInlineValuesHandler(connection as any, { globalSettings: {} } as any, {} as any);
 
       assert.ok(handlerRegistered, 'Handler should always be registered');
     });
