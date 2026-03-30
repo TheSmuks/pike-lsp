@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "composite": true,
     "paths": {
       "@pike-lsp/core": ["../core/src"],
@@ -12,7 +12,7 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/tests/**/*.test.ts"],
+  "exclude": ["node_modules", "dist", "src/tests/**/*.test.ts", "src/**/__tests__/**"],
   "references": [
     {
       "path": "../core"

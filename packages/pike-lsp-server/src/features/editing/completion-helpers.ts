@@ -325,7 +325,9 @@ export function buildCompletionItem(
   // Add deprecated tag if applicable
   // Check both direct deprecated flag and documentation.deprecated (from @deprecated AutoDoc)
   // Note: Pike returns deprecated as 1 (number), not true (boolean)
-  const hasDeprecated = !!symbolAny['deprecated'] || !!symbolAny['documentation']?.['deprecated'];
+  const hasDeprecated =
+    !!symbolAny['deprecated'] ||
+    !!(symbolAny['documentation'] as Record<string, unknown> | undefined)?.['deprecated'];
   if (hasDeprecated) {
     item.tags = [CompletionItemTag.Deprecated];
   }

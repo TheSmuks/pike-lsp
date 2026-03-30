@@ -106,7 +106,12 @@ export function parseRoxenConfig(code: string): RoxenConfig {
   let defvarMatch;
   while ((defvarMatch = PATTERNS.defvar.exec(code)) !== null) {
     const matchStart = defvarMatch.index;
-    const [, name, displayName, type, documentation, flagsStr] = defvarMatch;
+    const name = defvarMatch[1];
+    const displayName = defvarMatch[2] ?? '';
+    const type = defvarMatch[3];
+    const documentation = defvarMatch[4] ?? '';
+    const flagsStr = defvarMatch[5];
+    if (!name || !type || !flagsStr) continue;
 
     // Parse flags - handle numeric and named constants
     let flags = 0;
