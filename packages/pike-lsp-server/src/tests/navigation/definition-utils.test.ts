@@ -16,7 +16,7 @@ import {
   resolveRelativePath,
   buildLocationForSymbol,
   findWordOccurrences,
-} from './definition-utils.js';
+} from '../../features/navigation/definition-utils.js';
 
 describe('Definition Utils', () => {
   /**
