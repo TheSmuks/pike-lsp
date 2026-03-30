@@ -280,6 +280,7 @@ export function buildSymbolPositionIndexRegex(
               symbol.position?.line;
             if (defLine !== undefined && lineNum + 1 === defLine) {
               searchStart = matchIndex + 1;
+              matchIndex = line.indexOf(symbol.name, searchStart);
               continue;
             }
 
