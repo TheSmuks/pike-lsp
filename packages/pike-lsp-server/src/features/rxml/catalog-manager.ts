@@ -109,6 +109,22 @@ export class RXMLTagCatalogManager {
   clearAll(): void {
     this.cache.clear();
   }
+
+  /**
+   * Find a tag by name in the catalog
+   *
+   * @param tagName - Tag name to search for
+   * @param serverPid - Server process ID
+   * @param serverName - Server name
+   * @returns Tag entry or undefined if not found
+   */
+  findTag(tagName: string, serverPid: number, serverName: string): RXMLTagCatalogEntry | undefined {
+    const catalog = this.cache.get(serverPid, serverName);
+    if (!catalog) {
+      return undefined;
+    }
+    return catalog.find(tag => tag.name === tagName);
+  }
 }
 
 /**
