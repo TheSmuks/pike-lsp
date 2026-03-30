@@ -366,6 +366,24 @@ myMethod();`;
       expect(result).toBeNull();
     });
 
+    it('should return null for cursor on keyword (not a symbol)', async () => {
+      const code = `int myVar = 42;`;
+      const { linkedEditingRange } = setup({
+        code,
+        symbols: [
+          {
+            name: 'myVar',
+            kind: 'variable',
+            modifiers: [],
+            position: { file: 'test.pike', line: 1, column: 5 },
+          },
+        ],
+      });
+
+      const result = await linkedEditingRange(0, 0); // Cursor on 'int' keyword
+      expect(result).toBeNull();
+    });
+
     it('should handle symbols with special characters in name', async () => {
       const code = `int my_var_123 = 42;`;
       const { linkedEditingRange } = setup({
