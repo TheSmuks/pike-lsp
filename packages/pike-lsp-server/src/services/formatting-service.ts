@@ -147,15 +147,13 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
       switchBaseLevel = -1;
     }
 
-    if (switchBaseLevel !== null && switchBaseLevel > 0 && isCaseLabel) {
-      currentLevel = switchBaseLevel;
+    if (switchBaseLevel !== null && switchBaseLevel >= 0 && isCaseLabel) {
+      // Case labels at switchBaseLevel + 1 (same level as switch statement)
+      currentLevel = switchBaseLevel + 1;
       caseExtraIndent = true;
-    } else if (caseExtraIndent) {
-      if (switchBaseLevel !== null && switchBaseLevel > 0) {
-        currentLevel = switchBaseLevel + 1;
-      } else {
-        currentLevel++;
-      }
+    } else if (caseExtraIndent && switchBaseLevel !== null && switchBaseLevel >= 0) {
+      // Case body at switchBaseLevel + 2
+      currentLevel = switchBaseLevel + 2;
       if (!isCaseLabel) {
         caseExtraIndent = false;
       }
@@ -200,7 +198,7 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
         trackingLevel++;
         indentStack.push(trackingLevel);
         if (switchBaseLevel === -1) {
-          switchBaseLevel = trackingLevel - 1;
+          switchBaseLevel = trackingLevel - 2;
         }
       } else if (match[0] === '}') {
         indentStack.pop();
