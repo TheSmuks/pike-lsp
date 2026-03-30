@@ -16,7 +16,7 @@ import {
   resolveRelativePath,
   buildLocationForSymbol,
   findWordOccurrences,
-} from './definition-utils.js';
+} from '../../features/navigation/definition-utils.js';
 
 describe('Definition Utils', () => {
   /**
@@ -283,6 +283,47 @@ string myString = "hello";`;
       assert.strictEqual(location, null, 'Should return null for symbol without position');
     });
 
+    it('should build location for symbol with position', () => {
+      const symbol: PikeSymbol = {
+        name: 'myFunction',
+        kind: 'method',
+        position: { file: 'test.pike', line: 5, column: 0 },
+        children: [],
+        modifiers: [],
+      };
+
+      const location = buildLocationForSymbol('file:///test.pike', symbol);
+
+      assert.ok(location, 'Should return location object');
+      assert.strictEqual(location?.uri, 'file:///test.pike', 'Should have correct URI');
+      assert.strictEqual(location?.range.start.line, 4, 'Should convert to 0-based line');
+      assert.strictEqual(
+        location?.range.end.character,
+        'myFunction'.length,
+        'Should set end character to name length'
+      );
+    });
+
+    it('should use classname when name is empty', () => {
+      const symbol: PikeSymbol = {
+        name: '',
+        classname: 'MyClass',
+        kind: 'class',
+        position: { file: 'test.pike', line: 1, column: 0 },
+        children: [],
+        modifiers: [],
+      };
+
+      const location = buildLocationForSymbol('file:///test.pike', symbol);
+
+      assert.ok(location, 'Should return location object');
+      assert.strictEqual(
+        location?.range.end.character,
+        'MyClass'.length,
+        'Should use classname length'
+      );
+    });
+
     it('should handle special characters in symbol names', () => {
       const code = 'int my_variable_123 = 42;';
       const document = TextDocument.create('file:///test.pike', 'pike', 1, code);
@@ -301,6 +342,54 @@ string myString = "hello";`;
       const result = findSymbolInCollection([], 'anything');
 
       assert.strictEqual(result, null, 'Should return null for empty collection');
+    });
+  });
+
+  /**
+   * Test: Find word occurrences in document
+   */
+  describe('findWordOccurrences', () => {
+    it('should find word on single line', () => {
+      const text = 'int x = 5;\nint y = 10;';
+      const result = findWordOccurrences(text, 'int');
+
+      assert.strictEqual(result.length, 2, 'Should find int on both lines');
+      assert.ok(result.includes(0), 'Should find on line 0');
+      assert.ok(result.includes(1), 'Should find on line 1');
+    });
+
+    it('should respect word boundaries', () => {
+      const text = 'int myInt = 0;\nstring myString = "hi";';
+      const result = findWordOccurrences(text, 'my');
+
+      assert.strictEqual(result.length, 0, 'Should not match partial words');
+    });
+
+    it('should handle word at start of line', () => {
+      const text = 'function call();\nfunction other();';
+      const result = findWordOccurrences(text, 'function');
+
+      assert.strictEqual(result.length, 2, 'Should find function at start of both lines');
+    });
+
+    it('should handle word at end of line', () => {
+      const text = 'int x;\nstring y;';
+      const result = findWordOccurrences(text, 'x;');
+
+      assert.strictEqual(result.length, 1, 'Should find x; at end of line');
+    });
+
+    it('should handle empty text', () => {
+      const result = findWordOccurrences('', 'word');
+
+      assert.strictEqual(result.length, 0, 'Should return empty array for empty text');
+    });
+
+    it('should handle word not in text', () => {
+      const text = 'int x = 5;';
+      const result = findWordOccurrences(text, 'nonexistent');
+
+      assert.strictEqual(result.length, 0, 'Should return empty array');
     });
   });
 
