@@ -315,13 +315,27 @@ export function registerDiagnosticsHandlers(
         // Clear the pending change range
         pendingChangeStates.delete(uri);
 
-        // Always publish diagnostics even when skipping, so the client stays in sync.
-        // Without this, stale error diagnostics from a previous parse can persist
-        // after the user fixes the code on a different line.
+        // When skipping, filter out error diagnostics that overlap with the change range.
+        // This prevents stale error diagnostics from persisting after the user fixes code.
+        // We only clear errors on lines that actually changed - other errors are kept.
+        let diagnosticsToSend = cachedEntry?.diagnostics ?? [];
+        if (changeState?.range && cachedEntry?.diagnostics?.length) {
+          const changeStartLine = changeState.range.start.line;
+          const changeEndLine = changeState.range.end.line;
+
+          // Filter out errors (severity 1) that overlap the change range
+          diagnosticsToSend = cachedEntry.diagnostics.filter(d => {
+            if (d.severity !== 1) return true; // Keep warnings/hints
+            const errorLine = d.range.start.line;
+            // Clear errors that overlap or are adjacent to the change
+            return errorLine < changeStartLine - 1 || errorLine > changeEndLine + 1;
+          });
+        }
+
         connection.sendDiagnostics({
           uri,
           version: currentVersion,
-          diagnostics: cachedEntry?.diagnostics ?? [],
+          diagnostics: diagnosticsToSend,
         });
         return;
       }
