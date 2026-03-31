@@ -65,13 +65,6 @@ export function classifyChange(
     return { canSkip: false, reason: 'previous_parse_failed' };
   }
 
-  // Never skip when cached diagnostics contain errors (severity 1).
-  // Even if semantic content appears unchanged, we must re-validate to ensure
-  // error diagnostics are cleared when the user fixes the underlying code.
-  if (cachedEntry.diagnostics?.some(d => d.severity === 1)) {
-    return { canSkip: false, reason: 'has_error_diagnostics' };
-  }
-
   const text = document.getText();
 
   // Strategy 1: Check if change range is provided
