@@ -332,6 +332,12 @@ export function registerDiagnosticsHandlers(
           });
         }
 
+        // #1066: Persist filtered diagnostics to cache so subsequent skip-path
+        // validations don't re-send stale errors that were already filtered.
+        if (cachedEntry) {
+          cachedEntry.diagnostics = diagnosticsToSend;
+        }
+
         connection.sendDiagnostics({
           uri,
           version: currentVersion,
