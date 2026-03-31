@@ -1176,3 +1176,129 @@ describe('Scenario: deeply nested imports', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Scenario: Cache persistence on skip path (#1066)
+// ---------------------------------------------------------------------------
+
+describe('Scenario: cache persistence on skip validation (#1066)', () => {
+  it('should persist filtered diagnostics to cache on skip path', async () => {
+    // Bug #1066: When skip path filters errors on changed lines, the filtered
+    // diagnostics must be persisted to cache. Otherwise, subsequent skip validations
+    // on different lines will re-send the stale (already filtered) errors.
+    //
+    // IMPORTANT: Skip path only triggers when parseFailed: false. So we need
+    // a scenario where parsing succeeds (symbols returned) but there's an error
+    // diagnostic that will be filtered when the line changes.
+
+    const harness = createPipelineHarness({
+      analyze: (text: string) => {
+        // Return symbols so parsing succeeds (parseFailed: false)
+        // Plus an ERROR on the line with UNDEFINED_MARKER
+        const lines = text.split('\n');
+        let errorLine: number | undefined;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i]?.includes('UNDEFINED_MARKER')) {
+            errorLine = i + 1; // 1-indexed
+            break;
+          }
+        }
+        return {
+          hasError: false, // No syntax error - parsing succeeds
+          introspectSuccess: true,
+          symbols: [{ name: 'main', kind: 12, type: 'int' }],
+          // Use introspectDiagnostics with severity 'error' for semantic errors
+          introspectDiagnostics: errorLine
+            ? [
+                {
+                  message: 'Undefined variable',
+                  severity: 'error', // Error severity - will be filtered on change
+                  position: { line: errorLine, character: 0 },
+                },
+              ]
+            : [],
+        };
+      },
+    });
+    harness.configure({ diagnosticDelay: 0 });
+
+    const uri = 'file:///test/cache-persist-skip.pike';
+
+    // Step 1: Open with code that has an undefined variable error on line 2
+    const v1 = TextDocument.create(
+      uri,
+      'pike',
+      1,
+      ['int main() {', '  int x = UNDEFINED_MARKER;', '  return 0;', '}'].join('\n')
+    );
+    harness.openDocument(v1);
+    await harness.waitForSettle(200);
+
+    // Verify error is cached and parseFailed is false
+    const entry1 = harness.getCachedEntry(uri);
+    assert.ok(entry1, 'Cache entry should exist after open');
+    assert.ok(entry1.diagnostics.length > 0, 'Error should be cached');
+    assert.strictEqual(entry1.analysisState?.parseFailed, false, 'Parsing should succeed');
+
+    // Step 2: Add comment on line 2 (same line as error) - triggers skip path
+    // Since semantic content is unchanged (comment stripped), skip path is triggered
+    // The error on line 2 should be filtered out
+    const v2 = TextDocument.create(
+      uri,
+      'pike',
+      2,
+      ['int main() {', '  int x = UNDEFINED_MARKER; // comment', '  return 0;', '}'].join('\n')
+    );
+    harness.notifyChange(uri, 2, [
+      {
+        range: { start: { line: 1, character: 24 }, end: { line: 1, character: 24 } },
+        text: ' // comment',
+      },
+    ]);
+    harness.changeDocument(v2);
+    await harness.waitForSettle(200);
+
+    // CRITICAL: Cache should have been updated with filtered diagnostics (empty)
+    // Bug #1066: Without the fix, cachedEntry.diagnostics would still have the error
+    const entry2 = harness.getCachedEntry(uri);
+    assert.ok(entry2, 'Cache entry should exist after skip');
+    assert.strictEqual(
+      entry2.diagnostics.length,
+      0,
+      `Cache should have empty diagnostics after filtering error on changed line. Got: ${JSON.stringify(entry2.diagnostics)}`
+    );
+
+    // Step 3: Add comment on line 3 (DIFFERENT line from error) - also triggers skip
+    // Bug #1066: Without the fix, the stale error from entry1 would reappear because
+    // it was never removed from the cache in Step 2
+    const v3 = TextDocument.create(
+      uri,
+      'pike',
+      3,
+      [
+        'int main() {',
+        '  int x = UNDEFINED_MARKER; // comment',
+        '  return 0; // another comment',
+        '}',
+      ].join('\n')
+    );
+    harness.notifyChange(uri, 3, [
+      {
+        range: { start: { line: 2, character: 11 }, end: { line: 2, character: 11 } },
+        text: ' // another comment',
+      },
+    ]);
+    harness.changeDocument(v3);
+    await harness.waitForSettle(200);
+
+    // Final assertion: diagnostics should still be empty
+    // Without fix #1066, the stale error would reappear here
+    const lastPublished = harness.publishedDiagnostics.filter(d => d.uri === uri).slice(-1)[0];
+    assert.ok(lastPublished, 'Should have published diagnostics');
+    assert.strictEqual(
+      lastPublished.diagnostics.length,
+      0,
+      `Should have zero diagnostics after skip on different line. Without fix #1066, stale error would reappear. Got: ${JSON.stringify(lastPublished.diagnostics)}`
+    );
+  });
+});
