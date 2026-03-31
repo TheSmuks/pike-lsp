@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.41] - 2026-03-31
+
+### Fixed
+
+- **Reverted stale diagnostics fix** - the fix in alpha.40 caused false error diagnostics on valid code. Reverted PR #1053 until a better solution is found by @TheSmuks in https://github.com/TheSmuks/pike-lsp/pull/1057
+
+**Full Changelog**: https://github.com/TheSmuks/pike-lsp/compare/v0.1.0-alpha.40...v0.1.0-alpha.41
+
 ## [0.1.0-alpha.40] - 2026-03-31
 
 ### Fixed
