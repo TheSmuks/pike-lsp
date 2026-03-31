@@ -472,3 +472,236 @@ describe('Scenario: Pike predefined macros', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Scenario: Issue #1058 — false import errors on file open
+//
+// When opening a file, engineOpenDocument was called fire-and-forget (.then())
+// while validateDocument ran immediately. This caused the query engine to
+// receive diagnostics queries before it had processed the document, producing
+// false import resolution errors on valid code.
+//
+// The fix: await engineOpenDocument before calling validateDocument in onDidOpen.
+// This ensures the snapshot ID is available for engineQuery.
+// ---------------------------------------------------------------------------
+
+describe('Scenario: Issue #1058 — no false import errors on file open', () => {
+  it('MUST await engineOpenDocument before engineQuery on file open', async () => {
+    const uri = 'file:///test-imports.pike';
+    let openDocumentResolved = false;
+    let querySnapshotUsed: string | undefined;
+    let queryModeUsed: string | undefined;
+    let onDidOpenHandler: ((event: { document: TextDocument }) => void) | undefined;
+
+    const docs = {
+      get: (u: string) =>
+        u === uri ? TextDocument.create(uri, 'pike', 1, 'import Stdio; int main() {}') : undefined,
+      all: () => [TextDocument.create(uri, 'pike', 1, 'import Stdio; int main() {}')],
+      onDidOpen(h: (event: { document: TextDocument }) => void) {
+        onDidOpenHandler = h;
+      },
+      onDidSave() {},
+      onDidChangeContent() {},
+      onDidClose() {},
+    };
+
+    const conn = {
+      sendDiagnostics() {},
+      onDidChangeConfiguration() {},
+      onDidChangeTextDocument() {},
+      console: { log() {}, warn() {}, error() {} },
+    };
+
+    const services = {
+      bridge: {
+        isRunning: () => true,
+        start: async () => {},
+        engineOpenDocument: async () => {
+          await new Promise(r => setTimeout(r, 50));
+          openDocumentResolved = true;
+          return { revision: 1, snapshotId: 'snap-open-1058' };
+        },
+        engineChangeDocument: async () => ({ revision: 1, snapshotId: 'snap-change' }),
+        engineCloseDocument: async () => ({ revision: 1, snapshotId: 'snap-close' }),
+        engineUpdateConfig: async () => ({ revision: 1, snapshotId: 'snap-cfg' }),
+        engineCancelRequest: async () => ({ accepted: true }),
+        engineQuery: async (params: { snapshot?: { mode: string; snapshotId?: string } }) => {
+          queryModeUsed = params.snapshot?.mode;
+          querySnapshotUsed = params.snapshot?.snapshotId;
+          return {
+            snapshotIdUsed: params.snapshot?.snapshotId ?? 'latest',
+            result: {
+              analyzeResult: {
+                result: {
+                  parse: { symbols: [], diagnostics: [] },
+                  introspect: {
+                    success: 1,
+                    symbols: [],
+                    functions: [],
+                    variables: [],
+                    classes: [],
+                    inherits: [],
+                    diagnostics: [],
+                  },
+                  diagnostics: { diagnostics: [] },
+                },
+              },
+              revision: 1,
+            },
+            metrics: { durationMs: 1 },
+          };
+        },
+        analyze: async () => {
+          throw new Error('should use engineQuery');
+        },
+        findOccurrences: async () => ({ occurrences: [] }),
+      },
+      documentCache: {
+        get: () => undefined,
+        setPending() {},
+        set() {},
+        delete() {},
+      },
+      typeDatabase: {
+        setProgram() {},
+        removeProgram() {},
+        getMemoryStats() {
+          return { programCount: 0, symbolCount: 0, totalBytes: 0, utilizationPercent: 0 };
+        },
+      },
+      workspaceIndex: { indexDocument() {}, removeDocument() {} },
+      includeResolver: null,
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    };
+
+    registerDiagnosticsHandlers(
+      conn as unknown as Connection,
+      services as unknown as Services,
+      docs as unknown as TextDocuments<TextDocument>
+    );
+
+    assert.ok(onDidOpenHandler, 'onDidOpen handler must be registered');
+
+    const doc = TextDocument.create(uri, 'pike', 1, 'import Stdio; int main() {}');
+    onDidOpenHandler({ document: doc });
+
+    await new Promise(r => setTimeout(r, 500));
+
+    assert.ok(openDocumentResolved, 'engineOpenDocument must have been called');
+    assert.strictEqual(
+      queryModeUsed,
+      'fixed',
+      'engineQuery MUST use fixed snapshot mode (not latest) after awaiting engineOpenDocument'
+    );
+    assert.strictEqual(
+      querySnapshotUsed,
+      'snap-open-1058',
+      'engineQuery MUST use the snapshot ID returned by engineOpenDocument'
+    );
+  });
+
+  it('MUST NOT publish import errors when document opened with valid imports', async () => {
+    const uri = 'file:///valid-imports.pike';
+    const publishedDiags: unknown[][] = [];
+    let onDidOpenHandler: ((event: { document: TextDocument }) => void) | undefined;
+
+    const docs = {
+      get: (u: string) =>
+        u === uri
+          ? TextDocument.create(uri, 'pike', 1, 'import Stdio;\nint main() { return 0; }')
+          : undefined,
+      all: () => [TextDocument.create(uri, 'pike', 1, 'import Stdio;\nint main() { return 0; }')],
+      onDidOpen(h: (event: { document: TextDocument }) => void) {
+        onDidOpenHandler = h;
+      },
+      onDidSave() {},
+      onDidChangeContent() {},
+      onDidClose() {},
+    };
+
+    const conn = {
+      sendDiagnostics(p: { diagnostics: unknown[] }) {
+        publishedDiags.push(p.diagnostics);
+      },
+      onDidChangeConfiguration() {},
+      onDidChangeTextDocument() {},
+      console: { log() {}, warn() {}, error() {} },
+    };
+
+    const services = {
+      bridge: {
+        isRunning: () => true,
+        start: async () => {},
+        engineOpenDocument: async () => {
+          return { revision: 1, snapshotId: 'snap-valid' };
+        },
+        engineChangeDocument: async () => ({ revision: 1, snapshotId: 'snap-change' }),
+        engineCloseDocument: async () => ({ revision: 1, snapshotId: 'snap-close' }),
+        engineUpdateConfig: async () => ({ revision: 1, snapshotId: 'snap-cfg' }),
+        engineCancelRequest: async () => ({ accepted: true }),
+        engineQuery: async () => {
+          return {
+            snapshotIdUsed: 'snap-valid',
+            result: {
+              analyzeResult: {
+                result: {
+                  parse: { symbols: [], diagnostics: [] },
+                  introspect: {
+                    success: 1,
+                    symbols: [],
+                    functions: [],
+                    variables: [],
+                    classes: [],
+                    inherits: [],
+                    diagnostics: [],
+                  },
+                  diagnostics: { diagnostics: [] },
+                },
+              },
+              revision: 1,
+            },
+            metrics: { durationMs: 1 },
+          };
+        },
+        analyze: async () => {
+          throw new Error('should use engineQuery');
+        },
+        findOccurrences: async () => ({ occurrences: [] }),
+      },
+      documentCache: {
+        get: () => undefined,
+        setPending() {},
+        set() {},
+        delete() {},
+      },
+      typeDatabase: {
+        setProgram() {},
+        removeProgram() {},
+        getMemoryStats() {
+          return { programCount: 0, symbolCount: 0, totalBytes: 0, utilizationPercent: 0 };
+        },
+      },
+      workspaceIndex: { indexDocument() {}, removeDocument() {} },
+      includeResolver: null,
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    };
+
+    registerDiagnosticsHandlers(
+      conn as unknown as Connection,
+      services as unknown as Services,
+      docs as unknown as TextDocuments<TextDocument>
+    );
+
+    const doc = TextDocument.create(uri, 'pike', 1, 'import Stdio;\nint main() { return 0; }');
+    onDidOpenHandler!({ document: doc });
+
+    await new Promise(r => setTimeout(r, 300));
+
+    assert.ok(publishedDiags.length > 0, 'Diagnostics must be published on open');
+    const allDiags = publishedDiags.flat();
+    const importErrors = allDiags.filter(
+      (d: any) => typeof d?.message === 'string' && /not present in module/i.test(d.message)
+    );
+    assert.strictEqual(importErrors.length, 0, 'Must not publish false import errors on file open');
+  });
+});

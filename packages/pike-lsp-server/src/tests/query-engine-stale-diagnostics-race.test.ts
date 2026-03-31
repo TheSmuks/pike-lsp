@@ -458,6 +458,7 @@ describe('Query Engine stale diagnostics race', () => {
       | undefined;
 
     const canceledRequestIds: string[] = [];
+    const queryVersions: number[] = [];
     const documentsLike = createStatefulMockDocuments();
     let revision = 0;
 
@@ -507,6 +508,7 @@ describe('Query Engine stale diagnostics race', () => {
           metrics: Record<string, unknown>;
         }> {
           const version = params.queryParams?.version ?? 0;
+          queryVersions.push(version);
           await new Promise(resolve => setTimeout(resolve, 120));
 
           return {
@@ -600,14 +602,13 @@ describe('Query Engine stale diagnostics race', () => {
 
     await new Promise(resolve => setTimeout(resolve, 15));
 
-    assert.equal(
-      canceledRequestIds.length,
-      1,
-      'Close-race must not retain a stale in-flight request that gets canceled on next open'
+    assert.ok(
+      !queryVersions.includes(1),
+      'Stale version-1 query must not reach engineQuery (caught by version check)'
     );
     assert.ok(
-      canceledRequestIds[0]?.includes(`${uri}:1:`),
-      'The only cancellation should target the original version-1 request'
+      canceledRequestIds.every(id => !id.includes(`${uri}:1:`)),
+      'No stale version-1 request should need cancellation (avoided by awaiting engineOpenDocument)'
     );
   });
 });

@@ -189,34 +189,36 @@ export function registerDiagnosticsLifecycleHandlers(
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
-    services.bridge
-      ?.engineOpenDocument({
-        uri: event.document.uri,
-        languageId: event.document.languageId,
-        version: event.document.version,
-        text: event.document.getText(),
-      })
-      .then(ack => {
-        documentSnapshots.set(event.document.uri, ack.snapshotId);
-      })
-      .catch(err => {
+    (async () => {
+      try {
+        const ack = await services.bridge?.engineOpenDocument({
+          uri: event.document.uri,
+          languageId: event.document.languageId,
+          version: event.document.version,
+          text: event.document.getText(),
+        });
+        if (ack) {
+          documentSnapshots.set(event.document.uri, ack.snapshotId);
+        }
+      } catch (err) {
         log.debug('Engine open document failed', {
           uri: event.document.uri,
           error: err instanceof Error ? err.message : String(err),
         });
-      });
-
-    const promise = validateDocument(event.document);
-    documentCache.setPending(event.document.uri, promise);
-    promise.catch(err => {
-      if (err instanceof RequestSupersededError) {
-        return;
       }
-      log.error('Document open validation failed', {
-        uri: event.document.uri,
-        error: err instanceof Error ? err.message : String(err),
+
+      const promise = validateDocument(event.document);
+      documentCache.setPending(event.document.uri, promise);
+      promise.catch(err => {
+        if (err instanceof RequestSupersededError) {
+          return;
+        }
+        log.error('Document open validation failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
-    });
+    })();
   });
 
   documents.onDidChangeContent(change => {
