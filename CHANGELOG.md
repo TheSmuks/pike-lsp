@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.39] - 2026-03-31
+
+### Added
+
+- **Color presentation** - added `colorProvider` capability with hex color detection (#RGB, #RRGGBB, #RRGGBBAA) and color picker integration by @TheSmuks in https://github.com/TheSmuks/pike-lsp/pull/1049
+
+### Fixed
+
+- **Nested switch/case formatting** - fixed indentation for nested switch/case blocks by @TheSmuks in https://github.com/TheSmuks/pike-lsp/pull/1044
+
+### Changed
+
+- **Type safety** - enabled `noImplicitAny` in pike-lsp-server for stricter type checking by @TheSmuks in https://github.com/TheSmuks/pike-lsp/pull/1050
+
+**Full Changelog**: https://github.com/TheSmuks/pike-lsp/compare/v0.1.0-alpha.38...v0.1.0-alpha.39
+
 ## [0.1.0-alpha.38] - 2026-03-30
 
 ### Added
