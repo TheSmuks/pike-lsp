@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.40] - 2026-03-31
+
+### Fixed
+
+- **Stale syntax errors** - fixed issue where error diagnostics remained visible after fixing the underlying code by @TheSmuks in https://github.com/TheSmuks/pike-lsp/pull/1053
+
+**Full Changelog**: https://github.com/TheSmuks/pike-lsp/compare/v0.1.0-alpha.39...v0.1.0-alpha.40
+
 ## [0.1.0-alpha.39] - 2026-03-31
 
 ### Added
