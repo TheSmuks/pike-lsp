@@ -65,6 +65,13 @@ export function classifyChange(
     return { canSkip: false, reason: 'previous_parse_failed' };
   }
 
+  // #1068: Never skip when cached diagnostics contain errors (severity 1).
+  // A change on one line can fix an error on a distant line, so we must
+  // re-validate to detect whether the error was resolved.
+  if (cachedEntry.diagnostics.some(d => d.severity === 1)) {
+    return { canSkip: false, reason: 'has_error_diagnostics' };
+  }
+
   const text = document.getText();
 
   // Strategy 1: Check if change range is provided

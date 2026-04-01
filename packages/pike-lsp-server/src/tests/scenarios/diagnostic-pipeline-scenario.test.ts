@@ -1178,42 +1178,31 @@ describe('Scenario: deeply nested imports', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario: Cache persistence on skip path (#1066)
+// Scenario: Cache persistence on skip path (#1066) — updated for #1068
 // ---------------------------------------------------------------------------
 
 describe('Scenario: cache persistence on skip validation (#1066)', () => {
-  it('should persist filtered diagnostics to cache on skip path', async () => {
-    // Bug #1066: When skip path filters errors on changed lines, the filtered
-    // diagnostics must be persisted to cache. Otherwise, subsequent skip validations
-    // on different lines will re-send the stale (already filtered) errors.
+  it('should re-validate (not skip) when cached entry has error diagnostics (#1068)', async () => {
+    // Bug #1066 originally: skip path didn't persist filtered diagnostics to cache.
+    // Bug #1068 fix: files with severity-1 diagnostics never take the skip path.
     //
-    // IMPORTANT: Skip path only triggers when parseFailed: false. So we need
-    // a scenario where parsing succeeds (symbols returned) but there's an error
-    // diagnostic that will be filtered when the line changes.
+    // This test now verifies that when a file has error diagnostics, a comment-only
+    // change triggers re-validation instead of skip, and the error persists correctly
+    // until the actual code is fixed.
 
     const harness = createPipelineHarness({
       analyze: (text: string) => {
-        // Return symbols so parsing succeeds (parseFailed: false)
-        // Plus an ERROR on the line with UNDEFINED_MARKER
-        const lines = text.split('\n');
-        let errorLine: number | undefined;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i]?.includes('UNDEFINED_MARKER')) {
-            errorLine = i + 1; // 1-indexed
-            break;
-          }
-        }
+        const hasUndefined = text.includes('UNDEFINED_MARKER');
         return {
-          hasError: false, // No syntax error - parsing succeeds
+          hasError: false,
           introspectSuccess: true,
           symbols: [{ name: 'main', kind: 12, type: 'int' }],
-          // Use introspectDiagnostics with severity 'error' for semantic errors
-          introspectDiagnostics: errorLine
+          introspectDiagnostics: hasUndefined
             ? [
                 {
                   message: 'Undefined variable',
-                  severity: 'error', // Error severity - will be filtered on change
-                  position: { line: errorLine, character: 0 },
+                  severity: 'error',
+                  position: { line: 2, character: 0 },
                 },
               ]
             : [],
@@ -1234,15 +1223,14 @@ describe('Scenario: cache persistence on skip validation (#1066)', () => {
     harness.openDocument(v1);
     await harness.waitForSettle(200);
 
-    // Verify error is cached and parseFailed is false
     const entry1 = harness.getCachedEntry(uri);
     assert.ok(entry1, 'Cache entry should exist after open');
     assert.ok(entry1.diagnostics.length > 0, 'Error should be cached');
     assert.strictEqual(entry1.analysisState?.parseFailed, false, 'Parsing should succeed');
 
-    // Step 2: Add comment on line 2 (same line as error) - triggers skip path
-    // Since semantic content is unchanged (comment stripped), skip path is triggered
-    // The error on line 2 should be filtered out
+    // Step 2: Add comment on line 2 (same line as error)
+    // With #1068 fix: classifyChange detects severity-1 diagnostics → forces re-validation
+    // Re-validation finds UNDEFINED_MARKER is still present → error persists (correct!)
     const v2 = TextDocument.create(
       uri,
       'pike',
@@ -1258,47 +1246,178 @@ describe('Scenario: cache persistence on skip validation (#1066)', () => {
     harness.changeDocument(v2);
     await harness.waitForSettle(200);
 
-    // CRITICAL: Cache should have been updated with filtered diagnostics (empty)
-    // Bug #1066: Without the fix, cachedEntry.diagnostics would still have the error
+    // Error persists because UNDEFINED_MARKER is still in the code
     const entry2 = harness.getCachedEntry(uri);
-    assert.ok(entry2, 'Cache entry should exist after skip');
-    assert.strictEqual(
-      entry2.diagnostics.length,
-      0,
-      `Cache should have empty diagnostics after filtering error on changed line. Got: ${JSON.stringify(entry2.diagnostics)}`
+    assert.ok(entry2, 'Cache entry should exist after comment change');
+    assert.ok(
+      entry2.diagnostics.some(d => d.severity === 1),
+      `Error should persist while UNDEFINED_MARKER is present. Got: ${JSON.stringify(entry2.diagnostics)}`
     );
 
-    // Step 3: Add comment on line 3 (DIFFERENT line from error) - also triggers skip
-    // Bug #1066: Without the fix, the stale error from entry1 would reappear because
-    // it was never removed from the cache in Step 2
+    // Step 3: Actually fix the error by replacing UNDEFINED_MARKER with a value
     const v3 = TextDocument.create(
       uri,
       'pike',
       3,
-      [
-        'int main() {',
-        '  int x = UNDEFINED_MARKER; // comment',
-        '  return 0; // another comment',
-        '}',
-      ].join('\n')
+      ['int main() {', '  int x = 42; // comment', '  return 0;', '}'].join('\n')
     );
     harness.notifyChange(uri, 3, [
       {
-        range: { start: { line: 2, character: 11 }, end: { line: 2, character: 11 } },
-        text: ' // another comment',
+        range: { start: { line: 1, character: 10 }, end: { line: 1, character: 25 } },
+        text: '42',
       },
     ]);
     harness.changeDocument(v3);
     await harness.waitForSettle(200);
 
-    // Final assertion: diagnostics should still be empty
-    // Without fix #1066, the stale error would reappear here
     const lastPublished = harness.publishedDiagnostics.filter(d => d.uri === uri).slice(-1)[0];
     assert.ok(lastPublished, 'Should have published diagnostics');
     assert.strictEqual(
       lastPublished.diagnostics.length,
       0,
-      `Should have zero diagnostics after skip on different line. Without fix #1066, stale error would reappear. Got: ${JSON.stringify(lastPublished.diagnostics)}`
+      `Error should be cleared after actual fix. Got: ${JSON.stringify(lastPublished.diagnostics)}`
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario: Stale error diagnostics persist after multi-line fix (#1068)
+// ---------------------------------------------------------------------------
+
+describe('Scenario: stale error diagnostics cleared after multi-line fix (#1068)', () => {
+  it('should re-validate when cached diagnostics contain severity-1 errors', async () => {
+    // Bug #1068: When classifyChange() returns canSkip: true but cachedEntry
+    // has severity-1 diagnostics, errors on lines far from the change persist.
+    //
+    // Setup: file has error on line 2, user edits line 4 (far from error).
+    // Without fix, classifyChange returns canSkip: true because line hashes
+    // for the change range (line 4) match, and the error on line 2 persists.
+    // With fix, classifyChange detects severity-1 diagnostics and forces
+    // re-validation, clearing the stale error.
+
+    const harness = createPipelineHarness({
+      analyze: text => {
+        const hasUndefined = text.includes('UNDEFINED_VAR');
+        return {
+          hasError: false,
+          introspectSuccess: true,
+          symbols: hasUndefined ? [] : [{ name: 'main', kind: 12, type: 'int' }],
+          introspectDiagnostics: hasUndefined
+            ? [
+                {
+                  message: 'Undefined identifier UNDEFINED_VAR',
+                  severity: 'error',
+                  position: { line: 2, character: 12 },
+                },
+              ]
+            : [],
+        };
+      },
+    });
+    harness.configure({ diagnosticDelay: 0 });
+
+    const uri = 'file:///test/1068-stale-error.pike';
+
+    // Step 1: Open with error on line 2
+    const v1 = TextDocument.create(
+      uri,
+      'pike',
+      1,
+      ['int main() {', '  int x = UNDEFINED_VAR;', '  int y = 0;', '  return x + y;', '}'].join(
+        '\n'
+      )
+    );
+    harness.openDocument(v1);
+    await harness.waitForSettle(200);
+
+    const afterOpenDiags = harness.publishedDiagnostics.filter(d => d.uri === uri);
+    const openDiag = afterOpenDiags[afterOpenDiags.length - 1]!;
+    assert.ok(
+      openDiag.diagnostics.some(d => d.severity === 1),
+      'Should have error diagnostic for UNDEFINED_VAR after open'
+    );
+
+    // Step 2: Fix the error on line 2 by replacing UNDEFINED_VAR with a number
+    const v2 = TextDocument.create(
+      uri,
+      'pike',
+      2,
+      ['int main() {', '  int x = 42;', '  int y = 0;', '  return x + y;', '}'].join('\n')
+    );
+    harness.notifyChange(uri, 2, [
+      {
+        range: { start: { line: 1, character: 10 }, end: { line: 1, character: 23 } },
+        text: '42',
+      },
+    ]);
+    harness.changeDocument(v2);
+    await harness.waitForSettle(200);
+
+    const afterFixDiags = harness.publishedDiagnostics.filter(d => d.uri === uri);
+    const lastDiag = afterFixDiags[afterFixDiags.length - 1]!;
+    assert.strictEqual(
+      lastDiag.diagnostics.filter(d => d.severity === 1).length,
+      0,
+      `Error on line 2 should be cleared after fix. Got: ${JSON.stringify(lastDiag.diagnostics)}`
+    );
+  });
+
+  it('should still skip validation for error-free files with no semantic change', async () => {
+    // Complementary test: the optimization should still work for error-free files.
+    // A comment-only change on a clean file should trigger canSkip: true.
+
+    const harness = createPipelineHarness({
+      analyze: () => ({
+        hasError: false,
+        introspectSuccess: true,
+        symbols: [{ name: 'main', kind: 12, type: 'int' }],
+        introspectDiagnostics: [],
+      }),
+    });
+    harness.configure({ diagnosticDelay: 0 });
+
+    const uri = 'file:///test/1068-skip-clean.pike';
+
+    const v1 = TextDocument.create(
+      uri,
+      'pike',
+      1,
+      ['int main() {', '  int x = 1;', '  return x;', '}'].join('\n')
+    );
+    harness.openDocument(v1);
+    await harness.waitForSettle(200);
+
+    const afterOpen = harness.publishedDiagnostics.filter(d => d.uri === uri).length;
+
+    // Add comment — no semantic change, no errors → should skip
+    const v2 = TextDocument.create(
+      uri,
+      'pike',
+      2,
+      ['int main() {', '  int x = 1; // a comment', '  return x;', '}'].join('\n')
+    );
+    harness.notifyChange(uri, 2, [
+      {
+        range: { start: { line: 1, character: 11 }, end: { line: 1, character: 11 } },
+        text: ' // a comment',
+      },
+    ]);
+    harness.changeDocument(v2);
+    await harness.waitForSettle(200);
+
+    const afterComment = harness.publishedDiagnostics.filter(d => d.uri === uri);
+    const lastDiag = afterComment[afterComment.length - 1]!;
+    assert.strictEqual(
+      lastDiag.diagnostics.length,
+      0,
+      'Clean file should remain clean after comment change'
+    );
+
+    // The comment-only change should NOT trigger re-validation since there are no errors
+    // So publishedDiagnostics count should be similar (skip path used)
+    assert.ok(
+      afterComment.length <= afterOpen + 2,
+      'Comment-only change on error-free file should use skip path (minimal re-publishing)'
     );
   });
 });
