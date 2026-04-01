@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { PikeBridge, type AnalyzeResponse } from '@pike-lsp/pike-bridge';
+import { describe, expect, it } from 'bun:test';
+import { PikeBridge, type AnalyzeResponse, type PikeBridgeOptions } from '@pike-lsp/pike-bridge';
+import { BridgePool } from '@pike-lsp/pike-bridge/dist/src/test-utils/bridge-pool.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -14,6 +15,12 @@ type Violation = {
 const RUN_SOURCE_TREE_E2E = process.env['PIKE_SOURCE_TREE_TEST'] === '1';
 const PIKE_SRC = process.env['PIKE_SRC'] ?? process.env['PIKE_SOURCE_ROOT'];
 const ROXEN_SRC = process.env['ROXEN_SRC'];
+const BATCH_SIZE = 50;
+const DEFAULT_CONCURRENCY = 4;
+const CONCURRENCY = parseInt(
+  process.env['PIKE_SOURCE_TREE_CONCURRENCY'] ?? String(DEFAULT_CONCURRENCY),
+  10
+);
 
 function splitPathEnv(value: string): string[] {
   return value
@@ -50,7 +57,7 @@ function inferPikeRoot(inputPath: string): string {
   return normalized;
 }
 
-function createBridgeForSourceTrees(mode: 'pike' | 'roxen'): PikeBridge {
+function getBridgeOptionsForSourceTrees(mode: 'pike' | 'roxen'): PikeBridgeOptions {
   const pikeRoot = PIKE_SRC ? inferPikeRoot(PIKE_SRC) : '';
   const modulePaths = dedupePaths([
     ...splitPathEnv(process.env['PIKE_MODULE_PATH'] ?? ''),
@@ -73,13 +80,17 @@ function createBridgeForSourceTrees(mode: 'pike' | 'roxen'): PikeBridge {
     mode === 'roxen' && ROXEN_SRC ? path.join(ROXEN_SRC, 'server') : '',
   ]);
 
-  return new PikeBridge({
+  return {
     env: {
       PIKE_MODULE_PATH: modulePaths.join(path.delimiter),
       PIKE_INCLUDE_PATH: includePaths.join(path.delimiter),
       PIKE_PROGRAM_PATH: programPaths.join(path.delimiter),
     },
-  });
+  };
+}
+
+function createBridgeForSourceTrees(mode: 'pike' | 'roxen'): PikeBridge {
+  return new PikeBridge(getBridgeOptionsForSourceTrees(mode));
 }
 
 function discoverPikeFiles(root: string): string[] {
@@ -154,60 +165,115 @@ function shouldRunRoxenValidation(file: string): boolean {
 }
 
 async function assertTreeHasNoWarningsOrErrors(
-  bridge: PikeBridge,
   treeName: string,
   root: string,
+  mode: 'pike' | 'roxen',
   includeRoxenValidation: boolean
 ): Promise<void> {
   expect(fs.existsSync(root)).toBeTrue();
   const files = discoverPikeFiles(root);
   expect(files.length).toBeGreaterThan(0);
 
+  console.log(
+    `[${treeName}] Parsing ${files.length} files with ${CONCURRENCY} bridges (batch ${BATCH_SIZE})`
+  );
+
+  const pool = new BridgePool(getBridgeOptionsForSourceTrees(mode), { concurrency: CONCURRENCY });
+  await pool.start();
+
   const violations: Violation[] = [];
-  for (let i = 0; i < files.length; i += 1) {
-    const file = files[i]!;
-    if ((i + 1) % 100 === 0) {
-      console.log(`[${treeName}] ${i + 1}/${files.length}`);
+
+  try {
+    const chunks: string[][] = [];
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      chunks.push(files.slice(i, i + BATCH_SIZE));
     }
 
-    let code = '';
-    try {
-      code = fs.readFileSync(file, 'utf-8');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      violations.push({ file, severity: 'error', message: `read failed: ${message}` });
-      continue;
-    }
+    let chunksDone = 0;
+    await pool.dispatch(chunks, async (chunk, bridge) => {
+      const inputs: Array<{ code: string; filename: string }> = [];
 
-    try {
-      const result = await bridge.analyze(code, ['parse'], file);
-      violations.push(...collectViolations(result, file));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      violations.push({ file, severity: 'error', message: `analyze failed: ${message}` });
-      continue;
-    }
+      for (const file of chunk) {
+        try {
+          inputs.push({ code: fs.readFileSync(file, 'utf-8'), filename: file });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          violations.push({ file, severity: 'error', message: `read failed: ${message}` });
+        }
+      }
 
-    if (includeRoxenValidation && shouldRunRoxenValidation(file)) {
+      if (inputs.length === 0) return;
+
       try {
-        const roxenInfo = await bridge.roxenDetect(code, file);
-        if (roxenInfo.is_roxen_module === 1) {
-          const roxenValidation = await bridge.roxenValidate(code, file, roxenInfo);
-          for (const diag of roxenValidation.diagnostics ?? []) {
+        const result = await bridge.batchParse(inputs);
+        for (const fileResult of result.results) {
+          for (const diag of fileResult.diagnostics) {
             if (diag.severity === 'error' || diag.severity === 'warning') {
-              violations.push({ file, severity: diag.severity, message: diag.message });
+              violations.push({
+                file: fileResult.filename,
+                severity: diag.severity,
+                message: diag.message,
+              });
             }
           }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        violations.push({
-          file,
-          severity: 'error',
-          message: `roxen validation failed: ${message}`,
+        for (const input of inputs) {
+          violations.push({
+            file: input.filename,
+            severity: 'error',
+            message: `batchParse failed: ${message}`,
+          });
+        }
+      }
+
+      chunksDone++;
+      if (chunksDone % 20 === 0 || chunksDone === chunks.length) {
+        console.log(
+          `[${treeName}] batchParse ${Math.min(chunksDone * BATCH_SIZE, files.length)}/${files.length}`
+        );
+      }
+    });
+
+    if (includeRoxenValidation) {
+      const roxenFiles = files.filter(shouldRunRoxenValidation);
+      if (roxenFiles.length > 0) {
+        await pool.dispatch(roxenFiles, async (file, bridge) => {
+          let code: string;
+          try {
+            code = fs.readFileSync(file, 'utf-8');
+          } catch {
+            return;
+          }
+
+          try {
+            const roxenInfo = await bridge.roxenDetect(code, file);
+            if (roxenInfo.is_roxen_module === 1) {
+              const validation = await bridge.roxenValidate(
+                code,
+                file,
+                roxenInfo as unknown as Record<string, unknown>
+              );
+              for (const diag of validation.diagnostics ?? []) {
+                if (diag.severity === 'error' || diag.severity === 'warning') {
+                  violations.push({ file, severity: diag.severity, message: diag.message });
+                }
+              }
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            violations.push({
+              file,
+              severity: 'error',
+              message: `roxen validation failed: ${message}`,
+            });
+          }
         });
       }
     }
+  } finally {
+    await pool.stop();
   }
 
   if (violations.length > 0) {
@@ -226,49 +292,21 @@ const describePike = RUN_SOURCE_TREE_E2E ? describe : describe.skip;
 const describeRoxen = RUN_SOURCE_TREE_E2E ? describe : describe.skip;
 
 describePike('Source Tree E2E - Pike 8 strict diagnostics', () => {
-  let bridge: PikeBridge | undefined;
-
-  beforeAll(async () => {
+  it('all Pike source files pass without errors or warnings', { timeout: 5_400_000 }, async () => {
     if (!PIKE_SRC) {
       throw new Error('PIKE_SRC is required when PIKE_SOURCE_TREE_TEST=1');
     }
 
-    bridge = createBridgeForSourceTrees('pike');
-    await bridge.start();
-    bridge.on('stderr', () => {});
-  });
-
-  afterAll(async () => {
-    if (bridge) {
-      await bridge.stop();
-    }
-  });
-
-  it('all Pike source files pass without errors or warnings', { timeout: 5_400_000 }, async () => {
-    await assertTreeHasNoWarningsOrErrors(bridge!, 'PIKE_SRC', PIKE_SRC!, false);
+    await assertTreeHasNoWarningsOrErrors('PIKE_SRC', PIKE_SRC, 'pike', false);
   });
 });
 
 describeRoxen('Source Tree E2E - Roxen strict diagnostics', () => {
-  let bridge: PikeBridge | undefined;
-
-  beforeAll(async () => {
+  it('all Roxen source files pass without errors or warnings', { timeout: 5_400_000 }, async () => {
     if (!ROXEN_SRC) {
       throw new Error('ROXEN_SRC is required when PIKE_SOURCE_TREE_TEST=1');
     }
 
-    bridge = createBridgeForSourceTrees('roxen');
-    await bridge.start();
-    bridge.on('stderr', () => {});
-  });
-
-  afterAll(async () => {
-    if (bridge) {
-      await bridge.stop();
-    }
-  });
-
-  it('all Roxen source files pass without errors or warnings', { timeout: 5_400_000 }, async () => {
-    await assertTreeHasNoWarningsOrErrors(bridge!, 'ROXEN_SRC', ROXEN_SRC!, false);
+    await assertTreeHasNoWarningsOrErrors('ROXEN_SRC', ROXEN_SRC, 'roxen', false);
   });
 });

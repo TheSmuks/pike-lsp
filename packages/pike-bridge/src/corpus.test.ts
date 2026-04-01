@@ -15,10 +15,10 @@
 import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
 import { PikeBridge } from './bridge.js';
+import { BridgePool } from './test-utils/bridge-pool.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 
-// Configurable thresholds
 const SUCCESS_THRESHOLD = 0.8; // 80% of files must parse without errors
 const BRIDGE_TIMEOUT = 30_000; // 30s bridge request timeout
 
@@ -57,9 +57,6 @@ interface CorpusResult {
   duration: number;
 }
 
-/**
- * Recursively discover all .pike and .pmod files under a directory
- */
 function discoverPikeFiles(root: string): string[] {
   const files: string[] = [];
 
@@ -167,9 +164,6 @@ async function analyzeFile(
   return result;
 }
 
-/**
- * Print comprehensive summary report
- */
 function printCorpusSummary(results: CorpusResult[]): void {
   if (results.length === 0) {
     console.log('\n=== CORPUS TEST SKIPPED (no results) ===\n');
@@ -184,6 +178,7 @@ function printCorpusSummary(results: CorpusResult[]): void {
 
   console.log('\n' + '='.repeat(60));
   console.log('PIKE STDLIB CORPUS VALIDATION SUMMARY');
+  console.log('(parallel mode via BridgePool)');
   console.log('='.repeat(60));
   console.log(`Files tested:     ${total}`);
   console.log(`Successful:       ${successful} (${((successful / total) * 100).toFixed(1)}%)`);
@@ -226,14 +221,12 @@ function printCorpusSummary(results: CorpusResult[]): void {
   console.log('='.repeat(60));
 }
 
-// Corpus test is opt-in only - set PIKE_CORPUS_TEST=1 to enable
-// This test is too slow for CI and should only run manually
 const RUN_CORPUS_TEST = process.env['PIKE_CORPUS_TEST'] === '1';
 
 const describeSuite = RUN_CORPUS_TEST ? describe : describe.skip;
 
 describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
-  let bridge: PikeBridge;
+  let pool: BridgePool;
   let pikeFiles: string[] = []; // Initialize empty for environments without Pike source
   const results: CorpusResult[] = [];
 
@@ -251,22 +244,31 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
     pikeFiles = discoverPikeFiles(PIKE_SOURCE_ROOT);
     console.log(`Discovered ${pikeFiles.length} Pike files\n`);
 
-    // 3. Start bridge
-    console.log('Starting Pike bridge...');
-    bridge = new PikeBridge({ timeout: BRIDGE_TIMEOUT });
-    await bridge.start();
-    bridge.on('stderr', () => {}); // Suppress noise
+    // 3. Start bridge pool
+    const concurrency = parseInt(process.env['PIKE_CORPUS_CONCURRENCY'] ?? '4');
+    console.log(`Starting Pike bridge pool (${concurrency} bridges)...`);
+    pool = new BridgePool(
+      { timeout: BRIDGE_TIMEOUT },
+      {
+        concurrency,
+        onProgress: (completed, total) => {
+          if (completed % 50 === 0) {
+            console.log(`  Processing ${completed}/${total}...`);
+          }
+        },
+      }
+    );
+    await pool.start();
     await new Promise(resolve => setTimeout(resolve, 500));
-    console.log('Bridge started\n');
+    console.log('Bridge pool started\n');
   });
 
   afterAll(async () => {
-    if (bridge) {
-      console.log('\nStopping bridge...');
-      await bridge.stop();
+    if (pool) {
+      console.log('\nStopping bridge pool...');
+      await pool.stop();
     }
 
-    // Print summary report
     printCorpusSummary(results);
   });
 
@@ -288,20 +290,14 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
 
     console.log(`\nProcessing ${pikeFiles.length} files...`);
 
-    // Process files sequentially to avoid overwhelming the bridge
-    // (bridge is single-process Pike subprocess)
-    for (let i = 0; i < pikeFiles.length; i++) {
-      const file = pikeFiles[i]!;
+    await pool.dispatch(pikeFiles, async (file, bridge) => {
       const result = await analyzeFile(bridge, file, PIKE_SOURCE_ROOT);
       results.push(result);
-
-      // Log progress every 50 files
-      if ((i + 1) % 50 === 0) {
-        console.log(`  Processing ${i + 1}/${pikeFiles.length}...`);
-      }
-    }
+    });
 
     console.log(`\nProcessed all ${pikeFiles.length} files\n`);
+
+    results.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
     // Count crashes (bridge timeout/error, not parse failures)
     const crashes = results.filter(r =>
