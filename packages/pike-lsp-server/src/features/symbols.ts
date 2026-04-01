@@ -154,12 +154,7 @@ export function registerSymbolsHandlers(
       let cached = documentCache.get(uri);
 
       if (!cached) {
-        // Wait for any pending validation
         await documentCache.waitFor(uri);
-
-        // Race condition check: wait a tick
-        await new Promise(resolve => setTimeout(resolve, 50));
-
         cached = documentCache.get(uri);
       }
 
