@@ -84,15 +84,19 @@ jobs:
       - name: Build all packages
         run: bun run build
 
+      - name: Archive build artifacts
+        run: |
+          tar -czf build-output.tar.gz \
+            packages/core/dist/ \
+            packages/pike-bridge/dist/ \
+            packages/pike-lsp-server/dist/ \
+            packages/vscode-pike/dist/
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-output-${{ github.sha }}
-          path: |
-            packages/core/dist/
-            packages/pike-bridge/dist/
-            packages/pike-lsp-server/dist/
-            packages/vscode-pike/dist/
+          path: build-output.tar.gz
           retention-days: 1
           if-no-files-found: error
 
@@ -277,7 +281,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-output-${{ github.sha }}
-          path: .
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
 
       - name: Verify build artifacts
         run: |
@@ -362,7 +368,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-output-${{ github.sha }}
-          path: .
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
 
       - name: Verify build artifacts
         run: |
@@ -489,7 +497,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-output-${{ github.sha }}
-          path: .
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
 
       - name: Verify build artifacts
         run: |
