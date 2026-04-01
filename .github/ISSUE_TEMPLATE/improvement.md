@@ -27,13 +27,21 @@ Examples:
 
 <!-- What needs improvement and why -->
 
-## Current Behavior
+## Problem
 
-<!-- Describe the current state -->
+<!-- Describe the current state — what is wrong or missing -->
 
-## Desired Behavior
+## Expected Behavior
 
 <!-- What should happen instead -->
+
+## Suggested Approach
+
+<!-- Concrete steps or pointers to relevant files/functions -->
+
+## Affected Files
+
+<!-- List files or packages likely involved -->
 
 ## Acceptance Criteria
 
@@ -42,3 +50,10 @@ Examples:
 - [ ] TypeScript compiles: `bun run typecheck`
 - [ ] Smoke tests pass: `scripts/test-agent.sh --fast`
 - [ ] No regression in existing tests
+
+## Environment
+
+- Pike binary: <!-- output of: pike --version -->
+- Bun version: <!-- output of: bun --version -->
+- $PIKE_SRC set: <!-- YES/NO -->
+- $ROXEN_SRC set: <!-- YES/NO -->
