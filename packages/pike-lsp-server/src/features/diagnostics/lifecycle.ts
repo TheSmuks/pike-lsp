@@ -192,28 +192,29 @@ export function registerDiagnosticsLifecycleHandlers(
     });
   });
 
-  documents.onDidOpen(event => {
+  // #1058: Await engine open before validation to prevent false import errors.
+  documents.onDidOpen(async event => {
     log.debug('Document opened', { uri: event.document.uri });
     bumpWorkspaceRehydrateEpoch(event.document.uri);
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
-    services.bridge
-      ?.engineOpenDocument({
+    try {
+      const ack = await services.bridge?.engineOpenDocument({
         uri: event.document.uri,
         languageId: event.document.languageId,
         version: event.document.version,
         text: event.document.getText(),
-      })
-      .then(ack => {
-        documentSnapshots.set(event.document.uri, ack.snapshotId);
-      })
-      .catch(err => {
-        log.debug('Engine open document failed', {
-          uri: event.document.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
       });
+      if (ack) {
+        documentSnapshots.set(event.document.uri, ack.snapshotId);
+      }
+    } catch (err) {
+      log.debug('Engine open document failed', {
+        uri: event.document.uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     const promise = validateDocument(event.document);
     documentCache.setPending(event.document.uri, promise);
