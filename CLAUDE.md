@@ -123,7 +123,8 @@ Every PR must include:
 - **Meaningful Tests**: All new features and bug fixes MUST include corresponding tests.
   - **Features**: Tests must cover the primary functional requirements and edge cases.
   - **Bug Fixes**: Tests must specifically cover the reported regression to prevent future recurrence.
-- concise summary
+- **`## Summary` section** with 1-2 sentences describing what the PR does (enforced by CI).
+- **Linked issue** using one of: `closes #N`, `fixes #N`, `resolves #N` (enforced by CI).
 - root cause/problem statement
 - file-level change rationale
 - verification commands and results
@@ -364,6 +365,19 @@ Each package depends on the previous. Build must follow this order.
 - **release.yml**: Tag-triggered release + VSIX publish to GitHub Releases.
 - Cross-version testing (Pike 8.0.1116 + latest) is MANDATORY on main branch.
 - `continue-on-error: true` for latest Pike version — failures are warnings, not blocks.
+
+### CI Workflow Modification Rules
+
+When modifying `.github/workflows/` files:
+
+1. **Token scope**: Pushing workflow changes requires a PAT with `workflow` scope. Standard tokens are refused.
+2. **Validate YAML syntax**: Always run `bunx yaml-lint <file>` after editing. Invalid YAML silently breaks pipelines.
+3. **Two enforcement workflows run automatically**:
+   - `enforce-issue-template.yml` — Issues labeled `safe` must have all template sections filled with substantive content: `## Description`, `## Problem`, `## Expected Behavior`, `## Suggested Approach`, `## Affected Files`, `## Acceptance`. Empty or comment-only sections fail.
+   - `enforce-acceptance-criteria.yml` — PRs must have a non-empty `## Summary` section and a linked issue (`closes #N`, `fixes #N`, `resolves #N`). Missing either adds `needs-acceptance-criteria` label and fails CI.
+4. **Step ordering matters**: The `test` job runs strict_types check and build BEFORE Pike install (these are pure bash/TypeScript — no Pike needed). They serve as fast early-gate checks. Do not move them after Pike install.
+5. **Lockfile checks**: `scripts/check-lockfiles.sh` is idempotent and cheap. It runs in entry-point jobs (`test`, `pike-test`). Downstream jobs with `needs:` dependencies inherit the guarantee and do not need to re-check.
+6. **Pike from-source build**: Uses `make -j$(nproc)` for parallel compilation. Do not revert to `make -j1`.
 
 ### Test Infrastructure
 
