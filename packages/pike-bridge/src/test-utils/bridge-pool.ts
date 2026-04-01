@@ -6,6 +6,9 @@
  * concurrent analyze() calls to a single bridge yields zero speedup. This
  * pool distributes work across multiple bridges for real concurrency.
  *
+ * #1075: Pool includes crash recovery — when a bridge dies mid-dispatch,
+ * it's replaced with a new one and processing continues.
+ *
  * Usage:
  * ```ts
  * const pool = new BridgePool({ timeout: 30000 }, { concurrency: 4 });
@@ -46,6 +49,7 @@ export class BridgePool {
   private readonly concurrency: number;
   private readonly onProgress: ProgressCallback | undefined;
   private bridges: PikeBridge[] = [];
+  private deadBridges = new Set<number>();
 
   constructor(bridgeOptions: PikeBridgeOptions = {}, poolOptions: BridgePoolOptions = {}) {
     this.bridgeOptions = bridgeOptions;
@@ -75,6 +79,8 @@ export class BridgePool {
     this.bridges = Array.from({ length: this.concurrency }, () => {
       const bridge = new PikeBridge(this.bridgeOptions);
       bridge.on('stderr', () => {});
+      // #1075: Enable auto-restart so dead bridges can recover
+      bridge.setAutoRestart(true, 1);
       return bridge;
     });
 
@@ -97,6 +103,7 @@ export class BridgePool {
 
     const results = await Promise.allSettled(this.bridges.map(b => b.stop()));
     this.bridges = [];
+    this.deadBridges.clear();
 
     const firstError = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
     if (firstError) {
@@ -106,12 +113,34 @@ export class BridgePool {
     }
   }
 
+  // #1075: Replace a dead bridge with a fresh one
+  private async replaceBridge(workerId: number): Promise<PikeBridge> {
+    const oldBridge = this.bridges[workerId];
+    if (oldBridge) {
+      try {
+        await oldBridge.stop();
+      } catch {
+        // Ignore stop errors on dead bridge
+      }
+    }
+
+    const newBridge = new PikeBridge(this.bridgeOptions);
+    newBridge.on('stderr', () => {});
+    newBridge.setAutoRestart(true, 1);
+    await newBridge.start();
+    this.bridges[workerId] = newBridge;
+    this.deadBridges.delete(workerId);
+    return newBridge;
+  }
+
   /**
    * Distribute work items across bridges using a concurrency-limited pool.
    *
    * Items are assigned round-robin to bridges. At most `concurrency` items
    * run concurrently (one per bridge). Errors propagate immediately — the
    * first failing item rejects the returned promise.
+   *
+   * #1075: When a bridge dies mid-dispatch, it's replaced and processing continues.
    *
    * @param workItems - Array of items to process.
    * @param handler   - Async function called for each item with its assigned bridge.
@@ -128,15 +157,32 @@ export class BridgePool {
     let nextIndex = 0;
 
     const worker = async (workerId: number): Promise<void> => {
-      const bridge = this.bridges[workerId]!;
+      let bridge = this.bridges[workerId]!;
 
       while (true) {
         const itemIndex = nextIndex;
         if (itemIndex >= total) return;
         nextIndex++;
 
-        await handler(workItems[itemIndex]!, bridge, itemIndex);
-        completed++;
+        // #1075: Check bridge health before each work item
+        if (!bridge.isRunning()) {
+          bridge = await this.replaceBridge(workerId);
+        }
+
+        try {
+          await handler(workItems[itemIndex]!, bridge, itemIndex);
+          completed++;
+        } catch (err) {
+          // #1075: If bridge died during the operation, mark it and continue
+          if (!bridge.isRunning()) {
+            this.deadBridges.add(workerId);
+            // Don't increment completed — this item failed
+            // Continue to next item with replacement bridge
+            bridge = await this.replaceBridge(workerId);
+            continue;
+          }
+          throw err;
+        }
 
         if (this.onProgress) {
           this.onProgress(completed, total);
