@@ -336,3 +336,41 @@ describe('Feature Name', () => {
 - `describe` = feature/component name
 - `it` = starts with "should"
 - No `test()` — always use `it()`
+
+---
+
+## 🏗️ Architecture Constraints (CRITICAL)
+
+### Pike Subprocess Model
+
+The Pike subprocess runs a **synchronous read-process-write loop** — it reads one JSON-RPC request from stdin, processes it completely (parse, compile, introspect — all blocking), writes one response to stdout, then reads the next. This means:
+
+- **Sending concurrent `analyze()` calls to a single `PikeBridge` instance achieves ZERO speedup** — requests simply queue in stdin and execute serially.
+- **True parallelism requires multiple `PikeBridge` instances** (`BridgePool`), each backed by its own independent Pike subprocess.
+- The `BridgePool` utility at `packages/pike-bridge/src/test-utils/bridge-pool.ts` manages N bridges with per-worker assignment and concurrency-limited dispatch.
+
+### Monorepo Build Order
+
+```
+@pike-lsp/core → @pike-lsp/pike-bridge → @pike-lsp/pike-lsp-server → vscode-pike
+```
+
+Each package depends on the previous. Build must follow this order.
+
+### CI Pipeline Structure
+
+- **test.yml**: 6 jobs with dependency chain: `test` + `pike-test` (matrix ×2) → `build-extension` + `vscode-e2e-category` (matrix ×4) + `vscode-e2e-source-trees` → `vscode-e2e` (aggregate gate)
+- **bench.yml**: Performance benchmarks, runs on push + PR. Includes branch comparison gate on PRs.
+- **release.yml**: Tag-triggered release + VSIX publish to GitHub Releases.
+- Cross-version testing (Pike 8.0.1116 + latest) is MANDATORY on main branch.
+- `continue-on-error: true` for latest Pike version — failures are warnings, not blocks.
+
+### Test Infrastructure
+
+- bun test runner (tests run in parallel by default)
+- Scenario tests (LSP behavior simulations) in `src/scenarios/`
+- Cross-version Pike handler tests in `test/tests/cross-version-tests.pike`
+- VSCode E2E tests split into categories by matrix grep
+- Source-tree E2E tests require `PIKE_SRC` + `ROXEN_SRC` env vars
+- Corpus test uses `BridgePool` (configurable via `PIKE_CORPUS_CONCURRENCY`)
+- Source-tree E2E uses `batchParse()` + `BridgePool` (configurable via `PIKE_SOURCE_TREE_CONCURRENCY`)
