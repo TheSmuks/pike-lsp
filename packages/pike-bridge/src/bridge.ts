@@ -163,6 +163,11 @@ export class PikeBridge extends EventEmitter {
   private readonly logger = new Logger('PikeBridge');
   private debugLog: (message: string) => void;
   private rateLimiter: RateLimiter | null;
+  // #1074: Auto-restart on unexpected process exit
+  private autoRestart: boolean;
+  private maxAutoRestarts = 1;
+  private autoRestartCount = 0;
+  private stopping = false;
 
   constructor(options: PikeBridgeOptions = {}) {
     super();
@@ -225,6 +230,9 @@ export class PikeBridge extends EventEmitter {
     } else {
       this.rateLimiter = null;
     }
+
+    // #1074: Auto-restart disabled by default (can be enabled via setAutoRestart)
+    this.autoRestart = false;
 
     this.debugLog(
       `Initialized with pikePath="${this.options.pikePath}", analyzerPath="${this.options.analyzerPath}"`
@@ -365,6 +373,19 @@ export class PikeBridge extends EventEmitter {
         this.emit('close', code);
 
         this.rejectAllPendingRequests(`Pike process exited with code ${code}`);
+
+        // #1074: Auto-restart on unexpected exit (not during intentional stop)
+        if (this.autoRestart && !this.stopping && this.autoRestartCount < this.maxAutoRestarts) {
+          this.autoRestartCount++;
+          this.debugLog(
+            `Auto-restarting after unexpected exit (attempt ${this.autoRestartCount}/${this.maxAutoRestarts})`
+          );
+          this.start().catch(err => {
+            this.debugLog(
+              `Auto-restart failed: ${err instanceof Error ? err.message : String(err)}`
+            );
+          });
+        }
       });
 
       // Spawn the process
@@ -406,6 +427,7 @@ export class PikeBridge extends EventEmitter {
    * @emits stopped when the subprocess has terminated.
    */
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.startupInProgress) {
       this.cancelStartup = true;
     }
@@ -438,6 +460,8 @@ export class PikeBridge extends EventEmitter {
     this.rejectAllPendingRequests('Pike bridge stopped while requests were in flight');
     this.requestCache.clear();
     this.clearResolutionCaches();
+    this.stopping = false;
+    this.autoRestartCount = 0;
     this.emit('stopped');
   }
 
@@ -466,6 +490,22 @@ export class PikeBridge extends EventEmitter {
    */
   isRunning(): boolean {
     return this.started && this.process !== null && this.process.isAlive();
+  }
+
+  /**
+   * #1074: Enable or disable auto-restart on unexpected process exit.
+   *
+   * When enabled, the bridge will attempt to restart once after an unexpected
+   * exit (not during intentional stop()). This helps recover from transient
+   * Pike-level crashes (e.g., compilation edge cases in stdlib files).
+   *
+   * @param enabled - Whether to enable auto-restart
+   * @param maxRestarts - Maximum restart attempts (default: 1)
+   */
+  setAutoRestart(enabled: boolean, maxRestarts = 1): void {
+    this.autoRestart = enabled;
+    this.maxAutoRestarts = maxRestarts;
+    this.autoRestartCount = 0;
   }
 
   /**
