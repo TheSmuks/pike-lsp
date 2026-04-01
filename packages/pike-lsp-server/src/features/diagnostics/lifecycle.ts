@@ -124,10 +124,19 @@ export function registerDiagnosticsLifecycleHandlers(
         workspaceIndex.removeDocument(uri);
       }
 
-      log.error('Workspace index rehydrate failed', {
-        uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const isEnoent =
+        err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT';
+      const isClosed = !documents.get(uri);
+      log.error(
+        isEnoent && isClosed
+          ? 'Workspace index rehydrate skipped — file gone and document closed'
+          : 'Workspace index rehydrate failed',
+        {
+          ...(isEnoent && isClosed
+            ? { uri }
+            : { uri, error: err instanceof Error ? err.message : String(err) }),
+        }
+      );
     } finally {
       if (workspaceRehydrateEpochs.get(uri) === epoch) {
         workspaceRehydrateEpochs.delete(uri);
