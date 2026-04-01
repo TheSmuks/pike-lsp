@@ -31,8 +31,12 @@ fi
 
 # Ensure pike-bridge dist is up to date (esbuild resolves package main)
 if [ -d "$BRIDGE_DIR" ]; then
-    echo "  Building pike-bridge..."
-    (cd "$BRIDGE_DIR" && bun run build)
+    if [ -f "$BRIDGE_DIR/dist/src/index.js" ]; then
+        echo "  pike-bridge dist already present, skipping build"
+    else
+        echo "  Building pike-bridge..."
+        (cd "$BRIDGE_DIR" && bun run build)
+    fi
 else
     echo "ERROR: pike-bridge not found at $BRIDGE_DIR"
     exit 1

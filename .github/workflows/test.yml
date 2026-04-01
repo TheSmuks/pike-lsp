@@ -279,6 +279,13 @@ jobs:
           name: build-output-${{ github.sha }}
           path: .
 
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
+
       - name: Build VSIX
         working-directory: packages/vscode-pike
         run: bun run package
@@ -356,6 +363,13 @@ jobs:
         with:
           name: build-output-${{ github.sha }}
           path: .
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
 
       - name: Bundle LSP server
         run: cd packages/vscode-pike && bun run bundle-server
@@ -476,6 +490,13 @@ jobs:
         with:
           name: build-output-${{ github.sha }}
           path: .
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
 
       - name: Run Source-Tree VSCode E2E Matrix
         working-directory: packages/vscode-pike
