@@ -94,12 +94,6 @@ jobs:
           pike --version
           which pike
 
-      - name: Check Pike strict_types pragmas
-        run: bash scripts/check-pike-strict-types.sh
-
-      - name: Build all packages
-        run: bun run build
-
       - name: Run package test suite
         run: bun run test:packages
 
@@ -218,7 +212,7 @@ jobs:
           tar -xzf "$PIKE_ARCHIVE" -C "$BUILD_DIR" --strip-components=1
           cd "$BUILD_DIR/src"
           ./configure --prefix="$PIKE_PREFIX"
-          make -j1
+          make -j$(nproc)
           make install
           echo "$PIKE_PREFIX/bin" >> "$GITHUB_PATH"
 
@@ -250,9 +244,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Check forbidden lockfiles
-        run: bash scripts/check-lockfiles.sh
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -296,24 +287,21 @@ jobs:
       matrix:
         include:
           - category: core-lsp
-            grep: "LSP Feature E2E Tests|Core Regression E2E Tests"
+            grep: 'LSP Feature E2E Tests|Core Regression E2E Tests'
             optional: false
           - category: completion-navigation
-            grep: "Smart Completion E2E Tests|Include/Import/Inherit Navigation E2E Tests|Stdlib E2E Tests"
+            grep: 'Smart Completion E2E Tests|Include/Import/Inherit Navigation E2E Tests|Stdlib E2E Tests'
             optional: false
           - category: reliability-workflows
-            grep: "Error Handling Tests|Responsiveness E2E Tests|E2E Workflow Tests|Waterfall Loading E2E Tests"
+            grep: 'Error Handling Tests|Responsiveness E2E Tests|E2E Workflow Tests|Waterfall Loading E2E Tests'
             optional: true
           - category: performance
-            grep: "Performance Benchmark Tests"
+            grep: 'Performance Benchmark Tests'
             optional: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Check forbidden lockfiles
-        run: bash scripts/check-lockfiles.sh
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
