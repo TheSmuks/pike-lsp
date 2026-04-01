@@ -84,6 +84,22 @@ jobs:
       - name: Build all packages
         run: bun run build
 
+      - name: Archive build artifacts
+        run: |
+          tar -czf build-output.tar.gz \
+            packages/core/dist/ \
+            packages/pike-bridge/dist/ \
+            packages/pike-lsp-server/dist/ \
+            packages/vscode-pike/dist/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ github.sha }}
+          path: build-output.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Install Pike
         run: |
           sudo apt-get update
@@ -261,8 +277,20 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build all packages
-        run: bun run build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ github.sha }}
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
 
       - name: Build VSIX
         working-directory: packages/vscode-pike
@@ -336,8 +364,20 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build all packages
-        run: bun run build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ github.sha }}
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
 
       - name: Bundle LSP server
         run: cd packages/vscode-pike && bun run bundle-server
@@ -453,8 +493,20 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build all packages
-        run: bun run build
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ github.sha }}
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
 
       - name: Run Source-Tree VSCode E2E Matrix
         working-directory: packages/vscode-pike
