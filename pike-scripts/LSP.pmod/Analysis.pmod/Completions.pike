@@ -678,3 +678,123 @@ protected string extract_prefix_at_cursor(string code, int line_no, int char_pos
     }
     return "";
 }
+
+//! Enhanced completion with semantic metadata
+//!
+//! Returns completion items enriched with symbol information:
+//! - label: Completion text
+//! - kind: Symbol kind (variable, function, class, etc.)
+//! - detail: Type or signature information
+//! - documentation: Description if available
+//!
+//! @param params Mapping with "code", "filename", "position"
+//! @returns Mapping with "result" containing "items" array
+mapping handle_completion(mapping params) {
+    string code = params->code || "";
+    string filename = params->filename || "";
+    mapping position = params->position || (["line": 1, "character": 0]);
+    
+    array(mapping) items = ({});
+    multiset(string) seen = (<>);
+    
+    // First, get context for smart completions
+    mapping ctx_result = handle_get_completion_context(([
+        "code": code,
+        "line": position->line || 1,
+        "character": position->character || 0,
+    ]));
+    
+    string context = ctx_result->result->context || "global";
+    string prefix = ctx_result->result->prefix || "";
+    
+    // Get all identifiers from the code
+    mixed err = catch {
+        array(string) split_tokens = Parser.Pike.split(code);
+        array pike_tokens = Parser.Pike.tokenize(split_tokens);
+        
+        // Helper to check if identifier
+        function is_identifier_fn = module_program->is_identifier;
+        
+        // Track symbols with their context
+        mapping symbol_info = ([]);
+        
+        foreach (pike_tokens, object tok) {
+            string text = tok->text || "";
+            int line = tok->line || 0;
+            
+            if (!is_identifier_fn(text)) continue;
+            if (seen[text]) continue;
+            
+            // Skip Pike keywords
+            array(string) keywords = ({
+                "if","else","elif","for","while","do","switch","case",
+                "break","continue","return","catch","inherit","import",
+                "class","enum","typedef","constant","final","inline",
+                "local","extern","static","nomask","private","protected",
+                "public","void","int","float","string","array","mapping",
+                "multiset","object","function","program","mixed"
+            });
+            if (has_value(keywords, text)) continue;
+            
+            seen[text] = 1;
+            
+            // Infer kind from context
+            string kind = "variable"; // default
+            string detail = text;
+            
+            // Check if looks like a class (Pike convention: capitalized)
+            if (text[0] >= "A" && text[0] <= "Z") {
+                kind = "class";
+                detail = sprintf("class %s", text);
+            }
+            
+            // Check if followed by parentheses (function call)
+            // Look ahead in tokens
+            foreach (pike_tokens, object next_tok) {
+                if (next_tok->text == "(" && next_tok->line >= line - 1 && next_tok->line <= line + 1) {
+                    kind = "function";
+                    detail = sprintf("function %s()", text);
+                    break;
+                }
+            }
+            
+            // Check for constants (UPPER_CASE)
+            if (text == upper_case(text) && text[0] >= "A" && text[0] <= "Z") {
+                kind = "constant";
+                detail = sprintf("constant %s", text);
+            }
+            
+            items += ({([
+                "label": text,
+                "kind": kind,
+                "detail": detail,
+            ])});
+        }
+    };
+    
+    if (err) {
+        werror("Error in handle_completion: %s\n", describe_error(err));
+    }
+    
+    return ([
+        "result": ([
+            "items": items,
+            "context": context,
+            "prefix": prefix,
+        ])
+    ]);
+}
+
+//! Helper: Convert string to upper case for constant detection
+protected string upper_case(string s) {
+    string result = "";
+    for (int i = 0; i < sizeof(s); i++) {
+        string ch = s[i..i];
+        if (ch >= "a" && ch <= "z") {
+            result += sprintf("%c", ch[0] - 32);
+        } else {
+            result += ch;
+        }
+    }
+    return result;
+}

@@ -175,7 +175,35 @@ export function registerCompletionHandlers(
       if (typeof item['label'] !== 'string') {
         continue;
       }
-      items.push(item as unknown as CompletionItem);
+
+      const label = item['label'] as string;
+      const kindStr = item['kind'] as string | undefined;
+      const detail = item['detail'] as string | undefined;
+
+      const kindMap: Record<string, CompletionItemKind> = {
+        function: CompletionItemKind.Function,
+        class: CompletionItemKind.Class,
+        variable: CompletionItemKind.Variable,
+        constant: CompletionItemKind.Constant,
+        method: CompletionItemKind.Method,
+        property: CompletionItemKind.Property,
+        enum: CompletionItemKind.Enum,
+        interface: CompletionItemKind.Interface,
+        module: CompletionItemKind.Module,
+      };
+
+      const kind = kindMap[kindStr || ''] || CompletionItemKind.Text;
+
+      const completionItem: CompletionItem = {
+        label,
+        kind,
+      };
+
+      if (detail) {
+        completionItem.detail = detail;
+      }
+
+      items.push(completionItem);
     }
     return items;
   }
