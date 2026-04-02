@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security** - Security vulnerability fixes
 - **Performance** - User-facing performance notes
 
+## [0.1.0-alpha.43] - 2026-04-03
+
+### Added
+
+- **Query Engine v2 RFC ratification** - QE2 RFC and Protocol specs ratified to Active/Accepted v2.0.0 (#1118, PR #1126)
+- **Edit-loop hardening** - rapid malformed edit scenario tests and diagnostic hardening for parse failures (#1119, PR #1127)
+- **Protocol leakage removal** - removed vscode-languageserver imports from core types, added protocol mappers (#1120, PR #1133)
+- **QE2 invariants CI enforcement** - 8 RFC invariants enforced in CI with property and stress tests (#1123, PR #1134)
+- **Canary and rollback gates** - canary-gate.ts and rollback-gate.ts scripts for phased promotion (#1124, #1125, PR #1136)
+- **Completion ranking parity tests** - deterministic ordering and query-engine vs fallback ranking tests (#1121, PR #1137)
+- **Self-hosting configuration** - `.opencode.json` for Pike LSP development with opencode (#1121, PR #1137)
+
+### Fixed
+
+- **Completion stubbed responses** - replaced stubbed query-engine completion responses with enriched semantic data including kind and detail (#1121, PR #1137)
+- **Flaky test assertions** - removed incorrect assertions from fault-bridge-crash and diagnostic-pipeline tests (#1132, PR #1135)
+- **Pike strict_types comparison** - fixed string comparison errors in Completions.pike with strict_types pragma (#1121, PR #1137)
+- **Request cancellation cleanup** - ensure cancelled requests properly clean up cache writes (#1114)
+- **Cascade diagnostics suppression** - suppress cascade diagnostics when syntax errors exist (#1103)
+- **SSL/connection.pike crash** - added to KNOWN_CRASHES and corrected Password.pmod path (#1105)
+- **Uninitialized variable tracking** - recognize ::create() calls as initializers (#1097)
+- **Preprocessor conditionals** - handle #if/#ifdef blocks correctly (#1095)
+- **Switch/case fallthrough** - track initialization through switch/case fallthrough (#1096)
+- **If-branch merging** - defer if-branch merge until after else body closes (#1094)
+
+### Changed
+
+- **Query Engine v2 implementation** - migrated completion to use handle_completion with symbol metadata
+- **CI workflow** - added fail-fast dependencies on testing-pyramid job (#1130)
+- **Contributing guide** - rewrote AGENTS.md as flat Contributing Guide (#1099)
+
+**Full Changelog**: https://github.com/TheSmuks/pike-lsp/compare/v0.1.0-alpha.42...v0.1.0-alpha.43
+
 ## [0.1.0-alpha.42] - 2026-04-02
 
 ### Fixed
