@@ -6,8 +6,67 @@
  */
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { Diagnostic, Position } from 'vscode-languageserver/node.js';
 import { DEFAULT_MAX_PROBLEMS, DIAGNOSTIC_DELAY_DEFAULT } from '../constants/index.js';
+
+export interface CorePosition {
+  line: number;
+  character: number;
+}
+
+export interface CoreRange {
+  start: CorePosition;
+  end: CorePosition;
+}
+
+export const CORE_DIAGNOSTIC_SEVERITY = {
+  ERROR: 1,
+  WARNING: 2,
+  INFORMATION: 3,
+  HINT: 4,
+} as const;
+
+export type CoreDiagnosticSeverity =
+  (typeof CORE_DIAGNOSTIC_SEVERITY)[keyof typeof CORE_DIAGNOSTIC_SEVERITY];
+
+export const CORE_DIAGNOSTIC_TAG = {
+  UNNECESSARY: 1,
+  DEPRECATED: 2,
+} as const;
+
+export type CoreDiagnosticTag = (typeof CORE_DIAGNOSTIC_TAG)[keyof typeof CORE_DIAGNOSTIC_TAG];
+
+export interface CoreDiagnosticRelatedInformation {
+  location: {
+    uri: string;
+    range: CoreRange;
+  };
+  message: string;
+}
+
+export interface CoreDiagnostic {
+  range: CoreRange;
+  message: string;
+  severity?: CoreDiagnosticSeverity;
+  code?: string | number;
+  source?: string;
+  tags?: CoreDiagnosticTag[];
+  relatedInformation?: CoreDiagnosticRelatedInformation[];
+}
+
+export interface CoreTextDocumentIdentifier {
+  uri: string;
+}
+
+export interface CoreVersionedTextDocumentIdentifier extends CoreTextDocumentIdentifier {
+  version: number;
+}
+
+export interface CoreTextDocumentItem extends CoreVersionedTextDocumentIdentifier {
+  languageId: string;
+  text: string;
+}
+
+export type CoreSymbol = PikeSymbol;
 
 /**
  * LSP server configuration settings.
@@ -110,13 +169,13 @@ export interface DocumentCacheEntry {
   /** Document version */
   version: number;
   /** Symbols extracted from the document */
-  symbols: PikeSymbol[];
+  symbols: CoreSymbol[];
   /** Diagnostics from parsing/validation */
-  diagnostics: Diagnostic[];
+  diagnostics: CoreDiagnostic[];
   /** Symbol position index for O(1) lookups: symbol_name -> positions[] */
-  symbolPositions: Map<string, Position[]>;
+  symbolPositions: Map<string, CorePosition[]>;
   /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
-  symbolNames: Map<string, PikeSymbol>;
+  symbolNames: Map<string, CoreSymbol>;
   /** Include and import dependencies (optional, populated lazily) */
   dependencies?: DocumentDependencies;
   /** Inheritance information from introspection */
