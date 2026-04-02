@@ -15,6 +15,7 @@ describe('Stress: validation burst', () => {
     const cache = new DocumentCache();
     const scheduler = new RequestScheduler({ maxConcurrent: 4 });
     let latestVersion = 0;
+    let malformedWrites = 0;
 
     const result = await stressRunner.run(
       'validation-burst',
@@ -25,7 +26,8 @@ describe('Stress: validation burst', () => {
         for (let offset = 0; offset < 10; offset += 1) {
           const version = iteration * 10 + offset + 1;
           latestVersion = version;
-          const text = `int v = ${seed + version};\n`;
+          const isMalformed = (seed + version) % 5 === 0;
+          const text = isMalformed ? 'int v = ;\n' : `int v = ${seed + version};\n`;
 
           const task = scheduler
             .schedule<number>({
@@ -39,9 +41,27 @@ describe('Stress: validation burst', () => {
                   throw new RequestSupersededError('stale validation');
                 }
 
-                const entry = makeCachedEntry(text);
+                const entry = makeCachedEntry(text, {
+                  parseFailed: isMalformed,
+                  diagnostics: isMalformed
+                    ? [
+                        {
+                          severity: 1,
+                          source: 'pike',
+                          message: 'Parse degraded under active edits',
+                          range: {
+                            start: { line: 0, character: 0 },
+                            end: { line: 0, character: 1 },
+                          },
+                        },
+                      ]
+                    : [],
+                });
                 entry.version = version;
                 cache.set(uri, entry);
+                if (isMalformed) {
+                  malformedWrites += 1;
+                }
                 return version;
               },
             })
@@ -67,7 +87,8 @@ describe('Stress: validation burst', () => {
     const cached = cache.get(uri);
     assert.strictEqual(result.failures, 0);
     assert.ok(cached);
-    assert.strictEqual(cached.version, 10_000);
+    assert.strictEqual(cached.version, latestVersion);
+    assert.equal(malformedWrites > 0, true);
     assert(result.durationMs < 60_000);
   }, 60_000);
 });

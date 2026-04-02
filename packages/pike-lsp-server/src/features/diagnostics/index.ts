@@ -440,6 +440,39 @@ export function registerDiagnosticsHandlers(
     // Extract filename from URI and decode URL encoding
     const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
 
+    const toDegradedAnalyzeResponse = (
+      message: string
+    ): import('@pike-lsp/pike-bridge').AnalyzeResponse => ({
+      result: {
+        parse: {
+          symbols: [],
+          diagnostics: [],
+        },
+        introspect: {
+          success: 0,
+          symbols: [],
+          functions: [],
+          variables: [],
+          classes: [],
+          inherits: [],
+          diagnostics: [],
+        },
+        diagnostics: {
+          diagnostics: [],
+        },
+      },
+      failures: {
+        parse: {
+          message,
+          kind: 'ParseError',
+        },
+        diagnostics: {
+          message,
+          kind: 'ParseError',
+        },
+      },
+    });
+
     const ensureLatest = (stage: string): boolean => {
       shouldContinue();
       const live = documents.get(uri);
@@ -540,7 +573,17 @@ export function registerDiagnosticsHandlers(
 
       if (!analyzeResult) {
         log.debug('Engine query diagnostics using analyze fallback', { uri, requestId });
-        analyzeResult = await bridge.analyze(text, include, filename, version);
+        try {
+          analyzeResult = await bridge.analyze(text, include, filename, version);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.warn('Analyze fallback failed, degrading diagnostics', {
+            uri,
+            requestId,
+            error: message,
+          });
+          analyzeResult = toDegradedAnalyzeResponse(message);
+        }
       }
 
       clearInFlightRequest();
@@ -570,9 +613,21 @@ export function registerDiagnosticsHandlers(
       }
 
       // Extract results with fallback values for partial failures
+      const degradedFailureMessage =
+        analyzeResult.failures?.diagnostics?.message ?? analyzeResult.failures?.parse?.message;
+
+      const parseResultRaw = analyzeResult.result?.parse;
+      const introspectResultRaw = analyzeResult.result?.introspect;
+      const diagnosticsResultRaw = analyzeResult.result?.diagnostics;
+
       const parseData = analyzeResult.failures?.parse
         ? { symbols: [], diagnostics: [] }
-        : (analyzeResult.result?.parse ?? { symbols: [], diagnostics: [] });
+        : {
+            symbols: Array.isArray(parseResultRaw?.symbols) ? parseResultRaw.symbols : [],
+            diagnostics: Array.isArray(parseResultRaw?.diagnostics)
+              ? parseResultRaw.diagnostics
+              : [],
+          };
       const introspectData = analyzeResult.failures?.introspect
         ? {
             success: 0,
@@ -583,18 +638,33 @@ export function registerDiagnosticsHandlers(
             inherits: [],
             diagnostics: [],
           }
-        : (analyzeResult.result?.introspect ?? {
-            success: 0,
-            symbols: [],
-            functions: [],
-            variables: [],
-            classes: [],
-            inherits: [],
-            diagnostics: [],
-          });
+        : {
+            success:
+              typeof introspectResultRaw?.success === 'number' ? introspectResultRaw.success : 0,
+            symbols: Array.isArray(introspectResultRaw?.symbols) ? introspectResultRaw.symbols : [],
+            functions: Array.isArray(introspectResultRaw?.functions)
+              ? introspectResultRaw.functions
+              : [],
+            variables: Array.isArray(introspectResultRaw?.variables)
+              ? introspectResultRaw.variables
+              : [],
+            classes: Array.isArray(introspectResultRaw?.classes) ? introspectResultRaw.classes : [],
+            inherits: Array.isArray(introspectResultRaw?.inherits)
+              ? introspectResultRaw.inherits
+              : [],
+            diagnostics: Array.isArray(introspectResultRaw?.diagnostics)
+              ? introspectResultRaw.diagnostics
+              : [],
+          };
       const diagnosticsData = analyzeResult.failures?.diagnostics
-        ? { diagnostics: [] }
-        : (analyzeResult.result?.diagnostics ?? { diagnostics: [] });
+        ? {
+            diagnostics: [],
+          }
+        : {
+            diagnostics: Array.isArray(diagnosticsResultRaw?.diagnostics)
+              ? diagnosticsResultRaw.diagnostics
+              : [],
+          };
       // PERF-004: Extract tokens for symbolPositions building
       const tokenizeData = analyzeResult.result?.tokenize?.tokens;
 
@@ -1062,6 +1132,18 @@ export function registerDiagnosticsHandlers(
         }
       }
 
+      if (degradedFailureMessage) {
+        pushDiagnostic({
+          severity: 1,
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 1 },
+          },
+          message: `Parse degraded under active edits: ${degradedFailureMessage}`,
+          source: 'pike',
+        });
+      }
+
       // --- Roxen diagnostics integration ---
       try {
         if (services.bridge?.bridge) {
@@ -1126,6 +1208,29 @@ export function registerDiagnosticsHandlers(
         return;
       }
       inFlightDiagnosticRequests.delete(uri);
+      const liveDocument = documents.get(uri);
+      if (liveDocument && liveDocument.version === version) {
+        const fallbackDiagnostic: Diagnostic = {
+          severity: 1,
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 1 },
+          },
+          message: `Parse degraded under active edits: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          source: 'pike',
+        };
+        const staleEntry = buildStaleFallbackEntry(
+          documentCache.get(uri),
+          version,
+          [fallbackDiagnostic],
+          contentHash,
+          lineHashes
+        );
+        documentCache.set(uri, staleEntry);
+        connection.sendDiagnostics({ uri, version, diagnostics: [fallbackDiagnostic] });
+      }
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
   }
