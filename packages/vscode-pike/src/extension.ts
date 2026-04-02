@@ -34,6 +34,8 @@ import {
 import { computeFormattingWindow, isIndentationSensitiveChange } from './format-on-change';
 import { PIKE_LANGUAGE_IDS } from './constants';
 import { detectPike, getModulePathSuggestions, PikeDetectionResult } from './pike-detector';
+import { initState } from './state.js';
+import { ensurePikeInstalled } from './pike-installer.js';
 import {
   LanguageClient,
   LanguageClientOptions,
@@ -571,8 +573,19 @@ async function activateInternal(
   context: ExtensionContext,
   testOutputChannel?: OutputChannel
 ): Promise<ExtensionApi> {
+  initState(context);
+
   const runtime = new ExtensionRuntime(context, testOutputChannel);
   activeRuntime = runtime;
+
+  const config = workspace.getConfiguration('pike');
+  const pikePath = config.get<string>('pikePath', 'pike');
+  if (pikePath === 'pike') {
+    const detection = await detectPike();
+    if (!detection) {
+      void ensurePikeInstalled();
+    }
+  }
 
   const runWithPike = async (uri: string, symbolName?: string): Promise<void> => {
     const parsed = Uri.parse(uri);
