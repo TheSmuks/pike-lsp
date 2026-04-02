@@ -40,6 +40,7 @@ describe('Query engine parse-under-edit resilience', () => {
     for (let i = 0; i < texts.length; i++) {
       const text = texts[i] ?? '';
       const version = i + 2;
+      const malformed = i > 0 && i < texts.length - 1;
 
       const changed = await bridge.engineChangeDocument({
         uri,
@@ -65,6 +66,30 @@ describe('Query engine parse-under-edit resilience', () => {
         typeof diagnostics.snapshotIdUsed === 'string' && diagnostics.snapshotIdUsed.length > 0
       );
       assert.ok(typeof diagnostics.metrics?.durationMs === 'number');
+      const analyzeResult = diagnostics.result['analyzeResult'] as
+        | {
+            result?: {
+              diagnostics?: {
+                diagnostics?: unknown[];
+              };
+            };
+            failures?: {
+              parse?: unknown;
+              diagnostics?: unknown;
+            };
+          }
+        | undefined;
+      const diagItems = analyzeResult?.result?.diagnostics?.diagnostics ?? [];
+
+      if (malformed) {
+        assert.equal(
+          diagItems.length > 0 ||
+            !!analyzeResult?.failures?.parse ||
+            !!analyzeResult?.failures?.diagnostics,
+          true,
+          `Malformed edit v${version} must return structured diagnostics/failures`
+        );
+      }
 
       const completion = await bridge.engineQuery({
         feature: 'completion',
