@@ -17,6 +17,9 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type {
   Connection,
   DidChangeConfigurationParams,
@@ -31,9 +34,15 @@ import {
   isPikeMacro,
   getMacroInfo,
 } from '../features/navigation/keywords.js';
+import { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
+import {
+  deleteResolutionCache,
+  loadResolutionCache,
+  saveResolutionCache,
+} from '../services/resolution-cache-persistence.js';
 
 // ---------------------------------------------------------------------------
 // Level 1: classifyChange directly (the actual fix point)
@@ -470,5 +479,99 @@ describe('Scenario: Pike predefined macros', () => {
       const info = getMacroInfo(name);
       assert.strictEqual(info?.expandedValue, 'string', `${name} should expand to string`);
     }
+  });
+});
+
+describe('Scenario: resolution cache persistence', () => {
+  async function withTempCacheHome(run: (cacheHome: string) => Promise<void>): Promise<void> {
+    const previous = process.env['XDG_CACHE_HOME'];
+    const cacheHome = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pike-lsp-cache-'));
+    process.env['XDG_CACHE_HOME'] = cacheHome;
+    try {
+      await run(cacheHome);
+    } finally {
+      await fs.promises.rm(cacheHome, { recursive: true, force: true });
+      if (previous === undefined) {
+        delete process.env['XDG_CACHE_HOME'];
+      } else {
+        process.env['XDG_CACHE_HOME'] = previous;
+      }
+    }
+  }
+
+  it('serializes and loads stdlib/module resolution cache entries', () => {
+    const source = new PikeBridge({ analyzerPath: '/tmp/analyzer.pike' });
+    const loadedIntoSource = source.loadResolutionCaches(
+      JSON.stringify({
+        version: 1,
+        stdlibCache: {
+          'Stdio.File': { found: 1, path: '/usr/local/pike/Stdio.pmod/File.pike' },
+          'Crypto.SHA256': { found: 1, path: '/usr/local/pike/Crypto.pmod/SHA256.pike' },
+        },
+        moduleCache: {
+          'Stdio.File@@': '/usr/local/pike/Stdio.pmod/File.pike',
+          'Unknown.Module@@': null,
+        },
+      })
+    );
+
+    assert.strictEqual(loadedIntoSource, 4);
+
+    const serialized = source.serializeResolutionCaches();
+    const target = new PikeBridge({ analyzerPath: '/tmp/analyzer.pike' });
+    const loadedIntoTarget = target.loadResolutionCaches(serialized);
+
+    assert.strictEqual(loadedIntoTarget, 4);
+    assert.deepStrictEqual(target.getResolutionCacheStats(), { stdlib: 2, modules: 2 });
+  });
+
+  it('cache file format supports Pike version invalidation', async () => {
+    await withTempCacheHome(async () => {
+      await deleteResolutionCache();
+      await saveResolutionCache(
+        JSON.stringify({
+          version: 1,
+          stdlibCache: { 'Stdio.File': { found: 1 } },
+          moduleCache: {},
+        }),
+        '8.0.1116'
+      );
+
+      const matching = await loadResolutionCache('8.0.1116');
+      const mismatched = await loadResolutionCache('8.0.1200');
+
+      assert.ok(matching);
+      assert.strictEqual(mismatched, null);
+    });
+  });
+
+  it('discards cache older than 7 days and tolerates corrupted payloads', async () => {
+    await withTempCacheHome(async cacheHome => {
+      const cacheDir = path.join(cacheHome, 'pike-lsp');
+      const cacheFile = path.join(cacheDir, 'resolution-cache.json');
+      await fs.promises.mkdir(cacheDir, { recursive: true });
+
+      await fs.promises.writeFile(
+        cacheFile,
+        JSON.stringify({
+          version: 1,
+          pikeVersion: '8.0.1116',
+          timestamp: Date.now() - (7 * 24 * 60 * 60 * 1000 + 1),
+          data: JSON.stringify({
+            version: 1,
+            stdlibCache: { 'Stdio.File': { found: 1 } },
+            moduleCache: {},
+          }),
+        }),
+        'utf-8'
+      );
+
+      const expired = await loadResolutionCache('8.0.1116');
+      assert.strictEqual(expired, null);
+
+      await fs.promises.writeFile(cacheFile, '{{{{not json', 'utf-8');
+      const corrupted = await loadResolutionCache('8.0.1116');
+      assert.strictEqual(corrupted, null);
+    });
   });
 });
