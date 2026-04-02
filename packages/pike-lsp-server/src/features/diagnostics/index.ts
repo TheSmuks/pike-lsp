@@ -100,6 +100,11 @@ export function buildStaleFallbackEntry(
   contentHash: string,
   lineHashes: number[]
 ): DocumentCacheEntry {
+  const hasErrorDiagnostics = diagnostics.some(d => d.severity === 1);
+  const analysisState = hasErrorDiagnostics
+    ? { isStale: true, parseFailed: true, hasErrorDiagnostics: true }
+    : { isStale: true, parseFailed: true };
+
   if (existingEntry) {
     const lastGood = !existingEntry.analysisState?.parseFailed
       ? existingEntry.version
@@ -111,10 +116,7 @@ export function buildStaleFallbackEntry(
       diagnostics,
       contentHash,
       lineHashes,
-      analysisState: {
-        isStale: true,
-        parseFailed: true,
-      },
+      analysisState,
     };
 
     if (lastGood !== undefined) {
@@ -132,10 +134,7 @@ export function buildStaleFallbackEntry(
     symbolNames: new Map(),
     contentHash,
     lineHashes,
-    analysisState: {
-      isStale: true,
-      parseFailed: true,
-    },
+    analysisState,
   };
 }
 
@@ -348,7 +347,13 @@ export function registerDiagnosticsHandlers(
         // #1066: Persist filtered diagnostics to cache so subsequent skip-path
         // validations don't re-send stale errors that were already filtered.
         if (cachedEntry) {
+          const hadErrorDiagnostics = cachedEntry.diagnostics.some(d => d.severity === 1);
           cachedEntry.diagnostics = diagnosticsToSend;
+          cachedEntry.analysisState = {
+            ...(cachedEntry.analysisState ?? { isStale: false, parseFailed: false }),
+            hasErrorDiagnostics:
+              hadErrorDiagnostics || diagnosticsToSend.some(d => d.severity === 1),
+          };
         }
 
         connection.sendDiagnostics({
@@ -865,13 +870,15 @@ export function registerDiagnosticsHandlers(
           // INC-002: Store hashes for incremental change detection
           contentHash,
           lineHashes,
-          // Store introspection for AutoDoc data including @deprecated tags
-          introspection: introspectData.success ? introspectData : undefined,
           analysisState: {
             isStale: false,
             parseFailed: false,
+            hasErrorDiagnostics: diagnostics.some(d => d.severity === 1),
           },
         };
+        if (introspectData.success) {
+          cacheEntry['introspection'] = introspectData;
+        }
         if (dependencies) {
           cacheEntry.dependencies = dependencies;
           if (introspectData.inherits) {
@@ -944,14 +951,17 @@ export function registerDiagnosticsHandlers(
             ? {
                 dependencies: previousEntry.dependencies,
                 inherits: previousEntry.inherits,
-                introspection: previousEntry.introspection,
               }
             : {}),
           analysisState: {
             isStale: false,
             parseFailed: false,
+            hasErrorDiagnostics: diagnostics.some(d => d.severity === 1),
           },
         };
+        if (analysisMode !== 'typing' && introspectData.success) {
+          cacheEntry['introspection'] = introspectData;
+        }
         if (dependencies) {
           cacheEntry.dependencies = dependencies;
           if (analysisMode !== 'typing' && introspectData.inherits) {

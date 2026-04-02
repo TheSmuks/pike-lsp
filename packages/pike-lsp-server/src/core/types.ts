@@ -132,6 +132,7 @@ export interface DocumentCacheEntry {
   analysisState?: {
     isStale: boolean;
     parseFailed: boolean;
+    hasErrorDiagnostics?: boolean;
   };
   /** #1108: Version of the last successful full analysis (for cached-symbol fallback) */
   lastGoodVersion?: number;

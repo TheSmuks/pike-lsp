@@ -72,7 +72,10 @@ export function classifyChange(
   // #1068: Never skip when cached diagnostics contain errors (severity 1).
   // A change on one line can fix an error on a distant line, so we must
   // re-validate to detect whether the error was resolved.
-  if (cachedEntry.diagnostics.some(d => d.severity === 1)) {
+  if (
+    cachedEntry.analysisState?.hasErrorDiagnostics ||
+    cachedEntry.diagnostics.some(d => d.severity === 1)
+  ) {
     return { canSkip: false, reason: 'has_error_diagnostics' };
   }
 
