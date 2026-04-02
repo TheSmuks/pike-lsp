@@ -15,16 +15,20 @@
     "clean": "rm -rf dist",
     "watch": "tsc --watch",
     "test": "bun test",
+    "test:fault": "bun test src/scenarios/fault-*.test.ts",
+    "test:stress": "bun test src/testing/stress-scenarios",
     "test:snapshots:check": "bun test src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
     "test:snapshots:update": "bun test --update-snapshots src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
     "test:smoke": "bun test src/tests/",
     "test:source-trees": "PIKE_SOURCE_TREE_TEST=1 bun test src/tests/source-tree-e2e.test.ts",
+    "test:property": "bun test src/testing/property-tests/*.test.ts",
     "typecheck": "tsc --noEmit",
     "benchmark": "bun benchmarks/runner.ts"
   },
   "dependencies": {
     "@pike-lsp/core": "workspace:^",
     "@pike-lsp/pike-bridge": "workspace:^",
+    "fast-check": "^4.6.0",
     "htmlparser2": "^10.1.0",
     "vscode-languageserver": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11"

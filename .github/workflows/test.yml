@@ -119,6 +119,9 @@ jobs:
       - name: Run LSP smoke tests
         run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
 
+      - name: Run property invariant tests
+        run: cd packages/pike-lsp-server && bun run test:property
+
       - name: Run integration tests
         run: cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js
 
