@@ -30,7 +30,7 @@ CHANGELOG
 LICENSE
 LICENSE.md
 LICENSE.txt
-**/CLAUDE.md
+**/AGENTS.md
 
 # Build artifacts not needed
 .git/**
