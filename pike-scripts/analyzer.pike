@@ -898,13 +898,17 @@ int main(int argc, array(string) argv) {
 
             if (feature == "completion") {
                 string code = stringp(query_params->text) ? (string)query_params->text : snapshot_text;
-                mapping occurrences_response = ctx->analysis->handle_find_occurrences(([
+
+                // Get comprehensive completion data from analysis
+                mapping completion_response = ctx->analysis->handle_completion(([
                     "code": code,
+                    "filename": (string)(query_params->filename || "input.pike"),
+                    "position": query_params->position,
                 ]));
 
-                array(mapping) occurrences = ({});
-                if (mappingp(occurrences_response->result) && arrayp(occurrences_response->result->occurrences)) {
-                    occurrences = occurrences_response->result->occurrences;
+                array(mapping) items = ({});
+                if (mappingp(completion_response->result) && arrayp(completion_response->result->items)) {
+                    items = completion_response->result->items;
                 }
 
                 if (qe2_take_cancelled(request_id)) {
@@ -916,31 +920,41 @@ int main(int argc, array(string) argv) {
                     ]);
                 }
 
-                multiset(string) seen = (<>);
-                array(mapping) items = ({});
+                // Fallback to basic occurrence-based completion if no semantic data
+                if (!sizeof(items)) {
+                    mapping occurrences_response = ctx->analysis->handle_find_occurrences(([
+                        "code": code,
+                    ]));
 
-                int completion_occurrence_index = 0;
-                foreach (occurrences, mapping occ) {
-                    completion_occurrence_index += 1;
-                    if (completion_occurrence_index % 64 == 0 && qe2_take_cancelled(request_id)) {
-                        return ([
-                            "error": ([
-                                "code": -32800,
-                                "message": "Request cancelled"
-                            ])
-                        ]);
+                    array(mapping) occurrences = ({});
+                    if (mappingp(occurrences_response->result) && arrayp(occurrences_response->result->occurrences)) {
+                        occurrences = occurrences_response->result->occurrences;
                     }
-                    string label = (string)(occ->text || "");
-                    if (!sizeof(label)) {
-                        continue;
+
+                    multiset(string) seen = (<>);
+                    int completion_occurrence_index = 0;
+                    foreach (occurrences, mapping occ) {
+                        completion_occurrence_index += 1;
+                        if (completion_occurrence_index % 64 == 0 && qe2_take_cancelled(request_id)) {
+                            return ([
+                                "error": ([
+                                    "code": -32800,
+                                    "message": "Request cancelled"
+                                ])
+                            ]);
+                        }
+                        string label = (string)(occ->text || "");
+                        if (!sizeof(label)) {
+                            continue;
+                        }
+                        if (seen[label]) {
+                            continue;
+                        }
+                        seen[label] = 1;
+                        items += ({([
+                            "label": label,
+                        ])});
                     }
-                    if (seen[label]) {
-                        continue;
-                    }
-                    seen[label] = 1;
-                    items += ({([
-                        "label": label,
-                    ])});
                 }
 
                 return ([

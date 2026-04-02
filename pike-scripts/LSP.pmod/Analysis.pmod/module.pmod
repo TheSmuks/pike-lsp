@@ -759,6 +759,20 @@ class Analysis {
         return LSP.module.LSPError(-32000, "Variables handler not available")->to_response();
     }
 
+    //! Enhanced completion with semantic metadata
+    //! Delegates to Completions class in Analysis.pmod/
+    //!
+    //! @param params Mapping with "code", "filename", "position"
+    //! @returns Mapping with "result" containing "items" array with enriched completion data
+    mapping handle_completion(mapping params) {
+        object handler = get_completions_handler();
+        if (handler) {
+            return handler->handle_completion(params);
+        }
+        // Graceful degradation - return empty completions
+        return (["result": (["items": ({}), "context": "none", "prefix": ""])]);
+    }
+
     //! Get CompilationCache from module-level singleton
     //!
     //! LSP.CompilationCache uses module-level state (not per-instance), so we

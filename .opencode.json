@@ -1,0 +1,18 @@
+{
+  "name": "pike-lsp-opencode",
+  "version": "0.1.0",
+  "description": "Self-hosting Pike LSP configuration for opencode development",
+  "lsp": {
+    "pike": {
+      "command": "bun",
+      "args": ["run", "--filter", "@pike-lsp/pike-lsp-server", "start"],
+      "filetypes": ["pike", "pmod"],
+      "rootPatterns": [".git", "package.json"],
+      "initializationOptions": {
+        "pikePath": "pike",
+        "pikeModulePath": ["pike-scripts"],
+        "trace": "off"
+      }
+    }
+  }
+}
