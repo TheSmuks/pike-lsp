@@ -73,8 +73,11 @@ export {
 export {
   classifyChange,
   stripLineComments,
+  type AnalysisMode,
   type ChangeClassification,
 } from './change-detection.js';
+
+type AnalysisOperation = import('@pike-lsp/pike-bridge').AnalysisOperation;
 
 export function applySkippedValidationCacheUpdate(
   cachedEntry: DocumentCacheEntry,
@@ -352,7 +355,7 @@ export function registerDiagnosticsHandlers(
         key: `diagnostics:${uri}`,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(liveDocument, classification, checkpoint);
+          await validateDocument(liveDocument, classification, checkpoint, 'typing');
         },
       });
       documentCache.setPending(uri, promise);
@@ -381,7 +384,8 @@ export function registerDiagnosticsHandlers(
   async function validateDocument(
     document: TextDocument,
     classification?: import('./change-detection.js').ChangeClassification,
-    shouldContinue: () => void = () => {}
+    shouldContinue: () => void = () => {},
+    analysisMode: 'typing' | 'full' = 'full'
   ): Promise<void> {
     const uri = document.uri;
     const version = document.version;
@@ -406,6 +410,10 @@ export function registerDiagnosticsHandlers(
     }
 
     const text = document.getText();
+    const include: AnalysisOperation[] =
+      analysisMode === 'typing'
+        ? ['parse', 'diagnostics']
+        : ['parse', 'introspect', 'diagnostics', 'tokenize'];
 
     log.debug('Validating document', { uri, version, length: text.length });
 
@@ -517,12 +525,7 @@ export function registerDiagnosticsHandlers(
 
       if (!analyzeResult) {
         log.debug('Engine query diagnostics using analyze fallback', { uri, requestId });
-        analyzeResult = await bridge.analyze(
-          text,
-          ['parse', 'introspect', 'diagnostics', 'tokenize'],
-          filename,
-          version
-        );
+        analyzeResult = await bridge.analyze(text, include, filename, version);
       }
 
       clearInFlightRequest();
@@ -876,13 +879,16 @@ export function registerDiagnosticsHandlers(
         // Introspection failed, use parse results
         // P.2 FIX: Extract @deprecated tags from source even when introspection fails
         const symbolsWithDeprecated = extractDeprecatedFromSymbols(parseData.symbols);
+        const previousEntry = analysisMode === 'typing' ? documentCache.get(uri) : undefined;
         log.debug('Using parse result fallback', {
           uri,
           symbolCount: symbolsWithDeprecated.length,
         });
         // Resolve include/import dependencies for IntelliSense
         let dependencies: import('../../core/types.js').DocumentDependencies | undefined;
-        if (services.includeResolver) {
+        if (analysisMode === 'typing' && previousEntry?.dependencies) {
+          dependencies = previousEntry.dependencies;
+        } else if (services.includeResolver) {
           dependencies = await services.includeResolver.resolveDependencies(
             uri,
             symbolsWithDeprecated
@@ -892,13 +898,11 @@ export function registerDiagnosticsHandlers(
           }
         }
 
-        const symbolPositions = await buildSymbolPositionIndex(
-          text,
-          symbolsWithDeprecated,
-          tokenizeData,
-          bridge
-        );
-        if (!ensureLatest('post_symbol_index_build_fallback')) {
+        const symbolPositions: DocumentCacheEntry['symbolPositions'] =
+          previousEntry?.symbolPositions
+            ? previousEntry.symbolPositions
+            : await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData, bridge);
+        if (!previousEntry?.symbolPositions && !ensureLatest('post_symbol_index_build_fallback')) {
           return;
         }
 
@@ -908,10 +912,20 @@ export function registerDiagnosticsHandlers(
           diagnostics,
           symbolPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
-          symbolNames: buildSymbolNameIndex(symbolsWithDeprecated),
+          symbolNames:
+            analysisMode === 'typing' && previousEntry?.symbolNames
+              ? previousEntry.symbolNames
+              : buildSymbolNameIndex(symbolsWithDeprecated),
           // INC-002: Store hashes for incremental change detection
           contentHash,
           lineHashes,
+          ...(analysisMode === 'typing' && previousEntry
+            ? {
+                dependencies: previousEntry.dependencies,
+                inherits: previousEntry.inherits,
+                introspection: previousEntry.introspection,
+              }
+            : {}),
           analysisState: {
             isStale: false,
             parseFailed: false,
@@ -919,7 +933,7 @@ export function registerDiagnosticsHandlers(
         };
         if (dependencies) {
           cacheEntry.dependencies = dependencies;
-          if (introspectData.inherits) {
+          if (analysisMode !== 'typing' && introspectData.inherits) {
             cacheEntry.inherits = introspectData.inherits;
           }
         }
