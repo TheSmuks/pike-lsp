@@ -119,7 +119,6 @@ jobs:
   testing-pyramid:
     name: testing-pyramid (${{ matrix.test-suite }})
     runs-on: ubuntu-24.04
-    needs: [test]
     timeout-minutes: 5
 
     strategy:
@@ -136,6 +135,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -151,21 +153,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-output-${{ github.sha }}
-
-      - name: Extract build artifacts
-        run: tar -xzf build-output.tar.gz
-
-      - name: Verify build artifacts
-        run: |
-          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
-          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
-          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
-          echo "All build artifacts verified"
 
       - name: Run ${{ matrix.test-suite }} tests
         working-directory: packages/pike-lsp-server
@@ -311,7 +298,7 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test, testing-pyramid]
+    needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
@@ -364,7 +351,7 @@ jobs:
   vscode-e2e-category:
     name: vscode-e2e (${{ matrix.category }})
     runs-on: ubuntu-24.04
-    needs: [test, pike-test, testing-pyramid]
+    needs: [test]
     timeout-minutes: 25
     continue-on-error: ${{ matrix.optional }}
     strategy:
@@ -492,7 +479,7 @@ jobs:
 
   vscode-e2e-source-trees:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test, testing-pyramid]
+    needs: [test]
     if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
     timeout-minutes: 35
 
