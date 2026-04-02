@@ -96,6 +96,7 @@ class ExtensionRuntime {
   private suppressNextStopEvent = false;
   private autoRestartPaused = false;
   private forceRestartFailureForTesting = false;
+  private pikeVersionInfo: { version: string; path: string } | null = null;
   private restartPolicy = {
     windowMs: 60_000,
     maxAttempts: 3,
@@ -128,6 +129,22 @@ class ExtensionRuntime {
     this.restartAttempts = 0;
     this.restartWindowStart = 0;
     this.autoRestartPaused = false;
+  }
+
+  async updatePikeVersionInfo(): Promise<void> {
+    try {
+      const config = workspace.getConfiguration('pike');
+      const pikePath = config.get<string>('pikePath', 'pike');
+      const result = await detectPike();
+      if (result) {
+        this.pikeVersionInfo = { version: result.version, path: result.pikePath };
+      } else {
+        this.pikeVersionInfo = null;
+      }
+      void pikePath;
+    } catch {
+      this.pikeVersionInfo = null;
+    }
   }
 
   private scheduleAutoRestart(reason: string): void {
@@ -189,7 +206,11 @@ class ExtensionRuntime {
         break;
       case 'running':
         this.statusBarItem.text = '$(check) Pike';
-        this.statusBarItem.tooltip = `Pike LSP: running${suffix}\nClick for server actions`;
+        this.statusBarItem.tooltip = `Pike LSP: running${suffix}${
+          this.pikeVersionInfo
+            ? `\nPike: v${this.pikeVersionInfo.version} (${this.pikeVersionInfo.path})`
+            : ''
+        }\nClick for server actions`;
         break;
       case 'restarting':
         this.statusBarItem.text = '$(sync~spin) Pike';
@@ -224,6 +245,10 @@ class ExtensionRuntime {
 
   getOutputChannel(): OutputChannel {
     return this.outputChannel;
+  }
+
+  getPikeVersionInfo(): { version: string; path: string } | null {
+    return this.pikeVersionInfo;
   }
 
   getLogs(): string[] {
@@ -453,6 +478,7 @@ class ExtensionRuntime {
     try {
       this.setStatusBar(hadExistingClient ? 'restarting' : 'starting');
       await this.client.start();
+      await this.updatePikeVersionInfo();
       this.setStatusBar('running');
       if (showMessage && !this.disposed) {
         window.showInformationMessage('Pike Language Server started');
@@ -757,6 +783,16 @@ async function activateInternal(
 
   runtime.track(runTestDisposable);
 
+  const organizeImportsDisposable = commands.registerCommand(
+    'pike.lsp.organizeImports',
+    async () => {
+      if (runtime.isDisposed()) return;
+      await commands.executeCommand('editor.action.organizeImports');
+    }
+  );
+
+  runtime.track(organizeImportsDisposable);
+
   const runFileTestsDisposable = commands.registerCommand(
     'pike.lsp.runFileTests',
     async (uri: string) => {
@@ -909,6 +945,13 @@ async function activateInternal(
 
       const healthText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
       runtime.getOutputChannel().show(true);
+      const pikeVersionInfo = runtime.getPikeVersionInfo();
+      if (pikeVersionInfo) {
+        runtime.getOutputChannel().appendLine(`Pike Version: v${pikeVersionInfo.version}`);
+        runtime.getOutputChannel().appendLine(`Pike Path: ${pikeVersionInfo.path}`);
+      } else {
+        runtime.getOutputChannel().appendLine('Pike Version: not detected');
+      }
       runtime.getOutputChannel().appendLine(healthText);
       window.showInformationMessage('Pike server health printed to output channel.');
     } catch (err) {
@@ -1129,6 +1172,7 @@ async function activateInternal(
           event.affectsConfiguration('pike.pikeProgramPath') ||
           event.affectsConfiguration('pike.pikePath'))
       ) {
+        await runtime.updatePikeVersionInfo();
         await runtime.restartClient(false);
       }
     })
