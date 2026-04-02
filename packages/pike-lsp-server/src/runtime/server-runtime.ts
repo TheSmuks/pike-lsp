@@ -11,6 +11,10 @@ import {
   QUERY_ENGINE_MAJOR_VERSION,
   QUERY_ENGINE_PROTOCOL,
 } from '../query-engine/contracts.js';
+import {
+  loadResolutionCache,
+  saveResolutionCache,
+} from '../services/resolution-cache-persistence.js';
 
 interface RuntimeServicePatch {
   stdlibIndex?: StdlibIndexManager | null;
@@ -280,6 +284,22 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
             },
           });
           log(`Engine config ack revision=${configAck.revision} snapshot=${configAck.snapshotId}`);
+
+          try {
+            const health = await bridgeManager.getHealth();
+            const pikeVersion = health.pikeVersion?.version;
+            const cached = await loadResolutionCache(pikeVersion);
+            if (cached) {
+              const loaded = bridgeManager.bridge.loadResolutionCaches(cached);
+              if (loaded > 0) {
+                connection.console.log(`Loaded ${loaded} resolution cache entries from disk`);
+                log(`Resolution cache loaded: ${loaded} entries`);
+              }
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            log(`Resolution cache load skipped: ${message}`);
+          }
         }
       } catch (err) {
         connection.console.warn(`Failed to start bridge: ${err}`);
@@ -306,7 +326,25 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
 
   connection.onShutdown(async () => {
     connection.console.log('Pike LSP Server shutting down...');
-    await getBridgeManager()?.stop();
+    const bridgeManager = getBridgeManager();
+    if (bridgeManager?.bridge) {
+      try {
+        const stats = bridgeManager.bridge.getResolutionCacheStats();
+        if (stats.stdlib > 0 || stats.modules > 0) {
+          const serialized = bridgeManager.bridge.serializeResolutionCaches();
+          const health = await bridgeManager.getHealth();
+          await saveResolutionCache(serialized, health.pikeVersion?.version);
+          connection.console.log(
+            `Saved ${stats.stdlib} stdlib + ${stats.modules} module resolution cache entries`
+          );
+          log(`Resolution cache saved: stdlib=${stats.stdlib}, modules=${stats.modules}`);
+        }
+      } catch (err) {
+        connection.console.warn(`Failed to save resolution cache: ${err}`);
+        log(`Resolution cache save failed: ${err}`);
+      }
+    }
+    await bridgeManager?.stop();
   });
 
   connection.onExit(() => {

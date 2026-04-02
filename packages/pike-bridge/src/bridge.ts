@@ -483,6 +483,70 @@ export class PikeBridge extends EventEmitter {
     this.moduleResolveCache.clear();
   }
 
+  serializeResolutionCaches(): string {
+    const stdlibEntries: Record<string, unknown> = {};
+    for (const [key, value] of this.stdlibResolveCache) {
+      stdlibEntries[key] = value;
+    }
+
+    const moduleEntries: Record<string, string | null> = {};
+    for (const [key, value] of this.moduleResolveCache) {
+      moduleEntries[key] = value;
+    }
+
+    return JSON.stringify({
+      version: 1,
+      stdlibCache: stdlibEntries,
+      moduleCache: moduleEntries,
+    });
+  }
+
+  loadResolutionCaches(serialized: string): number {
+    try {
+      const parsed = JSON.parse(serialized) as Record<string, unknown>;
+      if (typeof parsed !== 'object' || parsed === null) {
+        return 0;
+      }
+
+      if (parsed['version'] !== 1) {
+        return 0;
+      }
+
+      let count = 0;
+
+      if (parsed['stdlibCache'] && typeof parsed['stdlibCache'] === 'object') {
+        const stdlib = parsed['stdlibCache'] as Record<string, unknown>;
+        for (const [key, value] of Object.entries(stdlib)) {
+          if (value && typeof value === 'object') {
+            this.stdlibResolveCache.set(key, value as import('./types.js').StdlibResolveResult);
+            count += 1;
+          }
+        }
+      }
+
+      if (parsed['moduleCache'] && typeof parsed['moduleCache'] === 'object') {
+        const modules = parsed['moduleCache'] as Record<string, unknown>;
+        for (const [key, value] of Object.entries(modules)) {
+          if (typeof value === 'string' || value === null) {
+            this.moduleResolveCache.set(key, value);
+            count += 1;
+          }
+        }
+      }
+
+      return count;
+    } catch {
+      return 0;
+    }
+  }
+
+  getResolutionCacheStats(): { stdlib: number; modules: number } {
+    return {
+      stdlib: this.stdlibResolveCache.size,
+      modules: this.moduleResolveCache.size,
+    };
+  }
+
   /**
    * Check if the bridge is running.
    *
