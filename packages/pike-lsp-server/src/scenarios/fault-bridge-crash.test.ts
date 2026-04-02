@@ -14,6 +14,20 @@ import {
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
+async function waitForCondition(
+  predicate: () => boolean,
+  timeoutMs = 2000,
+  intervalMs = 10
+): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start >= timeoutMs) {
+      throw new Error('Timed out waiting for fault scenario to settle');
+    }
+    await wait(intervalMs);
+  }
+}
+
 function createHarness(
   bridge: FaultInjectableMockBridge,
   seeded?: { uri: string; entry: DocumentCacheEntry }
@@ -110,7 +124,8 @@ describe('Fault scenario: bridge crash during analysis', () => {
     const crashingDoc = TextDocument.create(uri, 'pike', 2, 'int now = 2;\n');
 
     harness.docs.emitOpen(crashingDoc);
-    await wait(120);
+    await waitForCondition(() => bridge.getFaultStats().triggered >= 1);
+    await waitForCondition(() => harness.consoleErrors.length >= 1);
 
     const stats = bridge.getFaultStats();
     assert.equal(stats.triggered >= 1, true);
