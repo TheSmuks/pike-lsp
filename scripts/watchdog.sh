@@ -244,7 +244,7 @@ check_context_pollution() {
 
     local log_dirs=(
         "${PROJECT_ROOT}/.omc/test-logs"
-        "${PROJECT_ROOT}/.claude/logs"
+        "${PROJECT_ROOT}/.sisyphus/logs"
     )
 
     local polluted=0

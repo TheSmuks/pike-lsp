@@ -1,6 +1,6 @@
 # PROGRESS.md - Agent Progress Tracking
 
-**Full history in .claude/status/changes.log - grep for details**
+**Full history in .sisyphus/status/changes.log - grep for details**
 
 ---
 

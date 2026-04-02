@@ -8,7 +8,7 @@ on:
       - 'docs/**'
       - '*.md'
       - 'LICENSE'
-      - '.claude/**'
+      - '.sisyphus/**'
       - '.omc/**'
       - 'docusaurus.config.ts'
       - 'sidebars.ts'
@@ -17,7 +17,7 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'LICENSE'
-      - '.claude/**'
+      - '.sisyphus/**'
       - '.omc/**'
       - 'docusaurus.config.ts'
       - 'sidebars.ts'

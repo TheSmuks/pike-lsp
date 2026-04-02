@@ -312,7 +312,7 @@ The LSP provides specialized support for Roxen WebServer module development.
 
 ## Architectural Decisions
 
-This architecture is governed by the ADRs in `.claude/decisions/`:
+This architecture is governed by the ADRs in `.sisyphus/decisions/`:
 
 | ADR | Decision | Impact |
 |-----|----------|--------|
@@ -359,9 +359,9 @@ This architecture is governed by the ADRs in `.claude/decisions/`:
 
 ## Development Workflow
 
-See `.claude/CLAUDE.md` for complete development guidelines:
+See `.sisyphus/AGENTS.md` for complete development guidelines:
 
-1. **Read decisions first** - Check `.claude/decisions/INDEX.md`
+1. **Read decisions first** - Check `.sisyphus/decisions/INDEX.md`
 2. **Use Pike stdlib** - Search `/usr/local/pike/8.0.1116/lib/` before implementing
 3. **Follow TDD** - Write failing test, then implement
 4. **Feature branches** - All work on `feat/`, `fix/`, etc. branches
