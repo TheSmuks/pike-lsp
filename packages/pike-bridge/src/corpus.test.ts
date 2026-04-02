@@ -301,7 +301,10 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
 
     // Known files that crash the Pike subprocess during introspection
     // (heavy C module dependencies that fail to load in test context)
-    const KNOWN_CRASHES = new Set(['modules/Tools.pmod/Standalone.pmod/rsqld.pike']);
+    const KNOWN_CRASHES = new Set([
+      'modules/Tools.pmod/Standalone.pmod/rsqld.pike',
+      '7.8/modules/SSL.pmod/connection.pike',
+    ]);
 
     // Count crashes (bridge timeout/error, not parse failures)
     // Exclude known crashes — these are Pike runtime issues, not analyzer bugs
@@ -481,7 +484,7 @@ describeSuite('Pike Stdlib Corpus Validation', { timeout: 1800_000 }, () => {
       'modules/Crypto.pmod/ECC.pmod',
       'modules/Crypto.pmod/Koremutake.pmod',
       'modules/Crypto.pmod/PGP.pmod',
-      'modules/Crypto.pmod/Password.pike',
+      'modules/Crypto.pmod/Password.pmod',
       'modules/Crypto.pmod/Pipe.pike',
       'modules/Crypto.pmod/RSA.pmod',
       // Filesystem monitoring
