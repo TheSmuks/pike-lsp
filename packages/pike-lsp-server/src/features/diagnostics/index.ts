@@ -641,7 +641,12 @@ export function registerDiagnosticsHandlers(
         }
       }
 
+      // #1100: When parse produces errors (syntax errors), downstream diagnostics
+      // from the Pike compiler are cascade errors on lines that are actually fine.
+      // Suppress them — only report the actual parse errors.
+
       // Process diagnostics from introspection
+      // (introspect failure already handled above — diagnostics array is empty)
       for (const pikeDiag of introspectData.diagnostics) {
         if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           break;
@@ -936,13 +941,32 @@ export function registerDiagnosticsHandlers(
         documentCache.set(uri, staleEntry);
       }
 
+      // #1100: When diagnosticsData contains syntax errors, downstream diagnostics
+      // from the Pike compiler are cascade errors on lines that are actually fine.
+      // Only report the syntax errors themselves.
+      const rawDiagData = diagnosticsData;
+      const hasSyntaxErrors =
+        rawDiagData.diagnostics?.some((d: { message?: string }) => {
+          const msg = d.message?.toLowerCase() ?? '';
+          return msg.includes('syntax error') || msg.includes('unexpected tok_');
+        }) ?? false;
+      const diagnosticsToProcess = hasSyntaxErrors
+        ? {
+            diagnostics:
+              rawDiagData.diagnostics?.filter((d: { message?: string }) => {
+                const msg = d.message?.toLowerCase() ?? '';
+                return msg.includes('syntax error') || msg.includes('unexpected tok_');
+              }) ?? [],
+          }
+        : diagnosticsData;
+
       // Process diagnostics from unified analyze (includes syntax errors + uninitialized warnings)
-      if (diagnosticsData.diagnostics && diagnosticsData.diagnostics.length > 0) {
+      if (diagnosticsToProcess.diagnostics && diagnosticsToProcess.diagnostics.length > 0) {
         log.debug('Analyze diagnostics extracted', {
           uri,
-          count: diagnosticsData.diagnostics.length,
+          count: diagnosticsToProcess.diagnostics.length,
         });
-        for (const diag of diagnosticsData.diagnostics) {
+        for (const diag of diagnosticsToProcess.diagnostics) {
           if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
             break;
           }
