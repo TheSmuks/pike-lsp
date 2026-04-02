@@ -768,6 +768,73 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             }
         }
 
+        // Handle preprocessor conditionals (#if, #ifdef, #ifndef, #else, #elif, #endif)
+        // Pike tokenizes preprocessor directives as text tokens starting with '#'.
+        // We treat #if/#else/#endif blocks with optimistic merge:
+        // if a variable is initialized in ANY branch, it's considered initialized after #endif.
+        // This handles Pike's common `#if constant(...)` feature-detection pattern.
+        if (has_prefix(text, "#if") || has_prefix(text, "#ifdef") || has_prefix(text, "#ifndef")) {
+            mapping saved_states = save_variable_states_fn(variables);
+            branch_stack += ({ ([
+                "type": "preprocessor",
+                "saved_states": saved_states,
+                "branch_states": ({}),
+                "scope_level": scope_depth,
+                "in_branch": 1
+            ]) });
+        }
+
+        if (has_prefix(text, "#elif") || has_prefix(text, "#else")) {
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "preprocessor") {
+                    if (branch->in_branch) {
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                    }
+                    restore_variable_states_fn(variables, branch->saved_states);
+                    branch->in_branch = 1;
+                    break;
+                }
+            }
+        }
+
+        if (has_prefix(text, "#endif")) {
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "preprocessor") {
+                    if (branch->in_branch) {
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                    }
+
+                    // Optimistic merge: if INITIALIZED in ANY branch, treat as INITIALIZED.
+                    mapping merged = ([]);
+                    foreach (indices(variables), string var_name) {
+                        mapping var_info = variables[var_name];
+                        if (!var_info->needs_init) continue;
+
+                        int any_init = 0;
+                        int pre_state = branch->saved_states[var_name] || STATE_UNINITIALIZED;
+
+                        foreach (branch->branch_states;; mapping bstates) {
+                            int bs = bstates[var_name] || pre_state;
+                            if (bs == STATE_INITIALIZED) {
+                                any_init = 1;
+                                break;
+                            }
+                        }
+
+                        if (any_init) {
+                            merged[var_name] = STATE_INITIALIZED;
+                        }
+                    }
+
+                    restore_variable_states_fn(variables, merged);
+                    branch_stack = branch_stack[0..k-1] + branch_stack[k+1..];
+                    break;
+                }
+            }
+        }
+
         i++;
     }
 
