@@ -5,41 +5,16 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
 import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
-import {
-  createMockBridge,
-  createMockDocuments,
-  makeCachedEntry,
-  type FaultInjectableMockBridge,
-} from '../tests/helpers/test-helpers.js';
+import { createMockDocuments } from '../tests/helpers/test-helpers.js';
+import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-async function waitForCondition(
-  predicate: () => boolean,
-  timeoutMs = 2000,
-  intervalMs = 10
-): Promise<void> {
-  const start = Date.now();
-  while (!predicate()) {
-    if (Date.now() - start >= timeoutMs) {
-      throw new Error('Timed out waiting for fault scenario to settle');
-    }
-    await wait(intervalMs);
-  }
-}
-
-function createHarness(
-  bridge: FaultInjectableMockBridge,
-  seeded?: { uri: string; entry: DocumentCacheEntry }
-) {
+function createHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
   const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
   const consoleErrors: string[] = [];
-
-  if (seeded) {
-    cache.set(seeded.uri, seeded.entry);
-  }
 
   const connection = {
     sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
@@ -92,7 +67,7 @@ function createHarness(
       },
     },
     includeResolver: null,
-    globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 10 },
+    globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5 },
     documentSnapshots: new Map<string, string>(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   };
@@ -103,38 +78,40 @@ function createHarness(
     docs as unknown as TextDocuments<TextDocument>
   );
 
-  return { docs, cache, diagnostics, consoleErrors };
+  return { docs, diagnostics, consoleErrors };
 }
 
-describe.skip('Fault scenario: bridge crash during analysis', () => {
-  it('propagates failure path cleanly and preserves cache integrity', async () => {
-    const uri = 'file:///fault-crash.pike';
-    const seededEntry = makeCachedEntry('int stable = 1;\n');
-    seededEntry.version = 1;
-
-    const bridge = createMockBridge({
-      faultInjection: {
+describe('Scenario: rapid malformed edits degrade gracefully', () => {
+  it('keeps diagnostics flowing across malformed burst and recovers on valid edit', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
         crashAtOperation: 'engineQuery',
-        failWithError: new Error('injected crash'),
+        failWithError: new Error('injected parse hard-fail'),
         probability: 1,
-      },
-    }) as FaultInjectableMockBridge;
+      }
+    );
 
-    const harness = createHarness(bridge, { uri, entry: seededEntry });
-    const crashingDoc = TextDocument.create(uri, 'pike', 2, 'int now = 2;\n');
+    const { docs, diagnostics } = createHarness(bridge);
+    const uri = 'file:///rapid-malformed.pike';
 
-    harness.docs.emitOpen(crashingDoc);
-    await waitForCondition(() => bridge.getFaultStats().triggered >= 1);
-    await waitForCondition(() => harness.consoleErrors.length >= 1);
+    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'int x = ;\n'));
+    docs.emitChange(TextDocument.create(uri, 'pike', 2, 'int x = (\n'));
+    await wait(80);
 
-    const stats = bridge.getFaultStats();
-    assert.equal(stats.triggered >= 1, true);
-    assert.equal(harness.consoleErrors.length >= 1, true);
-    assert.equal(harness.diagnostics.length, 0);
+    const malformedDiagCount = diagnostics.filter(entry => entry.uri === uri).length;
+    assert.equal(
+      malformedDiagCount >= 1,
+      true,
+      'Malformed rapid edits must still publish degraded diagnostics'
+    );
 
-    const cached = harness.cache.get(uri);
-    assert.ok(cached);
-    assert.equal(cached?.version, 1);
-    assert.equal(cached?.analysisState?.parseFailed ?? false, false);
+    bridge.setFaultConfig({});
+    docs.emitChange(TextDocument.create(uri, 'pike', 3, 'int x = 3;\n'));
+    await wait(80);
+
+    const recovered = diagnostics.find(entry => entry.uri === uri && entry.version === 3);
+    assert.ok(recovered, 'Validation must recover and publish diagnostics for the fixed edit');
+    assert.equal(Array.isArray(recovered.diagnostics), true);
   });
 });
