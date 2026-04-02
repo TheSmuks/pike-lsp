@@ -1509,4 +1509,58 @@ describe('Scenario: query engine completion path', () => {
     assert.ok(names.includes('qeItem'), 'Should include QE items');
     assert.ok(names.includes('File'), 'Should include imported module symbols');
   });
+
+  it('should return enriched completion data with kind and detail from query engine', async () => {
+    const { complete } = createHarness({
+      code: 'int localVar = 1;\nMyClass obj;',
+      queryItems: [
+        {
+          label: 'myFunction',
+          kind: 'function',
+          detail: 'function myFunction()',
+        },
+        {
+          label: 'MyClass',
+          kind: 'class',
+          detail: 'class MyClass',
+        },
+        {
+          label: 'MY_CONSTANT',
+          kind: 'constant',
+          detail: 'constant MY_CONSTANT',
+        },
+        {
+          label: 'myVariable',
+          kind: 'variable',
+          detail: 'variable myVariable',
+        },
+      ],
+    });
+
+    const result = await complete({
+      textDocument: { uri: 'file:///test.pike' },
+      position: { line: 0, character: 3 },
+    });
+
+    const funcItem = result.items.find(item => item.label === 'myFunction');
+    const classItem = result.items.find(item => item.label === 'MyClass');
+    const constItem = result.items.find(item => item.label === 'MY_CONSTANT');
+    const varItem = result.items.find(item => item.label === 'myVariable');
+
+    assert.ok(funcItem);
+    assert.strictEqual(funcItem.kind, CompletionItemKind.Function);
+    assert.strictEqual(funcItem.detail, 'function myFunction()');
+
+    assert.ok(classItem);
+    assert.strictEqual(classItem.kind, CompletionItemKind.Class);
+    assert.strictEqual(classItem.detail, 'class MyClass');
+
+    assert.ok(constItem);
+    assert.strictEqual(constItem.kind, CompletionItemKind.Constant);
+    assert.strictEqual(constItem.detail, 'constant MY_CONSTANT');
+
+    assert.ok(varItem);
+    assert.strictEqual(varItem.kind, CompletionItemKind.Variable);
+    assert.strictEqual(varItem.detail, 'variable myVariable');
+  });
 });
