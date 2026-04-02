@@ -11,5 +11,15 @@ export type { ErrorLayer } from '@pike-lsp/core';
 export { Logger, LogLevel } from '@pike-lsp/core';
 
 // Server-specific types remain local
-export type { PikeSettings, DocumentCacheEntry } from './types.js';
+export type {
+  PikeSettings,
+  DocumentCacheEntry,
+  CorePosition,
+  CoreRange,
+  CoreDiagnostic,
+  CoreSymbol,
+  CoreTextDocumentIdentifier,
+  CoreVersionedTextDocumentIdentifier,
+  CoreTextDocumentItem,
+} from './types.js';
 export { defaultSettings } from './types.js';
