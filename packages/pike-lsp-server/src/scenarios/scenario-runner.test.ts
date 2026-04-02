@@ -44,6 +44,14 @@ import {
   saveResolutionCache,
 } from '../services/resolution-cache-persistence.js';
 
+function makeSymbol(name: string, kind: number): import('@pike-lsp/pike-bridge').PikeSymbol {
+  return {
+    name,
+    kind: kind as unknown as import('@pike-lsp/pike-bridge').PikeSymbolKind,
+    modifiers: [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Level 1: classifyChange directly (the actual fix point)
 // ---------------------------------------------------------------------------
@@ -573,5 +581,78 @@ describe('Scenario: resolution cache persistence', () => {
       const corrupted = await loadResolutionCache('8.0.1116');
       assert.strictEqual(corrupted, null);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario: cached-symbol fallback preserves last-good data (#1108)
+// ---------------------------------------------------------------------------
+
+describe('Scenario: cached-symbol fallback on parse failure', () => {
+  it('preserves previous symbols when parse fails on previously-valid file', () => {
+    const { buildStaleFallbackEntry } = require('../features/diagnostics/index.js');
+
+    const previousEntry: DocumentCacheEntry = {
+      version: 5,
+      symbols: [makeSymbol('Foo', 5), makeSymbol('bar', 6)],
+      diagnostics: [],
+      symbolPositions: new Map([['Foo', [{ line: 0, character: 0 }]]]),
+      symbolNames: new Map([['Foo', makeSymbol('Foo', 5)]]),
+      contentHash: 'good-hash',
+      lineHashes: [111],
+      analysisState: { isStale: false, parseFailed: false },
+    };
+
+    const stale = buildStaleFallbackEntry(previousEntry, 6, [], 'bad-hash', [222]);
+
+    assert.strictEqual(stale.version, 6);
+    assert.strictEqual(stale.analysisState?.parseFailed, true);
+    assert.strictEqual(stale.analysisState?.isStale, true);
+    assert.strictEqual(stale.symbols.length, 2, 'must preserve previous symbols');
+    assert.strictEqual(stale.symbols[0]?.name, 'Foo');
+    assert.strictEqual(stale.symbols[1]?.name, 'bar');
+    assert.strictEqual(stale.lastGoodVersion, 5, 'must track last-good version');
+  });
+
+  it('propagates lastGoodVersion from older stale entry', () => {
+    const { buildStaleFallbackEntry } = require('../features/diagnostics/index.js');
+
+    const staleEntry: DocumentCacheEntry = {
+      version: 7,
+      symbols: [makeSymbol('Foo', 5)],
+      diagnostics: [
+        {
+          message: 'err',
+          severity: 1,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } },
+          source: 'pike',
+        },
+      ],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: 'stale-hash',
+      lineHashes: [333],
+      analysisState: { isStale: true, parseFailed: true },
+      lastGoodVersion: 5,
+    };
+
+    const stillStale = buildStaleFallbackEntry(staleEntry, 8, [], 'worse-hash', [444]);
+
+    assert.strictEqual(
+      stillStale.lastGoodVersion,
+      5,
+      'must propagate lastGoodVersion through successive failures'
+    );
+    assert.strictEqual(stillStale.symbols.length, 1, 'must preserve symbols from last good parse');
+  });
+
+  it('returns empty symbols when no previous entry exists', () => {
+    const { buildStaleFallbackEntry } = require('../features/diagnostics/index.js');
+
+    const noHistory = buildStaleFallbackEntry(undefined, 1, [], 'hash', [555]);
+
+    assert.strictEqual(noHistory.symbols.length, 0);
+    assert.strictEqual(noHistory.analysisState?.parseFailed, true);
+    assert.strictEqual(noHistory.lastGoodVersion, undefined);
   });
 });
