@@ -102,3 +102,5 @@ t_v7.txt
 scripts/act
 .git/.worker-submit-marker
 patches/
+# Yabu data files
+0.yabu/

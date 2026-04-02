@@ -1,0 +1,28 @@
+/* Minimal custom styles for Pike LSP Docusaurus site */
+/* Using default Docusaurus color scheme */
+
+/* Code block styling */
+pre {
+  border-radius: 8px;
+}
+
+code {
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* Table styling improvements */
+table {
+  display: table;
+  width: 100%;
+}
+
+table th,
+table td {
+  padding: 0.75rem;
+}
+
+/* Link hover enhancement */
+a:hover {
+  text-decoration: underline;
+}
