@@ -879,6 +879,17 @@ export function registerDiagnosticsHandlers(
           }
         }
 
+        // #1112: Verify version hasn't changed before writing to cache
+        const liveBeforeCache = documents.get(uri);
+        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+          log.debug('Skipping cache write for stale version after introspection', {
+            uri,
+            validatedVersion: version,
+            latestVersion: liveBeforeCache?.version,
+          });
+          return;
+        }
+
         documentCache.set(uri, cacheEntry);
         log.debug('Cached document after introspection merge', {
           uri,
@@ -948,6 +959,17 @@ export function registerDiagnosticsHandlers(
           }
         }
 
+        // #1112: Verify version hasn't changed before writing to cache
+        const liveBeforeCache = documents.get(uri);
+        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+          log.debug('Skipping cache write for stale version after parse', {
+            uri,
+            validatedVersion: version,
+            latestVersion: liveBeforeCache?.version,
+          });
+          return;
+        }
+
         documentCache.set(uri, cacheEntry);
         log.debug('Cached document from parse result', {
           uri,
@@ -962,6 +984,18 @@ export function registerDiagnosticsHandlers(
           contentHash,
           lineHashes
         );
+
+        // #1112: Verify version hasn't changed before writing to cache
+        const liveBeforeCache = documents.get(uri);
+        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+          log.debug('Skipping cache write for stale version (no parse result)', {
+            uri,
+            validatedVersion: version,
+            latestVersion: liveBeforeCache?.version,
+          });
+          return;
+        }
+
         documentCache.set(uri, staleEntry);
       }
 
