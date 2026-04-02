@@ -121,6 +121,11 @@ int main(int argc, array(string) argv) {
     run_test(test_preprocessor_if_only_init_no_warn, "preprocessor: #if-only init - no warning");
     run_test(test_preprocessor_nested_no_warn, "preprocessor: nested #if blocks - no warning");
 
+    // ::create() inheritance tests (Issue #1093)
+    run_test(test_inheritance_create_suppresses_warning, "inheritance: ::create() suppresses uninit warning");
+    run_test(test_inheritance_create_already_init_stays, "inheritance: already-initialized vars unaffected");
+    run_test(test_inheritance_create_with_args, "inheritance: ::create(args) also suppresses warning");
+
     write("\n");
     write("===================\n");
     write("Tests: %d, Passed: %d, Failed: %d\n", test_count, pass_count, fail_count);
@@ -996,6 +1001,99 @@ void test_preprocessor_nested_no_warn() {
     foreach (diagnostics, mapping diag) {
         if (diag->variable == "s") {
             error("Variable s initialized in all nested preprocessor branches should not warn, got: %s\n",
+                diag->message);
+        }
+    }
+}
+
+// =============================================================================
+// ::create() inheritance Tests (Issue #1093)
+// =============================================================================
+
+//! Test that ::create() suppresses uninitialized warnings for variables used after
+//!
+//! When a function calls ::create() (parent constructor), the parent may initialize
+//! class-level variables. The token-level analyzer cannot trace inheritance, so it
+//! conservatively marks all currently-uninitialized variables as initialized.
+void test_inheritance_create_suppresses_warning() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void create() {\n"
+        "    string name;\n"
+        "    ::create();\n"
+        "    write(\"%s\\n\", name);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // After ::create(), name should be considered initialized — no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "name") {
+            error("Variable name used after ::create() should not warn, got: %s\n",
+                diag->message);
+        }
+    }
+}
+
+//! Test that already-initialized variables are unaffected by ::create()
+//!
+//! Variables initialized before the ::create() call should remain INITIALIZED.
+void test_inheritance_create_already_init_stays() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void create(string config) {\n"
+        "    string name = config;\n"
+        "    ::create();\n"
+        "    write(\"%s\\n\", name);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // name was initialized before ::create() — should still have no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "name") {
+            error("Already-initialized variable should not warn, got: %s\n",
+                diag->message);
+        }
+    }
+}
+
+//! Test that ::create() with arguments also suppresses warnings
+//!
+//! The pattern ::create(args) should also be recognized.
+void test_inheritance_create_with_args() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void create(int x) {\n"
+        "    string label;\n"
+        "    ::create(x);\n"
+        "    write(\"%s\\n\", label);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // After ::create(x), label should be considered initialized — no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "label") {
+            error("Variable label used after ::create(x) should not warn, got: %s\n",
                 diag->message);
         }
     }

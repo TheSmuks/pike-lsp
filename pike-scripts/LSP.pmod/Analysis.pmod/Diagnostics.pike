@@ -680,6 +680,27 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             }
         }
 
+        // Handle ::create() calls - parent constructor may initialize variables
+        // Token pattern: "::" "create" "("
+        if (text == "::") {
+            int next = find_next_meaningful_token_fn(tokens, i + 1, end_idx);
+            if (next >= 0 && tokens[next]->text == "create") {
+                int after_create = find_next_meaningful_token_fn(tokens, next + 1, end_idx);
+                if (after_create >= 0 && tokens[after_create]->text == "(") {
+                    // ::create() detected — parent constructor may have initialized
+                    // class-level variables. Since the token-level analyzer cannot
+                    // trace inheritance chains, conservatively mark all currently
+                    // uninitialized tracked variables as initialized.
+                    foreach (indices(variables), string var_name) {
+                        mapping var_info = variables[var_name];
+                        if (var_info->state == STATE_UNINITIALIZED) {
+                            var_info->state = STATE_INITIALIZED;
+                        }
+                    }
+                }
+            }
+        }
+
         // Handle switch statements - save state for each case branch
         // Switch is similar to if/else but with multiple case branches
         if (text == "switch") {
