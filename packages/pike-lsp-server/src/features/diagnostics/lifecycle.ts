@@ -192,9 +192,6 @@ export function registerDiagnosticsLifecycleHandlers(
     });
   });
 
-  // #1058: Sequence validation after engine open to prevent false import errors.
-  // The handler remains synchronous (fire-and-forget) but validation is sequenced
-  // inside the promise chain to ensure engineOpenDocument completes first.
   documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
     bumpWorkspaceRehydrateEpoch(event.document.uri);
@@ -216,21 +213,19 @@ export function registerDiagnosticsLifecycleHandlers(
           uri: event.document.uri,
           error: err instanceof Error ? err.message : String(err),
         });
-      })
-      .finally(() => {
-        // #1058: Always run validation after engine open attempt completes
-        const promise = validateDocument(event.document);
-        documentCache.setPending(event.document.uri, promise);
-        promise.catch(err => {
-          if (err instanceof RequestSupersededError) {
-            return;
-          }
-          log.error('Document open validation failed', {
-            uri: event.document.uri,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
       });
+
+    const promise = validateDocument(event.document);
+    documentCache.setPending(event.document.uri, promise);
+    promise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
+      log.error('Document open validation failed', {
+        uri: event.document.uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   });
 
   documents.onDidChangeContent(change => {

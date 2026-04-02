@@ -590,12 +590,6 @@ describe('Query Engine stale diagnostics race', () => {
     const v3 = TextDocument.create(uri, 'pike', 3, 'int x = 3;\n');
 
     documentsLike.emitOpen(v1);
-
-    // #1058: onDidOpen is now async (awaits engineOpenDocument before validateDocument).
-    // Yield to let the microtask from the async handler complete so validateDocument
-    // has started and registered the in-flight request before emitSave checks for it.
-    await new Promise(resolve => setTimeout(resolve, 1));
-
     documentsLike.emitSave(v2);
 
     await new Promise(resolve => setTimeout(resolve, 5));
