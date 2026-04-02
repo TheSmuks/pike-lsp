@@ -14,6 +14,12 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import {
+  MockBridge as BaseMockBridge,
+  FaultInjectableMockBridge,
+  type FaultInjectionConfig,
+  type MockBridgeConfig,
+} from './mock-bridge.js';
 
 // ---------------------------------------------------------------------------
 // Document mock
@@ -37,7 +43,15 @@ export interface MockDocuments {
   emitClose(document: TextDocument): void;
 }
 
-export function createMockDocuments(): MockDocuments {
+export interface MockDocumentHooks {
+  onEvent?: (event: {
+    type: 'open' | 'save' | 'change' | 'close';
+    uri: string;
+    version: number;
+  }) => void;
+}
+
+export function createMockDocuments(hooks: MockDocumentHooks = {}): MockDocuments {
   let openHandler: OpenHandler | undefined;
   let saveHandler: SaveHandler | undefined;
   let changeHandler: ChangeHandler | undefined;
@@ -66,18 +80,22 @@ export function createMockDocuments(): MockDocuments {
     emitOpen(document: TextDocument) {
       docs.set(document.uri, document);
       openHandler?.({ document });
+      hooks.onEvent?.({ type: 'open', uri: document.uri, version: document.version });
     },
     emitSave(document: TextDocument) {
       docs.set(document.uri, document);
       saveHandler?.({ document });
+      hooks.onEvent?.({ type: 'save', uri: document.uri, version: document.version });
     },
     emitChange(document: TextDocument) {
       docs.set(document.uri, document);
       changeHandler?.({ document });
+      hooks.onEvent?.({ type: 'change', uri: document.uri, version: document.version });
     },
     emitClose(document: TextDocument) {
       docs.delete(document.uri);
       closeHandler?.({ document });
+      hooks.onEvent?.({ type: 'close', uri: document.uri, version: document.version });
     },
   };
 }
@@ -86,103 +104,17 @@ export function createMockDocuments(): MockDocuments {
 // Bridge mock
 // ---------------------------------------------------------------------------
 
-export interface MockBridgeConfig {
-  /** Simulates Pike's analyzer: returns error diagnostics for broken code */
-  analyzeResult?: (text: string) => { hasError: boolean; errorMessage?: string };
-  /** Simulated analysis delay in ms */
-  delayMs?: number;
-}
+export type MockBridge = BaseMockBridge;
+export type { MockBridgeConfig, FaultInjectionConfig, FaultInjectableMockBridge };
 
-export interface MockBridge {
-  isRunning(): boolean;
-  start(): Promise<void>;
-  engineOpenDocument(): Promise<{ revision: number; snapshotId: string }>;
-  engineChangeDocument(): Promise<{ revision: number; snapshotId: string }>;
-  engineCloseDocument(): Promise<{ revision: number; snapshotId: string }>;
-  engineUpdateConfig(): Promise<{ revision: number; snapshotId: string }>;
-  engineCancelRequest(): Promise<{ accepted: boolean }>;
-  engineQuery(params: { queryParams?: { text?: string } }): Promise<{
-    snapshotIdUsed: string;
-    result: Record<string, unknown>;
-    metrics: Record<string, unknown>;
-  }>;
-  analyze(): Promise<never>;
-  findOccurrences(): Promise<{ occurrences: unknown[] }>;
-  get callCount(): number;
-}
-
-export function createMockBridge(config: MockBridgeConfig = {}): MockBridge {
-  let callCount = 0;
-  const delayMs = config.delayMs ?? 1;
-  const analyzeResult = config.analyzeResult ?? (() => ({ hasError: false }));
-
-  return {
-    get callCount() {
-      return callCount;
-    },
-    isRunning() {
-      return true;
-    },
-    async start() {},
-    async engineOpenDocument() {
-      return { revision: 1, snapshotId: 'snap-1' };
-    },
-    async engineChangeDocument() {
-      return { revision: 1, snapshotId: 'snap-2' };
-    },
-    async engineCloseDocument() {
-      return { revision: 1, snapshotId: 'snap-3' };
-    },
-    async engineUpdateConfig() {
-      return { revision: 1, snapshotId: 'snap-4' };
-    },
-    async engineCancelRequest() {
-      return { accepted: true };
-    },
-    async engineQuery(params: { queryParams?: { text?: string } }) {
-      callCount++;
-      const text = params.queryParams?.text ?? '';
-      const analysis = analyzeResult(text);
-      const diags = analysis.hasError
-        ? [
-            {
-              message: analysis.errorMessage ?? 'Syntax error',
-              severity: 'error',
-              position: { line: 1, character: 0 },
-            },
-          ]
-        : [];
-      if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
-      return {
-        snapshotIdUsed: `snp-${callCount}`,
-        result: {
-          analyzeResult: {
-            result: {
-              parse: { symbols: [], diagnostics: [] },
-              introspect: {
-                success: analysis.hasError ? 0 : 1,
-                symbols: [],
-                functions: [],
-                variables: [],
-                classes: [],
-                inherits: [],
-                diagnostics: [],
-              },
-              diagnostics: { diagnostics: diags },
-            },
-          },
-          revision: 1,
-        },
-        metrics: { durationMs: delayMs },
-      };
-    },
-    async analyze() {
-      throw new Error('analyze fallback should not be used');
-    },
-    async findOccurrences() {
-      return { occurrences: [] };
-    },
-  };
+export function createMockBridge(
+  config: MockBridgeConfig & { faultInjection?: FaultInjectionConfig } = {}
+): MockBridge | FaultInjectableMockBridge {
+  const { faultInjection, ...baseConfig } = config;
+  if (faultInjection) {
+    return new FaultInjectableMockBridge(baseConfig, faultInjection);
+  }
+  return new BaseMockBridge(baseConfig);
 }
 
 // ---------------------------------------------------------------------------

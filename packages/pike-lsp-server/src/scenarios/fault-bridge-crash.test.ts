@@ -1,0 +1,125 @@
+import { describe, it } from 'bun:test';
+import assert from 'node:assert/strict';
+import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
+import type { Services } from '../services/index.js';
+import type { DocumentCacheEntry } from '../core/types.js';
+import {
+  createMockBridge,
+  createMockDocuments,
+  makeCachedEntry,
+  type FaultInjectableMockBridge,
+} from '../tests/helpers/test-helpers.js';
+
+const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+function createHarness(
+  bridge: FaultInjectableMockBridge,
+  seeded?: { uri: string; entry: DocumentCacheEntry }
+) {
+  const docs = createMockDocuments();
+  const cache = new Map<string, DocumentCacheEntry>();
+  const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
+  const consoleErrors: string[] = [];
+
+  if (seeded) {
+    cache.set(seeded.uri, seeded.entry);
+  }
+
+  const connection = {
+    sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
+      diagnostics.push(params);
+    },
+    onRequest() {},
+    onDidChangeConfiguration() {},
+    onDidChangeTextDocument() {},
+    console: {
+      log() {},
+      warn() {},
+      error(message: unknown) {
+        consoleErrors.push(String(message));
+      },
+    },
+  };
+
+  const services = {
+    bridge,
+    documentCache: {
+      get(uri: string) {
+        return cache.get(uri);
+      },
+      set(uri: string, entry: DocumentCacheEntry) {
+        cache.set(uri, entry);
+      },
+      setPending(_uri: string, promise: Promise<void>) {
+        promise.catch(() => {});
+      },
+      waitFor: async () => {},
+      delete(uri: string) {
+        cache.delete(uri);
+      },
+      keys() {
+        return cache.keys();
+      },
+    },
+    typeDatabase: {
+      setProgram() {},
+      removeProgram() {},
+      getMemoryStats() {
+        return { programCount: 0, symbolCount: 0, totalBytes: 0, utilizationPercent: 0 };
+      },
+    },
+    workspaceIndex: {
+      indexDocument() {},
+      removeDocument() {},
+      getAllDocumentUris() {
+        return [...cache.keys()];
+      },
+    },
+    includeResolver: null,
+    globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 10 },
+    documentSnapshots: new Map<string, string>(),
+    logger: { debug() {}, info() {}, warn() {}, error() {} },
+  };
+
+  registerDiagnosticsHandlers(
+    connection as unknown as Connection,
+    services as unknown as Services,
+    docs as unknown as TextDocuments<TextDocument>
+  );
+
+  return { docs, cache, diagnostics, consoleErrors };
+}
+
+describe('Fault scenario: bridge crash during analysis', () => {
+  it('propagates failure path cleanly and preserves cache integrity', async () => {
+    const uri = 'file:///fault-crash.pike';
+    const seededEntry = makeCachedEntry('int stable = 1;\n');
+    seededEntry.version = 1;
+
+    const bridge = createMockBridge({
+      faultInjection: {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('injected crash'),
+        probability: 1,
+      },
+    }) as FaultInjectableMockBridge;
+
+    const harness = createHarness(bridge, { uri, entry: seededEntry });
+    const crashingDoc = TextDocument.create(uri, 'pike', 2, 'int now = 2;\n');
+
+    harness.docs.emitOpen(crashingDoc);
+    await wait(120);
+
+    const stats = bridge.getFaultStats();
+    assert.equal(stats.triggered >= 1, true);
+    assert.equal(harness.consoleErrors.length >= 1, true);
+    assert.equal(harness.diagnostics.length, 0);
+
+    const cached = harness.cache.get(uri);
+    assert.ok(cached);
+    assert.equal(cached?.version, 1);
+    assert.equal(cached?.analysisState?.parseFailed ?? false, false);
+  });
+});

@@ -106,12 +106,32 @@ Quality gate: `scripts/quality-gate.sh` (checks complexity, dead code, unused im
 
 ---
 
+## Testing Pyramid
+
+This project uses a layered testing approach, from fast property tests to heavy stress tests.
+
+```
+┌─────────────────────────────────────────┐
+│  Fault Injection (deterministic)       │  Targeted failure scenarios
+│  `bun run test:fault`                   │  3 scenarios, per-PR CI
+├─────────────────────────────────────────┤
+│  Stress Tests (nightly)                │  1000x iterations, race detection
+│  `bun run test:stress`                  │  5 scenarios, ~40s total
+├─────────────────────────────────────────┤
+│  Property-Based Tests (per-PR)         │  10k iterations, invariant checks
+│  `bun run test:property`                │  5 invariants, ~3s total
+├─────────────────────────────────────────┤
+│  Scenario Tests (per-PR)               │  Editor behavior simulation
+│  `bun test src/scenarios/`              │  Primary correctness check
+└─────────────────────────────────────────┘
+```
+
+---
+
 ## Scenario-Driven Development
 
-This project uses **scenario tests** instead of unit tests for behavior verification.
-
 Scenarios simulate what an editor does: open files, make edits, check diagnostics.
-Located in `src/scenarios/scenario-runner.test.ts`.
+Located in `src/scenarios/`.
 
 - **Before every commit**: run `bun test packages/pike-lsp-server/src/scenarios/` — must pass.
 - **When fixing a bug**: add a scenario FIRST that reproduces it, then fix the code.
@@ -128,6 +148,66 @@ Located in `src/scenarios/scenario-runner.test.ts`.
 - Do not refactor working code unless a scenario requires it
 - Do not touch files unrelated to your fix
 - Do not exceed 500 lines per source file (tests excluded)
+
+---
+
+## Property-Based Tests
+
+Located in `packages/pike-lsp-server/src/testing/property-tests/`.
+
+Use [fast-check](https://github.com/dubzzz/fast-check) to verify invariants hold across random inputs.
+
+- **5 invariants**: cache consistency, diagnostics monotonicity, symbol positions, request cleanup, validation uniqueness
+- **10,000 iterations** per invariant
+- **Runtime**: ~3 seconds total
+- **Seed logging** for reproducibility on failure
+
+```bash
+# Run property tests (runs in CI per-PR)
+bun run test:property
+```
+
+When to add: When you identify an invariant that should hold regardless of input.
+
+---
+
+## Stress Tests
+
+Located in `packages/pike-lsp-server/src/testing/stress-scenarios/`.
+
+Run scenarios 1000x with random delays and concurrent operations.
+
+- **5 scenarios**: document lifecycle, completion race, validation burst, diagnostics flood, cancel-restart
+- **1000 iterations** per scenario
+- **Random delay injection** (10-100ms between operations)
+- **Total runtime**: ~40 seconds
+
+```bash
+# Run stress tests (nightly only, too slow for per-PR)
+bun run test:stress
+```
+
+When to add: When you suspect race conditions or timing issues that don't show up in normal scenarios.
+
+---
+
+## Fault Injection
+
+Located in `packages/pike-lsp-server/src/scenarios/fault-*.test.ts`.
+
+Deterministic fault scenarios using fault-injectable mock bridge.
+
+- **3 scenarios**: bridge restart mid-validation, bridge crash during analysis, request timeout/retry
+- **Deterministic** (not random) — each test explicitly sets fault conditions
+- **Backward compatible** — existing tests unchanged
+- **Fast runtime** — per-PR CI
+
+```bash
+# Run fault injection tests (per-PR)
+bun run test:fault
+```
+
+When to add: When you need to verify graceful degradation under failure conditions.
 
 ---
 
@@ -293,6 +373,9 @@ When modifying `.github/workflows/` files:
 
 - bun test runner (tests run in parallel by default)
 - Scenario tests (LSP behavior simulations) in `src/scenarios/`
+- Property-based tests (fast-check) in `src/testing/property-tests/`
+- Stress tests in `src/testing/stress-scenarios/`
+- Fault injection tests in `src/scenarios/fault-*.test.ts`
 - Cross-version Pike handler tests in `test/tests/cross-version-tests.pike`
 - VSCode E2E tests split into categories by matrix grep
 - Source-tree E2E tests require `PIKE_SRC` + `ROXEN_SRC` env vars
