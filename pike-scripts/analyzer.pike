@@ -898,11 +898,11 @@ int main(int argc, array(string) argv) {
 
             if (feature == "completion") {
                 string code = stringp(query_params->text) ? (string)query_params->text : snapshot_text;
-                
+
                 // Get comprehensive completion data from analysis
                 mapping completion_response = ctx->analysis->handle_completion(([
                     "code": code,
-                    "filename": filename,
+                    "filename": (string)(query_params->filename || "input.pike"),
                     "position": query_params->position,
                 ]));
 
