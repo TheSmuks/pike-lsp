@@ -101,7 +101,11 @@ export function buildStaleFallbackEntry(
   lineHashes: number[]
 ): DocumentCacheEntry {
   if (existingEntry) {
-    return {
+    const lastGood = !existingEntry.analysisState?.parseFailed
+      ? existingEntry.version
+      : existingEntry.lastGoodVersion;
+
+    const entry: DocumentCacheEntry = {
       ...existingEntry,
       version,
       diagnostics,
@@ -112,6 +116,12 @@ export function buildStaleFallbackEntry(
         parseFailed: true,
       },
     };
+
+    if (lastGood !== undefined) {
+      entry.lastGoodVersion = lastGood;
+    }
+
+    return entry;
   }
 
   return {
