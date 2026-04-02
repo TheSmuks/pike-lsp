@@ -4,7 +4,7 @@
 # Detects:
 #   1. Planning/dev directories that should be gitignored
 #   2. Dev artifact markdown (audit files, specs, migration docs)
-#   3. Scattered agent context files (CLAUDE.md in unexpected places)
+#   3. Scattered agent context files (AGENTS.md in unexpected places)
 #   4. Large tracked files (>500KB)
 #   5. Empty tracked files
 #   6. Untracked files outside .gitignore
@@ -111,10 +111,10 @@ for pattern in "${DEV_PATTERNS[@]}"; do
   done < <(git ls-files "$pattern" 2>/dev/null)
 done
 
-# Also check pike-scripts/ and test/ for non-CLAUDE dev markdown
+# Also check pike-scripts/ and test/ for non-AGENTS dev markdown
 while IFS= read -r f; do
   case "$(basename "$f")" in
-    CLAUDE.md|README.md|CHANGELOG.md) ;; # Expected
+    AGENTS.md|README.md|CHANGELOG.md) ;; # Expected
     *)
       if [ -z "${seen_artifacts[$f]:-}" ]; then
         dev_artifacts+=("$f")
@@ -122,7 +122,7 @@ while IFS= read -r f; do
       fi
       ;;
   esac
-done < <(git ls-files 'pike-scripts/*.md' 'test/**/*.md' 2>/dev/null | grep -v CLAUDE.md)
+done < <(git ls-files 'pike-scripts/*.md' 'test/**/*.md' 2>/dev/null | grep -v AGENTS.md)
 
 if [ ${#dev_artifacts[@]} -gt 0 ]; then
   for f in "${dev_artifacts[@]}"; do
@@ -136,35 +136,29 @@ fi
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[3/6] Scattered CLAUDE.md files${NC}"
+echo -e "${BLUE}[3/6] Scattered AGENTS.md files${NC}"
 # ============================================================
-# CLAUDE.md files are agent context - only expected in .claude/ and .github/
+# AGENTS.md files are agent context - only expected at root
 # Others are likely auto-generated and shouldn't be tracked
 
-EXPECTED_CLAUDE_LOCATIONS=(
-  ".claude/CLAUDE.md"
-  ".github/CLAUDE.md"
+EXPECTED_AGENTS_LOCATIONS=(
+  "AGENTS.md"
 )
 
 while IFS= read -r f; do
   is_expected=false
-  for expected in "${EXPECTED_CLAUDE_LOCATIONS[@]}"; do
+  for expected in "${EXPECTED_AGENTS_LOCATIONS[@]}"; do
     if [ "$f" = "$expected" ]; then
       is_expected=true
       break
     fi
   done
 
-  # Also allow .claude/ subdirectories
-  if [[ "$f" == .claude/* ]]; then
-    is_expected=true
-  fi
-
   if [ "$is_expected" = false ]; then
-    warn "CLAUDE.md in unexpected location: $f"
+    warn "AGENTS.md in unexpected location: $f"
     GITIGNORE_ADDITIONS+=("$f")
   fi
-done < <(git ls-files '**/CLAUDE.md' 'CLAUDE.md' '*/CLAUDE.md' 2>/dev/null)
+done < <(git ls-files '**/AGENTS.md' 'AGENTS.md' '*/AGENTS.md' 2>/dev/null)
 
 echo ""
 

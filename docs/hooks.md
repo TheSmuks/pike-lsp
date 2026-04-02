@@ -4,7 +4,7 @@ Great questions. Let me tackle both:
 
 ## 1. The Prompt
 
-Put this in your `CLAUDE.md` at the repo root:
+Put this in your `AGENTS.md` at the repo root:
 
 ```markdown
 # 🔁 Autonomous Self-Improvement Loop — MANDATORY PROTOCOL
@@ -111,7 +111,7 @@ And your **launch command**:
 team 3:executor
 Your first and only action right now is to run:
   gh issue list --label safe --state open --json number,title,assignees
-Then follow CLAUDE.md exactly, starting from Step 1. This loop never ends — after every merge, restart from the top.
+Then follow AGENTS.md exactly, starting from Step 1. This loop never ends — after every merge, restart from the top.
 ```
 
 ---
@@ -120,7 +120,7 @@ Then follow CLAUDE.md exactly, starting from Step 1. This loop never ends — af
 
 Claude Code has a **hooks system** that lets you intercept and block tool calls before they execute. This is your enforcement layer. The agents literally cannot run a blocked command.
 
-### Hook file: `.claude/hooks/pre-tool.sh`
+### Hook file: `.sisyphus/hooks/pre-tool.sh`
 
 ```bash
 #!/bin/bash
@@ -157,7 +157,7 @@ fi
 exit 0
 ```
 
-Make it executable: `chmod +x .claude/hooks/pre-tool.sh`
+Make it executable: `chmod +x .sisyphus/hooks/pre-tool.sh`
 
 ### GitHub-side enforcement (belt + suspenders)
 
@@ -178,10 +178,10 @@ Don't rely only on agent behavior — enforce at the repo level too:
 
 | Layer                       | What it blocks                         | Bypass possible?                 |
 | --------------------------- | -------------------------------------- | -------------------------------- |
-| `CLAUDE.md` instructions    | Agent forgetting the workflow          | Yes (LLM drift)                  |
+| `AGENTS.md` instructions    | Agent forgetting the workflow          | Yes (LLM drift)                  |
 | Claude Code hooks           | Specific forbidden commands            | Very hard                        |
 | Branch protection on GitHub | Direct push to main, unreviewed merges | No                               |
 | CI label check              | PRs from non-`safe` issues             | No                               |
 | Auto-merge config           | Agents trying to self-merge            | N/A, removes the action entirely |
 
-The bottom two layers are **100% enforced** regardless of what the agent does. The hooks cover the middle ground. `CLAUDE.md` handles intent and workflow flow. Together they give you genuine guarantees.
+The bottom two layers are **100% enforced** regardless of what the agent does. The hooks cover the middle ground. `AGENTS.md` handles intent and workflow flow. Together they give you genuine guarantees.

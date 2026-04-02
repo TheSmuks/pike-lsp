@@ -6,7 +6,7 @@ Every agent session MUST follow this startup sequence:
 
 ```
 1. Read STATUS.md              → current state, failing tests, known issues
-2. Read .claude/decisions/INDEX.md → active architectural decisions
+2. Read .sisyphus/decisions/INDEX.md → active architectural decisions
 3. Run scripts/test-agent.sh --fast → smoke test (~30s)
 4. Run scripts/task-lock.sh list    → see what other agents are working on
 ```
@@ -88,7 +88,7 @@ Max 5 concurrent worktrees. Each worktree = one branch = one PR.
 
 ## Agent Roles (Carlini Specialization)
 
-When spawning parallel agents, assign a role. Prompt templates: `.claude/agent-roles/`
+When spawning parallel agents, assign a role. Prompt templates: `.sisyphus/agent-roles/`
 
 | Role | Focus | When |
 |------|-------|------|
@@ -107,16 +107,16 @@ Read on startup. Update before stopping. Max 60 lines - full history in log file
 ### Log Files (Append-Only)
 
 ```bash
-grep "Pike" .claude/status/failed-approaches.log   # Search failures
-grep "bun" .claude/status/agent-notes.log           # Search notes
-grep "2026-02" .claude/status/changes.log           # Search by date
+grep "Pike" .sisyphus/status/failed-approaches.log   # Search failures
+grep "bun" .sisyphus/status/agent-notes.log           # Search notes
+grep "2026-02" .sisyphus/status/changes.log           # Search by date
 ```
 
 | File | Format |
 |------|--------|
-| `.claude/status/changes.log` | `YYYY-MM-DD \| type \| description` |
-| `.claude/status/failed-approaches.log` | `YYYY-MM-DD \| agent \| tried \| why failed \| alternative` |
-| `.claude/status/agent-notes.log` | `YYYY-MM-DD \| agent \| note` |
+| `.sisyphus/status/changes.log` | `YYYY-MM-DD \| type \| description` |
+| `.sisyphus/status/failed-approaches.log` | `YYYY-MM-DD \| agent \| tried \| why failed \| alternative` |
+| `.sisyphus/status/agent-notes.log` | `YYYY-MM-DD \| agent \| note` |
 
 ## Workflow Rules
 
@@ -128,8 +128,8 @@ grep "2026-02" .claude/status/changes.log           # Search by date
 
 ## Architectural Decisions
 
-Read `.claude/decisions/INDEX.md` before working. Key decisions:
+Read `.sisyphus/decisions/INDEX.md` before working. Key decisions:
 - **ADR-001:** Use Parser.Pike over regex for code parsing
 - **ADR-002:** Target Pike 8.0.1116 (no String.trim(), use String.trim_all_whites())
 
-Full ADRs in `.claude/decisions/`. Challenge protocol documented in `.claude/CLAUDE.md`.
+Full ADRs in `.sisyphus/decisions/`. Challenge protocol documented in `.sisyphus/AGENTS.md`.

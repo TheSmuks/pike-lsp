@@ -38,7 +38,6 @@ credentials.json
 npm-debug.log*
 pnpm-debug.log*
 bun-debug.log*
-!.claude/status/*.log
 
 # Test artifacts
 coverage/
@@ -102,5 +101,4 @@ t_v7.txt
 # Large binaries - install via package manager
 scripts/act
 .git/.worker-submit-marker
-.claude/.current_role
 patches/

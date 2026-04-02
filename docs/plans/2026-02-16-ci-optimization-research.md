@@ -30,7 +30,7 @@ on:
       - 'docs/**'
       - '**.yml'
       - 'AGENTS.md'
-      - 'CLAUDE.md'
+      - 'AGENTS.md'
   pull_request:
     branches: [main, master]
     paths-ignore:
@@ -38,7 +38,7 @@ on:
       - 'docs/**'
       - '**.yml'
       - 'AGENTS.md'
-      - 'CLAUDE.md'
+      - 'AGENTS.md'
 ```
 
 ### 2. Selective Job Execution
@@ -114,7 +114,7 @@ on:
       - '**.md'
       - 'docs/**'
       - 'AGENTS.md'
-      - 'CLAUDE.md'
+      - 'AGENTS.md'
       - 'LICENSE'
       - '**.yml'
       - '!.github/workflows/test.yml'
