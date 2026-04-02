@@ -116,14 +116,68 @@ jobs:
       - name: Check inline snapshots
         run: cd packages/pike-lsp-server && bun run test:snapshots:check
 
-      - name: Run LSP smoke tests
-        run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
+  testing-pyramid:
+    name: testing-pyramid (${{ matrix.test-suite }})
+    runs-on: ubuntu-24.04
+    needs: [test]
+    timeout-minutes: 5
 
-      - name: Run property invariant tests
-        run: cd packages/pike-lsp-server && bun run test:property
+    strategy:
+      fail-fast: true
+      matrix:
+        test-suite: [property, fault]
+        include:
+          - test-suite: property
+            cmd: bun run test:property
+          - test-suite: fault
+            cmd: bun run test:fault
 
-      - name: Run integration tests
-        run: cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ github.sha }}
+
+      - name: Extract build artifacts
+        run: tar -xzf build-output.tar.gz
+
+      - name: Verify build artifacts
+        run: |
+          test -f packages/core/dist/src/index.d.ts || { echo "Missing core dist"; exit 1; }
+          test -f packages/pike-bridge/dist/src/index.js || { echo "Missing pike-bridge dist"; exit 1; }
+          test -f packages/pike-lsp-server/dist/server.js || { echo "Missing server dist"; exit 1; }
+          echo "All build artifacts verified"
+
+      - name: Run ${{ matrix.test-suite }} tests
+        working-directory: packages/pike-lsp-server
+        run: ${{ matrix.cmd }}
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### Testing Pyramid: ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Test suite: ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Command: ${{ matrix.cmd }}" >> $GITHUB_STEP_SUMMARY
 
   pike-test:
     runs-on: ubuntu-24.04
@@ -257,7 +311,7 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test, pike-test, testing-pyramid]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
@@ -310,7 +364,7 @@ jobs:
   vscode-e2e-category:
     name: vscode-e2e (${{ matrix.category }})
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test, pike-test, testing-pyramid]
     timeout-minutes: 25
     continue-on-error: ${{ matrix.optional }}
     strategy:
@@ -438,7 +492,7 @@ jobs:
 
   vscode-e2e-source-trees:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test, pike-test, testing-pyramid]
     if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
     timeout-minutes: 35
 
