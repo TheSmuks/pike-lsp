@@ -116,11 +116,55 @@ jobs:
       - name: Check inline snapshots
         run: cd packages/pike-lsp-server && bun run test:snapshots:check
 
-      - name: Run LSP smoke tests
-        run: cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts
+  testing-pyramid:
+    name: testing-pyramid (${{ matrix.test-suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
 
-      - name: Run integration tests
-        run: cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js
+    strategy:
+      fail-fast: true
+      matrix:
+        test-suite: [property, fault]
+        include:
+          - test-suite: property
+            cmd: bun run test:property
+          - test-suite: fault
+            cmd: bun run test:fault
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check forbidden lockfiles
+        run: bash scripts/check-lockfiles.sh
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run ${{ matrix.test-suite }} tests
+        working-directory: packages/pike-lsp-server
+        run: ${{ matrix.cmd }}
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "### Testing Pyramid: ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Test suite: ${{ matrix.test-suite }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Command: ${{ matrix.cmd }}" >> $GITHUB_STEP_SUMMARY
 
   pike-test:
     runs-on: ubuntu-24.04
@@ -254,7 +298,7 @@ jobs:
 
   build-extension:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
@@ -307,7 +351,7 @@ jobs:
   vscode-e2e-category:
     name: vscode-e2e (${{ matrix.category }})
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test]
     timeout-minutes: 25
     continue-on-error: ${{ matrix.optional }}
     strategy:
@@ -435,7 +479,7 @@ jobs:
 
   vscode-e2e-source-trees:
     runs-on: ubuntu-24.04
-    needs: [test, pike-test]
+    needs: [test]
     if: ${{ vars.PIKE_SRC != '' && vars.ROXEN_SRC != '' }}
     timeout-minutes: 35
 
