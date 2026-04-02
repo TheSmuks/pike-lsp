@@ -664,8 +664,21 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 "scope_level": scope_depth + 1,
                 "case_count": 0,
                 "in_case": 0,
-                "has_default": 0
+                "has_default": 0,
+                "last_case_had_break": 0  // Track if previous case ended with break
             ]) });
+        }
+
+        // Handle break statements - track for switch fallthrough
+        if (text == "break") {
+            // Find the most recent switch and mark that the current case ended with break
+            for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
+                mapping branch = branch_stack[k];
+                if (branch->type == "switch" && branch->in_case) {
+                    branch->last_case_had_break = 1;
+                    break;
+                }
+            }
         }
 
         // Handle case labels - each case starts a new branch
@@ -678,10 +691,22 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                     if (branch->in_case) {
                         branch->branch_states += ({ save_variable_states_fn(variables) });
                     }
+
                     branch->case_count = (branch->case_count || 0) + 1;
-                    // Restore switch's original state for this case
-                    restore_variable_states_fn(variables, branch->saved_states);
+
+                    // Determine starting state for this case:
+                    // If previous case had NO break (fallthrough), carry forward
+                    // the previous case's state. Otherwise, restore pre-switch state.
+                    if (!branch->last_case_had_break && branch->in_case) {
+                        // Fallthrough: keep current variable states
+                        // (don't restore - variables carry over from previous case)
+                    } else {
+                        // No fallthrough: restore to pre-switch state
+                        restore_variable_states_fn(variables, branch->saved_states);
+                    }
+
                     branch->in_case = 1;
+                    branch->last_case_had_break = 0;  // Reset for this new case
                     break;
                 }
             }
@@ -698,10 +723,18 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                         branch->branch_states += ({ save_variable_states_fn(variables) });
                     }
                     branch->case_count = (branch->case_count || 0) + 1;
-                    // Restore switch's original state for default
-                    restore_variable_states_fn(variables, branch->saved_states);
+
+                    // Apply same fallthrough logic for default
+                    if (!branch->last_case_had_break && branch->in_case) {
+                        // Fallthrough: keep current variable states
+                    } else {
+                        // No fallthrough: restore to pre-switch state
+                        restore_variable_states_fn(variables, branch->saved_states);
+                    }
+
                     branch->in_case = 1;
                     branch->has_default = 1;
+                    branch->last_case_had_break = 0;
                     break;
                 }
             }

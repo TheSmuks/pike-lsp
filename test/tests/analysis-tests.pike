@@ -104,6 +104,11 @@ int main(int argc, array(string) argv) {
     run_test(test_completion_global_scope, "completion: global scope context");
     run_test(test_completion_position_accuracy, "completion: correct token at cursor position");
 
+    // switch/case fallthrough tests
+    run_test(test_switch_all_cases_init_no_warn, "switch: all cases init with default, no warning");
+    run_test(test_switch_fallthrough_init_no_warn, "switch: fallthrough carries init state");
+    run_test(test_switch_no_default_maybe_init, "switch: no default, not all paths init → warns");
+
     write("\n");
     write("===================\n");
     write("Tests: %d, Passed: %d, Failed: %d\n", test_count, pass_count, fail_count);
@@ -599,5 +604,120 @@ void test_completion_position_accuracy() {
         }
     } else if (ctx->context != "identifier") {
         // Accept other contexts at edge positions
+    }
+}
+
+// =============================================================================
+// switch/case fallthrough Tests
+// =============================================================================
+
+//! Test switch: all cases initialize variable with default, no warning after switch
+void test_switch_all_cases_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test(int x) {\n"
+        "    string s;\n"
+        "    switch (x) {\n"
+        "        case 1:\n"
+        "            s = \"one\";\n"
+        "            break;\n"
+        "        case 2:\n"
+        "            s = \"two\";\n"
+        "            break;\n"
+        "        default:\n"
+        "            s = \"other\";\n"
+        "            break;\n"
+        "    }\n"
+        "    write(\"%s\\n\", s);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // Variable s is initialized in ALL cases (including default) → no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            error("Variable s initialized in all switch cases should not warn, got: %s\n", diag->message);
+        }
+    }
+}
+
+//! Test switch: fallthrough carries initialization state from one case to the next
+//!
+//! When case 1 initializes s and has no break, execution falls through to case 2.
+//! Inside case 2, s should be recognized as initialized (not generate a warning).
+void test_switch_fallthrough_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test(int x) {\n"
+        "    string s;\n"
+        "    switch (x) {\n"
+        "        case 1:\n"
+        "            s = \"one\";\n"
+        "        case 2:\n"
+        "            write(\"%s\\n\", s);\n"
+        "            break;\n"
+        "    }\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // s is initialized in case 1 and falls through to case 2.
+    // Inside case 2 (after fallthrough), s should be INITIALIZED → no warning.
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            error("Variable s should be recognized as initialized in case 2 after "
+                "fallthrough from case 1, got: %s\n", diag->message);
+        }
+    }
+}
+
+//! Test switch: no default, not all cases initialize → warns after switch
+//!
+//! Without a default case, there's an implicit non-matching path where the
+//! variable remains uninitialized. The analyzer should produce a warning.
+void test_switch_no_default_maybe_init() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test(int x) {\n"
+        "    string s;\n"
+        "    switch (x) {\n"
+        "        case 1:\n"
+        "            s = \"one\";\n"
+        "            break;\n"
+        "    }\n"
+        "    write(\"%s\\n\", s);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // Without default, s may not be initialized (x could be anything)
+    bool found_warning = false;
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            found_warning = true;
+            break;
+        }
+    }
+
+    if (!found_warning) {
+        error("Expected warning for variable s - not all switch paths initialize it\n");
     }
 }
