@@ -143,6 +143,11 @@
         "command": "pike.lsp.runTest",
         "title": "Run Pike Test",
         "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.runFileTests",
+        "title": "Run All Tests in File",
+        "category": "Pike LSP"
       }
     ],
     "menus": {
