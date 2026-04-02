@@ -1,5 +1,5 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
+import { themes as prismThemes } from 'prism-react-renderer';
+import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
@@ -8,7 +8,9 @@ const config: Config = {
   url: 'https://thesmuks.github.io',
   baseUrl: '/pike-lsp/',
   onBrokenLinks: 'warn',
+  onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
+  trailingSlash: false,
 
   // GitHub pages deployment
   organizationName: 'TheSmuks',
@@ -28,10 +30,22 @@ const config: Config = {
           showLastUpdateAuthor: true,
           // Only include markdown files directly in the docs folder
           includeCurrentVersion: true,
-          // Exclude planning docs from the build
+          // Exclude planning docs and problematic files from the build
           exclude: [
             '**/plans/**',
             '**/specs/**',
+            '**/designs/**',
+            'dev-guide/typescript/**',
+            'dev-guide/pike/**',
+            'benchmarks.md',
+            'hooks.md',
+            'agent-prompt.md',
+            'agents.md',
+            'testing-coverage-triage.md',
+            'progress.md',
+            'feature-registry.md',
+            'roxen-implementation.md',
+            'roxen-roadmap.md',
           ],
         },
         theme: {
@@ -55,7 +69,7 @@ const config: Config = {
       title: 'Pike LSP',
       logo: {
         alt: 'Pike LSP Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.png',
       },
       items: [
         {
@@ -65,13 +79,8 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          to: '/api/typescript/',
+          to: '/docs/api',
           label: 'API',
-          position: 'left',
-        },
-        {
-          to: '/',
-          label: 'Home',
           position: 'left',
         },
         {

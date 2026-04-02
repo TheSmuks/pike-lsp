@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Build packages
+        run: bun run build
+
       - name: Generate benchmark docs
         run: node scripts/generate-benchmark-docs.js
 

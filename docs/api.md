@@ -1,3 +1,9 @@
+---
+id: api
+title: API Reference
+description: Detailed API documentation for Pike LSP
+---
+
 # Pike LSP API Reference
 
 This document provides detailed API documentation for the Pike LSP server implementation.
@@ -6,13 +12,13 @@ This document provides detailed API documentation for the Pike LSP server implem
 
 The TypeScript API documentation is auto-generated from source code using [TypeDoc](https://typedoc.org/).
 
-- **[TypeScript API Docs](./api/typescript/)** - Auto-generated API reference for `@pike-lsp/core`, `@pike-lsp/pike-bridge`, and `@pike-lsp/pike-lsp-server`
+- **[TypeScript API Docs](/api/typescript/)** - Auto-generated API reference for `@pike-lsp/core`, `@pike-lsp/pike-bridge`, and `@pike-lsp/pike-lsp-server`
 
 ## Pike API Reference
 
 The Pike-side API documentation covers the core Pike modules that power the LSP analysis:
 
-- **[Pike API Docs](./api/pike/)** - Pike source code documentation for `LSP.pmod`, analysis, diagnostics, and Roxen support modules
+- **[Pike API Docs](/api/pike/)** - Pike source code documentation for `LSP.pmod`, analysis, diagnostics, and Roxen support modules
 
 ## Table of Contents
 
@@ -37,6 +43,7 @@ import { registerNavigationHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerHoverHandler` - Hover provider for type info and documentation
 - `registerDefinitionHandlers` - Go-to-definition support
 - `registerReferencesHandlers` - Find all symbol references
@@ -51,6 +58,7 @@ import { registerEditingHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerCompletionHandlers` - Code completion with snippets
 - `registerRenameHandler` - Safe symbol renaming
 - `registerSignatureHelpHandler` - Parameter hints
@@ -65,6 +73,7 @@ import { registerAdvancedHandlers } from '@pike-lsp/pike-lsp-server';
 ```
 
 **Exports:**
+
 - `registerFormattingHandlers` - Document and range formatting
 - `registerFoldingHandlers` - Code folding regions
 - `registerSemanticTokensHandler` - Semantic syntax highlighting
@@ -140,6 +149,7 @@ Provides code completion suggestions with context awareness.
 **Returns:** `CompletionList` with items
 
 **Features:**
+
 - Keyword completion
 - Symbol completion (variables, functions, classes)
 - Snippet completion
@@ -219,6 +229,7 @@ Formats documents and code ranges.
 **Location:** `features/advanced/formatting.ts`
 
 **Handlers:**
+
 - `connection.onDocumentFormatting`
 - `connection.onDocumentRangeFormatting`
 
@@ -389,7 +400,7 @@ const services = {
   bridge: new PikeBridge(),
   documentCache: new Map(),
   logger: new Logger(),
-  config: new ServerConfig()
+  config: new ServerConfig(),
 };
 
 registerNavigationHandlers(connection, services, documents);
