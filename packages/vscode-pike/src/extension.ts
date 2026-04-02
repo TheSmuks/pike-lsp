@@ -757,6 +757,30 @@ async function activateInternal(
 
   runtime.track(runTestDisposable);
 
+  const runFileTestsDisposable = commands.registerCommand(
+    'pike.lsp.runFileTests',
+    async (uri: string) => {
+      if (runtime.isDisposed()) return;
+      if (!uri) {
+        const editor = window.activeTextEditor;
+        if (!editor) {
+          window.showErrorMessage('No active Pike file.');
+          return;
+        }
+        uri = editor.document.uri.toString();
+      }
+      try {
+        await runWithPike(uri);
+      } catch (err) {
+        const safeMessage = anonymizeSensitivePaths(String(err));
+        runtime.getOutputChannel().appendLine(`[pike.lsp.runFileTests] Failed: ${safeMessage}`);
+        window.showErrorMessage(`Failed to run tests: ${safeMessage}`);
+      }
+    }
+  );
+
+  runtime.track(runFileTestsDisposable);
+
   // Register showDiagnostics command - shows diagnostics for current document
   const showDiagnosticsDisposable = commands.registerCommand(
     'pike.lsp.showDiagnostics',

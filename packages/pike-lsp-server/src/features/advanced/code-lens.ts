@@ -60,6 +60,22 @@ export function registerCodeLensHandlers(
       const testFunctions = isFileTestFile ? discoverTestFunctions(cache.symbols, testPattern) : [];
       const testFunctionNames = new Set(testFunctions.map(t => t.name));
 
+      if (runnableEnabled && isFileTestFile && testFunctions.length > 0) {
+        lenses.push({
+          range: {
+            start: { line: 0, character: 0 },
+            end: { line: 0, character: 0 },
+          },
+          data: {
+            uri,
+            symbolName: '',
+            kind: 'file',
+            position: { line: 0, character: 0 },
+            lensType: 'run-file-tests',
+          },
+        });
+      }
+
       for (const symbol of cache.symbols) {
         // Show reference counts for classes, methods, variables, and constants
         if (
@@ -146,7 +162,7 @@ export function registerCodeLensHandlers(
         symbolName: string;
         kind: string;
         position: Position;
-        lensType?: 'run-file' | 'run-test';
+        lensType?: 'run-file' | 'run-test' | 'run-file-tests';
       };
 
       if (!data) {
