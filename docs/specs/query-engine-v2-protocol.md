@@ -1,91 +1,109 @@
 # Pike Query Engine v2 Protocol Specification
 
-Status: Draft
+Status: Active (Accepted)
 
-Last Updated: 2026-02-24
+Protocol Version: 2.0.0
+
+Last Updated: 2026-04-02
 
 ## Purpose
 
-Define the wire contract between the TypeScript LSP adapter and Pike query engine for snapshot-based, cancellable, deterministic query execution.
+Define the ratified wire contract between the TypeScript LSP adapter and Pike query engine for snapshot-based, cancellable, deterministic query execution.
 
-## Design Principles
+## Ratification Artifacts
 
-- Pike is authoritative for semantic state.
-- All mutations are explicit and serialized through host APIs.
-- All reads are snapshot-based and side-effect free.
-- Request/response correlation is mandatory.
-- Cancellation must be propagated and observable.
+- Protocol contract snapshot: `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`
+- Acceptance tests: `packages/pike-bridge/src/bridge.test.ts` (`query-engine-v2 protocol acceptance` block)
 
-## Terms
+## Design Principles (Normative)
 
-- `revision`: monotonic engine input-state version.
-- `snapshotId`: immutable read view identifier derived from revisioned host state.
-- `requestId`: unique request correlation id from adapter.
+1. Pike remains authoritative for semantic state.
+2. Mutations are explicit and serialized through one revision clock.
+3. Reads are snapshot-based and side-effect free.
+4. Correlation ids and cancellation are mandatory.
 
-## Envelope
+## Version Handshake (Normative)
 
-All protocol messages use a JSON-RPC-like envelope:
+Handshake method is `get_protocol_info`.
+
+Request envelope:
 
 ```json
 {
-  "id": 123,
-  "method": "engine/query/definition",
+  "id": 1,
+  "method": "get_protocol_info",
   "params": {}
 }
 ```
 
-Responses:
+Response envelope:
+
+```json
+{
+  "id": 1,
+  "result": {
+    "protocol": "query-engine-v2",
+    "version": "2.0.0",
+    "major": 2,
+    "minor": 0,
+    "build_id": "<string>",
+    "capabilities": ["snapshot", "cancellation", "analyze"]
+  }
+}
+```
+
+Compatibility rule:
+
+- Adapter must require `protocol === "query-engine-v2"` and `major === 2`.
+- `minor` and additional fields are additive-compatible.
+- Mismatched major is incompatible and must be rejected.
+
+## Base Envelope
+
+All RPC calls use:
 
 ```json
 {
   "id": 123,
-  "result": {},
-  "error": null
+  "method": "<method_name>",
+  "params": { "...": "..." }
 }
 ```
 
-## Mutation Methods
-
-### engine/openDocument
-
-Input:
+Success response:
 
 ```json
 {
-  "uri": "file:///ws/src/main.pike",
-  "languageId": "pike",
-  "version": 1,
-  "text": "..."
+  "id": 123,
+  "result": { "...": "..." }
 }
 ```
 
-Output:
+Top-level error response (used for cancellation path):
 
 ```json
 {
-  "revision": 41,
-  "snapshotId": "snp-41"
+  "id": 123,
+  "error": {
+    "code": -32800,
+    "message": "Request cancelled"
+  }
 }
 ```
 
-### engine/changeDocument
+## Concrete Message Schemas
 
-Input:
+### 1) Mutations
 
-```json
-{
-  "uri": "file:///ws/src/main.pike",
-  "version": 2,
-  "changes": [
-    {
-      "range": { "start": { "line": 10, "character": 4 }, "end": { "line": 10, "character": 9 } },
-      "text": "newName"
-    }
-  ]
-}
-```
+Methods:
 
-Output:
+- `engine_open_document`
+- `engine_change_document`
+- `engine_close_document`
+- `engine_update_config`
+- `engine_update_workspace`
+
+Mutation ack schema (all mutation methods):
 
 ```json
 {
@@ -94,136 +112,103 @@ Output:
 }
 ```
 
-### engine/closeDocument
+Required constraints:
 
-Input:
+- `revision`: integer >= 1
+- `snapshotId`: string matching `^snp-[0-9]+$`
 
-```json
-{
-  "uri": "file:///ws/src/main.pike"
-}
-```
-
-Output:
+Input examples:
 
 ```json
 {
-  "revision": 43,
-  "snapshotId": "snp-43"
-}
-```
-
-### engine/updateConfig
-
-Input:
-
-```json
-{
-  "settings": {
-    "includePaths": ["/ws/include"],
-    "modulePaths": ["/ws/modules"]
+  "id": 10,
+  "method": "engine_open_document",
+  "params": {
+    "uri": "file:///ws/src/main.pike",
+    "languageId": "pike",
+    "version": 1,
+    "text": "int x = 1;\n"
   }
 }
 ```
 
-Output:
-
 ```json
 {
-  "revision": 44,
-  "snapshotId": "snp-44"
+  "id": 11,
+  "method": "engine_change_document",
+  "params": {
+    "uri": "file:///ws/src/main.pike",
+    "version": 2,
+    "changes": [
+      {
+        "range": {
+          "start": { "line": 0, "character": 4 },
+          "end": { "line": 0, "character": 5 }
+        },
+        "text": "y"
+      }
+    ]
+  }
 }
 ```
 
-### engine/updateWorkspace
+### 2) Queries
 
-Input:
+Method: `engine_query`
 
-```json
-{
-  "roots": ["file:///ws"],
-  "added": ["file:///ws/new_file.pike"],
-  "removed": []
-}
-```
-
-Output:
+Request params schema:
 
 ```json
 {
-  "revision": 45,
-  "snapshotId": "snp-45"
-}
-```
-
-## Query Methods
-
-Query methods follow naming:
-
-- `engine/query/diagnostics`
-- `engine/query/definition`
-- `engine/query/references`
-- `engine/query/completion`
-- `engine/query/hover`
-
-Request shape:
-
-```json
-{
+  "feature": "completion",
   "requestId": "req-abc-123",
   "snapshot": {
     "mode": "latest"
   },
-  "params": {
+  "queryParams": {
     "uri": "file:///ws/src/main.pike",
-    "position": { "line": 12, "character": 8 }
+    "filename": "/ws/src/main.pike",
+    "version": 2,
+    "position": { "line": 0, "character": 1 }
   }
 }
 ```
 
-Alternate snapshot mode:
+Supported snapshot selectors:
+
+- `{"mode":"latest"}`
+- `{"mode":"fixed","snapshotId":"snp-42"}`
+
+Response schema:
 
 ```json
 {
-  "requestId": "req-abc-124",
-  "snapshot": {
-    "mode": "fixed",
-    "snapshotId": "snp-45"
+  "requestId": "req-abc-123",
+  "snapshotIdUsed": "snp-42",
+  "result": {
+    "feature": "completion",
+    "revision": 42,
+    "items": [{ "label": "foo" }]
   },
-  "params": {}
-}
-```
-
-Response shape:
-
-```json
-{
-  "requestId": "req-abc-123",
-  "snapshotIdUsed": "snp-45",
-  "result": {},
   "metrics": {
-    "durationMs": 8.4,
-    "cache": {
-      "hit": true
-    }
+    "durationMs": 8.4
   }
 }
 ```
 
-## Cancellation
+### 3) Cancellation
 
-### engine/cancelRequest
+Method: `engine_cancel_request`
 
-Input:
+Request params schema:
 
 ```json
 {
-  "requestId": "req-abc-123",
-  "reason": "client_cancel"
+  "requestId": "req-abc-123"
 }
 ```
 
-Output:
+Ack schema:
 
 ```json
 {
@@ -231,64 +216,36 @@ Output:
 }
 ```
 
-Rules:
+Cancellation result semantics:
 
-- Cancellation must be checked at cooperative query checkpoints.
-- Canceled work may return a cancellation error but must not publish normal result payloads.
-- Adapter must treat cancellation as terminal for that `requestId`.
+- Canceled query path responds with top-level JSON-RPC error `code = -32800`.
+- Normal `result` payload must not be published for that canceled request id.
 
 ## Error Model
 
-Error payload:
+Two currently ratified error forms:
 
-```json
-{
-  "code": "CANCELLED",
-  "message": "Request cancelled",
-  "requestId": "req-abc-123",
-  "snapshotIdUsed": "snp-45",
-  "details": {}
-}
-```
+1. **Top-level numeric JSON-RPC error** (currently cancellation):
+   - `-32800` (`Request cancelled`)
+2. **Result-envelope string code** (domain contract errors):
+   - `SNAPSHOT_NOT_FOUND`
+   - `INVALID_PARAMS`
 
-Standard codes:
+## Eight Ratified Protocol Invariants and Test Criteria
 
-- `CANCELLED`
-- `INVALID_PARAMS`
-- `SNAPSHOT_NOT_FOUND`
-- `ENGINE_BUSY`
-- `INTERNAL_ERROR`
+| ID     | Invariant                                                     | Test Criteria                                                                                               | Acceptance Test                                                                |
+| ------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| INV-01 | Mutation revisions are monotonic and globally ordered.        | Consecutive mutation acks strictly increase `revision` and return `snapshotId = snp-<revision>`.            | `should advance revision for query-engine mutations`                           |
+| INV-02 | Every read response binds to one immutable snapshot.          | Query response always includes one `snapshotIdUsed`; fixed-snapshot reads return requested id.              | `should pin query results to fixed snapshot state across document changes`     |
+| INV-03 | Fixed-snapshot query execution is deterministic.              | Identical fixed-snapshot query inputs produce deep-equal `result` payloads.                                 | `should return deterministic payload for identical fixed-snapshot queries`     |
+| INV-04 | Cancellation is terminal for a request id.                    | Canceled request returns top-level cancellation error and omits normal result payload.                      | `should return contract-defined cancellation top-level error code`             |
+| INV-05 | Unknown fixed snapshot ids fail with typed domain code.       | Missing fixed snapshot returns result-envelope error with `code = SNAPSHOT_NOT_FOUND`.                      | `should return contract-defined snapshot-not-found result-envelope code`       |
+| INV-06 | Handshake enforces protocol major compatibility.              | Peer protocol compatibility requires `query-engine-v2` and major `2`; major mismatch is rejected.           | `should reject incompatible peer major version during compatibility check`     |
+| INV-07 | Incremental range edits are applied before snapshot reads.    | Range changes persist in stored doc state and query output reflects updated symbols.                        | `should apply ranged incremental changes to stored query-engine document text` |
+| INV-08 | Query responses contain required metadata + timing telemetry. | Diagnostics query payload includes `requestId`, `snapshotIdUsed`, query `result`, and `metrics.durationMs`. | `should return analyzeResult for diagnostics engine queries`                   |
 
-## Adapter Rules
+## Compatibility and Drift Policy
 
-- Attach unique `requestId` to every query.
-- Track latest known `snapshotId` per request stream.
-- Drop stale responses where `snapshotIdUsed` is older than stream target.
-- Never synthesize semantic data in adapter layer.
-- Log all drops and cancellation outcomes with correlation ids.
-
-## Versioning and Compatibility
-
-- Protocol name: `query-engine-v2`.
-- Handshake capability includes protocol version.
-- New fields must be additive and optional by default.
-- Breaking changes require version bump.
-
-## Telemetry Contract
-
-Every query response should emit:
-
-- `requestId`
-- `revision` or `snapshotIdUsed`
-- duration
-- cancellation status
-- cache hit/miss
-- queue wait time (if queued)
-
-## Acceptance Tests for Protocol
-
-1. Snapshot monotonicity under rapid `changeDocument`.
-2. Deterministic response for same fixed snapshot inputs.
-3. Cancellation prevents normal result publication.
-4. Stale response dropping under overlapping requests.
-5. Version negotiation rejects incompatible protocol peers.
+- Contract source of truth: `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`.
+- Any breaking change requires a new contract artifact version and protocol major bump.
+- CI/test drift guard: bridge acceptance tests validate runtime handshake and error/schema semantics against this artifact.
