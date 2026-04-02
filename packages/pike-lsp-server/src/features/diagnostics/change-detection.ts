@@ -22,7 +22,11 @@ export interface ChangeClassification {
   newHash?: string;
   /** New line hashes (computed if needed) */
   newLineHashes?: number[];
+  /** Analysis depth: 'typing' = fast syntax-only, 'full' = complete introspection */
+  analysisMode?: AnalysisMode;
 }
+
+export type AnalysisMode = 'typing' | 'full';
 
 /**
  * INC-002: Strip comments from a line of Pike code.
