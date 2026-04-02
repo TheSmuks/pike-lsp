@@ -116,6 +116,11 @@ int main(int argc, array(string) argv) {
     run_test(test_switch_fallthrough_init_no_warn, "switch: fallthrough carries init state");
     run_test(test_switch_no_default_maybe_init, "switch: no default, not all paths init → warns");
 
+    // preprocessor conditional block tests (Issue #1091)
+    run_test(test_preprocessor_if_else_both_init_no_warn, "preprocessor: #if/#else both init - no warning");
+    run_test(test_preprocessor_if_only_init_no_warn, "preprocessor: #if-only init - no warning");
+    run_test(test_preprocessor_nested_no_warn, "preprocessor: nested #if blocks - no warning");
+
     write("\n");
     write("===================\n");
     write("Tests: %d, Passed: %d, Failed: %d\n", test_count, pass_count, fail_count);
@@ -889,5 +894,109 @@ void test_switch_no_default_maybe_init() {
 
     if (!found_warning) {
         error("Expected warning for variable s - not all switch paths initialize it\n");
+    }
+}
+
+// =============================================================================
+// Preprocessor Conditional Block Tests (Issue #1091)
+// =============================================================================
+
+//! Test preprocessor #if/#else where both branches initialize — no warning
+//!
+//! Uses optimistic merge: if variable initialized in ANY branch, it's considered
+//! initialized after #endif. This handles Pike's `#if constant(...)` pattern.
+void test_preprocessor_if_else_both_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+        "    string s;\n"
+        "    #if constant(some_func)\n"
+        "        s = \"func\";\n"
+        "    #else\n"
+        "        s = \"default\";\n"
+        "    #endif\n"
+        "    write(\"%s\\n\", s);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // s is initialized in both #if and #else branches — no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            error("Variable s initialized in both preprocessor branches should not warn, got: %s\n",
+                diag->message);
+        }
+    }
+}
+
+//! Test preprocessor #if-only where only one branch initializes — no warning
+//!
+//! Optimistic merge: if initialized in ANY branch, consider initialized.
+void test_preprocessor_if_only_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+        "    string s;\n"
+        "    #if constant(some_func)\n"
+        "        s = \"func\";\n"
+        "    #endif\n"
+        "    write(\"%s\\n\", s);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // Optimistic merge: s initialized in at least one branch — no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            error("Variable s initialized in #if branch should not warn (optimistic merge), got: %s\n",
+                diag->message);
+        }
+    }
+}
+
+//! Test nested preprocessor #if blocks — inner blocks merge correctly
+void test_preprocessor_nested_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+        "    string s;\n"
+        "    #if constant(outer)\n"
+        "        #if constant(inner)\n"
+        "            s = \"both\";\n"
+        "        #else\n"
+        "            s = \"outer_only\";\n"
+        "        #endif\n"
+        "    #else\n"
+        "        s = \"neither\";\n"
+        "    #endif\n"
+        "    write(\"%s\\n\", s);\n"
+        "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+
+    // All branches initialize s — no warning
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "s") {
+            error("Variable s initialized in all nested preprocessor branches should not warn, got: %s\n",
+                diag->message);
+        }
     }
 }
