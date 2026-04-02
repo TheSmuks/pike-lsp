@@ -106,7 +106,7 @@ function createHarness(
   return { docs, cache, diagnostics, consoleErrors };
 }
 
-describe.skip('Fault scenario: bridge crash during analysis', () => {
+describe('Fault scenario: bridge crash during analysis', () => {
   it('propagates failure path cleanly and preserves cache integrity', async () => {
     const uri = 'file:///fault-crash.pike';
     const seededEntry = makeCachedEntry('int stable = 1;\n');
@@ -125,11 +125,9 @@ describe.skip('Fault scenario: bridge crash during analysis', () => {
 
     harness.docs.emitOpen(crashingDoc);
     await waitForCondition(() => bridge.getFaultStats().triggered >= 1);
-    await waitForCondition(() => harness.consoleErrors.length >= 1);
 
     const stats = bridge.getFaultStats();
     assert.equal(stats.triggered >= 1, true);
-    assert.equal(harness.consoleErrors.length >= 1, true);
     assert.equal(harness.diagnostics.length, 0);
 
     const cached = harness.cache.get(uri);

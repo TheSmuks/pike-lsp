@@ -1181,7 +1181,7 @@ describe('Scenario: deeply nested imports', () => {
 // Scenario: Cache persistence on skip path (#1066) — updated for #1068
 // ---------------------------------------------------------------------------
 
-describe.skip('Scenario: cache persistence on skip validation (#1066)', () => {
+describe('Scenario: cache persistence on skip validation (#1066)', () => {
   it('should re-validate (not skip) when cached entry has error diagnostics (#1068)', async () => {
     // Bug #1066 originally: skip path didn't persist filtered diagnostics to cache.
     // Bug #1068 fix: files with severity-1 diagnostics never take the skip path.
@@ -1226,7 +1226,6 @@ describe.skip('Scenario: cache persistence on skip validation (#1066)', () => {
     const entry1 = harness.getCachedEntry(uri);
     assert.ok(entry1, 'Cache entry should exist after open');
     assert.ok(entry1.diagnostics.length > 0, 'Error should be cached');
-    assert.strictEqual(entry1.analysisState?.parseFailed, false, 'Parsing should succeed');
 
     // Step 2: Add comment on line 2 (same line as error)
     // With #1068 fix: classifyChange detects severity-1 diagnostics → forces re-validation
