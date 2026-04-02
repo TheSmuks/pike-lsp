@@ -46,6 +46,12 @@
     "workspace"
   ],
   "contributes": {
+    "snippets": [
+      {
+        "language": "pike",
+        "path": "./snippets/pike.json"
+      }
+    ],
     "languages": [
       {
         "id": "pike",
