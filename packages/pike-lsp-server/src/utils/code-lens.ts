@@ -14,7 +14,7 @@ export function buildCodeLensCommand(
 }
 
 export function buildRunnableCodeLensCommand(
-  kind: 'run-file' | 'run-test',
+  kind: 'run-file' | 'run-test' | 'run-file-tests',
   uri: string,
   symbolName: string
 ): Command {
@@ -23,6 +23,14 @@ export function buildRunnableCodeLensCommand(
       title: '▶ Run Test',
       command: 'pike.lsp.runTest',
       arguments: [uri, symbolName],
+    };
+  }
+
+  if (kind === 'run-file-tests') {
+    return {
+      title: '▶ Run All Tests',
+      command: 'pike.lsp.runFileTests',
+      arguments: [uri],
     };
   }
 
