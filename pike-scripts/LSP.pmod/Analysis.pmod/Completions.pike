@@ -743,7 +743,8 @@ mapping handle_completion(mapping params) {
             string detail = text;
             
             // Check if looks like a class (Pike convention: capitalized)
-            if (text[0] >= "A" && text[0] <= "Z") {
+            string first_char = text[0..0];
+            if (first_char >= "A" && first_char <= "Z") {
                 kind = "class";
                 detail = sprintf("class %s", text);
             }
@@ -759,9 +760,12 @@ mapping handle_completion(mapping params) {
             }
             
             // Check for constants (UPPER_CASE)
-            if (text == upper_case(text) && text[0] >= "A" && text[0] <= "Z") {
-                kind = "constant";
-                detail = sprintf("constant %s", text);
+            if (text == upper_case(text)) {
+                string first = text[0..0];
+                if (first >= "A" && first <= "Z") {
+                    kind = "constant";
+                    detail = sprintf("constant %s", text);
+                }
             }
             
             items += ({([
