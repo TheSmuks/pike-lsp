@@ -1,0 +1,72 @@
+{
+  "artifact": "query-engine-v2-protocol-contract",
+  "version": "2.0.0",
+  "status": "active-accepted",
+  "ratifiedAt": "2026-04-02",
+  "handshake": {
+    "protocol": "query-engine-v2",
+    "major": 2,
+    "minor": 0,
+    "capabilities": ["snapshot", "cancellation", "analyze"]
+  },
+  "mutationAck": {
+    "required": ["revision", "snapshotId"],
+    "types": {
+      "revision": "number",
+      "snapshotId": "string"
+    },
+    "snapshotPattern": "^snp-[0-9]+$"
+  },
+  "query": {
+    "snapshotModes": ["latest", "fixed"],
+    "requestRequired": ["feature", "requestId", "snapshot", "queryParams"],
+    "responseRequired": ["requestId", "snapshotIdUsed", "result"],
+    "metricsOptional": ["durationMs"]
+  },
+  "errors": {
+    "topLevelNumeric": [-32800],
+    "resultEnvelopeString": ["SNAPSHOT_NOT_FOUND", "INVALID_PARAMS"]
+  },
+  "invariants": [
+    {
+      "id": "INV-01",
+      "title": "Mutations are serialized through one revision clock",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should advance revision for query-engine mutations"
+    },
+    {
+      "id": "INV-02",
+      "title": "Every query response binds to exactly one snapshotIdUsed",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should pin query results to fixed snapshot state across document changes"
+    },
+    {
+      "id": "INV-03",
+      "title": "Fixed snapshot queries are deterministic",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should return deterministic payload for identical fixed-snapshot queries"
+    },
+    {
+      "id": "INV-04",
+      "title": "Cancelled requests never publish normal result payloads",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should return contract-defined cancellation top-level error code"
+    },
+    {
+      "id": "INV-05",
+      "title": "Unknown fixed snapshots return explicit snapshot-not-found code",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should return contract-defined snapshot-not-found result-envelope code"
+    },
+    {
+      "id": "INV-06",
+      "title": "Protocol handshake requires query-engine-v2 major=2 compatibility",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should reject incompatible peer major version during compatibility check"
+    },
+    {
+      "id": "INV-07",
+      "title": "Incremental range edits update stored document snapshot content",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should apply ranged incremental changes to stored query-engine document text"
+    },
+    {
+      "id": "INV-08",
+      "title": "Diagnostics query responses include deterministic metadata and timing",
+      "acceptanceTest": "packages/pike-bridge/src/bridge.test.ts :: should return analyzeResult for diagnostics engine queries"
+    }
+  ]
+}

@@ -1,10 +1,16 @@
 # Pike Query Engine v2 RFC
 
-Status: Draft
+Status: Active (Accepted)
+
+RFC Version: 2.0.0
 
 Owners: Pike LSP maintainers
 
-Last Updated: 2026-02-24
+Last Updated: 2026-04-02
+
+Ratified On: 2026-04-02
+
+Ratification Scope: Query Engine v2 architecture and protocol invariants for adapter↔bridge↔engine behavior.
 
 ## Context
 
@@ -48,18 +54,24 @@ Reference implementation anchors (rust-analyzer):
 - Mutable world state + immutable snapshots + transactional apply-change: `crates/rust-analyzer/src/global_state.rs`, `crates/ide-db/src/apply_change.rs`
 - Parse-under-edit architecture and cancellation model: `docs/book/src/contributing/architecture.md`
 
-## Non-Negotiable Invariants
+## Ratified Invariants (Normative)
 
-1. One mutable host mutates input state.
-2. Every read request binds to exactly one `snapshotId`.
-3. Revisions are monotonic and globally ordered.
-4. Canceled or superseded work never publishes outputs.
-5. Query-layer DTOs are protocol-agnostic.
-6. Query execution is deterministic for identical `(snapshotId, query, params)`.
-7. Query code performs no ad-hoc filesystem or process IO.
-8. Parsing under active edits never hard-fails; degraded syntax still yields structured results + diagnostics.
-9. Request handling remains stateless across restarts; follow-up requests include full context.
-10. Per-request failures are contained and never crash the serving loop.
+The program now ratifies **exactly eight** invariants. Each includes a concrete, testable criterion.
+
+| ID     | Invariant                                                                  | Testable Criteria                                                                                                                                                                                                                | Current Evidence                                                                                                                                                                        |
+| ------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| INV-01 | A single mutation clock owns input-state updates.                          | Every `engine_open_document`, `engine_change_document`, `engine_close_document`, `engine_update_config`, `engine_update_workspace` response returns a strictly increasing `revision` and matching `snapshotId = snp-<revision>`. | `packages/pike-bridge/src/bridge.test.ts` (`should advance revision for query-engine mutations`)                                                                                        |
+| INV-02 | Every read binds to exactly one immutable snapshot.                        | Every `engine_query` response contains exactly one `snapshotIdUsed`; fixed snapshot reads remain pinned to requested `snapshotId`.                                                                                               | `packages/pike-bridge/src/bridge.test.ts` (`should pin query results to fixed snapshot state across document changes`)                                                                  |
+| INV-03 | Query behavior is deterministic for identical fixed-snapshot inputs.       | Two identical query requests over the same fixed snapshot produce deep-equal `result` payloads (excluding request correlation id differences).                                                                                   | `packages/pike-bridge/src/bridge.test.ts` (`should return deterministic payload for identical fixed-snapshot queries`)                                                                  |
+| INV-04 | Cancellation is terminal for that request id.                              | After `engine_cancel_request`, subsequent processing for the same `requestId` returns cancellation error and does not emit normal `result` payload.                                                                              | `packages/pike-bridge/src/bridge.test.ts` (`should return contract-defined cancellation top-level error code`), `packages/pike-lsp-server/src/tests/query-engine-cancel-stress.test.ts` |
+| INV-05 | Fixed snapshot lookup failures are explicit and typed.                     | Unknown fixed snapshots return `error.code = SNAPSHOT_NOT_FOUND` with contextual message and without crashing the request loop.                                                                                                  | `packages/pike-bridge/src/bridge.test.ts` (`should return contract-defined snapshot-not-found result-envelope code`)                                                                    |
+| INV-06 | Protocol compatibility is enforced through handshake major version checks. | Adapter/bridge compatibility gate requires `protocol = query-engine-v2` and `major = 2`; mismatched major versions are rejected as incompatible.                                                                                 | `packages/pike-lsp-server/src/query-engine/contracts.ts`, `packages/pike-bridge/src/bridge.test.ts` (`should reject incompatible peer major version during compatibility check`)        |
+| INV-07 | Incremental edit application preserves snapshot consistency.               | Ranged document changes mutate stored snapshot text correctly; follow-up completion results reflect post-change symbols only.                                                                                                    | `packages/pike-bridge/src/bridge.test.ts` (`should apply ranged incremental changes to stored query-engine document text`)                                                              |
+| INV-08 | Query execution is failure-contained and metadata-complete.                | Diagnostics query responses include `requestId`, `snapshotIdUsed`, engine result payload, and timing metrics; per-request failure never crashes loop.                                                                            | `packages/pike-bridge/src/bridge.test.ts` (`should return analyzeResult for diagnostics engine queries`), fault scenarios in `packages/pike-lsp-server/src/scenarios/fault-*.test.ts`   |
+
+Versioned contract artifact for these invariants:
+
+- `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`
 
 ## Known Fragility to Eliminate
 

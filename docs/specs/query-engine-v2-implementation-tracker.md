@@ -2,7 +2,7 @@
 
 Status: Active
 
-Last Updated: 2026-02-24
+Last Updated: 2026-04-02
 
 Source Specs:
 
@@ -35,8 +35,8 @@ Status legend:
 
 | Area                        | Current                                                | Target                                            | Status      | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------------------- | ------------------------------------------------------ | ------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RFC invariants adopted      | Draft                                                  | Enforced in code + tests                          | IN_PROGRESS | `docs/specs/query-engine-v2-rfc.md`                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| Protocol v2 readiness       | Draft                                                  | Adapter and engine implement all required methods | IN_PROGRESS | `docs/specs/query-engine-v2-protocol.md`                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| RFC invariants adopted      | Active (Accepted), versioned invariants + criteria     | Enforced in code + tests                          | DONE        | `docs/specs/query-engine-v2-rfc.md`, `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`, `packages/pike-bridge/src/bridge.test.ts`                                                                                                                                                                                                                                                                                                                      |
+| Protocol v2 readiness       | Active (Accepted), v2.0.0 handshake + concrete schemas | Adapter and engine implement all required methods | DONE        | `docs/specs/query-engine-v2-protocol.md`, `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`, `packages/pike-bridge/src/bridge.test.ts`                                                                                                                                                                                                                                                                                                                 |
 | VSCode bridge hardening     | Runtime context manager + middleware/dispose guards    | Deterministic lifecycle + middleware guards       | DONE        | `packages/vscode-pike/src/extension.ts`, `packages/vscode-pike/src/test/extension-features.test.ts`, `packages/vscode-pike/src/test/integration/extension.test.ts`                                                                                                                                                                                                                                                                                              |
 | Scheduler/perf parity       | Request-class scheduler + coalescing in active paths   | RA-style queueing, cancellation, invalidation     | DONE        | `packages/pike-lsp-server/src/services/request-scheduler.ts`, `packages/pike-lsp-server/src/features/diagnostics/index.ts`, `packages/pike-lsp-server/src/features/editing/completion.ts`, `packages/pike-lsp-server/src/tests/request-scheduler.test.ts`, `packages/pike-lsp-server/src/tests/query-engine-perf-gates.test.ts`                                                                                                                                 |
 | Launch/rollback readiness   | Draft                                                  | Canary and rollback gates automated               | NOT_STARTED | `docs/specs/query-engine-v2-launch-runbook.md`                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -50,13 +50,13 @@ Status legend:
 
 ### Short Term (0-6 weeks)
 
-| Goal                       | Metric                             | Target                                | Status      | Evidence                                                                |
-| -------------------------- | ---------------------------------- | ------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| Lock protocol + invariants | Specs finalized and approved       | 100% complete                         | IN_PROGRESS | `docs/specs/query-engine-v2-rfc.md`                                     |
-| Host/snapshot scaffold     | Snapshot id on migrated responses  | 100% for migrated endpoints           | NOT_STARTED |                                                                         |
-| Real cancellation path     | Post-cancel publish count          | 0                                     | DONE        | `packages/pike-lsp-server/src/tests/query-engine-cancel-stress.test.ts` |
-| Diagnostics vertical slice | Shadow diff parity                 | >= 99%                                | DONE        | `packages/pike-bridge/src/query-engine-diagnostics-parity.test.ts`      |
-| Baseline perf suite        | p50/p95 + memory baseline captured | Complete on representative workspaces | DONE        | `packages/pike-bridge/src/query-engine-baseline-metrics.test.ts`        |
+| Goal                       | Metric                             | Target                                | Status      | Evidence                                                                                                                 |
+| -------------------------- | ---------------------------------- | ------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Lock protocol + invariants | Specs finalized and approved       | 100% complete                         | DONE        | `docs/specs/query-engine-v2-rfc.md`, `docs/specs/query-engine-v2-protocol.md`, `packages/pike-bridge/src/bridge.test.ts` |
+| Host/snapshot scaffold     | Snapshot id on migrated responses  | 100% for migrated endpoints           | NOT_STARTED |                                                                                                                          |
+| Real cancellation path     | Post-cancel publish count          | 0                                     | DONE        | `packages/pike-lsp-server/src/tests/query-engine-cancel-stress.test.ts`                                                  |
+| Diagnostics vertical slice | Shadow diff parity                 | >= 99%                                | DONE        | `packages/pike-bridge/src/query-engine-diagnostics-parity.test.ts`                                                       |
+| Baseline perf suite        | p50/p95 + memory baseline captured | Complete on representative workspaces | DONE        | `packages/pike-bridge/src/query-engine-baseline-metrics.test.ts`                                                         |
 
 ### Mid Term (6-16 weeks)
 
@@ -89,9 +89,13 @@ Status: DONE
 Checklist:
 
 - [x] RFC drafted
+- [x] RFC ratified as Active (Accepted) v2.0.0
 - [x] Protocol drafted
+- [x] Protocol ratified as Active (Accepted) v2.0.0
 - [x] Launch runbook drafted
 - [x] Protocol/version handshake implemented
+- [x] Versioned protocol contract artifact published (`v2.0.0`)
+- [x] Protocol acceptance tests added for ratified invariants
 - [x] Shadow mode diff harness implemented
 - [x] Telemetry for requestId/snapshot/revision wired
 
@@ -103,6 +107,8 @@ Exit gate:
 Evidence:
 
 - Specs: `docs/specs/query-engine-v2-rfc.md`, `docs/specs/query-engine-v2-protocol.md`, `docs/specs/query-engine-v2-launch-runbook.md`
+- Contract artifact: `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`
+- Protocol acceptance tests: `packages/pike-bridge/src/bridge.test.ts` (`query-engine-v2 protocol acceptance`)
 - Runtime handshake: `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.ts`, `packages/pike-lsp-server/src/server.ts`
 - Query response revision metadata (diagnostics path): `pike-scripts/analyzer.pike`, `packages/pike-bridge/src/bridge.test.ts`
 - Diagnostics runtime telemetry logs (requestId/snapshotId/revision): `packages/pike-lsp-server/src/features/diagnostics/index.ts`
@@ -372,15 +378,28 @@ RA-inspired test matrix to implement:
 
 ## Weekly Progress Log
 
-### YYYY-MM-DD
+### 2026-04-02
 
 - Completed:
+  - Ratified QE2 RFC to Active (Accepted) with version `2.0.0`.
+  - Ratified QE2 protocol to Active (Accepted) with concrete message schemas and handshake rules.
+  - Published versioned contract artifact `query-engine-v2-protocol-contract.v2.0.0.json`.
+  - Added bridge protocol acceptance tests and contract drift checks.
 - In progress:
+  - Parse-under-edit resilience expansion for non-migrated paths.
 - Blocked:
+  - None.
 - KPI deltas:
+  - `Lock protocol + invariants` moved from `IN_PROGRESS` to `DONE`.
 - Risks changed:
+  - Reduced risk of contract drift for RFC/protocol mismatch through artifact-backed tests.
 - Next week focus:
+  - Close remaining open risk on protocol leakage in core model.
 - Evidence links:
+  - `docs/specs/query-engine-v2-rfc.md`
+  - `docs/specs/query-engine-v2-protocol.md`
+  - `docs/specs/query-engine-v2-protocol-contract.v2.0.0.json`
+  - `packages/pike-bridge/src/bridge.test.ts`
 
 ## Per-PR Update Template
 
