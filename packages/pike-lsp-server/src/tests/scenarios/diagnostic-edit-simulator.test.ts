@@ -1,9 +1,107 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { PikeBridge, type AnalyzeResponse } from '@pike-lsp/pike-bridge';
 
-const SOURCE_PATH = '/usr/local/pike/8.0.1116/lib/modules/ADT.pmod/History.pike';
+const FAKE_URI = 'file:///test/simulator.pike';
+
+// A realistic Pike class complex enough to produce cascade diagnostics
+// when syntax errors are introduced. Contains functions, variables,
+// conditionals, and loops — all patterns that generate cascade errors
+// (e.g. "Must return a value") when the parser recovers from a syntax error.
+const INLINE_PIKE_CODE = `
+// Stack data structure with push/pop/peek operations
+class Stack {
+  private array values = ({});
+  private int top = 0;
+
+  void push(mixed value) {
+    values += ({ value });
+    top = sizeof(values);
+  }
+
+  mixed pop() {
+    if (top == 0) {
+      return 0;
+    }
+    mixed value = values[-1];
+    values = values[..sizeof(values) - 2];
+    top = sizeof(values);
+    return value;
+  }
+
+  mixed peek() {
+    if (top == 0) {
+      return 0;
+    }
+    return values[-1];
+  }
+
+  int is_empty() {
+    return top == 0;
+  }
+
+  int size() {
+    return top;
+  }
+
+  void clear() {
+    values = ({});
+    top = 0;
+  }
+
+  array get_all() {
+    return copy_value(values);
+  }
+}
+
+// History tracker that uses the stack
+class History {
+  private Stack undo_stack = Stack();
+  private Stack redo_stack = Stack();
+  private int max_size = 100;
+
+  void push_state(string state) {
+    if (undo_stack.size() >= max_size) {
+      // Drop oldest entry
+      array all = undo_stack.get_all();
+      undo_stack = Stack();
+      for (int i = 1; i < sizeof(all); i++) {
+        undo_stack.push(all[i]);
+      }
+    }
+    undo_stack.push(state);
+    // Clear redo on new action
+    redo_stack.clear();
+  }
+
+  string|void undo() {
+    if (undo_stack.is_empty()) {
+      return 0;
+    }
+    string state = undo_stack.pop();
+    redo_stack.push(state);
+    return state;
+  }
+
+  string|void redo() {
+    if (redo_stack.is_empty()) {
+      return 0;
+    }
+    string state = redo_stack.pop();
+    undo_stack.push(state);
+    return state;
+  }
+
+  int can_undo() {
+    return !undo_stack.is_empty();
+  }
+
+  int can_redo() {
+    return !redo_stack.is_empty();
+  }
+}
+`;
+
 const ANALYZE_INCLUDE = ['parse', 'introspect', 'diagnostics'] as const;
 
 function removeSemicolon(lines: string[], lineIdx: number): string[] {
@@ -88,7 +186,7 @@ function findLineIndex(
   label: string
 ): number {
   const idx = lines.findIndex(predicate);
-  assert.notEqual(idx, -1, `Could not find deterministic line for ${label} in ${SOURCE_PATH}`);
+  assert.notEqual(idx, -1, `Could not find deterministic line for ${label}`);
   return idx;
 }
 
@@ -104,15 +202,15 @@ function expandWithAdjacent(lines: number[], maxLine: number): Set<number> {
 
 describe('Scenario: diagnostic edit simulator on real Pike file', { timeout: 60000 }, () => {
   it('detects phantom diagnostics during realistic edit/fix cycles', async () => {
-    const bridge = new PikeBridge({ pikePath: '/usr/local/bin/pike' });
+    const bridge = new PikeBridge({ pikePath: 'pike' });
     await bridge.start();
 
     try {
-      const originalText = await readFile(SOURCE_PATH, 'utf8');
-      const originalLines = originalText.split('\n');
+      const originalLines = INLINE_PIKE_CODE.split('\n');
       let lines = [...originalLines];
       let version = 1;
 
+      // Find deterministic lines for transformations
       const semicolonLineIdx = findLineIndex(
         originalLines,
         line =>
@@ -127,18 +225,18 @@ describe('Scenario: diagnostic edit simulator on real Pike file', { timeout: 600
       const blankLineIdx = findLineIndex(originalLines, line => line.trim() === '', 'removeLine');
       const swappableIdx1 = findLineIndex(
         originalLines,
-        line => line.trim().startsWith('// The stack where the values are stored.'),
+        line => line.includes('private int max_size'),
         'swapLines idx1'
       );
       const swappableIdx2 = findLineIndex(
         originalLines,
-        line => line.trim().startsWith('// A pointer to the top of the stack.'),
+        line => line.includes('private Stack redo_stack'),
         'swapLines idx2'
       );
 
       const analyzeCurrent = async (): Promise<IndexedDiagnostic[]> => {
         const code = lines.join('\n');
-        const response = await bridge.analyze(code, [...ANALYZE_INCLUDE], SOURCE_PATH, version++);
+        const response = await bridge.analyze(code, [...ANALYZE_INCLUDE], FAKE_URI, version++);
         return diagnosticsFromAnalyze(response);
       };
 
@@ -234,42 +332,52 @@ describe('Scenario: diagnostic edit simulator on real Pike file', { timeout: 600
         );
       };
 
+      // Step 1: Remove a semicolon -> syntax error
       lines = removeSemicolon(lines, semicolonLineIdx);
       const afterRemoveSemicolon = await analyzeCurrent();
       assertNoPhantoms('removeSemicolon', afterRemoveSemicolon, [semicolonLineIdx + 1]);
 
+      // Restore
       lines = restoreLine(lines, originalLines, semicolonLineIdx);
       const afterRestoreSemicolon = await analyzeCurrent();
       assertBackToBaseline('restoreLine(after removeSemicolon)', afterRestoreSemicolon);
 
+      // Step 2: Break an expression
       lines = breakExpression(lines, expressionLineIdx);
       const afterBreakExpression = await analyzeCurrent();
       assertNoPhantoms('breakExpression', afterBreakExpression, [expressionLineIdx + 1]);
 
+      // Restore
       lines = restoreLine(lines, originalLines, expressionLineIdx);
       const afterRestoreExpression = await analyzeCurrent();
       assertBackToBaseline('restoreLine(after breakExpression)', afterRestoreExpression);
 
+      // Step 3: Add a blank line (structural change)
       lines = addNewLine(lines, expressionLineIdx);
       const afterAddLine = await analyzeCurrent();
       assertNoPhantoms('addNewLine', afterAddLine, [expressionLineIdx + 1, expressionLineIdx + 2]);
 
+      // Remove the added line
       lines = removeLine(lines, expressionLineIdx + 1);
       const afterRemoveAddedLine = await analyzeCurrent();
       assertBackToBaseline('removeLine(after addNewLine)', afterRemoveAddedLine);
 
+      // Step 4: Remove a blank line
       lines = removeLine(lines, blankLineIdx);
       const afterRemoveLine = await analyzeCurrent();
       assertNoPhantoms('removeLine', afterRemoveLine, [blankLineIdx + 1]);
 
+      // Add it back
       lines = addNewLine(lines, blankLineIdx - 1);
       const afterRestoreRemovedLine = await analyzeCurrent();
       assertBackToBaseline('addNewLine(after removeLine)', afterRestoreRemovedLine);
 
+      // Step 5: Swap two lines (reorder declarations)
       lines = swapLines(lines, swappableIdx1, swappableIdx2);
       const afterSwap = await analyzeCurrent();
       assertNoPhantoms('swapLines', afterSwap, [swappableIdx1 + 1, swappableIdx2 + 1]);
 
+      // Swap back
       lines = swapLines(lines, swappableIdx1, swappableIdx2);
       const afterSwapBack = await analyzeCurrent();
       assertBackToBaseline('swapLines(restore)', afterSwapBack);
