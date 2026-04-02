@@ -96,6 +96,13 @@ int main(int argc, array(string) argv) {
     run_test(test_uninitialized_array_warns, "uninitialized: array usage warns");
     run_test(test_uninitialized_mapping_warns, "uninitialized: mapping usage warns");
 
+    // if/else branch merging tests (Issue #1090)
+    run_test(test_if_else_both_branches_init_no_warn, "if/else: both branches init - no warning");
+    run_test(test_if_else_one_branch_init_warns, "if/else: only one branch init - warns");
+    run_test(test_if_without_else_init_warns, "if/else: if-only init - warns");
+    run_test(test_if_else_if_else_all_init_no_warn, "if/else if/else: all branches init - no warning");
+    run_test(test_if_else_nested_no_warn, "if/else: nested both-branch init - no warning");
+
     // handle_get_completion_context tests
     run_test(test_completion_member_access_arrow, "completion: detects -> access");
     run_test(test_completion_member_access_dot, "completion: detects . access");
@@ -442,6 +449,169 @@ void test_uninitialized_mapping_warns() {
 
     if (!found_warning) {
         error("Expected diagnostic for uninitialized mapping\n");
+    }
+}
+
+// =============================================================================
+// if/else Branch Merging Tests (Issue #1090)
+// =============================================================================
+
+//! Test if/else where both branches initialize - no warning
+void test_if_else_both_branches_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+                  "    string x;\n"
+                  "    if (1) {\n"
+                  "        x = \"a\";\n"
+                  "    } else {\n"
+                  "        x = \"b\";\n"
+                  "    }\n"
+                  "    write(x);\n"
+                  "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "x") {
+            error("x initialized in both branches should not warn, got: %O\n", diag);
+        }
+    }
+}
+
+//! Test if/else where only one branch initializes - should warn
+void test_if_else_one_branch_init_warns() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+                  "    string x;\n"
+                  "    string y;\n"
+                  "    if (1) {\n"
+                  "        x = \"a\";\n"
+                  "    } else {\n"
+                  "        y = \"b\";\n"
+                  "    }\n"
+                  "    write(x);\n"
+                  "    write(y);\n"
+                  "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+    int warned_x = 0;
+    int warned_y = 0;
+
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "x") warned_x = 1;
+        if (diag->variable == "y") warned_y = 1;
+    }
+
+    // Both x and y are only initialized in one branch - should warn for both
+    if (!warned_x) {
+        error("x (only init in if-branch) should warn\n");
+    }
+    if (!warned_y) {
+        error("y (only init in else-branch) should warn\n");
+    }
+}
+
+//! Test if without else where variable is initialized - should warn (maybe init)
+void test_if_without_else_init_warns() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+                  "    string x;\n"
+                  "    if (1) {\n"
+                  "        x = \"a\";\n"
+                  "    }\n"
+                  "    write(x);\n"
+                  "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+    int warned = 0;
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "x") warned = 1;
+    }
+
+    if (!warned) {
+        error("x initialized only in if (no else) should warn as maybe uninit\n");
+    }
+}
+
+//! Test if/else if/else chain where all branches initialize - no warning
+void test_if_else_if_else_all_init_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+                  "    string x;\n"
+                  "    if (1) {\n"
+                  "        x = \"a\";\n"
+                  "    } else if (2) {\n"
+                  "        x = \"b\";\n"
+                  "    } else {\n"
+                  "        x = \"c\";\n"
+                  "    }\n"
+                  "    write(x);\n"
+                  "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "x") {
+            error("x initialized in all if/else if/else branches should not warn, got: %O\n", diag);
+        }
+    }
+}
+
+//! Test nested if/else where both branches initialize - no warning
+void test_if_else_nested_no_warn() {
+    object Analysis = get_analysis();
+    object analysis = Analysis();
+
+    string code = "void test() {\n"
+                  "    string x;\n"
+                  "    if (1) {\n"
+                  "        if (2) {\n"
+                  "            x = \"a\";\n"
+                  "        } else {\n"
+                  "            x = \"b\";\n"
+                  "        }\n"
+                  "    } else {\n"
+                  "        x = \"c\";\n"
+                  "    }\n"
+                  "    write(x);\n"
+                  "}";
+
+    mapping result = analysis->handle_analyze_uninitialized(([
+        "code": code,
+        "filename": "test.pike"
+    ]));
+
+    array diagnostics = result->result->diagnostics || ({});
+    foreach (diagnostics, mapping diag) {
+        if (diag->variable == "x") {
+            error("x initialized in all nested branches should not warn, got: %O\n", diag);
+        }
     }
 }
 
