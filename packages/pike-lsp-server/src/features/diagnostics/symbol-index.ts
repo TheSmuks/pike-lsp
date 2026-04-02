@@ -5,7 +5,7 @@
  * Extracted from diagnostics.ts for maintainability (Issue #136).
  */
 
-import type { Position } from 'vscode-languageserver/node.js';
+import type { CorePosition } from '../../core/types.js';
 import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
 import { Logger } from '@pike-lsp/core';
@@ -111,8 +111,8 @@ export async function buildSymbolPositionIndex(
       text: string
     ) => Promise<{ occurrences: Array<{ text: string; line: number; character: number }> }>;
   }
-): Promise<Map<string, Position[]>> {
-  const index = new Map<string, Position[]>();
+): Promise<Map<string, CorePosition[]>> {
+  const index = new Map<string, CorePosition[]>();
   const exclusions = createLexicalExclusionMap(text);
 
   // Build set of symbol names we care about AND map to definition lines
@@ -169,7 +169,7 @@ export async function buildSymbolPositionIndex(
               : ' ';
 
           if (!/\w/.test(beforeChar) && !/\w/.test(afterChar)) {
-            const pos: Position = {
+            const pos: CorePosition = {
               line: lineIdx,
               character: token.character,
             };
@@ -206,7 +206,7 @@ export async function buildSymbolPositionIndex(
             continue;
           }
 
-          const pos: Position = {
+          const pos: CorePosition = {
             line: occ.line - 1, // Convert 1-indexed to 0-indexed
             character: occ.character,
           };
@@ -241,8 +241,8 @@ export async function buildSymbolPositionIndex(
 export function buildSymbolPositionIndexRegex(
   text: string,
   symbols: PikeSymbol[]
-): Map<string, Position[]> {
-  const index = new Map<string, Position[]>();
+): Map<string, CorePosition[]> {
+  const index = new Map<string, CorePosition[]>();
   const lines = text.split('\n');
   const exclusions = createLexicalExclusionMap(text);
 
@@ -253,7 +253,7 @@ export function buildSymbolPositionIndexRegex(
       continue;
     }
 
-    const positions: Position[] = [];
+    const positions: CorePosition[] = [];
 
     // Search for all occurrences of the symbol name
     for (let lineNum = 0; lineNum < lines.length; lineNum++) {

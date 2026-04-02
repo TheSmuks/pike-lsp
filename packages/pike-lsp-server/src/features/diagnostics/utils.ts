@@ -5,10 +5,10 @@
  * Extracted from diagnostics.ts for maintainability (Issue #136).
  */
 
-import type { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node.js';
-import { DiagnosticTag } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
+import type { CoreDiagnostic, CoreDiagnosticSeverity, CoreRange } from '../../core/types.js';
+import { CORE_DIAGNOSTIC_SEVERITY, CORE_DIAGNOSTIC_TAG } from '../../core/types.js';
 import { PatternHelpers } from '../../utils/regex-patterns.js';
 
 /**
@@ -43,16 +43,16 @@ export function extractDeprecatedFromSymbols(symbols: PikeSymbol[]): PikeSymbol[
 /**
  * Convert Pike severity to LSP severity
  */
-export function convertSeverity(severity: string): DiagnosticSeverity {
+export function convertSeverity(severity: string): CoreDiagnosticSeverity {
   switch (severity) {
     case 'error':
-      return 1; // DiagnosticSeverity.Error
+      return CORE_DIAGNOSTIC_SEVERITY.ERROR;
     case 'warning':
-      return 2; // DiagnosticSeverity.Warning
+      return CORE_DIAGNOSTIC_SEVERITY.WARNING;
     case 'info':
-      return 3; // DiagnosticSeverity.Information
+      return CORE_DIAGNOSTIC_SEVERITY.INFORMATION;
     default:
-      return 1; // DiagnosticSeverity.Error
+      return CORE_DIAGNOSTIC_SEVERITY.ERROR;
   }
 }
 
@@ -61,7 +61,7 @@ export function convertSeverity(severity: string): DiagnosticSeverity {
  */
 export interface DiagnosticRelatedLocation {
   uri: string;
-  range: { start: { line: number; character: number }; end: { line: number; character: number } };
+  range: CoreRange;
   message: string;
 }
 
@@ -80,7 +80,7 @@ export function convertDiagnostic(
   document: TextDocument,
   options?: { deprecated?: boolean; code?: string; relatedLocation?: DiagnosticRelatedLocation },
   linesArg?: string[] // PERF-420: Optional pre-split lines for performance
-): Diagnostic {
+): CoreDiagnostic {
   const line = Math.max(0, (pikeDiag.position.line ?? 1) - 1);
   const lineNumber = pikeDiag.position.line ?? line + 1;
   const columnNumber = pikeDiag.position.column ?? 1;
@@ -131,7 +131,7 @@ export function convertDiagnostic(
   }
 
   // Build diagnostic
-  const diagnostic: Diagnostic = {
+  const diagnostic: CoreDiagnostic = {
     severity: convertSeverity(pikeDiag.severity),
     range: {
       start: { line, character: startChar },
@@ -181,7 +181,7 @@ export function convertDiagnostic(
 
   // Add tags for deprecated symbols
   if (options?.deprecated) {
-    diagnostic.tags = [DiagnosticTag.Deprecated];
+    diagnostic.tags = [CORE_DIAGNOSTIC_TAG.DEPRECATED];
   }
 
   // Add related information (see also links)

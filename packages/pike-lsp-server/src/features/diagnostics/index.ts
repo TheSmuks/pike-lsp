@@ -10,10 +10,15 @@
  * - change-detection.ts: Incremental change detection
  */
 
-import type { Connection, TextDocuments, Diagnostic, Range } from 'vscode-languageserver/node.js';
+import type {
+  Connection,
+  TextDocuments,
+  Diagnostic as ProtocolDiagnostic,
+  Range,
+} from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import type { PikeSettings, DocumentCacheEntry } from '../../core/types.js';
+import type { PikeSettings, DocumentCacheEntry, CoreDiagnostic } from '../../core/types.js';
 import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/index.js';
@@ -21,6 +26,7 @@ import { computeContentHash, computeLineHashes } from '../../services/document-c
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+import { toProtocolDiagnostics } from '../../services/protocol-mappers.js';
 import { registerDiagnosticsLifecycleHandlers } from './lifecycle.js';
 
 interface PendingChangeState {
@@ -53,7 +59,7 @@ type WorkspaceDiagnosticReportItem =
   | {
       uri: string;
       kind: 'full';
-      items: Diagnostic[];
+      items: ProtocolDiagnostic[];
       resultId: string;
     };
 
@@ -96,7 +102,7 @@ export function applySkippedValidationCacheUpdate(
 export function buildStaleFallbackEntry(
   existingEntry: DocumentCacheEntry | undefined,
   version: number,
-  diagnostics: Diagnostic[],
+  diagnostics: CoreDiagnostic[],
   contentHash: string,
   lineHashes: number[]
 ): DocumentCacheEntry {
@@ -219,7 +225,7 @@ export function registerDiagnosticsHandlers(
 
       return {
         kind: 'full',
-        items: cached?.diagnostics ?? [],
+        items: toProtocolDiagnostics(cached?.diagnostics ?? []),
         resultId,
       };
     });
@@ -265,7 +271,7 @@ export function registerDiagnosticsHandlers(
           items.push({
             uri,
             kind: 'full',
-            items: cached?.diagnostics ?? [],
+            items: toProtocolDiagnostics(cached?.diagnostics ?? []),
             resultId,
           });
         }
@@ -359,7 +365,7 @@ export function registerDiagnosticsHandlers(
         connection.sendDiagnostics({
           uri,
           version: currentVersion,
-          diagnostics: diagnosticsToSend,
+          diagnostics: toProtocolDiagnostics(diagnosticsToSend),
         });
         return;
       }
@@ -669,11 +675,11 @@ export function registerDiagnosticsHandlers(
       const tokenizeData = analyzeResult.result?.tokenize?.tokens;
 
       // Convert Pike diagnostics to LSP diagnostics
-      const diagnostics: Diagnostic[] = [];
+      const diagnostics: CoreDiagnostic[] = [];
       const lines = text.split('\n');
       const seenDiagnostics = new Set<string>();
 
-      const pushDiagnostic = (diagnostic: Diagnostic): void => {
+      const pushDiagnostic = (diagnostic: CoreDiagnostic): void => {
         if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
           return;
         }
@@ -1178,7 +1184,7 @@ export function registerDiagnosticsHandlers(
       }
 
       // Send diagnostics
-      connection.sendDiagnostics({ uri, version, diagnostics });
+      connection.sendDiagnostics({ uri, version, diagnostics: toProtocolDiagnostics(diagnostics) });
       log.debug('Sent diagnostics', { uri, count: diagnostics.length });
 
       validationCompletions += 1;
@@ -1210,7 +1216,7 @@ export function registerDiagnosticsHandlers(
       inFlightDiagnosticRequests.delete(uri);
       const liveDocument = documents.get(uri);
       if (liveDocument && liveDocument.version === version) {
-        const fallbackDiagnostic: Diagnostic = {
+        const fallbackDiagnostic: CoreDiagnostic = {
           severity: 1,
           range: {
             start: { line: 0, character: 0 },
@@ -1229,7 +1235,11 @@ export function registerDiagnosticsHandlers(
           lineHashes
         );
         documentCache.set(uri, staleEntry);
-        connection.sendDiagnostics({ uri, version, diagnostics: [fallbackDiagnostic] });
+        connection.sendDiagnostics({
+          uri,
+          version,
+          diagnostics: toProtocolDiagnostics([fallbackDiagnostic]),
+        });
       }
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
