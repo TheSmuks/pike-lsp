@@ -192,41 +192,45 @@ export function registerDiagnosticsLifecycleHandlers(
     });
   });
 
-  // #1058: Await engine open before validation to prevent false import errors.
-  documents.onDidOpen(async event => {
+  // #1058: Sequence validation after engine open to prevent false import errors.
+  // The handler remains synchronous (fire-and-forget) but validation is sequenced
+  // inside the promise chain to ensure engineOpenDocument completes first.
+  documents.onDidOpen(event => {
     log.debug('Document opened', { uri: event.document.uri });
     bumpWorkspaceRehydrateEpoch(event.document.uri);
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
-    try {
-      const ack = await services.bridge?.engineOpenDocument({
+    services.bridge
+      ?.engineOpenDocument({
         uri: event.document.uri,
         languageId: event.document.languageId,
         version: event.document.version,
         text: event.document.getText(),
-      });
-      if (ack) {
+      })
+      .then(ack => {
         documentSnapshots.set(event.document.uri, ack.snapshotId);
-      }
-    } catch (err) {
-      log.debug('Engine open document failed', {
-        uri: event.document.uri,
-        error: err instanceof Error ? err.message : String(err),
+      })
+      .catch(err => {
+        log.debug('Engine open document failed', {
+          uri: event.document.uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        // #1058: Always run validation after engine open attempt completes
+        const promise = validateDocument(event.document);
+        documentCache.setPending(event.document.uri, promise);
+        promise.catch(err => {
+          if (err instanceof RequestSupersededError) {
+            return;
+          }
+          log.error('Document open validation failed', {
+            uri: event.document.uri,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       });
-    }
-
-    const promise = validateDocument(event.document);
-    documentCache.setPending(event.document.uri, promise);
-    promise.catch(err => {
-      if (err instanceof RequestSupersededError) {
-        return;
-      }
-      log.error('Document open validation failed', {
-        uri: event.document.uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
   });
 
   documents.onDidChangeContent(change => {
