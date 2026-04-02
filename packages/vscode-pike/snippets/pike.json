@@ -1,0 +1,95 @@
+{
+  "class": {
+    "prefix": "class",
+    "body": ["class ${1:ClassName} {", "\tinherit ${2:BaseClass};", "\t${0}", "}"],
+    "description": "Class declaration with inheritance"
+  },
+  "func": {
+    "prefix": "func",
+    "body": ["${1:int} ${2:function_name}(${3:arguments}) {", "\t${0}", "}"],
+    "description": "Typed function declaration"
+  },
+  "main": {
+    "prefix": "main",
+    "body": ["int main(int argc, array(string) argv) {", "\t${0}", "}"],
+    "description": "main() entry point"
+  },
+  "foreach": {
+    "prefix": "foreach",
+    "body": ["foreach (${1:collection}; ${2:key}; ${3:value}) {", "\t${0}", "}"],
+    "description": "foreach loop over a collection"
+  },
+  "catch": {
+    "prefix": "catch",
+    "body": ["if (catch {", "\t${1:code}", "}) {", "\t${0}", "}"],
+    "description": "catch-based error handling"
+  },
+  "mapping": {
+    "prefix": "mapping",
+    "body": "([ ${1:key}: ${2:value} ])",
+    "description": "mapping literal"
+  },
+  "array": {
+    "prefix": "array",
+    "body": "({ ${1:elements} })",
+    "description": "array literal"
+  },
+  "multiset": {
+    "prefix": "multiset",
+    "body": "(< ${1:elements} >)",
+    "description": "multiset literal"
+  },
+  "inherit": {
+    "prefix": "inherit",
+    "body": "inherit ${1:module_or_class};",
+    "description": "inherit statement"
+  },
+  "write": {
+    "prefix": "write",
+    "body": "write(${1:\"text\\n\"});",
+    "description": "write() output statement"
+  },
+  "werror": {
+    "prefix": "werror",
+    "body": "werror(${1:\"debug\\n\"});",
+    "description": "werror() debug output"
+  },
+  "include": {
+    "prefix": "include",
+    "body": "#include \"${1:file}\"",
+    "description": "include directive"
+  },
+  "constant": {
+    "prefix": "constant",
+    "body": "constant ${1:NAME} = ${2:value};",
+    "description": "constant declaration"
+  },
+  "for": {
+    "prefix": "for",
+    "body": ["for (${1:int i = 0}; ${2:i < n}; ${3:++i}) {", "\t${0}", "}"],
+    "description": "for loop"
+  },
+  "if": {
+    "prefix": "if",
+    "body": ["if (${1:condition}) {", "\t${0}", "}"],
+    "description": "if statement"
+  },
+  "while": {
+    "prefix": "while",
+    "body": ["while (${1:condition}) {", "\t${0}", "}"],
+    "description": "while loop"
+  },
+  "switch": {
+    "prefix": "switch",
+    "body": [
+      "switch (${1:expr}) {",
+      "\tcase ${2:value}:",
+      "\t\t${0}",
+      "\t\tbreak;",
+      "\tdefault:",
+      "\t\tbreak;",
+      "}"
+    ],
+    "description": "switch/case statement"
+  }
+}
