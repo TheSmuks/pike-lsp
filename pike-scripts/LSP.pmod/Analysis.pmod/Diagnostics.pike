@@ -298,10 +298,9 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 array(int) to_remove = ({});
                 for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                     mapping branch = branch_stack[k];
-                    if ((branch->type == "if" || branch->type == "switch") && branch->scope_level == scope_depth) {
-                        // Save final branch states.
-                        // For switch, only save if a case/default branch has started.
+                    if (branch->scope_level == scope_depth) {
                         if (branch->type == "switch") {
+                            // Switch: only save if a case/default branch has started.
                             if (branch->in_case) {
                                 branch->branch_states += ({ save_variable_states_fn(variables) });
                             }
@@ -310,15 +309,39 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                             if (!branch->has_default) {
                                 branch->branch_states += ({ branch->saved_states });
                             }
-                        } else {
-                            branch->branch_states += ({ save_variable_states_fn(variables) });
+
+                            // Merge all branch states
+                            mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
+                            restore_variable_states_fn(variables, merged);
+
+                            to_remove += ({ k });
+                        } else if (branch->type == "if") {
+                            if (branch->if_body_handled) {
+                                // This is the else-body closing — merge all branches
+                                branch->branch_states += ({ save_variable_states_fn(variables) });
+                                mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
+                                restore_variable_states_fn(variables, merged);
+                                to_remove += ({ k });
+                            } else {
+                                // This is the if-body closing.
+                                // Look ahead to see if "else" follows this closing brace.
+                                int next_meaningful = find_next_meaningful_token_fn(tokens, i + 1, end_idx);
+                                if (next_meaningful >= 0 && tokens[next_meaningful]->text == "else") {
+                                    // "else" follows — save if-body state but don't merge yet.
+                                    // The else-body will close this branch later.
+                                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                                    restore_variable_states_fn(variables, branch->saved_states);
+                                    branch->if_body_handled = 1;
+                                    // Keep branch on stack for else-body processing
+                                } else {
+                                    // No "else" — merge single branch now
+                                    branch->branch_states += ({ save_variable_states_fn(variables) });
+                                    mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
+                                    restore_variable_states_fn(variables, merged);
+                                    to_remove += ({ k });
+                                }
+                            }
                         }
-
-                        // Merge all branch states
-                        mapping merged = merge_branch_states_fn(variables, branch->branch_states, branch->saved_states);
-                        restore_variable_states_fn(variables, merged);
-
-                        to_remove += ({ k });
                     }
                 }
                 // Remove processed branches (in reverse order to maintain indices)
@@ -504,7 +527,8 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
                 "type": "if",
                 "saved_states": saved_states,
                 "branch_states": ({}),
-                "scope_level": scope_depth + 1  // Inside the if body, scope will be incremented
+                "scope_level": scope_depth + 1,  // Inside the if body, scope will be incremented
+                "if_body_handled": 0  // Track whether if-body closing } already saved states
             ]) });
         }
 
@@ -514,10 +538,14 @@ protected array(mapping) analyze_function_body(array tokens, array(string) lines
             for (int k = sizeof(branch_stack) - 1; k >= 0; k--) {
                 mapping branch = branch_stack[k];
                 if (branch->type == "if") {
-                    // Save current branch's final states (this is the if block's states)
-                    branch->branch_states += ({ save_variable_states_fn(variables) });
-                    // Restore to pre-if states for else branch
-                    restore_variable_states_fn(variables, branch->saved_states);
+                    if (!branch->if_body_handled) {
+                        // If-body } didn't handle this (shouldn't happen with new code,
+                        // but kept as safety fallback for edge cases)
+                        branch->branch_states += ({ save_variable_states_fn(variables) });
+                        restore_variable_states_fn(variables, branch->saved_states);
+                    }
+                    // else: if-body } already saved states and restored pre-if states.
+                    // Variables are now at pre-if state, ready for else-body processing.
                     break;
                 }
             }
