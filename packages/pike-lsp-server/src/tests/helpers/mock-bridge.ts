@@ -35,6 +35,8 @@ function hashDeterministic(input: string): number {
 export class MockBridge {
   protected _callCount = 0;
   protected running = true;
+  protected revisionClock = 0;
+  protected cancelledRequestIds = new Set<string>();
   protected readonly config: MockBridgeConfig;
   protected readonly delayMs: number;
   protected readonly analyzeResult: (text: string) => { hasError: boolean; errorMessage?: string };
@@ -63,33 +65,51 @@ export class MockBridge {
 
   protected async maybeInjectFault(_operation: string): Promise<void> {}
 
+  protected nextMutationAck(): { revision: number; snapshotId: string } {
+    this.revisionClock += 1;
+    return {
+      revision: this.revisionClock,
+      snapshotId: `snp-${this.revisionClock}`,
+    };
+  }
+
   async engineOpenDocument(_params?: unknown): Promise<{ revision: number; snapshotId: string }> {
     await this.maybeInjectFault('engineOpenDocument');
-    return { revision: 1, snapshotId: 'snap-1' };
+    return this.nextMutationAck();
   }
 
   async engineChangeDocument(_params?: unknown): Promise<{ revision: number; snapshotId: string }> {
     await this.maybeInjectFault('engineChangeDocument');
-    return { revision: 1, snapshotId: 'snap-2' };
+    return this.nextMutationAck();
   }
 
   async engineCloseDocument(_params?: unknown): Promise<{ revision: number; snapshotId: string }> {
     await this.maybeInjectFault('engineCloseDocument');
-    return { revision: 1, snapshotId: 'snap-3' };
+    return this.nextMutationAck();
   }
 
   async engineUpdateConfig(_params?: unknown): Promise<{ revision: number; snapshotId: string }> {
     await this.maybeInjectFault('engineUpdateConfig');
-    return { revision: 1, snapshotId: 'snap-4' };
+    return this.nextMutationAck();
   }
 
-  async engineCancelRequest(_params?: unknown): Promise<{ accepted: boolean }> {
+  async engineUpdateWorkspace(
+    _params?: unknown
+  ): Promise<{ revision: number; snapshotId: string }> {
+    await this.maybeInjectFault('engineUpdateWorkspace');
+    return this.nextMutationAck();
+  }
+
+  async engineCancelRequest(params?: { requestId?: string }): Promise<{ accepted: boolean }> {
     await this.maybeInjectFault('engineCancelRequest');
+    if (params?.requestId) {
+      this.cancelledRequestIds.add(params.requestId);
+    }
     this.config.onCancel?.();
     return { accepted: true };
   }
 
-  async engineQuery(params: { queryParams?: { text?: string } }): Promise<{
+  async engineQuery(params: { requestId?: string; queryParams?: { text?: string } }): Promise<{
     snapshotIdUsed: string;
     result: Record<string, unknown>;
     metrics: Record<string, unknown>;
@@ -99,6 +119,11 @@ export class MockBridge {
       throw new Error('Bridge is not running');
     }
     await this.maybeInjectFault('engineQuery');
+
+    const requestId = params.requestId;
+    if (requestId && this.cancelledRequestIds.has(requestId)) {
+      throw new Error(`Request cancelled: ${requestId}`);
+    }
 
     const text = params.queryParams?.text ?? '';
     this.config.onQuery?.({ callCount: this._callCount, text });
@@ -114,6 +139,10 @@ export class MockBridge {
       : [];
 
     if (this.delayMs > 0) await sleep(this.delayMs);
+
+    if (requestId && this.cancelledRequestIds.has(requestId)) {
+      throw new Error(`Request cancelled: ${requestId}`);
+    }
 
     return {
       snapshotIdUsed: `snp-${this._callCount}`,

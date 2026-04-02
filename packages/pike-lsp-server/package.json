@@ -16,6 +16,7 @@
     "watch": "tsc --watch",
     "test": "bun test",
     "test:fault": "bun test src/scenarios/fault-*.test.ts",
+    "test:invariants": "bun test src/testing/property-tests/query-engine-v2-rfc-invariants.test.ts src/testing/stress-scenarios/revision-monotonicity.stress.test.ts src/scenarios/fault-invariant.test.ts",
     "test:stress": "bun test src/testing/stress-scenarios",
     "test:snapshots:check": "bun test src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
     "test:snapshots:update": "bun test --update-snapshots src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",

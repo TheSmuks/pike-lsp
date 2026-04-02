@@ -124,12 +124,14 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        test-suite: [property, fault]
+        test-suite: [property, fault, invariants]
         include:
           - test-suite: property
             cmd: bun run test:property
           - test-suite: fault
             cmd: bun run test:fault
+          - test-suite: invariants
+            cmd: bun run test:invariants
 
     steps:
       - name: Checkout code
@@ -157,6 +159,16 @@ jobs:
       - name: Run ${{ matrix.test-suite }} tests
         working-directory: packages/pike-lsp-server
         run: ${{ matrix.cmd }}
+
+      - name: QE2 invariant gate status
+        if: matrix.test-suite == 'invariants' && always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "QE2 invariant gate passed: all ratified RFC invariants are enforced." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "QE2 invariant gate failed: one or more ratified RFC invariants were violated." >> $GITHUB_STEP_SUMMARY
+            echo "Review packages/pike-lsp-server/src/testing/property-tests/query-engine-v2-rfc-invariants.test.ts, packages/pike-lsp-server/src/testing/stress-scenarios/revision-monotonicity.stress.test.ts, and packages/pike-lsp-server/src/scenarios/fault-invariant.test.ts" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Test summary
         if: always()
