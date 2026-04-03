@@ -17,6 +17,8 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import { PikeIntrospectionService } from '../../services/pike-introspection.js';
+import { uriToFsPath } from '../../utils/uri-path.js';
 
 export function registerImplementationHandler(
   connection: Connection,
@@ -25,6 +27,7 @@ export function registerImplementationHandler(
 ): void {
   const { documentCache } = services;
   const log = new Logger('Navigation');
+  const pikeIntrospection = services.pikeIntrospection ?? new PikeIntrospectionService(services);
 
   connection.onImplementation(async (params): Promise<Location[]> => {
     log.debug('Implementation request', {
@@ -51,25 +54,40 @@ export function registerImplementationHandler(
         return [];
       }
 
-      const className = symbol.name;
+      const className = normalizeSymbolName(symbol.name);
+      const classPath = normalizeSymbolName(uriToFsPath(uri));
       const implementations: Location[] = [];
+      const knownUris = getKnownUris(services);
+      const seenLocations = new Set<string>();
 
-      const currentDocImplementations = findInheritancesInDocument(className, uri, cached.symbols);
-      implementations.push(...currentDocImplementations);
+      for (const candidateUri of knownUris) {
+        const inherits = await pikeIntrospection.getInherits(candidateUri);
+        for (const relation of inherits) {
+          if (
+            !matchesInheritance(
+              relation.inheritedName,
+              className,
+              relation.inheritedPath,
+              classPath
+            )
+          ) {
+            continue;
+          }
 
-      for (const otherUri of Array.from(documentCache.keys())) {
-        if (otherUri === uri || !otherUri) continue;
+          const dedupeKey = `${relation.uri}:${relation.ownerLine}:${relation.ownerClass}`;
+          if (seenLocations.has(dedupeKey)) {
+            continue;
+          }
+          seenLocations.add(dedupeKey);
 
-        const otherCached = documentCache.get(otherUri);
-        const otherDoc = documents.get(otherUri);
-        if (!otherCached || !otherDoc) continue;
-
-        const otherDocImplementations = findInheritancesInDocument(
-          className,
-          otherUri,
-          otherCached.symbols
-        );
-        implementations.push(...otherDocImplementations);
+          implementations.push({
+            uri: relation.uri,
+            range: {
+              start: { line: relation.ownerLine, character: 0 },
+              end: { line: relation.ownerLine, character: relation.ownerClass.length },
+            },
+          });
+        }
       }
 
       log.debug('Implementation: found', {
@@ -88,6 +106,42 @@ export function registerImplementationHandler(
   });
 }
 
+function getKnownUris(services: Services): string[] {
+  const uris = new Set<string>();
+
+  for (const uri of services.documentCache.keys()) {
+    uris.add(uri);
+  }
+
+  const workspaceIndex = (
+    services as unknown as { workspaceIndex?: { getAllDocumentUris?: () => string[] } }
+  ).workspaceIndex as
+    | {
+        getAllDocumentUris?: () => string[];
+      }
+    | undefined;
+  const indexedUris = workspaceIndex?.getAllDocumentUris?.() ?? [];
+  for (const uri of indexedUris) {
+    uris.add(uri);
+  }
+
+  const workspaceScanner = (
+    services as unknown as { workspaceScanner?: { getAllFiles?: () => Array<{ uri: string }> } }
+  ).workspaceScanner as
+    | {
+        getAllFiles?: () => Array<{ uri: string }>;
+      }
+    | undefined;
+  const files = workspaceScanner?.getAllFiles?.() ?? [];
+  for (const file of files) {
+    if (file.uri) {
+      uris.add(file.uri);
+    }
+  }
+
+  return Array.from(uris);
+}
+
 function findSymbolAtPosition(
   symbols: PikeSymbol[],
   position: { line: number; character: number },
@@ -98,10 +152,10 @@ function findSymbolAtPosition(
 
   let start = offset;
   let end = offset;
-  while (start > 0 && text[start - 1] && /\w/.test(text[start - 1]!)) {
+  while (start > 0 && isIdentifierChar(text[start - 1] ?? '')) {
     start--;
   }
-  while (end < text.length && text[end] && /\w/.test(text[end]!)) {
+  while (end < text.length && isIdentifierChar(text[end] ?? '')) {
     end++;
   }
 
@@ -124,62 +178,63 @@ function findSymbolAtPosition(
   return null;
 }
 
-function findInheritancesInDocument(
-  className: string,
-  uri: string,
-  symbols: PikeSymbol[]
-): Location[] {
-  const implementations: Location[] = [];
-
-  for (const symbol of symbols) {
-    if (symbol.kind === 'inherit') {
-      const inheritClassName = (symbol as { classname?: string }).classname || symbol.name;
-      const normalizedInherit = (inheritClassName || '').replace(/["']/g, '').trim();
-      const normalizedTarget = className.replace(/["']/g, '').trim();
-
-      if (normalizedInherit === normalizedTarget) {
-        const classLocation = findClassContainingInherit(symbol, symbols, uri);
-        if (classLocation) {
-          implementations.push(classLocation);
-        }
-      }
-    }
+function isIdentifierChar(char: string): boolean {
+  if (!char) {
+    return false;
   }
 
-  return implementations;
+  const code = char.charCodeAt(0);
+  const isLower = code >= 97 && code <= 122;
+  const isUpper = code >= 65 && code <= 90;
+  const isDigit = code >= 48 && code <= 57;
+  return isLower || isUpper || isDigit || char === '_';
 }
 
-function findClassContainingInherit(
-  inheritSymbol: PikeSymbol,
-  symbols: PikeSymbol[],
-  uri: string
-): Location | null {
-  if (!inheritSymbol.position) return null;
+function normalizeSymbolName(input: string): string {
+  if (!input) {
+    return '';
+  }
 
-  const inheritLine = (inheritSymbol.position.line ?? 1) - 1;
-  let bestClass: PikeSymbol | null = null;
+  let text = input.trim();
+  if (
+    text.length > 1 &&
+    ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))
+  ) {
+    text = text.slice(1, -1);
+  }
 
-  for (const symbol of symbols) {
-    if (symbol.kind === 'class' && symbol.position) {
-      const classLine = (symbol.position.line ?? 1) - 1;
+  const slash = text.lastIndexOf('/');
+  if (slash >= 0 && slash < text.length - 1) {
+    text = text.slice(slash + 1);
+  }
 
-      if (classLine <= inheritLine) {
-        if (!bestClass || classLine > (bestClass.position?.line ?? 1) - 1) {
-          bestClass = symbol;
-        }
-      }
+  const dot = text.lastIndexOf('.');
+  if (dot >= 0 && dot < text.length - 1) {
+    text = text.slice(dot + 1);
+  }
+
+  return text;
+}
+
+function matchesInheritance(
+  inheritedName: string,
+  className: string,
+  inheritedPath: string | undefined,
+  classPath: string
+): boolean {
+  if (normalizeSymbolName(inheritedName) === normalizeSymbolName(className)) {
+    return true;
+  }
+
+  if (inheritedPath) {
+    const normalizedPath = normalizeSymbolName(inheritedPath);
+    if (normalizedPath === normalizeSymbolName(className)) {
+      return true;
+    }
+    if (normalizedPath === normalizeSymbolName(classPath)) {
+      return true;
     }
   }
 
-  if (bestClass && bestClass.position) {
-    return {
-      uri,
-      range: {
-        start: { line: (bestClass.position.line ?? 1) - 1, character: 0 },
-        end: { line: (bestClass.position.line ?? 1) - 1, character: (bestClass.name || '').length },
-      },
-    };
-  }
-
-  return null;
+  return false;
 }
