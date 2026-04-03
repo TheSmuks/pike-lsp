@@ -109,11 +109,20 @@ class ExtensionRuntime {
     testOutputChannel?: OutputChannel
   ) {
     this.outputChannel = testOutputChannel || window.createOutputChannel('Pike Language Server');
-    this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
-    this.statusBarItem.command = 'pike.lsp.serverActions';
-    this.setStatusBar('idle');
-    this.statusBarItem.show();
-    this.track(this.statusBarItem);
+
+    const config = workspace.getConfiguration('pike');
+    const showStatusBar = config.get<boolean>('showStatusBar', true);
+
+    if (showStatusBar) {
+      this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+      this.statusBarItem.command = 'pike.lsp.serverActions';
+      this.setStatusBar('idle');
+      this.statusBarItem.show();
+      this.track(this.statusBarItem);
+    } else {
+      this.statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left, 100);
+      this.statusBarItem.hide();
+    }
   }
 
   private clearRestartTimer(): void {
@@ -132,6 +141,14 @@ class ExtensionRuntime {
 
   private scheduleAutoRestart(reason: string): void {
     if (this.disposed || !this.lspStarted) {
+      return;
+    }
+
+    const config = workspace.getConfiguration('pike');
+    const autoRestart = config.get<boolean>('server.autoRestart', true);
+    if (!autoRestart) {
+      this.outputChannel.appendLine(`[Pike] ${reason}. Auto-restart disabled.`);
+      this.setStatusBar('stopped');
       return;
     }
 
@@ -248,7 +265,12 @@ class ExtensionRuntime {
 
     this.lspStarted = true;
     this.setStatusBar('starting');
-    await autoDetectPikeConfigurationIfNeeded(this.outputChannel);
+
+    const config = workspace.getConfiguration('pike');
+    const autoDetectPaths = config.get<boolean>('autoDetectPaths', true);
+    if (autoDetectPaths) {
+      await autoDetectPikeConfigurationIfNeeded(this.outputChannel);
+    }
 
     const serverModule = this.resolveServerModule();
     if (!serverModule) {
@@ -591,7 +613,10 @@ async function activateInternal(
   if (pikePath === 'pike') {
     const detection = await detectPike();
     if (!detection) {
-      void ensurePikeInstalled();
+      const promptForMissingPike = config.get<boolean>('promptForMissingPike', true);
+      if (promptForMissingPike) {
+        void ensurePikeInstalled();
+      }
     }
   }
 
@@ -1126,47 +1151,50 @@ async function activateInternal(
       clearTimeout(previousTimer);
     }
 
-    const timer = setTimeout(async () => {
-      pendingFormatTimers.delete(uriKey);
+    const timer = setTimeout(
+      async () => {
+        pendingFormatTimers.delete(uriKey);
 
-      if (runtime.isDisposed()) {
-        return;
-      }
-
-      const editor = window.visibleTextEditors.find(e => e.document.uri.toString() === uriKey);
-      const tabSize =
-        typeof editor?.options.tabSize === 'number' ? Math.max(1, editor.options.tabSize) : 4;
-      const insertSpaces =
-        typeof editor?.options.insertSpaces === 'boolean' ? editor.options.insertSpaces : true;
-
-      const range = computeFormattingWindow(event);
-
-      try {
-        formattingDocuments.add(uriKey);
-        const edits = await commands.executeCommand<TextEdit[]>(
-          'vscode.executeFormatRangeProvider',
-          event.document.uri,
-          new Range(
-            new Position(range.startLine, 0),
-            new Position(range.endLine, Number.MAX_SAFE_INTEGER)
-          ),
-          {
-            tabSize,
-            insertSpaces,
-          }
-        );
-
-        if (!edits || edits.length === 0) {
+        if (runtime.isDisposed()) {
           return;
         }
 
-        const workspaceEdit = new WorkspaceEdit();
-        workspaceEdit.set(event.document.uri, edits);
-        await workspace.applyEdit(workspaceEdit);
-      } finally {
-        formattingDocuments.delete(uriKey);
-      }
-    }, 40);
+        const editor = window.visibleTextEditors.find(e => e.document.uri.toString() === uriKey);
+        const tabSize =
+          typeof editor?.options.tabSize === 'number' ? Math.max(1, editor.options.tabSize) : 4;
+        const insertSpaces =
+          typeof editor?.options.insertSpaces === 'boolean' ? editor.options.insertSpaces : true;
+
+        const range = computeFormattingWindow(event);
+
+        try {
+          formattingDocuments.add(uriKey);
+          const edits = await commands.executeCommand<TextEdit[]>(
+            'vscode.executeFormatRangeProvider',
+            event.document.uri,
+            new Range(
+              new Position(range.startLine, 0),
+              new Position(range.endLine, Number.MAX_SAFE_INTEGER)
+            ),
+            {
+              tabSize,
+              insertSpaces,
+            }
+          );
+
+          if (!edits || edits.length === 0) {
+            return;
+          }
+
+          const workspaceEdit = new WorkspaceEdit();
+          workspaceEdit.set(event.document.uri, edits);
+          await workspace.applyEdit(workspaceEdit);
+        } finally {
+          formattingDocuments.delete(uriKey);
+        }
+      },
+      workspace.getConfiguration('pike').get<number>('formatOnChangeDelay', 40)
+    );
 
     pendingFormatTimers.set(uriKey, timer);
   });
