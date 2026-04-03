@@ -10,25 +10,43 @@ import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-function createHarness(bridge: FaultInjectableMockBridge) {
+interface Harness {
+  docs: ReturnType<typeof createMockDocuments>;
+  diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }>;
+  emitConfigChange: () => void;
+}
+
+function isMalformedIntermediate(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /=\s*;/.test(trimmed) ||
+    /=\s*\($/.test(trimmed) ||
+    /\+\s*;/.test(trimmed) ||
+    /\{\s*$/.test(trimmed) ||
+    /\(\s*\n?$/.test(trimmed)
+  );
+}
+
+function createHarness(bridge: FaultInjectableMockBridge): Harness {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
   const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
-  const consoleErrors: string[] = [];
+  let onDidChangeConfiguration: ((params: { settings: Record<string, unknown> }) => void) | null =
+    null;
 
   const connection = {
     sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
       diagnostics.push(params);
     },
     onRequest() {},
-    onDidChangeConfiguration() {},
+    onDidChangeConfiguration(handler: (params: { settings: Record<string, unknown> }) => void) {
+      onDidChangeConfiguration = handler;
+    },
     onDidChangeTextDocument() {},
     console: {
       log() {},
       warn() {},
-      error(message: unknown) {
-        consoleErrors.push(String(message));
-      },
+      error() {},
     },
   };
 
@@ -78,40 +96,182 @@ function createHarness(bridge: FaultInjectableMockBridge) {
     docs as unknown as TextDocuments<TextDocument>
   );
 
-  return { docs, diagnostics, consoleErrors };
+  return {
+    docs,
+    diagnostics,
+    emitConfigChange: () => {
+      onDidChangeConfiguration?.({ settings: { pike: { diagnosticDelay: 5 } } });
+    },
+  };
 }
 
-describe('Scenario: rapid malformed edits degrade gracefully', () => {
-  it('keeps diagnostics flowing across malformed burst and recovers on valid edit', async () => {
+function assertMonotonicVersions(
+  diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }>,
+  uri: string
+): void {
+  const versions = diagnostics
+    .filter(entry => entry.uri === uri)
+    .map(entry => entry.version)
+    .filter((version): version is number => typeof version === 'number');
+
+  for (let index = 1; index < versions.length; index += 1) {
+    assert.equal(versions[index]! >= versions[index - 1]!, true);
+  }
+}
+
+describe('Scenario: rapid malformed edits keep diagnostics latest-wins', () => {
+  const transitionCases = [
+    {
+      name: 'missing-expression -> fixed assignment',
+      steps: ['int x = ;\n', 'int x = 1;\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'unclosed-paren -> closed expression',
+      steps: ['int x = (\n', 'int x = (1 + 2);\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'open-brace transition -> completed block',
+      steps: ['int main() {\n', 'int main() { return 0; }\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'malformed arithmetic tail -> valid arithmetic',
+      steps: ['int x = 10 + ;\n', 'int x = 10 + 2;\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'malformed -> malformed -> fixed',
+      steps: ['int x = ;\n', 'int x = (\n', 'int x = 3;\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'valid -> malformed intermediate -> valid',
+      steps: ['int x = 1;\n', 'int x = ;\n', 'int x = 2;\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'nested malformed transitions recover at latest revision',
+      steps: ['int x = ;\n', 'int x = 1 + ;\n', 'int x = (\n', 'int x = (4);\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'latest malformed retains diagnostics when not fixed',
+      steps: ['int x = 1;\n', 'int x = ;\n', 'int x = (\n'],
+      finalHasDiagnostics: true,
+    },
+    {
+      name: 'repeated malformed lines do not regress to older versions',
+      steps: ['int x = ;\n', 'int x = ;\n', 'int x = ;\n', 'int x = 7;\n'],
+      finalHasDiagnostics: false,
+    },
+    {
+      name: 'long burst with alternating malformed/valid converges to latest valid',
+      steps: [
+        'int x = ;\n',
+        'int x = 1;\n',
+        'int x = (\n',
+        'int x = 2;\n',
+        'int x = ;\n',
+        'int x = 3;\n',
+      ],
+      finalHasDiagnostics: false,
+    },
+  ] as const;
+
+  for (const testCase of transitionCases) {
+    it(`handles ${testCase.name}`, async () => {
+      const bridge = new FaultInjectableMockBridge({
+        delayMs: 12,
+        analyzeResult: text =>
+          isMalformedIntermediate(text)
+            ? { hasError: true, errorMessage: 'Syntax error: malformed intermediate state' }
+            : { hasError: false },
+      });
+
+      const { docs, diagnostics } = createHarness(bridge);
+      const uri = `file:///rapid-malformed-${testCase.name.replace(/\s+/g, '-')}.pike`;
+
+      docs.emitOpen(TextDocument.create(uri, 'pike', 1, testCase.steps[0]));
+      for (let index = 1; index < testCase.steps.length; index += 1) {
+        docs.emitChange(TextDocument.create(uri, 'pike', index + 1, testCase.steps[index]!));
+      }
+
+      await wait(160);
+
+      const uriDiagnostics = diagnostics.filter(entry => entry.uri === uri);
+      assert.equal(uriDiagnostics.length > 0, true);
+      assertMonotonicVersions(diagnostics, uri);
+
+      const last = uriDiagnostics[uriDiagnostics.length - 1];
+      assert.equal(last?.version, testCase.steps.length);
+
+      const finalHasDiagnostics = (last?.diagnostics.length ?? 0) > 0;
+      assert.equal(finalHasDiagnostics, testCase.finalHasDiagnostics);
+    });
+  }
+
+  it('suppresses stale delayed malformed publish after a newer valid revision', async () => {
     const bridge = new FaultInjectableMockBridge(
-      {},
       {
-        crashAtOperation: 'engineQuery',
-        failWithError: new Error('injected parse hard-fail'),
-        probability: 1,
+        delayMs: 30,
+        analyzeResult: text =>
+          isMalformedIntermediate(text)
+            ? { hasError: true, errorMessage: 'Syntax error: delayed malformed' }
+            : { hasError: false },
+      },
+      {
+        delayMs: { min: 10, max: 25 },
       }
     );
 
     const { docs, diagnostics } = createHarness(bridge);
-    const uri = 'file:///rapid-malformed.pike';
+    const uri = 'file:///rapid-malformed-supersede.pike';
 
     docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'int x = ;\n'));
     docs.emitChange(TextDocument.create(uri, 'pike', 2, 'int x = (\n'));
-    await wait(80);
+    docs.emitChange(TextDocument.create(uri, 'pike', 3, 'int x = 9;\n'));
+    await wait(220);
 
-    const malformedDiagCount = diagnostics.filter(entry => entry.uri === uri).length;
+    const uriDiagnostics = diagnostics.filter(entry => entry.uri === uri);
+    assert.equal(uriDiagnostics.length > 0, true);
+    assertMonotonicVersions(diagnostics, uri);
+
+    const last = uriDiagnostics[uriDiagnostics.length - 1];
+    assert.equal(last?.version, 3);
+    assert.equal((last?.diagnostics.length ?? 0) === 0, true);
+  });
+
+  it('keeps latest config-triggered validation ownership for malformed transitions', async () => {
+    const bridge = new FaultInjectableMockBridge({
+      delayMs: 18,
+      analyzeResult: text =>
+        isMalformedIntermediate(text)
+          ? { hasError: true, errorMessage: 'Syntax error: config race malformed' }
+          : { hasError: false },
+    });
+
+    const { docs, diagnostics, emitConfigChange } = createHarness(bridge);
+    const uri = 'file:///rapid-malformed-config.pike';
+
+    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'int x = ;\n'));
+    emitConfigChange();
+    docs.emitChange(TextDocument.create(uri, 'pike', 2, 'int x = 42;\n'));
+    docs.emitSave(TextDocument.create(uri, 'pike', 2, 'int x = 42;\n'));
+    emitConfigChange();
+    await wait(220);
+
+    const uriDiagnostics = diagnostics.filter(entry => entry.uri === uri);
+    assertMonotonicVersions(diagnostics, uri);
     assert.equal(
-      malformedDiagCount >= 1,
-      true,
-      'Malformed rapid edits must still publish degraded diagnostics'
+      uriDiagnostics.every(entry => (entry.version ?? 0) <= 2),
+      true
     );
-
-    bridge.setFaultConfig({});
-    docs.emitChange(TextDocument.create(uri, 'pike', 3, 'int x = 3;\n'));
-    await wait(80);
-
-    const recovered = diagnostics.find(entry => entry.uri === uri && entry.version === 3);
-    assert.ok(recovered, 'Validation must recover and publish diagnostics for the fixed edit');
-    assert.equal(Array.isArray(recovered.diagnostics), true);
+    if (uriDiagnostics.length > 0) {
+      const last = uriDiagnostics[uriDiagnostics.length - 1];
+      assert.equal(last?.version, 2);
+      assert.equal((last?.diagnostics.length ?? 0) === 0, true);
+    }
   });
 });
