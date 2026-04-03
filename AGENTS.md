@@ -24,9 +24,7 @@ Do not create issues titled "update npm packages" — say "update bun dependenci
 
 ## Branch Policy
 
-### Default (non-rewrite work)
-
-**Always sync before starting.** Main moves fast; working from a stale base causes merge conflicts, wasted effort, and duplicate fixes. If you find yourself resolving avoidable conflicts or re-implementing something already in main, this step was missed.
+**ALWAYS use worktrees for all development.** Working directly on main or creating branches in the main worktree causes conflicts when multiple agents are active.
 
 ```bash
 # Single agent (fast iteration):
@@ -38,7 +36,7 @@ scripts/worktree.sh create fix/my-topic
 scripts/worktree.sh create fix/my-topic --from main
 ```
 
-Never commit directly to `main`.
+This creates an isolated worktree at `../pike-lsp-{branch-name}` with its own branch and dependencies. Never commit directly to `main`.
 
 ### query-engine-v2 rewrite work
 

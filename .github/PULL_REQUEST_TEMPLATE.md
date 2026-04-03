@@ -23,6 +23,14 @@ closes #
      Good: "- packages/pike-lsp-server/src/hover.ts: corrected symbol lookup to
               check inherited scope chain before returning null" -->
 
+## Knowledge Base
+
+<!-- Required: Document significant learnings in KB per docs/kb-enforcement-policy.md -->
+
+- [ ] Added/updated KB entry (see `.agent-knowledge/`)
+- KB IDs touched: <!-- e.g., KB-PATTERN-20260403-001 -->
+- [ ] Exempt (explain): <!-- Only for trivial changes: typos, formatting, test-only -->
+
 ## Verification
 
 <!-- Required: What did you run locally and what was the result?

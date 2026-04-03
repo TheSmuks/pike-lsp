@@ -31,6 +31,7 @@ import { Logger } from '@pike-lsp/core';
 const VALID_KINDS: Set<PikeSymbolKind> = new Set<PikeSymbolKind>([
   'class' as PikeSymbolKind,
   'method' as PikeSymbolKind,
+  'function' as PikeSymbolKind,
   'variable' as PikeSymbolKind,
   'constant' as PikeSymbolKind,
   'typedef' as PikeSymbolKind,
@@ -61,6 +62,22 @@ function validateSymbolKind(symbol: PikeSymbol, context: string): void {
       context,
     });
   }
+}
+
+/**
+ * Check if a symbol kind represents a callable entity (function or method)
+ */
+function isCallable(kind: string): boolean {
+  return kind === 'method' || kind === 'function';
+}
+
+/**
+ * Get the appropriate SymbolKind for a callable symbol
+ */
+function getCallableSymbolKind(
+  kind: string
+): typeof SymbolKind.Method | typeof SymbolKind.Function {
+  return kind === 'method' ? SymbolKind.Method : SymbolKind.Function;
 }
 
 /**
@@ -292,33 +309,36 @@ export function registerHierarchyHandlers(
 
       if (!word) return null;
 
-      // Find method symbol
-      const methodSymbol = cached.symbols.find(
-        s => s.name === word && s.kind === 'method' && s.position
+      // Find callable symbol (function or method)
+      const callableSymbol = cached.symbols.find(
+        s => s.name === word && isCallable(s.kind) && s.position
       );
 
-      if (!methodSymbol || !methodSymbol.position) {
+      if (!callableSymbol || !callableSymbol.position) {
         return null;
       }
-      if (methodSymbol.position.line === undefined || methodSymbol.position.column === undefined) {
-        log.warn(`Symbol ${methodSymbol.name} has incomplete position information`);
+      if (
+        callableSymbol.position.line === undefined ||
+        callableSymbol.position.column === undefined
+      ) {
+        log.warn(`Symbol ${callableSymbol.name} has incomplete position information`);
         return null;
       }
 
-      const line = methodSymbol.position.line - 1;
+      const line = callableSymbol.position.line - 1;
 
       return [
         {
-          name: methodSymbol.name,
-          kind: SymbolKind.Method,
+          name: callableSymbol.name,
+          kind: getCallableSymbolKind(callableSymbol.kind),
           uri,
           range: {
             start: { line, character: 0 },
-            end: { line, character: methodSymbol.name.length },
+            end: { line, character: callableSymbol.name.length },
           },
           selectionRange: {
             start: { line, character: 0 },
-            end: { line, character: methodSymbol.name.length },
+            end: { line, character: callableSymbol.name.length },
           },
         },
       ];
@@ -378,31 +398,31 @@ export function registerHierarchyHandlers(
           }
         }
 
-        // For each method, find which calls are within its body
+        // For each callable, find which calls are within its body
         for (const symbol of symbols) {
-          if (symbol.kind !== 'method' || !symbol.position) continue;
+          if (!isCallable(symbol.kind) || !symbol.position) continue;
 
           // Don't include self-references from the same method
           if (docUri === targetUri && symbol.name === targetName) continue;
 
           const methodStartLine = (symbol.position.line ?? 1) - 1;
 
-          // Find method end by looking for the next method
-          const nextMethodLine =
+          // Find callable end by looking for the next callable
+          const nextCallableLine =
             symbols
               .filter(
                 s =>
-                  s.kind === 'method' &&
+                  isCallable(s.kind) &&
                   s.position &&
                   (s.position.line ?? 0) > (symbol.position?.line ?? 0)
               )
               .map(s => (s.position?.line ?? 0) - 1)
               .sort((a, b) => a - b)[0] ?? lines.length;
 
-          // Find call positions within this method's body
+          // Find call positions within this callable's body
           const ranges: Range[] = [];
           for (const pos of callPositions) {
-            if (pos.line >= methodStartLine && pos.line < nextMethodLine) {
+            if (pos.line >= methodStartLine && pos.line < nextCallableLine) {
               ranges.push({
                 start: { line: pos.line, character: pos.character },
                 end: { line: pos.line, character: pos.character + targetName.length },
@@ -499,20 +519,18 @@ export function registerHierarchyHandlers(
       const text = doc.getText();
       const lines = text.split('\n');
 
-      // Find this method and its end
+      // Find this callable and its end
       const sourceSymbol = cached.symbols.find(
         s =>
-          s.kind === 'method' &&
-          s.position &&
-          Math.max(0, (s.position.line ?? 1) - 1) === sourceLine
+          isCallable(s.kind) && s.position && Math.max(0, (s.position.line ?? 1) - 1) === sourceLine
       );
 
       if (!sourceSymbol) return results;
 
-      const methodStartLine = sourceLine;
-      const nextMethodLine =
+      const callableStartLine = sourceLine;
+      const nextCallableLine =
         cached.symbols
-          .filter(s => s.kind === 'method' && s.position && (s.position.line ?? 0) - 1 > sourceLine)
+          .filter(s => isCallable(s.kind) && s.position && (s.position.line ?? 0) - 1 > sourceLine)
           .map(s => (s.position?.line ?? 0) - 1)
           .sort((a, b) => a - b)[0] ?? lines.length;
 
@@ -554,11 +572,11 @@ export function registerHierarchyHandlers(
           if (keywords.has(identName)) continue;
           if (identName === sourceMethodName) continue;
 
-          // Find positions within this method that are function calls
+          // Find positions within this callable that are function calls
           const ranges: Range[] = [];
           for (const pos of positions) {
-            // Check if within method body
-            if (pos.line < methodStartLine || pos.line >= nextMethodLine) continue;
+            // Check if within callable body
+            if (pos.line < callableStartLine || pos.line >= nextCallableLine) continue;
 
             // Check if this is a function call (followed by '(')
             const line = lines[pos.line];
@@ -586,7 +604,7 @@ export function registerHierarchyHandlers(
         let targetLine: number | null = null;
 
         // First, try the current document
-        const targetSymbol = cached.symbols.find(s => s.name === funcName && s.kind === 'method');
+        const targetSymbol = cached.symbols.find(s => s.name === funcName && isCallable(s.kind));
         if (targetSymbol?.position) {
           // Validate position has required fields before using
           if (
@@ -600,7 +618,7 @@ export function registerHierarchyHandlers(
         } else {
           // Not found in current document - search all cached documents
           for (const [docUri, cachedDoc] of documentCache.entries()) {
-            const symbol = cachedDoc.symbols?.find(s => s.name === funcName && s.kind === 'method');
+            const symbol = cachedDoc.symbols?.find(s => s.name === funcName && isCallable(s.kind));
             if (symbol?.position) {
               // Validate position has required fields before using
               if (symbol.position.line === undefined || symbol.position.column === undefined) {
@@ -623,7 +641,7 @@ export function registerHierarchyHandlers(
                 continue;
               }
 
-              const symbol = loaded.symbols.find(s => s.name === funcName && s.kind === 'method');
+              const symbol = loaded.symbols.find(s => s.name === funcName && isCallable(s.kind));
               if (!symbol?.position) {
                 continue;
               }
