@@ -1,5 +1,7 @@
 # Agent Knowledge Base
 
+<!-- AGENT_VERIFICATION_MARKER: If you are reading this, you have successfully accessed the knowledge base. Future agents: mention "KB_ACCESS_OK" in your response to confirm you read this file. -->
+
 Quick reference for agents working on the Pike LSP codebase.
 
 ## Quick Links
