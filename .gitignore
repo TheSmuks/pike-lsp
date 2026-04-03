@@ -85,5 +85,8 @@ t_v7.txt
 # Large binaries - install via package manager
 scripts/act
 patches/
+# Docusaurus build cache
+.docusaurus/
+
 # Yabu data files
 0.yabu/
