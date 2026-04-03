@@ -29,10 +29,19 @@ import {
   getRXMLAttributeCompletions,
 } from '../rxml/mixed-content.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+import type { ImportableSymbolCandidate } from '../../workspace-index.js';
 
 const inFlightCompletionRequests = new Map<string, string>();
 const completionRequestSequence = new Map<string, number>();
 const useQueryEngineCompletions = process.env['PIKE_LSP_QE2_COMPLETION'] !== '0';
+
+type AutoImportCompletionData = {
+  autoImport: {
+    statement: string;
+    importKind: 'import' | 'inherit';
+  };
+  requestUri: string;
+};
 
 function getSymbolClassname(symbol: PikeSymbol): string | undefined {
   if ('classname' in symbol && typeof symbol.classname === 'string') {
@@ -364,7 +373,12 @@ export function registerCompletionHandlers(
                             undefined,
                             completionContext
                           );
-                          item.data = { modulePath: imp.modulePath, name, isStdlib: true };
+                          item.data = {
+                            modulePath: imp.modulePath,
+                            name,
+                            isStdlib: true,
+                            requestUri: uri,
+                          };
                           completions.push(item);
                           existingNames.add(name);
                         }
@@ -393,6 +407,7 @@ export function registerCompletionHandlers(
                         modulePath: imp.modulePath,
                         name: symbol.name,
                         isStdlib: false,
+                        requestUri: uri,
                       };
                       completions.push(item);
                       existingNames.add(symbol.name);
@@ -439,6 +454,21 @@ export function registerCompletionHandlers(
                 });
               }
             }
+          }
+
+          if (prefixLower.length > 0) {
+            const autoImportCandidates = services.workspaceIndex.searchImportableSymbols(
+              prefix,
+              uri,
+              24
+            );
+            addWorkspaceAutoImportCompletions(
+              completions,
+              autoImportCandidates,
+              prefixLower,
+              text,
+              uri
+            );
           }
 
           maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
@@ -1081,7 +1111,12 @@ export function registerCompletionHandlers(
                       undefined,
                       completionContext
                     );
-                    item.data = { modulePath: imp.modulePath, name, isStdlib: true };
+                    item.data = {
+                      modulePath: imp.modulePath,
+                      name,
+                      isStdlib: true,
+                      requestUri: uri,
+                    };
                     completions.push(item);
                   }
                 }
@@ -1112,13 +1147,23 @@ export function registerCompletionHandlers(
                   undefined,
                   completionContext
                 );
-                item.data = { modulePath: imp.modulePath, name: symbol.name, isStdlib: false };
+                item.data = {
+                  modulePath: imp.modulePath,
+                  name: symbol.name,
+                  isStdlib: false,
+                  requestUri: uri,
+                };
                 completions.push(item);
               }
             }
           }
         }
       }
+    }
+
+    if (prefixLower.length > 0) {
+      const autoImportCandidates = services.workspaceIndex.searchImportableSymbols(prefix, uri, 24);
+      addWorkspaceAutoImportCompletions(completions, autoImportCandidates, prefixLower, text, uri);
     }
 
     // --- Roxen completion integration ---
@@ -1256,8 +1301,24 @@ export function registerCompletionHandlers(
   connection.onCompletionResolve(async (item): Promise<CompletionItem> => {
     const data = item.data as
       | { uri?: string; name?: string }
-      | { modulePath?: string; name?: string; isStdlib?: boolean }
+      | { modulePath?: string; name?: string; isStdlib?: boolean; requestUri?: string }
+      | AutoImportCompletionData
       | undefined;
+
+    if (data && 'autoImport' in data && data.autoImport) {
+      const document = documents.get(data.requestUri);
+      if (document) {
+        const edit = buildAutoImportEdit(
+          document.getText(),
+          data.autoImport.statement,
+          data.autoImport.importKind
+        );
+        if (edit) {
+          item.additionalTextEdits = [edit];
+        }
+      }
+      return item;
+    }
 
     // Handle local symbol resolution (existing behavior)
     if (data && 'uri' in data && data.uri && data.name) {
@@ -1303,22 +1364,163 @@ export function registerCompletionHandlers(
       }
 
       // Add auto-import additionalTextEdits
-      // We add the import statement unconditionally - the editor will handle duplicates
       const importStatement = isStdlib ? `import ${modulePath};\n` : `import .${modulePath};\n`;
-
-      item.additionalTextEdits = [
-        {
-          range: {
-            start: { line: 0, character: 0 },
-            end: { line: 0, character: 0 },
-          },
-          newText: importStatement,
-        },
-      ];
+      const requestDocument = data.requestUri ? documents.get(data.requestUri) : undefined;
+      if (requestDocument) {
+        const edit = buildAutoImportEdit(
+          requestDocument.getText(),
+          importStatement.trim(),
+          'import'
+        );
+        if (edit) {
+          item.additionalTextEdits = [edit];
+        }
+      }
     }
 
     return item;
   });
+}
+
+function toCompletionKind(symbolKind: string): CompletionItemKind {
+  switch (symbolKind) {
+    case 'class':
+      return CompletionItemKind.Class;
+    case 'method':
+      return CompletionItemKind.Method;
+    case 'constant':
+      return CompletionItemKind.Constant;
+    case 'module':
+      return CompletionItemKind.Module;
+    case 'import':
+      return CompletionItemKind.Module;
+    case 'function':
+      return CompletionItemKind.Function;
+    default:
+      return CompletionItemKind.Variable;
+  }
+}
+
+function findAutoImportInsertionLine(text: string, importKind: 'import' | 'inherit'): number {
+  const lines = text.split('\n');
+  const includeLines: number[] = [];
+  const importLines: number[] = [];
+  const inheritLines: number[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = (lines[i] ?? '').trim();
+    if (trimmed.startsWith('#include ')) {
+      includeLines.push(i);
+      continue;
+    }
+    if (trimmed.startsWith('import ')) {
+      importLines.push(i);
+      continue;
+    }
+    if (trimmed.startsWith('inherit ')) {
+      inheritLines.push(i);
+    }
+  }
+
+  if (importKind === 'import') {
+    if (importLines.length > 0) {
+      return importLines[importLines.length - 1]! + 1;
+    }
+    if (includeLines.length > 0) {
+      return includeLines[includeLines.length - 1]! + 1;
+    }
+    if (inheritLines.length > 0) {
+      return inheritLines[0]!;
+    }
+    return 0;
+  }
+
+  if (inheritLines.length > 0) {
+    return inheritLines[inheritLines.length - 1]! + 1;
+  }
+  if (importLines.length > 0) {
+    return importLines[importLines.length - 1]! + 1;
+  }
+  if (includeLines.length > 0) {
+    return includeLines[includeLines.length - 1]! + 1;
+  }
+  return 0;
+}
+
+function buildAutoImportEdit(
+  text: string,
+  statement: string,
+  importKind: 'import' | 'inherit'
+): {
+  range: { start: { line: number; character: number }; end: { line: number; character: number } };
+  newText: string;
+} | null {
+  const lines = text.split('\n');
+  if (lines.some(line => line.trim() === statement.trim())) {
+    return null;
+  }
+
+  const insertionLine = findAutoImportInsertionLine(text, importKind);
+  return {
+    range: {
+      start: { line: insertionLine, character: 0 },
+      end: { line: insertionLine, character: 0 },
+    },
+    newText: `${statement}\n`,
+  };
+}
+
+function addWorkspaceAutoImportCompletions(
+  completions: CompletionItem[],
+  candidates: ImportableSymbolCandidate[],
+  prefixLower: string,
+  text: string,
+  uri: string
+): void {
+  const existingNonAutoLabels = new Set(
+    completions
+      .filter(item => !(item.data && typeof item.data === 'object' && 'autoImport' in item.data))
+      .map(item => item.label.toLowerCase())
+  );
+  const existingAutoImportKeys = new Set<string>();
+
+  for (const candidate of candidates) {
+    const candidateLower = candidate.name.toLowerCase();
+    if (prefixLower && !candidateLower.startsWith(prefixLower)) {
+      continue;
+    }
+
+    if (existingNonAutoLabels.has(candidateLower)) {
+      continue;
+    }
+
+    const autoImportKey = `${candidate.name}:${candidate.statement}`;
+    if (existingAutoImportKeys.has(autoImportKey)) {
+      continue;
+    }
+
+    const edit = buildAutoImportEdit(text, candidate.statement, candidate.importKind);
+    if (!edit) {
+      continue;
+    }
+
+    const item: CompletionItem = {
+      label: candidate.name,
+      kind: toCompletionKind(candidate.symbolKind),
+      detail: `Auto-import from ${candidate.sourcePath}`,
+      additionalTextEdits: [edit],
+      data: {
+        autoImport: {
+          statement: candidate.statement,
+          importKind: candidate.importKind,
+        },
+        requestUri: uri,
+      } satisfies AutoImportCompletionData,
+    };
+
+    completions.push(item);
+    existingAutoImportKeys.add(autoImportKey);
+  }
 }
 
 // ==================== Helper Functions ====================

@@ -339,6 +339,12 @@ export class RequestScheduler {
         this.tasksByKey.delete(task.key);
       }
 
+      if (task.cancelled && !(error instanceof RequestSupersededError)) {
+        error = new RequestSupersededError(
+          `Cancelled during execution key=${task.key ?? 'unkeyed'} id=${task.id}`
+        );
+      }
+
       if (error instanceof RequestSupersededError) {
         this.metrics.canceled += 1;
       } else {

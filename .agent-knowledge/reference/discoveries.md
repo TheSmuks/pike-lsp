@@ -2,6 +2,44 @@
 
 Things agents have learned about the Pike LSP codebase.
 
+## 2026-04-03: Auto-import workflow integration pattern
+
+**Finding**: Auto-import support in this codebase is most reliable when split across three layers:
+
+1. Semantic diagnostics mark unresolved symbols with structured `diagnostic.data`.
+2. `workspace-index` provides deterministic `searchImportableSymbols()` results.
+3. Code actions and completions consume that same candidate API and only differ in presentation (`CodeAction` vs `additionalTextEdits`).
+
+**Implementation pattern**:
+
+- Use `data: { kind: 'unresolved-symbol', symbolName }` on `undefined-symbol` diagnostics.
+- Keep deterministic ordering in both provider and index layer (`name`, `sourcePath`, `statement`).
+- Guard completion integration for test harness compatibility: check `typeof workspaceIndex.searchImportableSymbols === 'function'` before calling.
+
+**Files**:
+
+- `packages/pike-lsp-server/src/features/diagnostics/semantic-analyzer.ts`
+- `packages/pike-lsp-server/src/workspace-index.ts`
+- `packages/pike-lsp-server/src/features/advanced/code-actions.ts`
+- `packages/pike-lsp-server/src/features/editing/completion.ts`
+
+## 2026-04-03: Diagnostics Publish Requires Revision Rights (Latest-Wins)
+
+**Finding**: Version checks alone are insufficient for edit-loop resilience; superseded runs can still reach publish paths during malformed intermediate states.
+
+**Pattern**:
+
+1. Issue a per-document validation revision on every scheduled validation.
+2. Gate every publish path on both `(liveVersion === validatedVersion)` and `revision === latestScheduledRevision`.
+3. Track `latestPublishedRevision` to reject regressive/duplicate publishes.
+4. Clear revision maps on document close to avoid stale rights after reopen.
+
+**Files**:
+
+- `packages/pike-lsp-server/src/features/diagnostics/index.ts`
+- `packages/pike-lsp-server/src/features/diagnostics/lifecycle.ts`
+- `packages/pike-lsp-server/src/services/request-scheduler.ts`
+
 ## 2026-04-03: Pike Import Order Doesn't Matter
 
 **Finding**: After testing with multiple Pike files, `import` and `#include` don't require ordering due to Pike's late binding.
@@ -179,6 +217,32 @@ Things agents have learned about the Pike LSP codebase.
 
 ---
 
+## 2026-04-03: Workspace Symbol Ranking Pipeline for Large Indexes
+
+**Finding**: Workspace symbol relevance and latency improve significantly by using a strict tiered ranking model with incremental top-N insertion, instead of collecting all matches and sorting at the end.
+
+**Practical Ranking Model**:
+
+1. Exact match (`name === query`)
+2. Prefix match (`name.startsWith(query)`)
+3. Camel-case acronym match (e.g. `getCurrentConfig` => `gcc`)
+4. Substring match (`name.includes(query)`)
+
+**Implementation Notes**:
+
+- Keep non-overlapping tier score bands to enforce deterministic ordering (`exact > prefix > camel > substring`)
+- Use bounded top-N insertion while iterating to avoid full-array sort cost on large workspaces
+- Keep tie-breakers deterministic: shorter name, then lexical name, then URI, then line
+- Pre-index camel-case acronym prefixes (`g`, `gc`, `gcc`) for low-cost abbreviation queries
+
+**Warm-start Pattern**:
+
+- Persist serialized workspace symbol index separately from resolution cache
+- Rehydrate index at server startup before background indexing completes
+- Continue background indexing to refresh stale entries without blocking first queries
+
+---
+
 ## 2026-04-03: Semantic Diagnostics Architecture
 
 **Finding**: Semantic analysis requires separate analyzer module to avoid blocking the main diagnostics pipeline.
@@ -331,5 +395,56 @@ if (existing.length > 0) throw collisionError;
 - `.husky/pre-commit`: Integration
 - `.github/workflows/enforce-acceptance-criteria.yml`: CI gate
 - `AGENTS.md`: Policy reference
+
+---
+
+## 2026-04-03: Workspace Symbol Ranking Pipeline with Warm-Start
+
+**Finding**: Implemented tiered relevance ranking and index persistence for workspace/symbol queries.
+
+**Ranking Model**:
+
+| Tier      | Score Band | Match Type                                    |
+| --------- | ---------- | --------------------------------------------- |
+| exact     | 400k       | Full match                                    |
+| prefix    | 300k       | Starts with query                             |
+| camelCase | 200k       | Acronym match (e.g., "gSH" → "getSymbolHash") |
+| substring | 100k       | Contains query                                |
+
+**Deterministic Tie-Breakers**:
+
+1. Score (descending)
+2. Name length (ascending)
+3. Name lexicographic
+4. URI lexicographic
+5. Line number (ascending)
+
+**Incremental Pipeline**:
+
+- Uses bounded insertion (`insertTopResult`) instead of collect-then-sort
+- Staged matching: exact → prefix → camelCase → substring
+- Short-circuits when top-N dominated by higher tier
+
+**Warm-Start Persistence**:
+
+- `saveWorkspaceSymbolIndex()` on shutdown
+- `loadWorkspaceSymbolIndex()` hydrates index at startup
+- Independent of resolution cache
+
+**Benchmark Gate**:
+
+- 10k synthetic symbols
+- Query "render" → top 100 results
+- p95 < 100ms threshold
+- Result: ~0.34ms avg, 0.02ms p95
+
+**Files**:
+
+- `packages/pike-lsp-server/src/workspace-index.ts` - Scoring + ranking
+- `packages/pike-lsp-server/src/features/symbols.ts` - Top-N handler
+- `packages/pike-lsp-server/src/runtime/server-runtime.ts` - Warm-start integration
+- `packages/pike-lsp-server/src/services/resolution-cache-persistence.ts` - Save/load
+- `scripts/workspace-symbol-benchmark-gate.ts` - Gate test
+- 11 ranking/determinism tests in workspace-scanner.test.ts
 
 ---
