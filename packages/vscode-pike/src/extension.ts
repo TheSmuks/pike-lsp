@@ -386,12 +386,15 @@ class ExtensionRuntime {
     const expandedPaths = getExpandedModulePaths(this.outputChannel);
     const expandedIncludePaths = getExpandedIncludePaths(this.outputChannel);
     const expandedProgramPaths = getExpandedProgramPaths(this.outputChannel);
+    const analysisDefines = config.get<string[]>('analysis.defines', []);
+    const expandedDefineFiles = getExpandedDefineFiles(this.outputChannel);
 
     const pathSeparator = process.platform === 'win32' ? ';' : ':';
     const normalizePath = (p: string) => (process.platform === 'win32' ? p.replace(/\\/g, '/') : p);
     const normalizedModulePaths = expandedPaths.map(normalizePath);
     const normalizedIncludePaths = expandedIncludePaths.map(normalizePath);
     const normalizedProgramPaths = expandedProgramPaths.map(normalizePath);
+    const normalizedDefineFiles = expandedDefineFiles.map(normalizePath);
 
     if (!this.serverModulePath) {
       throw new Error('Server module path not set');
@@ -421,6 +424,10 @@ class ExtensionRuntime {
           PIKE_MODULE_PATH: normalizedModulePaths.join(pathSeparator),
           PIKE_INCLUDE_PATH: normalizedIncludePaths.join(pathSeparator),
           PIKE_PROGRAM_PATH: normalizedProgramPaths.join(pathSeparator),
+        },
+        analysis: {
+          defines: analysisDefines,
+          defineFiles: normalizedDefineFiles,
         },
         maxNumberOfProblems: config.get<number>('maxNumberOfProblems', 100),
         inlayHints: {
@@ -1240,7 +1247,9 @@ async function activateInternal(
         (event.affectsConfiguration('pike.pikeModulePath') ||
           event.affectsConfiguration('pike.pikeIncludePath') ||
           event.affectsConfiguration('pike.pikeProgramPath') ||
-          event.affectsConfiguration('pike.pikePath'))
+          event.affectsConfiguration('pike.pikePath') ||
+          event.affectsConfiguration('pike.analysis.defines') ||
+          event.affectsConfiguration('pike.analysis.defineFiles'))
       ) {
         await runtime.restartClient(false);
       }
@@ -1326,6 +1335,24 @@ function getExpandedProgramPaths(outputChannel: OutputChannel): string[] {
 
   outputChannel.appendLine(`Pike program path: ${JSON.stringify(pikeProgramPath)}`);
   return expandedPaths;
+}
+
+function getExpandedDefineFiles(outputChannel: OutputChannel): string[] {
+  const config = workspace.getConfiguration('pike');
+  const defineFiles = config.get<string[]>('analysis.defineFiles', []);
+  let expandedFiles: string[] = [];
+
+  if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+    const f = workspace.workspaceFolders[0]!.uri.fsPath;
+    for (const p of defineFiles) {
+      expandedFiles.push(p.replace('${workspaceFolder}', f));
+    }
+  } else {
+    expandedFiles = defineFiles;
+  }
+
+  outputChannel.appendLine(`Pike analysis define files: ${JSON.stringify(defineFiles)}`);
+  return expandedFiles;
 }
 
 export async function addModulePathSetting(modulePath: string): Promise<boolean> {

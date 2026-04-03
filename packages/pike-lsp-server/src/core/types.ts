@@ -81,12 +81,18 @@ export interface PikeSettings {
   maxNumberOfProblems: number;
   /** Delay in milliseconds before validating after document change */
   diagnosticDelay: number;
+  analysis?: AnalysisSettings;
   /** Inlay hints configuration (optional) */
   inlayHints?: InlayHintsSettings;
   /** Inline values configuration (optional) */
   inlineValues?: InlineValuesSettings;
   runnable?: RunnableSettings;
   organizeImports?: OrganizeImportsSettings;
+}
+
+export interface AnalysisSettings {
+  defines: string[];
+  defineFiles: string[];
 }
 
 export interface OrganizeImportsSettings {
@@ -206,6 +212,10 @@ export const defaultSettings: PikeSettings = {
   pikePath: 'pike',
   maxNumberOfProblems: DEFAULT_MAX_PROBLEMS,
   diagnosticDelay: DIAGNOSTIC_DELAY_DEFAULT,
+  analysis: {
+    defines: [],
+    defineFiles: [],
+  },
   inlayHints: {
     enabled: true,
     parameterNames: true,

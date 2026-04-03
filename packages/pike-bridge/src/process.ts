@@ -64,7 +64,12 @@ export class PikeProcess extends EventEmitter {
    * @param env - Environment variables to pass to subprocess
    * @throws Error if spawn fails or pipes cannot be created
    */
-  spawn(analyzerPath: string, pikePath: string = 'pike', env: NodeJS.ProcessEnv = {}): void {
+  spawn(
+    analyzerPath: string,
+    pikePath: string = 'pike',
+    env: NodeJS.ProcessEnv = {},
+    args: string[] = []
+  ): void {
     if (this.process) {
       throw new Error('PikeProcess already spawned. Call kill() first.');
     }
@@ -72,7 +77,7 @@ export class PikeProcess extends EventEmitter {
     this._analyzerPath = analyzerPath;
     this._pikePath = pikePath;
 
-    this.process = spawn(pikePath, [analyzerPath], {
+    this.process = spawn(pikePath, [...args, analyzerPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, ...env },
     });

@@ -57,6 +57,8 @@ export interface PikeBridgeOptions {
   /** Enable debug logging to stderr. */
   debug?: boolean;
   env?: NodeJS.ProcessEnv;
+  defines?: string[];
+  defineFiles?: string[];
   /** Rate limiting options (disabled by default). */
   rateLimit?: {
     /** Maximum number of requests allowed. Defaults to 100. */
@@ -75,6 +77,84 @@ interface InternalBridgeOptions {
   timeout: number;
   debug: boolean;
   env: NodeJS.ProcessEnv;
+  processArgs: string[];
+  defineNames: Set<string>;
+}
+
+function normalizeDefine(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed;
+}
+
+function collectDefinesFromFiles(
+  defineFiles: string[],
+  debugLog: (message: string) => void
+): string[] {
+  const fromFiles: string[] = [];
+  for (const filePath of defineFiles) {
+    const trimmedPath = filePath.trim();
+    if (!trimmedPath) {
+      continue;
+    }
+    try {
+      const raw = fs.readFileSync(trimmedPath, 'utf8');
+      for (const line of raw.split(/\r?\n/u)) {
+        const withoutComment = line.split('#', 1)[0] ?? '';
+        const define = normalizeDefine(withoutComment);
+        if (define) {
+          fromFiles.push(define);
+        }
+      }
+    } catch (error) {
+      debugLog(
+        `Failed to read define file "${trimmedPath}": ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+  return fromFiles;
+}
+
+function resolveDefineEntries(
+  defines: string[] | undefined,
+  defineFiles: string[] | undefined,
+  debugLog: (message: string) => void
+): string[] {
+  const inlineDefines = (defines ?? []).map(normalizeDefine).filter((v): v is string => Boolean(v));
+  const fileDefines = collectDefinesFromFiles(defineFiles ?? [], debugLog);
+  return [...inlineDefines, ...fileDefines];
+}
+
+function buildProcessArgs(defineEntries: string[]): string[] {
+  return defineEntries.map(value => `-D${value}`);
+}
+
+function extractDefineName(entry: string): string | null {
+  const trimmed = entry.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const eq = trimmed.indexOf('=');
+  const candidate = (eq >= 0 ? trimmed.slice(0, eq) : trimmed).trim();
+  if (!candidate) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function buildDefineNameSet(defineEntries: string[]): Set<string> {
+  const defineNames = new Set<string>();
+  for (const entry of defineEntries) {
+    const name = extractDefineName(entry);
+    if (name) {
+      defineNames.add(name);
+    }
+  }
+  return defineNames;
 }
 
 /**
@@ -212,12 +292,20 @@ export class PikeBridge extends EventEmitter {
       }
     }
 
+    const defineEntries = resolveDefineEntries(options.defines, options.defineFiles, this.debugLog);
+    const processArgs = buildProcessArgs(defineEntries);
+    const defineNames = buildDefineNameSet(defineEntries);
+    const defineEnv =
+      defineEntries.length > 0 ? { PIKE_ANALYSIS_DEFINES: defineEntries.join('\n') } : {};
+
     this.options = {
       pikePath: options.pikePath ?? 'pike',
       analyzerPath: defaultAnalyzerPath,
       timeout: options.timeout ?? BRIDGE_TIMEOUT_DEFAULT,
       debug,
-      env: options.env ?? {},
+      env: { ...(options.env ?? {}), ...defineEnv },
+      processArgs,
+      defineNames,
     };
 
     // Initialize rate limiter if configured (disabled by default)
@@ -235,7 +323,7 @@ export class PikeBridge extends EventEmitter {
     this.autoRestart = false;
 
     this.debugLog(
-      `Initialized with pikePath="${this.options.pikePath}", analyzerPath="${this.options.analyzerPath}"`
+      `Initialized with pikePath="${this.options.pikePath}", analyzerPath="${this.options.analyzerPath}", args=${JSON.stringify(this.options.processArgs)}`
     );
   }
 
@@ -266,7 +354,7 @@ export class PikeBridge extends EventEmitter {
     this.cancelStartup = false;
 
     this.debugLog(
-      `Starting Pike subprocess: ${this.options.pikePath} ${this.options.analyzerPath}`
+      `Starting Pike subprocess: ${this.options.pikePath} ${this.options.processArgs.join(' ')} ${this.options.analyzerPath}`
     );
     this.emit('stderr', 'Env: ' + JSON.stringify(this.options.env));
 
@@ -390,7 +478,12 @@ export class PikeBridge extends EventEmitter {
 
       // Spawn the process
       try {
-        pikeProc.spawn(this.options.analyzerPath, this.options.pikePath, this.options.env);
+        pikeProc.spawn(
+          this.options.analyzerPath,
+          this.options.pikePath,
+          this.options.env,
+          this.options.processArgs
+        );
         this.debugLog(`Pike subprocess spawned with PID: ${pikeProc.pid}`);
         this.process = pikeProc;
 
@@ -774,6 +867,153 @@ export class PikeBridge extends EventEmitter {
     }
   }
 
+  private evaluateConditionalExpression(expression: string): boolean {
+    const trimmed = expression.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    if (trimmed === '1' || trimmed === 'true') {
+      return true;
+    }
+
+    if (trimmed === '0' || trimmed === 'false') {
+      return false;
+    }
+
+    const normalized = trimmed.replaceAll(' ', '');
+    if (normalized.startsWith('!constant(') && normalized.endsWith(')')) {
+      const name = normalized.slice('!constant('.length, -1).trim();
+      return !this.options.defineNames.has(name);
+    }
+
+    if (normalized.startsWith('constant(') && normalized.endsWith(')')) {
+      const name = normalized.slice('constant('.length, -1).trim();
+      return this.options.defineNames.has(name);
+    }
+
+    if (trimmed.startsWith('!')) {
+      return !this.options.defineNames.has(trimmed.slice(1).trim());
+    }
+
+    return this.options.defineNames.has(trimmed);
+  }
+
+  private applyConditionalDefinesToCode(code: string): string {
+    if (this.options.defineNames.size === 0) {
+      return code;
+    }
+
+    type ConditionalFrame = {
+      parentActive: boolean;
+      hasMatched: boolean;
+      active: boolean;
+    };
+
+    const lines = code.split('\n');
+    const output: string[] = [];
+    const stack: ConditionalFrame[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const isDirective = trimmed.startsWith('#');
+
+      if (!isDirective) {
+        const active = stack.length === 0 ? true : stack[stack.length - 1]!.active;
+        output.push(active ? line : '');
+        continue;
+      }
+
+      const startsWith = (token: string): boolean => {
+        if (!trimmed.startsWith(token)) {
+          return false;
+        }
+        const next = trimmed.charAt(token.length);
+        return next === '' || next === ' ' || next === '\t';
+      };
+
+      const currentParent = stack.length === 0 ? true : stack[stack.length - 1]!.active;
+
+      if (startsWith('#ifdef')) {
+        const expr = trimmed.slice('#ifdef'.length).trim();
+        const cond = this.options.defineNames.has(expr);
+        stack.push({
+          parentActive: currentParent,
+          hasMatched: cond && currentParent,
+          active: cond && currentParent,
+        });
+        output.push('');
+        continue;
+      }
+
+      if (startsWith('#ifndef')) {
+        const expr = trimmed.slice('#ifndef'.length).trim();
+        const cond = !this.options.defineNames.has(expr);
+        stack.push({
+          parentActive: currentParent,
+          hasMatched: cond && currentParent,
+          active: cond && currentParent,
+        });
+        output.push('');
+        continue;
+      }
+
+      if (startsWith('#if')) {
+        const expr = trimmed.slice('#if'.length).trim();
+        const cond = this.evaluateConditionalExpression(expr);
+        stack.push({
+          parentActive: currentParent,
+          hasMatched: cond && currentParent,
+          active: cond && currentParent,
+        });
+        output.push('');
+        continue;
+      }
+
+      if (startsWith('#elif')) {
+        const frame = stack[stack.length - 1];
+        if (frame) {
+          if (!frame.parentActive || frame.hasMatched) {
+            frame.active = false;
+          } else {
+            const expr = trimmed.slice('#elif'.length).trim();
+            const cond = this.evaluateConditionalExpression(expr);
+            frame.active = cond;
+            if (cond) {
+              frame.hasMatched = true;
+            }
+          }
+        }
+        output.push('');
+        continue;
+      }
+
+      if (startsWith('#else')) {
+        const frame = stack[stack.length - 1];
+        if (frame) {
+          const active = frame.parentActive && !frame.hasMatched;
+          frame.active = active;
+          frame.hasMatched = true;
+        }
+        output.push('');
+        continue;
+      }
+
+      if (startsWith('#endif')) {
+        if (stack.length > 0) {
+          stack.pop();
+        }
+        output.push('');
+        continue;
+      }
+
+      const active = stack.length === 0 ? true : stack[stack.length - 1]!.active;
+      output.push(active ? line : '');
+    }
+
+    return output.join('\n');
+  }
+
   /**
    * Parse Pike source code and extract symbols.
    *
@@ -789,11 +1029,12 @@ export class PikeBridge extends EventEmitter {
    * ```
    */
   async parse(code: string, filename?: string): Promise<PikeParseResult> {
+    const effectiveCode = this.applyConditionalDefinesToCode(code);
     const result = await this.sendRequest<{
       symbols: PikeSymbol[];
       diagnostics: PikeDiagnostic[];
     }>('parse', {
-      code,
+      code: effectiveCode,
       filename: filename ?? 'input.pike',
       line: 1,
     });
@@ -819,8 +1060,9 @@ export class PikeBridge extends EventEmitter {
    * ```
    */
   async tokenize(code: string): Promise<PikeToken[]> {
+    const effectiveCode = this.applyConditionalDefinesToCode(code);
     const result = await this.sendRequest<{ tokens: PikeToken[] }>('tokenize', {
-      code,
+      code: effectiveCode,
     });
 
     return result.tokens;
@@ -842,11 +1084,12 @@ export class PikeBridge extends EventEmitter {
    * ```
    */
   async compile(code: string, filename?: string): Promise<PikeParseResult> {
+    const effectiveCode = this.applyConditionalDefinesToCode(code);
     const result = await this.sendRequest<{
       symbols: PikeSymbol[];
       diagnostics: PikeDiagnostic[];
     }>('compile', {
-      code,
+      code: effectiveCode,
       filename: filename ?? 'input.pike',
     });
 
@@ -970,8 +1213,9 @@ export class PikeBridge extends EventEmitter {
     filename?: string,
     documentVersion?: number
   ): Promise<AnalyzeResponse> {
+    const effectiveCode = this.applyConditionalDefinesToCode(code);
     return this.sendRequest<AnalyzeResponse>('analyze', {
-      code,
+      code: effectiveCode,
       filename: filename ?? 'input.pike',
       include,
       version: documentVersion, // Pass LSP version for cache key
@@ -1316,10 +1560,11 @@ export class PikeBridge extends EventEmitter {
     code: string,
     filename?: string
   ): Promise<import('./types.js').AnalyzeUninitializedResult> {
+    const effectiveCode = this.applyConditionalDefinesToCode(code);
     const result = await this.sendRequest<import('./types.js').AnalyzeUninitializedResult>(
       'analyze_uninitialized',
       {
-        code,
+        code: effectiveCode,
         filename: filename ?? 'input.pike',
       }
     );
