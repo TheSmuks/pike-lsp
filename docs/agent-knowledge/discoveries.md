@@ -102,3 +102,70 @@ Things agents have learned about the Pike LSP codebase.
 **Issue**: #1180 tracks enhancement to order `inherit` statements properly while keeping `import`/`#include` alphabetical.
 
 **Priority**: P3-refactor (low, backlog)
+
+---
+
+## 2026-04-03: Google ADK Skill Patterns - Lessons for Knowledge Base
+
+**Source**: [Google Developers Blog - Building ADK Agents with Skills](https://developers.googleblog.com/en/developers-guide-to-building-adk-agents-with-skills/)
+
+**Key Insight**: Google's ADK uses "progressive disclosure" - loading knowledge in 3 layers:
+
+- **L1 Metadata** (~100 tokens): Skill name/description loaded at startup (like our INDEX.md)
+- **L2 Instructions** (<5,000 tokens): Full skill body loaded on demand (like our patterns.md)
+- **L3 Resources**: External refs loaded only when needed (like our special-cases.md)
+
+**Pattern Comparison**:
+
+| ADK Pattern                       | Our Implementation         | Status    |
+| --------------------------------- | -------------------------- | --------- |
+| Inline skills (hardcoded)         | Hardcoded in code          | Using     |
+| File-based skills (SKILL.md)      | docs/agent-knowledge/\*.md | Using     |
+| External skills (imported)        | Not yet                    | Could add |
+| Meta skills (skills write skills) | Not yet                    | Could add |
+
+**Recommendations for Our Knowledge Base**:
+
+1. **SKILL.md Format**: Consider adopting the agentskills.io spec format:
+
+   ```markdown
+   ---
+   name: pike-import-order
+   description: Pike import ordering behavior and constraints
+   ---
+
+   ## Instructions
+
+   1. Check if using `import`, `#include`, or `inherit`
+   2. `import` and `#include` don't require ordering (late binding)
+   3. Only `inherit` with class inheritance needs ordering
+   ```
+
+2. **Progressive Loading**: Structure knowledge with clear L1/L2/L3 distinction:
+   - L1: INDEX.md quick reference
+   - L2: patterns.md, gotchas.md (detailed knowledge)
+   - L3: Test files, external references
+
+3. **Skill Factory**: Could create a "knowledge-creator" skill that generates new knowledge entries based on agent discoveries
+
+**Impact**: Our `docs/agent-knowledge/` structure aligns with industry best practices. We could formalize it further by adopting the SKILL.md format from agentskills.io spec.
+
+---
+
+## 2026-04-03: Knowledge Base Referenced in Agents.md
+
+**Finding**: Updated `docs/agents.md` startup protocol to include knowledge base reference.
+
+**New Startup Sequence**:
+
+```
+1. Read STATUS.md
+2. Read .sisyphus/decisions/INDEX.md
+3. Read docs/agent-knowledge/INDEX.md  ← NEW
+4. Run scripts/test-agent.sh --fast
+5. Run scripts/task-lock.sh list
+```
+
+**Lesson**: Knowledge base must be discoverable in standard agent workflow.
+
+---
