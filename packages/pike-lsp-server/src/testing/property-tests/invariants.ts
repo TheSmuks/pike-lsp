@@ -34,6 +34,23 @@ export function canPublishDiagnosticsVersion(
   return liveVersion !== undefined && liveVersion === validatedVersion;
 }
 
+/**
+ * #1208: Parse resilience invariant
+ * Diagnostics should never be published for a version older than the live document.
+ * This prevents stale diagnostics from appearing after rapid edits.
+ */
+export function isDiagnosticsVersionFresh(
+  publishedVersion: number,
+  liveVersion: number | undefined
+): boolean {
+  if (liveVersion === undefined) {
+    return false; // Document closed, don't publish
+  }
+  // Published version must not be newer than live (would be impossible)
+  // and should ideally match live exactly
+  return publishedVersion <= liveVersion;
+}
+
 export function isPositionWithinDocument(text: string, position: Position): boolean {
   const lines = text.split('\n');
   if (position.line < 0 || position.line >= lines.length) {

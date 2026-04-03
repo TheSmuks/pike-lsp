@@ -18,7 +18,12 @@ import type {
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import type { PikeSettings, DocumentCacheEntry, CoreDiagnostic } from '../../core/types.js';
+import type {
+  PikeSettings,
+  DocumentCacheEntry,
+  CoreDiagnostic,
+  CorePosition,
+} from '../../core/types.js';
 import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/index.js';
@@ -76,9 +81,11 @@ export {
   type DiagnosticRelatedLocation,
 } from './utils.js';
 export { buildSymbolNameIndex } from './symbol-index.js';
+import { buildCallPositionIndex } from './symbol-index.js';
 export {
   buildSymbolPositionIndex,
   buildSymbolPositionIndexRegex,
+  buildCallPositionIndex,
   flattenSymbols,
 } from './symbol-index.js';
 export {
@@ -944,15 +951,27 @@ export function registerDiagnosticsHandlers(
           tokenizeData,
           bridge
         );
+
+        // #1206: Build call positions from tokens for call hierarchy
+        const callableNames = new Set(
+          legacySymbols
+            .filter((s: { kind: string; name: string }) => s.kind === 'method')
+            .map((s: { kind: string; name: string }) => s.name)
+        );
+        const callPositions: Map<string, CorePosition[]> = tokenizeData?.length
+          ? buildCallPositionIndex(tokenizeData, callableNames)
+          : new Map<string, CorePosition[]>();
+
         if (!ensureLatest('post_symbol_index_build')) {
           return;
         }
 
         const cacheEntry: DocumentCacheEntry = {
           version,
-          symbols: hierarchicalSymbols, // Use hierarchical symbols with children preserved
+          symbols: hierarchicalSymbols,
           diagnostics,
           symbolPositions,
+          callPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
           // INC-002: Store hashes for incremental change detection
@@ -1018,15 +1037,31 @@ export function registerDiagnosticsHandlers(
           previousEntry?.symbolPositions
             ? previousEntry.symbolPositions
             : await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData, bridge);
+
+        // #1206: Build call positions from tokens for call hierarchy (or reuse from previous entry)
+        const callPositions: Map<string, CorePosition[]> = previousEntry?.callPositions
+          ? previousEntry.callPositions
+          : tokenizeData?.length
+            ? buildCallPositionIndex(
+                tokenizeData,
+                new Set(
+                  symbolsWithDeprecated
+                    .filter((s: { kind: string; name: string }) => s.kind === 'method')
+                    .map((s: { kind: string; name: string }) => s.name)
+                )
+              )
+            : new Map<string, CorePosition[]>();
+
         if (!previousEntry?.symbolPositions && !ensureLatest('post_symbol_index_build_fallback')) {
           return;
         }
 
         const cacheEntry: DocumentCacheEntry = {
           version,
-          symbols: symbolsWithDeprecated, // Use symbols with deprecated extracted from source
+          symbols: symbolsWithDeprecated,
           diagnostics,
           symbolPositions,
+          callPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames:
             analysisMode === 'typing' && previousEntry?.symbolNames
