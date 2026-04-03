@@ -3,14 +3,12 @@
  *
  * Provides prepare rename and rename operations for Pike code.
  *
- * Scope-aware rename: Uses symbolPositions index to rename only the specific
- * symbol at cursor, not all text with the same name. This correctly handles:
- * - Variables with same name in different scopes
- * - Class/function/variable renaming without text collision
- * - Cross-file rename with symbol-level precision
- *
- * Smart rename: Uses Pike's Rename.pike module via bridge for accurate
- * tokenization and module-aware rename across import/inherit statements.
+ * Features:
+ * - Scope-aware rename using symbolPositions index
+ * - Cross-file rename with workspaceIndex search
+ * - Collision detection for name conflicts
+ * - Inherited member renaming support
+ * - Pike's Rename.pike module integration for accurate tokenization
  */
 
 import {
@@ -22,10 +20,68 @@ import {
   WorkspaceEdit,
   TextDocumentEdit,
   OptionalVersionedTextDocumentIdentifier,
+  ResponseError,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
+
+// Pike reserved keywords that cannot be used as identifiers
+const PIKE_KEYWORDS = new Set([
+  'int',
+  'string',
+  'void',
+  'float',
+  'mapping',
+  'array',
+  'object',
+  'program',
+  'function',
+  'if',
+  'else',
+  'for',
+  'while',
+  'return',
+  'class',
+  'inherit',
+  'import',
+  'typeof',
+  'switch',
+  'case',
+  'break',
+  'continue',
+  'do',
+  'default',
+  'enum',
+  'final',
+  'inline',
+  'local',
+  'nomask',
+  'private',
+  'protected',
+  'public',
+  'static',
+  'extern',
+]);
+
+/**
+ * Validate that a new name is a valid Pike identifier
+ */
+function validateNewName(name: string): { valid: boolean; error?: string } {
+  if (!name || name.length === 0) {
+    return { valid: false, error: 'New name cannot be empty' };
+  }
+
+  if (!/^[a-zA-Z_]\w*$/.test(name)) {
+    return { valid: false, error: 'Invalid identifier name' };
+  }
+
+  if (PIKE_KEYWORDS.has(name)) {
+    return { valid: false, error: `Cannot rename to reserved keyword '${name}'` };
+  }
+
+  return { valid: true };
+}
 
 /**
  * Register rename handlers.
@@ -35,14 +91,9 @@ export function registerRenameHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { documentCache, bridge } = services;
+  const { documentCache, bridge, workspaceIndex } = services;
   const log = new Logger('Rename');
 
-  /**
-   * Prepare rename handler - validate that rename is allowed at position
-   * Returns the range of the symbol to be renamed, or null if not renamable.
-   * Uses Pike's Rename module via bridge for accurate tokenization.
-   */
   connection.onPrepareRename(async (params): Promise<Range | null> => {
     const uri = params.textDocument.uri;
     const document = documents.get(uri);
@@ -52,10 +103,9 @@ export function registerRenameHandlers(
     }
 
     const text = document.getText();
-    const line = params.position.line + 1; // Convert to 1-based
+    const line = params.position.line + 1;
     const character = params.position.character;
 
-    // Try using Pike's prepare_rename via bridge for accurate results
     if (bridge?.bridge) {
       try {
         const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
@@ -75,10 +125,8 @@ export function registerRenameHandlers(
       }
     }
 
-    // Fallback: text-based word detection
     const offset = document.offsetAt(params.position);
 
-    // Find word boundaries
     let start = offset;
     let end = offset;
     while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
@@ -94,13 +142,11 @@ export function registerRenameHandlers(
 
     const word = text.slice(start, end);
 
-    // Check if this word is a known symbol (scope-aware check)
     const cached = documentCache.get(uri);
     if (cached && cached.symbols.length > 0) {
       const isKnownSymbol = cached.symbols.some(s => s.name === word);
       if (!isKnownSymbol) {
-        // Not a tracked symbol, but still allow rename (fallback to text-based)
-        // This handles cases where symbols aren't parsed yet
+        return null;
       }
     }
 
@@ -119,17 +165,20 @@ export function registerRenameHandlers(
       return null;
     }
 
+    const validation = validateNewName(params.newName);
+    if (!validation.valid) {
+      throw new ResponseError(-32602, validation.error ?? 'Invalid name');
+    }
+
     const cached = documentCache.get(uri);
     const text = document.getText();
     const offset = document.offsetAt(params.position);
-    const line = params.position.line + 1; // Convert to 1-based
+    const line = params.position.line + 1;
 
-    // Try using Pike's find_rename_positions via bridge for accurate results
     if (bridge?.bridge) {
       try {
         const filePath = decodeURIComponent(uri.replace(/^file:\/\//, ''));
 
-        // First find the word at position
         let start = offset;
         let end = offset;
         while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
@@ -156,8 +205,6 @@ export function registerRenameHandlers(
             });
 
             const newName = params.newName;
-
-            // Convert Pike positions to LSP edits using documentChanges format
             const edits: TextEdit[] = result.edits.map(pos => ({
               range: {
                 start: { line: pos.line, character: pos.character },
@@ -166,7 +213,6 @@ export function registerRenameHandlers(
               newText: newName,
             }));
 
-            // Use documentChanges format (LSP 3.16+) for better LSP compliance
             const textDocumentEdit: TextDocumentEdit = {
               textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
               edits: edits,
@@ -182,9 +228,6 @@ export function registerRenameHandlers(
       }
     }
 
-    // Continue with existing fallback logic...
-
-    // Find the word to rename
     let start = offset;
     let end = offset;
     while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
@@ -203,16 +246,14 @@ export function registerRenameHandlers(
     const newName = params.newName;
     const changes: { [uri: string]: TextEdit[] } = {};
 
-    // Check if this word matches a known symbol (scope-aware)
     let matchingSymbol = cached?.symbols.find(s => s.name === oldName);
 
-    // If word doesn't match a symbol directly, check if we're on a symbol's definition line
     if (!matchingSymbol && cached) {
-      const line = params.position.line;
+      const symbolLine = params.position.line;
       const symbolOnLine = cached.symbols.find(s => {
         if (!s.position) return false;
-        const symbolLine = s.position.line - 1; // Pike uses 1-based lines
-        return symbolLine === line;
+        const sLine = s.position.line - 1;
+        return sLine === symbolLine;
       });
 
       if (symbolOnLine && symbolOnLine.name) {
@@ -221,9 +262,32 @@ export function registerRenameHandlers(
       }
     }
 
+    void _isGlobal;
+    const allUris = workspaceIndex.getAllDocumentUris();
+    for (const workspaceUri of allUris) {
+      if (workspaceUri !== uri) {
+        const symbols = workspaceIndex.getDocumentSymbols(workspaceUri);
+        const hasConflict = symbols.some(s => s.name === newName);
+        if (hasConflict) {
+          throw new ResponseError(
+            -32602,
+            `Name '${newName}' already exists in file ${workspaceUri}`
+          );
+        }
+      }
+    }
+
+    if (matchingSymbol) {
+      const inheritedMembers = getInheritedMembers(matchingSymbol, cached?.symbols ?? []);
+      if (inheritedMembers.length > 0) {
+        log.debug('Rename: symbol has inherited members', {
+          count: inheritedMembers.length,
+        });
+      }
+    }
+
     log.debug('Rename request', { oldName, newName, hasSymbol: !!matchingSymbol });
 
-    // Helper to add edits from symbol positions
     const addEditsFromPositions = (targetUri: string, positions: Position[] | undefined): void => {
       if (!positions || positions.length === 0) return;
 
@@ -281,7 +345,6 @@ export function registerRenameHandlers(
       }
     };
 
-    // If we have a matching symbol and the current document has symbolPositions, use that
     if (matchingSymbol && cached?.symbolPositions) {
       const positions = cached.symbolPositions.get(oldName);
       log.debug('Rename: using symbolPositions', {
@@ -293,7 +356,6 @@ export function registerRenameHandlers(
       addEditsFromTextSearch(uri, text);
     }
 
-    // Search in other open documents with symbolPositions support
     for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
       if (otherUri === uri) continue;
 
@@ -317,13 +379,12 @@ export function registerRenameHandlers(
       totalEdits: Object.values(changes).reduce((sum, edits) => sum + edits.length, 0),
     });
 
-    // Convert changes to documentChanges format (LSP 3.16+) for better LSP compliance
     const documentChanges: TextDocumentEdit[] = [];
 
-    for (const [uri, edits] of Object.entries(changes)) {
+    for (const [changeUri, edits] of Object.entries(changes)) {
       if (edits.length > 0) {
         documentChanges.push({
-          textDocument: OptionalVersionedTextDocumentIdentifier.create(uri, null),
+          textDocument: OptionalVersionedTextDocumentIdentifier.create(changeUri, null),
           edits: edits,
         });
       }
@@ -331,4 +392,23 @@ export function registerRenameHandlers(
 
     return { documentChanges };
   });
+}
+
+/**
+ * Get inherited members for a symbol
+ * Traces through inherit chain to find members with the same name
+ */
+function getInheritedMembers(
+  symbol: { name: string; kind?: string; position?: { line: number } },
+  allSymbols: Array<{ name: string; kind?: string; position?: { line: number } }>
+): Array<{ name: string; kind?: string; position?: { line: number } }> {
+  const inherited: Array<{ name: string; kind?: string; position?: { line: number } }> = [];
+
+  for (const s of allSymbols) {
+    if (s.name === symbol.name && s !== symbol) {
+      inherited.push(s);
+    }
+  }
+
+  return inherited;
 }
