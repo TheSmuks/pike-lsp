@@ -262,7 +262,6 @@ export function registerRenameHandlers(
       }
     }
 
-    void _isGlobal;
     const allUris = workspaceIndex.getAllDocumentUris();
     for (const workspaceUri of allUris) {
       if (workspaceUri !== uri) {
