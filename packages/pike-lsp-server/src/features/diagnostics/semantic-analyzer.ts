@@ -29,6 +29,20 @@ export interface SemanticAnalyzerOptions {
   enableMissingCallbacks: boolean;
 }
 
+export interface UnresolvedImportCandidate {
+  modulePath: string;
+  importKind: 'import' | 'inherit';
+  score: number;
+}
+
+export interface UnresolvedSymbolDiagnosticData {
+  kind: 'unresolved-symbol';
+  symbol: string;
+  importCandidates: UnresolvedImportCandidate[];
+}
+
+const UNRESOLVED_SYMBOL_DIAGNOSTIC_CODE = 'undefined-symbol.unresolved-import';
+
 const DEFAULT_OPTIONS: SemanticAnalyzerOptions = {
   maxProblems: 100,
   enableUndefinedDetection: true,
@@ -356,7 +370,12 @@ function analyzeUndefinedSymbols(
       range,
       message: `Undefined symbol: '${text}'`,
       source: 'pike-semantic',
-      code: 'undefined-symbol',
+      code: UNRESOLVED_SYMBOL_DIAGNOSTIC_CODE,
+      data: {
+        kind: 'unresolved-symbol',
+        symbol: text,
+        importCandidates: [],
+      } satisfies UnresolvedSymbolDiagnosticData,
     });
   }
 

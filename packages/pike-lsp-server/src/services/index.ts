@@ -16,6 +16,7 @@ import type { WorkspaceIndex } from '../workspace-index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
 import type { PikeSettings } from '../core/types.js';
 import type { FormattingService } from './formatting-service.js';
+import type { PikeIntrospectionService } from './pike-introspection.js';
 
 /**
  * Services interface bundles all service dependencies.
@@ -48,6 +49,7 @@ export interface Services {
   includePaths: string[];
   formattingService?: FormattingService;
   documentSnapshots?: Map<string, string>;
+  pikeIntrospection?: PikeIntrospectionService;
 }
 
 // Re-export for convenience
@@ -56,6 +58,7 @@ export { BridgeManager, type HealthStatus } from './bridge-manager.js';
 export { WorkspaceScanner } from './workspace-scanner.js';
 export { ModuleContext } from './module-context.js';
 export { FormattingService } from './formatting-service.js';
+export { PikeIntrospectionService } from './pike-introspection.js';
 export { LRUCache, type LRUCacheOptions, type LRUCacheStats } from './lru-cache.js';
 export {
   CompilationCache,
