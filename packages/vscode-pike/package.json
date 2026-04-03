@@ -331,6 +331,33 @@
           "type": "boolean",
           "default": true,
           "description": "Enable inline values in Pike code"
+        },
+        "pike.autoDetectPaths": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect Pike executable and paths on startup"
+        },
+        "pike.promptForMissingPike": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show prompt when Pike is not found"
+        },
+        "pike.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Pike status bar item"
+        },
+        "pike.server.autoRestart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically restart server after unexpected stop"
+        },
+        "pike.formatOnChangeDelay": {
+          "type": "number",
+          "default": 40,
+          "minimum": 0,
+          "maximum": 500,
+          "description": "Debounce delay for format-on-change in milliseconds"
         }
       }
     }
