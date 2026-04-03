@@ -474,13 +474,6 @@
           "type": "boolean",
           "default": true,
           "description": "Add spaces around operators"
-        },
-        "pike.formatting.blankLinesBetweenFunctions": {
-          "type": "number",
-          "default": 1,
-          "minimum": 0,
-          "maximum": 3,
-          "description": "Number of blank lines between functions"
         }
       }
     }
