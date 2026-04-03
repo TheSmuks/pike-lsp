@@ -44,6 +44,7 @@ import {
   TransportKind,
 } from 'vscode-languageclient/node';
 import { applyStructuralSearchReplace } from './structural-search-replace';
+import { registerPikeTestExplorer } from './test-explorer';
 
 function anonymizeSensitivePaths(value: string): string {
   const home = process.env['HOME'];
@@ -735,6 +736,14 @@ async function activateInternal(
       });
     });
   };
+
+  runtime.track(
+    registerPikeTestExplorer({
+      context,
+      outputChannel: runtime.getOutputChannel(),
+      runWithPike,
+    })
+  );
 
   let disposable = commands.registerCommand('pike-module-path.add', async e => {
     if (runtime.isDisposed()) return;
