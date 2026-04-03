@@ -4,10 +4,10 @@ import { INDENT_PATTERNS } from '../utils/regex-patterns.js';
 export interface FormattingOptions {
   tabSize?: number;
   insertSpaces?: boolean;
-  maxLineLength?: number;
-  braceStyle?: 'same-line' | 'new-line';
-  spaceAroundOperators?: boolean;
-  blankLinesBetweenFunctions?: number;
+  maxLineLength?: number | undefined;
+  braceStyle?: 'same-line' | 'new-line' | undefined;
+  spaceAroundOperators?: boolean | undefined;
+  blankLinesBetweenFunctions?: number | undefined;
 }
 
 export interface FormattingProfile {
