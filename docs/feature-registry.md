@@ -46,21 +46,21 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 
 ## Diagnostics
 
-| Feature             | LSP Method                        | Status         | Last Examined | Health | Known Issues                         | Notes                                                                |
-| ------------------- | --------------------------------- | -------------- | ------------- | ------ | ------------------------------------ | -------------------------------------------------------------------- |
-| Publish Diagnostics | `textDocument/publishDiagnostics` | ✅ Implemented | 2026-02-10    | 80     | Syntax errors only, no type checking | Pike syntax errors, undefined references, Roxen module config errors |
-| RXML Validation     | -                                 | ✅ Implemented | 2026-02-10    | 70     | Unknown tags, missing attributes     | Validates RXML templates in Roxen context                            |
-| Roxen Diagnostics   | -                                 | ✅ Implemented | 2026-02-10    | 75     | Missing callback detection           | Roxen module-specific diagnostics                                    |
+| Feature             | LSP Method                        | Status         | Last Examined | Health | Known Issues                      | Notes                                                                   |
+| ------------------- | --------------------------------- | -------------- | ------------- | ------ | --------------------------------- | ----------------------------------------------------------------------- |
+| Publish Diagnostics | `textDocument/publishDiagnostics` | ✅ Implemented | 2026-04-03    | 85     | Syntax errors + semantic analysis | Added undefined detection, type mismatch, callback checks (Issue #1196) |
+| RXML Validation     | -                                 | ✅ Implemented | 2026-02-10    | 70     | Unknown tags, missing attributes  | Validates RXML templates in Roxen context                               |
+| Roxen Diagnostics   | -                                 | ✅ Implemented | 2026-04-03    | 80     | Missing callback detection        | Enhanced with required callback hints                                   |
 
 ## Refactoring
 
-| Feature          | LSP Method                     | Status         | Last Examined | Health | Known Issues               | Notes                                                |
-| ---------------- | ------------------------------ | -------------- | ------------- | ------ | -------------------------- | ---------------------------------------------------- |
-| Code Actions     | `textDocument/codeAction`      | ✅ Implemented | 2026-02-10    | 70     | Quick fixes limited        | Basic quick fixes for common Pike issues             |
-| Prepare Rename   | `textDocument/prepareRename`   | ✅ Implemented | 2026-04-03    | 85     | Validation complete        | Validates rename before operation                    |
-| Rename           | `textDocument/rename`          | ✅ Implemented | 2026-04-03    | 85     | Cross-file rename reliable | Rename symbols across files with collision detection |
-| Formatting       | `textDocument/formatting`      | ✅ Implemented | 2026-02-10    | 60     | Basic formatting only      | Whole document formatting                            |
-| Range Formatting | `textDocument/rangeFormatting` | ✅ Implemented | 2026-02-10    | 60     | Basic formatting only      | Selection-based formatting                           |
+| Feature          | LSP Method                     | Status         | Last Examined | Health | Known Issues                | Notes                                    |
+| ---------------- | ------------------------------ | -------------- | ------------- | ------ | --------------------------- | ---------------------------------------- |
+| Code Actions     | `textDocument/codeAction`      | ✅ Implemented | 2026-02-10    | 70     | Quick fixes limited         | Basic quick fixes for common Pike issues |
+| Prepare Rename   | `textDocument/prepareRename`   | ✅ Implemented | 2026-02-10    | 75     | Validation incomplete       | Validates rename before operation        |
+| Rename           | `textDocument/rename`          | ✅ Implemented | 2026-02-10    | 70     | Limited cross-file renaming | Rename symbols across files              |
+| Formatting       | `textDocument/formatting`      | ✅ Implemented | 2026-02-10    | 60     | Basic formatting only       | Whole document formatting                |
+| Range Formatting | `textDocument/rangeFormatting` | ✅ Implemented | 2026-02-10    | 60     | Basic formatting only       | Selection-based formatting               |
 
 ## Advanced Features
 
@@ -115,7 +115,7 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 | Navigation     | 45          | 8                 | 82%      |
 | Intelligence   | 62          | 12                | 81%      |
 | Symbols        | 18          | 3                 | 83%      |
-| Diagnostics    | 44          | 30                | 32%      |
+| Diagnostics    | 56          | 15                | 73%      |
 | Refactoring    | 52          | 28                | 46%      |
 | Advanced       | 58          | 25                | 57%      |
 | Hierarchy      | 114         | 114               | 0%       |

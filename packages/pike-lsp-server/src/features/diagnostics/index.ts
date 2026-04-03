@@ -28,6 +28,11 @@ import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 import { toProtocolDiagnostics } from '../../services/protocol-mappers.js';
 import { registerDiagnosticsLifecycleHandlers } from './lifecycle.js';
+import {
+  analyzeSemantics,
+  deduplicateDiagnostics,
+  isSemanticAnalysisEnabled,
+} from './semantic-analyzer.js';
 
 interface PendingChangeState {
   range: Range | undefined;
@@ -82,6 +87,13 @@ export {
   type AnalysisMode,
   type ChangeClassification,
 } from './change-detection.js';
+export {
+  analyzeSemantics,
+  deduplicateDiagnostics,
+  isSemanticAnalysisEnabled,
+  type SemanticAnalysisResult,
+  type SemanticAnalyzerOptions,
+} from './semantic-analyzer.js';
 
 type AnalysisOperation = import('@pike-lsp/pike-bridge').AnalysisOperation;
 
@@ -1172,6 +1184,52 @@ export function registerDiagnosticsHandlers(
         });
       }
       // --- End Roxen integration ---
+
+      // --- Semantic analysis integration (Issue #1196) ---
+      try {
+        const settings = services.globalSettings as unknown as Record<string, unknown>;
+        if (isSemanticAnalysisEnabled(settings)) {
+          const semanticResult = analyzeSemantics(
+            document,
+            parseData.symbols,
+            introspectData.success ? introspectData : undefined,
+            tokenizeData,
+            {
+              maxProblems: services.globalSettings.maxNumberOfProblems - diagnostics.length,
+              enableUndefinedDetection: true,
+              enableTypeMismatch: true,
+              enableMissingCallbacks: true,
+            }
+          );
+
+          // Deduplicate against existing diagnostics and add new ones
+          const uniqueSemanticDiags = deduplicateDiagnostics(
+            diagnostics,
+            semanticResult.diagnostics
+          );
+          for (const diag of uniqueSemanticDiags) {
+            if (diagnostics.length >= services.globalSettings.maxNumberOfProblems) {
+              break;
+            }
+            diagnostics.push(diag);
+          }
+
+          log.debug('Semantic analysis complete', {
+            uri,
+            undefinedSymbols: semanticResult.stats.undefinedSymbols,
+            typeMismatches: semanticResult.stats.typeMismatches,
+            missingCallbacks: semanticResult.stats.missingCallbacks,
+            added: uniqueSemanticDiags.length,
+          });
+        }
+      } catch (semanticErr) {
+        log.debug('Semantic analysis failed (non-critical)', {
+          uri,
+          error: semanticErr instanceof Error ? semanticErr.message : String(semanticErr),
+        });
+        // Non-critical: continue without semantic diagnostics
+      }
+      // --- End semantic analysis integration ---
 
       const latestBeforePublish = documents.get(uri);
       if (!latestBeforePublish || latestBeforePublish.version !== version) {
