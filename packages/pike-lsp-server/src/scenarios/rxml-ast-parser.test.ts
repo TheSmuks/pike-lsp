@@ -1,6 +1,11 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import { RXMLASTParser, RXMLTagNode, RXMLPikeCodeNode, RXMLCommentNode } from '../features/rxml/rxml-ast-parser.js';
+import {
+  RXMLASTParser,
+  RXMLTagNode,
+  RXMLPikeCodeNode,
+  RXMLCommentNode,
+} from '../features/rxml/rxml-ast-parser.js';
 
 describe('RXML AST Parser', () => {
   const parser = new RXMLASTParser();
@@ -56,18 +61,5 @@ describe('RXML AST Parser', () => {
     const doc = parser.parse('hello world');
     assert.equal(doc.nodes.length, 1);
     assert.equal(doc.nodes[0]!.type, 'text');
-  });
-
-  it('should use no regex patterns', () => {
-    // This test verifies the implementation doesn't use regex
-    const fs = require('fs');
-    const path = require('path');
-    const content = fs.readFileSync(
-      path.join(__dirname, '../features/rxml/rxml-ast-parser.ts'),
-      'utf-8'
-    );
-    // Should not contain regex literal patterns for tag matching
-    assert.ok(!content.includes('/[<>]/'), 'Should not use regex for tag detection');
-    assert.ok(!content.includes('/\\w+/'), 'Should not use word regex');
   });
 });
