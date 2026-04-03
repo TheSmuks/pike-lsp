@@ -155,7 +155,7 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 - **Last Examined**: Most recent date the feature was audited by an agent
 - **Test Coverage**: Percentage of non-placeholder tests
 
-## Recent Improvements (2026-02-01 to 2026-02-10)
+## Recent Improvements (2026-02-01 to 2026-04-03)
 
 - ✅ Go to Definition: Improved import navigation support
 - ✅ Find References: Enhanced multi-document search
@@ -164,11 +164,12 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 - ✅ Completion: Roxen/RXML tag completion improvements
 - ✅ Document Symbols: Nested class and preprocessor symbol extraction
 - ✅ Roxen Support: Production-ready Roxen framework integration
+- ✅ Rename: Reliable cross-file symbol renaming with collision detection (Issue #1197)
 
 ## Next Sprint Recommendations
 
 1. **Convert placeholder tests** in Type/Call Hierarchy (114 tests)
 2. **Improve type checking** in Diagnostics (add semantic analysis)
-3. **Enhance Rename** with reliable cross-file symbol tracking
-4. **Add Code Actions** for common Pike refactoring patterns
+3. **Add Code Actions** for common Pike refactoring patterns
+4. **Implement formatting** configuration (Pike style guide)
 5. **Implement formatting** configuration (Pike style guide)
