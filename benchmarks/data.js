@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775224153524,
+  "lastUpdate": 1775232810512,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -110502,6 +110502,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.593401598360656,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f911f588950fde69a046b42483c5481676c993ec",
+          "message": "feat(type-hierarchy): MVP with real scenario coverage (#1199)\n\n* refactor: add agent-state.sh helper for git metadata path resolution\n\nProvides shared/local_state_dir() using git rev-parse --git-common-dir\nand --git-dir for correct path resolution in linked worktrees.\n\n* refactor: migrate agent state from .omc/ to git metadata, harden scripts, fix bugs, remove stale .sisyphus/ references\n\n* chore: remove accidentally committed .docusaurus/ build cache and add to .gitignore\n\n* chore: restore accidentally removed .gitignore entries and untrack .omc/ test log\n\n* feat: soft enforcement for worktree policy\n\nAdd soft enforcement mechanisms to ensure agents use worktrees:\n\n- start-work.sh: Blessed simple entry point (./start-work.sh <branch>)\n- AGENTS.md: Remove 'Single agent' bypass, make worktrees mandatory\n- repo-hygiene.sh: Detect worktree violations (main branch work, non-worktree branches)\n\nThe blessed path is now simpler than the bypass, and detection warns without blocking.\n\n* fix(call-hierarchy): support both methods and functions\n\nThe call hierarchy implementation was hardcoded to only look for\nsymbols with kind === 'method', missing standalone functions.\n\nChanges:\n- Add isCallable() helper to check for both 'method' and 'function' kinds\n- Add getCallableSymbolKind() to return appropriate SymbolKind\n- Replace all 9 occurrences of s.kind === 'method' with isCallable(s.kind)\n- Update variable names from 'method' to 'callable' for clarity\n\nRelates to #1194\n\n* feat(type-hierarchy): implement supertype/subtype traversal\n\n- Add 24 real scenario tests for type hierarchy functionality\n- Test coverage for prepare, supertypes, and subtypes handlers\n- Cross-file type resolution tests\n- Multi-level inheritance chain traversal\n- Diamond inheritance pattern handling\n- Mixin pattern support\n- Typedef handling\n- Edge cases: missing parents, deduplication, empty cache\n- Update feature registry: health score 60 -> 75, coverage 0% -> 79%\n\nCloses #1195\n\n* docs(kb): add discoveries for parallel LSP feature implementations\n\nAdd knowledge base entries documenting patterns from the 4 parallel\nfeature implementations:\n\n- Type Hierarchy: inherit chain traversal patterns\n- Semantic Diagnostics: token-based analysis architecture\n- Cross-File Rename: workspace index integration\n- Formatting Profiles: profile design patterns\n\nThis captures implementation knowledge for future agents working\non similar LSP features.\n\n* chore: implement KB enforcement system\n\nAdd comprehensive Knowledge Base enforcement per Metis recommendations:\n\n- docs/kb-enforcement-policy.md: Policy document defining KB-ID format\n  (KB-{DOMAIN}-{YYYYMMDD}-{SEQ}), required template fields, and\n  4-layer enforcement (prompt, CI, pre-commit, PR template)\n\n- scripts/check-kb-compliance.ts: Validation script that checks:\n  * KB schema validity (ID format, required fields)\n  * Duplicate ID detection\n  * @kb annotation integrity in code\n  * Code-change to KB-update coupling\n\n- .github/PULL_REQUEST_TEMPLATE.md: Added Knowledge Base section\n  requiring KB entry documentation for significant changes\n\nThis ensures future subagents document their findings and creates\ntraceability between code and knowledge base entries.\n\nRelates to discussion on forcing KB contributions from subagents.\n\n---------\n\nCo-authored-by: TheSmuks <thesmuks@users.noreply.github.com>",
+          "timestamp": "2026-04-03T16:11:51Z",
+          "tree_id": "b24faf4767a8995391ceed9769b461eb6040500a",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/f911f588950fde69a046b42483c5481676c993ec"
+        },
+        "date": 1775232810184,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.54044158333335,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 253.25525708333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 252.65501758333335,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 261.132398,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.5004295891304347,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.199144740458015,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 67.17074491666668,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 6.415226245283018,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.247740684615385,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.25444213763936946,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2602618896307934,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.6026287777777778,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.21216071981627296,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18606528330474556,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00019348775712382587,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0004674023544706052,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.00047598597313204056,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0004828986318859083,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.00048760306868350585,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0004922616474474127,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3652251564215148,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.64531175,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.36620858333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3547749520295203,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00019793287426844082,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0006791844125871022,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.606023983471074,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.565263344262295,
             "unit": "ms"
           }
         ]
