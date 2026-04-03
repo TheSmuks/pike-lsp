@@ -75,7 +75,7 @@ export type CoreSymbol = PikeSymbol;
  * including the Pike executable path and validation behavior.
  */
 export interface PikeSettings {
-  /** Path to the Pike executable (e.g., 'pike', '/usr/bin/pike') */
+  /** Path to the Pike executable (e.g. 'pike', '/usr/bin/pike') */
   pikePath: string;
   /** Maximum number of problems to report per document */
   maxNumberOfProblems: number;
@@ -88,6 +88,21 @@ export interface PikeSettings {
   inlineValues?: InlineValuesSettings;
   runnable?: RunnableSettings;
   organizeImports?: OrganizeImportsSettings;
+  /** Formatting profile configuration (optional) */
+  formatting?: FormattingSettings;
+}
+
+export interface FormattingSettings {
+  /** Predefined profile name or 'custom' for user-defined settings */
+  profile?: 'compact' | 'standard' | 'relaxed' | 'allman' | 'custom';
+  /** Maximum line length (0 = disabled, or 80, 100, 120) */
+  maxLineLength?: number;
+  /** Brace placement style: 'same-line' (K&R) or 'new-line' (Allman) */
+  braceStyle?: 'same-line' | 'new-line';
+  /** Insert spaces around binary operators */
+  spaceAroundOperators?: boolean;
+  /** Number of blank lines between functions */
+  blankLinesBetweenFunctions?: number;
 }
 
 export interface AnalysisSettings {
@@ -226,5 +241,12 @@ export const defaultSettings: PikeSettings = {
   },
   organizeImports: {
     removeUnused: true,
+  },
+  formatting: {
+    profile: 'standard',
+    maxLineLength: 100,
+    braceStyle: 'same-line',
+    spaceAroundOperators: true,
+    blankLinesBetweenFunctions: 1,
   },
 };

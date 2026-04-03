@@ -266,11 +266,41 @@
           "default": true,
           "description": "Automatically indent the new line when pressing Enter, or realign a closing brace when typing }. Disable this if the on-type indentation feels wrong."
         },
+        "pike.formatting.profile": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "standard",
+            "relaxed",
+            "allman",
+            "custom"
+          ],
+          "enumDescriptions": [
+            "Compact (80 chars, K&R braces)",
+            "Standard (100 chars, K&R braces)",
+            "Relaxed (120 chars, K&R braces)",
+            "Allman Style (100 chars, Allman braces)",
+            "Custom (use individual settings below)"
+          ],
+          "default": "standard",
+          "description": "Predefined formatting profile. Select 'custom' to use individual settings below."
+        },
         "pike.formatting.maxLineLength": {
           "type": "number",
+          "enum": [
+            0,
+            80,
+            100,
+            120
+          ],
+          "enumDescriptions": [
+            "Disabled (no line length limit)",
+            "Compact (80 characters)",
+            "Standard (100 characters)",
+            "Relaxed (120 characters)"
+          ],
           "default": 0,
-          "minimum": 0,
-          "description": "Maximum formatted line length. Set to 0 to disable line wrapping."
+          "description": "Maximum formatted line length. Set to 0 to disable line wrapping, or choose 80/100/120 for specific profiles."
         },
         "pike.formatting.braceStyle": {
           "type": "string",
@@ -278,18 +308,23 @@
             "same-line",
             "new-line"
           ],
+          "enumDescriptions": [
+            "K&R Style: Opening brace on same line (e.g., if (x) {)",
+            "Allman Style: Opening brace on new line (e.g., if (x)\\n{)"
+          ],
           "default": "same-line",
-          "description": "Brace placement style for blocks: keep opening brace on the same line or move it to a new line."
+          "description": "Brace placement style for blocks. K&R keeps braces on the same line; Allman moves them to a new line."
         },
         "pike.formatting.spaceAroundOperators": {
           "type": "boolean",
           "default": true,
-          "description": "Insert spaces around binary operators during formatting."
+          "description": "Insert spaces around binary operators during formatting (e.g., 'a + b' vs 'a+b')."
         },
         "pike.formatting.blankLinesBetweenFunctions": {
           "type": "number",
           "default": 1,
           "minimum": 0,
+          "maximum": 3,
           "description": "Number of blank lines to keep between top-level function declarations."
         },
         "pike.runnable.testPattern": {

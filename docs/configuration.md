@@ -20,12 +20,63 @@ Open VS Code settings (`Ctrl+,`) and search for "Pike" to find all available opt
 | `pike.trace.server` | `string`  | `"off"`  | LSP trace level: `"off"`, `"messages"`, or `"verbose"` |
 | `pike.enable`       | `boolean` | `true`   | Enable/disable the LSP server                          |
 
+### Formatting Profiles
+
+Pike LSP supports configurable formatting profiles to match your coding style preferences:
+
+| Profile                                      | Description                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `pike.formatting.profile`                    | Select a predefined profile: `compact`, `standard`, `relaxed`, `allman`, or `custom` |
+| `pike.formatting.maxLineLength`              | Maximum line length: `0` (disabled), `80`, `100`, or `120`                           |
+| `pike.formatting.braceStyle`                 | Brace placement: `same-line` (K&R) or `new-line` (Allman)                            |
+| `pike.formatting.spaceAroundOperators`       | Insert spaces around operators (e.g., `a + b` vs `a+b`)                              |
+| `pike.formatting.blankLinesBetweenFunctions` | Number of blank lines between top-level functions                                    |
+
+#### Predefined Profiles
+
+| Profile    | Line Length  | Brace Style  | Operators    | Description                       |
+| ---------- | ------------ | ------------ | ------------ | --------------------------------- |
+| `compact`  | 80 chars     | K&R          | Spaced       | Compact style for smaller screens |
+| `standard` | 100 chars    | K&R          | Spaced       | Balanced default profile          |
+| `relaxed`  | 120 chars    | K&R          | Spaced       | Relaxed style for wide displays   |
+| `allman`   | 100 chars    | Allman       | Spaced       | Allman brace style                |
+| `custom`   | User-defined | User-defined | User-defined | Use individual settings           |
+
 ### Example Configuration
 
 ```json
 {
   "pike.pikePath": "/usr/local/bin/pike",
-  "pike.trace.server": "off"
+  "pike.trace.server": "off",
+  "pike.formatting.profile": "standard",
+  "pike.formatting.maxLineLength": 100,
+  "pike.formatting.braceStyle": "same-line",
+  "pike.formatting.spaceAroundOperators": true,
+  "pike.formatting.blankLinesBetweenFunctions": 1
+}
+```
+
+#### K&R vs Allman Brace Style
+
+**K&R Style (`same-line`):**
+
+```pike
+void foo() {
+    if (x > 0) {
+        return x;
+    }
+}
+```
+
+**Allman Style (`new-line`):**
+
+```pike
+void foo()
+{
+    if (x > 0)
+    {
+        return x;
+    }
 }
 ```
 
