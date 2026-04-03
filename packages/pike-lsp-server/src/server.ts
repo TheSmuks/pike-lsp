@@ -30,6 +30,7 @@ import { IncludeResolver } from './services/include-resolver.js';
 import { ModuleContext } from './services/module-context.js';
 import { WorkspaceScanner } from './services/workspace-scanner.js';
 import { FormattingService } from './services/formatting-service.js';
+import { PikeIntrospectionService } from './services/pike-introspection.js';
 import {
   Logger,
   anonymizeSensitivePaths,
@@ -103,6 +104,7 @@ const formattingService = new FormattingService();
 let stdlibIndex: StdlibIndexManager | null = null;
 let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
+let pikeIntrospection = new PikeIntrospectionService(workspaceIndex, stdlibIndex);
 
 let globalSettings: PikeSettings = defaultSettings;
 let includePaths: string[] = [];
@@ -157,6 +159,7 @@ function createServices(): features.Services {
     typeDatabase,
     workspaceIndex,
     stdlibIndex,
+    pikeIntrospection,
     includeResolver, // Will be null initially, updated after onInitialize
     workspaceScanner,
     globalSettings,
@@ -482,6 +485,8 @@ registerServerRuntimeHandlers({
   getClientSupportsWorkDoneProgress: () => clientSupportsWorkDoneProgress,
   setStdlibIndex: index => {
     stdlibIndex = index;
+    pikeIntrospection = new PikeIntrospectionService(workspaceIndex, stdlibIndex);
+    serviceRuntimeContext.update({ stdlibIndex, pikeIntrospection });
   },
   updateServices: patch => {
     serviceRuntimeContext.update(patch);

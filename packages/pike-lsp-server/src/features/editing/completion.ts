@@ -41,6 +41,46 @@ function getSymbolClassname(symbol: PikeSymbol): string | undefined {
   return undefined;
 }
 
+interface AutoImportCompletionData {
+  autoImport: true;
+  symbol: string;
+  modulePath: string;
+  importKind: 'import' | 'inherit';
+}
+
+function getImportInsertionLine(lines: string[]): number {
+  let insertionLine = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = (lines[i] ?? '').trim();
+    if (
+      trimmed.startsWith('#include ') ||
+      trimmed.startsWith('import ') ||
+      trimmed.startsWith('inherit ')
+    ) {
+      insertionLine = i + 1;
+      continue;
+    }
+    if (trimmed === '') {
+      continue;
+    }
+    break;
+  }
+  return insertionLine;
+}
+
+function buildAutoImportStatement(modulePath: string, importKind: 'import' | 'inherit'): string {
+  return importKind === 'inherit' ? `inherit ${modulePath};\n` : `import ${modulePath};\n`;
+}
+
+function hasImportStatement(
+  lines: string[],
+  modulePath: string,
+  importKind: 'import' | 'inherit'
+): boolean {
+  const expected = importKind === 'inherit' ? `inherit ${modulePath};` : `import ${modulePath};`;
+  return lines.some(line => line.trim() === expected);
+}
+
 /**
  * Add Pike predefined macros (__FILE__, __LINE__, etc.) to completions.
  * Only adds macros that match the prefix.
@@ -121,6 +161,100 @@ export function registerCompletionHandlers(
     }
 
     return deduped;
+  }
+
+  async function addAutoImportCompletions(
+    completions: CompletionItem[],
+    params: {
+      uri: string;
+      prefix: string;
+      text: string;
+      lineText: string;
+      localSymbols: PikeSymbol[];
+    }
+  ): Promise<void> {
+    if (!services.pikeIntrospection) {
+      return;
+    }
+
+    const prefix = params.prefix.trim();
+    if (prefix.length === 0) {
+      return;
+    }
+
+    if (params.lineText.includes('->') || params.lineText.includes('::')) {
+      return;
+    }
+
+    const initialLabels = new Set<string>(completions.map(item => item.label));
+    for (const symbol of params.localSymbols) {
+      if (symbol.name) {
+        initialLabels.add(symbol.name);
+      }
+    }
+
+    const lines = params.text.split('\n');
+    const insertionLine = getImportInsertionLine(lines);
+    const candidates = await services.pikeIntrospection.searchImportableSymbols(prefix, {
+      excludeUri: params.uri,
+      limit: 12,
+    });
+
+    const sortedCandidates = [...candidates].sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      if (a.symbol !== b.symbol) {
+        return a.symbol.localeCompare(b.symbol);
+      }
+      if (a.importKind !== b.importKind) {
+        return a.importKind.localeCompare(b.importKind);
+      }
+      return a.modulePath.localeCompare(b.modulePath);
+    });
+
+    for (const candidate of sortedCandidates) {
+      if (!candidate.symbol.toLowerCase().startsWith(prefix.toLowerCase())) {
+        continue;
+      }
+
+      if (initialLabels.has(candidate.symbol)) {
+        continue;
+      }
+
+      if (hasImportStatement(lines, candidate.modulePath, candidate.importKind)) {
+        continue;
+      }
+
+      const statement = buildAutoImportStatement(candidate.modulePath, candidate.importKind);
+      completions.push({
+        label: candidate.symbol,
+        kind:
+          candidate.importKind === 'inherit'
+            ? CompletionItemKind.Class
+            : CompletionItemKind.Function,
+        detail:
+          candidate.importKind === 'inherit'
+            ? `Auto-import via inherit from ${candidate.modulePath}`
+            : `Auto-import from ${candidate.modulePath}`,
+        sortText: `0-auto-${candidate.symbol}-${candidate.modulePath}`,
+        data: {
+          autoImport: true,
+          symbol: candidate.symbol,
+          modulePath: candidate.modulePath,
+          importKind: candidate.importKind,
+        } satisfies AutoImportCompletionData,
+        additionalTextEdits: [
+          {
+            range: {
+              start: { line: insertionLine, character: 0 },
+              end: { line: insertionLine, character: 0 },
+            },
+            newText: statement,
+          },
+        ],
+      });
+    }
   }
 
   /**
@@ -440,6 +574,14 @@ export function registerCompletionHandlers(
               }
             }
           }
+
+          await addAutoImportCompletions(completions, {
+            uri,
+            prefix,
+            text,
+            lineText,
+            localSymbols: cached?.symbols ?? [],
+          });
 
           maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
           const macroNames = new Set(completions.map(c => c.label));
@@ -1245,6 +1387,14 @@ export function registerCompletionHandlers(
       }
     }
 
+    await addAutoImportCompletions(completions, {
+      uri,
+      prefix,
+      text,
+      lineText,
+      localSymbols: cached.symbols,
+    });
+
     const existingNames = new Set(completions.map(c => c.label));
     addMacrosToCompletions(completions, existingNames, prefix ?? '');
     return toCompletionList(dedupeCompletionItems(completions));
@@ -1257,7 +1407,24 @@ export function registerCompletionHandlers(
     const data = item.data as
       | { uri?: string; name?: string }
       | { modulePath?: string; name?: string; isStdlib?: boolean }
+      | AutoImportCompletionData
       | undefined;
+
+    if (data && 'autoImport' in data && data.autoImport) {
+      if (!item.additionalTextEdits || item.additionalTextEdits.length === 0) {
+        const statement = buildAutoImportStatement(data.modulePath, data.importKind);
+        item.additionalTextEdits = [
+          {
+            range: {
+              start: { line: 0, character: 0 },
+              end: { line: 0, character: 0 },
+            },
+            newText: statement,
+          },
+        ];
+      }
+      return item;
+    }
 
     // Handle local symbol resolution (existing behavior)
     if (data && 'uri' in data && data.uri && data.name) {
@@ -1275,10 +1442,16 @@ export function registerCompletionHandlers(
     }
 
     // Handle import symbol resolution (new auto-import feature)
-    if (data && 'modulePath' in data && data.modulePath && data.name) {
+    if (
+      data &&
+      'modulePath' in data &&
+      data.modulePath &&
+      'name' in data &&
+      typeof data.name === 'string'
+    ) {
       const modulePath = data.modulePath;
       const symbolName = data.name;
-      const isStdlib = data.isStdlib ?? true;
+      const isStdlib = 'isStdlib' in data ? (data.isStdlib ?? true) : true;
 
       // Look up the symbol to get documentation (async)
       if (services.stdlibIndex && isStdlib) {
