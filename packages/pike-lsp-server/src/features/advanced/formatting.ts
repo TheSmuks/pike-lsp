@@ -2,7 +2,12 @@ import { Connection, ErrorCodes, ResponseError, TextEdit } from 'vscode-language
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { Logger } from '@pike-lsp/core';
-import { FormattingService, formatPikeCode } from '../../services/formatting-service.js';
+import {
+  FormattingService,
+  formatPikeCode,
+  PREDEFINED_PROFILES,
+  type FormattingProfile,
+} from '../../services/formatting-service.js';
 import type { Services } from '../../services/index.js';
 
 export function registerFormattingHandlers(
@@ -12,6 +17,22 @@ export function registerFormattingHandlers(
 ): void {
   const log = new Logger('Advanced');
   const formatter = services.formattingService ?? new FormattingService();
+
+  function getFormattingOptions() {
+    const settings = services.globalSettings.formatting;
+    if (settings?.profile && settings.profile !== 'custom') {
+      const profile = PREDEFINED_PROFILES[settings.profile];
+      if (profile) {
+        formatter.setProfile(profile);
+      }
+    }
+    return {
+      maxLineLength: settings?.maxLineLength,
+      braceStyle: settings?.braceStyle,
+      spaceAroundOperators: settings?.spaceAroundOperators,
+      blankLinesBetweenFunctions: settings?.blankLinesBetweenFunctions,
+    };
+  }
 
   connection.onDocumentFormatting((params): TextEdit[] => {
     log.debug('Document formatting request', { uri: params.textDocument.uri });
@@ -24,7 +45,11 @@ export function registerFormattingHandlers(
     }
 
     try {
-      return formatter.formatDocument(document.getText(), params.options);
+      const profileOptions = getFormattingOptions();
+      return formatter.formatDocument(document.getText(), {
+        ...params.options,
+        ...profileOptions,
+      });
     } catch (err) {
       if (err instanceof ResponseError) {
         throw err;
@@ -50,11 +75,15 @@ export function registerFormattingHandlers(
     }
 
     try {
+      const profileOptions = getFormattingOptions();
       return formatter.formatRange(
         document.getText(),
         params.range.start.line,
         params.range.end.line,
-        params.options
+        {
+          ...params.options,
+          ...profileOptions,
+        }
       );
     } catch (err) {
       if (err instanceof ResponseError) {
@@ -71,4 +100,4 @@ export function registerFormattingHandlers(
   });
 }
 
-export { formatPikeCode };
+export { formatPikeCode, PREDEFINED_PROFILES, type FormattingProfile };

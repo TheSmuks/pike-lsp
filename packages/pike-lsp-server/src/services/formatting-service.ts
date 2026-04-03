@@ -4,11 +4,81 @@ import { INDENT_PATTERNS } from '../utils/regex-patterns.js';
 export interface FormattingOptions {
   tabSize?: number;
   insertSpaces?: boolean;
+  maxLineLength?: number;
+  braceStyle?: 'same-line' | 'new-line';
+  spaceAroundOperators?: boolean;
+  blankLinesBetweenFunctions?: number;
 }
 
+export interface FormattingProfile {
+  name: string;
+  maxLineLength: number;
+  braceStyle: 'same-line' | 'new-line';
+  spaceAroundOperators: boolean;
+  blankLinesBetweenFunctions: number;
+}
+
+export const PREDEFINED_PROFILES: Record<string, FormattingProfile> = {
+  compact: {
+    name: 'Compact',
+    maxLineLength: 80,
+    braceStyle: 'same-line',
+    spaceAroundOperators: true,
+    blankLinesBetweenFunctions: 1,
+  },
+  standard: {
+    name: 'Standard',
+    maxLineLength: 100,
+    braceStyle: 'same-line',
+    spaceAroundOperators: true,
+    blankLinesBetweenFunctions: 1,
+  },
+  relaxed: {
+    name: 'Relaxed',
+    maxLineLength: 120,
+    braceStyle: 'same-line',
+    spaceAroundOperators: true,
+    blankLinesBetweenFunctions: 1,
+  },
+  allman: {
+    name: 'Allman Style',
+    maxLineLength: 100,
+    braceStyle: 'new-line',
+    spaceAroundOperators: true,
+    blankLinesBetweenFunctions: 1,
+  },
+};
+
 export class FormattingService {
+  private currentProfile: FormattingProfile;
+
+  constructor() {
+    const standard = PREDEFINED_PROFILES['standard'];
+    if (!standard) {
+      throw new Error('Standard profile not found');
+    }
+    this.currentProfile = standard;
+  }
+
+  setProfile(profile: FormattingProfile | string): void {
+    if (typeof profile === 'string') {
+      const predefined = PREDEFINED_PROFILES[profile];
+      if (predefined) {
+        this.currentProfile = predefined;
+      } else {
+        throw new ResponseError(ErrorCodes.InvalidParams, `Unknown formatting profile: ${profile}`);
+      }
+    } else {
+      this.currentProfile = profile;
+    }
+  }
+
+  getProfile(): FormattingProfile {
+    return this.currentProfile;
+  }
+
   validateFormattingOptions(options: FormattingOptions): void {
-    const { tabSize, insertSpaces } = options;
+    const { tabSize, insertSpaces, maxLineLength, braceStyle } = options;
 
     if (tabSize !== undefined) {
       if (typeof tabSize !== 'number') {
@@ -31,6 +101,30 @@ export class FormattingService {
         `insertSpaces must be a boolean, got: ${typeof insertSpaces}`
       );
     }
+
+    if (maxLineLength !== undefined) {
+      if (typeof maxLineLength !== 'number') {
+        throw new ResponseError(
+          ErrorCodes.InvalidParams,
+          `maxLineLength must be a number, got: ${typeof maxLineLength}`
+        );
+      }
+      if (maxLineLength < 0 || maxLineLength > 200) {
+        throw new ResponseError(
+          ErrorCodes.InvalidParams,
+          `maxLineLength must be between 0 and 200, got: ${maxLineLength}`
+        );
+      }
+    }
+
+    if (braceStyle !== undefined) {
+      if (braceStyle !== 'same-line' && braceStyle !== 'new-line') {
+        throw new ResponseError(
+          ErrorCodes.InvalidParams,
+          `braceStyle must be 'same-line' or 'new-line', got: ${braceStyle}`
+        );
+      }
+    }
   }
 
   formatDocument(text: string, options: FormattingOptions): TextEdit[] {
@@ -40,7 +134,17 @@ export class FormattingService {
     const insertSpaces = options.insertSpaces ?? true;
     const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
 
-    return formatPikeCode(text, indent, 0);
+    const profile: FormattingProfile = {
+      ...this.currentProfile,
+      maxLineLength: options.maxLineLength ?? this.currentProfile.maxLineLength,
+      braceStyle: options.braceStyle ?? this.currentProfile.braceStyle,
+      spaceAroundOperators:
+        options.spaceAroundOperators ?? this.currentProfile.spaceAroundOperators,
+      blankLinesBetweenFunctions:
+        options.blankLinesBetweenFunctions ?? this.currentProfile.blankLinesBetweenFunctions,
+    };
+
+    return formatPikeCodeWithProfile(text, indent, 0, profile);
   }
 
   formatRange(
@@ -55,7 +159,17 @@ export class FormattingService {
     const insertSpaces = options.insertSpaces ?? true;
     const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
 
-    const edits = computeIndentEdits(text, indent, 0);
+    const profile: FormattingProfile = {
+      ...this.currentProfile,
+      maxLineLength: options.maxLineLength ?? this.currentProfile.maxLineLength,
+      braceStyle: options.braceStyle ?? this.currentProfile.braceStyle,
+      spaceAroundOperators:
+        options.spaceAroundOperators ?? this.currentProfile.spaceAroundOperators,
+      blankLinesBetweenFunctions:
+        options.blankLinesBetweenFunctions ?? this.currentProfile.blankLinesBetweenFunctions,
+    };
+
+    const edits = formatPikeCodeWithProfile(text, indent, 0, profile);
     return edits.filter(
       edit => edit.range.start.line >= startLine && edit.range.start.line <= endLine
     );
@@ -64,6 +178,178 @@ export class FormattingService {
 
 export function formatPikeCode(text: string, indent: string, startLine = 0): TextEdit[] {
   return computeIndentEdits(text, indent, startLine);
+}
+
+export function formatPikeCodeWithProfile(
+  text: string,
+  indent: string,
+  startLine: number,
+  profile: FormattingProfile
+): TextEdit[] {
+  const edits = computeIndentEdits(text, indent, startLine);
+
+  if (profile.braceStyle === 'new-line') {
+    edits.push(...applyBraceStyleTransformation(text, startLine));
+  }
+
+  if (profile.spaceAroundOperators) {
+    edits.push(...applyOperatorSpacing(text, startLine));
+  }
+
+  if (profile.maxLineLength > 0) {
+    edits.push(...applyLineLengthLimit(text, startLine, profile.maxLineLength));
+  }
+
+  return mergeAndSortEdits(edits);
+}
+
+function applyBraceStyleTransformation(text: string, startLine: number): TextEdit[] {
+  const edits: TextEdit[] = [];
+  const lines = text.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('{') && i > 0) {
+      const prevLine = lines[i - 1] ?? '';
+
+      if (/^\s*\)\s*$/.test(prevLine) || /\)\s*\{\s*$/.test(prevLine)) {
+        const braceIndex = prevLine.lastIndexOf('{');
+        if (braceIndex !== -1) {
+          edits.push({
+            range: {
+              start: { line: startLine + i - 1, character: braceIndex },
+              end: { line: startLine + i - 1, character: prevLine.length },
+            },
+            newText: '',
+          });
+
+          const currentIndent = line.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+          const prevIndent = prevLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+
+          if (currentIndent !== prevIndent) {
+            edits.push({
+              range: {
+                start: { line: startLine + i, character: 0 },
+                end: { line: startLine + i, character: currentIndent.length },
+              },
+              newText: prevIndent,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return edits;
+}
+
+function applyOperatorSpacing(text: string, startLine: number): TextEdit[] {
+  const edits: TextEdit[] = [];
+  const lines = text.split('\n');
+
+  const operatorPattern = /([a-zA-Z0-9_\])])([+*\-/%=<>!&|]+)([a-zA-Z0-9_\[(])/g;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    let match: RegExpExecArray | null;
+    const lineEdits: Array<{ start: number; end: number; newText: string }> = [];
+
+    while ((match = operatorPattern.exec(line)) !== null) {
+      const operator = match[2];
+      if (!operator) continue;
+
+      if (/^[\-+]+$/.test(operator) && match.index > 0) {
+        const prevChar = line[match.index - 1];
+        if (prevChar === 'e' || prevChar === 'E') {
+          continue;
+        }
+      }
+
+      if (!operator.includes('++') && !operator.includes('--')) {
+        const before = match.index + (match[1]?.length ?? 0);
+        const after = before + operator.length;
+
+        if (line[before - 1] !== ' ' && line[after] !== ' ') {
+          lineEdits.push({
+            start: before,
+            end: before,
+            newText: ' ',
+          });
+          lineEdits.push({
+            start: after,
+            end: after,
+            newText: ' ',
+          });
+        }
+      }
+    }
+
+    for (const edit of lineEdits.reverse()) {
+      edits.push({
+        range: {
+          start: { line: startLine + i, character: edit.start },
+          end: { line: startLine + i, character: edit.end },
+        },
+        newText: edit.newText,
+      });
+    }
+  }
+
+  return edits;
+}
+
+function applyLineLengthLimit(text: string, startLine: number, maxLineLength: number): TextEdit[] {
+  const edits: TextEdit[] = [];
+  const lines = text.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+
+    if (line.length > maxLineLength) {
+      const leadingWhitespace = line.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+
+      let breakPoint = maxLineLength;
+      while (breakPoint > leadingWhitespace.length && line[breakPoint] !== ' ') {
+        breakPoint--;
+      }
+
+      if (breakPoint <= leadingWhitespace.length) {
+        breakPoint = maxLineLength;
+      }
+
+      edits.push({
+        range: {
+          start: { line: startLine + i, character: breakPoint },
+          end: { line: startLine + i, character: breakPoint },
+        },
+        newText: '\n' + leadingWhitespace,
+      });
+    }
+  }
+
+  return edits;
+}
+
+function mergeAndSortEdits(edits: TextEdit[]): TextEdit[] {
+  const seen = new Set<string>();
+  const unique: TextEdit[] = [];
+
+  for (const edit of edits) {
+    const key = `${edit.range.start.line}:${edit.range.start.character}-${edit.range.end.line}:${edit.range.end.character}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(edit);
+    }
+  }
+
+  return unique.sort((a, b) => {
+    if (a.range.start.line !== b.range.start.line) {
+      return a.range.start.line - b.range.start.line;
+    }
+    return a.range.start.character - b.range.start.character;
+  });
 }
 
 function computeIndentEdits(text: string, indent: string, startLine: number): TextEdit[] {
