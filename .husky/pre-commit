@@ -173,4 +173,27 @@ if [ -n "$ADDED_SCENARIOS" ]; then
   done
 fi
 
+# 11. KB Compliance Check — significant changes must document learnings
+# Check if significant source files were changed (not just tests)
+CHANGED_IMPLEMENTATION=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^packages/.*\.ts$' | grep -v '\.test\.' | head -20 || true)
+
+if [ -n "$CHANGED_IMPLEMENTATION" ]; then
+  echo "[Pre-commit] Checking KB compliance for significant changes..."
+  
+  # Run the KB compliance checker on staged changes
+  if [ -f "scripts/check-kb-compliance.ts" ]; then
+    bun run scripts/check-kb-compliance.ts --staged 2>&1 || {
+      echo ""
+      echo "KB compliance issues found. Either:"
+      echo "  1. Add a KB entry to .agent-knowledge/reference/discoveries.md"
+      echo "  2. Add // @kb KB-XXX references to your code"
+      echo "  3. Mark PR template KB section as complete"
+      echo ""
+      echo "See docs/kb-enforcement-policy.md for format."
+      echo "Use 'git commit --no-verify' to bypass (not recommended)."
+      exit 1
+    }
+  fi
+fi
+
 echo "[Pre-commit] All checks passed!"
