@@ -49,6 +49,7 @@ export interface CoreDiagnostic {
   severity?: CoreDiagnosticSeverity;
   code?: string | number;
   source?: string;
+  data?: unknown;
   tags?: CoreDiagnosticTag[];
   relatedInformation?: CoreDiagnosticRelatedInformation[];
 }

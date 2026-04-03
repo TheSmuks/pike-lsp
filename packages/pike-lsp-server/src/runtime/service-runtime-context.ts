@@ -2,7 +2,12 @@ import type { Services } from '../services/index.js';
 
 type MutableRuntimeServices = Pick<
   Services,
-  'bridge' | 'includeResolver' | 'stdlibIndex' | 'globalSettings' | 'includePaths'
+  | 'bridge'
+  | 'includeResolver'
+  | 'stdlibIndex'
+  | 'pikeIntrospection'
+  | 'globalSettings'
+  | 'includePaths'
 >;
 
 export interface ServiceRuntimeContext {

@@ -9,13 +9,114 @@
  * - Returns all applicable actions when filter is empty/undefined
  */
 
-import { Connection, CodeAction, CodeActionKind, TextEdit } from 'vscode-languageserver/node.js';
+import {
+  Connection,
+  CodeAction,
+  CodeActionKind,
+  CodeActionParams,
+  TextEdit,
+} from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { getGenerateGetterSetterActions } from './getters-setters.js';
 import { getExtractMethodAction } from './extract-method.js';
+
+interface ImportCandidate {
+  modulePath: string;
+  importKind: 'import' | 'inherit';
+  score: number;
+}
+
+interface UnresolvedDiagnosticData {
+  kind?: string;
+  symbol?: string;
+  importCandidates?: ImportCandidate[];
+}
+
+function toUnresolvedDiagnosticData(value: unknown): UnresolvedDiagnosticData | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const symbol = typeof record['symbol'] === 'string' ? record['symbol'] : undefined;
+  const kind = typeof record['kind'] === 'string' ? record['kind'] : undefined;
+  const importCandidatesRaw = Array.isArray(record['importCandidates'])
+    ? (record['importCandidates'] as unknown[])
+    : [];
+
+  const importCandidates: ImportCandidate[] = [];
+  for (const entry of importCandidatesRaw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      continue;
+    }
+    const candidate = entry as Record<string, unknown>;
+    const modulePath = typeof candidate['modulePath'] === 'string' ? candidate['modulePath'] : null;
+    const importKind = candidate['importKind'] === 'inherit' ? 'inherit' : 'import';
+    const score = typeof candidate['score'] === 'number' ? candidate['score'] : 0;
+    if (!modulePath) {
+      continue;
+    }
+    importCandidates.push({ modulePath, importKind, score });
+  }
+
+  const result: UnresolvedDiagnosticData = { importCandidates };
+  if (kind !== undefined) {
+    result.kind = kind;
+  }
+  if (symbol !== undefined) {
+    result.symbol = symbol;
+  }
+  return result;
+}
+
+function sortImportCandidates(candidates: ImportCandidate[]): ImportCandidate[] {
+  return [...candidates].sort((a, b) => {
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+    if (a.importKind !== b.importKind) {
+      return a.importKind.localeCompare(b.importKind);
+    }
+    return a.modulePath.localeCompare(b.modulePath);
+  });
+}
+
+function getImportInsertionLine(lines: string[]): number {
+  let insertionLine = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = (lines[i] ?? '').trim();
+    if (
+      trimmed.startsWith('#include ') ||
+      trimmed.startsWith('import ') ||
+      trimmed.startsWith('inherit ')
+    ) {
+      insertionLine = i + 1;
+      continue;
+    }
+    if (trimmed === '') {
+      continue;
+    }
+    break;
+  }
+  return insertionLine;
+}
+
+function buildImportStatement(candidate: ImportCandidate): string {
+  return candidate.importKind === 'inherit'
+    ? `inherit ${candidate.modulePath};\n`
+    : `import ${candidate.modulePath};\n`;
+}
+
+function hasImportStatement(lines: string[], candidate: ImportCandidate): boolean {
+  const expected =
+    candidate.importKind === 'inherit'
+      ? `inherit ${candidate.modulePath};`
+      : `import ${candidate.modulePath};`;
+  return lines.some(line => line.trim() === expected);
+}
 
 /**
  * Register code actions handler.
@@ -31,7 +132,7 @@ export function registerCodeActionsHandler(
   /**
    * Code Action handler - provide quick fixes and refactorings
    */
-  connection.onCodeAction((params): CodeAction[] => {
+  connection.onCodeAction(async (params: CodeActionParams): Promise<CodeAction[]> => {
     log.debug('Code action request', { uri: params.textDocument.uri });
     try {
       const uri = params.textDocument.uri;
@@ -107,10 +208,6 @@ export function registerCodeActionsHandler(
           } else if (lt.startsWith('#include ')) {
             importLines.push({ line: i, text: lines[i] ?? '', type: 'include' });
           }
-        }
-
-        if (importLines.length === 0) {
-          return actions;
         }
 
         const unusedImports = new Set<number>();
@@ -203,6 +300,58 @@ export function registerCodeActionsHandler(
 
       // Quick Fixes - only if filter allows
       if (matchesFilter(CodeActionKind.QuickFix)) {
+        for (const diag of diagnostics) {
+          if (diag.code !== 'undefined-symbol.unresolved-import') {
+            continue;
+          }
+
+          const unresolvedData = toUnresolvedDiagnosticData(diag.data);
+          if (!unresolvedData?.symbol) {
+            continue;
+          }
+
+          let candidates = unresolvedData.importCandidates ?? [];
+          if (candidates.length === 0 && services.pikeIntrospection) {
+            candidates = await services.pikeIntrospection.searchImportableSymbols(
+              unresolvedData.symbol,
+              {
+                excludeUri: uri,
+                limit: 8,
+              }
+            );
+          }
+
+          const sortedCandidates = sortImportCandidates(candidates);
+          const insertionLine = getImportInsertionLine(lines);
+
+          for (const candidate of sortedCandidates) {
+            if (hasImportStatement(lines, candidate)) {
+              continue;
+            }
+
+            const statement = buildImportStatement(candidate);
+            const verb = candidate.importKind === 'inherit' ? 'inherit' : 'import';
+            actions.push({
+              title: `Add ${verb} for ${unresolvedData.symbol} from ${candidate.modulePath}`,
+              kind: CodeActionKind.QuickFix,
+              diagnostics: [diag],
+              edit: {
+                changes: {
+                  [uri]: [
+                    {
+                      range: {
+                        start: { line: insertionLine, character: 0 },
+                        end: { line: insertionLine, character: 0 },
+                      },
+                      newText: statement,
+                    },
+                  ],
+                },
+              },
+            });
+          }
+        }
+
         for (const diag of diagnostics) {
           if (diag.message.includes('syntax error') || diag.message.includes('expected')) {
             const diagLine = lines[diag.range.start.line] ?? '';

@@ -75,6 +75,9 @@ export function toCoreDiagnostic(diagnostic: Diagnostic): CoreDiagnostic {
   if (diagnostic.source !== undefined) {
     coreDiagnostic.source = diagnostic.source;
   }
+  if ('data' in diagnostic) {
+    coreDiagnostic.data = diagnostic.data;
+  }
   if (diagnostic.tags) {
     coreDiagnostic.tags = diagnostic.tags as CoreDiagnosticTag[];
   }
@@ -99,6 +102,9 @@ export function toProtocolDiagnostic(diagnostic: CoreDiagnostic): Diagnostic {
   }
   if (diagnostic.source !== undefined) {
     protocolDiagnostic.source = diagnostic.source;
+  }
+  if (diagnostic.data !== undefined) {
+    protocolDiagnostic.data = diagnostic.data;
   }
   if (diagnostic.tags) {
     protocolDiagnostic.tags = diagnostic.tags as Exclude<Diagnostic['tags'], undefined>;
