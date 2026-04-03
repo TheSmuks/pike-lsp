@@ -7,8 +7,9 @@ Every agent session MUST follow this startup sequence:
 ```
 1. Read STATUS.md              → current state, failing tests, known issues
 2. Read .sisyphus/decisions/INDEX.md → active architectural decisions
-3. Run scripts/test-agent.sh --fast → smoke test (~30s)
-4. Run scripts/task-lock.sh list    → see what other agents are working on
+3. Read docs/agent-knowledge/INDEX.md → discoveries, patterns, gotchas
+4. Run scripts/test-agent.sh --fast → smoke test (~30s)
+5. Run scripts/task-lock.sh list    → see what other agents are working on
 ```
 
 ## Project Structure
@@ -27,6 +28,18 @@ scripts/
   worktree.sh        Git worktree management
   repo-hygiene.sh    Repo clutter detection
 ```
+
+## Agent Knowledge Base
+
+The `docs/agent-knowledge/` folder contains accumulated learnings from agent sessions:
+
+- **INDEX.md** - Quick reference and navigation
+- **discoveries.md** - Recent findings about the codebase (e.g., Pike import order behavior)
+- **patterns.md** - Required patterns (Parser.Pike, 500 line limit, etc.)
+- **special-cases.md** - Edge cases and workarounds (CI retries, pre-commit hooks)
+- **gotchas.md** - Common traps to avoid (duplicate settings, existing modules)
+
+**Always check `gotchas.md` and `discoveries.md` before starting work** - they may save you from rediscovering known issues.
 
 ## Build & Test Commands
 
@@ -55,6 +68,7 @@ pike -e 'compile_file("pike-scripts/analyzer.pike");'  # Pike compiles check
 **TypeScript:** Strict mode, no `any`, type guards from `utils/validation.ts`, TSDoc for public APIs.
 
 **Pike (target: 8.0.1116):**
+
 - `snake_case` functions/variables, `PascalCase` classes, `UPPER_SNAKE` constants
 - Use `String.trim_all_whites()` not `String.trim()` (unavailable in 8.0)
 - Use `Parser.Pike.split()`/`tokenize()` not regex for code parsing
@@ -90,13 +104,13 @@ Max 5 concurrent worktrees. Each worktree = one branch = one PR.
 
 When spawning parallel agents, assign a role. Prompt templates: `.sisyphus/agent-roles/`
 
-| Role | Focus | When |
-|------|-------|------|
-| **Builder** | Implement features, fix bugs, TDD | Default for all implementation |
-| **Quality Guardian** | Find duplicate code, enforce patterns | After large merges |
-| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs | Before releases |
-| **Performance Agent** | Benchmark, profile, optimize | After feature completion |
-| **Pike Critic** | Review Pike code, validate stdlib usage, 8.0 compat | After Pike changes |
+| Role                     | Focus                                               | When                           |
+| ------------------------ | --------------------------------------------------- | ------------------------------ |
+| **Builder**              | Implement features, fix bugs, TDD                   | Default for all implementation |
+| **Quality Guardian**     | Find duplicate code, enforce patterns               | After large merges             |
+| **Documentation Keeper** | Sync README, STATUS, CHANGELOG, ADRs                | Before releases                |
+| **Performance Agent**    | Benchmark, profile, optimize                        | After feature completion       |
+| **Pike Critic**          | Review Pike code, validate stdlib usage, 8.0 compat | After Pike changes             |
 
 ## State Management
 
@@ -112,11 +126,11 @@ grep "bun" .sisyphus/status/agent-notes.log           # Search notes
 grep "2026-02" .sisyphus/status/changes.log           # Search by date
 ```
 
-| File | Format |
-|------|--------|
-| `.sisyphus/status/changes.log` | `YYYY-MM-DD \| type \| description` |
+| File                                     | Format                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `.sisyphus/status/changes.log`           | `YYYY-MM-DD \| type \| description`                         |
 | `.sisyphus/status/failed-approaches.log` | `YYYY-MM-DD \| agent \| tried \| why failed \| alternative` |
-| `.sisyphus/status/agent-notes.log` | `YYYY-MM-DD \| agent \| note` |
+| `.sisyphus/status/agent-notes.log`       | `YYYY-MM-DD \| agent \| note`                               |
 
 ## Workflow Rules
 
@@ -129,6 +143,7 @@ grep "2026-02" .sisyphus/status/changes.log           # Search by date
 ## Architectural Decisions
 
 Read `.sisyphus/decisions/INDEX.md` before working. Key decisions:
+
 - **ADR-001:** Use Parser.Pike over regex for code parsing
 - **ADR-002:** Target Pike 8.0.1116 (no String.trim(), use String.trim_all_whites())
 
