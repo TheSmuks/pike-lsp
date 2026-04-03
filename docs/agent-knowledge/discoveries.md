@@ -169,3 +169,22 @@ Things agents have learned about the Pike LSP codebase.
 **Lesson**: Knowledge base must be discoverable in standard agent workflow.
 
 ---
+
+## 2026-04-03: Knowledge Base Verification Test
+
+**Finding**: Added verification marker to test if agents actually read the knowledge base.
+
+**Test Method**:
+1. Check if agent can access `docs/agent-knowledge/INDEX.md`
+2. Look for `AGENT_VERIFICATION_MARKER` comment at top of file
+3. Agent should respond with "KB_ACCESS_OK" to confirm they read it
+
+**Verification Marker Location**: Line 3 of `docs/agent-knowledge/INDEX.md`
+
+**Expected Agent Behavior**:
+- Agent reads INDEX.md as part of startup protocol (step 3)
+- Agent sees the verification marker
+- Agent confirms by mentioning "KB_ACCESS_OK" in their response
+
+**Purpose**: Ensure knowledge base is actually being used, not just referenced.
+
