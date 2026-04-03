@@ -1,0 +1,197 @@
+{
+  "$schema": "./benchmark-budgets.schema.json",
+  "description": "Performance budgets for all 32 Pike LSP settings",
+  "version": "1.0.0",
+  "defaultMaxRegressionPct": 5,
+  "subMsCutoff": 0.5,
+  "subMsMaxAbsoluteRegressionMs": 0.03,
+  "settingsGroups": {
+    "core": {
+      "description": "Core LSP settings",
+      "settings": [
+        "pike.maxNumberOfProblems",
+        "pike.diagnosticDelay",
+        "pike.inlayHints.enabled",
+        "pike.inlayHints.parameterNames",
+        "pike.inlineValues.enabled"
+      ],
+      "budgets": {
+        "maxImpactMs": 50,
+        "maxRegressionPct": 10
+      }
+    },
+    "runTest": {
+      "description": "Run and test workflow settings",
+      "settings": [
+        "pike.runnable.testPattern",
+        "pike.runnable.interpreterPath",
+        "pike.runnable.interpreterArgs",
+        "pike.runnable.showCodeLens",
+        "pike.runnable.saveBeforeRun",
+        "pike.runnable.cwd",
+        "pike.runnable.useConfiguredPaths",
+        "pike.runnable.clearOutputBeforeRun",
+        "pike.runnable.revealOutput",
+        "pike.runnable.testArgs"
+      ],
+      "budgets": {
+        "maxImpactMs": 30,
+        "maxRegressionPct": 15
+      }
+    },
+    "noiseControl": {
+      "description": "Noise and UI control settings",
+      "settings": [
+        "pike.autoDetectPaths",
+        "pike.promptForMissingPike",
+        "pike.showStatusBar",
+        "pike.server.autoRestart",
+        "pike.formatOnChangeDelay"
+      ],
+      "budgets": {
+        "maxImpactMs": 20,
+        "maxRegressionPct": 20
+      }
+    },
+    "editorContext": {
+      "description": "Editor context menu settings",
+      "settings": [
+        "pike.editorContextMenu.showRun",
+        "pike.editorContextMenu.showTest",
+        "pike.editorContextMenu.showOrganizeImports"
+      ],
+      "budgets": {
+        "maxImpactMs": 10,
+        "maxRegressionPct": 25
+      }
+    },
+    "conditionalAnalysis": {
+      "description": "Conditional analysis settings",
+      "settings": ["pike.analysis.defines", "pike.analysis.defineFiles"],
+      "budgets": {
+        "maxImpactMs": 100,
+        "maxRegressionPct": 15
+      }
+    },
+    "testExplorer": {
+      "description": "Test Explorer settings",
+      "settings": ["pike.testExplorer.enable", "pike.testExplorer.showOutput"],
+      "budgets": {
+        "maxImpactMs": 50,
+        "maxRegressionPct": 20
+      }
+    },
+    "importOrganization": {
+      "description": "Import organization settings",
+      "settings": [
+        "pike.organizeImports.removeUnused",
+        "pike.imports.mode",
+        "pike.imports.localPrefix",
+        "pike.imports.inheritAwareOrdering"
+      ],
+      "budgets": {
+        "maxImpactMs": 50,
+        "maxRegressionPct": 10,
+        "special": {
+          "pike.imports.inheritAwareOrdering": {
+            "maxImpactMs": 100,
+            "notes": "File I/O overhead for dependency detection"
+          }
+        }
+      }
+    },
+    "formattingProfiles": {
+      "description": "Formatting profile settings",
+      "settings": [
+        "pike.formatting.maxLineLength",
+        "pike.formatting.braceStyle",
+        "pike.formatting.spaceAroundOperators",
+        "pike.formatting.blankLinesBetweenFunctions",
+        "pike.formatOnChange",
+        "pike.formatOnType"
+      ],
+      "budgets": {
+        "maxImpactMs": 100,
+        "maxRegressionPct": 10
+      }
+    }
+  },
+  "benchmarks": {
+    "Closed File: analyze without version (stat-based key)": {
+      "maxRegressionPct": 12,
+      "subMsMaxAbsoluteRegressionMs": 0.05
+    },
+    "First diagnostic after document change": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.04
+    },
+    "PikeBridge.start() with detailed metrics [Cold Start]": {
+      "maxRegressionPct": 3
+    },
+    "Validation: sequential warm revalidation": {
+      "maxRegressionPct": 8,
+      "subMsMaxAbsoluteRegressionMs": 0.04
+    },
+    "Hover: resolveStdlib(\"Stdio.File\")": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.08
+    },
+    "Hover: resolveModule(\"Stdio.File\")": {
+      "maxRegressionPct": 25,
+      "subMsMaxAbsoluteRegressionMs": 0.03
+    },
+    "resolveStdlib(\"Stdio\") - warm": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.3
+    },
+    "resolveStdlib(\"Stdio.File\") - nested": {
+      "maxRegressionPct": 20,
+      "subMsMaxAbsoluteRegressionMs": 0.08
+    },
+    "Import organization: 50 imports": {
+      "maxRegressionPct": 10,
+      "maxImpactMs": 50,
+      "notes": "Target from issue #1180 acceptance criteria"
+    },
+    "Import organization: 50 imports with inherit-aware": {
+      "maxRegressionPct": 15,
+      "maxImpactMs": 100,
+      "notes": "File I/O overhead for dependency detection"
+    }
+  },
+  "stressTestProfiles": {
+    "allSettingsEnabled": {
+      "description": "All 32 settings at maximum values",
+      "config": {
+        "pike.maxNumberOfProblems": 1000,
+        "pike.diagnosticDelay": 2000,
+        "pike.inlayHints.enabled": true,
+        "pike.inlayHints.parameterNames": true,
+        "pike.inlineValues.enabled": true,
+        "pike.showStatusBar": true,
+        "pike.server.autoRestart": true,
+        "pike.autoDetectPaths": true,
+        "pike.promptForMissingPike": true,
+        "pike.runnable.showCodeLens": true,
+        "pike.testExplorer.enable": true,
+        "pike.testExplorer.showOutput": true,
+        "pike.runnable.saveBeforeRun": true,
+        "pike.runnable.cwd": "workspaceFolder",
+        "pike.runnable.useConfiguredPaths": true,
+        "pike.runnable.clearOutputBeforeRun": true,
+        "pike.runnable.revealOutput": "always",
+        "pike.editorContextMenu.showRun": true,
+        "pike.editorContextMenu.showTest": true,
+        "pike.editorContextMenu.showOrganizeImports": true,
+        "pike.imports.mode": "grouped",
+        "pike.imports.inheritAwareOrdering": true,
+        "pike.formatting.maxLineLength": 120,
+        "pike.formatting.braceStyle": "new-line",
+        "pike.formatOnChange": true,
+        "pike.formatOnType": true,
+        "pike.formatOnChangeDelay": 500
+      },
+      "maxTotalImpactMs": 200
+    }
+  }
+}
