@@ -7,7 +7,7 @@ Every agent session MUST follow this startup sequence:
 ```
 1. Read STATUS.md              → current state, failing tests, known issues
 2. Read .sisyphus/decisions/INDEX.md → active architectural decisions
-3. Read docs/agent-knowledge/INDEX.md → discoveries, patterns, gotchas
+3. Read .agent-knowledge/INDEX.md → discoveries, patterns, gotchas
 4. Run scripts/test-agent.sh --fast → smoke test (~30s)
 5. Run scripts/task-lock.sh list    → see what other agents are working on
 ```
@@ -31,7 +31,7 @@ scripts/
 
 ## Agent Knowledge Base
 
-The `docs/agent-knowledge/` folder contains accumulated learnings from agent sessions:
+The `.agent-knowledge/` folder contains accumulated learnings from agent sessions:
 
 - **INDEX.md** - Quick reference and navigation
 - **discoveries.md** - Recent findings about the codebase (e.g., Pike import order behavior)
