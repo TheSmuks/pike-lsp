@@ -27,12 +27,13 @@ Do not create issues titled "update npm packages" — say "update bun dependenci
 **ALWAYS use worktrees for all development.** Working directly on main or creating branches in the main worktree causes conflicts when multiple agents are active.
 
 ```bash
-# Start work (always use this):
-./start-work.sh fix/short-description
-./start-work.sh feat/feature-name
+# Single agent (fast iteration):
+git checkout main && git pull origin main
+git checkout -b fix/my-topic
 
-# Alternative: direct worktree.sh if you need advanced options:
-scripts/worktree.sh create fix/short-topic --from main
+# Parallel agents (use worktrees):
+scripts/worktree.sh create fix/my-topic
+scripts/worktree.sh create fix/my-topic --from main
 ```
 
 This creates an isolated worktree at `../pike-lsp-{branch-name}` with its own branch and dependencies. Never commit directly to `main`.
