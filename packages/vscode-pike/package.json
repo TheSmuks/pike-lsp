@@ -453,6 +453,34 @@
           "minimum": 0,
           "maximum": 500,
           "description": "Debounce delay for format-on-change in milliseconds"
+        },
+        "pike.formatting.maxLineLength": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 200,
+          "description": "Maximum line length for formatting (0 = no limit)"
+        },
+        "pike.formatting.braceStyle": {
+          "type": "string",
+          "enum": [
+            "same-line",
+            "new-line"
+          ],
+          "default": "same-line",
+          "description": "Brace placement style: same-line or new-line"
+        },
+        "pike.formatting.spaceAroundOperators": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add spaces around operators"
+        },
+        "pike.formatting.blankLinesBetweenFunctions": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 3,
+          "description": "Number of blank lines between functions"
         }
       }
     }
