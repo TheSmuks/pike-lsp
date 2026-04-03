@@ -154,9 +154,21 @@
         "command": "pike.lsp.runFileTests",
         "title": "Run All Tests in File",
         "category": "Pike LSP"
+      },
+      {
+        "command": "pike.lsp.organizeImports",
+        "title": "Organize Imports",
+        "category": "Pike LSP"
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "when": "editorTextFocus && editorLangId == pike",
+          "command": "pike.lsp.organizeImports",
+          "group": "1_modification"
+        }
+      ],
       "explorer/context": [
         {
           "when": "explorerResourceIsFolder",

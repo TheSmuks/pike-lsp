@@ -781,6 +781,16 @@ async function activateInternal(
 
   runtime.track(runFileTestsDisposable);
 
+  const organizeImportsDisposable = commands.registerCommand(
+    'pike.lsp.organizeImports',
+    async () => {
+      if (runtime.isDisposed()) return;
+      await commands.executeCommand('editor.action.organizeImports');
+    }
+  );
+
+  runtime.track(organizeImportsDisposable);
+
   // Register showDiagnostics command - shows diagnostics for current document
   const showDiagnosticsDisposable = commands.registerCommand(
     'pike.lsp.showDiagnostics',
