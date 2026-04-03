@@ -1,5 +1,8 @@
 # Special Cases & Workarounds
 
+**Last Updated**: 2026-04-03
+**Purpose**: Edge cases and how to handle them
+
 Edge cases and how to handle them.
 
 ## CI Failures

@@ -8,9 +8,13 @@ Every agent session MUST follow this startup sequence:
 1. Read STATUS.md              → current state, failing tests, known issues
 2. Read .sisyphus/decisions/INDEX.md → active architectural decisions
 3. Read .agent-knowledge/INDEX.md → discoveries, patterns, gotchas
-4. Run scripts/test-agent.sh --fast → smoke test (~30s)
-5. Run scripts/task-lock.sh list    → see what other agents are working on
+4. Read .agent-knowledge/SESSION_START.md → Complete MANDATORY checklist
+5. Include KB_ACCESS_CONFIRMED in first response → Verify you actually read KB
+6. Run scripts/test-agent.sh --fast → smoke test (~30s)
+7. Run scripts/task-lock.sh list    → see what other agents are working on
 ```
+
+**CRITICAL**: If you don't include `KB_ACCESS_CONFIRMED` with your completed checklist in your first response, the system will assume you haven't read the knowledge base.
 
 ## Project Structure
 
@@ -29,17 +33,25 @@ scripts/
   repo-hygiene.sh    Repo clutter detection
 ```
 
-## Agent Knowledge Base
+## Agent Knowledge Base (MANDATORY)
 
 The `.agent-knowledge/` folder contains accumulated learnings from agent sessions:
 
-- **INDEX.md** - Quick reference and navigation
+- **INDEX.md** - Quick reference and navigation (VERIFICATION MARKER here)
+- **SESSION_START.md** - MANDATORY checklist - complete this BEFORE every task
 - **discoveries.md** - Recent findings about the codebase (e.g., Pike import order behavior)
 - **patterns.md** - Required patterns (Parser.Pike, 500 line limit, etc.)
 - **special-cases.md** - Edge cases and workarounds (CI retries, pre-commit hooks)
 - **gotchas.md** - Common traps to avoid (duplicate settings, existing modules)
 
-**Always check `gotchas.md` and `discoveries.md` before starting work** - they may save you from rediscovering known issues.
+**REQUIREMENTS:**
+
+1. You MUST complete the checklist in `SESSION_START.md` before every task
+2. You MUST include `KB_ACCESS_CONFIRMED` in your first response
+3. You MUST document new discoveries in the appropriate file
+4. You MUST summarize what you learned from gotchas.md and patterns.md
+
+**Enforcement:** Sessions without `KB_ACCESS_CONFIRMED` and the completed checklist will be flagged for review.
 
 ## Build & Test Commands
 
