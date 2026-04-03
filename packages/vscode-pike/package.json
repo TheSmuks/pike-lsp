@@ -405,6 +405,11 @@
           "default": [],
           "description": "Prefixes used to classify import/include paths as local when pike.imports.mode is grouped."
         },
+        "pike.imports.inheritAwareOrdering": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, organize imports detects inherit-based dependencies and orders inherited modules before modules that inherit from them. Only affects local imports in grouped mode."
+        },
         "pike.maxNumberOfProblems": {
           "type": "number",
           "default": 100,
