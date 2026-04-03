@@ -77,7 +77,7 @@ describe('PikeBridge', () => {
     assert.ok(
       logs.some(message =>
         message.includes(
-          '[DEBUG][PikeBridge] Initialized with pikePath="pike", analyzerPath="/tmp/analyzer.pike"'
+          '[DEBUG][PikeBridge] Initialized with pikePath="pike", analyzerPath="/tmp/analyzer.pike", args=[]'
         )
       )
     );
