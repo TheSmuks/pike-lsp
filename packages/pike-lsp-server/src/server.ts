@@ -272,13 +272,23 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
           diagnosticDelay?: number;
           analyzerPath?: string;
           env?: NodeJS.ProcessEnv;
+          analysis?: {
+            defines?: string[];
+            defineFiles?: string[];
+          };
         }
       | undefined;
 
     log(`Init options: ${JSON.stringify(initOptions)}`);
     clientSupportsWorkDoneProgress = Boolean(params.capabilities.window?.workDoneProgress);
 
-    const bridgeOptions: { pikePath: string; analyzerPath?: string; env: NodeJS.ProcessEnv } = {
+    const bridgeOptions: {
+      pikePath: string;
+      analyzerPath?: string;
+      env: NodeJS.ProcessEnv;
+      defines?: string[];
+      defineFiles?: string[];
+    } = {
       pikePath: initOptions?.pikePath ?? 'pike',
       env: initOptions?.env ?? {},
     };
@@ -289,6 +299,19 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
         ...globalSettings,
         diagnosticDelay: initOptions.diagnosticDelay,
       };
+    }
+
+    if (initOptions?.analysis) {
+      globalSettings = {
+        ...globalSettings,
+        analysis: {
+          defines: initOptions.analysis.defines ?? [],
+          defineFiles: initOptions.analysis.defineFiles ?? [],
+        },
+      };
+
+      bridgeOptions.defines = initOptions.analysis.defines ?? [];
+      bridgeOptions.defineFiles = initOptions.analysis.defineFiles ?? [];
     }
 
     includePaths = (initOptions?.env?.['PIKE_INCLUDE_PATH'] ?? '')

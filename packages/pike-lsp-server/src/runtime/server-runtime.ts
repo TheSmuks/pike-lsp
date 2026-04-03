@@ -281,6 +281,10 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
             settings: {
               diagnosticDelay: getGlobalSettings().diagnosticDelay,
               includePaths: getIncludePaths(),
+              analysis: {
+                defines: getGlobalSettings().analysis?.defines ?? [],
+                defineFiles: getGlobalSettings().analysis?.defineFiles ?? [],
+              },
             },
           });
           log(`Engine config ack revision=${configAck.revision} snapshot=${configAck.snapshotId}`);
