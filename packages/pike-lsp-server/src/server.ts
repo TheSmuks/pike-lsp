@@ -101,10 +101,10 @@ const workspaceIndex = new WorkspaceIndex();
 const workspaceScanner = new WorkspaceScanner(logger, () => globalSettings);
 const moduleContext = new ModuleContext();
 const formattingService = new FormattingService();
+let pikeIntrospection: PikeIntrospectionService | null = null;
 let stdlibIndex: StdlibIndexManager | null = null;
 let includeResolver: IncludeResolver | null = null;
 let bridgeManager: BridgeManager | null = null;
-let pikeIntrospection = new PikeIntrospectionService(workspaceIndex, stdlibIndex);
 
 let globalSettings: PikeSettings = defaultSettings;
 let includePaths: string[] = [];
@@ -151,7 +151,7 @@ function findAnalyzerPath(): string | undefined {
 // ============================================================================
 
 function createServices(): features.Services {
-  return {
+  const services: features.Services = {
     bridge: bridgeManager, // Will be null initially, updated after onInitialize
     logger,
     documentCache,
@@ -159,7 +159,6 @@ function createServices(): features.Services {
     typeDatabase,
     workspaceIndex,
     stdlibIndex,
-    pikeIntrospection,
     includeResolver, // Will be null initially, updated after onInitialize
     workspaceScanner,
     globalSettings,
@@ -167,6 +166,13 @@ function createServices(): features.Services {
     formattingService,
     documentSnapshots,
   };
+
+  if (pikeIntrospection) {
+    (services as { pikeIntrospection?: PikeIntrospectionService }).pikeIntrospection =
+      pikeIntrospection;
+  }
+
+  return services;
 }
 
 // ============================================================================
@@ -459,8 +465,11 @@ connection.onDidChangeConfiguration(change => {
 // Register Feature Handlers (BEFORE documents.listen!)
 // ============================================================================
 
-const serviceRuntimeContext = createServiceRuntimeContext(createServices());
-const services = serviceRuntimeContext.services;
+const services = createServices();
+pikeIntrospection = new PikeIntrospectionService(services);
+(services as { pikeIntrospection?: PikeIntrospectionService }).pikeIntrospection =
+  pikeIntrospection;
+const serviceRuntimeContext = createServiceRuntimeContext(services);
 
 features.registerDiagnosticsHandlers(connection, services, documents);
 features.registerNavigationHandlers(connection, services, documents);
@@ -485,7 +494,7 @@ registerServerRuntimeHandlers({
   getClientSupportsWorkDoneProgress: () => clientSupportsWorkDoneProgress,
   setStdlibIndex: index => {
     stdlibIndex = index;
-    pikeIntrospection = new PikeIntrospectionService(workspaceIndex, stdlibIndex);
+    pikeIntrospection = new PikeIntrospectionService(services, workspaceIndex, stdlibIndex);
     serviceRuntimeContext.update({ stdlibIndex, pikeIntrospection });
   },
   updateServices: patch => {

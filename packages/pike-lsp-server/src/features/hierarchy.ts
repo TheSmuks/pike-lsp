@@ -23,6 +23,7 @@ import { promises as fs } from 'node:fs';
 import type { Services } from '../services/index.js';
 import type { PikeSymbol, PikeSymbolKind } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
+import { PikeIntrospectionService } from '../services/pike-introspection.js';
 
 /**
  * Validation set for PikeSymbolKind values
@@ -123,6 +124,7 @@ export function registerHierarchyHandlers(
 ): void {
   const { documentCache } = services;
   const log = new Logger('Hierarchy');
+  const pikeIntrospection = services.pikeIntrospection ?? new PikeIntrospectionService(services);
 
   const getSymbolsForUri = (uri: string): PikeSymbol[] => {
     const cached = documentCache.get(uri);
@@ -169,36 +171,6 @@ export function registerHierarchyHandlers(
     }
 
     return Array.from(uris);
-  };
-
-  const getClassInheritSymbols = (symbols: PikeSymbol[], className: string): PikeSymbol[] => {
-    const classSymbols = symbols
-      .filter(
-        (s): s is PikeSymbol & { position: NonNullable<PikeSymbol['position']> } =>
-          s.kind === 'class' && Boolean(s.position)
-      )
-      .sort((a, b) => (a.position.line ?? 0) - (b.position.line ?? 0));
-
-    const targetClass = classSymbols.find(s => s.name === className);
-    if (!targetClass?.position) {
-      return [];
-    }
-
-    const classStartLine = Math.max(0, (targetClass.position.line ?? 1) - 1);
-    const nextClassLine =
-      classSymbols
-        .filter(s => Math.max(0, (s.position.line ?? 1) - 1) > classStartLine)
-        .map(s => Math.max(0, (s.position.line ?? 1) - 1))
-        .sort((a, b) => a - b)[0] ?? Number.POSITIVE_INFINITY;
-
-    return symbols.filter(symbol => {
-      if (symbol.kind !== 'inherit' || !symbol.position) {
-        return false;
-      }
-
-      const inheritLine = Math.max(0, (symbol.position.line ?? 1) - 1);
-      return inheritLine >= classStartLine && inheritLine < nextClassLine;
-    });
   };
 
   const buildSymbolPositionsFromTokens = (
@@ -825,10 +797,13 @@ export function registerHierarchyHandlers(
         visited.add(visitKey);
         cyclePath.push(current.name);
 
-        const currentSymbols = getSymbolsForUri(current.uri);
-        const inheritSymbols = getClassInheritSymbols(currentSymbols, current.name);
-        for (const symbol of inheritSymbols) {
-          const inheritedName = symbol.classname ?? symbol.name;
+        const inheritRelations = await pikeIntrospection.getInherits(current.uri);
+        const classInherits = inheritRelations.filter(
+          relation => relation.ownerClass === current.name
+        );
+
+        for (const relation of classInherits) {
+          const inheritedName = relation.inheritedName;
           if (!inheritedName) continue;
 
           const parentDefinition = resolveClassDefinition(inheritedName, current.uri);
@@ -906,66 +881,14 @@ export function registerHierarchyHandlers(
         inheritanceIndex.set(parentName, existing);
       };
 
-      const indexDocumentSymbols = (docUri: string, symbols: PikeSymbol[]) => {
-        for (const symbol of symbols) {
-          if (symbol.kind !== 'inherit') {
-            validateSymbolKind(symbol, 'subtypes traversal');
-            continue;
-          }
-
-          const inheritedName = symbol.classname ?? symbol.name;
-          if (!inheritedName) {
-            continue;
-          }
-
-          const inheritLine = symbol.position ? Math.max(0, (symbol.position.line ?? 1) - 1) : 0;
-
-          // Find the class that declared this inherit (closest class at or before inherit line)
-          const containingClass = symbols
-            .filter(
-              s => s.kind === 'class' && s.position && (s.position.line ?? 0) - 1 <= inheritLine
-            )
-            .sort((a, b) => (b.position?.line ?? 0) - (a.position?.line ?? 0))[0];
-
-          if (!containingClass) {
-            continue;
-          }
-
-          const containingClassName = containingClass.name;
-          if (!containingClassName) {
-            continue;
-          }
-
-          const classLine = Math.max(0, (containingClass.position?.line ?? 1) - 1);
-          addDirectSubtype(inheritedName, {
-            name: containingClassName,
-            uri: docUri,
-            line: classLine,
+      for (const uri of getKnownUris()) {
+        const relations = await pikeIntrospection.getInherits(uri);
+        for (const relation of relations) {
+          addDirectSubtype(relation.inheritedName, {
+            name: relation.ownerClass,
+            uri: relation.uri,
+            line: relation.ownerLine,
           });
-        }
-      };
-
-      const entries = Array.from(documentCache.entries());
-      for (const [docUri, cachedDoc] of entries) {
-        indexDocumentSymbols(docUri, cachedDoc.symbols);
-      }
-
-      if (services.workspaceScanner?.isReady()) {
-        const cachedUris = new Set(documentCache.keys());
-        const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
-
-        for (const fileInfo of uncachedFiles) {
-          try {
-            const filePath = decodeURIComponent(fileInfo.uri.replace(/^file:\/\//, ''));
-            const content = await fs.readFile(filePath, 'utf-8');
-            const parsed = await services.bridge?.bridge?.analyze(content, ['parse'], filePath);
-            const parsedSymbols = parsed?.result?.parse?.symbols ?? [];
-            indexDocumentSymbols(fileInfo.uri, parsedSymbols);
-          } catch (err) {
-            log.debug(`Failed to read uncached file: ${fileInfo.uri}`, {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
         }
       }
 
