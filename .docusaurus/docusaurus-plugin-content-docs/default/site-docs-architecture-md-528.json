@@ -1,0 +1,26 @@
+{
+  "id": "architecture",
+  "title": "Pike LSP Architecture",
+  "description": "This document describes the architecture of the Pike Language Server implementation.",
+  "source": "@site/docs/architecture.md",
+  "sourceDirName": ".",
+  "slug": "/architecture",
+  "permalink": "/pike-lsp/docs/architecture",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/architecture.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1775138666000,
+  "frontMatter": {},
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Features",
+    "permalink": "/pike-lsp/docs/features"
+  },
+  "next": {
+    "title": "Known Bugs",
+    "permalink": "/pike-lsp/docs/known-bugs"
+  }
+}

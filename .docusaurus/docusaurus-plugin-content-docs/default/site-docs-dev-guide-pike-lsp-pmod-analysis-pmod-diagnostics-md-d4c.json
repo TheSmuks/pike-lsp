@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Diagnostics",
+  "title": "LSP.pmod/Analysis.pmod/Diagnostics.pike",
+  "description": "Development guide for LSP.pmod/Analysis.pmod/Diagnostics.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Analysis.pmod-Diagnostics.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Diagnostics",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Diagnostics",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Analysis.pmod-Diagnostics.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Analysis.pmod-Diagnostics",
+    "title": "LSP.pmod/Analysis.pmod/Diagnostics.pike",
+    "description": "Development guide for LSP.pmod/Analysis.pmod/Diagnostics.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Analysis.pmod/Completions.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Completions"
+  },
+  "next": {
+    "title": "LSP.pmod/Analysis.pmod/Variables.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Variables"
+  }
+}

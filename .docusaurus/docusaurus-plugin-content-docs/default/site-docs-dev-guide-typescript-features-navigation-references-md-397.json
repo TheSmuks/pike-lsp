@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-navigation-references",
+  "title": "features/navigation/references.ts",
+  "description": "Development guide for features/navigation/references.ts",
+  "source": "@site/docs/dev-guide/typescript/features-navigation-references.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-navigation-references",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-references",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-navigation-references.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-navigation-references",
+    "title": "features/navigation/references.ts",
+    "description": "Development guide for features/navigation/references.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/navigation/keywords.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-keywords"
+  },
+  "next": {
+    "title": "features/roxen/completion.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-completion"
+  }
+}

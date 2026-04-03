@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-RoxenStubs.pmod-Roxen",
+  "title": "LSP.pmod/RoxenStubs.pmod/Roxen.pike",
+  "description": "Development guide for LSP.pmod/RoxenStubs.pmod/Roxen.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-RoxenStubs.pmod-Roxen.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-RoxenStubs.pmod-Roxen",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-RoxenStubs.pmod-Roxen",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-RoxenStubs.pmod-Roxen.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-RoxenStubs.pmod-Roxen",
+    "title": "LSP.pmod/RoxenStubs.pmod/Roxen.pike",
+    "description": "Development guide for LSP.pmod/RoxenStubs.pmod/Roxen.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/RoxenStubs.pmod/RXML.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-RoxenStubs.pmod-RXML"
+  },
+  "next": {
+    "title": "LSP.pmod/RoxenStubs.pmod/module.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-RoxenStubs.pmod-module"
+  }
+}

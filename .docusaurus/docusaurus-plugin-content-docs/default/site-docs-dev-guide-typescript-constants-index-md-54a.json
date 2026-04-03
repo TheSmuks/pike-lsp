@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-constants-index",
+  "title": "constants/index.ts",
+  "description": "Development guide for constants/index.ts",
+  "source": "@site/docs/dev-guide/typescript/constants-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-constants-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-constants-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/constants-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-constants-index",
+    "title": "constants/index.ts",
+    "description": "Development guide for constants/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "test-tokenizer.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-tokenizer"
+  },
+  "next": {
+    "title": "core/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-core-index"
+  }
+}

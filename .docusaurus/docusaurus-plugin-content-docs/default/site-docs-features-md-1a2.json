@@ -1,0 +1,30 @@
+{
+  "id": "features",
+  "title": "Features",
+  "description": "Complete list of LSP features provided by Pike LSP",
+  "source": "@site/docs/features.md",
+  "sourceDirName": ".",
+  "slug": "/features",
+  "permalink": "/pike-lsp/docs/features",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/features.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771408348000,
+  "frontMatter": {
+    "id": "features",
+    "title": "Features",
+    "description": "Complete list of LSP features provided by Pike LSP"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Troubleshooting",
+    "permalink": "/pike-lsp/docs/troubleshooting"
+  },
+  "next": {
+    "title": "Pike LSP Architecture",
+    "permalink": "/pike-lsp/docs/architecture"
+  }
+}

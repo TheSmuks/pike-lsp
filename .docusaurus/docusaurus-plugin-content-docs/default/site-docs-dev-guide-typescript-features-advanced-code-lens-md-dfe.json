@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-code-lens",
+  "title": "features/advanced/code-lens.ts",
+  "description": "Development guide for features/advanced/code-lens.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-code-lens.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-code-lens",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-code-lens",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-code-lens.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-code-lens",
+    "title": "features/advanced/code-lens.ts",
+    "description": "Development guide for features/advanced/code-lens.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/code-actions.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-code-actions"
+  },
+  "next": {
+    "title": "features/advanced/document-links.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-document-links"
+  }
+}

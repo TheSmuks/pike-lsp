@@ -1,0 +1,26 @@
+{
+  "id": "progress",
+  "title": "PROGRESS.md - Agent Progress Tracking",
+  "description": "Full history in .sisyphus/status/changes.log - grep for details",
+  "source": "@site/docs/progress.md",
+  "sourceDirName": ".",
+  "slug": "/progress",
+  "permalink": "/pike-lsp/docs/progress",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/progress.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1775138666000,
+  "frontMatter": {},
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Contributor License Agreement",
+    "permalink": "/pike-lsp/docs/CLA"
+  },
+  "next": {
+    "title": "Feature Registry",
+    "permalink": "/pike-lsp/docs/feature-registry"
+  }
+}

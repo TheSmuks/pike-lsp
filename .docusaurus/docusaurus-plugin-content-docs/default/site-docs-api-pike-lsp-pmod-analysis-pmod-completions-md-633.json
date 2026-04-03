@@ -1,0 +1,21 @@
+{
+  "id": "api/pike/pike-LSP-pmod-Analysis-pmod-Completions",
+  "title": "LSP-pmod-Analysis-pmod-Completions",
+  "description": "API documentation for LSP.pmod/Analysis.pmod/Completions.pike",
+  "source": "@site/docs/api/pike/LSP.pmod-Analysis.pmod-Completions.md",
+  "sourceDirName": "api/pike",
+  "slug": "/api/pike/pike-LSP-pmod-Analysis-pmod-Completions",
+  "permalink": "/pike-lsp/docs/api/pike/pike-LSP-pmod-Analysis-pmod-Completions",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/api/pike/LSP.pmod-Analysis.pmod-Completions.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771278358000,
+  "frontMatter": {
+    "id": "pike-LSP-pmod-Analysis-pmod-Completions",
+    "title": "LSP-pmod-Analysis-pmod-Completions",
+    "description": "API documentation for LSP.pmod/Analysis.pmod/Completions.pike"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "dev-guide/dev-guide",
+  "title": "Development Guide",
+  "description": "Auto-generated development guide for Pike LSP",
+  "source": "@site/docs/dev-guide/index.md",
+  "sourceDirName": "dev-guide",
+  "slug": "/docs/dev-guide",
+  "permalink": "/pike-lsp/docs/docs/dev-guide",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "dev-guide",
+    "title": "Development Guide",
+    "description": "Auto-generated development guide for Pike LSP",
+    "slug": "/docs/dev-guide"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "API Reference",
+    "permalink": "/pike-lsp/docs/api"
+  },
+  "next": {
+    "title": "Pike LSP Architecture",
+    "permalink": "/pike-lsp/docs/architecture"
+  }
+}

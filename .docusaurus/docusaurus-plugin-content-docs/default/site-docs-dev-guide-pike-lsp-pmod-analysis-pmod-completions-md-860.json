@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Completions",
+  "title": "LSP.pmod/Analysis.pmod/Completions.pike",
+  "description": "Development guide for LSP.pmod/Analysis.pmod/Completions.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Analysis.pmod-Completions.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Completions",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Completions",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Analysis.pmod-Completions.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Analysis.pmod-Completions",
+    "title": "LSP.pmod/Analysis.pmod/Completions.pike",
+    "description": "Development guide for LSP.pmod/Analysis.pmod/Completions.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Analysis.pmod/Analysis.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Analysis"
+  },
+  "next": {
+    "title": "LSP.pmod/Analysis.pmod/Diagnostics.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Analysis.pmod-Diagnostics"
+  }
+}

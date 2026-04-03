@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-type-database",
+  "title": "type-database.ts",
+  "description": "Development guide for type-database.ts",
+  "source": "@site/docs/dev-guide/typescript/type-database.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-type-database",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-type-database",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/type-database.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-type-database",
+    "title": "type-database.ts",
+    "description": "Development guide for type-database.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "test-server.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-test-server"
+  },
+  "next": {
+    "title": "utils/code-lens.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-code-lens"
+  }
+}

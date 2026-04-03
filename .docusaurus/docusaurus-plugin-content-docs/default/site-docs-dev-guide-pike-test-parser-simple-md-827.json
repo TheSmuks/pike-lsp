@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-test-parser-simple",
+  "title": "test-parser-simple.pike",
+  "description": "Development guide for test-parser-simple.pike",
+  "source": "@site/docs/dev-guide/pike/test-parser-simple.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-test-parser-simple",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-parser-simple",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/test-parser-simple.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-test-parser-simple",
+    "title": "test-parser-simple.pike",
+    "description": "Development guide for test-parser-simple.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "test-parser-error-recovery.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-parser-error-recovery"
+  },
+  "next": {
+    "title": "test-tokenizer.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-tokenizer"
+  }
+}

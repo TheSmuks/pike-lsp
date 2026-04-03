@@ -1,0 +1,83 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/pike-lsp/docs",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/pike-lsp/docs",
+          "mainDocId": "index",
+          "docs": [
+            {
+              "id": "api",
+              "path": "/pike-lsp/docs/api",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "architecture",
+              "path": "/pike-lsp/docs/architecture",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "CLA",
+              "path": "/pike-lsp/docs/CLA",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "configuration",
+              "path": "/pike-lsp/docs/configuration",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "contributing",
+              "path": "/pike-lsp/docs/contributing",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "dev-guide/dev-guide",
+              "path": "/pike-lsp/docs/docs/dev-guide",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "features",
+              "path": "/pike-lsp/docs/features",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "getting-started",
+              "path": "/pike-lsp/docs/getting-started",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "index",
+              "path": "/pike-lsp/docs/",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "known-bugs",
+              "path": "/pike-lsp/docs/known-bugs",
+              "sidebar": "docsSidebar"
+            },
+            {
+              "id": "troubleshooting",
+              "path": "/pike-lsp/docs/troubleshooting",
+              "sidebar": "docsSidebar"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docsSidebar": {
+              "link": {
+                "path": "/pike-lsp/docs/",
+                "label": "Welcome"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Rename",
+  "title": "LSP.pmod/Rename.pike",
+  "description": "Development guide for LSP.pmod/Rename.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Rename.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Rename",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Rename",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Rename.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Rename",
+    "title": "LSP.pmod/Rename.pike",
+    "description": "Development guide for LSP.pmod/Rename.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Parser.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Parser"
+  },
+  "next": {
+    "title": "LSP.pmod/Roxen.pmod/MixedContent.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Roxen.pmod-MixedContent"
+  }
+}

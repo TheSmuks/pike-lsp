@@ -1,0 +1,21 @@
+{
+  "id": "api/pike/pike-LSP-pmod-RoxenStubs-pmod-module",
+  "title": "LSP-pmod-RoxenStubs-pmod-module",
+  "description": "API documentation for LSP.pmod/RoxenStubs.pmod/module.pike",
+  "source": "@site/docs/api/pike/LSP.pmod-RoxenStubs.pmod-module.md",
+  "sourceDirName": "api/pike",
+  "slug": "/api/pike/pike-LSP-pmod-RoxenStubs-pmod-module",
+  "permalink": "/pike-lsp/docs/api/pike/pike-LSP-pmod-RoxenStubs-pmod-module",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/api/pike/LSP.pmod-RoxenStubs.pmod-module.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771278358000,
+  "frontMatter": {
+    "id": "pike-LSP-pmod-RoxenStubs-pmod-module",
+    "title": "LSP-pmod-RoxenStubs-pmod-module",
+    "description": "API documentation for LSP.pmod/RoxenStubs.pmod/module.pike"
+  }
+}

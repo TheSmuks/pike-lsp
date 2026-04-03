@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-definition-provider",
+  "title": "features/rxml/definition-provider.ts",
+  "description": "Development guide for features/rxml/definition-provider.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-definition-provider.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-definition-provider",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-definition-provider",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-definition-provider.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-definition-provider",
+    "title": "features/rxml/definition-provider.ts",
+    "description": "Development guide for features/rxml/definition-provider.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/completion.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-completion"
+  },
+  "next": {
+    "title": "features/rxml/diagnostics.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-diagnostics"
+  }
+}

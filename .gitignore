@@ -74,23 +74,7 @@ pike-scripts/verify_*.pike
 
 # Build artifacts
 packages/vscode-pike/package.json.files
-# Local analysis reports - do not commit
-AUTODOC_COVERAGE_ANALYSIS.md
-CODEBASE_REVIEW_REPORT.md
-QA_TEST_REPORT_PHASE5.md
-pike-scripts/IMPORT_TRACKING_IMPLEMENTATION.md
-# OMC agent cache
-.omc/
 
-# Dev-only directories
-.planning/
-.agent/
-
-# Docusaurus build cache
-.docusaurus/
-
-# Agent config (local overrides)
-agent.config.local
 
 # Accidental files - should never be committed
 *.kate-swp
@@ -100,7 +84,6 @@ t_v7.txt
 
 # Large binaries - install via package manager
 scripts/act
-.git/.worker-submit-marker
 patches/
 # Yabu data files
 0.yabu/

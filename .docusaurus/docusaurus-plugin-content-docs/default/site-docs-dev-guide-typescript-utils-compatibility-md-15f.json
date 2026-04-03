@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-utils-compatibility",
+  "title": "utils/compatibility.ts",
+  "description": "Development guide for utils/compatibility.ts",
+  "source": "@site/docs/dev-guide/typescript/utils-compatibility.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-utils-compatibility",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-compatibility",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/utils-compatibility.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-utils-compatibility",
+    "title": "utils/compatibility.ts",
+    "description": "Development guide for utils/compatibility.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "utils/code-lens.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-code-lens"
+  },
+  "next": {
+    "title": "utils/debug-logger.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-debug-logger"
+  }
+}

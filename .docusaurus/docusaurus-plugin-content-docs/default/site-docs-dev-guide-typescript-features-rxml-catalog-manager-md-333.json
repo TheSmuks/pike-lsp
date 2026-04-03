@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-catalog-manager",
+  "title": "features/rxml/catalog-manager.ts",
+  "description": "Development guide for features/rxml/catalog-manager.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-catalog-manager.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-catalog-manager",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-catalog-manager",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-catalog-manager.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-catalog-manager",
+    "title": "features/rxml/catalog-manager.ts",
+    "description": "Development guide for features/rxml/catalog-manager.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/cache.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-cache"
+  },
+  "next": {
+    "title": "features/rxml/code-actions-provider.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-code-actions-provider"
+  }
+}

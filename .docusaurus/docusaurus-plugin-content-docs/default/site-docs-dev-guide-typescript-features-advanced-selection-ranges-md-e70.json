@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-selection-ranges",
+  "title": "features/advanced/selection-ranges.ts",
+  "description": "Development guide for features/advanced/selection-ranges.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-selection-ranges.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-selection-ranges",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-selection-ranges",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-selection-ranges.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-selection-ranges",
+    "title": "features/advanced/selection-ranges.ts",
+    "description": "Development guide for features/advanced/selection-ranges.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/on-type-formatting.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-on-type-formatting"
+  },
+  "next": {
+    "title": "features/advanced/semantic-tokens.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-semantic-tokens"
+  }
+}

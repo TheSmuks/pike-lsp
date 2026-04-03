@@ -1,0 +1,26 @@
+{
+  "id": "known-bugs",
+  "title": "Known Bugs",
+  "description": "Last updated: 2026-02-10",
+  "source": "@site/docs/known-bugs.md",
+  "sourceDirName": ".",
+  "slug": "/known-bugs",
+  "permalink": "/pike-lsp/docs/known-bugs",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/known-bugs.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "TheSmuks",
+  "lastUpdatedAt": 1771363842000,
+  "frontMatter": {},
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Pike LSP Architecture",
+    "permalink": "/pike-lsp/docs/architecture"
+  },
+  "next": {
+    "title": "Contributing",
+    "permalink": "/pike-lsp/docs/contributing"
+  }
+}

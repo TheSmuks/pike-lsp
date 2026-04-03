@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-navigation-definition",
+  "title": "features/navigation/definition.ts",
+  "description": "Development guide for features/navigation/definition.ts",
+  "source": "@site/docs/dev-guide/typescript/features-navigation-definition.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-navigation-definition",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-definition",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-navigation-definition.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-navigation-definition",
+    "title": "features/navigation/definition.ts",
+    "description": "Development guide for features/navigation/definition.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/navigation/definition-utils.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-definition-utils"
+  },
+  "next": {
+    "title": "features/navigation/expression-utils.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-expression-utils"
+  }
+}

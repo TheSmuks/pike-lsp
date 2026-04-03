@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-mixed-content",
+  "title": "features/rxml/mixed-content.ts",
+  "description": "Development guide for features/rxml/mixed-content.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-mixed-content.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-mixed-content",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-mixed-content",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-mixed-content.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-mixed-content",
+    "title": "features/rxml/mixed-content.ts",
+    "description": "Development guide for features/rxml/mixed-content.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-index"
+  },
+  "next": {
+    "title": "features/rxml/module-scanner.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-module-scanner"
+  }
+}

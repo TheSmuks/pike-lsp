@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-inline-values",
+  "title": "features/advanced/inline-values.ts",
+  "description": "Development guide for features/advanced/inline-values.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-inline-values.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-inline-values",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-inline-values",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-inline-values.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-inline-values",
+    "title": "features/advanced/inline-values.ts",
+    "description": "Development guide for features/advanced/inline-values.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/inlay-hints.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-inlay-hints"
+  },
+  "next": {
+    "title": "features/advanced/moniker.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-moniker"
+  }
+}

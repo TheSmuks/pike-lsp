@@ -1,0 +1,21 @@
+{
+  "id": "api/pike/pike-LSP-pmod-Intelligence-pmod-Introspection",
+  "title": "LSP-pmod-Intelligence-pmod-Introspection",
+  "description": "API documentation for LSP.pmod/Intelligence.pmod/Introspection.pike",
+  "source": "@site/docs/api/pike/LSP.pmod-Intelligence.pmod-Introspection.md",
+  "sourceDirName": "api/pike",
+  "slug": "/api/pike/pike-LSP-pmod-Intelligence-pmod-Introspection",
+  "permalink": "/pike-lsp/docs/api/pike/pike-LSP-pmod-Intelligence-pmod-Introspection",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/api/pike/LSP.pmod-Intelligence.pmod-Introspection.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771278358000,
+  "frontMatter": {
+    "id": "pike-LSP-pmod-Intelligence-pmod-Introspection",
+    "title": "LSP-pmod-Intelligence-pmod-Introspection",
+    "description": "API documentation for LSP.pmod/Intelligence.pmod/Introspection.pike"
+  }
+}

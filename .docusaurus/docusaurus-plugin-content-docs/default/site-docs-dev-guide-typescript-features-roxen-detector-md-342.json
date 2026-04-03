@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-roxen-detector",
+  "title": "features/roxen/detector.ts",
+  "description": "Development guide for features/roxen/detector.ts",
+  "source": "@site/docs/dev-guide/typescript/features-roxen-detector.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-roxen-detector",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-detector",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-roxen-detector.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-roxen-detector",
+    "title": "features/roxen/detector.ts",
+    "description": "Development guide for features/roxen/detector.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/roxen/constants.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-constants"
+  },
+  "next": {
+    "title": "features/roxen/diagnostics.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-diagnostics"
+  }
+}

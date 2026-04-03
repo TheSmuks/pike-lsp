@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-code-actions-provider",
+  "title": "features/rxml/code-actions-provider.ts",
+  "description": "Development guide for features/rxml/code-actions-provider.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-code-actions-provider.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-code-actions-provider",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-code-actions-provider",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-code-actions-provider.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-code-actions-provider",
+    "title": "features/rxml/code-actions-provider.ts",
+    "description": "Development guide for features/rxml/code-actions-provider.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/catalog-manager.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-catalog-manager"
+  },
+  "next": {
+    "title": "features/rxml/completion.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-completion"
+  }
+}

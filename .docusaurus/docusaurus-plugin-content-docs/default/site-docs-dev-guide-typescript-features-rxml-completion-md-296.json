@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-completion",
+  "title": "features/rxml/completion.ts",
+  "description": "Development guide for features/rxml/completion.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-completion.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-completion",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-completion",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-completion.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-completion",
+    "title": "features/rxml/completion.ts",
+    "description": "Development guide for features/rxml/completion.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/code-actions-provider.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-code-actions-provider"
+  },
+  "next": {
+    "title": "features/rxml/definition-provider.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-definition-provider"
+  }
+}

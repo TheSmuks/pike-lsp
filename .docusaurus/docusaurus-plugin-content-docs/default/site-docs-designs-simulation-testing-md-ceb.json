@@ -1,0 +1,17 @@
+{
+  "id": "designs/SIMULATION-TESTING",
+  "title": "Simulation Testing for Pike LSP",
+  "description": "Inspired by TigerBeetle's VOPR (Viewstamped Operation Replicator).",
+  "source": "@site/docs/designs/SIMULATION-TESTING.md",
+  "sourceDirName": "designs",
+  "slug": "/designs/SIMULATION-TESTING",
+  "permalink": "/pike-lsp/docs/designs/SIMULATION-TESTING",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/designs/SIMULATION-TESTING.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1775154920000,
+  "frontMatter": {}
+}

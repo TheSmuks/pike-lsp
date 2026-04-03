@@ -70,14 +70,7 @@ for dir in "${CLUTTER_DIRS[@]}"; do
   fi
 done
 
-# OMC state/logs (should never be tracked, data files are fine)
-for subdir in "state" "logs"; do
-  count=$(git ls-files ".omc/$subdir/" 2>/dev/null | wc -l)
-  if [ "$count" -gt 0 ]; then
-    issue ".omc/$subdir/ has $count tracked state files"
-    GITIGNORE_ADDITIONS+=(".omc/$subdir/")
-  fi
-done
+ok ".omc/ clean (removed in refactor)"
 
 echo ""
 

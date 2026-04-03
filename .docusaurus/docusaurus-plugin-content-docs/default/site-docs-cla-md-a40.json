@@ -1,0 +1,22 @@
+{
+  "id": "CLA",
+  "title": "Contributor License Agreement",
+  "description": "Thank you for your interest in contributing to Pike LSP. This Contributor License Agreement (\"Agreement\") documents the rights granted by contributors to the project maintainers.",
+  "source": "@site/docs/CLA.md",
+  "sourceDirName": ".",
+  "slug": "/CLA",
+  "permalink": "/pike-lsp/docs/CLA",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/CLA.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771408348000,
+  "frontMatter": {},
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "Pike LSP Architecture",
+    "permalink": "/pike-lsp/docs/architecture"
+  }
+}

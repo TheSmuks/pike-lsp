@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-utils-validation",
+  "title": "utils/validation.ts",
+  "description": "Development guide for utils/validation.ts",
+  "source": "@site/docs/dev-guide/typescript/utils-validation.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-utils-validation",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-validation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/utils-validation.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-utils-validation",
+    "title": "utils/validation.ts",
+    "description": "Development guide for utils/validation.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "utils/regex-patterns.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-regex-patterns"
+  },
+  "next": {
+    "title": "workspace-index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-workspace-index"
+  }
+}

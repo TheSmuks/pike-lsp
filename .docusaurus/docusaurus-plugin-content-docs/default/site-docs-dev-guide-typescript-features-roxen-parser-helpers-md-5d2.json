@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-roxen-parser-helpers",
+  "title": "features/roxen/parser-helpers.ts",
+  "description": "Development guide for features/roxen/parser-helpers.ts",
+  "source": "@site/docs/dev-guide/typescript/features-roxen-parser-helpers.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-roxen-parser-helpers",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-parser-helpers",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-roxen-parser-helpers.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-roxen-parser-helpers",
+    "title": "features/roxen/parser-helpers.ts",
+    "description": "Development guide for features/roxen/parser-helpers.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/roxen/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-index"
+  },
+  "next": {
+    "title": "features/roxen/symbols.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-symbols"
+  }
+}

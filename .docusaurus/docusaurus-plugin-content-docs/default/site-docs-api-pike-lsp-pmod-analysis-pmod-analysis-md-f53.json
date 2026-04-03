@@ -1,0 +1,21 @@
+{
+  "id": "api/pike/pike-LSP-pmod-Analysis-pmod-Analysis",
+  "title": "LSP-pmod-Analysis-pmod-Analysis",
+  "description": "API documentation for LSP.pmod/Analysis.pmod/Analysis.pike",
+  "source": "@site/docs/api/pike/LSP.pmod-Analysis.pmod-Analysis.md",
+  "sourceDirName": "api/pike",
+  "slug": "/api/pike/pike-LSP-pmod-Analysis-pmod-Analysis",
+  "permalink": "/pike-lsp/docs/api/pike/pike-LSP-pmod-Analysis-pmod-Analysis",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/api/pike/LSP.pmod-Analysis.pmod-Analysis.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771278358000,
+  "frontMatter": {
+    "id": "pike-LSP-pmod-Analysis-pmod-Analysis",
+    "title": "LSP-pmod-Analysis-pmod-Analysis",
+    "description": "API documentation for LSP.pmod/Analysis.pmod/Analysis.pike"
+  }
+}

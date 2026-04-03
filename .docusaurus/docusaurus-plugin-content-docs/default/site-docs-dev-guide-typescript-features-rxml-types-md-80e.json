@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-types",
+  "title": "features/rxml/types.ts",
+  "description": "Development guide for features/rxml/types.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-types.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-types",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-types",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-types.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-types",
+    "title": "features/rxml/types.ts",
+    "description": "Development guide for features/rxml/types.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/tag-catalog.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-tag-catalog"
+  },
+  "next": {
+    "title": "features/symbols.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-symbols"
+  }
+}

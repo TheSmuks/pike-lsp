@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-diagnostics",
+  "title": "features/diagnostics.ts",
+  "description": "Development guide for features/diagnostics.ts",
+  "source": "@site/docs/dev-guide/typescript/features-diagnostics.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-diagnostics",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-diagnostics.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-diagnostics",
+    "title": "features/diagnostics.ts",
+    "description": "Development guide for features/diagnostics.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/diagnostics/utils.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-utils"
+  },
+  "next": {
+    "title": "features/editing/autodoc.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-editing-autodoc"
+  }
+}

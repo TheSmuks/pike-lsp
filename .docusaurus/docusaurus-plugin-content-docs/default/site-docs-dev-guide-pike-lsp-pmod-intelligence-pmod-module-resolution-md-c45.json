@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-ModuleResolution",
+  "title": "LSP.pmod/Intelligence.pmod/ModuleResolution.pike",
+  "description": "Development guide for LSP.pmod/Intelligence.pmod/ModuleResolution.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Intelligence.pmod-ModuleResolution.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-ModuleResolution",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-ModuleResolution",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Intelligence.pmod-ModuleResolution.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Intelligence.pmod-ModuleResolution",
+    "title": "LSP.pmod/Intelligence.pmod/ModuleResolution.pike",
+    "description": "Development guide for LSP.pmod/Intelligence.pmod/ModuleResolution.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Intelligence.pmod/Introspection.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-Introspection"
+  },
+  "next": {
+    "title": "LSP.pmod/Intelligence.pmod/Resolution.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-Resolution"
+  }
+}

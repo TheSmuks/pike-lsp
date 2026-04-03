@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-index",
+  "title": "features/rxml/index.ts",
+  "description": "Development guide for features/rxml/index.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-index",
+    "title": "features/rxml/index.ts",
+    "description": "Development guide for features/rxml/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/hover-provider.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-hover-provider"
+  },
+  "next": {
+    "title": "features/rxml/mixed-content.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-mixed-content"
+  }
+}

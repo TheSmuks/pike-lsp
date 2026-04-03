@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-utils-index",
+  "title": "features/utils/index.ts",
+  "description": "Development guide for features/utils/index.ts",
+  "source": "@site/docs/dev-guide/typescript/features-utils-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-utils-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-utils-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-utils-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-utils-index",
+    "title": "features/utils/index.ts",
+    "description": "Development guide for features/utils/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/utils/hover-builder.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-utils-hover-builder"
+  },
+  "next": {
+    "title": "features/utils/pike-identifier.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-utils-pike-identifier"
+  }
+}

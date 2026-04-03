@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-editing-signature-help",
+  "title": "features/editing/signature-help.ts",
+  "description": "Development guide for features/editing/signature-help.ts",
+  "source": "@site/docs/dev-guide/typescript/features-editing-signature-help.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-editing-signature-help",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-editing-signature-help",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-editing-signature-help.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-editing-signature-help",
+    "title": "features/editing/signature-help.ts",
+    "description": "Development guide for features/editing/signature-help.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/editing/rename.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-editing-rename"
+  },
+  "next": {
+    "title": "features/file-watcher.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-file-watcher"
+  }
+}

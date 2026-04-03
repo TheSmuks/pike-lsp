@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-diagnostics-utils",
+  "title": "features/diagnostics/utils.ts",
+  "description": "Development guide for features/diagnostics/utils.ts",
+  "source": "@site/docs/dev-guide/typescript/features-diagnostics-utils.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-diagnostics-utils",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-utils",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-diagnostics-utils.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-diagnostics-utils",
+    "title": "features/diagnostics/utils.ts",
+    "description": "Development guide for features/diagnostics/utils.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/diagnostics/symbol-index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-symbol-index"
+  },
+  "next": {
+    "title": "features/diagnostics.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics"
+  }
+}

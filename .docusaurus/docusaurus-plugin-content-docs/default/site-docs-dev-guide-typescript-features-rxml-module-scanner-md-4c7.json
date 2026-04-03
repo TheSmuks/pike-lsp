@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-module-scanner",
+  "title": "features/rxml/module-scanner.ts",
+  "description": "Development guide for features/rxml/module-scanner.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-module-scanner.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-module-scanner",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-module-scanner",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-module-scanner.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-module-scanner",
+    "title": "features/rxml/module-scanner.ts",
+    "description": "Development guide for features/rxml/module-scanner.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/rxml/mixed-content.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-mixed-content"
+  },
+  "next": {
+    "title": "features/rxml/parser.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-parser"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-navigation-implementation",
+  "title": "features/navigation/implementation.ts",
+  "description": "Development guide for features/navigation/implementation.ts",
+  "source": "@site/docs/dev-guide/typescript/features-navigation-implementation.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-navigation-implementation",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-implementation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-navigation-implementation.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-navigation-implementation",
+    "title": "features/navigation/implementation.ts",
+    "description": "Development guide for features/navigation/implementation.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/navigation/hover.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-hover"
+  },
+  "next": {
+    "title": "features/navigation/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-index"
+  }
+}

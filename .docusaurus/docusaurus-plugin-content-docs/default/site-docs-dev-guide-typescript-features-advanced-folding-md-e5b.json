@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-folding",
+  "title": "features/advanced/folding.ts",
+  "description": "Development guide for features/advanced/folding.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-folding.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-folding",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-folding",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-folding.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-folding",
+    "title": "features/advanced/folding.ts",
+    "description": "Development guide for features/advanced/folding.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/extract-method.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-extract-method"
+  },
+  "next": {
+    "title": "features/advanced/formatting.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-formatting"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-diagnostics-index",
+  "title": "features/diagnostics/index.ts",
+  "description": "Development guide for features/diagnostics/index.ts",
+  "source": "@site/docs/dev-guide/typescript/features-diagnostics-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-diagnostics-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-diagnostics-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-diagnostics-index",
+    "title": "features/diagnostics/index.ts",
+    "description": "Development guide for features/diagnostics/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/diagnostics/change-detection.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-change-detection"
+  },
+  "next": {
+    "title": "features/diagnostics/symbol-index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-diagnostics-symbol-index"
+  }
+}

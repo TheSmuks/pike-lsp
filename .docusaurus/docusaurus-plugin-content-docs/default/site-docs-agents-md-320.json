@@ -1,0 +1,17 @@
+{
+  "id": "agents",
+  "title": "Agent Guidelines",
+  "description": "Quick Start (Carlini Protocol)",
+  "source": "@site/docs/agents.md",
+  "sourceDirName": ".",
+  "slug": "/agents",
+  "permalink": "/pike-lsp/docs/agents",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/agents.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1775138666000,
+  "frontMatter": {}
+}

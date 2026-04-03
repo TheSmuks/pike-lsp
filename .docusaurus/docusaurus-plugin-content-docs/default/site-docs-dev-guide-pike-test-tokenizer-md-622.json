@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-test-tokenizer",
+  "title": "test-tokenizer.pike",
+  "description": "Development guide for test-tokenizer.pike",
+  "source": "@site/docs/dev-guide/pike/test-tokenizer.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-test-tokenizer",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-tokenizer",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/test-tokenizer.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-test-tokenizer",
+    "title": "test-tokenizer.pike",
+    "description": "Development guide for test-tokenizer.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "test-parser-simple.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-test-parser-simple"
+  },
+  "next": {
+    "title": "constants/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-constants-index"
+  }
+}

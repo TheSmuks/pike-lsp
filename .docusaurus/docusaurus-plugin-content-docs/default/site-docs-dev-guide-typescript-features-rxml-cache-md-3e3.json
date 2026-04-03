@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-rxml-cache",
+  "title": "features/rxml/cache.ts",
+  "description": "Development guide for features/rxml/cache.ts",
+  "source": "@site/docs/dev-guide/typescript/features-rxml-cache.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-rxml-cache",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-cache",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-rxml-cache.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-rxml-cache",
+    "title": "features/rxml/cache.ts",
+    "description": "Development guide for features/rxml/cache.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/roxen/types.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-types"
+  },
+  "next": {
+    "title": "features/rxml/catalog-manager.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-rxml-catalog-manager"
+  }
+}

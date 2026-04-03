@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-services-include-resolver",
+  "title": "services/include-resolver.ts",
+  "description": "Development guide for services/include-resolver.ts",
+  "source": "@site/docs/dev-guide/typescript/services-include-resolver.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-services-include-resolver",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-services-include-resolver",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/services-include-resolver.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-services-include-resolver",
+    "title": "services/include-resolver.ts",
+    "description": "Development guide for services/include-resolver.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "services/document-cache.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-services-document-cache"
+  },
+  "next": {
+    "title": "services/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-services-index"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-document-links",
+  "title": "features/advanced/document-links.ts",
+  "description": "Development guide for features/advanced/document-links.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-document-links.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-document-links",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-document-links",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-document-links.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-document-links",
+    "title": "features/advanced/document-links.ts",
+    "description": "Development guide for features/advanced/document-links.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/code-lens.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-code-lens"
+  },
+  "next": {
+    "title": "features/advanced/extract-method.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-extract-method"
+  }
+}

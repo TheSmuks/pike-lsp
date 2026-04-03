@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-core-types",
+  "title": "core/types.ts",
+  "description": "Development guide for core/types.ts",
+  "source": "@site/docs/dev-guide/typescript/core-types.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-core-types",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-core-types",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/core-types.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-core-types",
+    "title": "core/types.ts",
+    "description": "Development guide for core/types.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "core/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-core-index"
+  },
+  "next": {
+    "title": "TypeScript Error Handling Pattern",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-error-handling"
+  }
+}

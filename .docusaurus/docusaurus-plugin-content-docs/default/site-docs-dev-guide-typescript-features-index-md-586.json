@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-index",
+  "title": "features/index.ts",
+  "description": "Development guide for features/index.ts",
+  "source": "@site/docs/dev-guide/typescript/features-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-index",
+    "title": "features/index.ts",
+    "description": "Development guide for features/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/hierarchy.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-hierarchy"
+  },
+  "next": {
+    "title": "features/navigation/definition-utils.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-navigation-definition-utils"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-advanced-getters-setters",
+  "title": "features/advanced/getters-setters.ts",
+  "description": "Development guide for features/advanced/getters-setters.ts",
+  "source": "@site/docs/dev-guide/typescript/features-advanced-getters-setters.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-advanced-getters-setters",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-getters-setters",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-advanced-getters-setters.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-advanced-getters-setters",
+    "title": "features/advanced/getters-setters.ts",
+    "description": "Development guide for features/advanced/getters-setters.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/advanced/formatting.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-formatting"
+  },
+  "next": {
+    "title": "features/advanced/index.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-advanced-index"
+  }
+}

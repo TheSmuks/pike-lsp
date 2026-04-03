@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-features-roxen-index",
+  "title": "features/roxen/index.ts",
+  "description": "Development guide for features/roxen/index.ts",
+  "source": "@site/docs/dev-guide/typescript/features-roxen-index.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-features-roxen-index",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-index",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/features-roxen-index.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-features-roxen-index",
+    "title": "features/roxen/index.ts",
+    "description": "Development guide for features/roxen/index.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "features/roxen/diagnostics.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-diagnostics"
+  },
+  "next": {
+    "title": "features/roxen/parser-helpers.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-features-roxen-parser-helpers"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/typescript/ts-utils-code-lens",
+  "title": "utils/code-lens.ts",
+  "description": "Development guide for utils/code-lens.ts",
+  "source": "@site/docs/dev-guide/typescript/utils-code-lens.md",
+  "sourceDirName": "dev-guide/typescript",
+  "slug": "/dev-guide/typescript/ts-utils-code-lens",
+  "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-code-lens",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/typescript/utils-code-lens.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "ts-utils-code-lens",
+    "title": "utils/code-lens.ts",
+    "description": "Development guide for utils/code-lens.ts"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "type-database.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-type-database"
+  },
+  "next": {
+    "title": "utils/compatibility.ts",
+    "permalink": "/pike-lsp/docs/dev-guide/typescript/ts-utils-compatibility"
+  }
+}

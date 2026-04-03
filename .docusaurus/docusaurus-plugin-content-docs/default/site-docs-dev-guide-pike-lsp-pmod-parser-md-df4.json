@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Parser",
+  "title": "LSP.pmod/Parser.pike",
+  "description": "Development guide for LSP.pmod/Parser.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Parser.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Parser",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Parser",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Parser.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1774549801000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Parser",
+    "title": "LSP.pmod/Parser.pike",
+    "description": "Development guide for LSP.pmod/Parser.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Intelligence.pmod/TypeAnalysis.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-TypeAnalysis"
+  },
+  "next": {
+    "title": "LSP.pmod/Rename.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Rename"
+  }
+}

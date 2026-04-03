@@ -1,0 +1,30 @@
+{
+  "id": "dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-TypeAnalysis",
+  "title": "LSP.pmod/Intelligence.pmod/TypeAnalysis.pike",
+  "description": "Development guide for LSP.pmod/Intelligence.pmod/TypeAnalysis.pike",
+  "source": "@site/docs/dev-guide/pike/LSP.pmod-Intelligence.pmod-TypeAnalysis.md",
+  "sourceDirName": "dev-guide/pike",
+  "slug": "/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-TypeAnalysis",
+  "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-TypeAnalysis",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/TheSmuks/pike-lsp/tree/main/docs/dev-guide/pike/LSP.pmod-Intelligence.pmod-TypeAnalysis.md",
+  "tags": [],
+  "version": "current",
+  "lastUpdatedBy": "Smuks",
+  "lastUpdatedAt": 1771608294000,
+  "frontMatter": {
+    "id": "pike-LSP.pmod-Intelligence.pmod-TypeAnalysis",
+    "title": "LSP.pmod/Intelligence.pmod/TypeAnalysis.pike",
+    "description": "Development guide for LSP.pmod/Intelligence.pmod/TypeAnalysis.pike"
+  },
+  "sidebar": "docsSidebar",
+  "previous": {
+    "title": "LSP.pmod/Intelligence.pmod/Resolution.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Intelligence.pmod-Resolution"
+  },
+  "next": {
+    "title": "LSP.pmod/Parser.pike",
+    "permalink": "/pike-lsp/docs/dev-guide/pike/pike-LSP.pmod-Parser"
+  }
+}
