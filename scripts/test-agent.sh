@@ -37,9 +37,10 @@ if ! command -v pike &>/dev/null; then
 fi
 
 REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
+source "$(dirname "$0")/lib/agent-state.sh"
 cd "$REPO_ROOT"
 
-LOG_DIR="$REPO_ROOT/.omc/test-logs"
+LOG_DIR="$(ensure_shared_dir)/test-logs"
 mkdir -p "$LOG_DIR"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -336,16 +337,9 @@ fi
 
 # --- Watchdog: cleanup after full suite ---
 if [ "$MODE" = "full" ] && [ "$SUITE" = "all" ]; then
-  WATCHDOG_SCRIPT=""
-  if [ -x "$REPO_ROOT/.sisyphus/hooks/watchdog.sh" ]; then
-    WATCHDOG_SCRIPT="$REPO_ROOT/.sisyphus/hooks/watchdog.sh"
-  elif [ -x "$REPO_ROOT/scripts/watchdog.sh" ]; then
-    WATCHDOG_SCRIPT="$REPO_ROOT/scripts/watchdog.sh"
-  fi
-
-  if [ -n "$WATCHDOG_SCRIPT" ]; then
+  if [ -x "$REPO_ROOT/scripts/watchdog.sh" ]; then
     echo "  Running watchdog cleanup..."
-    "$WATCHDOG_SCRIPT" || true
+    "$REPO_ROOT/scripts/watchdog.sh" || true
   fi
 fi
 

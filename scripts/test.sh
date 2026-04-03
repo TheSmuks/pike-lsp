@@ -27,9 +27,10 @@ if ! command -v pike &>/dev/null; then
 fi
 
 REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
+source "$(dirname "$0")/lib/agent-state.sh"
 cd "$REPO_ROOT"
 
-LOG_DIR="$REPO_ROOT/.omc/test-logs"
+LOG_DIR="$(ensure_shared_dir)/test-logs"
 mkdir -p "$LOG_DIR"
 
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)

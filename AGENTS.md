@@ -29,8 +29,13 @@ Do not create issues titled "update npm packages" — say "update bun dependenci
 **Always sync before starting.** Main moves fast; working from a stale base causes merge conflicts, wasted effort, and duplicate fixes. If you find yourself resolving avoidable conflicts or re-implementing something already in main, this step was missed.
 
 ```bash
+# Single agent (fast iteration):
 git checkout main && git pull origin main
 git checkout -b fix/my-topic
+
+# Parallel agents (use worktrees):
+scripts/worktree.sh create fix/my-topic
+scripts/worktree.sh create fix/my-topic --from main
 ```
 
 Never commit directly to `main`.

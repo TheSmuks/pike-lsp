@@ -15,6 +15,8 @@
 
 set -euo pipefail
 
+source "$(dirname "$0")/lib/agent-state.sh"
+
 # Discover tools: check common locations if not already on PATH
 for dir in "$HOME/.bun/bin" /usr/local/bin; do
   [ -d "$dir" ] && export PATH="$dir:$PATH"
@@ -124,7 +126,7 @@ cleanup_inactive() {
   echo -e "${BLUE}Checking for inactive worktrees (>${INACTIVITY_DAYS} days)...${NC}"
 
   local removed=0
-  git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | while read -r wt_path; do
+  while read -r wt_path; do
     # Skip main repo
     if [ "$wt_path" = "$REPO_ROOT" ]; then
       continue
@@ -158,7 +160,7 @@ cleanup_inactive() {
     fi
 
     removed=$((removed + 1))
-  done
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //')
 
   if [ "$removed" -gt 0 ]; then
     echo -e "${GREEN}Removed $removed inactive worktree(s)${NC}"
@@ -171,7 +173,7 @@ cmd_prune() {
   echo -e "${BLUE}Pruning merged worktrees...${NC}"
 
   local removed=0
-  git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | while read -r wt_path; do
+  while read -r wt_path; do
     # Skip main repo
     if [ "$wt_path" = "$REPO_ROOT" ]; then
       continue
@@ -201,14 +203,9 @@ cmd_prune() {
       # Delete merged branch
       git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
 
-      # Delete remote branch if it exists
-      if git -C "$REPO_ROOT" ls-remote --heads origin "$branch" 2>/dev/null | grep -q "$branch"; then
-        git -C "$REPO_ROOT" push origin --delete "$branch" --no-verify 2>/dev/null || true
-      fi
-
       removed=$((removed + 1))
     fi
-  done
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //')
 
   # Prune stale worktree references
   git -C "$REPO_ROOT" worktree prune
@@ -299,8 +296,8 @@ cmd_create() {
   done
 
   # Append issue number to branch if provided
-  if [ -n "$issue_num" ] && [[ ! "$branch" =~ \#${issue_num} ]]; then
-    branch="${branch}-#${issue_num}"
+  if [ -n "$issue_num" ] && [[ ! "$branch" =~ (^|[^0-9])${issue_num}([^0-9]|$) ]]; then
+    branch="${branch}-${issue_num}"
   fi
 
   # Check if worktree already exists (by branch name or issue number)
@@ -321,7 +318,7 @@ cmd_create() {
       fi
       local b
       b=$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || continue)
-      if [[ "$b" =~ \#${issue_num} ]]; then
+      if [[ "$b" =~ (^|[^0-9])${issue_num}([^0-9]|$) ]]; then
         echo -e "${YELLOW}Worktree already exists for issue #$issue_num${NC}"
         echo "  Branch: $b"
         echo "  Path:   $wt"
@@ -331,7 +328,8 @@ cmd_create() {
   fi
 
   # Acquire lock to prevent race conditions between parallel agents
-  LOCK_FILE="/tmp/pike-lsp-worktree.lock"
+  LOCK_FILE="$(shared_state_dir)/worktree-create.lock"
+  mkdir -p "$(dirname "$LOCK_FILE")"
   exec 9>"$LOCK_FILE"
   if ! flock -n 9; then
     echo -e "${RED}Error: Another worktree creation in progress. Retry shortly.${NC}"
@@ -509,7 +507,7 @@ cmd_cleanup() {
   echo -e "${BLUE}Scanning worktrees...${NC}"
 
   local removed=0
-  git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //' | while read -r wt_path; do
+  while read -r wt_path; do
     # Skip main repo
     if [ "$wt_path" = "$REPO_ROOT" ]; then
       continue
@@ -546,18 +544,13 @@ cmd_cleanup() {
 
       if [ "$is_merged" = true ]; then
         git -C "$REPO_ROOT" branch -d "$branch" 2>/dev/null || true
-        # Also delete the remote branch if it exists
-        if git -C "$REPO_ROOT" ls-remote --heads origin "$branch" 2>/dev/null | grep -q "$branch"; then
-          echo -e "    ${RED}DELETE REMOTE${NC} origin/$branch"
-          git -C "$REPO_ROOT" push origin --delete "$branch" --no-verify 2>/dev/null || true
-        fi
       fi
 
       removed=$((removed + 1))
     else
       echo -e "  ${GREEN}KEEP${NC} $wt_path ($branch) [not merged]"
     fi
-  done
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain | grep "^worktree " | sed 's/^worktree //')
 
   # Prune stale worktree references
   git -C "$REPO_ROOT" worktree prune

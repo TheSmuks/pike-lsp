@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(dirname "$0")/lib/agent-state.sh"
 # worker-setup.sh — Single-call bootstrap: issue → worktree.
 #
 # Usage:
@@ -38,8 +39,9 @@ fi
 
 # Step 1.6: Check for existing worktree with this issue
 for wt in $(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null | grep "^worktree " | sed 's/^worktree //'); do
-  if [[ -f "$wt/.omc/current-issue" ]]; then
-    WT_ISSUE=$(head -1 "$wt/.omc/current-issue" 2>/dev/null || echo "")
+  local_issue_file="$(git -C "$wt" rev-parse --git-dir 2>/dev/null)/pike-lsp/current-issue"
+  if [[ -f "$local_issue_file" ]]; then
+    WT_ISSUE=$(head -1 "$local_issue_file" 2>/dev/null || echo "")
     if [[ "$WT_ISSUE" == "$ISSUE_NUM" ]]; then
       echo "SETUP:FAIL | Issue #${ISSUE_NUM} already being worked on in: $wt" >&2
       exit 1
@@ -87,8 +89,10 @@ fi
 ABS_PATH=$(cd "$WT_PATH" && pwd)
 
 # Write issue info for worker verification
-echo "$ISSUE_NUM" > "$WT_PATH/.omc/current-issue"
-echo "$TITLE" >> "$WT_PATH/.omc/current-issue"
+LOCAL_DIR="$(git -C "$WT_PATH" rev-parse --git-dir)/pike-lsp"
+mkdir -p "$LOCAL_DIR"
+echo "$ISSUE_NUM" > "$LOCAL_DIR/current-issue"
+echo "$TITLE" >> "$LOCAL_DIR/current-issue"
 
 echo ""
 echo "=== WORKER VERIFICATION REQUIRED ==="
