@@ -302,3 +302,51 @@ export function buildSymbolPositionIndexRegex(
 
   return index;
 }
+
+/**
+ * Build call position index for O(1) lookups.
+ * #1206: Uses Pike tokenization to detect function calls (identifier followed by '(')
+ * without using regex. This is more accurate for detecting actual function calls.
+ */
+export function buildCallPositionIndex(
+  tokens: PikeToken[],
+  callableNames: Set<string>
+): Map<string, CorePosition[]> {
+  const index = new Map<string, CorePosition[]>();
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token) continue;
+
+    // Skip if not a callable name we're interested in
+    if (!callableNames.has(token.text)) {
+      continue;
+    }
+
+    // Check if next token is '(' - this indicates a function call
+    const nextToken = tokens[i + 1];
+    if (!nextToken) {
+      continue;
+    }
+
+    // Accept various paren token types that Pike might return
+    const isParen = nextToken.text === '(';
+
+    if (!isParen) {
+      continue;
+    }
+
+    // Convert to 0-indexed positions
+    const line = Math.max(0, token.line - 1);
+    const character = Math.max(0, token.character);
+
+    const pos: CorePosition = { line, character };
+
+    if (!index.has(token.text)) {
+      index.set(token.text, []);
+    }
+    index.get(token.text)!.push(pos);
+  }
+
+  return index;
+}
