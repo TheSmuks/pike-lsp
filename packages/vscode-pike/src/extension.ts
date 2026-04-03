@@ -595,7 +595,11 @@ async function activateInternal(
     }
   }
 
-  const runWithPike = async (uri: string, symbolName?: string): Promise<void> => {
+  const runWithPike = async (
+    uri: string,
+    symbolName?: string,
+    isTest: boolean = false
+  ): Promise<number> => {
     const parsed = Uri.parse(uri);
     const config = workspace.getConfiguration('pike');
     const configuredInterpreter = config.get<string>('runnable.interpreterPath', '');
@@ -604,18 +608,75 @@ async function activateInternal(
         ? configuredInterpreter
         : config.get<string>('pikePath', 'pike');
     const interpreterArgs = config.get<string[]>('runnable.interpreterArgs', []);
+
+    // Handle saveBeforeRun setting
+    const saveBeforeRun = config.get<boolean>('runnable.saveBeforeRun', true);
+    if (saveBeforeRun) {
+      const doc = await workspace.openTextDocument(parsed);
+      if (doc.isDirty) {
+        await doc.save();
+      }
+    }
+
+    // Build args
     const args = [...interpreterArgs, parsed.fsPath];
     if (symbolName) {
       args.push(symbolName);
     }
 
-    runtime.getOutputChannel().show(true);
+    // Add testArgs if this is a test command
+    if (isTest) {
+      const testArgs = config.get<string[]>('runnable.testArgs', []);
+      args.push(...testArgs);
+    }
+
+    // Handle clearOutputBeforeRun setting
+    const clearOutput = config.get<boolean>('runnable.clearOutputBeforeRun', true);
+    if (clearOutput) {
+      runtime.getOutputChannel().clear();
+    }
+
+    // Handle revealOutput setting - initial show
+    const revealOutput = config.get<string>('runnable.revealOutput', 'always');
+    if (revealOutput === 'always') {
+      runtime.getOutputChannel().show(true);
+    }
+
     runtime.getOutputChannel().appendLine(`[pike.run] ${pikePath} ${args.join(' ')}`);
 
-    await new Promise<void>((resolve, reject) => {
+    // Determine cwd based on runnable.cwd setting
+    const cwdSetting = config.get<string>('runnable.cwd', 'workspaceFolder');
+    let cwd: string | undefined;
+    if (cwdSetting === 'fileDir') {
+      cwd = path.dirname(parsed.fsPath);
+    } else {
+      cwd = workspace.workspaceFolders?.[0]?.uri.fsPath;
+    }
+
+    // Build environment with configured paths if enabled
+    const useConfiguredPaths = config.get<boolean>('runnable.useConfiguredPaths', true);
+    let env = { ...process.env };
+    if (useConfiguredPaths) {
+      const pathSeparator = process.platform === 'win32' ? ';' : ':';
+      const normalizedModulePaths = config.get<string[]>('pikeModulePath', []);
+      const normalizedIncludePaths = config.get<string[]>('pikeIncludePath', []);
+      const normalizedProgramPaths = config.get<string[]>('pikeProgramPath', []);
+
+      if (normalizedModulePaths.length > 0) {
+        env['PIKE_MODULE_PATH'] = normalizedModulePaths.join(pathSeparator);
+      }
+      if (normalizedIncludePaths.length > 0) {
+        env['PIKE_INCLUDE_PATH'] = normalizedIncludePaths.join(pathSeparator);
+      }
+      if (normalizedProgramPaths.length > 0) {
+        env['PIKE_PROGRAM_PATH'] = normalizedProgramPaths.join(pathSeparator);
+      }
+    }
+
+    return new Promise<number>((resolve, reject) => {
       const child = spawn(pikePath, args, {
-        cwd: workspace.workspaceFolders?.[0]?.uri.fsPath,
-        env: process.env,
+        cwd,
+        env,
       });
 
       child.stdout.on('data', data => {
@@ -632,7 +693,13 @@ async function activateInternal(
 
       child.on('close', code => {
         runtime.getOutputChannel().appendLine(`[pike.run] process exited with code ${code ?? -1}`);
-        resolve();
+
+        // Handle revealOutput setting based on exit code
+        if (revealOutput === 'error' && code !== 0) {
+          runtime.getOutputChannel().show(true);
+        }
+
+        resolve(code ?? -1);
       });
     });
   };
@@ -754,7 +821,7 @@ async function activateInternal(
       }
 
       try {
-        await runWithPike(uri, symbolName);
+        await runWithPike(uri, symbolName, true);
       } catch (err) {
         const safeMessage = anonymizeSensitivePaths(String(err));
         runtime.getOutputChannel().appendLine(`[pike.lsp.runTest] Failed: ${safeMessage}`);
@@ -778,7 +845,7 @@ async function activateInternal(
         uri = editor.document.uri.toString();
       }
       try {
-        await runWithPike(uri);
+        await runWithPike(uri, undefined, true);
       } catch (err) {
         const safeMessage = anonymizeSensitivePaths(String(err));
         runtime.getOutputChannel().appendLine(`[pike.lsp.runFileTests] Failed: ${safeMessage}`);
