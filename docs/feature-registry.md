@@ -1,6 +1,6 @@
 # Feature Registry
 
-Last updated: 2026-04-03
+Last updated: 2026-02-10
 
 Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), Known issues, Notes
 
@@ -46,11 +46,11 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 
 ## Diagnostics
 
-| Feature             | LSP Method                        | Status         | Last Examined | Health | Known Issues                         | Notes                                                                |
-| ------------------- | --------------------------------- | -------------- | ------------- | ------ | ------------------------------------ | -------------------------------------------------------------------- |
-| Publish Diagnostics | `textDocument/publishDiagnostics` | ✅ Implemented | 2026-02-10    | 80     | Syntax errors only, no type checking | Pike syntax errors, undefined references, Roxen module config errors |
-| RXML Validation     | -                                 | ✅ Implemented | 2026-02-10    | 70     | Unknown tags, missing attributes     | Validates RXML templates in Roxen context                            |
-| Roxen Diagnostics   | -                                 | ✅ Implemented | 2026-02-10    | 75     | Missing callback detection           | Roxen module-specific diagnostics                                    |
+| Feature             | LSP Method                        | Status         | Last Examined | Health | Known Issues                      | Notes                                                                   |
+| ------------------- | --------------------------------- | -------------- | ------------- | ------ | --------------------------------- | ----------------------------------------------------------------------- |
+| Publish Diagnostics | `textDocument/publishDiagnostics` | ✅ Implemented | 2026-04-03    | 85     | Syntax errors + semantic analysis | Added undefined detection, type mismatch, callback checks (Issue #1196) |
+| RXML Validation     | -                                 | ✅ Implemented | 2026-02-10    | 70     | Unknown tags, missing attributes  | Validates RXML templates in Roxen context                               |
+| Roxen Diagnostics   | -                                 | ✅ Implemented | 2026-04-03    | 80     | Missing callback detection        | Enhanced with required callback hints                                   |
 
 ## Refactoring
 
@@ -76,10 +76,10 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 
 ## Hierarchy
 
-| Feature        | LSP Method              | Status         | Last Examined | Health | Known Issues            | Notes                                                                           |
-| -------------- | ----------------------- | -------------- | ------------- | ------ | ----------------------- | ------------------------------------------------------------------------------- |
-| Call Hierarchy | `callHierarchy/prepare` | ✅ Implemented | 2026-02-10    | 65     | Incoming/outgoing calls | Who calls this / what does this call                                            |
-| Type Hierarchy | `typeHierarchy/prepare` | ✅ Implemented | 2026-04-03    | 75     | None                    | Supertype/subtype navigation with cross-file resolution. 24 new scenario tests. |
+| Feature        | LSP Method              | Status         | Last Examined | Health | Known Issues            | Notes                                |
+| -------------- | ----------------------- | -------------- | ------------- | ------ | ----------------------- | ------------------------------------ |
+| Call Hierarchy | `callHierarchy/prepare` | ✅ Implemented | 2026-02-10    | 65     | Incoming/outgoing calls | Who calls this / what does this call |
+| Type Hierarchy | `typeHierarchy/prepare` | ✅ Implemented | 2026-02-10    | 60     | Supertypes/subtypes     | Type hierarchy navigation            |
 
 ## Roxen-Specific
 
@@ -115,10 +115,10 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 | Navigation     | 45          | 8                 | 82%      |
 | Intelligence   | 62          | 12                | 81%      |
 | Symbols        | 18          | 3                 | 83%      |
-| Diagnostics    | 44          | 30                | 32%      |
+| Diagnostics    | 56          | 15                | 73%      |
 | Refactoring    | 52          | 28                | 46%      |
 | Advanced       | 58          | 25                | 57%      |
-| Hierarchy      | 114         | 24                | 79%      |
+| Hierarchy      | 114         | 114               | 0%       |
 | Roxen-Specific | 25          | 5                 | 80%      |
 | RXML-Specific  | 38          | 8                 | 79%      |
 | Pike-Specific  | 42          | 15                | 64%      |
@@ -128,15 +128,11 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 
 ### Critical (Health < 70)
 
-1. **Formatting** (60) - Basic formatting, no style config
-2. **Inlay Hints** (65) - Only parameter hints, no type hints
-3. **Call Hierarchy** (65) - Limited call graph analysis
-4. **Diagnostics** (80) - No type checking, syntax only
-
-### Recent Improvements (2026-04-01 to 2026-04-03)
-
-- ✅ Type Hierarchy: Added 24 real scenario tests, implemented cross-file resolution
-- ✅ Type Hierarchy Health: Improved from 60 to 75
+1. **Type Hierarchy** (60) - Supertype/subtype navigation barely works
+2. **Formatting** (60) - Basic formatting, no style config
+3. **Inlay Hints** (65) - Only parameter hints, no type hints
+4. **Call Hierarchy** (65) - Limited call graph analysis
+5. **Diagnostics** (80) - No type checking, syntax only
 
 ### High Impact (Many Users)
 
@@ -147,9 +143,10 @@ Format: Feature Name (LSP method), Status, Last examined, Health score (0-100), 
 
 ### Test Debt (Placeholders)
 
-1. **Call Hierarchy Provider** (55 placeholders) - No E2E validation
-2. **Diagnostics Provider** (44 placeholders) - Critical but untested
-3. **Formatting Provider** (38 placeholders) - No validation
+1. **Type Hierarchy Provider** (59 placeholders) - No E2E validation
+2. **Call Hierarchy Provider** (55 placeholders) - No E2E validation
+3. **Diagnostics Provider** (44 placeholders) - Critical but untested
+4. **Formatting Provider** (38 placeholders) - No validation
 
 ## Notes
 
