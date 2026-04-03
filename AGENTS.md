@@ -496,3 +496,4 @@ The `.agent-knowledge/` directory is a **hierarchical tree** of accumulated lear
 - Unit tests instead of scenarios for behavior verification.
 - Code without a scenario requiring it.
 - Starting work without reading the knowledge base.
+- **Significant changes without KB documentation** — see `docs/kb-enforcement-policy.md`.

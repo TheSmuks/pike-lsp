@@ -67,6 +67,25 @@ jobs:
               );
             }
 
+            // Must have KB section filled (or explicitly exempted)
+            const kbMatch = body.match(
+              /##\s*Knowledge\s*Base\s*\n([\s\S]*?)(\n##\s|$)/i
+            );
+            const kbContent = kbMatch ? kbMatch[1] : '';
+
+            // Check if KB checkbox is marked complete OR exempt is checked
+            const kbAdded = /-\s*\[x\]\s*Added\/updated\s*KB\s*entry/i.test(kbContent);
+            const kbExempt = /-\s*\[x\]\s*Exempt/i.test(kbContent);
+
+            if (!kbAdded && !kbExempt) {
+              errors.push(
+                '- Missing Knowledge Base documentation.\n' +
+                '  Either check "Added/updated KB entry" and provide KB IDs,\n' +
+                '  OR check "Exempt" with explanation for trivial changes.\n' +
+                '  See docs/kb-enforcement-policy.md'
+              );
+            }
+
             if (errors.length > 0) {
               await addLabel();
               core.setFailed(
