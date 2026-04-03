@@ -11,11 +11,11 @@ Quick reference for agents working on the Pike LSP codebase.
 
 ## Recent Learnings (Last 5)
 
-1. **2026-04-03**: Pike `import` order doesn't matter (late binding) - only `inherit` requires ordering
-2. **2026-04-03**: Test Explorer module already existed, just needed wiring
-3. **2026-04-03**: Check package.json for existing settings before adding new ones
-4. **2026-04-03**: Pre-commit hooks can block - use `--no-verify` when appropriate
-5. **2026-04-03**: CI can be slow - wait 2-3 minutes for all checks
+1. **2026-04-03**: Google ADK skill patterns align with our knowledge base structure (L1/L2/L3 progressive disclosure)
+2. **2026-04-03**: Pike `import` order doesn't matter (late binding) - only `inherit` requires ordering
+3. **2026-04-03**: Test Explorer module already existed, just needed wiring
+4. **2026-04-03**: Check package.json for existing settings before adding new ones
+5. **2026-04-03**: Pre-commit hooks can block - use `--no-verify` when appropriate
 
 ## Before You Start
 
@@ -29,3 +29,13 @@ Quick reference for agents working on the Pike LSP codebase.
 1. Document any new discoveries in discoveries.md
 2. Add any new gotchas to gotchas.md
 3. Update this INDEX.md with new learnings
+
+## Knowledge Base Structure
+
+This knowledge base follows the progressive disclosure pattern (inspired by Google ADK):
+
+- **L1 (INDEX.md)**: Quick reference - always loaded
+- **L2 (patterns.md, gotchas.md)**: Detailed knowledge - loaded on demand
+- **L3 (test files, references)**: External resources - loaded when needed
+
+See [discoveries.md](discoveries.md) for analysis of Google ADK skill patterns and how they apply to our knowledge base.
