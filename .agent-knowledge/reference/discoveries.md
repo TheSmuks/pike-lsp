@@ -298,6 +298,25 @@ if (existing.length > 0) throw collisionError;
 
 ## 2026-04-03: Shared Call Context Resolver Prevents Signature/Inlay Drift
 
+## 2026-04-03: Auto-import Feature Hooks into Diagnostic Data + Completion Data
+
+**Finding**: The cleanest auto-import flow is to use structured `Diagnostic.data` metadata for unresolved symbols (`kind`, `symbol`, `importCandidates`) and mirror the same metadata shape in completion `item.data` for resolve-time edits.
+
+**Implementation Pattern**:
+
+1. Emit unresolved diagnostics with code `undefined-symbol.unresolved-import`
+2. Keep diagnostic payload structured (`data`) instead of parsing message strings
+3. Use a dedicated `PikeIntrospectionService.searchImportableSymbols()` to merge workspace + stdlib candidates
+4. Apply deterministic ordering by `score desc`, then lexical tie-breaks
+5. Insert imports at the existing import/include/inherit block boundary
+
+**Files**:
+
+- `packages/pike-lsp-server/src/features/diagnostics/semantic-analyzer.ts`
+- `packages/pike-lsp-server/src/features/advanced/code-actions.ts`
+- `packages/pike-lsp-server/src/features/editing/completion.ts`
+- `packages/pike-lsp-server/src/services/pike-introspection.ts`
+
 **Finding**: Signature help and inlay hints were using independent call parsers, causing mismatch on nested calls, member calls, and comment/string false positives.
 
 **Pattern**:

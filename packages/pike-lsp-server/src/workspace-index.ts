@@ -41,6 +41,14 @@ interface SymbolEntry {
   parentName?: string; // WS-001: Parent symbol name for containerName field
 }
 
+export interface ImportableSymbolSearchResult {
+  symbol: string;
+  modulePath: string;
+  importKind: 'import' | 'inherit';
+  score: number;
+  source: 'workspace-index';
+}
+
 /**
  * Error callback type for reporting indexing errors
  */
@@ -296,6 +304,70 @@ export class WorkspaceIndex {
   getDocumentSymbols(uri: string): PikeSymbol[] {
     const symbols = this.documents.get(uri)?.symbols ?? [];
     return symbols.map(symbol => this.toFlattenedSymbolEntry(symbol).symbol);
+  }
+
+  searchImportableSymbols(
+    query: string,
+    options: { excludeUri?: string; limit?: number } = {}
+  ): ImportableSymbolSearchResult[] {
+    const queryLower = query.trim().toLowerCase();
+    if (!queryLower) {
+      return [];
+    }
+
+    const candidates: ImportableSymbolSearchResult[] = [];
+    const seen = new Set<string>();
+    const limit = Math.max(1, options.limit ?? 20);
+
+    for (const [nameLower, entriesByUri] of this.symbolLookup) {
+      if (!nameLower.startsWith(queryLower)) {
+        continue;
+      }
+
+      for (const [uri, entry] of entriesByUri) {
+        if (options.excludeUri && uri === options.excludeUri) {
+          continue;
+        }
+
+        const modulePath = this.uriToModulePath(uri);
+        if (!modulePath) {
+          continue;
+        }
+
+        const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
+        const exactBoost = entry.name.toLowerCase() === queryLower ? 120 : 0;
+        const kindBoost = importKind === 'inherit' ? 15 : 5;
+        const score = exactBoost + kindBoost + Math.max(0, 60 - modulePath.length);
+        const dedupeKey = `${entry.name}:${modulePath}:${importKind}`;
+        if (seen.has(dedupeKey)) {
+          continue;
+        }
+        seen.add(dedupeKey);
+
+        candidates.push({
+          symbol: entry.name,
+          modulePath,
+          importKind,
+          score,
+          source: 'workspace-index',
+        });
+      }
+    }
+
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      if (a.symbol !== b.symbol) {
+        return a.symbol.localeCompare(b.symbol);
+      }
+      if (a.importKind !== b.importKind) {
+        return a.importKind.localeCompare(b.importKind);
+      }
+      return a.modulePath.localeCompare(b.modulePath);
+    });
+
+    return candidates.slice(0, limit);
   }
 
   /**
@@ -877,6 +949,24 @@ export class WorkspaceIndex {
         this.searchCache.delete(cacheKey);
       }
     }
+  }
+
+  private uriToModulePath(uri: string): string | null {
+    const normalizedUri = decodeURIComponent(uri);
+    const withoutScheme = normalizedUri.startsWith('file://')
+      ? normalizedUri.slice('file://'.length)
+      : normalizedUri;
+    const basename = path.basename(withoutScheme);
+    if (!basename) {
+      return null;
+    }
+
+    const dotIndex = basename.lastIndexOf('.');
+    if (dotIndex <= 0) {
+      return basename;
+    }
+
+    return basename.slice(0, dotIndex);
   }
 
   /**

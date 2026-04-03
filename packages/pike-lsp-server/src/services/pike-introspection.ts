@@ -1,5 +1,7 @@
 import type { InheritanceInfo, IntrospectedSymbol, PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from './index.js';
+import type { StdlibIndexManager } from '../stdlib-index.js';
+import type { WorkspaceIndex } from '../workspace-index.js';
 import { uriToFsPath } from '../utils/uri-path.js';
 
 export interface InheritRelation {
@@ -10,6 +12,14 @@ export interface InheritRelation {
   inheritedPath?: string;
 }
 
+export interface ImportableSymbolCandidate {
+  symbol: string;
+  modulePath: string;
+  importKind: 'import' | 'inherit';
+  score: number;
+  source: 'workspace-index' | 'stdlib-index';
+}
+
 interface CachedIntrospectionDocument {
   symbols: PikeSymbol[];
   relations: InheritRelation[];
@@ -17,10 +27,25 @@ interface CachedIntrospectionDocument {
   versionKey: string;
 }
 
+const DEFAULT_STDLIB_MODULES = [
+  'Parser',
+  'Parser.Pike',
+  'Stdio',
+  'String',
+  'Array',
+  'Math',
+] as const;
+
 export class PikeIntrospectionService {
   private readonly cache = new Map<string, CachedIntrospectionDocument>();
 
-  constructor(private readonly services: Services) {}
+  constructor(
+    private readonly services: Services,
+    private readonly workspaceIndex?: WorkspaceIndex,
+    private readonly stdlibIndex?: StdlibIndexManager | null
+  ) {}
+
+  // === P0 Methods for hierarchy/implementation ===
 
   async getSymbols(uri: string): Promise<PikeSymbol[]> {
     const doc = await this.getDocument(uri);
@@ -44,6 +69,27 @@ export class PikeIntrospectionService {
     const typeKind = match.type?.kind ?? 'mixed';
     return `${match.name}: ${typeKind}`;
   }
+
+  // === Auto-import methods ===
+
+  async searchImportableSymbols(
+    symbol: string,
+    options: { excludeUri?: string; limit?: number } = {}
+  ): Promise<ImportableSymbolCandidate[]> {
+    const query = symbol.trim();
+    if (!query) {
+      return [];
+    }
+
+    const workspaceCandidates = this.workspaceIndex?.searchImportableSymbols(query, options) ?? [];
+    const stdlibCandidates = await this.searchStdlibCandidates(query);
+    const merged = this.mergeCandidates(workspaceCandidates, stdlibCandidates);
+
+    const limit = Math.max(1, options.limit ?? 20);
+    return merged.slice(0, limit);
+  }
+
+  // === Private helper methods ===
 
   private async getDocument(uri: string): Promise<CachedIntrospectionDocument> {
     const cached = this.cache.get(uri);
@@ -160,8 +206,6 @@ export class PikeIntrospectionService {
       .sort((a, b) => (a.position.line ?? 0) - (b.position.line ?? 0));
 
     const introspectedNames = this.collectInheritanceNames(introspectedInherits);
-    // Only use introspection as additional source, not as filter
-    // This allows symbols to be used when introspection is incomplete
     const hasCompleteIntrospection = introspectedInherits.length > 0 && introspectedNames.size > 0;
     const relations: InheritRelation[] = [];
 
@@ -175,8 +219,6 @@ export class PikeIntrospectionService {
         continue;
       }
 
-      // Only skip if we have complete introspection AND this inherit is not confirmed
-      // This preserves behavior when introspection is partial or missing
       if (hasCompleteIntrospection && !introspectedNames.has(inheritedName)) {
         continue;
       }
@@ -266,5 +308,81 @@ export class PikeIntrospectionService {
     }
 
     return text.trim();
+  }
+
+  // === Auto-import private methods ===
+
+  private async searchStdlibCandidates(query: string): Promise<ImportableSymbolCandidate[]> {
+    if (!this.stdlibIndex) {
+      return [];
+    }
+
+    const queryLower = query.toLowerCase();
+    const candidates: ImportableSymbolCandidate[] = [];
+
+    for (const modulePath of DEFAULT_STDLIB_MODULES) {
+      const moduleInfo = await this.stdlibIndex.getModule(modulePath);
+      if (!moduleInfo?.symbols) {
+        continue;
+      }
+
+      for (const [name, symbolInfo] of moduleInfo.symbols) {
+        if (!name.toLowerCase().startsWith(queryLower)) {
+          continue;
+        }
+
+        const importKind: 'import' | 'inherit' = symbolInfo.kind === 'class' ? 'inherit' : 'import';
+        const exactBoost = name.toLowerCase() === queryLower ? 130 : 0;
+        const kindBoost = importKind === 'inherit' ? 15 : 10;
+
+        candidates.push({
+          symbol: name,
+          modulePath,
+          importKind,
+          score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length),
+          source: 'stdlib-index',
+        });
+      }
+    }
+
+    return candidates;
+  }
+
+  private mergeCandidates(
+    workspaceCandidates: Array<{
+      symbol: string;
+      modulePath: string;
+      importKind: 'import' | 'inherit';
+      score: number;
+      source: string;
+    }>,
+    stdlibCandidates: ImportableSymbolCandidate[]
+  ): ImportableSymbolCandidate[] {
+    const merged: ImportableSymbolCandidate[] = [
+      ...workspaceCandidates.map(c => ({ ...c, source: 'workspace-index' as const })),
+      ...stdlibCandidates,
+    ];
+    const deduped = new Map<string, ImportableSymbolCandidate>();
+
+    for (const candidate of merged) {
+      const key = `${candidate.symbol}:${candidate.modulePath}:${candidate.importKind}`;
+      const existing = deduped.get(key);
+      if (!existing || candidate.score > existing.score) {
+        deduped.set(key, candidate);
+      }
+    }
+
+    return [...deduped.values()].sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      if (a.symbol !== b.symbol) {
+        return a.symbol.localeCompare(b.symbol);
+      }
+      if (a.modulePath !== b.modulePath) {
+        return a.modulePath.localeCompare(b.modulePath);
+      }
+      return a.importKind.localeCompare(b.importKind);
+    });
   }
 }
