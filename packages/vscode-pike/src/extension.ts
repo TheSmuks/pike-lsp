@@ -400,6 +400,14 @@ class ExtensionRuntime {
           PIKE_INCLUDE_PATH: normalizedIncludePaths.join(pathSeparator),
           PIKE_PROGRAM_PATH: normalizedProgramPaths.join(pathSeparator),
         },
+        maxNumberOfProblems: config.get<number>('maxNumberOfProblems', 100),
+        inlayHints: {
+          enabled: config.get<boolean>('inlayHints.enabled', true),
+          parameterNames: config.get<boolean>('inlayHints.parameterNames', true),
+        },
+        inlineValues: {
+          enabled: config.get<boolean>('inlineValues.enabled', true),
+        },
       },
       middleware: this.createMiddleware(),
       outputChannel: this.outputChannel,
