@@ -295,3 +295,41 @@ if (existing.length > 0) throw collisionError;
 **Lesson**: Knowledge base must be discoverable in standard agent workflow.
 
 ---
+
+## 2026-04-03: KB Enforcement System Implementation
+
+**Finding**: Implemented multi-layer KB enforcement as per docs/kb-enforcement-policy.md.
+
+**Enforcement Layers Added**:
+
+1. **PR Template** (`.github/PULL_REQUEST_TEMPLATE.md`):
+   - KB section with checkbox for entry added
+   - Checkbox for exemption with explanation
+   - KB ID field for traceability
+
+2. **CI Enforcement** (`.github/workflows/enforce-acceptance-criteria.yml`):
+   - Validates KB section is filled or exempted
+   - Fails PR if neither checkbox is marked
+
+3. **Pre-commit Hook** (`.husky/pre-commit`):
+   - Runs `scripts/check-kb-compliance.ts --staged`
+   - Warns when code changes lack KB updates
+
+4. **AGENTS.md Forbidden Section**:
+   - Added: "Significant changes without KB documentation"
+   - References enforcement policy
+
+**Implementation Challenges**:
+
+- Legacy KB files lack frontmatter (exempted from validation)
+- Script uses Bun native APIs (no external glob dependency)
+- Only validates NEW/CHANGED KB entries (not legacy)
+
+**Code Changes**:
+
+- `scripts/check-kb-compliance.ts`: Validation logic
+- `.husky/pre-commit`: Integration
+- `.github/workflows/enforce-acceptance-criteria.yml`: CI gate
+- `AGENTS.md`: Policy reference
+
+---

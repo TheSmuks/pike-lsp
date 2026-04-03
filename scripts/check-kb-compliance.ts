@@ -11,7 +11,6 @@
  */
 
 import { parseArgs } from 'util';
-import { glob } from 'glob';
 import { readFileSync } from 'fs';
 import { execSync } from 'child_process';
 
@@ -77,21 +76,26 @@ function getChangedFiles(): string[] {
     .filter(f => f.length > 0);
 }
 
-// Get all KB files
-function getKBFiles(): string[] {
+// Get all KB files (for ID uniqueness check only)
+function getAllKBFiles(): string[] {
   const kbFiles: string[] = [];
   const domains = ['architecture', 'testing', 'ci-cd', 'workflows', 'reference'];
 
   for (const domain of domains) {
     try {
-      const files = glob.sync(`.agent-knowledge/${domain}/*.md`);
-      kbFiles.push(...files);
+      const dirPath = `.agent-knowledge/${domain}`;
+      const entries = require('fs').readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md') {
+          kbFiles.push(`${dirPath}/${entry.name}`);
+        }
+      }
     } catch {
       // Directory might not exist
     }
   }
 
-  return kbFiles.filter(f => !f.endsWith('INDEX.md'));
+  return kbFiles;
 }
 
 // Parse frontmatter from markdown
@@ -208,7 +212,7 @@ async function main() {
   console.log('🔍 KB Compliance Check\n');
 
   const changedFiles = getChangedFiles();
-  const kbFiles = getKBFiles();
+  const kbFiles = getAllKBFiles();
   const changedKBFiles = changedFiles.filter(f => f.startsWith('.agent-knowledge/'));
   const changedCodeFiles = changedFiles.filter(
     f => f.startsWith('packages/') || f.startsWith('src/')
@@ -218,11 +222,11 @@ async function main() {
   console.log(`  KB files: ${changedKBFiles.length}`);
   console.log(`  Code files: ${changedCodeFiles.length}\n`);
 
-  // Collect all KB entries
+  // Collect KB entries from NEW/CHANGED KB files only (not legacy ones)
   const kbEntries: KBEntry[] = [];
   const kbIds = new Set<string>();
 
-  for (const file of kbFiles) {
+  for (const file of changedKBFiles) {
     const entry = validateKBEntry(file);
     if (entry) {
       // Check for duplicates
@@ -238,7 +242,7 @@ async function main() {
     }
   }
 
-  console.log(`✓ Validated ${kbEntries.length} KB entries\n`);
+  console.log(`✓ Validated ${kbEntries.length} new KB entries\n`);
 
   // Check code references
   const codeFiles = changedCodeFiles.filter(
