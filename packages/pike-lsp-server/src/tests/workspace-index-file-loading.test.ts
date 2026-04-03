@@ -214,4 +214,85 @@ describe('WorkspaceIndex file loading', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('restores persisted workspace symbol index for warm-start queries', async () => {
+    const index = new WorkspaceIndex({ isRunning: () => true } as any);
+    const state = index as unknown as {
+      documents: Map<string, unknown>;
+      addToLookup: (uri: string, entries: unknown[], lineCount?: number) => void;
+    };
+
+    const uri = 'file:///warm-start.pike';
+    const entries = [
+      {
+        symbol: {
+          name: 'WarmStartSymbol',
+          kind: 'method',
+          position: { line: 7 },
+        },
+      },
+    ];
+
+    state.documents.set(uri, {
+      uri,
+      symbols: entries,
+      version: 1,
+      lastModified: Date.now(),
+      lineCount: 20,
+    });
+    state.addToLookup(uri, entries, 20);
+
+    const serialized = index.serializeSymbolIndex();
+
+    const hydrated = new WorkspaceIndex({ isRunning: () => true } as any);
+    const loadedDocs = hydrated.hydrateSymbolIndex(serialized);
+    const results = hydrated.searchSymbols('WarmStartSymbol', 10);
+
+    expect(loadedDocs).toBe(1);
+    expect(results.length).toBe(1);
+    expect(results[0]?.location.uri).toBe(uri);
+  });
+
+  it('supports camel-case scoring order after warm-start hydration', () => {
+    const index = new WorkspaceIndex({ isRunning: () => true } as any);
+    const state = index as unknown as {
+      documents: Map<string, unknown>;
+      addToLookup: (uri: string, entries: unknown[], lineCount?: number) => void;
+    };
+
+    const uri = 'file:///camel.pike';
+    const entries = [
+      {
+        symbol: {
+          name: 'getCurrentConfig',
+          kind: 'method',
+          position: { line: 1 },
+        },
+      },
+      {
+        symbol: {
+          name: 'gcFactory',
+          kind: 'method',
+          position: { line: 2 },
+        },
+      },
+    ];
+
+    state.documents.set(uri, {
+      uri,
+      symbols: entries,
+      version: 1,
+      lastModified: Date.now(),
+      lineCount: 20,
+    });
+    state.addToLookup(uri, entries, 20);
+
+    const serialized = index.serializeSymbolIndex();
+    const hydrated = new WorkspaceIndex({ isRunning: () => true } as any);
+    hydrated.hydrateSymbolIndex(serialized);
+
+    const results = hydrated.searchSymbols('gc', 10);
+    expect(results[0]?.name).toBe('gcFactory');
+    expect(results[1]?.name).toBe('getCurrentConfig');
+  });
 });

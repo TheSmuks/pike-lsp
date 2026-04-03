@@ -2,7 +2,11 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { assertInvariant, canPublishDiagnosticsVersion } from './invariants.js';
-import { buildStaleFallbackEntry } from '../../features/diagnostics/index.js';
+import {
+  buildStaleFallbackEntry,
+  canPublishDiagnosticsRevision,
+  nextValidationRevision,
+} from '../../features/diagnostics/index.js';
 
 type Operation = { kind: 'bump' } | { kind: 'publish'; validatedVersion: number };
 
@@ -40,6 +44,60 @@ describe('Property Invariant: diagnostics version monotonic', () => {
           }
         }
       )
+    );
+  });
+
+  it('only latest unpublished revision can publish diagnostics', () => {
+    type RevisionOp =
+      | { kind: 'schedule' }
+      | { kind: 'publish'; revision: number }
+      | { kind: 'mark-published'; revision: number };
+
+    const opArbitrary: fc.Arbitrary<RevisionOp> = fc.oneof(
+      fc.constant({ kind: 'schedule' as const }),
+      fc.record({
+        kind: fc.constant('publish' as const),
+        revision: fc.integer({ min: 0, max: 500 }),
+      }),
+      fc.record({
+        kind: fc.constant('mark-published' as const),
+        revision: fc.integer({ min: 0, max: 500 }),
+      })
+    );
+
+    assertInvariant(
+      'diagnostics-revision-monotonic-publish-rights',
+      fc.property(fc.array(opArbitrary, { minLength: 1, maxLength: 220 }), operations => {
+        let latestScheduledRevision: number | undefined;
+        let latestPublishedRevision: number | undefined;
+
+        for (const operation of operations) {
+          if (operation.kind === 'schedule') {
+            latestScheduledRevision = nextValidationRevision(latestScheduledRevision);
+            continue;
+          }
+
+          if (operation.kind === 'mark-published') {
+            latestPublishedRevision = Math.max(latestPublishedRevision ?? 0, operation.revision);
+            continue;
+          }
+
+          const allowed = canPublishDiagnosticsRevision(
+            operation.revision,
+            latestScheduledRevision,
+            latestPublishedRevision
+          );
+
+          if (!allowed) {
+            continue;
+          }
+
+          assert.equal(operation.revision, latestScheduledRevision);
+          assert.equal(operation.revision > (latestPublishedRevision ?? 0), true);
+
+          latestPublishedRevision = operation.revision;
+        }
+      })
     );
   });
 

@@ -21,6 +21,13 @@ import { LSP } from '../constants/index.js';
 import { detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
 import { detectRXMLStrings, mergeSymbolTrees } from './rxml/mixed-content.js';
 
+type WorkspaceSymbolMatchTier = 'exact' | 'prefix' | 'camel' | 'substring' | 'none';
+
+interface RankedWorkspaceSymbol {
+  symbol: SymbolInformation;
+  score: number;
+}
+
 /**
  * Convert Pike symbol kind to LSP SymbolKind.
  *
@@ -107,6 +114,122 @@ export function registerSymbolsHandlers(
 ): void {
   const { documentCache, workspaceIndex } = services;
   const log = new Logger('symbols');
+
+  const buildAcronym = (name: string): string => {
+    const initials: string[] = [];
+    const letters = Array.from(name);
+    for (let i = 0; i < letters.length; i++) {
+      const ch = letters[i]!;
+      const prev = i > 0 ? letters[i - 1]! : '';
+      const isUpper = ch >= 'A' && ch <= 'Z';
+      const startsWord =
+        i === 0 ||
+        prev === '_' ||
+        prev === '-' ||
+        prev === '.' ||
+        (isUpper && prev >= 'a' && prev <= 'z');
+
+      if (startsWord && /[A-Za-z0-9]/.test(ch)) {
+        initials.push(ch.toLowerCase());
+      }
+    }
+
+    if (initials.length === 0 && name.length > 0) {
+      initials.push(name[0]!.toLowerCase());
+    }
+
+    return initials.join('');
+  };
+
+  const matchTier = (name: string, queryLower: string): WorkspaceSymbolMatchTier => {
+    if (!queryLower) {
+      return 'none';
+    }
+    const nameLower = name.toLowerCase();
+    if (nameLower === queryLower) {
+      return 'exact';
+    }
+    if (nameLower.startsWith(queryLower)) {
+      return 'prefix';
+    }
+    if (buildAcronym(name).startsWith(queryLower)) {
+      return 'camel';
+    }
+    if (nameLower.includes(queryLower)) {
+      return 'substring';
+    }
+    return 'none';
+  };
+
+  const scoreSymbol = (symbol: SymbolInformation, queryLower: string): number => {
+    const tier = matchTier(symbol.name, queryLower);
+    if (tier === 'none') {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    const tierScore =
+      tier === 'exact'
+        ? 400_000
+        : tier === 'prefix'
+          ? 300_000
+          : tier === 'camel'
+            ? 200_000
+            : 100_000;
+    const nameLower = symbol.name.toLowerCase();
+    const startIndex = nameLower.indexOf(queryLower);
+    const startPenalty = startIndex < 0 ? 0 : Math.min(startIndex, 500);
+    const lengthPenalty = Math.min(symbol.name.length, 1000);
+    const linePenalty = Math.min(symbol.location.range.start.line, 100_000) / 100_000;
+    return tierScore - startPenalty * 100 - lengthPenalty - linePenalty;
+  };
+
+  const compareRanked = (a: RankedWorkspaceSymbol, b: RankedWorkspaceSymbol): number => {
+    if (Math.abs(a.score - b.score) > 0.0001) {
+      return b.score - a.score;
+    }
+    if (a.symbol.name.length !== b.symbol.name.length) {
+      return a.symbol.name.length - b.symbol.name.length;
+    }
+    const nameCmp = a.symbol.name.localeCompare(b.symbol.name);
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+    const uriCmp = a.symbol.location.uri.localeCompare(b.symbol.location.uri);
+    if (uriCmp !== 0) {
+      return uriCmp;
+    }
+    return a.symbol.location.range.start.line - b.symbol.location.range.start.line;
+  };
+
+  const insertTopN = (
+    top: RankedWorkspaceSymbol[],
+    candidate: RankedWorkspaceSymbol,
+    n: number
+  ) => {
+    if (n <= 0) {
+      return;
+    }
+
+    if (top.length >= n) {
+      const worst = top[top.length - 1]!;
+      if (compareRanked(candidate, worst) >= 0) {
+        return;
+      }
+    }
+
+    let insertAt = top.length;
+    for (let i = 0; i < top.length; i++) {
+      if (compareRanked(candidate, top[i]!) < 0) {
+        insertAt = i;
+        break;
+      }
+    }
+
+    top.splice(insertAt, 0, candidate);
+    if (top.length > n) {
+      top.pop();
+    }
+  };
 
   /**
    * Convert Pike symbol to LSP DocumentSymbol
@@ -238,59 +361,61 @@ export function registerSymbolsHandlers(
     log.debug('Workspace symbol request', { query, limit });
 
     try {
-      const allSymbols: SymbolInformation[] = [];
+      const allSymbols: RankedWorkspaceSymbol[] = [];
       const queryLower = query?.toLowerCase() ?? '';
+      const dedupeKey = new Set<string>();
       const cachedUris = new Set<string>();
+
+      const maybeInsert = (symbol: SymbolInformation): void => {
+        const key = `${symbol.name}:${symbol.location.uri}:${symbol.location.range.start.line}`;
+        if (dedupeKey.has(key)) {
+          return;
+        }
+        dedupeKey.add(key);
+
+        if (queryLower.length > 0 && matchTier(symbol.name, queryLower) === 'none') {
+          return;
+        }
+
+        const score = queryLower.length > 0 ? scoreSymbol(symbol, queryLower) : 0;
+        insertTopN(allSymbols, { symbol, score }, limit);
+      };
 
       for (const [uri, cached] of Array.from(documentCache.entries())) {
         cachedUris.add(uri);
-
         for (const symbol of cached.symbols) {
-          // Skip symbols with null names
           if (!symbol.name) continue;
-
-          if (!query || symbol.name.toLowerCase().includes(queryLower)) {
-            const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
-            allSymbols.push({
-              name: symbol.name,
-              kind: convertSymbolKind(symbol.kind),
-              location: {
-                uri,
-                range: {
-                  start: { line, character: 0 },
-                  end: { line, character: symbol.name.length },
-                },
+          const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
+          maybeInsert({
+            name: symbol.name,
+            kind: convertSymbolKind(symbol.kind),
+            location: {
+              uri,
+              range: {
+                start: { line, character: 0 },
+                end: { line, character: symbol.name.length },
               },
-            });
-
-            if (allSymbols.length >= limit) {
-              log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
-              return allSymbols;
-            }
-          }
+            },
+          });
         }
       }
 
-      const indexedResults = workspaceIndex.searchSymbols(query, limit);
+      const indexedResults = workspaceIndex.searchSymbols(query, Math.max(limit * 4, limit + 20));
       for (const indexed of indexedResults) {
         if (cachedUris.has(indexed.location.uri)) {
           continue;
         }
-
-        allSymbols.push(indexed);
-
-        if (allSymbols.length >= limit) {
-          log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
-          return allSymbols;
-        }
+        maybeInsert(indexed);
       }
+
+      const finalSymbols = allSymbols.map(item => item.symbol);
 
       log.debug('Workspace symbol search complete', {
         query,
         indexedCount: indexedResults.length,
-        totalCount: allSymbols.length,
+        totalCount: finalSymbols.length,
       });
-      return allSymbols;
+      return finalSymbols;
     } catch (err) {
       log.error(
         `Workspace symbol failed for query "${query}": ${err instanceof Error ? err.message : String(err)}`

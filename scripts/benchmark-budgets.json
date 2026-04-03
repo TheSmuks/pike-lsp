@@ -30,6 +30,10 @@
       "maxRegressionPct": 20,
       "subMsMaxAbsoluteRegressionMs": 0.3
     },
+    "Workspace symbols: query \"render\" over 10k symbols": {
+      "maxRegressionPct": 8,
+      "subMsMaxAbsoluteRegressionMs": 0.05
+    },
     "resolveStdlib(\"Stdio.File\") - nested": {
       "maxRegressionPct": 20,
       "subMsMaxAbsoluteRegressionMs": 0.08

@@ -97,6 +97,25 @@ export {
 
 type AnalysisOperation = import('@pike-lsp/pike-bridge').AnalysisOperation;
 
+export function nextValidationRevision(currentRevision: number | undefined): number {
+  return (currentRevision ?? 0) + 1;
+}
+
+export function canPublishDiagnosticsRevision(
+  validationRevision: number,
+  latestScheduledRevision: number | undefined,
+  latestPublishedRevision: number | undefined
+): boolean {
+  if (latestScheduledRevision === undefined) {
+    return false;
+  }
+
+  return (
+    validationRevision === latestScheduledRevision &&
+    validationRevision > (latestPublishedRevision ?? 0)
+  );
+}
+
 export function applySkippedValidationCacheUpdate(
   cachedEntry: DocumentCacheEntry,
   currentVersion: number,
@@ -191,6 +210,9 @@ export function registerDiagnosticsHandlers(
   // INC-563: Track expected document version for each debounced validation
   // This prevents stale validations from overwriting fresher results after undo
   const validationVersions = new Map<string, number>();
+  const validationScheduledRevisions = new Map<string, number>();
+  const validationRevisions = new Map<string, number>();
+  const publishedDiagnosticRevisions = new Map<string, number>();
 
   // INC-002: Track change ranges for incremental parsing.
   const pendingChangeStates = new Map<string, PendingChangeState>();
@@ -200,6 +222,30 @@ export function registerDiagnosticsHandlers(
   const diagnosticsScheduler = new RequestScheduler({ logger: log });
   const SCHEDULER_METRICS_LOG_EVERY = 25;
   let validationCompletions = 0;
+
+  const issueValidationRevision = (uri: string): number => {
+    const revision = nextValidationRevision(validationRevisions.get(uri));
+    validationRevisions.set(uri, revision);
+    return revision;
+  };
+
+  const hasValidationRights = (uri: string, validationRevision: number): boolean => {
+    return validationRevisions.get(uri) === validationRevision;
+  };
+
+  const claimPublishRights = (uri: string, validationRevision: number): boolean => {
+    const allowed = canPublishDiagnosticsRevision(
+      validationRevision,
+      validationRevisions.get(uri),
+      publishedDiagnosticRevisions.get(uri)
+    );
+    if (!allowed) {
+      return false;
+    }
+
+    publishedDiagnosticRevisions.set(uri, validationRevision);
+    return true;
+  };
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -296,6 +342,7 @@ export function registerDiagnosticsHandlers(
   function validateDocumentDebounced(document: TextDocument): void {
     const uri = document.uri;
     const version = document.version;
+    const validationRevision = issueValidationRevision(uri);
 
     // Clear existing timer
     const existingTimer = validationTimers.get(uri);
@@ -307,6 +354,7 @@ export function registerDiagnosticsHandlers(
     // This prevents stale validations from overwriting fresher results after undo
     const expectedVersion = version;
     validationVersions.set(uri, expectedVersion);
+    validationScheduledRevisions.set(uri, validationRevision);
 
     // Set new timer
     const timer = setTimeout(() => {
@@ -315,6 +363,7 @@ export function registerDiagnosticsHandlers(
       const liveDocument = documents.get(uri);
       if (!liveDocument) {
         validationVersions.delete(uri);
+        validationScheduledRevisions.delete(uri);
         pendingChangeStates.delete(uri);
         return;
       }
@@ -323,7 +372,15 @@ export function registerDiagnosticsHandlers(
       const currentVersion = liveDocument.version;
       if (currentVersion !== expectedVersion) {
         validationVersions.delete(uri);
+        validationScheduledRevisions.delete(uri);
         // Clear pending change range since we're skipping
+        pendingChangeStates.delete(uri);
+        return;
+      }
+
+      if (validationScheduledRevisions.get(uri) !== validationRevision) {
+        validationVersions.delete(uri);
+        validationScheduledRevisions.delete(uri);
         pendingChangeStates.delete(uri);
         return;
       }
@@ -374,6 +431,13 @@ export function registerDiagnosticsHandlers(
           };
         }
 
+        if (
+          !hasValidationRights(uri, validationRevision) ||
+          !claimPublishRights(uri, validationRevision)
+        ) {
+          return;
+        }
+
         connection.sendDiagnostics({
           uri,
           version: currentVersion,
@@ -388,12 +452,19 @@ export function registerDiagnosticsHandlers(
         key: `diagnostics:${uri}`,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(liveDocument, classification, checkpoint, 'typing');
+          await validateDocument(
+            liveDocument,
+            classification,
+            checkpoint,
+            'typing',
+            validationRevision
+          );
         },
       });
       documentCache.setPending(uri, promise);
       promise.finally(() => {
         validationVersions.delete(uri);
+        validationScheduledRevisions.delete(uri);
       });
       promise.catch(err => {
         if (err instanceof RequestSupersededError) {
@@ -418,12 +489,13 @@ export function registerDiagnosticsHandlers(
     document: TextDocument,
     classification?: import('./change-detection.js').ChangeClassification,
     shouldContinue: () => void = () => {},
-    analysisMode: 'typing' | 'full' = 'full'
+    analysisMode: 'typing' | 'full' = 'full',
+    validationRevision: number = issueValidationRevision(document.uri)
   ): Promise<void> {
     const uri = document.uri;
     const version = document.version;
 
-    log.debug('VALIDATE_START', { uri, version });
+    log.debug('VALIDATE_START', { uri, version, validationRevision });
 
     const bridge = services.bridge;
     if (!bridge) {
@@ -498,11 +570,23 @@ export function registerDiagnosticsHandlers(
         log.debug('Skipping diagnostics stage for stale version', {
           uri,
           stage,
+          validationRevision,
           validatedVersion: version,
           latestVersion: live?.version,
         });
         return false;
       }
+
+      if (!hasValidationRights(uri, validationRevision)) {
+        log.debug('Skipping diagnostics stage for superseded validation revision', {
+          uri,
+          stage,
+          validationRevision,
+          latestRevision: validationRevisions.get(uri),
+        });
+        return false;
+      }
+
       return true;
     };
 
@@ -1235,8 +1319,19 @@ export function registerDiagnosticsHandlers(
       if (!latestBeforePublish || latestBeforePublish.version !== version) {
         log.debug('Skipping diagnostics publish for stale version', {
           uri,
+          validationRevision,
           validatedVersion: version,
           latestVersion: latestBeforePublish?.version,
+        });
+        return;
+      }
+
+      if (!claimPublishRights(uri, validationRevision)) {
+        log.debug('Skipping diagnostics publish without revision rights', {
+          uri,
+          validationRevision,
+          latestRevision: validationRevisions.get(uri),
+          latestPublishedRevision: publishedDiagnosticRevisions.get(uri),
         });
         return;
       }
@@ -1273,7 +1368,12 @@ export function registerDiagnosticsHandlers(
       }
       inFlightDiagnosticRequests.delete(uri);
       const liveDocument = documents.get(uri);
-      if (liveDocument && liveDocument.version === version) {
+      if (
+        liveDocument &&
+        liveDocument.version === version &&
+        hasValidationRights(uri, validationRevision) &&
+        claimPublishRights(uri, validationRevision)
+      ) {
         const fallbackDiagnostic: CoreDiagnostic = {
           severity: 1,
           range: {
@@ -1321,6 +1421,10 @@ export function registerDiagnosticsHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationScheduledRevisions,
+    validationRevisions,
+    publishedDiagnosticRevisions,
+    issueValidationRevision,
     validateDocument,
     validateDocumentDebounced,
     log,

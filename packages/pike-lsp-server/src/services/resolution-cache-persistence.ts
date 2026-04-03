@@ -7,6 +7,7 @@ const log = new Logger('ResolutionCachePersistence');
 
 const CACHE_DIR_NAME = 'pike-lsp';
 const CACHE_FILE_NAME = 'resolution-cache.json';
+const WORKSPACE_SYMBOL_CACHE_FILE_NAME = 'workspace-symbol-index.json';
 const CACHE_SCHEMA_VERSION = 1;
 const MAX_CACHE_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -25,6 +26,10 @@ function getCacheDir(): string {
 
 function getCacheFilePath(): string {
   return path.join(getCacheDir(), CACHE_FILE_NAME);
+}
+
+function getWorkspaceSymbolCacheFilePath(): string {
+  return path.join(getCacheDir(), WORKSPACE_SYMBOL_CACHE_FILE_NAME);
 }
 
 export async function saveResolutionCache(
@@ -138,5 +143,72 @@ export async function deleteResolutionCache(): Promise<void> {
     await fs.promises.unlink(cacheFile);
   } catch {
     return;
+  }
+}
+
+export async function saveWorkspaceSymbolIndex(
+  serializedData: string,
+  pikeVersion?: string
+): Promise<void> {
+  const cacheFile = getWorkspaceSymbolCacheFilePath();
+
+  try {
+    const cacheDir = getCacheDir();
+    await fs.promises.mkdir(cacheDir, { recursive: true });
+
+    const payload: PersistedCache = {
+      version: CACHE_SCHEMA_VERSION,
+      timestamp: Date.now(),
+      data: serializedData,
+    };
+
+    if (pikeVersion) {
+      payload.pikeVersion = pikeVersion;
+    }
+
+    await fs.promises.writeFile(cacheFile, JSON.stringify(payload), 'utf-8');
+  } catch (error) {
+    log.warn('Failed to save workspace symbol cache', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function loadWorkspaceSymbolIndex(
+  currentPikeVersion?: string
+): Promise<string | null> {
+  const cacheFile = getWorkspaceSymbolCacheFilePath();
+
+  try {
+    const content = await fs.promises.readFile(cacheFile, 'utf-8');
+    const parsed = JSON.parse(content) as unknown;
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+
+    const cache = parsed as Record<string, unknown>;
+    if (cache['version'] !== CACHE_SCHEMA_VERSION) {
+      return null;
+    }
+
+    if (
+      typeof cache['pikeVersion'] === 'string' &&
+      currentPikeVersion &&
+      cache['pikeVersion'] !== currentPikeVersion
+    ) {
+      return null;
+    }
+
+    if (typeof cache['timestamp'] === 'number') {
+      const age = Date.now() - cache['timestamp'];
+      if (age > MAX_CACHE_AGE_MS) {
+        return null;
+      }
+    }
+
+    return typeof cache['data'] === 'string' ? cache['data'] : null;
+  } catch {
+    return null;
   }
 }

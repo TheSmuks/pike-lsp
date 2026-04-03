@@ -3,6 +3,7 @@ import { PikeBridge } from '@pike-lsp/pike-bridge';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { WorkspaceIndex } from '../src/workspace-index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,49 @@ function readNestedNumber(record: AnyRecord, path: string[]): number | null {
     current = (current as AnyRecord)[key];
   }
   return typeof current === 'number' ? current : null;
+}
+
+function seedWorkspaceIndex(index: WorkspaceIndex, symbolCount: number): void {
+  const state = index as unknown as {
+    documents: Map<string, unknown>;
+    addToLookup: (uri: string, entries: unknown[], lineCount?: number) => void;
+    searchCache: Map<string, unknown>;
+  };
+
+  const perFile = 250;
+  const fileCount = Math.ceil(symbolCount / perFile);
+
+  for (let fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+    const uri = `file:///benchmark/workspace-${fileIndex}.pike`;
+    const entries: Array<{ symbol: { name: string; kind: string; position: { line: number } } }> =
+      [];
+    for (let i = 0; i < perFile; i++) {
+      const globalIndex = fileIndex * perFile + i;
+      if (globalIndex >= symbolCount) {
+        break;
+      }
+      const isPriority = globalIndex % 250 === 0;
+      const name = isPriority ? `renderWorkspaceSymbol${globalIndex}` : `Symbol_${globalIndex}`;
+      entries.push({
+        symbol: {
+          name,
+          kind: 'method',
+          position: { line: i + 1 },
+        },
+      });
+    }
+
+    state.documents.set(uri, {
+      uri,
+      symbols: entries,
+      version: 1,
+      lastModified: Date.now(),
+      lineCount: perFile + 5,
+    });
+    state.addToLookup(uri, entries, perFile + 5);
+  }
+
+  state.searchCache.clear();
 }
 
 async function runBenchmarks() {
@@ -347,6 +391,19 @@ async function runBenchmarks() {
       const res = await bridge.getCompletionContext(largePike, 20, 10, 'benchmark://large.pike', 2);
       trackPikeTime('Completion (cold)', res);
       return res;
+    });
+  });
+
+  group('Workspace Symbols (In-Memory)', () => {
+    const index = new WorkspaceIndex();
+    seedWorkspaceIndex(index, 10_000);
+
+    bench('Workspace symbols: query "render" over 10k symbols', () => {
+      const results = index.searchSymbols('render', 100);
+      if (results.length === 0) {
+        throw new Error('Expected workspace symbol results for benchmark query');
+      }
+      return results;
     });
   });
 

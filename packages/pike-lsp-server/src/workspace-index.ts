@@ -41,6 +41,29 @@ interface SymbolEntry {
   parentName?: string; // WS-001: Parent symbol name for containerName field
 }
 
+export interface ImportableSymbolCandidate {
+  name: string;
+  symbolKind: string;
+  uri: string;
+  importKind: 'import' | 'inherit';
+  statement: string;
+  sourcePath: string;
+}
+
+type MatchTier = 'exact' | 'prefix' | 'camel' | 'substring' | 'none';
+
+interface RankedSymbol {
+  result: SymbolInformation;
+  score: number;
+}
+
+interface PersistedWorkspaceIndex {
+  version: number;
+  documents: IndexedDocument[];
+}
+
+const WORKSPACE_INDEX_SCHEMA_VERSION = 1;
+
 /**
  * Error callback type for reporting indexing errors
  */
@@ -107,6 +130,9 @@ export class WorkspaceIndex {
   // PERF-XXX: Prefix index for O(1) prefix matching
   // Maps each prefix (2+ chars) to set of symbol names that have that prefix
   private prefixIndex = new Map<string, Set<string>>();
+
+  private camelCaseIndex = new Map<string, Set<string>>();
+  private nameToAcronym = new Map<string, string>();
 
   // PERF-430: LRU cache for search results
   // Caches frequently accessed search results to avoid recomputation
@@ -318,7 +344,6 @@ export class WorkspaceIndex {
     }
     this.searchCacheMisses++;
 
-    // If query is empty, return some symbols from each file (WS-016: unsorted)
     if (!queryLower) {
       for (const [uri, doc] of this.documents) {
         if (!doc.symbols) continue;
@@ -338,92 +363,79 @@ export class WorkspaceIndex {
       return results;
     }
 
-    // Collect all matching results
-    const matched: Array<{ result: SymbolInformation; score: number }> = [];
+    const top: RankedSymbol[] = [];
+    const seenNames = new Set<string>();
 
-    // PERF-XXX: Use prefix index for O(1) lookup instead of O(n) scan
-    // Collect unique symbol names that match the query
-    const matchingNames = new Set<string>();
-
-    if (queryLower.length >= 2) {
-      // Use prefix index for prefix matching (O(1) lookup)
-      const prefixSet = this.prefixIndex.get(queryLower);
-      if (prefixSet) {
-        for (const name of prefixSet) {
-          matchingNames.add(name);
-        }
+    const considerName = (nameLower: string): void => {
+      if (seenNames.has(nameLower)) {
+        return;
       }
-    }
+      seenNames.add(nameLower);
 
-    // Also check for exact/substring matches in symbolLookup (for shorter queries)
-    // This handles the case where query is 1 character
-    if (queryLower.length < 2 || matchingNames.size === 0) {
-      // Fall back to scanning for short queries or when prefix index misses
-      for (const name of this.symbolLookup.keys()) {
-        if (name.startsWith(queryLower) || name.includes(queryLower)) {
-          matchingNames.add(name);
-        }
+      const entriesByUri = this.symbolLookup.get(nameLower);
+      if (!entriesByUri) {
+        return;
       }
-    }
-
-    // Now get entries for all matching names
-    for (const name of matchingNames) {
-      const entriesByUri = this.symbolLookup.get(name);
-      if (!entriesByUri) continue;
 
       for (const entry of entriesByUri.values()) {
-        // Skip if this entry doesn't match (substring check)
-        if (
-          !entry.name.toLowerCase().startsWith(queryLower) &&
-          !entry.name.toLowerCase().includes(queryLower)
-        ) {
+        const tier = this.getMatchTier(entry.name, queryLower);
+        if (tier === 'none') {
           continue;
         }
 
-        const result: SymbolInformation = {
-          name: entry.name,
-          kind: this.convertSymbolKind(entry.kind),
-          location: {
-            uri: entry.uri,
-            range: {
-              start: {
-                line: this.normalizeLineToZeroBased(entry.line, entry.maxLine),
-                character: 0,
-              },
-              end: {
-                line: this.normalizeLineToZeroBased(entry.line, entry.maxLine),
-                character: entry.name.length,
-              },
-            },
-          },
-        };
-        // WS-001: Add containerName if parent exists
-        if (entry.parentName) {
-          result.containerName = entry.parentName;
-        }
+        const result = this.toSymbolInformationFromEntry(entry);
+        const score = this.scoreResult(result, queryLower, tier);
+        this.insertTopResult(top, { result, score }, limit);
+      }
+    };
 
-        // WS-012 through WS-017: Calculate relevance score
-        const score = this.scoreResult(result, queryLower);
-        matched.push({ result, score });
+    considerName(queryLower);
+
+    if (queryLower.length >= 2) {
+      const prefixSet = this.prefixIndex.get(queryLower);
+      if (prefixSet) {
+        for (const nameLower of prefixSet) {
+          considerName(nameLower);
+        }
+      }
+    } else {
+      for (const nameLower of this.symbolLookup.keys()) {
+        if (nameLower.startsWith(queryLower)) {
+          considerName(nameLower);
+        }
       }
     }
 
-    // WS-012 through WS-017: Sort by score, then name length, then alphabetically
-    matched.sort((a, b) => {
-      // Primary: score (descending)
-      if (Math.abs(b.score - a.score) > 0.01) {
-        return b.score - a.score;
+    if (!this.topResultsAreTier(top, limit, 'prefix')) {
+      const acronymSet = this.camelCaseIndex.get(queryLower);
+      if (acronymSet) {
+        for (const nameLower of acronymSet) {
+          considerName(nameLower);
+        }
       }
-      // Secondary: name length (ascending) - WS-014
-      if (a.result.name.length !== b.result.name.length) {
-        return a.result.name.length - b.result.name.length;
-      }
-      // Tertiary: alphabetical (ascending) - WS-017
-      return a.result.name.localeCompare(b.result.name);
-    });
 
-    // Return top results
-    const finalResults = matched.slice(0, limit).map(m => m.result);
+      for (const nameLower of this.symbolLookup.keys()) {
+        if (seenNames.has(nameLower)) {
+          continue;
+        }
+        if (this.getMatchTier(nameLower, queryLower) === 'camel') {
+          considerName(nameLower);
+        }
+      }
+    }
+
+    if (!this.topResultsAreTier(top, limit, 'camel')) {
+      for (const nameLower of this.symbolLookup.keys()) {
+        if (seenNames.has(nameLower)) {
+          continue;
+        }
+        if (nameLower.includes(queryLower)) {
+          considerName(nameLower);
+        }
+      }
+    }
+
+    const finalResults = top.map(item => item.result);
 
     if (this.searchCache.size >= WorkspaceIndex.SEARCH_CACHE_MAX_SIZE) {
       const oldestKey = this.searchCache.keys().next().value;
@@ -446,27 +458,178 @@ export class WorkspaceIndex {
    * - Substring match: 10 points
    * - Name length penalty: 0.1 per character (prefers shorter names within same match type)
    */
-  private scoreResult(result: SymbolInformation, queryLower: string): number {
+  private scoreResult(result: SymbolInformation, queryLower: string, tier?: MatchTier): number {
     const nameLower = result.name.toLowerCase();
-    let score = 0;
+    const actualTier = tier ?? this.getMatchTier(result.name, queryLower);
 
-    // Exact match (WS-012)
+    if (actualTier === 'none') {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    const tierScore =
+      actualTier === 'exact'
+        ? 400_000
+        : actualTier === 'prefix'
+          ? 300_000
+          : actualTier === 'camel'
+            ? 200_000
+            : 100_000;
+    const startIndex = nameLower.indexOf(queryLower);
+    const startPenalty = startIndex < 0 ? 0 : Math.min(startIndex, 500);
+    const lengthPenalty = Math.min(result.name.length, 1000);
+    const line = result.location.range.start.line;
+
+    return tierScore - startPenalty * 100 - lengthPenalty - Math.min(line, 100_000) / 100_000;
+  }
+
+  private toSymbolInformationFromEntry(entry: SymbolEntry): SymbolInformation {
+    const line = this.normalizeLineToZeroBased(entry.line, entry.maxLine);
+
+    const result: SymbolInformation = {
+      name: entry.name,
+      kind: this.convertSymbolKind(entry.kind),
+      location: {
+        uri: entry.uri,
+        range: {
+          start: {
+            line,
+            character: 0,
+          },
+          end: {
+            line,
+            character: entry.name.length,
+          },
+        },
+      },
+    };
+
+    if (entry.parentName) {
+      result.containerName = entry.parentName;
+    }
+
+    return result;
+  }
+
+  private getMatchTier(name: string, queryLower: string): MatchTier {
+    if (!queryLower) {
+      return 'none';
+    }
+
+    const nameLower = name.toLowerCase();
     if (nameLower === queryLower) {
-      score += 100;
+      return 'exact';
     }
-    // Prefix match (WS-013)
-    else if (nameLower.startsWith(queryLower)) {
-      score += 50;
+    if (nameLower.startsWith(queryLower)) {
+      return 'prefix';
     }
-    // Substring match
-    else if (nameLower.includes(queryLower)) {
-      score += 10;
+    if (this.isCamelCaseMatch(name, queryLower)) {
+      return 'camel';
+    }
+    if (nameLower.includes(queryLower)) {
+      return 'substring';
+    }
+    return 'none';
+  }
+
+  private isCamelCaseMatch(name: string, queryLower: string): boolean {
+    if (!queryLower) {
+      return false;
     }
 
-    // WS-014: Prefer shorter names within same match type
-    score -= result.name.length * 0.1;
+    const acronym = this.buildAcronym(name);
+    return acronym.startsWith(queryLower);
+  }
 
-    return score;
+  private buildAcronym(name: string): string {
+    const initials: string[] = [];
+    const letters = Array.from(name);
+    for (let i = 0; i < letters.length; i++) {
+      const ch = letters[i]!;
+      const prev = i > 0 ? letters[i - 1]! : '';
+      const isUpper = ch >= 'A' && ch <= 'Z';
+      const isDigit = ch >= '0' && ch <= '9';
+      const startsWord =
+        i === 0 ||
+        prev === '_' ||
+        prev === '-' ||
+        prev === '.' ||
+        (isUpper && prev >= 'a' && prev <= 'z');
+      if (startsWord && (/[A-Za-z]/.test(ch) || isDigit)) {
+        initials.push(ch.toLowerCase());
+      }
+    }
+
+    if (initials.length === 0 && name.length > 0) {
+      initials.push(name[0]!.toLowerCase());
+    }
+
+    return initials.join('');
+  }
+
+  private insertTopResult(top: RankedSymbol[], candidate: RankedSymbol, limit: number): void {
+    if (limit <= 0) {
+      return;
+    }
+
+    if (top.length >= limit) {
+      const worst = top[top.length - 1]!;
+      if (this.compareRankedSymbols(candidate, worst) >= 0) {
+        return;
+      }
+    }
+
+    let insertAt = top.length;
+    for (let i = 0; i < top.length; i++) {
+      if (this.compareRankedSymbols(candidate, top[i]!) < 0) {
+        insertAt = i;
+        break;
+      }
+    }
+
+    top.splice(insertAt, 0, candidate);
+    if (top.length > limit) {
+      top.pop();
+    }
+  }
+
+  private compareRankedSymbols(a: RankedSymbol, b: RankedSymbol): number {
+    if (Math.abs(a.score - b.score) > 0.0001) {
+      return b.score - a.score;
+    }
+
+    if (a.result.name.length !== b.result.name.length) {
+      return a.result.name.length - b.result.name.length;
+    }
+
+    const nameCmp = a.result.name.localeCompare(b.result.name);
+    if (nameCmp !== 0) {
+      return nameCmp;
+    }
+
+    const uriCmp = a.result.location.uri.localeCompare(b.result.location.uri);
+    if (uriCmp !== 0) {
+      return uriCmp;
+    }
+
+    return a.result.location.range.start.line - b.result.location.range.start.line;
+  }
+
+  private topResultsAreTier(top: RankedSymbol[], limit: number, minimumTier: MatchTier): boolean {
+    if (top.length < limit || top.length === 0) {
+      return false;
+    }
+
+    const worst = top[top.length - 1]!;
+    const minimumTierScore =
+      minimumTier === 'exact'
+        ? 400_000
+        : minimumTier === 'prefix'
+          ? 300_000
+          : minimumTier === 'camel'
+            ? 200_000
+            : 100_000;
+
+    return worst.score >= minimumTierScore;
   }
 
   /**
@@ -759,9 +922,73 @@ export class WorkspaceIndex {
     this.symbolLookup.clear();
     this.uriToSymbols.clear();
     this.prefixIndex.clear();
+    this.camelCaseIndex.clear();
+    this.nameToAcronym.clear();
     this.searchCache.clear();
     this.searchCacheHits = 0;
     this.searchCacheMisses = 0;
+  }
+
+  serializeSymbolIndex(): string {
+    const payload: PersistedWorkspaceIndex = {
+      version: WORKSPACE_INDEX_SCHEMA_VERSION,
+      documents: Array.from(this.documents.values()),
+    };
+    return JSON.stringify(payload);
+  }
+
+  hydrateSymbolIndex(serialized: string): number {
+    try {
+      const parsed = JSON.parse(serialized) as unknown;
+      if (typeof parsed !== 'object' || parsed === null) {
+        return 0;
+      }
+
+      const payload = parsed as PersistedWorkspaceIndex;
+      if (
+        payload.version !== WORKSPACE_INDEX_SCHEMA_VERSION ||
+        !Array.isArray((payload as { documents?: unknown }).documents)
+      ) {
+        return 0;
+      }
+
+      this.clear();
+      let loaded = 0;
+
+      for (const document of payload.documents) {
+        if (!document || typeof document.uri !== 'string' || !Array.isArray(document.symbols)) {
+          continue;
+        }
+
+        const normalizedSymbols: FlattenedSymbolEntry[] = [];
+        for (const maybeEntry of document.symbols) {
+          const entry = this.toFlattenedSymbolEntry(maybeEntry);
+          if (!entry.symbol?.name) {
+            continue;
+          }
+          normalizedSymbols.push(entry);
+        }
+
+        const hydratedDocument: IndexedDocument = {
+          uri: document.uri,
+          symbols: normalizedSymbols,
+          version: typeof document.version === 'number' ? document.version : 1,
+          lastModified:
+            typeof document.lastModified === 'number' ? document.lastModified : Date.now(),
+        };
+        if (typeof document.lineCount === 'number') {
+          hydratedDocument.lineCount = document.lineCount;
+        }
+
+        this.documents.set(document.uri, hydratedDocument);
+        this.addToLookup(document.uri, normalizedSymbols, document.lineCount);
+        loaded++;
+      }
+
+      return loaded;
+    } catch {
+      return 0;
+    }
   }
 
   /**
@@ -769,6 +996,74 @@ export class WorkspaceIndex {
    */
   getAllDocumentUris(): string[] {
     return Array.from(this.documents.keys());
+  }
+
+  searchImportableSymbols(
+    query: string,
+    currentUri: string,
+    limit: number = LSP.MAX_WORKSPACE_SYMBOLS
+  ): ImportableSymbolCandidate[] {
+    const queryLower = query.toLowerCase();
+    if (!queryLower) {
+      return [];
+    }
+
+    const currentPath = this.uriToPath(currentUri);
+    const candidates: ImportableSymbolCandidate[] = [];
+
+    for (const [nameLower, entriesByUri] of this.symbolLookup) {
+      if (!nameLower.includes(queryLower)) {
+        continue;
+      }
+
+      for (const entry of entriesByUri.values()) {
+        if (entry.uri === currentUri) {
+          continue;
+        }
+
+        if (entry.kind === 'inherit' || entry.kind === 'import') {
+          continue;
+        }
+
+        const targetPath = this.uriToPath(entry.uri);
+        const sourcePath = this.toRelativeImportPath(currentPath, targetPath);
+        const importKind = this.getImportKind(entry);
+        const statement = this.buildImportStatement(importKind, entry.name, sourcePath);
+
+        candidates.push({
+          name: entry.name,
+          symbolKind: entry.kind,
+          uri: entry.uri,
+          importKind,
+          statement,
+          sourcePath,
+        });
+      }
+    }
+
+    candidates.sort((a, b) => {
+      const aMatchScore = this.matchScore(a.name, query);
+      const bMatchScore = this.matchScore(b.name, query);
+      if (aMatchScore !== bMatchScore) {
+        return aMatchScore - bMatchScore;
+      }
+
+      if (a.importKind !== b.importKind) {
+        return a.importKind.localeCompare(b.importKind);
+      }
+
+      if (a.name !== b.name) {
+        return a.name.localeCompare(b.name);
+      }
+
+      if (a.sourcePath !== b.sourcePath) {
+        return a.sourcePath.localeCompare(b.sourcePath);
+      }
+
+      return a.uri.localeCompare(b.uri);
+    });
+
+    return candidates.slice(0, limit);
   }
 
   // Private helpers
@@ -823,6 +1118,18 @@ export class WorkspaceIndex {
             prefixSet.add(nameLower);
           }
         }
+
+        const acronym = this.buildAcronym(symbol.name);
+        this.nameToAcronym.set(nameLower, acronym);
+        for (let i = 1; i <= acronym.length; i++) {
+          const prefix = acronym.slice(0, i);
+          let acronymSet = this.camelCaseIndex.get(prefix);
+          if (!acronymSet) {
+            acronymSet = new Set<string>();
+            this.camelCaseIndex.set(prefix, acronymSet);
+          }
+          acronymSet.add(nameLower);
+        }
       }
     }
   }
@@ -859,6 +1166,21 @@ export class WorkspaceIndex {
             }
           }
         }
+      }
+
+      if (removeNameFromPrefixIndex) {
+        const acronym = this.nameToAcronym.get(nameLower) ?? this.buildAcronym(nameLower);
+        for (let i = 1; i <= acronym.length; i++) {
+          const prefix = acronym.slice(0, i);
+          const acronymSet = this.camelCaseIndex.get(prefix);
+          if (acronymSet) {
+            acronymSet.delete(nameLower);
+            if (acronymSet.size === 0) {
+              this.camelCaseIndex.delete(prefix);
+            }
+          }
+        }
+        this.nameToAcronym.delete(nameLower);
       }
     }
 
@@ -990,5 +1312,59 @@ export class WorkspaceIndex {
       default:
         return SymbolKind.Variable;
     }
+  }
+
+  private uriToPath(uri: string): string {
+    return decodeURIComponent(uri.replace(/^file:\/\//, ''));
+  }
+
+  private toRelativeImportPath(fromPath: string, targetPath: string): string {
+    const fromDir = path.dirname(fromPath);
+    const relative = path.relative(fromDir, targetPath).replaceAll('\\', '/');
+
+    if (relative.startsWith('../')) {
+      return relative;
+    }
+
+    if (relative.startsWith('./')) {
+      return relative;
+    }
+
+    return `./${relative}`;
+  }
+
+  private getImportKind(entry: SymbolEntry): 'import' | 'inherit' {
+    if (entry.kind === 'class') {
+      return 'inherit';
+    }
+    return 'import';
+  }
+
+  private buildImportStatement(
+    kind: 'import' | 'inherit',
+    symbolName: string,
+    sourcePath: string
+  ): string {
+    if (kind === 'inherit') {
+      return `inherit "${sourcePath}";`;
+    }
+
+    return `import ${symbolName};`;
+  }
+
+  private matchScore(name: string, query: string): number {
+    const nameLower = name.toLowerCase();
+    const queryLower = query.toLowerCase();
+
+    if (name === query) {
+      return 0;
+    }
+    if (nameLower === queryLower) {
+      return 1;
+    }
+    if (nameLower.startsWith(queryLower)) {
+      return 2;
+    }
+    return 3;
   }
 }

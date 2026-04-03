@@ -32,11 +32,16 @@ interface RegisterDiagnosticsLifecycleHandlersArgs {
   inFlightDiagnosticRequests: Map<string, string>;
   validationTimers: Map<string, ReturnType<typeof setTimeout>>;
   validationVersions: Map<string, number>;
+  validationScheduledRevisions: Map<string, number>;
+  validationRevisions: Map<string, number>;
+  publishedDiagnosticRevisions: Map<string, number>;
+  issueValidationRevision: (uri: string) => number;
   validateDocument: (
     document: TextDocument,
     classification?: ChangeClassification,
     checkpoint?: () => void,
-    analysisMode?: AnalysisMode
+    analysisMode?: AnalysisMode,
+    validationRevision?: number
   ) => Promise<void>;
   validateDocumentDebounced: (document: TextDocument) => void;
   log: Logger;
@@ -61,6 +66,10 @@ export function registerDiagnosticsLifecycleHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationScheduledRevisions,
+    validationRevisions,
+    publishedDiagnosticRevisions,
+    issueValidationRevision,
     validateDocument,
     validateDocumentDebounced,
     log,
@@ -171,13 +180,14 @@ export function registerDiagnosticsLifecycleHandlers(
 
     documents.all().forEach(document => {
       const globalSettings = getGlobalSettings();
+      const validationRevision = issueValidationRevision(document.uri);
       const promise = diagnosticsScheduler.schedule({
         requestClass: 'background',
         key: `diagnostics:${document.uri}`,
         coalesceMs: globalSettings.diagnosticDelay,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(document, undefined, checkpoint);
+          await validateDocument(document, undefined, checkpoint, 'full', validationRevision);
         },
       });
       documentCache.setPending(document.uri, promise);
@@ -216,7 +226,14 @@ export function registerDiagnosticsLifecycleHandlers(
         });
       });
 
-    const promise = validateDocument(event.document);
+    const validationRevision = issueValidationRevision(event.document.uri);
+    const promise = validateDocument(
+      event.document,
+      undefined,
+      undefined,
+      'full',
+      validationRevision
+    );
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
       if (err instanceof RequestSupersededError) {
@@ -287,7 +304,14 @@ export function registerDiagnosticsLifecycleHandlers(
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
-    const promise = validateDocument(event.document);
+    const validationRevision = issueValidationRevision(event.document.uri);
+    const promise = validateDocument(
+      event.document,
+      undefined,
+      undefined,
+      'full',
+      validationRevision
+    );
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
       if (err instanceof RequestSupersededError) {
@@ -331,6 +355,9 @@ export function registerDiagnosticsLifecycleHandlers(
       validationTimers.delete(event.document.uri);
     }
     validationVersions.delete(event.document.uri);
+    validationScheduledRevisions.delete(event.document.uri);
+    validationRevisions.delete(event.document.uri);
+    publishedDiagnosticRevisions.delete(event.document.uri);
 
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
   });

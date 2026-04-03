@@ -12,7 +12,9 @@ import {
   QUERY_ENGINE_PROTOCOL,
 } from '../query-engine/contracts.js';
 import {
+  loadWorkspaceSymbolIndex,
   loadResolutionCache,
+  saveWorkspaceSymbolIndex,
   saveResolutionCache,
 } from '../services/resolution-cache-persistence.js';
 
@@ -300,6 +302,17 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
                 log(`Resolution cache loaded: ${loaded} entries`);
               }
             }
+
+            const cachedWorkspaceSymbols = await loadWorkspaceSymbolIndex(pikeVersion);
+            if (cachedWorkspaceSymbols) {
+              const loadedDocuments = workspaceIndex.hydrateSymbolIndex(cachedWorkspaceSymbols);
+              if (loadedDocuments > 0) {
+                connection.console.log(
+                  `Warm-started workspace symbol index from ${loadedDocuments} persisted documents`
+                );
+                log(`Workspace symbol index warm-start loaded: ${loadedDocuments} documents`);
+              }
+            }
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             log(`Resolution cache load skipped: ${message}`);
@@ -334,9 +347,15 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
     if (bridgeManager?.bridge) {
       try {
         const stats = bridgeManager.bridge.getResolutionCacheStats();
+        const health = await bridgeManager.getHealth();
+
+        await saveWorkspaceSymbolIndex(
+          workspaceIndex.serializeSymbolIndex(),
+          health.pikeVersion?.version
+        );
+
         if (stats.stdlib > 0 || stats.modules > 0) {
           const serialized = bridgeManager.bridge.serializeResolutionCaches();
-          const health = await bridgeManager.getHealth();
           await saveResolutionCache(serialized, health.pikeVersion?.version);
           connection.console.log(
             `Saved ${stats.stdlib} stdlib + ${stats.modules} module resolution cache entries`

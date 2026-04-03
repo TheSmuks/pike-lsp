@@ -22,6 +22,11 @@ export interface SemanticAnalysisResult {
   };
 }
 
+interface UnresolvedSymbolDiagnosticData {
+  kind: 'unresolved-symbol';
+  symbolName: string;
+}
+
 export interface SemanticAnalyzerOptions {
   maxProblems: number;
   enableUndefinedDetection: boolean;
@@ -357,6 +362,10 @@ function analyzeUndefinedSymbols(
       message: `Undefined symbol: '${text}'`,
       source: 'pike-semantic',
       code: 'undefined-symbol',
+      data: {
+        kind: 'unresolved-symbol',
+        symbolName: text,
+      } satisfies UnresolvedSymbolDiagnosticData,
     });
   }
 
