@@ -1,6 +1,6 @@
 /**
  * RXML AST Parser - Token-based RXML parsing (no regex)
- * 
+ *
  * Replaces regex-based parsing with proper token-based AST construction.
  */
 
@@ -96,7 +96,7 @@ export class RXMLASTParser {
         nodes.push({
           type: 'comment',
           content: content.trim(),
-          range: { start: startPos, end: getPos() }
+          range: { start: startPos, end: getPos() },
         });
         continue;
       }
@@ -114,7 +114,7 @@ export class RXMLASTParser {
         nodes.push({
           type: 'pike-code',
           content: content.trim(),
-          range: { start: startPos, end: getPos() }
+          range: { start: startPos, end: getPos() },
         });
         continue;
       }
@@ -123,10 +123,10 @@ export class RXMLASTParser {
       if (text[pos] === '<') {
         const startPos = getPos();
         advance(1); // skip <
-        
+
         // Read tag name
         let tagName = '';
-        while (pos < text.length && /[a-zA-Z0-9_:.-]/.test(text[pos])) {
+        while (pos < text.length && text[pos] !== undefined && /[a-zA-Z0-9_:.-]/.test(text[pos]!)) {
           tagName += text[pos];
           advance(1);
         }
@@ -136,7 +136,7 @@ export class RXMLASTParser {
           nodes.push({
             type: 'text',
             content: '<',
-            range: { start: startPos, end: getPos() }
+            range: { start: startPos, end: getPos() },
           });
           continue;
         }
@@ -145,7 +145,7 @@ export class RXMLASTParser {
         const attributes: RXMLAttribute[] = [];
         while (pos < text.length && text[pos] !== '>' && text[pos] !== '/') {
           // Skip whitespace
-          while (pos < text.length && /\s/.test(text[pos])) {
+          while (pos < text.length && text[pos] !== undefined && /\s/.test(text[pos]!)) {
             advance(1);
           }
 
@@ -154,7 +154,11 @@ export class RXMLASTParser {
           // Read attribute name
           let attrName = '';
           const attrStart = getPos();
-          while (pos < text.length && /[a-zA-Z0-9_:.-]/.test(text[pos])) {
+          while (
+            pos < text.length &&
+            text[pos] !== undefined &&
+            /[a-zA-Z0-9_:.-]/.test(text[pos]!)
+          ) {
             attrName += text[pos];
             advance(1);
           }
@@ -182,7 +186,7 @@ export class RXMLASTParser {
           attributes.push({
             name: attrName,
             value: attrValue,
-            range: { start: attrStart, end: getPos() }
+            range: { start: attrStart, end: getPos() },
           });
         }
 
@@ -196,7 +200,7 @@ export class RXMLASTParser {
             attributes,
             children: [],
             selfClosing: true,
-            range: { start: startPos, end: getPos() }
+            range: { start: startPos, end: getPos() },
           });
           continue;
         }
@@ -213,7 +217,7 @@ export class RXMLASTParser {
           attributes,
           children: [],
           selfClosing: false,
-          range: { start: startPos, end: getPos() }
+          range: { start: startPos, end: getPos() },
         });
         continue;
       }
@@ -229,14 +233,14 @@ export class RXMLASTParser {
         nodes.push({
           type: 'text',
           content,
-          range: { start: textStart, end: getPos() }
+          range: { start: textStart, end: getPos() },
         });
       }
     }
 
     return {
       nodes,
-      range: { start: { line: 0, character: 0 }, end: getPos() }
+      range: { start: { line: 0, character: 0 }, end: getPos() },
     };
   }
 }
