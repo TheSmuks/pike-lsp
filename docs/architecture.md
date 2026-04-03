@@ -386,3 +386,58 @@ pike -e 'compile_file("pike-scripts/analyzer.pike");'
 echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","filename":"test.pike"}}' | \
   pike pike-scripts/analyzer.pike
 ```
+
+## Package Dependency Graph (Updated)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Monorepo Structure                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐     ┌──────────────┐     ┌─────────────┐ │
+│  │   @pike-lsp  │────▶│   @pike-lsp  │────▶│   @pike-lsp │ │
+│  │     core     │     │ pike-bridge  │     │pike-lsp-    │ │
+│  │              │     │              │     │   server    │ │
+│  └──────────────┘     └──────────────┘     └──────┬──────┘ │
+│         ▲                                          │        │
+│         │                                          │        │
+│         └──────────────────────────────────────────┘        │
+│                                                    │        │
+│                                          ┌─────────▼──────┐ │
+│                                          │    vscode-pike │ │
+│                                          │   (Extension)  │ │
+│                                          └────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Build Order
+```
+1. @pike-lsp/core (no deps)
+2. @pike-lsp/pike-bridge (depends on core)
+3. @pike-lsp/pike-lsp-server (depends on bridge)
+4. vscode-pike (depends on server, bundled separately)
+```
+
+### Cross-Package Import Rules
+- Use `@pike-lsp/*` for cross-package imports
+- No relative imports crossing package boundaries
+- Enforced by: `scripts/quality-gate.sh`
+
+## Quality Standards
+
+### File Size Limit
+- **Source files**: Max 500 lines (enforced by `scripts/quality-gate.sh`)
+- **Test files**: Exempt (often 1000+ lines for comprehensive coverage)
+
+### Error Handling Pattern
+All packages use consistent error handling:
+- Custom error types extend base `PikeError` (planned for @pike-lsp/core)
+- Sensitive paths anonymized in logs
+- Context preserved for debugging
+
+## Architecture Decision Records
+
+See `docs/adr/` directory for detailed decisions:
+- [ADR-001: Monorepo Structure](adr/001-monorepo-structure.md)
+- [ADR-002: Bridge Subprocess Model](adr/002-bridge-subprocess-model.md)
