@@ -155,6 +155,12 @@ describe('Workspace Inheritance (Phase 6)', () => {
         getUncachedFiles: () => [
           { uri: uncachedUri, path: uncachedPath, lastModified: Date.now() },
         ],
+        getFile: (uri: string) => {
+          if (uri === uncachedUri) {
+            return { uri: uncachedUri, path: uncachedPath, lastModified: Date.now() };
+          }
+          return undefined;
+        },
       } as any,
       bridge: {
         bridge: {
