@@ -45,6 +45,7 @@ import {
 } from 'vscode-languageclient/node';
 import { applyStructuralSearchReplace } from './structural-search-replace';
 import { registerPikeTestExplorer } from './test-explorer';
+import { organizeImports } from './import-organizer';
 
 function anonymizeSensitivePaths(value: string): string {
   const home = process.env['HOME'];
@@ -901,7 +902,14 @@ async function activateInternal(
     'pike.lsp.organizeImports',
     async () => {
       if (runtime.isDisposed()) return;
-      await commands.executeCommand('editor.action.organizeImports');
+      const editor = window.activeTextEditor;
+      if (!editor) return;
+      const edits = await organizeImports(editor.document);
+      if (edits.length > 0) {
+        const workspaceEdit = new WorkspaceEdit();
+        workspaceEdit.set(editor.document.uri, edits);
+        await workspace.applyEdit(workspaceEdit);
+      }
     }
   );
 
