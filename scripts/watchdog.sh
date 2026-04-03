@@ -16,10 +16,11 @@ readonly NC='\033[0m' # No Color
 # Root directory
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${SCRIPT_DIR}/lib/agent-state.sh"
 
 # Baseline file for regression detection
-readonly BASELINE_FILE="${PROJECT_ROOT}/.omc/watchdog/baseline.txt"
-readonly LOG_DIR="${PROJECT_ROOT}/.omc/watchdog/logs"
+BASELINE_FILE="$(shared_state_dir)/watchdog/baseline.txt"
+LOG_DIR="$(ensure_shared_dir)/watchdog/logs"
 mkdir -p "${LOG_DIR}"
 
 # Timestamp for this run
@@ -202,7 +203,7 @@ check_undefined_audit() {
 check_stale_locks() {
     echo "=== 4. Stale Locks Check ===" | tee -a "${LOG_FILE}"
 
-    local tasks_dir="${PROJECT_ROOT}/.omc/current_tasks"
+    local tasks_dir="$(shared_state_dir)/locks"
 
     if [[ ! -d "${tasks_dir}" ]]; then
         log_pass "No tasks directory exists"
@@ -243,8 +244,7 @@ check_context_pollution() {
     echo "=== 5. Context Pollution Check ===" | tee -a "${LOG_FILE}"
 
     local log_dirs=(
-        "${PROJECT_ROOT}/.omc/test-logs"
-        "${PROJECT_ROOT}/.sisyphus/logs"
+        "$(shared_state_dir)/test-logs"
     )
 
     local polluted=0

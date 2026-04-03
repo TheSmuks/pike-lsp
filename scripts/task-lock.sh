@@ -14,12 +14,9 @@
 
 set -uo pipefail
 
-# Lock files stored in main repo's .omc/locks/ (shared across worktrees)
-REPO_ROOT=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
+source "$(dirname "$0")/lib/agent-state.sh"
 
-# Find the main worktree (not a linked worktree)
-MAIN_WORKTREE=$(git -C "$REPO_ROOT" worktree list --porcelain | head -1 | sed 's/^worktree //')
-LOCK_DIR="$MAIN_WORKTREE/.omc/locks"
+LOCK_DIR="$(ensure_shared_dir)/locks"
 mkdir -p "$LOCK_DIR"
 
 RED='\033[0;31m'
@@ -35,37 +32,32 @@ sanitize_name() {
 cmd_lock() {
   local task_name="${1:-}"
   local description="${2:-No description}"
-
   if [ -z "$task_name" ]; then
     echo -e "${RED}Error: Task name required${NC}"
-    echo "Usage: $0 lock <task-name> [description]"
     exit 1
   fi
-
   local safe_name
   safe_name=$(sanitize_name "$task_name")
   local lock_file="$LOCK_DIR/${safe_name}.lock"
-
   if [ -f "$lock_file" ]; then
     echo -e "${YELLOW}Task already locked: $task_name${NC}"
     echo "Locked by: $(cat "$lock_file")"
     exit 1
   fi
-
   local branch
-  branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   local worktree_path
   worktree_path=$(pwd)
-
-  cat > "$lock_file" <<EOF
-task: $task_name
+  if ! (set -o noclobber; echo "task: $task_name
 description: $description
 branch: $branch
 worktree: $worktree_path
 locked_at: $(date -Iseconds)
-pid: $$
-EOF
-
+pid: $$" > "$lock_file") 2>/dev/null; then
+    echo -e "${RED}Error: Race condition — task was locked by another agent${NC}"
+    echo "Locked by: $(cat "$lock_file")"
+    exit 1
+  fi
   echo -e "${GREEN}Locked: $task_name${NC}"
   echo "  Description: $description"
   echo "  Lock file:   $lock_file"

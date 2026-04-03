@@ -62,57 +62,37 @@ else
     issue "No AGENT_VERIFICATION_MARKER found in INDEX.md"
 fi
 
-# Check for SESSION_START.md
+# Check for session-start.md in tree location
 echo ""
-echo -e "${BLUE}[2/4] Checking SESSION_START.md exists${NC}"
-if [[ -f "$REPO_ROOT/.agent-knowledge/SESSION_START.md" ]]; then
-    ok "SESSION_START.md exists"
-    
-    # Check if it has mandatory checklist
-    if grep -q "MANDATORY" "$REPO_ROOT/.agent-knowledge/SESSION_START.md"; then
-        ok "SESSION_START.md has mandatory checklist marker"
+echo -e "${BLUE}[2/4] Checking reference/session-start.md exists${NC}"
+if [[ -f "$REPO_ROOT/.agent-knowledge/reference/session-start.md" ]]; then
+    ok "reference/session-start.md exists"
+
+    if grep -q "MANDATORY" "$REPO_ROOT/.agent-knowledge/reference/session-start.md"; then
+        ok "session-start.md has mandatory checklist marker"
     else
-        warn "SESSION_START.md missing mandatory marker"
+        warn "session-start.md missing mandatory marker"
     fi
 else
-    issue "SESSION_START.md does not exist - agents have no pre-task checklist"
+    issue "reference/session-start.md does not exist — agents have no pre-task checklist"
 fi
 
-# Check for recent updates to knowledge base
+# Check for recent updates to knowledge base (tree layout)
 echo ""
 echo -e "${BLUE}[3/4] Checking for recent knowledge base updates${NC}"
 
-KB_FILES=(
-    "$REPO_ROOT/.agent-knowledge/INDEX.md"
-    "$REPO_ROOT/.agent-knowledge/discoveries.md"
-    "$REPO_ROOT/.agent-knowledge/patterns.md"
-    "$REPO_ROOT/.agent-knowledge/gotchas.md"
-    "$REPO_ROOT/.agent-knowledge/special-cases.md"
-    "$REPO_ROOT/.agent-knowledge/SESSION_START.md"
-)
-
 most_recent_update=0
-for file in "${KB_FILES[@]}"; do
-    if [[ -f "$file" ]]; then
-        # Get last modification time in days since epoch
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS
-            mod_time=$(stat -f %m "$file" 2>/dev/null || echo 0)
-        else
-            # Linux
-            mod_time=$(stat -c %Y "$file" 2>/dev/null || echo 0)
-        fi
-        
-        if [[ $mod_time -gt $most_recent_update ]]; then
-            most_recent_update=$mod_time
-        fi
+while IFS= read -r -d '' file; do
+    mod_time=$(stat -c %Y "$file" 2>/dev/null || echo 0)
+    if [[ $mod_time -gt $most_recent_update ]]; then
+        most_recent_update=$mod_time
     fi
-done
+done < <(find "$REPO_ROOT/.agent-knowledge" -name "*.md" -type f -print0 2>/dev/null)
 
 if [[ $most_recent_update -gt 0 ]]; then
     current_time=$(date +%s)
     days_since_update=$(( (current_time - most_recent_update) / 86400 ))
-    
+
     if [[ $days_since_update -gt $STALE_DAYS ]]; then
         if [[ $STRICT == true ]]; then
             issue "Knowledge base not updated in $days_since_update days (max: $STALE_DAYS)"
@@ -130,20 +110,18 @@ fi
 echo ""
 echo -e "${BLUE}[4/4] Checking discoveries.md for outdated entries${NC}"
 
-# Count entries older than 30 days (simplified check)
-discovery_count=$(grep -c "^## " "$REPO_ROOT/.agent-knowledge/discoveries.md" 2>/dev/null || echo 0)
+discovery_count=$(grep -c "^## " "$REPO_ROOT/.agent-knowledge/reference/discoveries.md" 2>/dev/null || echo 0)
 if [[ $discovery_count -gt 0 ]]; then
     ok "Found $discovery_count discoveries documented"
-    
-    # Check for date format (YYYY-MM-DD)
-    dated_entries=$(grep -c "## [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}" "$REPO_ROOT/.agent-knowledge/discoveries.md" 2>/dev/null || echo 0)
+
+    dated_entries=$(grep -c "## [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}" "$REPO_ROOT/.agent-knowledge/reference/discoveries.md" 2>/dev/null || echo 0)
     if [[ $dated_entries -eq $discovery_count ]]; then
         ok "All discoveries have proper dates"
     else
         warn "Some discoveries missing proper date format (YYYY-MM-DD)"
     fi
 else
-    warn "No discoveries found in discoveries.md"
+    warn "No discoveries found in reference/discoveries.md"
 fi
 
 # Summary

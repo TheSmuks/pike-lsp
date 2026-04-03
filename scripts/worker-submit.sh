@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(dirname "$0")/lib/agent-state.sh"
 # worker-submit.sh — Test, stage, commit, push, create PR from a worktree.
 #
 # Usage:
@@ -57,7 +58,7 @@ fi
 
 # --- Auto-cleanup stale worktrees ---
 # Remove worktrees with no uncommitted changes to free up slots
-for wt in $(git worktree list --porcelain | grep "^path " | awk '{print $2}'); do
+for wt in $(git worktree list --porcelain | grep "^worktree " | sed 's/^worktree //'); do
   if [[ "$wt" != "$(pwd)" ]] && [[ "$wt" != "$(git rev-parse --show-toplevel)" ]]; then
     wt_status=$(cd "$wt" 2>/dev/null && git status --porcelain | head -1)
     if [[ -z "$wt_status" ]]; then
@@ -76,15 +77,15 @@ MAIN_REPO="$(git rev-parse -q --path-format=absolute --git-common-dir 2>/dev/nul
 SCRIPTS="$MAIN_REPO/scripts"
 
 # --- Handoff check ---
-HANDOFF_FILE="$MAIN_REPO/.omc/handoffs/${BRANCH//\//-}.md"
+HANDOFF_FILE="$(shared_state_dir)/handoffs/${BRANCH//\//-}.md"
 if [[ ! -f "$HANDOFF_FILE" ]]; then
-  echo "SUBMIT:WARN | No handoff file at .omc/handoffs/${BRANCH//\//-}.md — consider creating one"
+  echo "SUBMIT:WARN | No handoff file at $HANDOFF_FILE — consider creating one"
 fi
 
 # --- Smoke test ---
-if [[ -f "$SCRIPTS/test-agent.sh" ]]; then
-  if ! "$SCRIPTS/test-agent.sh" --fast >/dev/null 2>&1; then
-    echo "SUBMIT:FAIL | smoke test failed | run: cd $(pwd) && $SCRIPTS/test-agent.sh --fast"
+if [[ -f "scripts/test-agent.sh" ]]; then
+  if ! bash scripts/test-agent.sh --fast >/dev/null 2>&1; then
+    echo "SUBMIT:FAIL | smoke test failed | run: cd $(pwd) && bash scripts/test-agent.sh --fast"
     exit 1
   fi
 fi
@@ -95,14 +96,14 @@ if git diff --cached --quiet; then
   echo "SUBMIT:FAIL | nothing to commit"
   exit 1
 fi
-git commit -m "$COMMIT_MSG" --no-verify
+git commit -m "$COMMIT_MSG"
 
 # --- Set protocol marker (enables push) ---
-MARKER_FILE="$(git rev-parse --show-toplevel)/.git/.worker-submit-marker"
+MARKER_FILE="$(ensure_local_dir)/worker-submit-marker"
 touch "$MARKER_FILE"
 
 # --- Push ---
-if ! git push -u origin "$BRANCH" --no-verify 2>/dev/null; then
+if ! git push -u origin "$BRANCH" 2>/dev/null; then
   echo "SUBMIT:FAIL | push failed | $BRANCH"
   exit 1
 fi
