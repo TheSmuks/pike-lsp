@@ -439,6 +439,51 @@ Always create actual GitHub Releases, not just git tags. GitHub's auto-generated
 
 ---
 
+## Knowledge Base
+
+The `.agent-knowledge/` directory is a **hierarchical tree** of accumulated learnings from previous agent sessions.
+**You MUST consult it at the start of every session and after context compaction.**
+
+### Navigation
+
+```
+.agent-knowledge/
+├── INDEX.md              ← START HERE (L1): category listing + verification marker
+├── architecture/         ← System design, code patterns, ADRs
+│   ├── INDEX.md          (L2): 3-5 entries with descriptions
+│   └── *.md              (L3): individual entries
+├── ci-cd/                ← CI/CD behavior, workarounds, timing
+│   ├── INDEX.md
+│   └── *.md
+├── testing/              ← Scenario patterns, common failures
+│   ├── INDEX.md
+│   └── *.md
+├── workflows/            ← Agent startup protocol, task lifecycle
+│   ├── INDEX.md
+│   └── *.md
+└── reference/            ← Discovery log, archives, session-start checklist
+    ├── INDEX.md
+    └── *.md
+```
+
+### Protocol
+
+1. **Read** `.agent-knowledge/INDEX.md` first — pick the category relevant to your task.
+2. **Read** the category's `INDEX.md` — pick specific entries.
+3. **Read** specific entry files that match your task.
+4. **Follow** the session-start checklist at `reference/session-start.md`.
+5. **Update** relevant files after your task completes (new discoveries, gotchas, patterns).
+
+### Rules
+
+- **3-5 entries per category** — no more. If a category grows, split it.
+- **Max depth: 2 levels** (L1 root → L2 category → L3 entry). No deeper nesting.
+- **No vague buckets** — every entry must have a clear, specific purpose.
+- **Every INDEX.md links back to root** with `← Knowledge Base Root`.
+- **Agent verification marker** in root INDEX.md must be checked every session.
+
+---
+
 ## Forbidden
 
 - npm, npx, yarn, pnpm.
@@ -447,3 +492,4 @@ Always create actual GitHub Releases, not just git tags. GitHub's auto-generated
 - Destructive git commands unless explicitly requested.
 - Unit tests instead of scenarios for behavior verification.
 - Code without a scenario requiring it.
+- Starting work without reading the knowledge base.
