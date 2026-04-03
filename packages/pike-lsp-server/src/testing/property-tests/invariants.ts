@@ -34,6 +34,13 @@ export function canPublishDiagnosticsVersion(
   return liveVersion !== undefined && liveVersion === validatedVersion;
 }
 
+export function canPublishDiagnosticsRevision(
+  candidateRevision: number,
+  latestRevision: number | undefined
+): boolean {
+  return latestRevision !== undefined && candidateRevision === latestRevision;
+}
+
 export function isPositionWithinDocument(text: string, position: Position): boolean {
   const lines = text.split('\n');
   if (position.line < 0 || position.line >= lines.length) {

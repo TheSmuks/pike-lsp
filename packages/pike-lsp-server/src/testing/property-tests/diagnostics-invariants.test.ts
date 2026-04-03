@@ -1,10 +1,18 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
-import { assertInvariant, canPublishDiagnosticsVersion } from './invariants.js';
+import {
+  assertInvariant,
+  canPublishDiagnosticsRevision,
+  canPublishDiagnosticsVersion,
+} from './invariants.js';
 import { buildStaleFallbackEntry } from '../../features/diagnostics/index.js';
 
 type Operation = { kind: 'bump' } | { kind: 'publish'; validatedVersion: number };
+type RevisionOperation =
+  | { kind: 'claim' }
+  | { kind: 'publish'; candidateRevision: number }
+  | { kind: 'noop' };
 
 describe('Property Invariant: diagnostics version monotonic', () => {
   it('never publishes diagnostics newer than current live version', () => {
@@ -73,6 +81,51 @@ describe('Property Invariant: diagnostics version monotonic', () => {
           assert.equal(entry.version, version);
           assert.equal(Array.isArray(entry.diagnostics), true);
           assert.equal(entry.diagnostics.length > 0, true);
+        }
+      )
+    );
+  });
+
+  it('only latest claimed revision can publish and published revisions never regress', () => {
+    const revisionOperationArbitrary: fc.Arbitrary<RevisionOperation> = fc.oneof(
+      fc.constant({ kind: 'claim' as const }),
+      fc.record({
+        kind: fc.constant('publish' as const),
+        candidateRevision: fc.integer({ min: 0, max: 20_000 }),
+      }),
+      fc.constant({ kind: 'noop' as const })
+    );
+
+    assertInvariant(
+      'diagnostics-revision-monotonic',
+      fc.property(
+        fc.array(revisionOperationArbitrary, { minLength: 1, maxLength: 250 }),
+        operations => {
+          let latestRevision = 0;
+          let lastPublishedRevision = 0;
+
+          for (const operation of operations) {
+            if (operation.kind === 'claim') {
+              latestRevision += 1;
+              continue;
+            }
+
+            if (operation.kind === 'noop') {
+              continue;
+            }
+
+            const canPublish = canPublishDiagnosticsRevision(
+              operation.candidateRevision,
+              latestRevision
+            );
+            if (!canPublish) {
+              continue;
+            }
+
+            assert.equal(operation.candidateRevision, latestRevision);
+            assert.equal(operation.candidateRevision >= lastPublishedRevision, true);
+            lastPublishedRevision = operation.candidateRevision;
+          }
         }
       )
     );

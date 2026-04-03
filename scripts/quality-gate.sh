@@ -109,7 +109,11 @@ echo -e "${BLUE}[3/4] @ts-ignore/@ts-expect-error check${NC}"
 
 TS_IGNORE_COUNT=0
 while IFS= read -r file; do
-    count=$(grep -c "@ts-ignore\|@ts-expect-error" "$file" 2>/dev/null || echo 0)
+    count=$(grep -c "@ts-ignore\|@ts-expect-error" "$file" 2>/dev/null || true)
+    count="${count//$'\n'/}"
+    if [[ -z "$count" ]] || [[ ! "$count" =~ ^[0-9]+$ ]]; then
+        count=0
+    fi
     if [[ $count -gt 0 ]]; then
         TS_IGNORE_COUNT=$((TS_IGNORE_COUNT + count))
         rel_path="${file#$REPO_ROOT/}"

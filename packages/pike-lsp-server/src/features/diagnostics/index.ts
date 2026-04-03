@@ -97,6 +97,13 @@ export {
 
 type AnalysisOperation = import('@pike-lsp/pike-bridge').AnalysisOperation;
 
+export function hasDiagnosticsPublishRights(
+  candidateRevision: number,
+  latestRevision: number | undefined
+): boolean {
+  return latestRevision !== undefined && candidateRevision === latestRevision;
+}
+
 export function applySkippedValidationCacheUpdate(
   cachedEntry: DocumentCacheEntry,
   currentVersion: number,
@@ -191,12 +198,25 @@ export function registerDiagnosticsHandlers(
   // INC-563: Track expected document version for each debounced validation
   // This prevents stale validations from overwriting fresher results after undo
   const validationVersions = new Map<string, number>();
+  const validationRevisions = new Map<string, number>();
 
   // INC-002: Track change ranges for incremental parsing.
   const pendingChangeStates = new Map<string, PendingChangeState>();
   const documentSnapshots = services.documentSnapshots ?? new Map<string, string>();
   const inFlightDiagnosticRequests = new Map<string, string>();
   const pullDiagnosticResultIds = new Map<string, string>();
+  const latestDiagnosticsRevisionByUri = new Map<string, number>();
+  const lastPublishedDiagnosticsRevisionByUri = new Map<string, number>();
+
+  const claimDiagnosticsRevision = (uri: string): number => {
+    const nextRevision = (latestDiagnosticsRevisionByUri.get(uri) ?? 0) + 1;
+    latestDiagnosticsRevisionByUri.set(uri, nextRevision);
+    return nextRevision;
+  };
+
+  const ownsPublishRights = (uri: string, revision: number): boolean =>
+    hasDiagnosticsPublishRights(revision, latestDiagnosticsRevisionByUri.get(uri));
+
   const diagnosticsScheduler = new RequestScheduler({ logger: log });
   const SCHEDULER_METRICS_LOG_EVERY = 25;
   let validationCompletions = 0;
@@ -306,7 +326,9 @@ export function registerDiagnosticsHandlers(
     // INC-563: Store expected version for this scheduled validation
     // This prevents stale validations from overwriting fresher results after undo
     const expectedVersion = version;
+    const expectedRevision = claimDiagnosticsRevision(uri);
     validationVersions.set(uri, expectedVersion);
+    validationRevisions.set(uri, expectedRevision);
 
     // Set new timer
     const timer = setTimeout(() => {
@@ -315,6 +337,7 @@ export function registerDiagnosticsHandlers(
       const liveDocument = documents.get(uri);
       if (!liveDocument) {
         validationVersions.delete(uri);
+        validationRevisions.delete(uri);
         pendingChangeStates.delete(uri);
         return;
       }
@@ -323,6 +346,7 @@ export function registerDiagnosticsHandlers(
       const currentVersion = liveDocument.version;
       if (currentVersion !== expectedVersion) {
         validationVersions.delete(uri);
+        validationRevisions.delete(uri);
         // Clear pending change range since we're skipping
         pendingChangeStates.delete(uri);
         return;
@@ -337,6 +361,13 @@ export function registerDiagnosticsHandlers(
 
       if (classification.canSkip) {
         validationVersions.delete(uri);
+        validationRevisions.delete(uri);
+
+        if (!ownsPublishRights(uri, expectedRevision)) {
+          pendingChangeStates.delete(uri);
+          return;
+        }
+
         // Skip parsing entirely - just update cache metadata
         if (cachedEntry) {
           applySkippedValidationCacheUpdate(cachedEntry, currentVersion, classification);
@@ -379,6 +410,7 @@ export function registerDiagnosticsHandlers(
           version: currentVersion,
           diagnostics: toProtocolDiagnostics(diagnosticsToSend),
         });
+        lastPublishedDiagnosticsRevisionByUri.set(uri, expectedRevision);
         return;
       }
 
@@ -388,12 +420,21 @@ export function registerDiagnosticsHandlers(
         key: `diagnostics:${uri}`,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(liveDocument, classification, checkpoint, 'typing');
+          await validateDocument(
+            liveDocument,
+            classification,
+            checkpoint,
+            'typing',
+            expectedRevision
+          );
         },
       });
       documentCache.setPending(uri, promise);
       promise.finally(() => {
         validationVersions.delete(uri);
+        if (validationRevisions.get(uri) === expectedRevision) {
+          validationRevisions.delete(uri);
+        }
       });
       promise.catch(err => {
         if (err instanceof RequestSupersededError) {
@@ -418,7 +459,8 @@ export function registerDiagnosticsHandlers(
     document: TextDocument,
     classification?: import('./change-detection.js').ChangeClassification,
     shouldContinue: () => void = () => {},
-    analysisMode: 'typing' | 'full' = 'full'
+    analysisMode: 'typing' | 'full' = 'full',
+    diagnosticsRevision = claimDiagnosticsRevision(document.uri)
   ): Promise<void> {
     const uri = document.uri;
     const version = document.version;
@@ -503,6 +545,18 @@ export function registerDiagnosticsHandlers(
         });
         return false;
       }
+
+      if (!ownsPublishRights(uri, diagnosticsRevision)) {
+        log.debug('Skipping diagnostics stage for superseded revision', {
+          uri,
+          stage,
+          diagnosticsRevision,
+          latestRevision: latestDiagnosticsRevisionByUri.get(uri),
+          lastPublishedRevision: lastPublishedDiagnosticsRevisionByUri.get(uri),
+        });
+        return false;
+      }
+
       return true;
     };
 
@@ -976,11 +1030,17 @@ export function registerDiagnosticsHandlers(
 
         // #1112: Verify version hasn't changed before writing to cache
         const liveBeforeCache = documents.get(uri);
-        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+        if (
+          !liveBeforeCache ||
+          liveBeforeCache.version !== version ||
+          !ownsPublishRights(uri, diagnosticsRevision)
+        ) {
           log.debug('Skipping cache write for stale version after introspection', {
             uri,
             validatedVersion: version,
             latestVersion: liveBeforeCache?.version,
+            diagnosticsRevision,
+            latestRevision: latestDiagnosticsRevisionByUri.get(uri),
           });
           return;
         }
@@ -1059,11 +1119,17 @@ export function registerDiagnosticsHandlers(
 
         // #1112: Verify version hasn't changed before writing to cache
         const liveBeforeCache = documents.get(uri);
-        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+        if (
+          !liveBeforeCache ||
+          liveBeforeCache.version !== version ||
+          !ownsPublishRights(uri, diagnosticsRevision)
+        ) {
           log.debug('Skipping cache write for stale version after parse', {
             uri,
             validatedVersion: version,
             latestVersion: liveBeforeCache?.version,
+            diagnosticsRevision,
+            latestRevision: latestDiagnosticsRevisionByUri.get(uri),
           });
           return;
         }
@@ -1085,11 +1151,17 @@ export function registerDiagnosticsHandlers(
 
         // #1112: Verify version hasn't changed before writing to cache
         const liveBeforeCache = documents.get(uri);
-        if (!liveBeforeCache || liveBeforeCache.version !== version) {
+        if (
+          !liveBeforeCache ||
+          liveBeforeCache.version !== version ||
+          !ownsPublishRights(uri, diagnosticsRevision)
+        ) {
           log.debug('Skipping cache write for stale version (no parse result)', {
             uri,
             validatedVersion: version,
             latestVersion: liveBeforeCache?.version,
+            diagnosticsRevision,
+            latestRevision: latestDiagnosticsRevisionByUri.get(uri),
           });
           return;
         }
@@ -1232,17 +1304,24 @@ export function registerDiagnosticsHandlers(
       // --- End semantic analysis integration ---
 
       const latestBeforePublish = documents.get(uri);
-      if (!latestBeforePublish || latestBeforePublish.version !== version) {
+      if (
+        !latestBeforePublish ||
+        latestBeforePublish.version !== version ||
+        !ownsPublishRights(uri, diagnosticsRevision)
+      ) {
         log.debug('Skipping diagnostics publish for stale version', {
           uri,
           validatedVersion: version,
           latestVersion: latestBeforePublish?.version,
+          diagnosticsRevision,
+          latestRevision: latestDiagnosticsRevisionByUri.get(uri),
         });
         return;
       }
 
       // Send diagnostics
       connection.sendDiagnostics({ uri, version, diagnostics: toProtocolDiagnostics(diagnostics) });
+      lastPublishedDiagnosticsRevisionByUri.set(uri, diagnosticsRevision);
       log.debug('Sent diagnostics', { uri, count: diagnostics.length });
 
       validationCompletions += 1;
@@ -1273,7 +1352,11 @@ export function registerDiagnosticsHandlers(
       }
       inFlightDiagnosticRequests.delete(uri);
       const liveDocument = documents.get(uri);
-      if (liveDocument && liveDocument.version === version) {
+      if (
+        liveDocument &&
+        liveDocument.version === version &&
+        ownsPublishRights(uri, diagnosticsRevision)
+      ) {
         const fallbackDiagnostic: CoreDiagnostic = {
           severity: 1,
           range: {
@@ -1298,6 +1381,7 @@ export function registerDiagnosticsHandlers(
           version,
           diagnostics: toProtocolDiagnostics([fallbackDiagnostic]),
         });
+        lastPublishedDiagnosticsRevisionByUri.set(uri, diagnosticsRevision);
       }
       connection.console.error(`[VALIDATE] ✗ Validation failed for ${uri}: ${err}`);
     }
@@ -1321,6 +1405,9 @@ export function registerDiagnosticsHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationRevisions,
+    latestDiagnosticsRevisionByUri,
+    claimDiagnosticsRevision,
     validateDocument,
     validateDocumentDebounced,
     log,

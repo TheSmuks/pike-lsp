@@ -32,11 +32,15 @@ interface RegisterDiagnosticsLifecycleHandlersArgs {
   inFlightDiagnosticRequests: Map<string, string>;
   validationTimers: Map<string, ReturnType<typeof setTimeout>>;
   validationVersions: Map<string, number>;
+  validationRevisions?: Map<string, number>;
+  latestDiagnosticsRevisionByUri?: Map<string, number>;
+  claimDiagnosticsRevision?: (uri: string) => number;
   validateDocument: (
     document: TextDocument,
     classification?: ChangeClassification,
     checkpoint?: () => void,
-    analysisMode?: AnalysisMode
+    analysisMode?: AnalysisMode,
+    diagnosticsRevision?: number
   ) => Promise<void>;
   validateDocumentDebounced: (document: TextDocument) => void;
   log: Logger;
@@ -61,6 +65,9 @@ export function registerDiagnosticsLifecycleHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationRevisions = new Map<string, number>(),
+    latestDiagnosticsRevisionByUri = new Map<string, number>(),
+    claimDiagnosticsRevision = () => 0,
     validateDocument,
     validateDocumentDebounced,
     log,
@@ -171,13 +178,14 @@ export function registerDiagnosticsLifecycleHandlers(
 
     documents.all().forEach(document => {
       const globalSettings = getGlobalSettings();
+      const diagnosticsRevision = claimDiagnosticsRevision(document.uri);
       const promise = diagnosticsScheduler.schedule({
         requestClass: 'background',
         key: `diagnostics:${document.uri}`,
         coalesceMs: globalSettings.diagnosticDelay,
         run: async checkpoint => {
           checkpoint();
-          await validateDocument(document, undefined, checkpoint);
+          await validateDocument(document, undefined, checkpoint, 'full', diagnosticsRevision);
         },
       });
       documentCache.setPending(document.uri, promise);
@@ -216,7 +224,13 @@ export function registerDiagnosticsLifecycleHandlers(
         });
       });
 
-    const promise = validateDocument(event.document);
+    const promise = validateDocument(
+      event.document,
+      undefined,
+      undefined,
+      'full',
+      claimDiagnosticsRevision(event.document.uri)
+    );
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
       if (err instanceof RequestSupersededError) {
@@ -287,7 +301,13 @@ export function registerDiagnosticsLifecycleHandlers(
     invalidateIncludeCacheForUri(event.document.uri);
     indexWorkspaceDocument(event.document);
 
-    const promise = validateDocument(event.document);
+    const promise = validateDocument(
+      event.document,
+      undefined,
+      undefined,
+      'full',
+      claimDiagnosticsRevision(event.document.uri)
+    );
     documentCache.setPending(event.document.uri, promise);
     promise.catch(err => {
       if (err instanceof RequestSupersededError) {
@@ -320,6 +340,8 @@ export function registerDiagnosticsLifecycleHandlers(
     pendingChangeStates.delete(event.document.uri);
     documentSnapshots.delete(event.document.uri);
     inFlightDiagnosticRequests.delete(event.document.uri);
+    validationRevisions.delete(event.document.uri);
+    latestDiagnosticsRevisionByUri.delete(event.document.uri);
 
     typeDatabase.removeProgram(event.document.uri);
     const rehydrateEpoch = bumpWorkspaceRehydrateEpoch(event.document.uri);

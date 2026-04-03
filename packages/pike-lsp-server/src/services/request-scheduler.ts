@@ -56,6 +56,7 @@ interface QueuedTask {
   id: number;
   requestClass: RequestClass;
   key?: string;
+  keyRevision?: number;
   createdAt: number;
   started: boolean;
   cancelled: boolean;
@@ -98,6 +99,7 @@ export class RequestScheduler {
     background: [],
   };
   private readonly tasksByKey = new Map<string, PendingTaskHandle>();
+  private readonly keyRevisions = new Map<string, number>();
   private readonly coalescedByKey = new Map<string, CoalescedPending>();
   private readonly metrics: RequestSchedulerCounters = {
     scheduled: 0,
@@ -120,7 +122,10 @@ export class RequestScheduler {
 
   async schedule<T>(request: ScheduleRequest<T>): Promise<T> {
     const key = request.key;
+    let keyRevision: number | undefined;
     if (key) {
+      keyRevision = (this.keyRevisions.get(key) ?? 0) + 1;
+      this.keyRevisions.set(key, keyRevision);
       this.cancelPendingByKey(key, new RequestSupersededError(`Superseded request key=${key}`));
     }
 
@@ -135,6 +140,7 @@ export class RequestScheduler {
           run: request.run,
           resolve: value => resolve(value as T),
           reject,
+          ...(keyRevision !== undefined ? { keyRevision } : {}),
           ...(key ? { key } : {}),
         };
 
@@ -319,7 +325,12 @@ export class RequestScheduler {
     this.recordQueueWait(task.requestClass, Date.now() - task.createdAt);
 
     const checkpoint: Checkpoint = () => {
-      if (task.cancelled) {
+      const keySuperseded =
+        task.key !== undefined &&
+        task.keyRevision !== undefined &&
+        this.keyRevisions.get(task.key) !== task.keyRevision;
+
+      if (task.cancelled || keySuperseded) {
         throw new RequestSupersededError(
           `Cancelled during execution key=${task.key ?? 'unkeyed'} id=${task.id}`
         );
