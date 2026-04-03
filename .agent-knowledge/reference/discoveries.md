@@ -341,3 +341,27 @@ if (existing.length > 0) throw collisionError;
 - `packages/pike-lsp-server/src/scenarios/signature-help-member-varargs.test.ts`
 
 ---
+
+## 2026-04-03: Regex-to-Introspection Migration Pattern for Implementation/Hierarchy
+
+**Finding**: `textDocument/implementation` and type hierarchy traversal should consume a shared Pike-native inheritance graph instead of matching `inherit` text patterns.
+
+**Migration Pattern**:
+
+1. Add `PikeIntrospectionService` that combines bridge `analyze(..., ['parse', 'introspect'])` output.
+2. Build `InheritRelation` edges (`ownerClass`, `ownerLine`, `inheritedName`, `uri`) from parsed symbols, filtered by introspection inherits.
+3. Reuse this graph in both implementation and hierarchy handlers.
+4. Keep behavior resilient when compile/introspect fails by returning empty relations (no thrown errors).
+
+**Regex Eliminated in Migration**:
+
+- Removed quote-stripping comparison (`replace(/["']/g, '')`) for implementation matching.
+- Removed direct `inherit` text-scan flow in implementation provider.
+
+**Files**:
+
+- `packages/pike-lsp-server/src/services/pike-introspection.ts`
+- `packages/pike-lsp-server/src/features/navigation/implementation.ts`
+- `packages/pike-lsp-server/src/features/hierarchy.ts`
+
+---
