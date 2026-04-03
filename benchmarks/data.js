@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775249275621,
+  "lastUpdate": 1775250899987,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -111322,6 +111322,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.7276036302521005,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ebe3f8ab74a8fb5352e9e67327456b69e2fc459b",
+          "message": "P0: migrate implementation and hierarchy to Pike-native introspection (REAL) (#1215)\n\n* Revert \"P0: migrate implementation and hierarchy to Pike-native introspection (#1214)\"\n\nThis reverts commit cc807797d88db68c06163c6220cf91b1061b8fdc.\n\n* P0: migrate implementation and hierarchy to Pike-native introspection\n\nPhase 1 regex elimination:\n\n- Replace inherit text matching with program->inherits introspection\n\n- Add PikeIntrospectionService for shared bridge-based symbol extraction\n\n- Migrate implementation provider to use introspection graph\n\n- Migrate hierarchy to use shared symbol graph from introspection\n\n- Add 5 contract tests for implementation accuracy\n\n- Fix: only filter inherits when introspection is complete (not partial)\n\n- KB entry documenting migration pattern\n\nEliminated patterns:\n\n- text-based inherit scanning\n\n- quote-strip regex in comparison\n\n- local inherit-symbol scanning logic\n\ncloses #1213\n\n* fix: include uncached files in hierarchy getKnownUris()\n\n* fix: add getFile mock to workspaceScanner in hierarchy tests\n\n* ci: trigger checks\n\n* fix: resolve TypeScript errors in server.ts from merge\n\n---------\n\nCo-authored-by: TheSmuks <thesmuks@users.noreply.github.com>",
+          "timestamp": "2026-04-03T21:13:13Z",
+          "tree_id": "131ff080ab0e4953a0c7eed748caccf525c6d957",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/ebe3f8ab74a8fb5352e9e67327456b69e2fc459b"
+        },
+        "date": 1775250899323,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.6763625,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 250.51363866666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 252.65139075,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 258.09777116666663,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.4900536056034484,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.907637230215827,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 63.34201916666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 5.823484615384615,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.696890417808219,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.19930450338135844,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.1979753146689997,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5978752134146341,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.1534161919944147,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.16640899847405902,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.0002287765398723323,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0003618642718068536,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.00037239761201863147,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.00035420714863313856,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0003603033072689661,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0003598231786650626,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.32947314859632143,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.31614825,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.8003515,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3554688046097433,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00023209757609943767,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0004774912418143104,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.353482535433071,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.3300585078125,
             "unit": "ms"
           }
         ]
