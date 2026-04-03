@@ -267,6 +267,28 @@
           "type": "boolean",
           "default": true,
           "description": "Remove unused imports when organizing imports. When false, imports are only sorted."
+        },
+        "pike.maxNumberOfProblems": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Maximum number of diagnostics to report per file"
+        },
+        "pike.inlayHints.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inlay hints for Pike code"
+        },
+        "pike.inlayHints.parameterNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show parameter name hints in inlay hints"
+        },
+        "pike.inlineValues.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inline values in Pike code"
         }
       }
     }
