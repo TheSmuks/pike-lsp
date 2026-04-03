@@ -55,7 +55,46 @@ ok() {
 GITIGNORE_ADDITIONS=()
 
 # ============================================================
-echo -e "${BLUE}[1/6] Planning & dev directories${NC}"
+echo -e "${BLUE}[1/7] Worktree compliance (AGENTS.md policy)${NC}"
+# ============================================================
+# Check if developer is following the worktree policy:
+# "ALWAYS use worktrees for all development"
+
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+CURRENT_WORKTREE=$(git rev-parse --show-toplevel 2>/dev/null || echo "unknown")
+MAIN_WORKTREE=$(git rev-parse --git-common-dir 2>/dev/null | sed 's|/.git$||' || echo "unknown")
+
+# Check if working directly on main with uncommitted changes
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+  UNCOMMITTED=$(git status --porcelain 2>/dev/null | wc -l)
+  if [ "$UNCOMMITTED" -gt 0 ]; then
+    warn "Working on '$CURRENT_BRANCH' with $UNCOMMITTED uncommitted changes"
+    echo -e "    ${DIM}Policy: ALWAYS use worktrees for all development${NC}"
+    echo -e "    ${DIM}Fix: ./start-work.sh <branch> and move changes there${NC}"
+  fi
+fi
+
+# Check if in main worktree (not a linked worktree)
+# Main worktree = git worktree list shows same path for "main" branch
+MAIN_WORKTREE_PATH=$(git worktree list --porcelain 2>/dev/null | grep -A1 "^worktree " | head -2 | tail -1 | sed 's/^worktree //')
+if [ "$CURRENT_WORKTREE" = "$MAIN_WORKTREE_PATH" ] && [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "master" ]; then
+  warn "Branch '$CURRENT_BRANCH' created in main worktree instead of linked worktree"
+  echo -e "    ${DIM}Policy: Use './start-work.sh $CURRENT_BRANCH' instead${NC}"
+  echo -e "    ${DIM}This prevents conflicts when multiple agents are active${NC}"
+fi
+
+# Count worktrees (encourage using them)
+WORKTREE_COUNT=$(git worktree list 2>/dev/null | wc -l)
+if [ "$WORKTREE_COUNT" -le 1 ]; then
+  echo -e "  ${GREEN}OK${NC}     No worktree issues detected ($WORKTREE_COUNT worktree active)"
+else
+  echo -e "  ${GREEN}OK${NC}     $WORKTREE_COUNT worktrees active (good for parallel work)"
+fi
+
+echo ""
+
+# ============================================================
+echo -e "${BLUE}[2/7] Planning & dev directories${NC}"
 # ============================================================
 # Directories that are dev-only and shouldn't be in the release
 
@@ -75,7 +114,7 @@ ok ".omc/ clean (removed in refactor)"
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[2/6] Dev artifact markdown in root${NC}"
+echo -e "${BLUE}[3/7] Dev artifact markdown in root${NC}"
 # ============================================================
 # Files that look like development artifacts, not user-facing docs
 
@@ -129,7 +168,7 @@ fi
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[3/6] Scattered AGENTS.md files${NC}"
+echo -e "${BLUE}[4/7] Scattered AGENTS.md files${NC}"
 # ============================================================
 # AGENTS.md files are agent context - only expected at root
 # Others are likely auto-generated and shouldn't be tracked
@@ -156,7 +195,7 @@ done < <(git ls-files '**/AGENTS.md' 'AGENTS.md' '*/AGENTS.md' 2>/dev/null)
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[4/6] Large tracked files (>500KB)${NC}"
+echo -e "${BLUE}[5/7] Large tracked files (>500KB)${NC}"
 # ============================================================
 
 found_large=false
@@ -178,7 +217,7 @@ fi
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[5/6] Empty tracked files${NC}"
+echo -e "${BLUE}[6/7] Empty tracked files${NC}"
 # ============================================================
 
 found_empty=false
@@ -196,7 +235,7 @@ fi
 echo ""
 
 # ============================================================
-echo -e "${BLUE}[6/6] Untracked files (not gitignored)${NC}"
+echo -e "${BLUE}[7/7] Untracked files (not gitignored)${NC}"
 # ============================================================
 
 untracked=$(git ls-files --others --exclude-standard 2>/dev/null)
