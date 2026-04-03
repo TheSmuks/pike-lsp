@@ -296,40 +296,29 @@ if (existing.length > 0) throw collisionError;
 
 ---
 
-## 2026-04-03: KB Enforcement System Implementation
+## 2026-04-03: Shared Call Context Resolver Prevents Signature/Inlay Drift
 
-**Finding**: Implemented multi-layer KB enforcement as per docs/kb-enforcement-policy.md.
+**Finding**: Signature help and inlay hints were using independent call parsers, causing mismatch on nested calls, member calls, and comment/string false positives.
 
-**Enforcement Layers Added**:
+**Pattern**:
 
-1. **PR Template** (`.github/PULL_REQUEST_TEMPLATE.md`):
-   - KB section with checkbox for entry added
-   - Checkbox for exemption with explanation
-   - KB ID field for traceability
+1. Centralize call parsing in `features/navigation/call-context-resolver.ts`
+2. Resolve active parameter from parsed call context in signature help
+3. Reuse collected call contexts for inlay hint argument ranges
+4. Skip comments/strings/multiline strings once in shared parser
 
-2. **CI Enforcement** (`.github/workflows/enforce-acceptance-criteria.yml`):
-   - Validates KB section is filled or exempted
-   - Fails PR if neither checkbox is marked
+**Impact**:
 
-3. **Pre-commit Hook** (`.husky/pre-commit`):
-   - Runs `scripts/check-kb-compliance.ts --staged`
-   - Warns when code changes lack KB updates
+- `obj->method(...)` is now detected for signature help and inlay hints
+- Nested active-parameter tracking aligns between both features
+- Varargs labels can consistently render as `...args`
+- Comment/string call-like text no longer generates inlay hints
 
-4. **AGENTS.md Forbidden Section**:
-   - Added: "Significant changes without KB documentation"
-   - References enforcement policy
+**Files**:
 
-**Implementation Challenges**:
-
-- Legacy KB files lack frontmatter (exempted from validation)
-- Script uses Bun native APIs (no external glob dependency)
-- Only validates NEW/CHANGED KB entries (not legacy)
-
-**Code Changes**:
-
-- `scripts/check-kb-compliance.ts`: Validation logic
-- `.husky/pre-commit`: Integration
-- `.github/workflows/enforce-acceptance-criteria.yml`: CI gate
-- `AGENTS.md`: Policy reference
+- `packages/pike-lsp-server/src/features/navigation/call-context-resolver.ts`
+- `packages/pike-lsp-server/src/features/editing/signature-help.ts`
+- `packages/pike-lsp-server/src/features/advanced/inlay-hints.ts`
+- `packages/pike-lsp-server/src/scenarios/signature-help-member-varargs.test.ts`
 
 ---
