@@ -1,5 +1,8 @@
 # Gotchas - Common Traps
 
+**Last Updated**: 2026-04-03
+**Purpose**: Things that frequently trip up agents
+
 Things that frequently trip up agents.
 
 ## The "Test Explorer Already Exists" Trap

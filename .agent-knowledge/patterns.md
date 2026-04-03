@@ -1,5 +1,8 @@
 # Code Patterns & Conventions
 
+**Last Updated**: 2026-04-03
+**Purpose**: Established patterns agents must follow
+
 Established patterns agents must follow.
 
 ## Required Patterns
