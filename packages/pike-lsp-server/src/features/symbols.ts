@@ -94,6 +94,51 @@ export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
 }
 
 /**
+ * #1209: Calculate relevance score for workspace symbol matching.
+ * Higher score = better match.
+ * Scoring: exact (1000) > prefix (500) > camelCase (200) > substring (100)
+ */
+function calculateSymbolScore(symbolName: string, query: string): number {
+  if (!query) return 0;
+
+  const name = symbolName;
+  const queryLower = query.toLowerCase();
+  const nameLower = name.toLowerCase();
+
+  // Exact match (case-sensitive)
+  if (name === query) return 1000;
+
+  // Exact match (case-insensitive)
+  if (nameLower === queryLower) return 900;
+
+  // Prefix match (case-sensitive)
+  if (name.startsWith(query)) return 500;
+
+  // Prefix match (case-insensitive)
+  if (nameLower.startsWith(queryLower)) return 400;
+
+  // CamelCase matching (e.g., "gV" matches "getValue")
+  const camelCaseMatch = query.split('').every((char, idx) => {
+    const searchFrom = idx === 0 ? 0 : name.indexOf(query[idx - 1]!, idx - 1) + 1;
+    return name.slice(searchFrom).includes(char);
+  });
+  if (camelCaseMatch) return 200;
+
+  // Substring match (case-insensitive) - lowest priority
+  if (nameLower.includes(queryLower)) return 100;
+
+  // No match
+  return 0;
+}
+
+/**
+ * #1209: Workspace symbol with score for ranking
+ */
+interface ScoredSymbol extends SymbolInformation {
+  score: number;
+}
+
+/**
  * Register symbols handlers with the LSP connection.
  *
  * @param connection - LSP connection
@@ -225,21 +270,19 @@ export function registerSymbolsHandlers(
   /**
    * Workspace symbol handler - search symbols across workspace (Ctrl+T)
    *
+   * #1209: Implements scoring model for ranking results:
+   * exact (1000) > prefix (500) > camelCase (200) > substring (100)
+   *
    * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
-   * NOTE: Current LSP version is 3.17 (vscode-languageserver 9.0.1).
-   * WorkspaceSymbolParams.limit was added in LSP 3.18.
-   * We implement server-side limiting to avoid overwhelming the client.
-   * Upgrade tracking: track under a future LSP 3.18 milestone
    */
   connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
-    const query = params.query;
+    const query = params.query ?? '';
     const limit = LSP.MAX_WORKSPACE_SYMBOLS;
 
     log.debug('Workspace symbol request', { query, limit });
 
     try {
-      const allSymbols: SymbolInformation[] = [];
-      const queryLower = query?.toLowerCase() ?? '';
+      const scoredSymbols: ScoredSymbol[] = [];
       const cachedUris = new Set<string>();
 
       for (const [uri, cached] of Array.from(documentCache.entries())) {
@@ -249,9 +292,11 @@ export function registerSymbolsHandlers(
           // Skip symbols with null names
           if (!symbol.name) continue;
 
-          if (!query || symbol.name.toLowerCase().includes(queryLower)) {
+          // #1209: Calculate relevance score
+          const score = calculateSymbolScore(symbol.name, query);
+          if (score > 0) {
             const line = Math.max(0, (symbol.position?.line ?? 1) - 1);
-            allSymbols.push({
+            scoredSymbols.push({
               name: symbol.name,
               kind: convertSymbolKind(symbol.kind),
               location: {
@@ -261,12 +306,8 @@ export function registerSymbolsHandlers(
                   end: { line, character: symbol.name.length },
                 },
               },
+              score,
             });
-
-            if (allSymbols.length >= limit) {
-              log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
-              return allSymbols;
-            }
           }
         }
       }
@@ -277,20 +318,23 @@ export function registerSymbolsHandlers(
           continue;
         }
 
-        allSymbols.push(indexed);
-
-        if (allSymbols.length >= limit) {
-          log.debug('Workspace symbol search hit limit', { count: allSymbols.length });
-          return allSymbols;
-        }
+        // #1209: Score indexed results too
+        const score = calculateSymbolScore(indexed.name, query);
+        scoredSymbols.push({ ...indexed, score: score > 0 ? score : 1 });
       }
+
+      // #1209: Sort by score (descending) and take top N
+      scoredSymbols.sort((a, b) => b.score - a.score);
+      const results = scoredSymbols.slice(0, limit);
 
       log.debug('Workspace symbol search complete', {
         query,
-        indexedCount: indexedResults.length,
-        totalCount: allSymbols.length,
+        totalCount: scoredSymbols.length,
+        returnedCount: results.length,
+        topScore: results[0]?.score ?? 0,
       });
-      return allSymbols;
+
+      return results;
     } catch (err) {
       log.error(
         `Workspace symbol failed for query "${query}": ${err instanceof Error ? err.message : String(err)}`

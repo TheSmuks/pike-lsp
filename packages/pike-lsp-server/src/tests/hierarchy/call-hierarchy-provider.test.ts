@@ -53,7 +53,7 @@ void main() {
 
       const expectedOutgoingCalls: CallHierarchyOutgoingCall[] = [
         {
-          from: mainFunction,
+          to: mainFunction,
           fromRanges: [
             { start: { line: 4, character: 4 }, end: { line: 4, character: 12 } },
             { start: { line: 5, character: 4 }, end: { line: 5, character: 12 } },
@@ -68,7 +68,7 @@ void main() {
 
       // Verify expected outgoing calls structure
       assert.strictEqual(expectedOutgoingCalls.length, 1);
-      assert.strictEqual(expectedOutgoingCalls[0]!.from.name, 'main');
+      assert.strictEqual(expectedOutgoingCalls[0]!.to.name, 'main');
       assert.strictEqual(expectedOutgoingCalls[0]!.fromRanges.length, 2);
 
       // Verify call ranges
@@ -557,17 +557,23 @@ void caller() {
         [
           file1Uri,
           makeCacheEntry({
-            symbols: [sym('caller', 'method', { position: { line: 2, column: 0 } })],
+            symbols: [
+              sym('caller', 'method', { position: { file: 'file1.pike', line: 2, column: 0 } }),
+            ],
             symbolPositions: new Map([
               ['helper', [{ line: 2, character: 4 }]], // helper() call in caller (line 2, 0-indexed)
             ]),
+            callPositions: new Map([['helper', [{ line: 2, character: 4 }]]]),
           }),
         ],
         [
           file2Uri,
           makeCacheEntry({
-            symbols: [sym('helper', 'method', { position: { line: 1, column: 0 } })],
+            symbols: [
+              sym('helper', 'method', { position: { file: 'file2.pike', line: 1, column: 0 } }),
+            ],
             symbolPositions: new Map(),
+            callPositions: new Map(),
           }),
         ],
       ]);
@@ -670,10 +676,13 @@ void caller() {
         [
           file1Uri,
           makeCacheEntry({
-            symbols: [sym('caller', 'method', { position: { line: 2, column: 0 } })],
+            symbols: [
+              sym('caller', 'method', { position: { file: 'file1.pike', line: 2, column: 0 } }),
+            ],
             symbolPositions: new Map([
               ['undefinedFunction', [{ line: 2, character: 4 }]], // Line 2, 0-indexed
             ]),
+            callPositions: new Map([['undefinedFunction', [{ line: 2, character: 4 }]]]),
           }),
         ],
       ]);

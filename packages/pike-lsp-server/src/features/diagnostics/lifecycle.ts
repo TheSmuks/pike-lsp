@@ -32,6 +32,10 @@ interface RegisterDiagnosticsLifecycleHandlersArgs {
   inFlightDiagnosticRequests: Map<string, string>;
   validationTimers: Map<string, ReturnType<typeof setTimeout>>;
   validationVersions: Map<string, number>;
+  validationScheduledRevisions?: Map<string, number>;
+  validationRevisions?: Map<string, number>;
+  publishedDiagnosticRevisions?: Map<string, number>;
+  issueValidationRevision?: Map<string, number>;
   validateDocument: (
     document: TextDocument,
     classification?: ChangeClassification,
@@ -61,6 +65,10 @@ export function registerDiagnosticsLifecycleHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationScheduledRevisions: _validationScheduledRevisions,
+    validationRevisions: _validationRevisions,
+    publishedDiagnosticRevisions: _publishedDiagnosticRevisions,
+    issueValidationRevision: _issueValidationRevision,
     validateDocument,
     validateDocumentDebounced,
     log,

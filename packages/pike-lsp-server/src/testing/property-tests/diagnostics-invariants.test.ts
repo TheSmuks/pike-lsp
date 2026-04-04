@@ -1,7 +1,11 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
-import { assertInvariant, canPublishDiagnosticsVersion } from './invariants.js';
+import {
+  assertInvariant,
+  canPublishDiagnosticsVersion,
+  isDiagnosticsVersionFresh,
+} from './invariants.js';
 import { buildStaleFallbackEntry } from '../../features/diagnostics/index.js';
 
 type Operation = { kind: 'bump' } | { kind: 'publish'; validatedVersion: number };
@@ -73,6 +77,31 @@ describe('Property Invariant: diagnostics version monotonic', () => {
           assert.equal(entry.version, version);
           assert.equal(Array.isArray(entry.diagnostics), true);
           assert.equal(entry.diagnostics.length > 0, true);
+        }
+      )
+    );
+  });
+
+  // #1208: Parse resilience - diagnostics version freshness invariant
+  it('never publishes diagnostics with version newer than live document', () => {
+    assertInvariant(
+      'diagnostics-version-freshness',
+      fc.property(
+        fc.integer({ min: 0, max: 10_000 }),
+        fc.integer({ min: 0, max: 10_000 }),
+        (publishedVersion, liveVersion) => {
+          // If published version is greater than live, it's an error
+          // (would mean we're publishing diagnostics for a future version)
+          const isFresh = isDiagnosticsVersionFresh(publishedVersion, liveVersion);
+
+          if (publishedVersion > liveVersion) {
+            assert.equal(isFresh, false, 'Should never publish for version > live');
+          }
+
+          // Valid case: published <= live (may still be stale if < live)
+          if (publishedVersion <= liveVersion) {
+            assert.equal(isFresh, true, 'Should allow publishing for version <= live');
+          }
         }
       )
     );
