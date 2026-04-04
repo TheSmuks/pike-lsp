@@ -325,6 +325,7 @@ export function makeCacheEntry(
     diagnostics: [],
     symbolPositions: new Map(),
     symbolNames: new Map(),
+    callPositions: new Map(),
     ...overrides,
   };
 }

@@ -35,6 +35,7 @@ describe('call hierarchy across closed workspace files', () => {
             sym('caller', 'method', { position: { file: 'file1.pike', line: 1, column: 1 } }),
           ],
           symbolPositions: new Map([['helper', [{ line: 1, character: 1 }]]]),
+          callPositions: new Map([['helper', [{ line: 1, character: 1 }]]]),
         }),
       ],
     ]);
@@ -114,7 +115,11 @@ describe('call hierarchy across closed workspace files', () => {
     const targetPath = join(dir, 'target.pike');
     const closedCallerPath = join(dir, 'closed-caller.pike');
     await writeFile(targetPath, 'void helper() {}\n', 'utf-8');
-    await writeFile(closedCallerPath, 'void caller() {\n helper();\n}\n', 'utf-8');
+    await writeFile(
+      closedCallerPath,
+      'extern void helper();\nvoid caller() {\n helper();\n}\n',
+      'utf-8'
+    );
 
     const targetUri = `file://${targetPath}`;
     const closedCallerUri = `file://${closedCallerPath}`;
@@ -129,6 +134,7 @@ describe('call hierarchy across closed workspace files', () => {
             sym('helper', 'method', { position: { file: 'target.pike', line: 1, column: 1 } }),
           ],
           symbolPositions: new Map([['helper', [{ line: 0, character: 5 }]]]),
+          callPositions: new Map(),
         }),
       ],
     ]);
@@ -146,17 +152,26 @@ describe('call hierarchy across closed workspace files', () => {
                 parse: {
                   symbols: [
                     {
-                      name: 'caller',
+                      name: 'helper',
                       kind: 'method',
                       modifiers: [],
                       position: { line: 1, column: 1 },
+                    },
+                    {
+                      name: 'caller',
+                      kind: 'method',
+                      modifiers: [],
+                      position: { line: 2, column: 1 },
                     },
                   ],
                 },
                 tokenize: {
                   tokens: [
-                    { text: 'caller', type: 'identifier', line: 1, column: 6 },
-                    { text: 'helper', type: 'identifier', line: 2, column: 2 },
+                    { text: 'helper', type: 'identifier', line: 1, column: 12 },
+                    { text: 'caller', type: 'identifier', line: 2, column: 6 },
+                    { text: 'helper', type: 'identifier', line: 3, column: 4 },
+                    { text: '(', type: 'punctuation', line: 3, column: 10 },
+                    { text: ')', type: 'punctuation', line: 3, column: 11 },
                   ],
                 },
               },
