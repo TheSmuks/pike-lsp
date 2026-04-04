@@ -21,9 +21,10 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import { promises as fs } from 'node:fs';
 
 import type { Services } from '../services/index.js';
-import type { PikeSymbol, PikeSymbolKind } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeSymbolKind, PikeToken } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
+import { buildCallPositionIndex } from './diagnostics/symbol-index.js';
 
 /**
  * Validation set for PikeSymbolKind values
@@ -43,13 +44,6 @@ const VALID_KINDS: Set<PikeSymbolKind> = new Set<PikeSymbolKind>([
   'include' as PikeSymbolKind,
   'module' as PikeSymbolKind,
 ]);
-
-interface HierarchyToken {
-  type?: string;
-  text?: string;
-  line?: number;
-  column?: number;
-}
 
 /**
  * Validate symbol kind and log warnings for unknown values
@@ -174,17 +168,17 @@ export function registerHierarchyHandlers(
   };
 
   const buildSymbolPositionsFromTokens = (
-    tokens: HierarchyToken[]
+    tokens: PikeToken[]
   ): Map<string, Array<{ line: number; character: number }>> => {
     const symbolPositions = new Map<string, Array<{ line: number; character: number }>>();
 
     for (const token of tokens) {
-      if (token?.type !== 'identifier' || typeof token.text !== 'string') {
+      if (!token?.text) {
         continue;
       }
 
-      const line = typeof token.line === 'number' ? Math.max(0, token.line - 1) : 0;
-      const character = typeof token.column === 'number' ? Math.max(0, token.column - 1) : 0;
+      const line = Math.max(0, token.line - 1); // Convert to 0-indexed
+      const character = Math.max(0, token.character);
 
       const positions = symbolPositions.get(token.text) ?? [];
       positions.push({ line, character });
@@ -201,6 +195,7 @@ export function registerHierarchyHandlers(
     text: string;
     symbols: PikeSymbol[];
     symbolPositions: Map<string, Array<{ line: number; character: number }>>;
+    callPositions: Map<string, Array<{ line: number; character: number }>>;
   } | null> => {
     try {
       const filePath = decodeURIComponent(fileInfo.uri.replace(/^file:\/\//, ''));
@@ -214,6 +209,15 @@ export function registerHierarchyHandlers(
       const tokens = analyzed?.result?.tokenize?.tokens ?? [];
       const symbolPositions = buildSymbolPositionsFromTokens(tokens);
 
+      // Build call positions for call hierarchy
+      const callableNames = new Set<string>(
+        symbols
+          .filter(s => isCallable(s.kind))
+          .map(s => s.name)
+          .filter((name): name is string => !!name)
+      );
+      const callPositions = buildCallPositionIndex(tokens, callableNames);
+
       services.workspaceScanner.updateFileData(fileInfo.uri, {
         symbolPositions,
       });
@@ -223,6 +227,7 @@ export function registerHierarchyHandlers(
         text,
         symbols,
         symbolPositions,
+        callPositions,
       };
     } catch (err) {
       log.debug(`Failed to read closed workspace file for call hierarchy: ${fileInfo.uri}`, {
@@ -358,27 +363,15 @@ export function registerHierarchyHandlers(
         cached: {
           symbols: PikeSymbol[];
           symbolPositions?: Map<string, { line: number; character: number }[]>;
+          callPositions?: Map<string, { line: number; character: number }[]>;
         },
         text: string
       ) => {
         const lines = text.split('\n');
         const symbols = cached.symbols;
 
-        // Get positions of target name from Pike tokenization (accurate, excludes comments)
-        const targetPositions = cached.symbolPositions?.get(targetName) ?? [];
-
-        // Filter to only positions that look like function calls (followed by '(')
-        const callPositions: { line: number; character: number }[] = [];
-        for (const pos of targetPositions) {
-          const line = lines[pos.line];
-          if (!line) continue;
-
-          // Check if this is a function call: targetName followed by '('
-          const afterName = line.substring(pos.character + targetName.length);
-          if (/^\s*\(/.test(afterName)) {
-            callPositions.push(pos);
-          }
-        }
+        // #1206: Use callPositions directly (already filtered to actual function calls)
+        const targetCallPositions = cached.callPositions?.get(targetName) ?? [];
 
         // For each callable, find which calls are within its body
         for (const symbol of symbols) {
@@ -403,7 +396,7 @@ export function registerHierarchyHandlers(
 
           // Find call positions within this callable's body
           const ranges: Range[] = [];
-          for (const pos of callPositions) {
+          for (const pos of targetCallPositions) {
             if (pos.line >= methodStartLine && pos.line < nextCallableLine) {
               ranges.push({
                 start: { line: pos.line, character: pos.character },
@@ -461,6 +454,7 @@ export function registerHierarchyHandlers(
             {
               symbols: loaded.symbols,
               symbolPositions: loaded.symbolPositions,
+              callPositions: loaded.callPositions,
             },
             loaded.text
           );
@@ -516,65 +510,27 @@ export function registerHierarchyHandlers(
           .map(s => (s.position?.line ?? 0) - 1)
           .sort((a, b) => a - b)[0] ?? lines.length;
 
-      // Pike keywords and control flow that look like function calls
-      const keywords = new Set([
-        'if',
-        'else',
-        'while',
-        'for',
-        'foreach',
-        'switch',
-        'case',
-        'return',
-        'break',
-        'continue',
-        'catch',
-        'throw',
-        'sizeof',
-        'typeof',
-        'arrayp',
-        'mappingp',
-        'stringp',
-        'intp',
-        'floatp',
-        'objectp',
-        'functionp',
-        'programp',
-        'callablep',
-        'multisetp',
-      ]);
-
-      // Find all function calls using Pike-tokenized symbolPositions
+      // #1206: Use callPositions directly - already filtered to actual function calls
       const calledFunctions = new Map<string, Range[]>();
 
-      // Iterate through all identifiers in symbolPositions
-      if (cached.symbolPositions) {
-        for (const [identName, positions] of cached.symbolPositions.entries()) {
-          // Skip keywords and self-recursion
-          if (keywords.has(identName)) continue;
-          if (identName === sourceMethodName) continue;
+      if (cached.callPositions) {
+        for (const [funcName, positions] of cached.callPositions.entries()) {
+          // Skip self-recursion
+          if (funcName === sourceMethodName) continue;
 
-          // Find positions within this callable that are function calls
+          // Filter positions to those within this callable's body
           const ranges: Range[] = [];
           for (const pos of positions) {
-            // Check if within callable body
-            if (pos.line < callableStartLine || pos.line >= nextCallableLine) continue;
-
-            // Check if this is a function call (followed by '(')
-            const line = lines[pos.line];
-            if (!line) continue;
-
-            const afterName = line.substring(pos.character + identName.length);
-            if (/^\s*\(/.test(afterName)) {
+            if (pos.line >= callableStartLine && pos.line < nextCallableLine) {
               ranges.push({
                 start: { line: pos.line, character: pos.character },
-                end: { line: pos.line, character: pos.character + identName.length },
+                end: { line: pos.line, character: pos.character + funcName.length },
               });
             }
           }
 
           if (ranges.length > 0) {
-            calledFunctions.set(identName, ranges);
+            calledFunctions.set(funcName, ranges);
           }
         }
       }

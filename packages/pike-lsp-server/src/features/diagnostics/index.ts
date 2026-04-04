@@ -13,12 +13,25 @@
 import type {
   Connection,
   TextDocuments,
-  Diagnostic as ProtocolDiagnostic,
   Range,
+  DocumentDiagnosticParams,
+  WorkspaceDiagnosticParams,
+  WorkspaceDocumentDiagnosticReport,
 } from 'vscode-languageserver/node.js';
+
+interface PendingChangeState {
+  hasMultipleChanges: boolean;
+  range: Range | undefined;
+}
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import type { PikeSettings, DocumentCacheEntry, CoreDiagnostic } from '../../core/types.js';
+
+import type {
+  PikeSettings,
+  DocumentCacheEntry,
+  CoreDiagnostic,
+  CorePosition,
+} from '../../core/types.js';
 import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import { DIAGNOSTIC_DELAY_DEFAULT, DEFAULT_MAX_PROBLEMS } from '../../constants/index.js';
@@ -33,52 +46,20 @@ import {
   deduplicateDiagnostics,
   isSemanticAnalysisEnabled,
 } from './semantic-analyzer.js';
+import { buildCallPositionIndex } from './symbol-index.js';
 
-interface PendingChangeState {
-  range: Range | undefined;
-  hasMultipleChanges: boolean;
-}
-
-interface TextDocumentDiagnosticRequestParams {
-  textDocument?: {
-    uri?: string;
-  };
-  previousResultId?: string;
-}
-
-interface WorkspacePreviousResultIdEntry {
-  uri?: string;
-  value?: string;
-}
-
-interface WorkspaceDiagnosticRequestParams {
-  previousResultIds?: WorkspacePreviousResultIdEntry[];
-}
-
-type WorkspaceDiagnosticReportItem =
-  | {
-      uri: string;
-      kind: 'unchanged';
-      resultId: string;
-    }
-  | {
-      uri: string;
-      kind: 'full';
-      items: ProtocolDiagnostic[];
-      resultId: string;
-    };
-
-// Import from split modules
+// Re-export functions from submodules
 export {
   convertDiagnostic,
   isDeprecatedSymbolDiagnostic,
   extractDeprecatedFromSymbols,
   type DiagnosticRelatedLocation,
 } from './utils.js';
-export { buildSymbolNameIndex } from './symbol-index.js';
 export {
+  buildSymbolNameIndex,
   buildSymbolPositionIndex,
   buildSymbolPositionIndexRegex,
+  buildCallPositionIndex,
   flattenSymbols,
 } from './symbol-index.js';
 export {
@@ -191,6 +172,10 @@ export function registerDiagnosticsHandlers(
   // INC-563: Track expected document version for each debounced validation
   // This prevents stale validations from overwriting fresher results after undo
   const validationVersions = new Map<string, number>();
+  const validationScheduledRevisions = new Map<string, number>();
+  const validationRevisions = new Map<string, number>();
+  const publishedDiagnosticRevisions = new Map<string, number>();
+  const issueValidationRevision = new Map<string, number>();
 
   // INC-002: Track change ranges for incremental parsing.
   const pendingChangeStates = new Map<string, PendingChangeState>();
@@ -217,7 +202,7 @@ export function registerDiagnosticsHandlers(
 
   if (typeof connection.onRequest === 'function') {
     connection.onRequest('textDocument/diagnostic', async params => {
-      const requestParams = (params ?? {}) as TextDocumentDiagnosticRequestParams;
+      const requestParams = (params ?? {}) as DocumentDiagnosticParams;
       const uri = requestParams.textDocument?.uri;
       if (!uri) {
         return { kind: 'full', items: [], resultId: '0:diag-0' };
@@ -243,7 +228,7 @@ export function registerDiagnosticsHandlers(
     });
 
     connection.onRequest('workspace/diagnostic', async params => {
-      const requestParams = (params ?? {}) as WorkspaceDiagnosticRequestParams;
+      const requestParams = (params ?? {}) as WorkspaceDiagnosticParams;
       const previousByUri = new Map<string, string>();
       const previousResultIds = Array.isArray(requestParams.previousResultIds)
         ? requestParams.previousResultIds
@@ -266,7 +251,7 @@ export function registerDiagnosticsHandlers(
         uris.add(uri);
       }
 
-      const items: WorkspaceDiagnosticReportItem[] = [];
+      const items: WorkspaceDocumentDiagnosticReport[] = [];
       for (const uri of uris) {
         await documentCache.waitFor(uri);
         const cached = documentCache.get(uri);
@@ -276,12 +261,14 @@ export function registerDiagnosticsHandlers(
         if (previousByUri.get(uri) === resultId) {
           items.push({
             uri,
+            version: cached?.version ?? null,
             kind: 'unchanged',
             resultId,
           });
         } else {
           items.push({
             uri,
+            version: cached?.version ?? null,
             kind: 'full',
             items: toProtocolDiagnostics(cached?.diagnostics ?? []),
             resultId,
@@ -944,15 +931,27 @@ export function registerDiagnosticsHandlers(
           tokenizeData,
           bridge
         );
+
+        // #1206: Build call positions from tokens for call hierarchy
+        const callableNames = new Set(
+          legacySymbols
+            .filter((s: { kind: string; name: string }) => s.kind === 'method')
+            .map((s: { kind: string; name: string }) => s.name)
+        );
+        const callPositions: Map<string, CorePosition[]> = tokenizeData?.length
+          ? buildCallPositionIndex(tokenizeData, callableNames)
+          : new Map<string, CorePosition[]>();
+
         if (!ensureLatest('post_symbol_index_build')) {
           return;
         }
 
         const cacheEntry: DocumentCacheEntry = {
           version,
-          symbols: hierarchicalSymbols, // Use hierarchical symbols with children preserved
+          symbols: hierarchicalSymbols,
           diagnostics,
           symbolPositions,
+          callPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
           // INC-002: Store hashes for incremental change detection
@@ -1018,15 +1017,31 @@ export function registerDiagnosticsHandlers(
           previousEntry?.symbolPositions
             ? previousEntry.symbolPositions
             : await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData, bridge);
+
+        // #1206: Build call positions from tokens for call hierarchy (or reuse from previous entry)
+        const callPositions: Map<string, CorePosition[]> = previousEntry?.callPositions
+          ? previousEntry.callPositions
+          : tokenizeData?.length
+            ? buildCallPositionIndex(
+                tokenizeData,
+                new Set(
+                  symbolsWithDeprecated
+                    .filter((s: { kind: string; name: string }) => s.kind === 'method')
+                    .map((s: { kind: string; name: string }) => s.name)
+                )
+              )
+            : new Map<string, CorePosition[]>();
+
         if (!previousEntry?.symbolPositions && !ensureLatest('post_symbol_index_build_fallback')) {
           return;
         }
 
         const cacheEntry: DocumentCacheEntry = {
           version,
-          symbols: symbolsWithDeprecated, // Use symbols with deprecated extracted from source
+          symbols: symbolsWithDeprecated,
           diagnostics,
           symbolPositions,
+          callPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames:
             analysisMode === 'typing' && previousEntry?.symbolNames
@@ -1321,6 +1336,10 @@ export function registerDiagnosticsHandlers(
     inFlightDiagnosticRequests,
     validationTimers,
     validationVersions,
+    validationScheduledRevisions,
+    validationRevisions,
+    publishedDiagnosticRevisions,
+    issueValidationRevision,
     validateDocument,
     validateDocumentDebounced,
     log,
