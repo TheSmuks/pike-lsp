@@ -235,6 +235,51 @@ export async function buildSymbolPositionIndex(
 }
 
 /**
+ * Build call position index using Pike tokenization.
+ * Detects function calls by checking if identifier token is followed by '(' token.
+ * @param tokens - Pike tokens from tokenization
+ * @param callableNames - Set of callable symbol names to look for
+ * @returns Map of function name to array of positions where it's called
+ */
+export function buildCallPositionIndex(
+  tokens: PikeToken[],
+  callableNames: Set<string>
+): Map<string, CorePosition[]> {
+  const index = new Map<string, CorePosition[]>();
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (!token || !callableNames.has(token.text)) {
+      continue;
+    }
+
+    // Check if next token is '(' indicating a function call
+    const nextToken = tokens[i + 1];
+    if (nextToken && nextToken.text === '(') {
+      const lineIdx = token.line - 1; // Convert to 0-indexed
+      const character = token.character;
+
+      // Skip if character position is not available
+      if (character < 0) {
+        continue;
+      }
+
+      const pos: CorePosition = {
+        line: lineIdx,
+        character: character,
+      };
+
+      if (!index.has(token.text)) {
+        index.set(token.text, []);
+      }
+      index.get(token.text)!.push(pos);
+    }
+  }
+
+  return index;
+}
+
+/**
  * Fallback regex-based symbol position finding.
  * Used when Pike tokenization is unavailable.
  */
