@@ -55,9 +55,14 @@ describe('Workspace Symbol Ranking', () => {
       assert.equal(score, 200);
     });
 
-    it('should score substring match lowest', () => {
-      const score = calculateSymbolScore('getValue', 'alu');
-      assert.equal(score, 100);
+    it('should score camelCase match higher than substring', () => {
+      // gV matches getValue via camelCase (g...V)
+      const camelScore = calculateSymbolScore('getValue', 'gV');
+      // alu matches getValue via substring (Valu)e
+      const substringScore = calculateSymbolScore('getValue', 'val');
+      assert.ok(camelScore > substringScore, 'CamelCase should score higher than substring');
+      assert.equal(camelScore, 200);
+      assert.equal(substringScore, 100);
     });
   });
 });
