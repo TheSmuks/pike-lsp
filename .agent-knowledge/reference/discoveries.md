@@ -365,3 +365,61 @@ if (existing.length > 0) throw collisionError;
 - `packages/pike-lsp-server/src/features/hierarchy.ts`
 
 ---
+
+## 2026-04-04: Call Hierarchy Implementation - Test and Type Fix Patterns
+
+**Finding**: PR #1222 added call hierarchy but failed CI due to incomplete integration across mock data, types, and module boundaries.
+
+**Root Causes**:
+
+1. **Mock Data Missing New Fields**: `makeCacheEntry()` in `mock-services.ts` didn't include `callPositions`, causing all call hierarchy tests to fail
+2. **TypeScript Interface Mismatch**: `registerDiagnosticsLifecycleHandlers` expected new validation revision maps that weren't passed
+3. **Merge Duplicates**: Merge created duplicate `isDiagnosticsVersionFresh` and `buildCallPositionIndex` functions
+4. **Module Integration Gap**: `hierarchy.ts` used custom `HierarchyToken` instead of `PikeToken` and didn't build call positions for closed files
+
+**Fix Pattern**:
+
+```typescript
+// 1. Update mock helper to include new field
+export function makeCacheEntry(options = {}) {
+  return {
+    // ... existing fields
+    callPositions: options.callPositions ?? new Map(), // Added
+  };
+}
+
+// 2. Add missing interface properties
+interface RegisterDiagnosticsLifecycleHandlersArgs {
+  // ... existing args
+  validationScheduledRevisions?: Map<string, number>; // Added
+  validationRevisions?: Map<string, number>; // Added
+}
+
+// 3. Wire up call position building in hierarchy
+const loadClosedWorkspaceFile = async fileInfo => {
+  const tokens = analyzed?.result?.tokenize?.tokens ?? [];
+  const callableNames = new Set(symbols.filter(s => isCallable(s.kind)).map(s => s.name));
+  const callPositions = buildCallPositionIndex(tokens, callableNames); // Added
+  return { uri, text, symbols, symbolPositions, callPositions }; // Added to return
+};
+```
+
+**Lesson**: Adding a new feature requires updating:
+
+- Core types (`DocumentCacheEntry`)
+- Diagnostics integration (building the data during validation)
+- Feature handlers (consuming the data)
+- Mock helpers (enabling tests)
+- All interface contracts between modules
+
+**Files**:
+
+- `packages/pike-lsp-server/src/core/types.ts` - Added `callPositions` field
+- `packages/pike-lsp-server/src/features/diagnostics/index.ts` - Build callPositions during validation
+- `packages/pike-lsp-server/src/features/diagnostics/symbol-index.ts` - `buildCallPositionIndex` function
+- `packages/pike-lsp-server/src/features/diagnostics/lifecycle.ts` - Added missing handler args
+- `packages/pike-lsp-server/src/features/hierarchy.ts` - Use callPositions for incoming/outgoing calls
+- `packages/pike-lsp-server/src/tests/helpers/mock-services.ts` - Added callPositions to mock cache entries
+- `packages/pike-lsp-server/src/testing/property-tests/invariants.ts` - Removed duplicate function
+
+---
