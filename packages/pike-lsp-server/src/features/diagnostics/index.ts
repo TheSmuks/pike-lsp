@@ -149,18 +149,7 @@ export function registerDiagnosticsHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  // Import functions from split modules
-  const {
-    convertDiagnostic,
-    isDeprecatedSymbolDiagnostic,
-    extractDeprecatedFromSymbols,
-  } = require('./utils.js');
-  const {
-    buildSymbolPositionIndex,
-    buildSymbolNameIndex,
-    flattenSymbols,
-  } = require('./symbol-index.js');
-  const { classifyChange } = require('./change-detection.js');
+  // PERF-1229: Removed dead require() calls — these functions are imported via ES imports at top of file.
 
   // NOTE: We access services.bridge dynamically instead of destructuring,
   // because bridge is null when handlers are registered and only initialized later in onInitialize.
@@ -721,16 +710,19 @@ export function registerDiagnosticsHandlers(
         string,
         { line: number; character: number; name: string }
       >();
-      if (parseData && parseData.symbols.length > 0) {
-        const flatSymbols = flattenSymbols(parseData.symbols);
-        for (const sym of flatSymbols) {
-          if (sym.name && sym.position) {
-            symbolPositionMap.set(sym.name, {
-              name: sym.name,
-              line: sym.position.line ?? 1,
-              character: sym.position.column ?? 1,
-            });
-          }
+      // PERF-1229: Compute flatSymbols once and reuse for both symbolPositionMap
+      // and the legacy symbol merge below (avoids redundant recursive walk).
+      const flatSymbols = parseData && parseData.symbols.length > 0
+        ? flattenSymbols(parseData.symbols)
+        : [];
+
+      for (const sym of flatSymbols) {
+        if (sym.name && sym.position) {
+          symbolPositionMap.set(sym.name, {
+            name: sym.name,
+            line: sym.position.line ?? 1,
+            character: sym.position.column ?? 1,
+          });
         }
       }
 
@@ -838,10 +830,9 @@ export function registerDiagnosticsHandlers(
           classes: introspectData.classes?.length ?? 0,
         });
 
-        if (parseData && parseData.symbols.length > 0) {
-          // Flatten nested symbols to include class members
-          // This ensures get_n, get_e, set_random etc. are indexed
-          const flatParseSymbols = flattenSymbols(parseData.symbols);
+        if (flatSymbols.length > 0) {
+          // PERF-1229: Reuse flatSymbols computed above instead of calling flattenSymbols() again.
+          const flatParseSymbols = flatSymbols;
 
           log.debug('Flattened parse symbols', {
             uri,
