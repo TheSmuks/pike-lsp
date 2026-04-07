@@ -1007,8 +1007,9 @@ protected array(string) tokenize_preprocessor_branch(string code) {
         }
 
         // Handle whitespace - token boundary
-        // Use trim_whites check instead of non-existent String.is_whitespace
-        if (sizeof(String.trim_whites(char)) == 0) {
+        // Use LSP.Compat.trim_whites for consistent behavior across Pike versions
+        // (native String.trim_whites does not trim newlines in Pike 8.x)
+        if (sizeof(LSP.Compat.trim_whites(char)) == 0) {
             if (sizeof(current_token) > 0) {
                 tokens += ({current_token});
                 current_token = "";
