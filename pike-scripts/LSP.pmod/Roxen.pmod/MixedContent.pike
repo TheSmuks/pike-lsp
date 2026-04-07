@@ -78,9 +78,11 @@ protected float calculate_rxml_confidence(string content) {
 
     // Strong indicators
     if (has_value(lower, "<roxen")) confidence += 0.4;
-    if (has_value(lower, "<set ")) confidence += 0.2;
-    if (has_value(lower, "<emit ")) confidence += 0.2;
-    if (has_value(lower, "<if ") || has_value(lower, "<elseif ") || has_value(lower, "<else>")) {
+    if (has_value(lower, "<set")) confidence += 0.2;  // matches <set>, <set attr...>, </set>
+    if (has_value(lower, "<emit")) confidence += 0.2;  // matches <emit>, <emit attr...>, </emit>
+    if (has_value(lower, "<if ") || has_value(lower, "<if>") ||
+        has_value(lower, "<elseif ") || has_value(lower, "<else>") ||
+        has_value(lower, "</if>")) {
         confidence += 0.15;
     }
 
@@ -215,80 +217,95 @@ protected array(mapping) detect_rxml_markers(string content, array(int)|void con
 //! Detect multiline string literals using Parser.Pike.split()
 //! @param code Pike source code
 //! @returns Array of detected RXML string mappings
+//!
+//! Parser.Pike.split() returns the entire #"..." or #'...' as a single token.
+//! We detect tokens starting with #" or #' and extract the inner content.
 protected array(mapping) detect_multiline_strings(string code) {
     array(mapping) results = ({});
     array(mixed) tokens = Parser.Pike.split(code);
 
     array(int) newline_offsets = build_newline_offsets(code);
 
-    // Track string literal state
-    int in_multiline_string = 0;
-    int string_start_offset = 0;
-    int string_quote_offset = 0;
-    string current_content = "";
-    int string_quote_length = 0;  // 2 for #" or #', 1 for closing "
+    // Track cumulative offset to map token index → source offset
+    int cumulative_offset = 0;
 
     for (int i = 0; i < sizeof(tokens); i++) {
         mixed token = tokens[i];
 
-        if (stringp(token)) {
-            if (!in_multiline_string) {
-                // Check for multiline string start: #" or #'
-                if (token == "#\"" || token == "#'") {
-                    in_multiline_string = 1;
-                    string_quote_offset = i;
-                    string_quote_length = 2;
-                    current_content = "";
+        if (!stringp(token)) {
+            cumulative_offset += sizeof(sprintf("%O", token));
+            continue;
+        }
 
-                    // Find actual position in source code
-                    string_start_offset = find_token_offset_for_token(code, token, string_quote_offset);
-                }
+        string t = (string)token;
+
+        // Check if this token is a multiline string literal: starts with #" or #'
+        if (sizeof(t) >= 2 && (has_prefix(t, "#\"") || has_prefix(t, "#'"))) {
+            string quote_prefix = t[0..1];  // #" or #'
+            string close_quote = quote_prefix[1..1];  // " or '
+
+            // Extract content between opening and closing quotes
+            // Token format: #"content" or #'content'
+            // For multiline strings, the closing quote is the last character
+            // unless the string is empty: #""
+            string content;
+            if (sizeof(t) <= 2) {
+                // Empty multiline string: #"" or #''
+                content = "";
             } else {
-                // Check for closing quote
-                if ((string_quote_length == 2 && token == "\"") ||
-                    (string_quote_length == 2 && token == "'")) {
-                    // End of multiline string
-                    in_multiline_string = 0;
-
-                    // Calculate confidence
-                    float confidence = calculate_rxml_confidence(current_content);
-
-                    // Only include strings with reasonable confidence
-                    if (confidence >= 0.3 && sizeof(String.trim_all_whites(current_content)) > 0) {
-                        // Calculate positions
-                        mapping start_pos = offset_to_position(string_start_offset + string_quote_length, newline_offsets);
-
-                        // Calculate end position (rough approximation)
-                        int content_end_offset = string_start_offset + string_quote_length + sizeof(current_content);
-                        mapping end_pos = offset_to_position(content_end_offset, newline_offsets);
-
-                        // Full range including quotes
-                        mapping quote_start_pos = offset_to_position(string_start_offset, newline_offsets);
-                        mapping quote_end_pos = offset_to_position(content_end_offset + 1, newline_offsets);
-
-                        // Detect markers
-                        array(mapping) markers = detect_rxml_markers(current_content);
-
-                        results += ({
-                            ([
-                                "content": current_content,
-                                "start": start_pos,
-                                "end": end_pos,
-                                "quote_start": quote_start_pos,
-                                "quote_end": quote_end_pos,
-                                "confidence": confidence,
-                                "markers": markers
-                            ])
-                        });
-                    }
-
-                    current_content = "";
-                    string_quote_length = 0;
-                } else {
-                    // Accumulate content
-                    current_content += token;
-                }
+                // Strip opening #"/#' and closing "/'
+                // Find the last occurrence of the closing quote
+                int last_quote = sizeof(t) - 1;
+                // Walk backwards to find the actual closing quote
+                // (the content might contain unescaped quotes in multiline strings)
+                // In Pike multiline strings, the end quote is the last char
+                content = t[2..last_quote - 1];
             }
+
+            // Find this token's offset in the original source code
+            // We search for the quote prefix starting from cumulative_offset
+            int string_start_offset = search(code, quote_prefix, cumulative_offset);
+            if (string_start_offset < 0) {
+                // Fallback: use cumulative estimate
+                string_start_offset = cumulative_offset;
+            }
+
+            // Update cumulative offset for next iteration
+            cumulative_offset = string_start_offset + sizeof(t);
+
+            // Calculate confidence
+            float confidence = calculate_rxml_confidence(content);
+
+            // Only include strings with reasonable confidence and non-empty content
+            if (confidence >= 0.2 && sizeof(String.trim_all_whites(content)) > 0) {
+                int content_start_offset = string_start_offset + 2;  // skip #"
+                int content_end_offset = string_start_offset + sizeof(t) - 1;  // before closing quote
+
+                // Calculate positions
+                mapping start_pos = offset_to_position(content_start_offset, newline_offsets);
+                mapping end_pos = offset_to_position(content_end_offset, newline_offsets);
+
+                // Full range including quotes
+                mapping quote_start_pos = offset_to_position(string_start_offset, newline_offsets);
+                mapping quote_end_pos = offset_to_position(string_start_offset + sizeof(t), newline_offsets);
+
+                // Detect markers
+                array(mapping) markers = detect_rxml_markers(content);
+
+                results += ({
+                    ([
+                        "content": content,
+                        "start": start_pos,
+                        "end": end_pos,
+                        "quote_start": quote_start_pos,
+                        "quote_end": quote_end_pos,
+                        "confidence": confidence,
+                        "markers": markers
+                    ])
+                });
+            }
+        } else {
+            cumulative_offset += sizeof(t);
         }
     }
 
