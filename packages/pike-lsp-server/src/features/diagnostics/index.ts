@@ -149,7 +149,18 @@ export function registerDiagnosticsHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  // PERF-1229: Removed dead require() calls — these functions are imported via ES imports at top of file.
+  // Import functions from split modules
+  const {
+    convertDiagnostic,
+    isDeprecatedSymbolDiagnostic,
+    extractDeprecatedFromSymbols,
+  } = require('./utils.js');
+  const {
+    buildSymbolPositionIndex,
+    buildSymbolNameIndex,
+    flattenSymbols,
+  } = require('./symbol-index.js');
+  const { classifyChange } = require('./change-detection.js');
 
   // NOTE: We access services.bridge dynamically instead of destructuring,
   // because bridge is null when handlers are registered and only initialized later in onInitialize.
@@ -712,9 +723,8 @@ export function registerDiagnosticsHandlers(
       >();
       // PERF-1229: Compute flatSymbols once and reuse for both symbolPositionMap
       // and the legacy symbol merge below (avoids redundant recursive walk).
-      const flatSymbols = parseData && parseData.symbols.length > 0
-        ? flattenSymbols(parseData.symbols)
-        : [];
+      const flatSymbols =
+        parseData && parseData.symbols.length > 0 ? flattenSymbols(parseData.symbols) : [];
 
       for (const sym of flatSymbols) {
         if (sym.name && sym.position) {
