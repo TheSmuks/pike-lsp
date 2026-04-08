@@ -91,8 +91,12 @@ describe('Slow Integration: Cross-Platform File Operations', { timeout: 30_000 }
       await rename(originalPath, renamedPath);
 
       // Verify file moved
-      const oldExists = await stat(originalPath).then(() => true).catch(() => false);
-      const newExists = await stat(renamedPath).then(() => true).catch(() => false);
+      const oldExists = await stat(originalPath)
+        .then(() => true)
+        .catch(() => false);
+      const newExists = await stat(renamedPath)
+        .then(() => true)
+        .catch(() => false);
       expect(oldExists).toBe(false);
       expect(newExists).toBe(true);
 
@@ -141,8 +145,12 @@ describe('Slow Integration: Cross-Platform File Operations', { timeout: 30_000 }
       const dstFile = join(dstDir, 'mover.pike');
       await rename(srcFile, dstFile);
 
-      const srcExists = await stat(srcFile).then(() => true).catch(() => false);
-      const dstExists = await stat(dstFile).then(() => true).catch(() => false);
+      const srcExists = await stat(srcFile)
+        .then(() => true)
+        .catch(() => false);
+      const dstExists = await stat(dstFile)
+        .then(() => true)
+        .catch(() => false);
       expect(srcExists).toBe(false);
       expect(dstExists).toBe(true);
 
@@ -155,7 +163,8 @@ describe('Slow Integration: Cross-Platform File Operations', { timeout: 30_000 }
   describe('Document URI updates after rename', () => {
     it('document cache correctly updates URI after rename', () => {
       // Simulates the LSP's willRenameFiles / didRenameFiles flow
-      const { DocumentCache } = require('../../services/document-cache.js') as typeof import('../../services/document-cache.js');
+      const { DocumentCache } =
+        require('../../services/document-cache.js') as typeof import('../../services/document-cache.js');
       const cache = new DocumentCache();
 
       const oldUri = 'file:///workspace/old-name.pike';
@@ -191,7 +200,8 @@ describe('Slow Integration: Cross-Platform File Operations', { timeout: 30_000 }
 
     it('batch rename of multiple files maintains cache integrity', () => {
       // E.g., renaming a directory affects all contained files
-      const { DocumentCache } = require('../../services/document-cache.js') as typeof import('../../services/document-cache.js');
+      const { DocumentCache } =
+        require('../../services/document-cache.js') as typeof import('../../services/document-cache.js');
       const cache = new DocumentCache();
 
       const oldPrefix = 'file:///workspace/old-pkg/';
