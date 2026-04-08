@@ -275,7 +275,10 @@ export function findSymbolAtPosition(
   position: Position,
   document?: TextDocument
 ): PikeSymbol | null {
+  console.time('findSymbolAtPosition');
+
   if (!document) {
+    console.timeEnd('findSymbolAtPosition');
     return null;
   }
 
@@ -299,16 +302,19 @@ export function findSymbolAtPosition(
 
   for (const symbol of symbols) {
     if (symbol.name === word) {
+      console.timeEnd('findSymbolAtPosition');
       return symbol;
     }
 
     if (symbol.kind === 'inherit' || symbol.kind === 'import' || symbol.kind === 'include') {
       const classname = (symbol as { classname?: string }).classname?.replace(/['"]/g, '');
       if (classname === word) {
+        console.timeEnd('findSymbolAtPosition');
         return symbol;
       }
     }
   }
 
+  console.timeEnd('findSymbolAtPosition');
   return null;
 }

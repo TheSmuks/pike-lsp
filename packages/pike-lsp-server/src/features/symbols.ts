@@ -191,6 +191,7 @@ export function registerSymbolsHandlers(
    * Document symbols handler - provides outline view
    */
   connection.onDocumentSymbol(async (params): Promise<DocumentSymbol[] | null> => {
+    console.time('onDocumentSymbol');
     const uri = params.textDocument.uri;
 
     log.debug('Document symbol request', { uri });
@@ -258,11 +259,13 @@ export function registerSymbolsHandlers(
       // --- End Roxen integration ---
 
       const converted = symbolsToConvert.map(convertSymbol);
+      console.timeEnd('onDocumentSymbol');
       return converted;
     } catch (err) {
       log.error(
         `Document symbol failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`
       );
+      console.timeEnd('onDocumentSymbol');
       return null;
     }
   });
@@ -276,6 +279,7 @@ export function registerSymbolsHandlers(
    * PERF-006: Uses MAX_WORKSPACE_SYMBOLS to limit results.
    */
   connection.onWorkspaceSymbol((params: WorkspaceSymbolParams): SymbolInformation[] => {
+    console.time('onWorkspaceSymbol');
     const query = params.query ?? '';
     const limit = LSP.MAX_WORKSPACE_SYMBOLS;
 
@@ -334,11 +338,13 @@ export function registerSymbolsHandlers(
         topScore: results[0]?.score ?? 0,
       });
 
+      console.timeEnd('onWorkspaceSymbol');
       return results;
     } catch (err) {
       log.error(
         `Workspace symbol failed for query "${query}": ${err instanceof Error ? err.message : String(err)}`
       );
+      console.timeEnd('onWorkspaceSymbol');
       return [];
     }
   });
