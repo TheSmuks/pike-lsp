@@ -52,12 +52,14 @@ export function stripLineComments(line: string): string {
  * @param document - Current document state
  * @param changeRange - LSP range of the change (undefined = full document)
  * @param cachedEntry - Previous cached parse result (undefined = must parse)
+ * @param lines - Pre-computed lines array to avoid redundant text.split('\n') (optional)
  * @returns Classification indicating if parsing can be skipped
  */
 export function classifyChange(
   document: TextDocument,
   changeRange: Range | undefined,
-  cachedEntry: DocumentCacheEntry | undefined
+  cachedEntry: DocumentCacheEntry | undefined,
+  lines?: string[]
 ): ChangeClassification {
   // No cache? Must parse
   if (!cachedEntry) {
@@ -88,9 +90,10 @@ export function classifyChange(
 
     // Strategy 2: Check if change overlaps with any symbol positions
     if (cachedEntry.lineHashes) {
-      const lines = text.split('\n');
+      // Use pre-computed lines if provided, otherwise split once
+      const linesArray = lines ?? text.split('\n');
 
-      if (cachedEntry.lineHashes.length !== lines.length) {
+      if (cachedEntry.lineHashes.length !== linesArray.length) {
         return {
           canSkip: false,
           reason: 'line_count_changed',
@@ -99,9 +102,9 @@ export function classifyChange(
 
       // Check if any line in the change range has different semantic content
       let hasSemanticChange = false;
-      for (let i = startLine; i <= endLine && i < lines.length; i++) {
+      for (let i = startLine; i <= endLine && i < linesArray.length; i++) {
         const cachedHash = cachedEntry.lineHashes[i];
-        const newHash = computeSemanticLineHash(lines[i] ?? '');
+        const newHash = computeSemanticLineHash(linesArray[i] ?? '');
 
         if (cachedHash !== newHash) {
           hasSemanticChange = true;
