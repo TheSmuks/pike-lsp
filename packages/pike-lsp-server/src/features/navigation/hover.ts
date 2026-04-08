@@ -21,7 +21,7 @@ import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo, getMacroInfo } from './keywords.js';
 import { LRUCache } from '../../utils/lru-cache.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 /**
@@ -73,7 +73,6 @@ export function registerHoverHandler(
   const hoverScheduler = new RequestScheduler({ logger: log });
   const HOVER_SCHEDULER_LOG_EVERY = 50;
   let hoverRequestsObserved = 0;
-
   function maybeLogHoverSchedulerMetrics(uri: string, outcome: string): void {
     hoverRequestsObserved += 1;
     if (hoverRequestsObserved % HOVER_SCHEDULER_LOG_EVERY !== 0) {
@@ -203,64 +202,100 @@ export function registerHoverHandler(
     // Only do symbol lookup if we don't have a keyword/macro result
     let symbol: PikeSymbol | null = null;
     let parentScope: string | undefined;
+    let isStdlib = false;
 
     if (!hoverResult) {
-      symbol = cached.symbolNames?.get(word) ?? null;
-
-      // 1a. For variables, check for scope-aware type with parse-under-edit resilience
-      if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
-        try {
-          const text = document.getText();
-          const line = params.position.line + 1;
-
-          // KB-1248: Use resilient type lookup that handles parse-under-edit
-          const typeResult = await getTypeAtPositionResilient(
-            services.bridge,
-            text,
-            uri,
-            line,
-            word,
-            cancellationToken
-          );
-
-          if (typeResult?.found === 1 && typeResult.type) {
-            log.info(
-              `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
-            );
-            symbol = {
-              ...symbol,
-              type: pikeTypeFromString(typeResult.type),
-            };
-          }
-        } catch (err) {
-          // KB-1248: Already handled in getTypeAtPositionResilient, log for debugging
-          log.debug('Scope-aware type lookup failed (handled gracefully)', { word, error: err });
-        }
-      }
-    }
-
-    // 2. If not found, try to find in stdlib
-    let isStdlib = false;
-    if (!symbol && stdlibIndex) {
-      // Check if it's a known module
       try {
-        const moduleInfo = await stdlibIndex.getModule(word);
-        if (moduleInfo) {
-          // Create a synthetic symbol for the module
-          symbol = {
-            name: word,
-            kind: 'module',
-            // We don't have location info for stdlib modules in the editor
-            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-            selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-            children: [],
-            modifiers: [],
-          } as unknown as PikeSymbol;
-          isStdlib = true;
+        const scheduledResult = await hoverScheduler.schedule<{
+          symbol: PikeSymbol | null;
+          isStdlib: boolean;
+        } | null>({
+          requestClass: 'interactive',
+          key: `hover:${uri}`,
+          run: async checkpoint => {
+            checkpoint();
+            if (cancellationToken?.isCancellationRequested) {
+              throw new RequestSupersededError('Hover request cancelled by LSP token');
+            }
+
+            let localSymbol: PikeSymbol | null = cached.symbolNames?.get(word) ?? null;
+
+            // 1a. For variables, check for scope-aware type with parse-under-edit resilience
+            if (localSymbol && localSymbol.kind === 'variable' && services.bridge?.bridge) {
+              try {
+                const text = document.getText();
+                const line = params.position.line + 1;
+
+                // KB-1248: Use resilient type lookup that handles parse-under-edit
+                const typeResult = await getTypeAtPositionResilient(
+                  services.bridge,
+                  text,
+                  uri,
+                  line,
+                  word,
+                  cancellationToken
+                );
+
+                if (typeResult?.found === 1 && typeResult.type) {
+                  log.info(
+                    `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
+                  );
+                  localSymbol = {
+                    ...localSymbol,
+                    type: pikeTypeFromString(typeResult.type),
+                  };
+                }
+              } catch (err) {
+                // KB-1248: Already handled in getTypeAtPositionResilient, log for debugging
+                log.debug('Scope-aware type lookup failed (handled gracefully)', {
+                  word,
+                  error: err,
+                });
+              }
+            }
+
+            // 2. If not found, try to find in stdlib
+            let localIsStdlib = false;
+            if (!localSymbol && stdlibIndex) {
+              // Check if it's a known module
+              try {
+                const moduleInfo = await stdlibIndex.getModule(word);
+                if (moduleInfo) {
+                  // Create a synthetic symbol for the module
+                  localSymbol = {
+                    name: word,
+                    kind: 'module',
+                    // We don't have location info for stdlib modules in the editor
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                    selectionRange: {
+                      start: { line: 0, character: 0 },
+                      end: { line: 0, character: 0 },
+                    },
+                    children: [],
+                    modifiers: [],
+                  } as unknown as PikeSymbol;
+                  localIsStdlib = true;
+                }
+              } catch (err) {
+                // KB-1248: Gracefully handle stdlib lookup failures
+                log.debug('Stdlib module lookup failed (handled gracefully)', { word, error: err });
+              }
+            }
+
+            return { symbol: localSymbol, isStdlib: localIsStdlib };
+          },
+        });
+
+        if (scheduledResult) {
+          symbol = scheduledResult.symbol;
+          isStdlib = scheduledResult.isStdlib;
         }
       } catch (err) {
-        // KB-1248: Gracefully handle stdlib lookup failures
-        log.debug('Stdlib module lookup failed (handled gracefully)', { word, error: err });
+        if (err instanceof RequestSupersededError) {
+          // Scheduler cancelled this request; symbol stays null, fall through
+        } else {
+          throw err;
+        }
       }
     }
 

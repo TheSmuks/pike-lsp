@@ -110,4 +110,120 @@ describe('Query engine parse-under-edit resilience', () => {
       assert.ok(typeof completion.metrics?.durationMs === 'number');
     }
   });
+
+  it('keeps hover query path alive for broken intermediate edits', async () => {
+    const uri = 'file:///tmp/qe2-parse-edit-hover.pike';
+    const filename = '/tmp/qe2-parse-edit-hover.pike';
+    const texts = [
+      'int stable = 1;\n',
+      'int stable = ;\n',
+      'class C {\n  int x\n',
+      'class C {\n  int x = 1;\n  void run() {\n    if (x\n  }\n}\n',
+      'int repaired = 2;\n',
+    ];
+
+    const opened = await bridge.engineOpenDocument({
+      uri,
+      languageId: 'pike',
+      version: 1,
+      text: texts[0] ?? '',
+    });
+    assert.ok(typeof opened.snapshotId === 'string' && opened.snapshotId.length > 0);
+
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i] ?? '';
+      const version = i + 2;
+      const malformed = i > 0 && i < texts.length - 1;
+
+      const changed = await bridge.engineChangeDocument({
+        uri,
+        version,
+        changes: [{ text }],
+      });
+      assert.ok(typeof changed.snapshotId === 'string' && changed.snapshotId.length > 0);
+
+      const response = await bridge.engineQuery({
+        feature: 'hover',
+        requestId: `qe2-parse-edit-hover-${version}`,
+        snapshot: { mode: 'latest' },
+        queryParams: {
+          uri,
+          filename,
+          version,
+          text,
+          position: { line: 0, character: 1 },
+        },
+      });
+
+      assert.ok(typeof response.snapshotIdUsed === 'string' && response.snapshotIdUsed.length > 0);
+      assert.ok(typeof response.metrics?.durationMs === 'number');
+
+      if (malformed) {
+        const result = response.result as Record<string, unknown>;
+        assert.ok(
+          (result as { status?: string }).status === 'stub' ||
+            (result as { feature?: unknown }).feature != null,
+          `Malformed edit v${version} must return structured hover result`
+        );
+      }
+    }
+  });
+
+  it('keeps signature-help query path alive for broken intermediate edits', async () => {
+    const uri = 'file:///tmp/qe2-parse-edit-sig.pike';
+    const filename = '/tmp/qe2-parse-edit-sig.pike';
+    const texts = [
+      'int stable = 1;\n',
+      'int stable = ;\n',
+      'class C {\n  int x\n',
+      'class C {\n  int x = 1;\n  void run() {\n    if (x\n  }\n}\n',
+      'int repaired = 2;\n',
+    ];
+
+    const opened = await bridge.engineOpenDocument({
+      uri,
+      languageId: 'pike',
+      version: 1,
+      text: texts[0] ?? '',
+    });
+    assert.ok(typeof opened.snapshotId === 'string' && opened.snapshotId.length > 0);
+
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i] ?? '';
+      const version = i + 2;
+      const malformed = i > 0 && i < texts.length - 1;
+
+      const changed = await bridge.engineChangeDocument({
+        uri,
+        version,
+        changes: [{ text }],
+      });
+      assert.ok(typeof changed.snapshotId === 'string' && changed.snapshotId.length > 0);
+
+      const response = await bridge.engineQuery({
+        feature: 'signatureHelp',
+        requestId: `qe2-parse-edit-sig-${version}`,
+        snapshot: { mode: 'latest' },
+        queryParams: {
+          uri,
+          filename,
+          version,
+          text,
+          position: { line: 0, character: 1 },
+        },
+      });
+
+      assert.ok(typeof response.snapshotIdUsed === 'string' && response.snapshotIdUsed.length > 0);
+      assert.ok(typeof response.metrics?.durationMs === 'number');
+
+      if (malformed) {
+        const result = response.result as Record<string, unknown>;
+        assert.ok(
+          (result as { status?: string }).status === 'stub' ||
+            (result as { feature?: unknown }).feature != null,
+          `Malformed edit v${version} must return structured signatureHelp result`
+        );
+      }
+    }
+  });
 });
