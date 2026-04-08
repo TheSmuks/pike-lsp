@@ -57,11 +57,14 @@ export {
 } from './utils.js';
 export {
   buildSymbolNameIndex,
+  buildSymbolsByNameIndex,
   buildSymbolPositionIndex,
   buildSymbolPositionIndexRegex,
   buildCallPositionIndex,
   flattenSymbols,
 } from './symbol-index.js';
+// Import for internal use
+import { buildSymbolsByNameIndex } from './symbol-index.js';
 export {
   classifyChange,
   stripLineComments,
@@ -958,6 +961,8 @@ export function registerDiagnosticsHandlers(
           callPositions,
           // PERF-005: Build symbol name index for O(1) hover lookups
           symbolNames: buildSymbolNameIndex(hierarchicalSymbols),
+          // PERF-1229: Build overload index from flattened symbols for O(1) method hover
+          symbolsByName: buildSymbolsByNameIndex(flatSymbols),
           // INC-002: Store hashes for incremental change detection
           contentHash,
           lineHashes,
@@ -1047,6 +1052,14 @@ export function registerDiagnosticsHandlers(
           return;
         }
 
+        // PERF-1229: Flatten symbols for overload index (if we don't have previous entry's index)
+        const symbolsByName: Map<string, PikeSymbol[]> | undefined =
+          analysisMode === 'typing' && previousEntry?.symbolsByName
+            ? previousEntry.symbolsByName
+            : symbolsWithDeprecated.length > 0
+              ? buildSymbolsByNameIndex(flattenSymbols(symbolsWithDeprecated))
+              : undefined;
+
         const cacheEntry: DocumentCacheEntry = {
           version,
           symbols: symbolsWithDeprecated,
@@ -1058,6 +1071,8 @@ export function registerDiagnosticsHandlers(
             analysisMode === 'typing' && previousEntry?.symbolNames
               ? previousEntry.symbolNames
               : buildSymbolNameIndex(symbolsWithDeprecated),
+          // PERF-1229: Build overload index from flattened symbols for O(1) method hover
+          symbolsByName,
           // INC-002: Store hashes for incremental change detection
           contentHash,
           lineHashes,
