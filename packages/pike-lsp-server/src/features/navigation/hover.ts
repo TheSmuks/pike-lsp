@@ -142,9 +142,11 @@ export function registerHoverHandler(
       }
 
       if (symbol.kind === 'method') {
-        const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name).filter(
-          s => s.kind === 'method'
-        );
+        // PERF-1229: Use pre-built symbolsByName index for O(1) overload lookup instead of O(n) recursive walk
+        const overloadCandidates =
+          cached.symbolsByName?.get(symbol.name)?.filter(s => s.kind === 'method') ??
+          // Fallback to recursive walk if index not available (shouldn't happen after validation)
+          collectSymbolsByName(cached.symbols, symbol.name).filter(s => s.kind === 'method');
 
         if (overloadCandidates.length > 0) {
           const mainSymbol = overloadCandidates.find(

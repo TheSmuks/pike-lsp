@@ -30,6 +30,31 @@ export function buildSymbolNameIndex(symbols: PikeSymbol[]): Map<string, PikeSym
 }
 
 /**
+ * PERF-1229: Build overload index for O(1) lookups of all symbols by name.
+ * Maps symbol name to array of ALL symbols with that name (including overloads/variants).
+ * This eliminates the need for recursive tree walks in hover to find method overloads.
+ *
+ * @param symbols - Array of symbols (typically flattened) to index
+ * @returns Map from symbol name to array of all symbols with that name
+ */
+export function buildSymbolsByNameIndex(symbols: PikeSymbol[]): Map<string, PikeSymbol[]> {
+  const index = new Map<string, PikeSymbol[]>();
+
+  for (const symbol of symbols) {
+    if (!symbol.name) continue;
+
+    const existing = index.get(symbol.name);
+    if (existing) {
+      existing.push(symbol);
+    } else {
+      index.set(symbol.name, [symbol]);
+    }
+  }
+
+  return index;
+}
+
+/**
  * Recursively index symbols into the map.
  * @param symbols - Array of symbols to index
  * @param index - Map to populate

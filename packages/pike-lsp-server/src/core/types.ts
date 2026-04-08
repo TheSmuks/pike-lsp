@@ -200,6 +200,12 @@ export interface DocumentCacheEntry {
   callPositions?: Map<string, CorePosition[]>;
   /** Symbol name index for O(1) lookups: symbol_name -> PikeSymbol */
   symbolNames: Map<string, CoreSymbol>;
+  /**
+   * PERF-1229: Symbol overload index for O(1) lookups of all symbols by name.
+   * Maps symbol name to array of all symbols with that name (including overloads/variants).
+   * This enables O(1) hover lookups for overloaded methods instead of O(n) tree walk.
+   */
+  symbolsByName?: Map<string, CoreSymbol[]>;
   /** Include and import dependencies (optional, populated lazily) */
   dependencies?: DocumentDependencies;
   /** Inheritance information from introspection */
