@@ -82,7 +82,6 @@ export {
 } from './change-detection.js';
 
 // NOTE: Type-only re-export to satisfy TypeScript isolatedModules
-export type { DiagnosticRelatedLocation };
 export {
   analyzeSemantics,
   deduplicateDiagnostics,
@@ -795,7 +794,10 @@ export function registerDiagnosticsHandlers(
           convertDiagnostic(
             pikeDiag,
             document,
-            { deprecated: isDeprecated, relatedLocation },
+            {
+              ...(isDeprecated ? { deprecated: true } : {}),
+              ...(relatedLocation ? { relatedLocation } : {}),
+            },
             lines
           )
         );
