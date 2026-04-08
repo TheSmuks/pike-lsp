@@ -266,7 +266,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     connection.console.log('Pike LSP Server initializing...');
     log('Pike LSP Server initializing...');
 
+    // Startup profiling: begin timing
+    console.time('[Startup] Total initialization');
+
+    console.time('[Startup] Find analyzer path');
     const analyzerPath = findAnalyzerPath();
+    console.timeEnd('[Startup] Find analyzer path');
     if (analyzerPath) {
       connection.console.log(`Found analyzer.pike at: ${analyzerPath}`);
       log(`Found analyzer.pike at: ${analyzerPath}`);
@@ -345,7 +350,11 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     }
 
     log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);
+    console.time('[Startup] Create PikeBridge');
     const bridge = new PikeBridge(bridgeOptions);
+    console.timeEnd('[Startup] Create PikeBridge');
+
+    console.time('[Startup] Create BridgeManager');
     bridgeManager = new BridgeManager(bridge, logger);
     includeResolver = new IncludeResolver(bridgeManager, logger);
 
@@ -354,19 +363,29 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       includeResolver,
     });
 
+    console.time('[Startup] WorkspaceIndex setup');
     workspaceIndex.setBridge(bridge);
     workspaceIndex.setErrorCallback((message, uri) => {
       connection.console.warn(message + (uri ? ` (${uri})` : ''));
       log(`[WorkspaceIndex Error] ${message} (${uri})`);
     });
+    console.timeEnd('[Startup] WorkspaceIndex setup');
 
+    console.timeEnd('[Startup] Create BridgeManager');
+
+    console.time('[Startup] Bridge startup (ensureBridgeStartupOrThrow)');
     await ensureBridgeStartupOrThrow({
       bridgeManager,
       log,
       reportConsoleError: (message: string) => connection.console.error(message),
       showErrorMessage: (message: string) => connection.window.showErrorMessage?.(message),
     });
+    console.timeEnd('[Startup] Bridge startup (ensureBridgeStartupOrThrow)');
 
+    console.timeEnd('[Startup] Total initialization');
+    connection.console.log(
+      'Pike LSP Server initialization complete - timing report printed to console'
+    );
     log('onInitialize completing');
 
     return {
@@ -465,12 +484,15 @@ connection.onDidChangeConfiguration(change => {
 // Register Feature Handlers (BEFORE documents.listen!)
 // ============================================================================
 
+console.time('[Startup] Create services');
 const services = createServices();
 pikeIntrospection = new PikeIntrospectionService(services);
 (services as { pikeIntrospection?: PikeIntrospectionService }).pikeIntrospection =
   pikeIntrospection;
 const serviceRuntimeContext = createServiceRuntimeContext(services);
+console.timeEnd('[Startup] Create services');
 
+console.time('[Startup] Register feature handlers');
 features.registerDiagnosticsHandlers(connection, services, documents);
 features.registerNavigationHandlers(connection, services, documents);
 features.registerEditingHandlers(connection, services, documents);
@@ -483,7 +505,9 @@ features.registerRoxenHandlers(connection, services, documents);
 features.registerRXMLHandlers(connection, services, documents);
 // Issue #184: Register file watcher for incremental updates
 features.registerFileWatcher(connection, services, documents);
+console.timeEnd('[Startup] Register feature handlers');
 
+console.time('[Startup] Register server runtime handlers');
 registerServerRuntimeHandlers({
   connection,
   workspaceIndex,
@@ -502,12 +526,20 @@ registerServerRuntimeHandlers({
   },
   log,
 });
+console.timeEnd('[Startup] Register server runtime handlers');
 
 // ============================================================================
 // Start Listening
 // ============================================================================
 
+console.time('[Startup] Start listening');
 documents.listen(connection);
 connection.listen();
+console.timeEnd('[Startup] Start listening');
+
+console.time('[Startup] Total server startup');
+console.log('[Startup] === Pike LSP Server Startup Timing Report ===');
+console.log('[Startup] Startup timing markers active - see console output above');
+console.timeEnd('[Startup] Total server startup');
 
 connection.console.log('Pike LSP Server started');
