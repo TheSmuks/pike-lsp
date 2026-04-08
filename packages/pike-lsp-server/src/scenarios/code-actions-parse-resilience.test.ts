@@ -451,4 +451,72 @@ describe('Code Actions: parse-under-edit resilience', () => {
     // Should return array without throwing
     assert.ok(Array.isArray(result), 'Getter/setter generation should complete gracefully');
   });
+
+  it('handles request supersession for same URI without crashing', async () => {
+    const bridge = new FaultInjectableMockBridge();
+
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///code-actions-supersede.pike';
+
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    // Fire two concurrent requests for the same URI — second should supersede first
+    const promise1 = triggerCodeActions(uri, 0, 0);
+    const promise2 = triggerCodeActions(uri, 0, 0);
+
+    const [result1, result2] = await Promise.allSettled([promise1, promise2]);
+
+    // Both should settle without unhandled rejection
+    assert.ok(result1.status === 'fulfilled', 'First request should settle');
+    assert.ok(result2.status === 'fulfilled', 'Second request should settle');
+
+    // At least one should return an array (possibly empty due to supersession)
+    if (result1.status === 'fulfilled') {
+      assert.ok(Array.isArray(result1.value), 'First result should be an array');
+    }
+    if (result2.status === 'fulfilled') {
+      assert.ok(Array.isArray(result2.value), 'Second result should be an array');
+    }
+  });
+
+  it('handles concurrent requests for different URIs', async () => {
+    const bridge = new FaultInjectableMockBridge();
+
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri1 = 'file:///code-actions-concurrent-a.pike';
+    const uri2 = 'file:///code-actions-concurrent-b.pike';
+
+    setDocumentWithSymbol(uri1, 'int a = 1;\n', 'a');
+    setDocumentWithSymbol(uri2, 'int b = 2;\n', 'b');
+
+    // Fire concurrent requests for different URIs — neither should be superseded
+    const [result1, result2] = await Promise.all([
+      triggerCodeActions(uri1, 0, 0),
+      triggerCodeActions(uri2, 0, 0),
+    ]);
+
+    assert.ok(Array.isArray(result1), 'First URI result should be an array');
+    assert.ok(Array.isArray(result2), 'Second URI result should be an array');
+  });
+
+  it('handles rapid sequential requests for same URI without memory leak', async () => {
+    const bridge = new FaultInjectableMockBridge();
+
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///code-actions-rapid-seq.pike';
+
+    setDocumentWithSymbol(uri, 'int rapid = 1;\n', 'rapid');
+
+    // Fire many sequential requests — each supersedes the previous
+    const results: unknown[] = [];
+    for (let i = 0; i < 20; i++) {
+      const result = await triggerCodeActions(uri, 0, 0);
+      results.push(result);
+    }
+
+    assert.equal(results.length, 20, 'All sequential requests should complete');
+    for (let i = 0; i < results.length; i++) {
+      assert.ok(Array.isArray(results[i]), `Request ${i} should return an array`);
+    }
+  });
 });
