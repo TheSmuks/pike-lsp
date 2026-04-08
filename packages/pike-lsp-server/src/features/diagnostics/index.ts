@@ -56,7 +56,6 @@ import {
   convertDiagnostic,
   isDeprecatedSymbolDiagnostic,
   extractDeprecatedFromSymbols,
-  type DiagnosticRelatedLocation,
 } from './utils.js';
 import { classifyChange } from './change-detection.js';
 
