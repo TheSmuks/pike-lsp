@@ -53,9 +53,10 @@ async function runHoverBenchmark(
   // Find a word at the specified position for hover
   const lines = code.split('\n');
   const targetLine = lines[line - 1] || '';
-  const word = targetLine.slice(column).match(/^[a-zA-Z_]\w*/)?.[0] ||
-               targetLine.slice(0, column).match(/[a-zA-Z_]\w*$/)?.[0] ||
-               'test';
+  const word =
+    targetLine.slice(column).match(/^[a-zA-Z_]\w*/)?.[0] ||
+    targetLine.slice(0, column).match(/[a-zA-Z_]\w*$/)?.[0] ||
+    'test';
 
   console.log(`  Running ${name} (${iterations} iterations)...`);
 
@@ -123,7 +124,8 @@ async function main(): Promise<void> {
     if (fs.existsSync(fixturePath)) {
       const content = fs.readFileSync(fixturePath, 'utf8');
       const classMatches = content.match(/\bclass\s+\w+/g) || [];
-      const methodMatches = content.match(/\b(?:void|int|string|float|array|mapping|object|mixed)\s+\w+\s*\(/g) || [];
+      const methodMatches =
+        content.match(/\b(?:void|int|string|float|array|mapping|object|mixed)\s+\w+\s*\(/g) || [];
       f.estimatedSymbols = classMatches.length + methodMatches.length + 10; // +10 for variables
     }
   }
@@ -174,19 +176,21 @@ async function main(): Promise<void> {
 
     // Output summary
     console.log('\n=== Results Summary ===\n');
-    console.log(`${'Benchmark'.padEnd(35)} ${'Mean'.padStart(8)} ${'P50'.padStart(8)} ${'P95'.padStart(8)} ${'P99'.padStart(8)} ${'Min'.padStart(8)} ${'Max'.padStart(8)}`);
+    console.log(
+      `${'Benchmark'.padEnd(35)} ${'Mean'.padStart(8)} ${'P50'.padStart(8)} ${'P95'.padStart(8)} ${'P99'.padStart(8)} ${'Min'.padStart(8)} ${'Max'.padStart(8)}`
+    );
     console.log('-'.repeat(85));
 
     for (const r of results) {
       const name = r.name.length > 34 ? r.name.slice(0, 31) + '...' : r.name;
       console.log(
         `${name.padEnd(35)} ` +
-        `${r.mean_ms.toFixed(2).padStart(8)} ` +
-        `${r.p50_ms.toFixed(2).padStart(8)} ` +
-        `${r.p95_ms.toFixed(2).padStart(8)} ` +
-        `${r.p99_ms.toFixed(2).padStart(8)} ` +
-        `${r.min_ms.toFixed(2).padStart(8)} ` +
-        `${r.max_ms.toFixed(2).padStart(8)}`
+          `${r.mean_ms.toFixed(2).padStart(8)} ` +
+          `${r.p50_ms.toFixed(2).padStart(8)} ` +
+          `${r.p95_ms.toFixed(2).padStart(8)} ` +
+          `${r.p99_ms.toFixed(2).padStart(8)} ` +
+          `${r.min_ms.toFixed(2).padStart(8)} ` +
+          `${r.max_ms.toFixed(2).padStart(8)}`
       );
     }
 
@@ -220,18 +224,21 @@ async function main(): Promise<void> {
     console.log('\n=== Performance Assertions ===');
     const largeFileP99 = results.find(r => r.name.includes('Large'))?.p99_ms ?? 0;
     if (largeFileP99 > 100) {
-      console.warn(`⚠️  WARNING: Large file P99 (${largeFileP99.toFixed(2)}ms) exceeds 100ms threshold`);
+      console.warn(
+        `⚠️  WARNING: Large file P99 (${largeFileP99.toFixed(2)}ms) exceeds 100ms threshold`
+      );
     } else {
       console.log(`✓ Large file P99 (${largeFileP99.toFixed(2)}ms) within 100ms threshold`);
     }
 
     const mediumFileP95 = results.find(r => r.name.includes('Medium'))?.p95_ms ?? 0;
     if (mediumFileP95 > 50) {
-      console.warn(`⚠️  WARNING: Medium file P95 (${mediumFileP95.toFixed(2)}ms) exceeds 50ms threshold`);
+      console.warn(
+        `⚠️  WARNING: Medium file P95 (${mediumFileP95.toFixed(2)}ms) exceeds 50ms threshold`
+      );
     } else {
       console.log(`✓ Medium file P95 (${mediumFileP95.toFixed(2)}ms) within 50ms threshold`);
     }
-
   } finally {
     await bridge.stop();
   }
