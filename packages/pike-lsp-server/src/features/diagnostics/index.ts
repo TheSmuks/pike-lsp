@@ -435,6 +435,9 @@ export function registerDiagnosticsHandlers(
         ? ['parse', 'diagnostics']
         : ['parse', 'introspect', 'diagnostics', 'tokenize'];
 
+    // PERF-1229: Pre-compute lines array once to avoid redundant text.split('\n') calls
+    const lines = text.split('\n');
+
     log.debug('Validating document', { uri, version, length: text.length });
 
     // INC-002: Compute hashes for incremental change detection
@@ -675,7 +678,7 @@ export function registerDiagnosticsHandlers(
 
       // Convert Pike diagnostics to LSP diagnostics
       const diagnostics: CoreDiagnostic[] = [];
-      const lines = text.split('\n');
+      // PERF-1229: Reuse pre-computed lines array instead of re-splitting
       const seenDiagnostics = new Set<string>();
 
       const pushDiagnostic = (diagnostic: CoreDiagnostic): void => {
@@ -930,7 +933,8 @@ export function registerDiagnosticsHandlers(
           text,
           legacySymbols,
           tokenizeData,
-          bridge
+          bridge,
+          lines
         );
 
         // #1206: Build call positions from tokens for call hierarchy
@@ -1017,7 +1021,13 @@ export function registerDiagnosticsHandlers(
         const symbolPositions: DocumentCacheEntry['symbolPositions'] =
           previousEntry?.symbolPositions
             ? previousEntry.symbolPositions
-            : await buildSymbolPositionIndex(text, symbolsWithDeprecated, tokenizeData, bridge);
+            : await buildSymbolPositionIndex(
+                text,
+                symbolsWithDeprecated,
+                tokenizeData,
+                bridge,
+                lines
+              );
 
         // #1206: Build call positions from tokens for call hierarchy (or reuse from previous entry)
         const callPositions: Map<string, CorePosition[]> = previousEntry?.callPositions

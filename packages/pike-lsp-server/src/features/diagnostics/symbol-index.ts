@@ -100,6 +100,7 @@ export function flattenSymbols(symbols: PikeSymbol[], parentName = ''): PikeSymb
  * Build symbol position index for O(1) lookups.
  * PERF-001: Uses Pike tokenization for accuracy and performance
  * PERF-004: Reuses tokens from analyze() to avoid separate findOccurrences() IPC call
+ * PERF-1229: Accepts pre-computed lines array to avoid redundant text.split('\n') calls
  */
 export async function buildSymbolPositionIndex(
   text: string,
@@ -110,10 +111,14 @@ export async function buildSymbolPositionIndex(
     findOccurrences: (
       text: string
     ) => Promise<{ occurrences: Array<{ text: string; line: number; character: number }> }>;
-  }
+  },
+  lines?: string[]
 ): Promise<Map<string, CorePosition[]>> {
   const index = new Map<string, CorePosition[]>();
   const exclusions = createLexicalExclusionMap(text);
+
+  // Use pre-computed lines if provided, otherwise split once
+  const linesArray = lines ?? text.split('\n');
 
   // Build set of symbol names we care about AND map to definition lines
   const symbolNames = new Set<string>();
@@ -135,8 +140,6 @@ export async function buildSymbolPositionIndex(
   // PERF-004: Use tokens from analyze() when available (no additional IPC)
   // Tokens now include character positions (computed in Pike, faster than JS string search)
   if (tokens && tokens.length > 0) {
-    const lines = text.split('\n');
-
     // Filter tokens for our symbols and build positions
     for (const token of tokens) {
       if (symbolNames.has(token.text)) {
@@ -153,12 +156,12 @@ export async function buildSymbolPositionIndex(
           continue; // This is the definition, not a reference
         }
 
-        if (lineIdx >= 0 && lineIdx < lines.length) {
+        if (lineIdx >= 0 && lineIdx < linesArray.length) {
           if (exclusions.isCommentPosition(lineIdx, token.character)) {
             continue;
           }
 
-          const line = lines[lineIdx];
+          const line = linesArray[lineIdx];
           if (!line) continue;
 
           // Verify word boundary (still needed for accuracy)
@@ -282,13 +285,15 @@ export function buildCallPositionIndex(
 /**
  * Fallback regex-based symbol position finding.
  * Used when Pike tokenization is unavailable.
+ * PERF-1229: Accepts pre-computed lines array to avoid redundant text.split('\n') calls
  */
 export function buildSymbolPositionIndexRegex(
   text: string,
-  symbols: PikeSymbol[]
+  symbols: PikeSymbol[],
+  lines?: string[]
 ): Map<string, CorePosition[]> {
   const index = new Map<string, CorePosition[]>();
-  const lines = text.split('\n');
+  const linesArray = lines ?? text.split('\n');
   const exclusions = createLexicalExclusionMap(text);
 
   // Index all symbol names and their positions
@@ -301,8 +306,8 @@ export function buildSymbolPositionIndexRegex(
     const positions: CorePosition[] = [];
 
     // Search for all occurrences of the symbol name
-    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-      const line = lines[lineNum];
+    for (let lineNum = 0; lineNum < linesArray.length; lineNum++) {
+      const line = linesArray[lineNum];
       if (!line) continue;
 
       let searchStart = 0;

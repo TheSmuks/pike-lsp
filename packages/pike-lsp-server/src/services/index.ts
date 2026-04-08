@@ -66,3 +66,10 @@ export {
   type CompilationCacheOptions,
   type CompilationCacheStats,
 } from './compilation-cache.js';
+export {
+  Profiler,
+  globalProfiler,
+  type TimingEntry,
+  type AccumulatedTiming,
+  type ProfilerReport,
+} from './profiler.js';
