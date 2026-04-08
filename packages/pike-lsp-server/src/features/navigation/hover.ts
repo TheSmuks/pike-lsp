@@ -211,7 +211,7 @@ export function registerHoverHandler(
           isStdlib: boolean;
         } | null>({
           requestClass: 'interactive',
-          key: `hover:${uri}`,
+          key: `hover:${uri}:${params.position.line}:${params.position.character}`,
           run: async checkpoint => {
             checkpoint();
             if (cancellationToken?.isCancellationRequested) {
