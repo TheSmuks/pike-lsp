@@ -24,7 +24,7 @@ import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 import { uriToFsPath } from '../../utils/uri-path.js';
 import { resolveCallContextAtOffset } from '../navigation/call-context-resolver.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 /**
@@ -40,6 +40,7 @@ export function registerSignatureHelpHandler(
   // KB-1248: Request scheduler for resilient signature help requests
   const signatureHelpScheduler = new RequestScheduler({ logger });
   const SIGNATURE_HELP_SCHEDULER_LOG_EVERY = 50;
+  const inFlightSignatureHelpRequests = new Map<string, string>();
   let signatureHelpRequestsObserved = 0;
 
   function maybeLogSignatureHelpSchedulerMetrics(uri: string, outcome: string): void {
@@ -199,18 +200,34 @@ export function registerSignatureHelpHandler(
     const funcName = callContext.target.name;
     const paramIndex = callContext.activeParameter;
 
-    // KB-1248: Find function symbol with resilience wrapper
+    // KB-1248: Find function symbol with resilience wrapper, scheduled for request queuing/deduplication
     let funcSymbol: PikeSymbol | null = null;
 
     try {
-      funcSymbol = await findFunctionSymbolResilient(
-        funcName,
-        callContext,
-        uri,
-        cached,
-        cancellationToken
-      );
+      funcSymbol = await signatureHelpScheduler.schedule<PikeSymbol | null>({
+        requestClass: 'interactive',
+        key: `signatureHelp:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
+          if (cancellationToken?.isCancellationRequested) {
+            throw new RequestSupersededError('Signature help request cancelled');
+          }
+          const requestId = `sigHelp:${uri}:${Date.now()}`;
+          inFlightSignatureHelpRequests.set(uri, requestId);
+
+          return await findFunctionSymbolResilient(
+            funcName,
+            callContext,
+            uri,
+            cached,
+            cancellationToken
+          );
+        },
+      });
     } catch (err) {
+      if (err instanceof RequestSupersededError) {
+        return null;
+      }
       // KB-1248: Should be caught inside findFunctionSymbol, but handle just in case
       logger.debug('Function symbol lookup failed (handled gracefully)', {
         funcName,
