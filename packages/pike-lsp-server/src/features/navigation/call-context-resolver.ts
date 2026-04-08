@@ -157,7 +157,7 @@ function skipWhitespaceLeft(text: string, index: number): number {
 }
 
 function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarget | null {
-  let i = skipWhitespaceLeft(text, openParen - 1);
+  const i = skipWhitespaceLeft(text, openParen - 1);
   if (i < 0 || !isIdentifierChar(text[i])) {
     return null;
   }
