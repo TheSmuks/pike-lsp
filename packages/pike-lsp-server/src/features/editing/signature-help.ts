@@ -2,6 +2,7 @@
  * Signature Help Handler
  *
  * Provides function parameter hints for Pike code.
+ * KB-1248: Parse-under-edit resilience with snapshot-based queries and cancellation support.
  */
 
 import {
@@ -10,6 +11,7 @@ import {
   SignatureHelp,
   SignatureInformation,
   TextDocuments,
+  CancellationToken,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type {
@@ -22,6 +24,8 @@ import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 import { uriToFsPath } from '../../utils/uri-path.js';
 import { resolveCallContextAtOffset } from '../navigation/call-context-resolver.js';
+import { RequestScheduler } from '../../services/request-scheduler.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 /**
  * Register signature help handler.
@@ -33,30 +37,46 @@ export function registerSignatureHelpHandler(
 ): void {
   const { logger, documentCache, stdlibIndex } = services;
 
+  // KB-1248: Request scheduler for resilient signature help requests
+  const signatureHelpScheduler = new RequestScheduler({ logger });
+  const SIGNATURE_HELP_SCHEDULER_LOG_EVERY = 50;
+  let signatureHelpRequestsObserved = 0;
+
+  function maybeLogSignatureHelpSchedulerMetrics(uri: string, outcome: string): void {
+    signatureHelpRequestsObserved += 1;
+    if (signatureHelpRequestsObserved % SIGNATURE_HELP_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+
+    const schedulerMetrics = signatureHelpScheduler.snapshotMetrics();
+    logger.debug('Signature help scheduler metrics', {
+      uri,
+      outcome,
+      samples: signatureHelpRequestsObserved,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
+    });
+  }
+
   /**
-   * Signature help handler - show function parameters
+   * KB-1248: Find function symbol with parse-under-edit resilience.
+   * Wraps stdlib and document cache lookups in try-catch.
    */
-  connection.onSignatureHelp(async (params): Promise<SignatureHelp | null> => {
-    const bridge = services.bridge;
-    const uri = params.textDocument.uri;
-    const document = documents.get(uri);
-    const cached = documentCache.get(uri);
-
-    if (!document || !cached) {
+  async function findFunctionSymbol(
+    funcName: string,
+    callContext: {
+      target: {
+        expression: string;
+        memberOperator: string | null;
+      };
+    },
+    uri: string,
+    cached: NonNullable<ReturnType<typeof documentCache.get>>,
+    cancellationToken?: CancellationToken
+  ): Promise<PikeSymbol | null> {
+    // Check for cancellation first
+    if (cancellationToken?.isCancellationRequested) {
       return null;
     }
-
-    const text = document.getText();
-    const offset = document.offsetAt(params.position);
-
-    const callContext = resolveCallContextAtOffset(text, offset);
-    if (!callContext) {
-      return null;
-    }
-
-    const funcName = callContext.target.name;
-    const paramIndex = callContext.activeParameter;
-    let funcSymbol: PikeSymbol | null = null;
 
     // Check if this is a qualified stdlib symbol
     if (
@@ -73,16 +93,28 @@ export function registerSignatureHelpHandler(
       logger.debug('Signature help for qualified symbol', { modulePath, symbolName });
 
       try {
+        if (cancellationToken?.isCancellationRequested) {
+          return null;
+        }
+
         const currentFile = uriToFsPath(uri);
         const module = await stdlibIndex.getModule(modulePath);
 
+        if (cancellationToken?.isCancellationRequested) {
+          return null;
+        }
+
         if (module?.symbols && module.symbols.has(symbolName)) {
-          funcSymbol = findMethodFromModuleSymbols(module.symbols, symbolName);
+          const methodSymbol = findMethodFromModuleSymbols(module.symbols, symbolName);
+
+          if (methodSymbol) {
+            return methodSymbol;
+          }
 
           const targetPath = module.resolvedPath
             ? module.resolvedPath
-            : bridge
-              ? await bridge.resolveModule(modulePath, currentFile)
+            : services.bridge
+              ? await services.bridge.resolveModule(modulePath, currentFile)
               : null;
 
           if (targetPath) {
@@ -91,24 +123,152 @@ export function registerSignatureHelpHandler(
 
             const targetCached = documentCache.get(targetUri);
             if (targetCached) {
-              funcSymbol = findSymbolByName(targetCached.symbols, symbolName) ?? null;
+              const symbol = findSymbolByName(targetCached.symbols, symbolName);
+              if (symbol) {
+                return symbol;
+              }
             }
           }
         }
       } catch (err) {
-        logger.debug('Error resolving stdlib symbol', {
+        // KB-1248: Gracefully handle stdlib lookup failures during parse-under-edit
+        logger.debug('Error resolving stdlib symbol (handled gracefully)', {
+          modulePath,
+          symbolName,
           error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
+    if (cancellationToken?.isCancellationRequested) {
+      return null;
+    }
+
     // Fallback: search in current document
-    if (!funcSymbol) {
+    try {
       const methodMatches = cached.symbols.filter(s => s.name === funcName && s.kind === 'method');
-      funcSymbol =
+      const funcSymbol =
         methodMatches.find(s => !(s as { inherited?: boolean }).inherited) ??
         methodMatches[0] ??
         null;
+
+      return funcSymbol;
+    } catch (err) {
+      // KB-1248: Gracefully handle document cache lookup failures
+      logger.debug('Error searching local symbols (handled gracefully)', {
+        funcName,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Signature help handler - show function parameters
+   * KB-1248: Parse-under-edit resilience with snapshot-based queries
+   */
+  connection.onSignatureHelp(async (params, cancellationToken): Promise<SignatureHelp | null> => {
+    const bridge = services.bridge;
+    const uri = params.textDocument.uri;
+    const document = documents.get(uri);
+    const cached = documentCache.get(uri);
+
+    if (!document || !cached) {
+      return null;
+    }
+
+    const text = document.getText();
+    const offset = document.offsetAt(params.position);
+
+    // KB-1248: Wrap call context resolution in try-catch for resilience
+    let callContext: ReturnType<typeof resolveCallContextAtOffset> = null;
+    try {
+      callContext = resolveCallContextAtOffset(text, offset);
+    } catch (err) {
+      logger.debug('Call context resolution failed (handled gracefully)', {
+        uri,
+        offset,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+
+    if (!callContext) {
+      return null;
+    }
+
+    const funcName = callContext.target.name;
+    const paramIndex = callContext.activeParameter;
+
+    // KB-1248: Try QueryEngine path if feature flag is enabled and bridge is running
+    if (useQueryEngineSignatureHelp && bridge?.isRunning?.()) {
+      const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+      const snapshotId = services.documentSnapshots?.get(uri);
+      const requestId = `signature-help:${uri}:${document.version}:${Date.now()}`;
+
+      try {
+        const scheduledResult = await signatureHelpScheduler.schedule<SignatureHelp | null>({
+          requestClass: 'typing',
+          key: `signature-help:${uri}`,
+          run: async checkpoint => {
+            checkpoint();
+
+            if (cancellationToken?.isCancellationRequested) {
+              throw new RequestSupersededError('Signature help cancelled by LSP token');
+            }
+
+            const result = await getSignatureHelpResilient(
+              bridge,
+              uri,
+              filename,
+              params.position,
+              callContext,
+              requestId,
+              snapshotId,
+              cancellationToken
+            );
+
+            checkpoint();
+            return result;
+          },
+        });
+
+        if (scheduledResult) {
+          maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_success');
+          return scheduledResult;
+        }
+      } catch (err) {
+        if (err instanceof RequestSupersededError) {
+          maybeLogSignatureHelpSchedulerMetrics(uri, 'superseded');
+          return null;
+        }
+        // KB-1248: Log and fall through to legacy path
+        logger.debug('Signature help QueryEngine path failed, falling back', {
+          uri,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_fallback');
+      }
+    }
+
+    // Legacy path with parse-under-edit resilience
+    let funcSymbol: PikeSymbol | null = null;
+
+    try {
+      funcSymbol = await findFunctionSymbolResilient(
+        funcName,
+        callContext,
+        uri,
+        cached,
+        cancellationToken
+      );
+    } catch (err) {
+      // KB-1248: Should be caught inside findFunctionSymbolResilient, but handle just in case
+      logger.debug('Function symbol lookup failed (handled gracefully)', {
+        funcName,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
     }
 
     if (!funcSymbol) {
@@ -152,6 +312,7 @@ export function registerSignatureHelpHandler(
 
     logger.debug('Signature help', { func: funcName, paramIndex, paramsCount: params_list.length });
 
+    maybeLogSignatureHelpSchedulerMetrics(uri, 'legacy_success');
     return {
       signatures: [signature],
       activeSignature: 0,
