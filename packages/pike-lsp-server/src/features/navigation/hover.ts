@@ -13,91 +13,19 @@ import { buildHoverContent } from '../utils/hover-builder.js';
 import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo, getMacroInfo } from './keywords.js';
+import { LRUCache } from '../../utils/lru-cache.js';
 
 /**
- * LRU Cache for hover results to avoid recomputing on repeated hovers.
+ * Generate cache key from hover request parameters.
  * Keyed by (uri, position, word, contentHash) for cache invalidation on edits.
  */
-class HoverLRUCache {
-  private cache = new Map<string, Hover>();
-  private maxSize: number;
-
-  constructor(maxSize = 500) {
-    this.maxSize = maxSize;
-  }
-
-  /**
-   * Generate cache key from hover request parameters.
-   */
-  private makeKey(uri: string, position: Position, word: string, contentHash?: string): string {
-    return `${uri}:${position.line}:${position.character}:${word}:${contentHash ?? ''}`;
-  }
-
-  /**
-   * Get cached hover result if available.
-   */
-  get(uri: string, position: Position, word: string, contentHash?: string): Hover | undefined {
-    const key = this.makeKey(uri, position, word, contentHash);
-    const value = this.cache.get(key);
-
-    if (value !== undefined) {
-      // Move to end (most recently used)
-      this.cache.delete(key);
-      this.cache.set(key, value);
-    }
-
-    return value;
-  }
-
-  /**
-   * Store hover result in cache.
-   */
-  set(
-    uri: string,
-    position: Position,
-    word: string,
-    contentHash: string | undefined,
-    hover: Hover
-  ): void {
-    const key = this.makeKey(uri, position, word, contentHash);
-
-    // If key exists, delete it first to update LRU order
-    if (this.cache.has(key)) {
-      this.cache.delete(key);
-    }
-
-    // Evict oldest entry if at capacity
-    if (this.cache.size >= this.maxSize) {
-      const firstKey = this.cache.keys().next().value;
-      if (firstKey !== undefined) {
-        this.cache.delete(firstKey);
-      }
-    }
-
-    this.cache.set(key, hover);
-  }
-
-  /**
-   * Clear all cached entries.
-   */
-  clear(): void {
-    this.cache.clear();
-  }
-
-  /**
-   * Get current cache size.
-   */
-  get size(): number {
-    return this.cache.size;
-  }
-
-  /**
-   * Check if a key exists in cache.
-   */
-  has(uri: string, position: Position, word: string, contentHash?: string): boolean {
-    const key = this.makeKey(uri, position, word, contentHash);
-    return this.cache.has(key);
-  }
+function makeHoverCacheKey(
+  uri: string,
+  position: Position,
+  word: string,
+  contentHash?: string
+): string {
+  return `${uri}:${position.line}:${position.character}:${word}:${contentHash ?? ''}`;
 }
 
 function collectSymbolsByName(symbols: PikeSymbol[], name: string): PikeSymbol[] {
@@ -128,7 +56,7 @@ export function registerHoverHandler(
   const log = new Logger('Navigation');
 
   // LRU cache for hover results (max 500 entries)
-  const hoverCache = new HoverLRUCache(500);
+  const hoverCache = new LRUCache<string, Hover>(500);
   let cacheHits = 0;
   let cacheMisses = 0;
 
@@ -157,7 +85,8 @@ export function registerHoverHandler(
       // Check LRU cache for existing result
       // Use contentHash if available for cache invalidation on edits
       const contentHash = (cached as { contentHash?: string }).contentHash;
-      const cachedHover = hoverCache.get(uri, params.position, word, contentHash);
+      const cacheKey = makeHoverCacheKey(uri, params.position, word, contentHash);
+      const cachedHover = hoverCache.get(cacheKey);
       if (cachedHover) {
         cacheHits++;
         log.debug('Hover cache hit', {
@@ -261,7 +190,7 @@ export function registerHoverHandler(
 
       if (!hoverResult && !symbol) {
         // Cache null results too to avoid repeated lookups of non-existent symbols
-        hoverCache.set(uri, params.position, word, contentHash, null as unknown as Hover);
+        hoverCache.set(cacheKey, null as unknown as Hover);
         return null;
       }
 
@@ -296,7 +225,7 @@ export function registerHoverHandler(
       if (!hoverResult && symbol) {
         const content = buildHoverContent(symbol, parentScope);
         if (!content) {
-          hoverCache.set(uri, params.position, word, contentHash, null as unknown as Hover);
+          hoverCache.set(cacheKey, null as unknown as Hover);
           return null;
         }
 
@@ -315,7 +244,7 @@ export function registerHoverHandler(
 
       // Cache the result before returning
       if (hoverResult) {
-        hoverCache.set(uri, params.position, word, contentHash, hoverResult);
+        hoverCache.set(cacheKey, hoverResult);
       }
 
       return hoverResult;
