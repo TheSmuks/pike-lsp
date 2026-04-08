@@ -338,6 +338,8 @@ export function detectRXMLMarkers(content: string): RXMLMarker[] {
     'ssl',
     'crypt',
     'user',
+    'row',
+    'column',
   ]);
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
