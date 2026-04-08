@@ -46,7 +46,18 @@ import {
   deduplicateDiagnostics,
   isSemanticAnalysisEnabled,
 } from './semantic-analyzer.js';
-import { buildCallPositionIndex } from './symbol-index.js';
+import {
+  buildCallPositionIndex,
+  buildSymbolPositionIndex,
+  buildSymbolNameIndex,
+  flattenSymbols,
+} from './symbol-index.js';
+import {
+  convertDiagnostic,
+  isDeprecatedSymbolDiagnostic,
+  extractDeprecatedFromSymbols,
+} from './utils.js';
+import { classifyChange } from './change-detection.js';
 
 // Re-export functions from submodules
 export {
@@ -68,6 +79,8 @@ export {
   type AnalysisMode,
   type ChangeClassification,
 } from './change-detection.js';
+
+// NOTE: Type-only re-export to satisfy TypeScript isolatedModules
 export {
   analyzeSemantics,
   deduplicateDiagnostics,
@@ -149,19 +162,6 @@ export function registerDiagnosticsHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  // Import functions from split modules
-  const {
-    convertDiagnostic,
-    isDeprecatedSymbolDiagnostic,
-    extractDeprecatedFromSymbols,
-  } = require('./utils.js');
-  const {
-    buildSymbolPositionIndex,
-    buildSymbolNameIndex,
-    flattenSymbols,
-  } = require('./symbol-index.js');
-  const { classifyChange } = require('./change-detection.js');
-
   // NOTE: We access services.bridge dynamically instead of destructuring,
   // because bridge is null when handlers are registered and only initialized later in onInitialize.
   const { documentCache, typeDatabase, workspaceIndex } = services;
@@ -793,7 +793,10 @@ export function registerDiagnosticsHandlers(
           convertDiagnostic(
             pikeDiag,
             document,
-            { deprecated: isDeprecated, relatedLocation },
+            {
+              ...(isDeprecated ? { deprecated: true } : {}),
+              ...(relatedLocation ? { relatedLocation } : {}),
+            },
             lines
           )
         );
