@@ -2,7 +2,7 @@
  * Signature Help Handler
  *
  * Provides function parameter hints for Pike code.
- * KB-1248: Parse-under-edit resilience with snapshot-based queries and cancellation support.
+ * KB-1248: Parse-under-edit resilience with cancellation support.
  */
 
 import {
@@ -61,7 +61,7 @@ export function registerSignatureHelpHandler(
    * KB-1248: Find function symbol with parse-under-edit resilience.
    * Wraps stdlib and document cache lookups in try-catch.
    */
-  async function findFunctionSymbol(
+  async function findFunctionSymbolResilient(
     funcName: string,
     callContext: {
       target: {
@@ -165,10 +165,9 @@ export function registerSignatureHelpHandler(
 
   /**
    * Signature help handler - show function parameters
-   * KB-1248: Parse-under-edit resilience with snapshot-based queries
+   * KB-1248: Parse-under-edit resilience with cancellation support
    */
   connection.onSignatureHelp(async (params, cancellationToken): Promise<SignatureHelp | null> => {
-    const bridge = services.bridge;
     const uri = params.textDocument.uri;
     const document = documents.get(uri);
     const cached = documentCache.get(uri);
@@ -200,58 +199,7 @@ export function registerSignatureHelpHandler(
     const funcName = callContext.target.name;
     const paramIndex = callContext.activeParameter;
 
-    // KB-1248: Try QueryEngine path if feature flag is enabled and bridge is running
-    if (useQueryEngineSignatureHelp && bridge?.isRunning?.()) {
-      const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
-      const snapshotId = services.documentSnapshots?.get(uri);
-      const requestId = `signature-help:${uri}:${document.version}:${Date.now()}`;
-
-      try {
-        const scheduledResult = await signatureHelpScheduler.schedule<SignatureHelp | null>({
-          requestClass: 'typing',
-          key: `signature-help:${uri}`,
-          run: async checkpoint => {
-            checkpoint();
-
-            if (cancellationToken?.isCancellationRequested) {
-              throw new RequestSupersededError('Signature help cancelled by LSP token');
-            }
-
-            const result = await getSignatureHelpResilient(
-              bridge,
-              uri,
-              filename,
-              params.position,
-              callContext,
-              requestId,
-              snapshotId,
-              cancellationToken
-            );
-
-            checkpoint();
-            return result;
-          },
-        });
-
-        if (scheduledResult) {
-          maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_success');
-          return scheduledResult;
-        }
-      } catch (err) {
-        if (err instanceof RequestSupersededError) {
-          maybeLogSignatureHelpSchedulerMetrics(uri, 'superseded');
-          return null;
-        }
-        // KB-1248: Log and fall through to legacy path
-        logger.debug('Signature help QueryEngine path failed, falling back', {
-          uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_fallback');
-      }
-    }
-
-    // Legacy path with parse-under-edit resilience
+    // KB-1248: Find function symbol with resilience wrapper
     let funcSymbol: PikeSymbol | null = null;
 
     try {
@@ -263,7 +211,7 @@ export function registerSignatureHelpHandler(
         cancellationToken
       );
     } catch (err) {
-      // KB-1248: Should be caught inside findFunctionSymbolResilient, but handle just in case
+      // KB-1248: Should be caught inside findFunctionSymbol, but handle just in case
       logger.debug('Function symbol lookup failed (handled gracefully)', {
         funcName,
         error: err instanceof Error ? err.message : String(err),
@@ -312,7 +260,7 @@ export function registerSignatureHelpHandler(
 
     logger.debug('Signature help', { func: funcName, paramIndex, paramsCount: params_list.length });
 
-    maybeLogSignatureHelpSchedulerMetrics(uri, 'legacy_success');
+    maybeLogSignatureHelpSchedulerMetrics(uri, 'success');
     return {
       signatures: [signature],
       activeSignature: 0,

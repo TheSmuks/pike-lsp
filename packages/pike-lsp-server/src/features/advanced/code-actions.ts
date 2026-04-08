@@ -25,7 +25,7 @@ import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { getGenerateGetterSetterActions } from './getters-setters.js';
 import { getExtractMethodAction } from './extract-method.js';
-import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { RequestScheduler } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 interface ImportCandidate {
@@ -123,9 +123,6 @@ function hasImportStatement(lines: string[], candidate: ImportCandidate): boolea
   return lines.some(line => line.trim() === expected);
 }
 
-// KB-1248: QueryEngine feature flag for code actions (disabled by default, enable via env)
-const useQueryEngineCodeActions = process.env['PIKE_LSP_QE2_CODE_ACTIONS'] === '1';
-
 /**
  * Register code actions handler.
  * KB-1248: Parse-under-edit resilience with snapshot-based queries and error isolation.
@@ -135,7 +132,7 @@ export function registerCodeActionsHandler(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { documentCache, logger } = services;
+  const { documentCache } = services;
   const log = new Logger('Advanced');
 
   // KB-1248: Request scheduler for resilient code action requests

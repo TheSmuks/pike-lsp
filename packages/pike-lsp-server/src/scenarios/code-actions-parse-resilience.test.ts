@@ -121,7 +121,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
         start: { line, character },
         end: { line, character },
       },
-      context: { diagnostics, only },
+      context: { diagnostics, ...(only ? { only } : {}) },
     });
     codeActions.push({ uri, result });
     return result as Array<{ title: string; kind?: string }>;
@@ -226,7 +226,7 @@ describe('Code Actions: parse-under-edit resilience', () => {
       cache.set(uri, entry);
 
       // Trigger code actions during edit
-      const result = await triggerCodeActions(uri, 0, 0, [], ['quickfix', 'refactor']);
+      const result = await triggerCodeActions(uri, 0, 0, [], ['quickfix', 'refactor'] as string[]);
       results.push(result as unknown[]);
 
       await wait(10);
@@ -317,8 +317,6 @@ describe('Code Actions: parse-under-edit resilience', () => {
     const uri = 'file:///code-actions-organize.pike';
 
     // Document with imports that needs organizing
-    const text = 'inherit "test";\nimport Something;\n\nint x = 1;\n';
-
     const symbol: CoreSymbol = {
       name: 'x',
       kind: 'variable',
@@ -400,11 +398,9 @@ describe('Code Actions: parse-under-edit resilience', () => {
     const uri = 'file:///code-actions-gettersetter.pike';
 
     // Document with a field that could have getter/setter generated
-    const text = 'class Test { private int _value; }';
-
     const symbol: CoreSymbol = {
       name: '_value',
-      kind: 'field',
+      kind: 'variable',
       modifiers: ['private'],
       position: { file: uri, line: 1, column: 10 },
     };
