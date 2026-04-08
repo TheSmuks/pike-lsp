@@ -20,6 +20,7 @@
     "test:stress": "bun test src/testing/stress-scenarios",
     "test:snapshots:check": "bun test src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
     "test:snapshots:update": "bun test --update-snapshots src/tests/navigation/hover-provider.snapshot.test.ts src/tests/helpers/snapshot-fixture.test.ts",
+    "test:slow": "bun test src/tests/slow-integration/",
     "test:smoke": "bun test src/tests/",
     "test:source-trees": "PIKE_SOURCE_TREE_TEST=1 bun test src/tests/source-tree-e2e.test.ts",
     "test:property": "bun test src/testing/property-tests/*.test.ts",

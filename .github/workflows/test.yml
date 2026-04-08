@@ -1,6 +1,8 @@
 name: Test
 
 on:
+  schedule:
+    - cron: '0 3 * * *'  # Nightly at 03:00 UTC
   workflow_dispatch:
   push:
     branches: [main, master]
@@ -576,3 +578,45 @@ jobs:
           echo "- PIKE_SRC configured: yes" >> $GITHUB_STEP_SUMMARY
           echo "- ROXEN_SRC configured: yes" >> $GITHUB_STEP_SUMMARY
           echo "- Suite: Source Tree VSCode E2E Feature Matrix" >> $GITHUB_STEP_SUMMARY
+
+  slow-integration:
+    name: Slow Integration (Nightly)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all packages
+        run: bun run build
+
+      - name: Run slow integration tests
+        working-directory: packages/pike-lsp-server
+        run: bun run test:slow
+
+      - name: Slow test summary
+        if: always()
+        run: |
+          echo "### Slow Integration Tests (Nightly)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Suite: RA-inspired slow integration tests (Risk R-003)" >> $GITHUB_STEP_SUMMARY
+          echo "- Trigger: schedule (cron nightly)" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: workspace-loading, typing-latency-guard, config-churn-resilience, extension-bootstrap-lifecycle, cross-platform-file-ops" >> $GITHUB_STEP_SUMMARY
