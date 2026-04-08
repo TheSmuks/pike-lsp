@@ -27,9 +27,22 @@ describe('Slow Integration: Extension Bootstrap / Lifecycle', { timeout: 30_000 
 
     it('defines all required token types for semantic highlighting', () => {
       const requiredTypes = [
-        'namespace', 'type', 'class', 'enum', 'interface',
-        'struct', 'parameter', 'variable', 'property', 'function',
-        'method', 'keyword', 'comment', 'string', 'number', 'operator',
+        'namespace',
+        'type',
+        'class',
+        'enum',
+        'interface',
+        'struct',
+        'parameter',
+        'variable',
+        'property',
+        'function',
+        'method',
+        'keyword',
+        'comment',
+        'string',
+        'number',
+        'operator',
       ];
 
       // Verify the set is complete — matches server.ts token types
@@ -41,8 +54,15 @@ describe('Slow Integration: Extension Bootstrap / Lifecycle', { timeout: 30_000 
 
     it('defines all required token modifiers', () => {
       const requiredModifiers = [
-        'declaration', 'definition', 'readonly', 'static',
-        'deprecated', 'abstract', 'async', 'documentation', 'defaultLibrary',
+        'declaration',
+        'definition',
+        'readonly',
+        'static',
+        'deprecated',
+        'abstract',
+        'async',
+        'documentation',
+        'defaultLibrary',
       ];
 
       for (const m of requiredModifiers) {
@@ -129,15 +149,21 @@ describe('Slow Integration: Extension Bootstrap / Lifecycle', { timeout: 30_000 
 
       const p1 = scheduler.schedule({
         requestClass: 'background',
-        run: async () => { results.push('task1'); },
+        run: async () => {
+          results.push('task1');
+        },
       });
       const p2 = scheduler.schedule({
         requestClass: 'background',
-        run: async () => { results.push('task2'); },
+        run: async () => {
+          results.push('task2');
+        },
       });
       const p3 = scheduler.schedule({
         requestClass: 'background',
-        run: async () => { results.push('task3'); },
+        run: async () => {
+          results.push('task3');
+        },
       });
 
       await Promise.all([p1, p2, p3]);
@@ -154,15 +180,21 @@ describe('Slow Integration: Extension Bootstrap / Lifecycle', { timeout: 30_000 
       // Simulate initialization burst: many requests of different priorities
       const bg = scheduler.schedule({
         requestClass: 'background',
-        run: async () => { order.push('bg-index'); },
+        run: async () => {
+          order.push('bg-index');
+        },
       });
       const interactive = scheduler.schedule({
         requestClass: 'interactive',
-        run: async () => { order.push('hover'); },
+        run: async () => {
+          order.push('hover');
+        },
       });
       const typing = scheduler.schedule({
         requestClass: 'typing',
-        run: async () => { order.push('completion'); },
+        run: async () => {
+          order.push('completion');
+        },
       });
 
       await Promise.all([bg, interactive, typing]);

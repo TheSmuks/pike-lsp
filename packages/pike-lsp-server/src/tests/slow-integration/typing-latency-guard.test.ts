@@ -41,7 +41,7 @@ function simulateTypingRequest(scheduler: RequestScheduler, id: number): Promise
  */
 function simulateBackgroundDiagnostics(
   scheduler: RequestScheduler,
-  durationMs: number,
+  durationMs: number
 ): Promise<void> {
   return scheduler.schedule({
     requestClass: 'background',
@@ -188,7 +188,7 @@ describe('Slow Integration: Diagnostics Latency Guard', { timeout: 30_000 }, () 
             run: async () => {
               await new Promise(r => setTimeout(r, 50));
             },
-          }),
+          })
         );
       }
 

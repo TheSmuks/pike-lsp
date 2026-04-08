@@ -58,7 +58,7 @@ class ReloadSimulator {
           // Superseded requests are expected during a storm
           if (err instanceof RequestSupersededError) return;
           throw err;
-        }),
+        })
       );
     }
     await Promise.all(promises);
@@ -100,7 +100,7 @@ describe('Slow Integration: Config Churn / Reload Storm Resilience', { timeout: 
             .catch(err => {
               if (err instanceof RequestSupersededError) return;
               throw err;
-            }),
+            })
         );
       }
 
@@ -188,7 +188,7 @@ describe('Slow Integration: Config Churn / Reload Storm Resilience', { timeout: 
             .catch(err => {
               if (err instanceof RequestSupersededError) return;
               throw err;
-            }),
+            })
         );
       }
 
@@ -223,7 +223,7 @@ describe('Slow Integration: Config Churn / Reload Storm Resilience', { timeout: 
                 return;
               }
               throw err;
-            }),
+            })
         );
       }
 
