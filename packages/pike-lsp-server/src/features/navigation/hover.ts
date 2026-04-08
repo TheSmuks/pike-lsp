@@ -21,8 +21,19 @@ import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo, getMacroInfo } from './keywords.js';
 import { LRUCache } from '../../utils/lru-cache.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+
+const useQueryEngineHover = process.env['PIKE_LSP_QE2_HOVER'] !== '0';
+const inFlightHoverRequests = new Map<string, string>();
+const hoverRequestSequence = new Map<string, number>();
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
 
 /**
  * Generate cache key from hover request parameters.
@@ -126,6 +137,40 @@ export function registerHoverHandler(
   }
 
   /**
+   * Parse a Hover object from query engine response.
+   */
+  function parseHoverResponse(raw: Record<string, unknown>): Hover | null {
+    const contents = raw['contents'];
+    if (!contents) {
+      return null;
+    }
+
+    // Structured contents: { kind, value }
+    if (typeof contents === 'object' && contents !== null) {
+      const c = contents as Record<string, unknown>;
+      if (typeof c['kind'] === 'string' && typeof c['value'] === 'string') {
+        return {
+          contents: {
+            kind: c['kind'] as (typeof MarkupKind)[keyof typeof MarkupKind],
+            value: c['value'],
+          },
+          range: raw['range'] ?? undefined,
+        } as Hover;
+      }
+    }
+
+    // Plain text contents
+    if (typeof contents === 'string') {
+      return {
+        contents: { kind: MarkupKind.PlainText, value: contents },
+        range: raw['range'] ?? undefined,
+      } as Hover;
+    }
+
+    return null;
+  }
+
+  /**
    * Hover handler - show type info and documentation
    * KB-1248: Parse-under-edit resilience with snapshot-based queries
    */
@@ -199,15 +244,126 @@ export function registerHoverHandler(
       }
     }
 
-    // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
-    // Only do symbol lookup if we don't have a keyword/macro result
+    // 1. Try query engine hover path with snapshot isolation
+    if (!hoverResult && useQueryEngineHover) {
+      const bridge = services.bridge;
+      if (bridge?.isRunning?.()) {
+        const nextSequence = (hoverRequestSequence.get(uri) ?? 0) + 1;
+        hoverRequestSequence.set(uri, nextSequence);
+        const requestId = `hover:${uri}:${document.version ?? 0}:${Date.now()}:${nextSequence}`;
+        const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+        let cancelledByToken = false;
+        const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
+          cancelledByToken = true;
+          void bridge.engineCancelRequest({ requestId }).catch(error => {
+            log.warn('Hover cancellation request failed', {
+              uri,
+              requestId,
+              error,
+            });
+          });
+        });
+
+        const clearInFlight = (): void => {
+          if (inFlightHoverRequests.get(uri) === requestId) {
+            inFlightHoverRequests.delete(uri);
+          }
+        };
+
+        try {
+          const qeHoverResult = await hoverScheduler.schedule<Hover | null>({
+            requestClass: 'interactive',
+            key: `hover:${uri}`,
+            run: async checkpoint => {
+              checkpoint();
+              if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+                throw new RequestSupersededError('Hover request cancelled by LSP token');
+              }
+
+              // Cancel previous in-flight request for same URI
+              const previousRequestId = inFlightHoverRequests.get(uri);
+              if (previousRequestId && previousRequestId !== requestId) {
+                try {
+                  await bridge.engineCancelRequest({ requestId: previousRequestId });
+                } catch (err) {
+                  log.debug('Hover query cancellation for superseded request failed', {
+                    uri,
+                    requestId: previousRequestId,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                }
+              }
+              inFlightHoverRequests.set(uri, requestId);
+
+              const snapshotId = services.documentSnapshots?.get(uri);
+              const qeResponse = await bridge.engineQuery({
+                feature: 'hover',
+                requestId,
+                snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
+                queryParams: {
+                  uri,
+                  filename,
+                  position: params.position,
+                  word,
+                },
+              });
+              checkpoint();
+
+              if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+                throw new RequestSupersededError('Hover request cancelled by LSP token');
+              }
+
+              // Parse direct hover result
+              const directHover = asRecord(qeResponse.result['hover']);
+              if (directHover) {
+                return parseHoverResponse(directHover);
+              }
+
+              // Parse nested result
+              const nested = asRecord(qeResponse.result['result']);
+              if (nested && nested['status'] !== 'stub') {
+                const nestedHover = asRecord(nested['hover']);
+                if (nestedHover) {
+                  return parseHoverResponse(nestedHover);
+                }
+              }
+
+              return null;
+            },
+          });
+
+          clearInFlight();
+          cancellationDisposable?.dispose();
+          if (qeHoverResult) {
+            hoverResult = qeHoverResult;
+            maybeLogHoverSchedulerMetrics(uri, 'qe_success');
+          }
+        } catch (err) {
+          clearInFlight();
+          cancellationDisposable?.dispose();
+          if (err instanceof RequestSupersededError) {
+            maybeLogHoverSchedulerMetrics(uri, 'superseded');
+            return null;
+          }
+          maybeLogHoverSchedulerMetrics(uri, 'qe_fallback');
+          log.debug('Hover query engine fallback', {
+            uri,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
+    // 2. Fallback: try to find symbol in local document (O(1) lookup using symbolNames index)
+    // Only do symbol lookup if we don't have a keyword/macro/query-engine result
     let symbol: PikeSymbol | null = null;
     let parentScope: string | undefined;
 
     if (!hoverResult) {
       symbol = cached.symbolNames?.get(word) ?? null;
 
-      // 1a. For variables, check for scope-aware type with parse-under-edit resilience
+      // 2a. For variables, check for scope-aware type with parse-under-edit resilience
       if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
         try {
           const text = document.getText();
@@ -239,9 +395,9 @@ export function registerHoverHandler(
       }
     }
 
-    // 2. If not found, try to find in stdlib
+    // 3. If not found, try to find in stdlib
     let isStdlib = false;
-    if (!symbol && stdlibIndex) {
+    if (!hoverResult && !symbol && stdlibIndex) {
       // Check if it's a known module
       try {
         const moduleInfo = await stdlibIndex.getModule(word);
@@ -297,7 +453,7 @@ export function registerHoverHandler(
       }
     }
 
-    // Build hover content if not already set (keyword/macro case)
+    // Build hover content if not already set (keyword/macro/query-engine case)
     if (!hoverResult && symbol) {
       const content = buildHoverContent(symbol, parentScope);
       if (!content) {
