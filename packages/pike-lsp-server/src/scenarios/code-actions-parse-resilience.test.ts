@@ -25,7 +25,10 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     onCodeAction(
       handler: (params: {
         textDocument: { uri: string };
-        range: { start: { line: number; character: number }; end: { line: number; character: number } };
+        range: {
+          start: { line: number; character: number };
+          end: { line: number; character: number };
+        };
         context: { diagnostics: unknown[]; only?: string[] };
       }) => Promise<unknown>
     ) {
@@ -34,7 +37,10 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     codeActionHandler: undefined as
       | ((params: {
           textDocument: { uri: string };
-          range: { start: { line: number; character: number }; end: { line: number; character: number } };
+          range: {
+            start: { line: number; character: number };
+            end: { line: number; character: number };
+          };
           context: { diagnostics: unknown[]; only?: string[] };
         }) => Promise<unknown>)
       | undefined,
@@ -86,15 +92,21 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     },
     includeResolver: null,
     stdlibIndex: null,
-    globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5, organizeImports: { removeUnused: true } },
+    globalSettings: {
+      pikePath: 'pike',
+      maxNumberOfProblems: 100,
+      diagnosticDelay: 5,
+      organizeImports: { removeUnused: true },
+    },
     documentSnapshots: new Map<string, string>(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
     pikeIntrospection: {
-      async searchImportableSymbols(symbol: string, _options: { excludeUri?: string; limit?: number }) {
+      async searchImportableSymbols(
+        symbol: string,
+        _options: { excludeUri?: string; limit?: number }
+      ) {
         // Simulate introspection returning some candidates
-        return [
-          { modulePath: `Test.${symbol}`, importKind: 'inherit' as const, score: 1.0 },
-        ];
+        return [{ modulePath: `Test.${symbol}`, importKind: 'inherit' as const, score: 1.0 }];
       },
     },
   };
@@ -146,7 +158,15 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     docs.emitOpen(TextDocument.create(uri, 'pike', 1, text));
   };
 
-  return { docs, cache, codeActions, consoleErrors, triggerCodeActions, setDocumentWithSymbol, services };
+  return {
+    docs,
+    cache,
+    codeActions,
+    consoleErrors,
+    triggerCodeActions,
+    setDocumentWithSymbol,
+    services,
+  };
 }
 
 describe('Code Actions: parse-under-edit resilience', () => {
@@ -348,14 +368,20 @@ describe('Code Actions: parse-under-edit resilience', () => {
     setDocumentWithSymbol(uri, 'UnknownType x;\n', 'x');
 
     // Trigger with unresolved symbol diagnostic
-    const result = await triggerCodeActions(uri, 0, 0, [
-      {
-        code: 'undefined-symbol.unresolved-import',
-        message: 'Unresolved symbol: UnknownType',
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
-        data: { symbol: 'UnknownType' },
-      },
-    ], ['quickfix']);
+    const result = await triggerCodeActions(
+      uri,
+      0,
+      0,
+      [
+        {
+          code: 'undefined-symbol.unresolved-import',
+          message: 'Unresolved symbol: UnknownType',
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 11 } },
+          data: { symbol: 'UnknownType' },
+        },
+      ],
+      ['quickfix']
+    );
 
     // Should return array without throwing
     assert.ok(Array.isArray(result), 'Quick fix should complete gracefully');
@@ -378,14 +404,20 @@ describe('Code Actions: parse-under-edit resilience', () => {
     };
 
     // Trigger with unresolved symbol - introspection will fail but should be handled
-    const result = await triggerCodeActions(uri, 0, 0, [
-      {
-        code: 'undefined-symbol.unresolved-import',
-        message: 'Unresolved symbol: MissingSymbol',
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
-        data: { symbol: 'MissingSymbol' },
-      },
-    ], ['quickfix']);
+    const result = await triggerCodeActions(
+      uri,
+      0,
+      0,
+      [
+        {
+          code: 'undefined-symbol.unresolved-import',
+          message: 'Unresolved symbol: MissingSymbol',
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
+          data: { symbol: 'MissingSymbol' },
+        },
+      ],
+      ['quickfix']
+    );
 
     // Should return empty array without throwing
     assert.ok(Array.isArray(result), 'Should handle introspection failure gracefully');

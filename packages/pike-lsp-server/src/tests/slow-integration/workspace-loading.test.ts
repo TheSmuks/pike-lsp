@@ -72,7 +72,7 @@ function createScanner(): WorkspaceScanner {
 
 async function createWorkspaceFixture(
   baseDir: string,
-  size: keyof typeof WORKSPACE_SIZES,
+  size: keyof typeof WORKSPACE_SIZES
 ): Promise<string> {
   const wsDir = join(baseDir, `ws-${size}`);
   await mkdir(wsDir, { recursive: true });
@@ -149,7 +149,9 @@ describe('Slow Integration: Workspace Loading', { timeout: 60_000 }, () => {
       for (const file of files) {
         const fs = await import('node:fs/promises');
         // scanFolder returns absolute paths, convert to file content read path
-        const filePath = file.uri.startsWith('file://') ? file.uri.slice('file://'.length) : file.path;
+        const filePath = file.uri.startsWith('file://')
+          ? file.uri.slice('file://'.length)
+          : file.path;
         const content = await fs.readFile(filePath, 'utf-8').catch(() => '');
         if (content) {
           const doc = TextDocument.create(file.uri, 'pike', 1, content);

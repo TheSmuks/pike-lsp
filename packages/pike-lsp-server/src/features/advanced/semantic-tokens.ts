@@ -10,6 +10,7 @@ import {
   SemanticTokensBuilder,
   SemanticTokens,
   SemanticTokensDelta,
+  CancellationToken,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
@@ -67,6 +68,18 @@ export function registerSemanticTokensHandler(
 ): void {
   const { documentCache } = services;
   const log = new Logger('Advanced');
+
+  // KB-1248: Shared error classification for parse-under-edit resilience logging
+  const logTokenError = (label: string, uri: string, err: unknown): void => {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isParse = msg.includes('parse') || msg.includes('regex') || msg.includes('syntax');
+    if (isParse) {
+      log.debug(`${label} failed (parse-under-edit, handled gracefully)`, { uri, error: msg });
+    } else {
+      log.error(`${label} failed for ${uri}: ${msg}`);
+    }
+  };
+
   const tokenStateByUri = new Map<string, { resultId: string; data: number[]; version: number }>();
   let nextResultCounter = 0;
 
@@ -79,17 +92,11 @@ export function registerSemanticTokensHandler(
     previousData: number[],
     nextData: number[]
   ): { start: number; deleteCount: number; data: number[] } | null => {
-    if (previousData.length === nextData.length) {
-      let same = true;
-      for (let i = 0; i < previousData.length; i++) {
-        if (previousData[i] !== nextData[i]) {
-          same = false;
-          break;
-        }
-      }
-      if (same) {
-        return null;
-      }
+    if (
+      previousData.length === nextData.length &&
+      previousData.every((v, i) => v === nextData[i])
+    ) {
+      return null;
     }
 
     let prefix = 0;
@@ -289,109 +296,100 @@ export function registerSemanticTokensHandler(
     for (const symbol of cached.symbols) {
       if (!symbol.name) continue;
 
-      let tokenType = tokenTypes.indexOf('variable');
-      let declModifiers = declarationBit;
+      // KB-1248: Per-symbol error isolation - one bad symbol must not break all tokens
+      try {
+        const kindToTokenType: Record<string, string> = {
+          class: 'class',
+          method: 'method',
+          variable: 'variable',
+          constant: 'property',
+          enum: 'enum',
+          enum_constant: 'enumMember',
+          typedef: 'type',
+          module: 'namespace',
+          import: 'namespace',
+          inherit: 'class',
+          include: 'namespace',
+        };
+        const mappedType = kindToTokenType[symbol.kind];
+        if (!mappedType) continue;
 
-      const hasModifier = (mod: string) => symbol.modifiers && symbol.modifiers.includes(mod);
-
-      if (hasModifier('static')) {
-        declModifiers |= staticBit;
-      }
-
-      if (hasModifier('deprecated')) {
-        declModifiers |= deprecatedBit;
-      }
-
-      switch (symbol.kind) {
-        case 'class':
-          tokenType = tokenTypes.indexOf('class');
-          break;
-        case 'method':
-          tokenType = tokenTypes.indexOf('method');
-          break;
-        case 'variable':
-          tokenType = tokenTypes.indexOf('variable');
-          break;
-        case 'constant':
-          tokenType = tokenTypes.indexOf('property');
+        const tokenType = tokenTypes.indexOf(mappedType);
+        let declModifiers = declarationBit;
+        const hasModifier = (mod: string) => symbol.modifiers?.includes(mod) ?? false;
+        if (hasModifier('static')) declModifiers |= staticBit;
+        if (hasModifier('deprecated')) declModifiers |= deprecatedBit;
+        if (symbol.kind === 'constant' || symbol.kind === 'enum_constant')
           declModifiers |= readonlyBit;
-          break;
-        case 'enum':
-          tokenType = tokenTypes.indexOf('enum');
-          break;
-        case 'enum_constant':
-          tokenType = tokenTypes.indexOf('enumMember');
-          declModifiers |= readonlyBit;
-          break;
-        case 'typedef':
-          tokenType = tokenTypes.indexOf('type');
-          break;
-        case 'module':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        case 'import':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        case 'inherit':
-          tokenType = tokenTypes.indexOf('class');
-          break;
-        case 'include':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        default:
-          continue;
-      }
 
-      const symbolRegex = PatternHelpers.wholeWordPattern(symbol.name);
-      const declLine = symbol.position ? symbol.position.line - 1 : -1;
-      const searchRadius = 50;
+        const symbolRegex = PatternHelpers.wholeWordPattern(symbol.name);
+        const declLine = symbol.position ? symbol.position.line - 1 : -1;
+        const searchRadius = 50;
+
+        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+          const line = lines[lineNum];
+          if (!line) continue;
+
+          if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
+            continue;
+          }
+
+          let match = symbolRegex.exec(line);
+          while (match !== null) {
+            const matchIndex = match.index;
+
+            if (!isIgnoredPosition(lineNum, matchIndex)) {
+              const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
+              const modifiers = isDeclaration ? declModifiers : 0;
+              builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
+            }
+
+            match = symbolRegex.exec(line);
+          }
+        }
+      } catch (err) {
+        // KB-1248: Skip symbols with broken regex/name, continue with others
+        log.debug('Symbol tokenization failed (handled gracefully)', {
+          uri,
+          symbolName: symbol.name,
+          symbolKind: symbol.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Add keyword highlighting for Pike keywords
+    // KB-1248: Wrap in try-catch for resilience during malformed edits
+    try {
+      const keywordTokenType = tokenTypes.indexOf('keyword');
+      const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
+        kw => kw.name
+      );
 
       for (let lineNum = 0; lineNum < lines.length; lineNum++) {
         const line = lines[lineNum];
         if (!line) continue;
 
-        if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
-          continue;
-        }
+        for (const keyword of controlKeywords) {
+          const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
+          let match = keywordRegex.exec(line);
+          while (match !== null) {
+            const matchIndex = match.index;
 
-        let match = symbolRegex.exec(line);
-        while (match !== null) {
-          const matchIndex = match.index;
+            if (!isIgnoredPosition(lineNum, matchIndex)) {
+              builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
+            }
 
-          if (!isIgnoredPosition(lineNum, matchIndex)) {
-            const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
-            const modifiers = isDeclaration ? declModifiers : 0;
-            builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
+            match = keywordRegex.exec(line);
           }
-
-          match = symbolRegex.exec(line);
         }
       }
-    }
-
-    // Add keyword highlighting for Pike keywords
-    const keywordTokenType = tokenTypes.indexOf('keyword');
-    const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
-      kw => kw.name
-    );
-
-    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-      const line = lines[lineNum];
-      if (!line) continue;
-
-      for (const keyword of controlKeywords) {
-        const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
-        let match = keywordRegex.exec(line);
-        while (match !== null) {
-          const matchIndex = match.index;
-
-          if (!isIgnoredPosition(lineNum, matchIndex)) {
-            builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
-          }
-
-          match = keywordRegex.exec(line);
-        }
-      }
+    } catch (err) {
+      // KB-1248: Keyword highlighting is best-effort, must not break symbol tokens
+      log.debug('Keyword tokenization failed (handled gracefully)', {
+        uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
     return builder.build();
@@ -412,85 +410,90 @@ export function registerSemanticTokensHandler(
    * With delta enabled in server capabilities, VSCode will request incremental
    * updates when available. The server advertises delta support in capabilities,
    * enabling the client to make more efficient token requests on document changes.
+   *
+   * KB-1248: Cancellation support and improved error isolation.
    */
-  connection.languages.semanticTokens.on(params => {
-    log.debug('Semantic tokens request', { uri: params.textDocument.uri });
-    try {
+  connection.languages.semanticTokens.on(
+    (params: { textDocument: { uri: string } }, cancellationToken?: CancellationToken) => {
       const uri = params.textDocument.uri;
-      const document = documents.get(uri);
+      log.debug('Semantic tokens request', { uri });
 
-      if (!document) {
+      // KB-1248: Check cancellation early
+      if (cancellationToken?.isCancellationRequested) {
         return { resultId: '0', data: [] };
       }
 
-      const state = getOrBuildTokenState(uri, document);
-      return {
-        resultId: state.resultId,
-        data: state.data,
-      };
-    } catch (err) {
-      log.error(
-        `Semantic tokens request failed for ${params.textDocument.uri}: ${err instanceof Error ? err.message : String(err)}`
-      );
-      return { resultId: '0', data: [] };
+      try {
+        const document = documents.get(uri);
+
+        if (!document) {
+          return { resultId: '0', data: [] };
+        }
+
+        // KB-1248: Check cancellation before expensive tokenization
+        if (cancellationToken?.isCancellationRequested) {
+          return { resultId: '0', data: [] };
+        }
+
+        const state = getOrBuildTokenState(uri, document);
+        return {
+          resultId: state.resultId,
+          data: state.data,
+        };
+      } catch (err) {
+        logTokenError('Semantic tokens request', uri, err);
+        return { resultId: '0', data: [] };
+      }
     }
-  });
+  );
 
   /**
    * Semantic Tokens - Delta request handler
+   * KB-1248: Cancellation support and improved error isolation.
    */
-  connection.languages.semanticTokens.onDelta((params): SemanticTokensDelta => {
-    log.debug('Semantic tokens delta request', { uri: params.textDocument.uri });
-    try {
+  connection.languages.semanticTokens.onDelta(
+    (
+      params: { textDocument: { uri: string }; previousResultId: string },
+      cancellationToken?: CancellationToken
+    ): SemanticTokensDelta => {
       const uri = params.textDocument.uri;
-      const document = documents.get(uri);
-      const previousState = tokenStateByUri.get(uri);
+      log.debug('Semantic tokens delta request', { uri });
 
-      if (!document) {
+      if (cancellationToken?.isCancellationRequested) {
         return { resultId: '0', edits: [] };
       }
 
-      const nextState = getOrBuildTokenState(uri, document);
-
-      if (previousState && previousState.resultId === nextState.resultId) {
-        if (params.previousResultId === nextState.resultId) {
-          return {
-            resultId: nextState.resultId,
-            edits: [],
-          };
+      try {
+        const document = documents.get(uri);
+        const previousState = tokenStateByUri.get(uri);
+        if (!document || cancellationToken?.isCancellationRequested) {
+          return { resultId: '0', edits: [] };
         }
 
-        return {
+        const nextState = getOrBuildTokenState(uri, document);
+        const fullReplace = {
           resultId: nextState.resultId,
           edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
         };
+
+        if (previousState && previousState.resultId === nextState.resultId) {
+          return params.previousResultId === nextState.resultId
+            ? { resultId: nextState.resultId, edits: [] }
+            : fullReplace;
+        }
+
+        if (!previousState || previousState.resultId !== params.previousResultId) {
+          return fullReplace;
+        }
+
+        const edit = computeDeltaEdit(previousState.data, nextState.data);
+        return edit
+          ? { resultId: nextState.resultId, edits: [edit] }
+          : { resultId: nextState.resultId, edits: [] };
+      } catch (err) {
+        logTokenError('Semantic tokens delta request', uri, err);
+        return { resultId: '0', edits: [] };
       }
-
-      if (!previousState || previousState.resultId !== params.previousResultId) {
-        return {
-          resultId: nextState.resultId,
-          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
-        };
-      }
-
-      const edit = computeDeltaEdit(previousState.data, nextState.data);
-
-      if (!edit) {
-        return {
-          resultId: nextState.resultId,
-          edits: [],
-        };
-      }
-
-      return {
-        resultId: nextState.resultId,
-        edits: [edit],
-      };
-    } catch (err) {
-      log.error('Semantic tokens delta request failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return { resultId: '0', edits: [] };
     }
-  });
+  );
 }
