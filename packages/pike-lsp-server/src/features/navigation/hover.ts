@@ -4,7 +4,7 @@
  * Provides type information and documentation on hover.
  */
 
-import { Connection, Hover, MarkupKind } from 'vscode-languageserver/node.js';
+import { Connection, Hover, MarkupKind, Position } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
@@ -13,6 +13,20 @@ import { buildHoverContent } from '../utils/hover-builder.js';
 import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo, getMacroInfo } from './keywords.js';
+import { LRUCache } from '../../utils/lru-cache.js';
+
+/**
+ * Generate cache key from hover request parameters.
+ * Keyed by (uri, position, word, contentHash) for cache invalidation on edits.
+ */
+function makeHoverCacheKey(
+  uri: string,
+  position: Position,
+  word: string,
+  contentHash?: string
+): string {
+  return `${uri}:${position.line}:${position.character}:${word}:${contentHash ?? ''}`;
+}
 
 function collectSymbolsByName(symbols: PikeSymbol[], name: string): PikeSymbol[] {
   const matches: PikeSymbol[] = [];
@@ -41,6 +55,11 @@ export function registerHoverHandler(
   const { documentCache, stdlibIndex } = services;
   const log = new Logger('Navigation');
 
+  // LRU cache for hover results (max 500 entries)
+  const hoverCache = new LRUCache<string, Hover>(500);
+  let cacheHits = 0;
+  let cacheMisses = 0;
+
   /**
    * Hover handler - show type info and documentation
    */
@@ -63,6 +82,26 @@ export function registerHoverHandler(
 
       const { word, range } = wordResult;
 
+      // Check LRU cache for existing result
+      // Use contentHash if available for cache invalidation on edits
+      const contentHash = (cached as { contentHash?: string }).contentHash;
+      const cacheKey = makeHoverCacheKey(uri, params.position, word, contentHash);
+      const cachedHover = hoverCache.get(cacheKey);
+      if (cachedHover) {
+        cacheHits++;
+        log.debug('Hover cache hit', {
+          uri,
+          word,
+          hits: cacheHits,
+          misses: cacheMisses,
+          cacheSize: hoverCache.size,
+        });
+        return cachedHover;
+      }
+      cacheMisses++;
+
+      let hoverResult: Hover | null = null;
+
       // 0. Check if it's a Pike keyword first (single lookup)
       const keywordInfo = getKeywordInfo(word);
       if (keywordInfo) {
@@ -70,7 +109,7 @@ export function registerHoverHandler(
           keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
         // Use code blocks for consistency with symbol hover format
         const hoverContent = `**\`${keywordInfo.name}\`**\n\n\`\`\`pike\nkeyword\n\`\`\`\n\n*${categoryLabel}*\n\n${keywordInfo.description}`;
-        return {
+        hoverResult = {
           contents: {
             kind: MarkupKind.Markdown,
             value: hoverContent,
@@ -80,40 +119,52 @@ export function registerHoverHandler(
       }
 
       // 0b. Check if it's a Pike predefined macro
-      const macroInfo = getMacroInfo(word);
-      if (macroInfo) {
-        const hoverContent = `**\`${macroInfo.name}\`**\n\n\`\`\`pike\n${macroInfo.expandedValue}\n\`\`\`\n\n*Pike predefined macro*\n\n${macroInfo.description}`;
-        return {
-          contents: {
-            kind: MarkupKind.Markdown,
-            value: hoverContent,
-          },
-          range,
-        };
+      if (!hoverResult) {
+        const macroInfo = getMacroInfo(word);
+        if (macroInfo) {
+          const hoverContent = `**\`${macroInfo.name}\`**\n\n\`\`\`pike\n${macroInfo.expandedValue}\n\`\`\`\n\n*Pike predefined macro*\n\n${macroInfo.description}`;
+          hoverResult = {
+            contents: {
+              kind: MarkupKind.Markdown,
+              value: hoverContent,
+            },
+            range,
+          };
+        }
       }
 
       // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
-      let symbol = cached.symbolNames?.get(word) ?? null;
+      // Only do symbol lookup if we don't have a keyword/macro result
+      let symbol: PikeSymbol | null = null;
       let parentScope: string | undefined;
 
-      // 1a. For variables, check for scope-aware type
-      if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
-        try {
-          const text = document.getText();
-          const line = params.position.line + 1;
-          const typeResult = await services.bridge.bridge.getTypeAtPosition(text, uri, line, word);
+      if (!hoverResult) {
+        symbol = cached.symbolNames?.get(word) ?? null;
 
-          if (typeResult.found === 1 && typeResult.type) {
-            log.info(
-              `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
+        // 1a. For variables, check for scope-aware type
+        if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
+          try {
+            const text = document.getText();
+            const line = params.position.line + 1;
+            const typeResult = await services.bridge.bridge.getTypeAtPosition(
+              text,
+              uri,
+              line,
+              word
             );
-            symbol = {
-              ...symbol,
-              type: pikeTypeFromString(typeResult.type),
-            };
+
+            if (typeResult.found === 1 && typeResult.type) {
+              log.info(
+                `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
+              );
+              symbol = {
+                ...symbol,
+                type: pikeTypeFromString(typeResult.type),
+              };
+            }
+          } catch (err) {
+            log.error(`Scope-aware type lookup FAILED for ${word}`, { error: err });
           }
-        } catch (err) {
-          log.error(`Scope-aware type lookup FAILED for ${word}`, { error: err });
         }
       }
 
@@ -137,11 +188,13 @@ export function registerHoverHandler(
         }
       }
 
-      if (!symbol) {
+      if (!hoverResult && !symbol) {
+        // Cache null results too to avoid repeated lookups of non-existent symbols
+        hoverCache.set(cacheKey, null as unknown as Hover);
         return null;
       }
 
-      if (symbol.kind === 'method') {
+      if (symbol && symbol.kind === 'method') {
         const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name).filter(
           s => s.kind === 'method'
         );
@@ -168,22 +221,30 @@ export function registerHoverHandler(
         }
       }
 
-      // Build hover content
-      const content = buildHoverContent(symbol, parentScope);
-      if (!content) {
-        return null;
+      // Build hover content if not already set (keyword/macro case)
+      if (!hoverResult && symbol) {
+        const content = buildHoverContent(symbol, parentScope);
+        if (!content) {
+          hoverCache.set(cacheKey, null as unknown as Hover);
+          return null;
+        }
+
+        hoverResult = {
+          contents: {
+            kind: MarkupKind.Markdown,
+            value: content,
+          },
+        };
+
+        // Include range for document symbols, omit for stdlib/synthetic symbols
+        if (!isStdlib) {
+          hoverResult.range = range;
+        }
       }
 
-      const hoverResult: Hover = {
-        contents: {
-          kind: MarkupKind.Markdown,
-          value: content,
-        },
-      };
-
-      // Include range for document symbols, omit for stdlib/synthetic symbols
-      if (!isStdlib) {
-        hoverResult.range = range;
+      // Cache the result before returning
+      if (hoverResult) {
+        hoverCache.set(cacheKey, hoverResult);
       }
 
       return hoverResult;
