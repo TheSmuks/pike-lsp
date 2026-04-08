@@ -27,6 +27,7 @@
     "qe2:promotion-gates": "bash scripts/run-qe2-promotion-gates.sh",
     "clean": "bun run --filter '*' clean",
     "test": "bun test ./packages/pike-bridge ./packages/pike-lsp-server",
+    "test:slow": "bun run --filter '@pike-lsp/pike-lsp-server' test:slow",
     "test:packages": "bun test ./packages/pike-bridge ./packages/pike-lsp-server",
     "test:all": "./scripts/run-tests.sh",
     "lint:package-boundaries": "node scripts/check-cross-package-relative-imports.mjs",
