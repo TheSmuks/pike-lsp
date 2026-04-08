@@ -24,7 +24,8 @@
     "test:source-trees": "PIKE_SOURCE_TREE_TEST=1 bun test src/tests/source-tree-e2e.test.ts",
     "test:property": "bun test src/testing/property-tests/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "benchmark": "bun benchmarks/runner.ts"
+    "benchmark": "bun benchmarks/runner.ts",
+    "benchmark:hover": "bun benchmarks/hover-benchmark.ts"
   },
   "dependencies": {
     "@pike-lsp/core": "workspace:^",
