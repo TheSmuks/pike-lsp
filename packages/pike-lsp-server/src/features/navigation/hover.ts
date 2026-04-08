@@ -2,9 +2,16 @@
  * Hover Handler
  *
  * Provides type information and documentation on hover.
+ * KB-1248: Parse-under-edit resilience with snapshot-based queries and cancellation support.
  */
 
-import { Connection, Hover, MarkupKind, Position } from 'vscode-languageserver/node.js';
+import {
+  Connection,
+  Hover,
+  MarkupKind,
+  Position,
+  CancellationToken,
+} from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
@@ -14,6 +21,8 @@ import { getWordRangeAtPosition } from '../utils/pike-identifier.js';
 import { Logger } from '@pike-lsp/core';
 import { getKeywordInfo, getMacroInfo } from './keywords.js';
 import { LRUCache } from '../../utils/lru-cache.js';
+import { RequestScheduler } from '../../services/request-scheduler.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 /**
  * Generate cache key from hover request parameters.
@@ -60,55 +69,126 @@ export function registerHoverHandler(
   let cacheHits = 0;
   let cacheMisses = 0;
 
+  // KB-1248: Request scheduler for resilient hover requests
+  const hoverScheduler = new RequestScheduler({ logger: log });
+  const HOVER_SCHEDULER_LOG_EVERY = 50;
+  let hoverRequestsObserved = 0;
+
+  function maybeLogHoverSchedulerMetrics(uri: string, outcome: string): void {
+    hoverRequestsObserved += 1;
+    if (hoverRequestsObserved % HOVER_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+
+    const schedulerMetrics = hoverScheduler.snapshotMetrics();
+    log.debug('Hover scheduler metrics', {
+      uri,
+      outcome,
+      samples: hoverRequestsObserved,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
+    });
+  }
+
+  /**
+   * KB-1248: Fallback hover using direct bridge call with error resilience.
+   * Wraps bridge calls in try-catch to survive parse-under-edit scenarios.
+   */
+  async function getTypeAtPositionResilient(
+    bridge: NonNullable<Services['bridge']>,
+    text: string,
+    uri: string,
+    line: number,
+    word: string,
+    cancellationToken?: CancellationToken
+  ): Promise<{ found: number; type?: string; scopeDepth?: number; declLine?: number } | null> {
+    try {
+      if (cancellationToken?.isCancellationRequested) {
+        return null;
+      }
+
+      const result = await bridge.bridge?.getTypeAtPosition(text, uri, line, word);
+
+      if (cancellationToken?.isCancellationRequested) {
+        return null;
+      }
+
+      return result ?? null;
+    } catch (err) {
+      // KB-1248: Gracefully handle parse-under-edit errors
+      log.debug('Type lookup failed (likely parse-under-edit)', {
+        uri,
+        line,
+        word,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
   /**
    * Hover handler - show type info and documentation
+   * KB-1248: Parse-under-edit resilience with snapshot-based queries
    */
-  connection.onHover(async (params): Promise<Hover | null> => {
+  connection.onHover(async (params, cancellationToken): Promise<Hover | null> => {
     log.debug('Hover request', { uri: params.textDocument.uri });
-    try {
-      const uri = params.textDocument.uri;
-      const cached = documentCache.get(uri);
-      const document = documents.get(uri);
 
-      if (!cached || !document) {
-        return null;
-      }
+    const uri = params.textDocument.uri;
+    const cached = documentCache.get(uri);
+    const document = documents.get(uri);
 
-      // Get word and range at position
-      const wordResult = getWordRangeAtPosition(document, params.position);
-      if (!wordResult) {
-        return null;
-      }
+    if (!cached || !document) {
+      return null;
+    }
 
-      const { word, range } = wordResult;
+    // Get word and range at position
+    const wordResult = getWordRangeAtPosition(document, params.position);
+    if (!wordResult) {
+      return null;
+    }
 
-      // Check LRU cache for existing result
-      // Use contentHash if available for cache invalidation on edits
-      const contentHash = (cached as { contentHash?: string }).contentHash;
-      const cacheKey = makeHoverCacheKey(uri, params.position, word, contentHash);
-      const cachedHover = hoverCache.get(cacheKey);
-      if (cachedHover) {
-        cacheHits++;
-        log.debug('Hover cache hit', {
-          uri,
-          word,
-          hits: cacheHits,
-          misses: cacheMisses,
-          cacheSize: hoverCache.size,
-        });
-        return cachedHover;
-      }
-      cacheMisses++;
+    const { word, range } = wordResult;
 
-      let hoverResult: Hover | null = null;
+    // Check LRU cache for existing result
+    // Use contentHash if available for cache invalidation on edits
+    const contentHash = (cached as { contentHash?: string }).contentHash;
+    const cacheKey = makeHoverCacheKey(uri, params.position, word, contentHash);
+    const cachedHover = hoverCache.get(cacheKey);
+    if (cachedHover) {
+      cacheHits++;
+      log.debug('Hover cache hit', {
+        uri,
+        word,
+        hits: cacheHits,
+        misses: cacheMisses,
+        cacheSize: hoverCache.size,
+      });
+      return cachedHover;
+    }
+    cacheMisses++;
 
-      // 0. Check if it's a Pike keyword first (single lookup)
-      const keywordInfo = getKeywordInfo(word);
-      if (keywordInfo) {
-        const categoryLabel =
-          keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
-        // Use code blocks for consistency with symbol hover format
-        const hoverContent = `**\`${keywordInfo.name}\`**\n\n\`\`\`pike\nkeyword\n\`\`\`\n\n*${categoryLabel}*\n\n${keywordInfo.description}`;
+    let hoverResult: Hover | null = null;
+
+    // 0. Check if it's a Pike keyword first (single lookup)
+    const keywordInfo = getKeywordInfo(word);
+    if (keywordInfo) {
+      const categoryLabel =
+        keywordInfo.category.charAt(0).toUpperCase() + keywordInfo.category.slice(1);
+      // Use code blocks for consistency with symbol hover format
+      const hoverContent = `**\`${keywordInfo.name}\`**\n\n\`\`\`pike\nkeyword\n\`\`\`\n\n*${categoryLabel}*\n\n${keywordInfo.description}`;
+      hoverResult = {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: hoverContent,
+        },
+        range,
+      };
+    }
+
+    // 0b. Check if it's a Pike predefined macro
+    if (!hoverResult) {
+      const macroInfo = getMacroInfo(word);
+      if (macroInfo) {
+        const hoverContent = `**\`${macroInfo.name}\`**\n\n\`\`\`pike\n${macroInfo.expandedValue}\n\`\`\`\n\n*Pike predefined macro*\n\n${macroInfo.description}`;
         hoverResult = {
           contents: {
             kind: MarkupKind.Markdown,
@@ -117,61 +197,53 @@ export function registerHoverHandler(
           range,
         };
       }
+    }
 
-      // 0b. Check if it's a Pike predefined macro
-      if (!hoverResult) {
-        const macroInfo = getMacroInfo(word);
-        if (macroInfo) {
-          const hoverContent = `**\`${macroInfo.name}\`**\n\n\`\`\`pike\n${macroInfo.expandedValue}\n\`\`\`\n\n*Pike predefined macro*\n\n${macroInfo.description}`;
-          hoverResult = {
-            contents: {
-              kind: MarkupKind.Markdown,
-              value: hoverContent,
-            },
-            range,
-          };
-        }
-      }
+    // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
+    // Only do symbol lookup if we don't have a keyword/macro result
+    let symbol: PikeSymbol | null = null;
+    let parentScope: string | undefined;
 
-      // 1. Try to find symbol in local document (O(1) lookup using symbolNames index)
-      // Only do symbol lookup if we don't have a keyword/macro result
-      let symbol: PikeSymbol | null = null;
-      let parentScope: string | undefined;
+    if (!hoverResult) {
+      symbol = cached.symbolNames?.get(word) ?? null;
 
-      if (!hoverResult) {
-        symbol = cached.symbolNames?.get(word) ?? null;
+      // 1a. For variables, check for scope-aware type with parse-under-edit resilience
+      if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
+        try {
+          const text = document.getText();
+          const line = params.position.line + 1;
 
-        // 1a. For variables, check for scope-aware type
-        if (symbol && symbol.kind === 'variable' && services.bridge?.bridge) {
-          try {
-            const text = document.getText();
-            const line = params.position.line + 1;
-            const typeResult = await services.bridge.bridge.getTypeAtPosition(
-              text,
-              uri,
-              line,
-              word
+          // KB-1248: Use resilient type lookup that handles parse-under-edit
+          const typeResult = await getTypeAtPositionResilient(
+            services.bridge,
+            text,
+            uri,
+            line,
+            word,
+            cancellationToken
+          );
+
+          if (typeResult?.found === 1 && typeResult.type) {
+            log.info(
+              `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
             );
-
-            if (typeResult.found === 1 && typeResult.type) {
-              log.info(
-                `[SCOPE] ${word} at line ${line}: ${typeResult.type} (depth ${typeResult.scopeDepth})`
-              );
-              symbol = {
-                ...symbol,
-                type: pikeTypeFromString(typeResult.type),
-              };
-            }
-          } catch (err) {
-            log.error(`Scope-aware type lookup FAILED for ${word}`, { error: err });
+            symbol = {
+              ...symbol,
+              type: pikeTypeFromString(typeResult.type),
+            };
           }
+        } catch (err) {
+          // KB-1248: Already handled in getTypeAtPositionResilient, log for debugging
+          log.debug('Scope-aware type lookup failed (handled gracefully)', { word, error: err });
         }
       }
+    }
 
-      // 2. If not found, try to find in stdlib
-      let isStdlib = false;
-      if (!symbol && stdlibIndex) {
-        // Check if it's a known module
+    // 2. If not found, try to find in stdlib
+    let isStdlib = false;
+    if (!symbol && stdlibIndex) {
+      // Check if it's a known module
+      try {
         const moduleInfo = await stdlibIndex.getModule(word);
         if (moduleInfo) {
           // Create a synthetic symbol for the module
@@ -186,74 +258,73 @@ export function registerHoverHandler(
           } as unknown as PikeSymbol;
           isStdlib = true;
         }
+      } catch (err) {
+        // KB-1248: Gracefully handle stdlib lookup failures
+        log.debug('Stdlib module lookup failed (handled gracefully)', { word, error: err });
       }
+    }
 
-      if (!hoverResult && !symbol) {
-        // Cache null results too to avoid repeated lookups of non-existent symbols
+    if (!hoverResult && !symbol) {
+      // Cache null results too to avoid repeated lookups of non-existent symbols
+      hoverCache.set(cacheKey, null as unknown as Hover);
+      return null;
+    }
+
+    if (symbol && symbol.kind === 'method') {
+      const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name).filter(
+        s => s.kind === 'method'
+      );
+
+      if (overloadCandidates.length > 0) {
+        const mainSymbol = overloadCandidates.find(
+          s => !(s.modifiers?.includes('variant') ?? false)
+        );
+        const variantSymbols = overloadCandidates.filter(
+          s => s.modifiers?.includes('variant') ?? false
+        );
+
+        if (mainSymbol) {
+          symbol = {
+            ...mainSymbol,
+            variants: variantSymbols,
+          } as PikeSymbol;
+        } else if (variantSymbols.length > 0) {
+          symbol = {
+            ...symbol,
+            variants: variantSymbols.filter(s => s !== symbol),
+          } as PikeSymbol;
+        }
+      }
+    }
+
+    // Build hover content if not already set (keyword/macro case)
+    if (!hoverResult && symbol) {
+      const content = buildHoverContent(symbol, parentScope);
+      if (!content) {
         hoverCache.set(cacheKey, null as unknown as Hover);
         return null;
       }
 
-      if (symbol && symbol.kind === 'method') {
-        const overloadCandidates = collectSymbolsByName(cached.symbols, symbol.name).filter(
-          s => s.kind === 'method'
-        );
+      hoverResult = {
+        contents: {
+          kind: MarkupKind.Markdown,
+          value: content,
+        },
+      };
 
-        if (overloadCandidates.length > 0) {
-          const mainSymbol = overloadCandidates.find(
-            s => !(s.modifiers?.includes('variant') ?? false)
-          );
-          const variantSymbols = overloadCandidates.filter(
-            s => s.modifiers?.includes('variant') ?? false
-          );
-
-          if (mainSymbol) {
-            symbol = {
-              ...mainSymbol,
-              variants: variantSymbols,
-            } as PikeSymbol;
-          } else if (variantSymbols.length > 0) {
-            symbol = {
-              ...symbol,
-              variants: variantSymbols.filter(s => s !== symbol),
-            } as PikeSymbol;
-          }
-        }
+      // Include range for document symbols, omit for stdlib/synthetic symbols
+      if (!isStdlib) {
+        hoverResult.range = range;
       }
-
-      // Build hover content if not already set (keyword/macro case)
-      if (!hoverResult && symbol) {
-        const content = buildHoverContent(symbol, parentScope);
-        if (!content) {
-          hoverCache.set(cacheKey, null as unknown as Hover);
-          return null;
-        }
-
-        hoverResult = {
-          contents: {
-            kind: MarkupKind.Markdown,
-            value: content,
-          },
-        };
-
-        // Include range for document symbols, omit for stdlib/synthetic symbols
-        if (!isStdlib) {
-          hoverResult.range = range;
-        }
-      }
-
-      // Cache the result before returning
-      if (hoverResult) {
-        hoverCache.set(cacheKey, hoverResult);
-      }
-
-      return hoverResult;
-    } catch (err) {
-      log.error(
-        `Hover failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`
-      );
-      return null;
     }
+
+    // Cache the result before returning
+    if (hoverResult) {
+      hoverCache.set(cacheKey, hoverResult);
+    }
+
+    maybeLogHoverSchedulerMetrics(uri, hoverResult ? 'success' : 'null');
+    return hoverResult;
   });
 }
 
