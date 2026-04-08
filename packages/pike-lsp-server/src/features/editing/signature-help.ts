@@ -24,8 +24,72 @@ import type { Services } from '../../services/index.js';
 import { formatPikeType } from '../utils/pike-type-formatter.js';
 import { uriToFsPath } from '../../utils/uri-path.js';
 import { resolveCallContextAtOffset } from '../navigation/call-context-resolver.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+
+const useQueryEngineSignatureHelp = process.env['PIKE_LSP_QE2_SIGNATURE_HELP'] !== '0';
+const inFlightSignatureHelpRequests = new Map<string, string>();
+const signatureHelpRequestSequence = new Map<string, number>();
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+/**
+ * Parse a SignatureHelp object from query engine response.
+ * Handles both structured and minimally-shaped responses.
+ */
+function parseSignatureHelpResponse(raw: Record<string, unknown>): SignatureHelp | null {
+  try {
+    const signatures = raw['signatures'];
+    if (!Array.isArray(signatures) || signatures.length === 0) {
+      return null;
+    }
+
+    const parsed: SignatureInformation[] = [];
+    for (const sig of signatures) {
+      if (!sig || typeof sig !== 'object') continue;
+      const s = sig as Record<string, unknown>;
+      if (typeof s['label'] !== 'string') continue;
+
+      const parameters = Array.isArray(s['parameters'])
+        ? (s['parameters'] as Array<Record<string, unknown>>).map(p => {
+            if (typeof p['label'] === 'string') {
+              return { label: p['label'] as string };
+            }
+            if (Array.isArray(p['label']) && p['label'].length === 2) {
+              return { label: p['label'] as [number, number] };
+            }
+            return { label: '' };
+          })
+        : [];
+
+      const info: SignatureInformation = {
+        label: s['label'] as string,
+        parameters,
+      };
+      if (typeof s['documentation'] === 'string') {
+        info.documentation = s['documentation'];
+      }
+      parsed.push(info);
+    }
+
+    if (parsed.length === 0) return null;
+
+    return {
+      signatures: parsed,
+      activeSignature:
+        typeof raw['activeSignature'] === 'number' ? (raw['activeSignature'] as number) : 0,
+      activeParameter:
+        typeof raw['activeParameter'] === 'number' ? (raw['activeParameter'] as number) : 0,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Register signature help handler.
@@ -199,6 +263,119 @@ export function registerSignatureHelpHandler(
     const funcName = callContext.target.name;
     const paramIndex = callContext.activeParameter;
 
+    // KB-1248: Try query engine signature-help path with snapshot isolation
+    if (useQueryEngineSignatureHelp) {
+      const bridge = services.bridge;
+      if (bridge?.isRunning?.()) {
+        const nextSequence = (signatureHelpRequestSequence.get(uri) ?? 0) + 1;
+        signatureHelpRequestSequence.set(uri, nextSequence);
+        const requestId = `signatureHelp:${uri}:${document.version ?? 0}:${Date.now()}:${nextSequence}`;
+        const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
+
+        let cancelledByToken = false;
+        const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
+          cancelledByToken = true;
+          void bridge.engineCancelRequest({ requestId }).catch(error => {
+            logger.warn('Signature help cancellation request failed', {
+              uri,
+              requestId,
+              error,
+            });
+          });
+        });
+
+        const clearInFlight = (): void => {
+          if (inFlightSignatureHelpRequests.get(uri) === requestId) {
+            inFlightSignatureHelpRequests.delete(uri);
+          }
+        };
+
+        try {
+          const qeSignatureResult = await signatureHelpScheduler.schedule<SignatureHelp | null>({
+            requestClass: 'interactive',
+            key: `signatureHelp:${uri}`,
+            run: async checkpoint => {
+              checkpoint();
+              if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+                throw new RequestSupersededError('Signature help request cancelled by LSP token');
+              }
+
+              // Cancel previous in-flight request for same URI
+              const previousRequestId = inFlightSignatureHelpRequests.get(uri);
+              if (previousRequestId && previousRequestId !== requestId) {
+                try {
+                  await bridge.engineCancelRequest({ requestId: previousRequestId });
+                } catch (err) {
+                  logger.debug('Signature help cancellation for superseded request failed', {
+                    uri,
+                    requestId: previousRequestId,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                }
+              }
+              inFlightSignatureHelpRequests.set(uri, requestId);
+
+              const snapshotId = services.documentSnapshots?.get(uri);
+              const qeResponse = await bridge.engineQuery({
+                feature: 'signatureHelp',
+                requestId,
+                snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
+                queryParams: {
+                  uri,
+                  filename,
+                  position: params.position,
+                  text,
+                  offset,
+                },
+              });
+              checkpoint();
+
+              if (cancelledByToken || cancellationToken?.isCancellationRequested) {
+                throw new RequestSupersededError('Signature help request cancelled by LSP token');
+              }
+
+              // Parse direct signature help result
+              const directSig = asRecord(qeResponse.result['signatureHelp']);
+              if (directSig) {
+                return parseSignatureHelpResponse(directSig);
+              }
+
+              // Parse nested result
+              const nested = asRecord(qeResponse.result['result']);
+              if (nested && nested['status'] !== 'stub') {
+                const nestedSig = asRecord(nested['signatureHelp']);
+                if (nestedSig) {
+                  return parseSignatureHelpResponse(nestedSig);
+                }
+              }
+
+              return null;
+            },
+          });
+
+          clearInFlight();
+          cancellationDisposable?.dispose();
+          if (qeSignatureResult) {
+            maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_success');
+            return qeSignatureResult;
+          }
+        } catch (err) {
+          clearInFlight();
+          cancellationDisposable?.dispose();
+          if (err instanceof RequestSupersededError) {
+            maybeLogSignatureHelpSchedulerMetrics(uri, 'superseded');
+            return null;
+          }
+          maybeLogSignatureHelpSchedulerMetrics(uri, 'qe_fallback');
+          logger.debug('Signature help query engine fallback', {
+            uri,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
+    // Fallback: local signature resolution
     // KB-1248: Find function symbol with resilience wrapper
     let funcSymbol: PikeSymbol | null = null;
 
