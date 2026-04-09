@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import { registerSymbolsHandlers } from '../../features/symbols.js';
+import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
 import {
   createMockConnection,
   createMockServices,
@@ -56,7 +56,7 @@ function setup(opts: SetupOptions) {
     get: (docUri: string) => mockDocuments?.get(docUri),
   };
 
-  registerSymbolsHandlers(conn as any, services as any, documents as any);
+  registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
   return {
     documentSymbol: () => conn.documentSymbolHandler({ textDocument: { uri } }),
@@ -239,13 +239,13 @@ describe('Scenario: nested symbols and class hierarchy', () => {
 // ---------------------------------------------------------------------------
 
 describe('Scenario: Pike construct symbol kind mapping', () => {
-  it('should map inherit to SymbolKind.Class', async () => {
+  it('should map inherit to SymbolKind.Namespace', async () => {
     const { documentSymbol } = setup({
       symbols: [sym('base_module', 'inherit', { position: { file: 'test.pike', line: 1 } })],
     });
     const result = await documentSymbol();
     assert.ok(result);
-    assert.strictEqual(result[0]!.kind, SymbolKind.Class);
+    assert.strictEqual(result[0]!.kind, SymbolKind.Namespace);
   });
 
   it('should map import to SymbolKind.Module', async () => {
@@ -541,7 +541,7 @@ describe('Scenario: Pike-specific type constructs', () => {
     assert.strictEqual(result[4]!.kind, SymbolKind.EnumMember);
   });
 
-  it('should show inherit as SymbolKind.Class with classname', async () => {
+  it('should show inherit as SymbolKind.Namespace with classname', async () => {
     const { documentSymbol } = setup({
       symbols: [
         sym('Stdio.File', 'inherit', {
@@ -553,7 +553,7 @@ describe('Scenario: Pike-specific type constructs', () => {
     const result = await documentSymbol();
     assert.ok(result);
     assert.strictEqual(result[0]!.name, 'Stdio.File');
-    assert.strictEqual(result[0]!.kind, SymbolKind.Class);
+    assert.strictEqual(result[0]!.kind, SymbolKind.Namespace);
   });
 
   it('should show import as SymbolKind.Module', async () => {
@@ -764,7 +764,7 @@ describe('Scenario: realistic Pike file outline', () => {
     assert.strictEqual(result[1]!.kind, SymbolKind.Module);
 
     assert.strictEqual(result[2]!.name, 'Base');
-    assert.strictEqual(result[2]!.kind, SymbolKind.Class);
+    assert.strictEqual(result[2]!.kind, SymbolKind.Namespace);
 
     assert.strictEqual(result[3]!.name, 'DEFAULT_PORT');
     assert.strictEqual(result[3]!.kind, SymbolKind.Constant);

@@ -2,7 +2,7 @@
  * Document Symbol Provider Tests
  *
  * Tests for document symbols (outline view) functionality.
- * Exercises registerSymbolsHandlers() via MockConnection for onDocumentSymbol,
+ * Exercises registerDocumentSymbolHandler() via MockConnection for onDocumentSymbol,
  * and directly tests the extracted convertSymbolKind() and getSymbolDetail().
  */
 
@@ -11,7 +11,7 @@ import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
-import { registerSymbolsHandlers } from '../../features/symbols.js';
+import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
 import {
   createMockConnection,
   createMockServices,
@@ -57,7 +57,7 @@ function setup(opts: SetupOptions) {
     get: (docUri: string) => mockDocuments?.get(docUri),
   };
 
-  registerSymbolsHandlers(conn as any, services as any, documents as any);
+  registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
   return {
     documentSymbol: () => conn.documentSymbolHandler({ textDocument: { uri } }),
@@ -278,7 +278,7 @@ describe('Document Symbol Provider', () => {
       expect(result![4]!.kind).toBe(SymbolKind.TypeParameter);
       expect(result![5]!.kind).toBe(SymbolKind.Enum);
       expect(result![6]!.kind).toBe(SymbolKind.EnumMember);
-      expect(result![7]!.kind).toBe(SymbolKind.Class); // inherit -> Class
+      expect(result![7]!.kind).toBe(SymbolKind.Namespace); // inherit -> Namespace
       expect(result![8]!.kind).toBe(SymbolKind.Module); // import -> Module
       expect(result![9]!.kind).toBe(SymbolKind.Module); // module -> Module
     });
