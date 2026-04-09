@@ -284,7 +284,7 @@ packages/pike-lsp-server/src/features/roxen/
 ## Version History
 
 - **v1.0.0** (2026-02-10) - Production release with 5 iterations of refinement
-  - Complete MODULE*\*, TYPE*_, VAR\__ constants
+  - Complete MODULE*\*, TYPE*\_, VAR\_\_ constants
   - Expanded RequestID with 25+ members
   - RXML.Tag and TagSet with full API
   - 1720 tests passing
