@@ -10,12 +10,15 @@ import { WorkspaceIndex } from './workspace-index.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('WorkspaceIndex', () => {
+  // Mirror of WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH — kept in sync manually.
+  const PREFIX_INDEX_MAX_DEPTH = 8;
+
   const addPrefixes = (prefixIndex: Map<string, Set<string>>, nameLower: string): void => {
     if (nameLower.length < 2) {
       return;
     }
 
-    for (let i = 2; i <= nameLower.length; i++) {
+    for (let i = 2; i <= Math.min(nameLower.length, PREFIX_INDEX_MAX_DEPTH); i++) {
       const prefix = nameLower.slice(0, i);
       let prefixSet = prefixIndex.get(prefix);
       if (!prefixSet) {
@@ -166,7 +169,7 @@ describe('WorkspaceIndex', () => {
   it('should remove orphaned prefix entries when symbol lookup entry is missing', () => {
     const index = new WorkspaceIndex();
     const uri = 'file:///orphan.pike';
-    const nameLower = 'orphansymbol';
+    const nameLower = 'orphaned';
 
     const privateState = index as unknown as {
       uriToSymbols: Map<string, Set<string>>;
@@ -262,79 +265,6 @@ describe('WorkspaceIndex', () => {
     );
   });
 
-  it('should cap prefixIndex size with batch eviction', () => {
-    const index = new WorkspaceIndex();
-
-    const privateState = index as unknown as {
-      prefixIndex: Map<string, Set<string>>;
-    };
-
-    // Temporarily lower the cap and batch size for testing
-    const TestCap = 20;
-    const TestBatch = 5;
-    const constants = WorkspaceIndex as unknown as Record<string, number>;
-    const OriginalCap = constants['PREFIX_INDEX_MAX_SIZE']!;
-    const OriginalBatch = constants['PREFIX_INDEX_EVICT_BATCH']!;
-    constants['PREFIX_INDEX_MAX_SIZE'] = TestCap;
-    constants['PREFIX_INDEX_EVICT_BATCH'] = TestBatch;
-
-    try {
-      // Populate prefixIndex well beyond the cap via private state
-      for (let i = 0; i < 50; i++) {
-        addPrefixes(privateState.prefixIndex, `symbol_${i.toString().padStart(3, '0')}`);
-      }
-
-      const sizeBefore = privateState.prefixIndex.size;
-      assert.ok(sizeBefore > TestCap, `Precondition: ${sizeBefore} > ${TestCap}`);
-
-      // Run the same batch eviction logic used in addToLookup
-      if (privateState.prefixIndex.size > TestCap) {
-        let evicted = 0;
-        for (const key of privateState.prefixIndex.keys()) {
-          if (evicted >= TestBatch) break;
-          privateState.prefixIndex.delete(key);
-          evicted++;
-        }
-      }
-
-      // After one batch, size should be reduced but not necessarily <= cap
-      // (batch eviction amortizes — multiple batches needed for large overshoot)
-      assert.ok(
-        privateState.prefixIndex.size < sizeBefore,
-        `prefixIndex size (${privateState.prefixIndex.size}) must decrease from ${sizeBefore}`
-      );
-      assert.ok(
-        privateState.prefixIndex.size >= TestCap - TestBatch,
-        `prefixIndex size (${privateState.prefixIndex.size}) must not over-evict below ${TestCap - TestBatch}`
-      );
-    } finally {
-      constants['PREFIX_INDEX_MAX_SIZE'] = OriginalCap;
-      constants['PREFIX_INDEX_EVICT_BATCH'] = OriginalBatch;
-    }
-  });
-
-  it('should handle removal of symbols whose prefix entries were evicted', () => {
-    const index = new WorkspaceIndex();
-    const uri = 'file:///evicted.pike';
-    const name = 'evictedname';
-
-    const privateState = index as unknown as {
-      uriToSymbols: Map<string, Set<string>>;
-      prefixIndex: Map<string, Set<string>>;
-      symbolLookup: Map<string, Map<string, unknown>>;
-    };
-
-    // Set up uriToSymbols and symbolLookup but leave prefixIndex empty
-    // (simulating that all prefix entries for this symbol were evicted)
-    privateState.uriToSymbols.set(uri, new Set([name]));
-    // No symbolLookup entry — simulates orphan removal path
-
-    // removeDocument must not throw even with no prefix entries
-    index.removeDocument(uri);
-
-    assert.equal(privateState.uriToSymbols.has(uri), false, 'URI should be cleaned up');
-  });
-
   it('should respect search result limit', async () => {
     const bridge = new PikeBridge();
     await bridge.start();
@@ -355,6 +285,38 @@ describe('WorkspaceIndex', () => {
     const results = index.searchSymbols('var', 2);
 
     assert.ok(results.length <= 2, 'Should not exceed the specified limit');
+
+    await bridge.stop();
+  });
+
+  it('should cap prefix index depth to prevent unbounded memory growth', async () => {
+    const bridge = new PikeBridge();
+    await bridge.start();
+    const index = new WorkspaceIndex(bridge);
+
+    // longfunctionname is 16 chars — should only index prefixes up to depth 8
+    const code = `string longfunctionname() { return "x"; }`;
+    await index.indexDocument('file:///test.pike', code, 1);
+
+    const privateState = index as unknown as {
+      prefixIndex: Map<string, Set<string>>;
+    };
+
+    // Prefixes within cap (length 2..8) should exist
+    assert.ok(privateState.prefixIndex.has('lo'), '2-char prefix should exist');
+    assert.ok(privateState.prefixIndex.has('longfunc'), '8-char prefix (at cap) should exist');
+
+    // Prefixes beyond cap should NOT exist
+    assert.equal(
+      privateState.prefixIndex.has('longfunct'),
+      false,
+      '9-char prefix (beyond cap) should not exist'
+    );
+    assert.equal(
+      privateState.prefixIndex.has('longfunctionname'),
+      false,
+      'full-length prefix should not exist when name exceeds cap'
+    );
 
     await bridge.stop();
   });
