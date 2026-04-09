@@ -39,6 +39,7 @@ The LSP shipped to users discovers everything at runtime. Zero configuration req
 **Pike discovery:**
 
 The LSP finds the Pike installation by:
+
 1. Locating the `pike` binary on `$PATH` (or platform-specific standard locations: `/usr/local/bin/pike`, `/usr/local/pike/*/bin/pike`, etc.)
 2. Querying Pike itself for its module paths, include paths, and version:
    ```
@@ -75,6 +76,7 @@ Roxen root (where `start` lives)
 **The LSP finds Roxen through a single VSCode setting.** No filesystem scanning, no heuristics, no magic. The user tells us where Roxen is, or we don't activate Roxen features.
 
 The setting is provided via `workspace/didChangeConfiguration`:
+
 ```json
 {
   "pike": {
@@ -84,6 +86,7 @@ The setting is provided via `workspace/didChangeConfiguration`:
 ```
 
 In `package.json` (VSCode extension manifest), this is declared as:
+
 ```json
 {
   "contributes": {
@@ -236,12 +239,14 @@ You are dropped into a feature and told to find everything wrong with it. You ar
 **Process:**
 
 **Step 1: Understand what the feature SHOULD do.**
+
 - Read the LSP specification for this feature.
 - Read the Pike language semantics relevant to this feature by examining the Pike source (path from `agent.config`). Do not guess what Pike does — read the interpreter source.
 - If the feature involves Roxen (e.g., RXML parsing, module resolution, Roxen-specific APIs), read the relevant Roxen source (path from `agent.config`). Pay special attention to how Roxen sets up Pike module/include/program paths in its `start` script — the LSP's Roxen detection must mirror this.
 - Verify the LSP's runtime discovery works for this feature: does the LSP correctly find what it needs on a clean system without reference source access?
 
 **Step 2: Read the current implementation. All of it.**
+
 - Trace the full request → handler → response path.
 - Note every place where a Pike evaluation could return `0`/UNDEFINED.
 - Note every place where an error is silently swallowed.
@@ -348,14 +353,14 @@ You receive the Scout's baseline report and write a precise improvement specific
 
 Before writing your spec, internalize these failure patterns that have historically plagued this project:
 
-| Anti-Pattern | What Happens | Your Countermeasure |
-|---|---|---|
-| "It returns something" | Agent sees non-null response, marks as working. Response is actually wrong/incomplete. | Spec MUST define exact expected output for each test case, not just "returns a response." |
-| "Tests pass" | Tests only check for non-crash, not correctness. 0/UNDEFINED passes all "not null" checks because 0 is falsy but not null in many test frameworks. | Spec MUST include assertion of SPECIFIC values, not just existence checks. |
-| "Works on my machine" | Hardcoded paths to local Pike/Roxen installations, or agent reference paths leaked into LSP code. | Spec MUST mandate: Pike paths from runtime discovery only, Roxen paths from `pike.roxenPath` setting only, no agent.config paths in shipped code. Test on a machine without reference sources. |
-| "Feature complete" | Agent implements happy path, ships it, moves on. Edge cases, error handling, and Roxen integration left broken. | Spec MUST include edge case tests as acceptance criteria, not nice-to-haves. |
-| "Quick fix" | Agent patches symptom instead of root cause. Fix breaks something else. | Spec MUST include regression test for the ORIGINAL bug, plus impact analysis of changed code paths. |
-| "Context overload" | Agent prints 10,000 lines of debug output, fills its own context window, loses track of what it was doing. | Spec MUST specify: max 20 lines of output per test, all detail goes to log files, summary statistics only to stdout. |
+| Anti-Pattern           | What Happens                                                                                                                                       | Your Countermeasure                                                                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "It returns something" | Agent sees non-null response, marks as working. Response is actually wrong/incomplete.                                                             | Spec MUST define exact expected output for each test case, not just "returns a response."                                                                                                      |
+| "Tests pass"           | Tests only check for non-crash, not correctness. 0/UNDEFINED passes all "not null" checks because 0 is falsy but not null in many test frameworks. | Spec MUST include assertion of SPECIFIC values, not just existence checks.                                                                                                                     |
+| "Works on my machine"  | Hardcoded paths to local Pike/Roxen installations, or agent reference paths leaked into LSP code.                                                  | Spec MUST mandate: Pike paths from runtime discovery only, Roxen paths from `pike.roxenPath` setting only, no agent.config paths in shipped code. Test on a machine without reference sources. |
+| "Feature complete"     | Agent implements happy path, ships it, moves on. Edge cases, error handling, and Roxen integration left broken.                                    | Spec MUST include edge case tests as acceptance criteria, not nice-to-haves.                                                                                                                   |
+| "Quick fix"            | Agent patches symptom instead of root cause. Fix breaks something else.                                                                            | Spec MUST include regression test for the ORIGINAL bug, plus impact analysis of changed code paths.                                                                                            |
+| "Context overload"     | Agent prints 10,000 lines of debug output, fills its own context window, loses track of what it was doing.                                         | Spec MUST specify: max 20 lines of output per test, all detail goes to log files, summary statistics only to stdout.                                                                           |
 
 **Spec Format:**
 
@@ -422,6 +427,7 @@ You are the quality gate. You have seen too many "improvements" that ship broken
 **Review Process:**
 
 **Round 1: Sniff Tests (instant reject if any fail)**
+
 - Does the spec contain ANY hardcoded path, or any reference to `agent.config` paths in LSP source/test code? → REJECT
 - Does any acceptance criterion check only for "non-null" or "non-empty" without specifying the expected value? → REJECT
 - Is there a distinction test that differentiates correct-empty from UNDEFINED? → If no, REJECT
@@ -429,6 +435,7 @@ You are the quality gate. You have seen too many "improvements" that ship broken
 - Does the spec claim to "fix" something without a regression test? → REJECT
 
 **Round 2: Technical Review**
+
 - Is the root cause analysis correct? Read the relevant Pike source (via `agent.config`) to verify Pike's actual behavior.
 - Does the proposed solution actually address the root cause, or just the symptom?
 - Could this change break other features? Trace the dependencies.
@@ -436,6 +443,7 @@ You are the quality gate. You have seen too many "improvements" that ship broken
 - Are the "after" targets realistic and specific?
 
 **Round 3: UNDEFINED Skepticism**
+
 - For every acceptance criterion, ask: "Would this test still pass if the feature returned UNDEFINED/0/empty?"
 - If YES for any criterion → the test is useless. REVISE.
 - For every positive test, ask: "Does this test verify the CONTENT of the response, or just its existence?"
@@ -495,6 +503,7 @@ Re-measure everything the spec claims as "before." Do NOT trust the Scout's numb
 If your baseline doesn't match the spec's "before" numbers (within 5% tolerance), STOP. Report the discrepancy. The spec may be stale.
 
 **Step 2: Implement in small commits.**
+
 - Each commit does ONE thing.
 - Each commit message explains WHAT and WHY.
 - After each commit, run `test.sh --fast`. If pass rate drops → revert immediately.
@@ -569,10 +578,12 @@ You do not build features. You exist to catch regressions, context pollution, an
 1. **Regression scan:** Run `test.sh --fast`. Compare against last known good baseline. If pass rate dropped → identify which recent commit caused it → file a CRITICAL bug in docs/known-bugs.md → alert the Orchestrator.
 
 2. **Path audit:** `grep -rn` the entire `src/` and `test/` directories for patterns that look like leaked paths:
+
    ```
    /home/ /Users/ /mnt/ /tmp/ C:\\ D:\\ ../ ..\\ ~/
    Pike-v8 /usr/local/pike /opt/pike /opt/roxen
    ```
+
    Also check for any literal path from `agent.config` appearing in LSP source — reference paths must never leak into shipped code. If found → revert the commit → log the violation.
 
 3. **UNDEFINED audit:** Randomly pick 3 implemented features. For each, send a valid LSP request. If the response is empty/0/null AND the feature is supposed to return results → log it as a suspected UNDEFINED trap.
@@ -605,10 +616,10 @@ Context pollution is what kills agent progress. These rules are mandatory for AL
    ```
    BAD:  "fix hover"
    BAD:  "update completion handler"
-   GOOD: "Fix textDocument/hover returning UNDEFINED for Roxen module 
+   GOOD: "Fix textDocument/hover returning UNDEFINED for Roxen module
           methods — was missing lookup in Roxen module index (found by
-          reading reference source base_server/module.pike), added 
-          fallback to Roxen.pmod re-export table. Runtime: Roxen root 
+          reading reference source base_server/module.pike), added
+          fallback to Roxen.pmod re-export table. Runtime: Roxen root
           from pike.roxenPath setting. Regression suite: 97.2% → 97.4%"
    ```
 
@@ -619,21 +630,27 @@ Context pollution is what kills agent progress. These rules are mandatory for AL
 These are the recurring traps that have caused bugs in this project. Read them. Remember them.
 
 ### 1. UNDEFINED is not an error
+
 Pike's `UNDEFINED` (which == 0) is returned for missing mapping keys, missing object members, failed `search()`, and many other cases. It does NOT throw. It does NOT log. It just silently returns 0. Your code MUST use `zero_type()` or explicit `has_index()`/`has_value()` checks — never rely on truthiness.
 
 ### 2. Pike type system
+
 Pike has a complex type system with `mixed`, `void`, union types (`int|string`), and type narrowing. The LSP must understand Pike types to provide correct completions, hover info, and diagnostics. Do not approximate — read the Pike type resolver in the reference source (typically `src/pike_types.c` in the Pike source tree, path from `agent.config`).
 
 ### 3. Pike module resolution
+
 Pike resolves modules via a search path that includes `.pmod` files, `.pike` files, `module.pmod` directories, and C modules (`.so`). The resolution order matters. Roxen adds its own module paths on top (via `-M`, `-I`, `-P` flags in its `start` script — see `etc/modules/`, `modules/*/pike_modules/`, `base_server/`, and `$LOCALDIR` paths). At runtime, the LSP must query Pike for its base module paths, then layer on Roxen's additional paths if a Roxen workspace is detected. Study the `start` script's Pike options section to understand exactly which paths Roxen adds and in what order.
 
 ### 4. Roxen module structure
+
 Roxen modules (`.pike` files in the `server/modules/` subtree) follow a specific pattern: they inherit `RoxenModule`, define `module_type`, and register callbacks. The LSP needs to understand this inheritance chain to provide useful completions and hover info for Roxen module development. Read `base_server/module.pike` in the Roxen reference source (path from `agent.config`) for the base class. At runtime, the LSP resolves this from the `pike.roxenPath` setting — once it has the Roxen root, it knows where `base_server/` is.
 
 ### 5. RXML
+
 Roxen's RXML templating language embeds Pike-like expressions in XML-like tags. If the LSP supports RXML files, it must parse both the XML structure and the embedded Pike expressions. These are two different parsers working together.
 
 ### 6. Pike's `#pike` directive
+
 Pike files can declare compatibility versions (`#pike 8.0`). This affects which builtins are available. The LSP must respect this.
 
 ---
@@ -645,24 +662,24 @@ FOREVER:
   orchestrator.pull_latest()
   orchestrator.read_progress()
   orchestrator.check_stale_locks()
-  
+
   available_features = feature_registry.get_unassigned()
   selected = weighted_random_sample(available_features, n=PARALLELISM)
-  
+
   FOR EACH feature IN selected (PARALLEL):
     lock(feature)
-    
+
     # SCOUT PHASE
     gap_report = scout.analyze(feature)
     IF gap_report.no_meaningful_gaps:
       log("Feature healthy", feature)
       unlock(feature)
       CONTINUE
-    
+
     # SPEC PHASE (max 3 revision cycles)
     FOR attempt IN 1..3:
       spec = spec_writer.write(gap_report, previous_feedback?)
-      
+
       # REVIEW PHASE
       verdict = reviewer.review(spec)
       IF verdict == APPROVED:
@@ -674,12 +691,12 @@ FOREVER:
         log("Rejected", feature, verdict.reason)
         unlock(feature)
         GOTO next_feature
-    
+
     IF not approved after 3 attempts:
       log("Failed review 3x", feature)
       unlock(feature)
       CONTINUE
-    
+
     # BUILD PHASE
     result = builder.implement(spec)
     IF result == SHIP:
@@ -688,11 +705,11 @@ FOREVER:
     ELIF result == ROLLBACK:
       git_revert(result.commits)
       log("Rolled back", feature, result.reason)
-    
+
     unlock(feature)
-  
+
   # WATCHDOG runs continuously in background throughout all of this
-  
+
   orchestrator.aggregate_results()
   orchestrator.update_feature_weights()
 ```
@@ -702,27 +719,35 @@ FOREVER:
 ## Feature Pool (Pike/Roxen LSP Specific)
 
 ### Core LSP
+
 `initialize`, `initialized`, `shutdown`, `exit`, `textDocument/didOpen`, `textDocument/didChange`, `textDocument/didClose`, `textDocument/didSave`
 
 ### Navigation
+
 `textDocument/definition` (Pike `inherit`, function calls, module references), `textDocument/declaration`, `textDocument/typeDefinition`, `textDocument/implementation`, `textDocument/references`
 
 ### Intelligence
+
 `textDocument/completion` (Pike builtins, module members, Roxen APIs, RXML tags), `completionItem/resolve`, `textDocument/hover` (Pike type info, doc comments, Roxen module docs), `textDocument/signatureHelp` (Pike function signatures, including varargs)
 
 ### Symbols
+
 `textDocument/documentSymbol` (Pike classes, functions, variables, inherits), `workspace/symbol` (project-wide Pike symbol index)
 
-### Diagnostics  
+### Diagnostics
+
 `textDocument/publishDiagnostics` (Pike syntax errors, type mismatches, undefined references, Roxen module config errors)
 
 ### Refactoring
+
 `textDocument/codeAction` (Pike-specific quick fixes), `textDocument/rename` (rename across Pike modules/inherits), `textDocument/formatting`
 
 ### Roxen-Specific
+
 Module structure awareness, RXML tag completions, Roxen API completions, module.pmod resolution, Roxen configuration file support, `inherit RoxenModule` chain resolution
 
 ### Pike-Specific Deep Features
+
 `#pike` version-aware completions, pike autodoc parsing, `.pmod` directory module support, precompiled C module stub awareness, pike string/mapping/array type inference
 
 ---
@@ -750,6 +775,7 @@ The Watchdog agent maintains `last_known_good.json` and will catch regressions t
 ## What "Done" Looks Like
 
 A feature is considered HEALTHY when:
+
 1. All positive tests pass with SPECIFIC expected values (not just non-null).
 2. All negative tests produce DISTINCT error responses (not UNDEFINED/0).
 3. The UNDEFINED Gauntlet passes — tests fail when the feature is deliberately broken.

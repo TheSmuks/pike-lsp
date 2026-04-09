@@ -9,13 +9,16 @@
  * Phase 6 of ROXEN_SUPPORT_ROADMAP.md
  */
 
-import { Location, ReferenceContext } from 'vscode-languageserver';
+import { Location, ReferenceContext, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
-import { readFile, stat } from 'fs/promises';
-import { Logger } from '@pike-lsp/core';
 import { parseRXMLTemplate, type RXMLTag } from './parser.js';
 import { GlobCache } from './glob-cache.js';
+import {
+  readFileCached,
+  invalidateFileContentCache,
+  clearFileContentCache,
+} from './file-content-cache.js';
 
 // Shared glob cache - 30 second TTL
 const templateGlobCache = new GlobCache<string[]>(30);
@@ -35,35 +38,9 @@ const tagDeclarationIndexCache = new Map<
     byTag: Map<string, Location[]>;
   }
 >();
-const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
-const log = new Logger('RXMLReferences');
-
-function uriToFilePath(uri: string): string {
-  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
-}
 
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
-}
-
-async function readFileCached(filePath: string): Promise<string> {
-  try {
-    const fileStats = await stat(filePath);
-    const cached = fileContentCache.get(filePath);
-    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
-      return cached.content;
-    }
-
-    const content = await readFile(filePath, 'utf-8');
-    fileContentCache.set(filePath, { mtimeMs: fileStats.mtimeMs, content });
-    return content;
-  } catch (error) {
-    log.debug('RXML read-through cache miss fallback', {
-      filePath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return await readFile(filePath, 'utf-8');
-  }
 }
 
 async function getTagReferenceIndex(workspaceFolders: string[]): Promise<Map<string, Location[]>> {
@@ -185,11 +162,11 @@ export function invalidateRXMLReferenceCaches(uri?: string): void {
   pikeGlobCache.clear();
 
   if (!uri) {
-    fileContentCache.clear();
+    clearFileContentCache();
     return;
   }
 
-  fileContentCache.delete(uriToFilePath(uri));
+  invalidateFileContentCache(uri);
 }
 
 /**
@@ -433,5 +410,3 @@ function findAttributeAtPosition(
   }
   return null;
 }
-
-import { Position } from 'vscode-languageserver';

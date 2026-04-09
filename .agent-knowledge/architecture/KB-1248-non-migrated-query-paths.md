@@ -5,7 +5,15 @@ date: 2026-04-08
 authors: [dga-coder]
 status: active
 summary: Parse-under-edit resilience migration status for all LSP query paths
-code_references: [packages/pike-lsp-server/src/features/advanced/code-lens.ts, packages/pike-lsp-server/src/features/advanced/code-actions.ts, packages/pike-lsp-server/src/features/advanced/semantic-tokens.ts, packages/pike-lsp-server/src/features/navigation/implementation.ts, packages/pike-lsp-server/src/features/navigation/hover.ts, packages/pike-lsp-server/src/features/editing/signature-help.ts]
+code_references:
+  [
+    packages/pike-lsp-server/src/features/advanced/code-lens.ts,
+    packages/pike-lsp-server/src/features/advanced/code-actions.ts,
+    packages/pike-lsp-server/src/features/advanced/semantic-tokens.ts,
+    packages/pike-lsp-server/src/features/navigation/implementation.ts,
+    packages/pike-lsp-server/src/features/navigation/hover.ts,
+    packages/pike-lsp-server/src/features/editing/signature-help.ts,
+  ]
 related_kb: []
 verification: [bun test packages/pike-lsp-server/src/scenarios/]
 ---
@@ -25,17 +33,17 @@ This document tracks the parse-under-edit resilience migration for all query pat
 
 The Query Engine v2 migration has successfully moved the following paths to the resilient query pipeline:
 
-| Feature | Path | Migration Status |
-|---------|------|------------------|
-| Diagnostics | `packages/pike-lsp-server/src/features/diagnostics/index.ts` | ✅ Migrated (Phase 3) |
-| Definition | `packages/pike-lsp-server/src/features/navigation/definition.ts` | ✅ Migrated (Phase 4) |
-| References | `packages/pike-lsp-server/src/features/navigation/references.ts` | ✅ Migrated (Phase 4) |
-| Completion | `packages/pike-lsp-server/src/features/editing/completion.ts` | ✅ Migrated (Phase 5) |
-| Hover | `packages/pike-lsp-server/src/features/navigation/hover.ts` | ✅ Migrated (PR #1257) |
-| Signature Help | `packages/pike-lsp-server/src/features/editing/signature-help.ts` | ✅ Migrated (PR #1257) |
-| Implementation | `packages/pike-lsp-server/src/features/navigation/implementation.ts` | ✅ Migrated (PR #1258) |
-| Code Actions | `packages/pike-lsp-server/src/features/advanced/code-actions.ts` | ✅ Migrated (PR #1258) |
-| Semantic Tokens | `packages/pike-lsp-server/src/features/advanced/semantic-tokens.ts` | ✅ Migrated (PR #1258) |
+| Feature         | Path                                                                 | Migration Status       |
+| --------------- | -------------------------------------------------------------------- | ---------------------- |
+| Diagnostics     | `packages/pike-lsp-server/src/features/diagnostics/index.ts`         | ✅ Migrated (Phase 3)  |
+| Definition      | `packages/pike-lsp-server/src/features/navigation/definition.ts`     | ✅ Migrated (Phase 4)  |
+| References      | `packages/pike-lsp-server/src/features/navigation/references.ts`     | ✅ Migrated (Phase 4)  |
+| Completion      | `packages/pike-lsp-server/src/features/editing/completion.ts`        | ✅ Migrated (Phase 5)  |
+| Hover           | `packages/pike-lsp-server/src/features/navigation/hover.ts`          | ✅ Migrated (PR #1257) |
+| Signature Help  | `packages/pike-lsp-server/src/features/editing/signature-help.ts`    | ✅ Migrated (PR #1257) |
+| Implementation  | `packages/pike-lsp-server/src/features/navigation/implementation.ts` | ✅ Migrated (PR #1258) |
+| Code Actions    | `packages/pike-lsp-server/src/features/advanced/code-actions.ts`     | ✅ Migrated (PR #1258) |
+| Semantic Tokens | `packages/pike-lsp-server/src/features/advanced/semantic-tokens.ts`  | ✅ Migrated (PR #1258) |
 
 ## Remaining Unmodified Path
 
@@ -53,22 +61,23 @@ Each migrated path follows this pattern:
 
 ### Resilience Tests
 
-| Feature | Test File | Tests |
-|---------|-----------|-------|
-| Implementation | `implementation-parse-resilience.test.ts` | 6 |
-| Code Actions | `code-actions-parse-resilience.test.ts` | 6 |
-| Semantic Tokens | `semantic-tokens-parse-resilience.test.ts` | 6 |
-| Hover | `hover-parse-resilience.test.ts` | 5 |
-| Signature Help | `signature-help-parse-resilience.test.ts` | 5 |
-| Code Lens | `code-lens-parse-resilience.test.ts` | 12 |
+| Feature         | Test File                                  | Tests |
+| --------------- | ------------------------------------------ | ----- |
+| Implementation  | `implementation-parse-resilience.test.ts`  | 6     |
+| Code Actions    | `code-actions-parse-resilience.test.ts`    | 6     |
+| Semantic Tokens | `semantic-tokens-parse-resilience.test.ts` | 6     |
+| Hover           | `hover-parse-resilience.test.ts`           | 5     |
+| Signature Help  | `signature-help-parse-resilience.test.ts`  | 5     |
+| Code Lens       | `code-lens-parse-resilience.test.ts`       | 12    |
+
 All tests use `FaultInjectableMockBridge` to simulate parse failures, rapid edits, and cancellation.
 
 ## Acceptance Checklist
 
-| Issue #1248 Subtask | Status |
-|---------------------|--------|
-| All non-migrated query paths identified and listed | ✅ |
-| Parse-under-edit resilience implemented for each HIGH/MEDIUM path | ✅ |
-| Resilience tests added for each path (28 total) | ✅ |
-| TypeScript strict compilation passes | ✅ |
-| p95 parse hard-fail rate remains 0 | ✅ (verified via tests) |
+| Issue #1248 Subtask                                               | Status                  |
+| ----------------------------------------------------------------- | ----------------------- |
+| All non-migrated query paths identified and listed                | ✅                      |
+| Parse-under-edit resilience implemented for each HIGH/MEDIUM path | ✅                      |
+| Resilience tests added for each path (28 total)                   | ✅                      |
+| TypeScript strict compilation passes                              | ✅                      |
+| p95 parse hard-fail rate remains 0                                | ✅ (verified via tests) |

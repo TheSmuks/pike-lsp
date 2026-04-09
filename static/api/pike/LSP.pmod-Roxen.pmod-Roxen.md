@@ -38,7 +38,7 @@ Find position of a token in the original code string
 
 @returns Mapping with "line" and "column", or 0 if not found
 
-Detect module types (MODULE_*), inherits, and module name
+Detect module types (MODULE\_\*), inherits, and module name
 
 Per ADR-001: Uses Parser.Pike.split() instead of Tools.AutoDoc.PikeParser
 
@@ -48,7 +48,7 @@ Per ADR-001: Uses Parser.Pike.split() instead of Tools.AutoDoc.PikeParser
 
 @returns Array with: (\{module_types, inherits, module_name\})
 
-Parse tag definitions (simpletag_*, container_*, and RXML.Tag classes)
+Parse tag definitions (simpletag*\*, container*\*, and RXML.Tag classes)
 
 Per ADR-001: Uses Parser.Pike.split() instead of Tools.AutoDoc.PikeParser
 
@@ -78,24 +78,23 @@ Check if a specific callback function is defined in the code
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `MAX_PARSER_ITERATIONS` | constant | 5 |
-| `ROXEN_MODULE_TYPES` | constant | 7 |
-| `REQUIRED_CALLBACKS` | constant | 13 |
-| `has_fast_path_markers` | function | 72 |
-| `detect_module` | function | 81 |
-| `parse_tags` | function | 304 |
-| `parse_vars` | function | 479 |
-| `if` | function | 577 |
-| `while` | function | 660 |
-| `get_callbacks` | function | 733 |
-| `next_non_ws` | function | 761 |
-| `validate_api` | function | 784 |
-| `has_callback_function` | function | 832 |
-| `next_non_ws` | function | 835 |
-| `find_file` | function | 845 |
-| `filter` | function | 845 |
-| `has_simpletag_functions` | function | 872 |
-| `has_find_file` | function | 876 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `MAX_PARSER_ITERATIONS`   | constant | 5    |
+| `ROXEN_MODULE_TYPES`      | constant | 7    |
+| `REQUIRED_CALLBACKS`      | constant | 13   |
+| `has_fast_path_markers`   | function | 72   |
+| `detect_module`           | function | 81   |
+| `parse_tags`              | function | 304  |
+| `parse_vars`              | function | 479  |
+| `if`                      | function | 577  |
+| `while`                   | function | 660  |
+| `get_callbacks`           | function | 733  |
+| `next_non_ws`             | function | 761  |
+| `validate_api`            | function | 784  |
+| `has_callback_function`   | function | 832  |
+| `next_non_ws`             | function | 835  |
+| `find_file`               | function | 845  |
+| `filter`                  | function | 845  |
+| `has_simpletag_functions` | function | 872  |
+| `has_find_file`           | function | 876  |

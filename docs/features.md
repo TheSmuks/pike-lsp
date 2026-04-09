@@ -59,7 +59,7 @@ Pike LSP provides a comprehensive set of Language Server Protocol features for P
 | **RXML Tag Completion**  | Tag and attribute completion for RXML templates  | ✅ Available |
 | **Defvar Extraction**    | Variable extraction and symbol grouping          | ✅ Available |
 | **Lifecycle Callbacks**  | Detection and validation of module callbacks     | ✅ Available |
-| **Constant Completions** | MODULE*\*, TYPE*_, VAR\__ constant completions   | ✅ Available |
+| **Constant Completions** | MODULE*\*, TYPE*\_, VAR\_\_ constant completions | ✅ Available |
 | **RequestID Members**    | Properties and methods completion for RequestID  | ✅ Available |
 | **Roxen Diagnostics**    | Validation of Roxen module structure             | ✅ Available |
 

@@ -24,7 +24,7 @@ function fetchHistoricalData() {
     // Static git command - no user input, safe from injection
     const data = execSync('git show origin/gh-pages:benchmarks/data.js 2>/dev/null', {
       encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024  // 10MB buffer for large history
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large history
     });
 
     // Extract JSON from window.BENCHMARK_DATA = {...}
@@ -75,7 +75,7 @@ function computeRollingStats(entries, windowSize) {
       const stdDev = Math.sqrt(
         values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length
       );
-      const cv = (stdDev / avg) * 100;  // Coefficient of variation (%)
+      const cv = (stdDev / avg) * 100; // Coefficient of variation (%)
 
       stats[name] = {
         avg,
@@ -84,7 +84,7 @@ function computeRollingStats(entries, windowSize) {
         stdDev,
         cv,
         sampleSize: values.length,
-        values
+        values,
       };
     }
   }
@@ -105,7 +105,7 @@ function analyzeCurrentResults(currentPath, historicalStats) {
         name: bench.name,
         current: bench.value,
         status: 'SKIPPED',
-        message: 'Debounce benchmark excluded from regression analysis'
+        message: 'Debounce benchmark excluded from regression analysis',
       });
       continue;
     }
@@ -117,7 +117,7 @@ function analyzeCurrentResults(currentPath, historicalStats) {
         name: bench.name,
         current: bench.value,
         status: 'NEW',
-        message: 'No historical data'
+        message: 'No historical data',
       });
       continue;
     }
@@ -132,13 +132,13 @@ function analyzeCurrentResults(currentPath, historicalStats) {
     // High variance benchmarks (CV > 20%) get more lenient threshold
     let threshold;
     if (cv > 30) {
-      threshold = 2.5;  // Very noisy benchmark
+      threshold = 2.5; // Very noisy benchmark
     } else if (cv > 20) {
-      threshold = 2.0;  // Noisy benchmark
+      threshold = 2.0; // Noisy benchmark
     } else if (cv > 10) {
-      threshold = 1.5;  // Moderate variance
+      threshold = 1.5; // Moderate variance
     } else {
-      threshold = 1.2;  // Stable benchmark, tighter threshold
+      threshold = 1.2; // Stable benchmark, tighter threshold
     }
 
     // Also check against max historical value
@@ -196,7 +196,7 @@ function analyzeCurrentResults(currentPath, historicalStats) {
       range: `${min.toFixed(4)}-${max.toFixed(4)}`,
       samples: sampleSize,
       status,
-      message
+      message,
     });
   }
 
@@ -230,24 +230,39 @@ function main() {
   const { analysis, hasRegression } = analyzeCurrentResults(CURRENT_RESULTS_PATH, stats);
 
   // Print report
-  console.log('Benchmark'.padEnd(55) + 'Current'.padStart(12) + 'Avg'.padStart(12) +
-              'CV'.padStart(8) + 'Z-Score'.padStart(10) + 'Status'.padStart(12));
+  console.log(
+    'Benchmark'.padEnd(55) +
+      'Current'.padStart(12) +
+      'Avg'.padStart(12) +
+      'CV'.padStart(8) +
+      'Z-Score'.padStart(10) +
+      'Status'.padStart(12)
+  );
   console.log('-'.repeat(109));
 
   for (const item of analysis) {
     const name = item.name.length > 52 ? item.name.substring(0, 49) + '...' : item.name;
-    const statusColor = item.status === 'REGRESSION' ? '\x1b[31m' :
-                       item.status === 'WARNING' ? '\x1b[33m' :
-                       item.status === 'IMPROVED' ? '\x1b[32m' : '';
+    const statusColor =
+      item.status === 'REGRESSION'
+        ? '\x1b[31m'
+        : item.status === 'WARNING'
+          ? '\x1b[33m'
+          : item.status === 'IMPROVED'
+            ? '\x1b[32m'
+            : '';
     const reset = statusColor ? '\x1b[0m' : '';
 
     console.log(
       name.padEnd(55) +
-      (typeof item.current === 'number' ? item.current.toFixed(4) : item.current).toString().padStart(12) +
-      (item.avg || '-').toString().padStart(12) +
-      (item.cv || '-').toString().padStart(8) +
-      (item.zScore || '-').toString().padStart(10) +
-      statusColor + item.status.padStart(12) + reset
+        (typeof item.current === 'number' ? item.current.toFixed(4) : item.current)
+          .toString()
+          .padStart(12) +
+        (item.avg || '-').toString().padStart(12) +
+        (item.cv || '-').toString().padStart(8) +
+        (item.zScore || '-').toString().padStart(10) +
+        statusColor +
+        item.status.padStart(12) +
+        reset
     );
 
     if (item.message) {
@@ -262,7 +277,9 @@ function main() {
   const warnings = analysis.filter(a => a.status === 'WARNING');
   const improved = analysis.filter(a => a.status === 'IMPROVED');
 
-  console.log(`\nSummary: ${regressions.length} regressions, ${warnings.length} warnings, ${improved.length} improved\n`);
+  console.log(
+    `\nSummary: ${regressions.length} regressions, ${warnings.length} warnings, ${improved.length} improved\n`
+  );
 
   if (hasRegression) {
     console.error('\x1b[31mRegression detected! Review the benchmarks above.\x1b[0m\n');

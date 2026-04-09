@@ -8,7 +8,6 @@ description: Development guide for utils/debug-logger.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `createLogger` | function | 17 |
-
+| Symbol         | Type     | Line |
+| -------------- | -------- | ---- |
+| `createLogger` | function | 17   |

@@ -33,7 +33,7 @@ constant module_type = MODULE_;     // Direct module type declaration
 - RXML.Tag class-based tag detection
 - Lifecycle callback detection (create(), start(), etc.)
 - Diagnostic validation (missing required callbacks, 500ms debounce)
-- MODULE*\*/TYPE*_/VAR\__ constant completions
+- MODULE*\*/TYPE*\_/VAR\_\_ constant completions
 - RequestID member completions (23 items: properties like `conf`, `variables`, `cookies`, `remoteaddr`; methods like `set_max_cache()`, `url_base()`)
 - Real source positions (line/column tracking)
 - Document symbols with "Roxen Module" container
@@ -112,7 +112,7 @@ These can be added in future maintenance releases.
 - RXML.Tag class-based tag detection
 - Lifecycle callback detection (create(), start(), etc.)
 - Diagnostic validation (missing required callbacks)
-- MODULE*\*/TYPE*_/VAR\__ constant completions
+- MODULE*\*/TYPE*\_/VAR\_\_ constant completions
 - RequestID member completions
 - Document symbols with "Roxen Module" container
 

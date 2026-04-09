@@ -8,7 +8,6 @@ description: Development guide for services/include-resolver.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `IncludeResolver` | class | 26 |
-
+| Symbol            | Type  | Line |
+| ----------------- | ----- | ---- |
+| `IncludeResolver` | class | 26   |

@@ -5,4 +5,3 @@ description: Development guide for core/index.ts
 ---
 
 # core/index.ts
-

@@ -5,6 +5,7 @@ Inspired by TigerBeetle's VOPR (Viewstamped Operation Replicator).
 ## Problem Statement
 
 Current testing relies on scenarios with predetermined sequences. Real-world usage has:
+
 - Unpredictable timing (typing bursts, pauses)
 - Concurrent operations (completion while validating)
 - Faults (bridge crashes, file changes, disk issues)
@@ -13,6 +14,7 @@ Current testing relies on scenarios with predetermined sequences. Real-world usa
 ## Core Concepts from TigerBeetle
 
 ### 1. Deterministic Simulation
+
 - Pseudo-random event generation with seed
 - Same seed = same event sequence = reproducible bugs
 - Controlled chaos instead of real chaos
@@ -20,17 +22,20 @@ Current testing relies on scenarios with predetermined sequences. Real-world usa
 ### 2. Two-Mode Testing
 
 #### Safety Mode
+
 - Random faults: bridge restarts, slow operations, file changes
 - Checks invariants never violated
 - Finds data corruption, crashes, wrong results
 
-#### Liveness Mode  
+#### Liveness Mode
+
 - Pick a "core" set of operations that MUST work
 - Make all other faults PERMANENT
 - Verify core operations still complete
 - Finds deadlock, starvation, livelock
 
 ### 3. Fault Injection Points
+
 - Bridge process: crash, slow, restart
 - File system: file modified externally, permission denied
 - Timing: operation delays, event ordering variations
@@ -47,22 +52,22 @@ type SimulatedEvent =
   | { type: 'didChange'; uri: string; changes: TextDocumentContentChangeEvent[] }
   | { type: 'didSave'; uri: string }
   | { type: 'didClose'; uri: string }
-  
+
   // User requests
   | { type: 'completion'; uri: string; position: Position }
   | { type: 'hover'; uri: string; position: Position }
   | { type: 'definition'; uri: string; position: Position }
   | { type: 'diagnostics'; uri: string }
-  
+
   // System events
   | { type: 'bridgeCrash' }
   | { type: 'bridgeRestart' }
   | { type: 'fileExternallyModified'; uri: string }
   | { type: 'delay'; ms: number }
-  
+
   // Idle/activity
   | { type: 'idleStart' }
-  | { type: 'idleEnd' }
+  | { type: 'idleEnd' };
 ```
 
 ### Invariants to Check (Safety)
@@ -89,13 +94,13 @@ class LSPSimulator {
   private rng: PRNG;
   private eventLog: SimulatedEvent[];
   private invariants: Invariant[];
-  
+
   constructor(seed: number) {
     this.seed = seed;
     this.rng = new PRNG(seed);
     this.eventLog = [];
   }
-  
+
   // Generate event sequence
   generateEvents(count: number): SimulatedEvent[] {
     const events: SimulatedEvent[] = [];
@@ -104,7 +109,7 @@ class LSPSimulator {
     }
     return events;
   }
-  
+
   // Run single simulation
   async run(options: {
     mode: 'safety' | 'liveness';
@@ -112,11 +117,11 @@ class LSPSimulator {
     faultRate: number;
   }): Promise<SimulationResult> {
     const events = this.generateEvents(options.eventCount);
-    
+
     // Execute with fault injection
     for (const event of events) {
       await this.executeEvent(event);
-      
+
       // Check invariants after each event
       for (const invariant of this.invariants) {
         const check = await invariant.check();
@@ -132,7 +137,7 @@ class LSPSimulator {
         }
       }
     }
-    
+
     return { status: 'passed', seed: this.seed };
   }
 }
@@ -141,29 +146,34 @@ class LSPSimulator {
 ## Implementation Phases
 
 ### Phase 1: Core Simulator
+
 - Virtual Timer with deterministic time advancement
 - Event Generator with pseudo-random sequences
 - Mock Bridge with fault injection hooks
 - Invariant Framework
 
 ### Phase 2: Fault Injection
+
 - Bridge faults: crash, slow, restart
 - File system faults: external modification
 - Timing faults: variable delays
 
 ### Phase 3: Safety Mode
+
 - Random fault injection per-event
 - All invariant checks
 - State capture on failure
 - Event sequence minimization
 
 ### Phase 4: Liveness Mode
+
 - Core operation selection
 - Permanent faults on non-core
 - Progress checking
 - Timeout detection
 
 ### Phase 5: CI Integration
+
 - Run N simulations per commit
 - Track failing seeds
 - Regression suite

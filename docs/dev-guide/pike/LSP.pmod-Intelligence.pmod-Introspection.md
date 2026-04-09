@@ -200,25 +200,24 @@ we can provide best-effort analysis for common patterns with literal path argume
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `BOOTSTRAP_MODULES` | constant | 25 |
-| `SKIP_PARENT_INTROSPECT_MODULES` | constant | 42 |
-| `identifier` | function | 34 |
-| `create` | function | 52 |
-| `trim_whites` | function | 59 |
-| `is_lsp_module_file` | function | 77 |
-| `path_to_module_name` | function | 87 |
-| `normalize_path_for_compilation` | function | 125 |
-| `is_in_pmod_directory` | function | 150 |
-| `get_parent_module_name` | function | 164 |
-| `preprocess_relative_references` | function | 187 |
-| `handle_introspect_parser_only` | function | 277 |
-| `handle_introspect` | function | 337 |
-| `compile_error_handler` | function | 380 |
-| `parse_function_signature` | function | 493 |
-| `safe_instantiate` | function | 545 |
-| `introspect_program` | function | 568 |
-| `introspect_object` | function | 942 |
-| `handle_resolve_dynamic_module` | function | 1245 |
-
+| Symbol                           | Type     | Line |
+| -------------------------------- | -------- | ---- |
+| `BOOTSTRAP_MODULES`              | constant | 25   |
+| `SKIP_PARENT_INTROSPECT_MODULES` | constant | 42   |
+| `identifier`                     | function | 34   |
+| `create`                         | function | 52   |
+| `trim_whites`                    | function | 59   |
+| `is_lsp_module_file`             | function | 77   |
+| `path_to_module_name`            | function | 87   |
+| `normalize_path_for_compilation` | function | 125  |
+| `is_in_pmod_directory`           | function | 150  |
+| `get_parent_module_name`         | function | 164  |
+| `preprocess_relative_references` | function | 187  |
+| `handle_introspect_parser_only`  | function | 277  |
+| `handle_introspect`              | function | 337  |
+| `compile_error_handler`          | function | 380  |
+| `parse_function_signature`       | function | 493  |
+| `safe_instantiate`               | function | 545  |
+| `introspect_program`             | function | 568  |
+| `introspect_object`              | function | 942  |
+| `handle_resolve_dynamic_module`  | function | 1245 |

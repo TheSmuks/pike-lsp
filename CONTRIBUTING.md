@@ -101,6 +101,7 @@ git commit -m "docs: update README with new features"
 ```
 
 Commit message prefixes:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation only
@@ -122,13 +123,13 @@ Commit message prefixes:
 
 Tests are located in `packages/pike-lsp-server/src/tests/`:
 
-| File | Purpose |
-|------|---------|
-| `lsp-tests.ts` | Core LSP functionality |
-| `integration-tests.ts` | End-to-end workflows |
+| File                    | Purpose                       |
+| ----------------------- | ----------------------------- |
+| `lsp-tests.ts`          | Core LSP functionality        |
+| `integration-tests.ts`  | End-to-end workflows          |
 | `lsp-protocol-tests.ts` | Hover, completion, definition |
-| `performance-tests.ts` | Speed and memory benchmarks |
-| `pike-source-tests.ts` | Pike stdlib validation |
+| `performance-tests.ts`  | Speed and memory benchmarks   |
+| `pike-source-tests.ts`  | Pike stdlib validation        |
 
 ### Adding Tests
 
@@ -141,21 +142,21 @@ import * as assert from 'node:assert/strict';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('Your Feature', () => {
-    let bridge: PikeBridge;
+  let bridge: PikeBridge;
 
-    before(async () => {
-        bridge = new PikeBridge();
-        await bridge.start();
-    });
+  before(async () => {
+    bridge = new PikeBridge();
+    await bridge.start();
+  });
 
-    after(async () => {
-        await bridge.stop();
-    });
+  after(async () => {
+    await bridge.stop();
+  });
 
-    it('should do something', async () => {
-        const result = await bridge.parse('int x = 5;', 'test.pike');
-        assert.ok(result.symbols.some(s => s.name === 'x'));
-    });
+  it('should do something', async () => {
+    const result = await bridge.parse('int x = 5;', 'test.pike');
+    assert.ok(result.symbols.some(s => s.name === 'x'));
+  });
 });
 ```
 
@@ -223,11 +224,12 @@ For any PR that affects LSP behavior, manual testing is required:
 - [ ] **Manual extension test**: `cd packages/vscode-pike && bun run package && code --install-extension pike-language-server-*.vsix --force`
 
 Then in VS Code with a Pike test file:
-  - [ ] Open Pike file -> no crash
-  - [ ] Type `Array.` -> completion shows stdlib methods
-  - [ ] Type user-defined symbol name -> completion works
-  - [ ] Hover over symbol -> type information shown
-  - [ ] Ctrl+click symbol -> navigates to definition
+
+- [ ] Open Pike file -> no crash
+- [ ] Type `Array.` -> completion shows stdlib methods
+- [ ] Type user-defined symbol name -> completion works
+- [ ] Hover over symbol -> type information shown
+- [ ] Ctrl+click symbol -> navigates to definition
 
 All checks must pass before merging.
 
@@ -242,13 +244,13 @@ All checks must pass before merging.
 
 ### Common Failure Patterns
 
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| compile_file() fails | Syntax error or missing import | Check Pike syntax, verify imports |
-| master()->resolv() fails | Module path not set or wrong name | Call add_module_path() first, check module name |
-| Handler returns error | Missing dependency or exception | Check handler logic, verify cache/parser available |
-| Tests pass but extension fails | Bundle not rebuilt | Run `bun run build` to rebundle |
-| LSP features don't work | Handler logic broken | Verify handler returns correct JSON-RPC structure |
+| Symptom                        | Likely Cause                      | Fix                                                |
+| ------------------------------ | --------------------------------- | -------------------------------------------------- |
+| compile_file() fails           | Syntax error or missing import    | Check Pike syntax, verify imports                  |
+| master()->resolv() fails       | Module path not set or wrong name | Call add_module_path() first, check module name    |
+| Handler returns error          | Missing dependency or exception   | Check handler logic, verify cache/parser available |
+| Tests pass but extension fails | Bundle not rebuilt                | Run `bun run build` to rebundle                    |
+| LSP features don't work        | Handler logic broken              | Verify handler returns correct JSON-RPC structure  |
 
 ## Code Style
 
@@ -266,7 +268,7 @@ All checks must pass before merging.
  * @param filename - Optional filename for error messages
  * @returns Parse result with symbols and diagnostics
  */
-async function parse(code: string, filename?: string): Promise<PikeParseResult>
+async function parse(code: string, filename?: string): Promise<PikeParseResult>;
 ```
 
 ### Pike
@@ -318,6 +320,7 @@ export const MY_NEW_CONSTANT = 100;
 ### Bug Reports
 
 Include:
+
 1. **Pike version** (`pike --version`) - always include exact output
 2. Node.js version (`node --version`)
 3. VS Code version
@@ -328,6 +331,7 @@ Include:
 ### Feature Requests
 
 Describe:
+
 1. The problem you're trying to solve
 2. Your proposed solution
 3. Alternatives you've considered

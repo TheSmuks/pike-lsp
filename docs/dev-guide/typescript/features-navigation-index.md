@@ -8,7 +8,6 @@ description: Development guide for features/navigation/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerNavigationHandlers` | function | 40 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerNavigationHandlers` | function | 40   |

@@ -8,8 +8,7 @@ description: Development guide for services/module-context.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `ModuleContext` | class | 37 |
-| `ModuleImportData` | interface | 20 |
-
+| Symbol             | Type      | Line |
+| ------------------ | --------- | ---- |
+| `ModuleContext`    | class     | 37   |
+| `ModuleImportData` | interface | 20   |

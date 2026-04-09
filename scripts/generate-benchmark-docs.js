@@ -73,7 +73,7 @@ function parseChangelog() {
           version: currentVersion,
           date: currentDate,
           title,
-          desc
+          desc,
         });
       }
     }
@@ -117,7 +117,7 @@ function parseBenchmarkSpecs() {
       title: titleMatch ? titleMatch[1] : file,
       status: statusMatch ? statusMatch[1] : 'Unknown',
       severity: severityMatch ? severityMatch[1] : 'N/A',
-      date: dateMatch ? dateMatch[1] : 'N/A'
+      date: dateMatch ? dateMatch[1] : 'N/A',
     });
   }
 
@@ -202,7 +202,8 @@ View interactive benchmarks: [thesmuks.github.io/pike-lsp](https://thesmuks.gith
     md += `| Specification | Status | Severity | Date |\n`;
     md += `|---------------|--------|----------|------|\n`;
     for (const spec of specs) {
-      const statusIcon = spec.status === 'Completed' ? '✅' : spec.status === 'In Progress' ? '🔄' : '📋';
+      const statusIcon =
+        spec.status === 'Completed' ? '✅' : spec.status === 'In Progress' ? '🔄' : '📋';
       md += `| [${spec.title}](./specs/${spec.file.replace('.md', '')}) | ${statusIcon} ${spec.status} | ${spec.severity} | ${spec.date} |\n`;
     }
     md += '\n';

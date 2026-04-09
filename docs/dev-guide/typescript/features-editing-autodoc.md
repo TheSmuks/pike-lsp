@@ -8,7 +8,6 @@ description: Development guide for features/editing/autodoc.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `getAutoDocCompletion` | function | 12 |
-
+| Symbol                 | Type     | Line |
+| ---------------------- | -------- | ---- |
+| `getAutoDocCompletion` | function | 12   |

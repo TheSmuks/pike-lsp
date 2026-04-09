@@ -8,7 +8,6 @@ description: Development guide for features/navigation/implementation.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerImplementationHandler` | function | 24 |
-
+| Symbol                          | Type     | Line |
+| ------------------------------- | -------- | ---- |
+| `registerImplementationHandler` | function | 24   |

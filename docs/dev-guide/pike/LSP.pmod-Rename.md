@@ -64,10 +64,9 @@ Request handler for prepare_rename
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `find_rename_positions` | function | 19 |
-| `prepare_rename` | function | 112 |
-| `find_rename_positions_request` | function | 164 |
-| `prepare_rename_request` | function | 177 |
-
+| Symbol                          | Type     | Line |
+| ------------------------------- | -------- | ---- |
+| `find_rename_positions`         | function | 19   |
+| `prepare_rename`                | function | 112  |
+| `find_rename_positions_request` | function | 164  |
+| `prepare_rename_request`        | function | 177  |

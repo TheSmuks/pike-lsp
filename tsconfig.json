@@ -1,17 +1,17 @@
 {
-    "files": [],
-    "references": [
-        {
-            "path": "./packages/core"
-        },
-        {
-            "path": "./packages/pike-bridge"
-        },
-        {
-            "path": "./packages/pike-lsp-server"
-        },
-        {
-            "path": "./packages/vscode-pike"
-        }
-    ]
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/pike-bridge"
+    },
+    {
+      "path": "./packages/pike-lsp-server"
+    },
+    {
+      "path": "./packages/vscode-pike"
+    }
+  ]
 }
