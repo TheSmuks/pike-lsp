@@ -10,7 +10,7 @@
  * - Returns empty array for non-class symbols
  * - Returns empty array when on an implementation (shows usages instead)
  *
- * KB-1248: Parse-under-edit resilience with scheduler-based execution,
+ * KB-1262: Parse-under-edit resilience with scheduler-based execution,
  * cancellation support, and per-URI error isolation.
  */
 
@@ -34,7 +34,7 @@ export function registerImplementationHandler(
   const log = new Logger('Navigation');
   const pikeIntrospection = services.pikeIntrospection ?? new PikeIntrospectionService(services);
 
-  // KB-1248: Request scheduler for resilient implementation requests
+  // KB-1262: Request scheduler for resilient implementation requests
   const implementationScheduler = new RequestScheduler({ logger: log });
   const IMPL_SCHEDULER_LOG_EVERY = 50;
   let implRequestsObserved = 0;
@@ -55,7 +55,7 @@ export function registerImplementationHandler(
   }
 
   /**
-   * KB-1248: Resilient introspection call with per-URI error isolation.
+   * KB-1262: Resilient introspection call with per-URI error isolation.
    * Returns empty inherits on failure instead of crashing the entire loop.
    */
   async function getInheritsResilient(
@@ -83,7 +83,7 @@ export function registerImplementationHandler(
 
       return result;
     } catch (err) {
-      // KB-1248: Per-URI error isolation — one bad URI must not break all implementations
+      // KB-1262: Per-URI error isolation — one bad URI must not break all implementations
       log.debug('Introspection failed for URI (handled gracefully)', {
         candidateUri,
         error: err instanceof Error ? err.message : String(err),
@@ -98,7 +98,7 @@ export function registerImplementationHandler(
       position: params.position,
     });
 
-    // KB-1248: Check cancellation early
+    // KB-1262: Check cancellation early
     if (cancellationToken?.isCancellationRequested) {
       return [];
     }
@@ -111,12 +111,22 @@ export function registerImplementationHandler(
       return [];
     }
 
-    // KB-1248: Check cancellation before heavy processing
+    // KB-1262: Check cancellation before heavy processing
     if (cancellationToken?.isCancellationRequested) {
       return [];
     }
 
-    const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+    // KB-1262: Wrap symbol lookup in try-catch for parse-under-edit resilience
+    let symbol: PikeSymbol | null = null;
+    try {
+      symbol = findSymbolAtPosition(cached.symbols, params.position, document);
+    } catch (err) {
+      log.debug('Symbol lookup failed (handled gracefully)', {
+        uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return [];
+    }
     if (!symbol) {
       log.debug('Implementation: no symbol at position');
       return [];
@@ -130,7 +140,7 @@ export function registerImplementationHandler(
     const className = normalizeSymbolName(symbol.name);
     const classPath = normalizeSymbolName(uriToFsPath(uri));
 
-    // KB-1248: Schedule through RequestScheduler for cancellation and supersession
+    // KB-1262: Schedule through RequestScheduler for cancellation and supersession
     try {
       const implementations = await implementationScheduler.schedule<Location[]>({
         requestClass: 'interactive',
@@ -147,7 +157,7 @@ export function registerImplementationHandler(
           const seenLocations = new Set<string>();
 
           for (const candidateUri of knownUris) {
-            // KB-1248: Per-URI error isolation — one failure doesn't stop the loop
+            // KB-1262: Per-URI error isolation — one failure doesn't stop the loop
             const inherits = await getInheritsResilient(candidateUri, cancellationToken);
 
             if (cancellationToken?.isCancellationRequested) {
@@ -201,7 +211,7 @@ export function registerImplementationHandler(
         return [];
       }
 
-      // KB-1248: Log at debug level for parse-under-edit scenarios
+      // KB-1262: Log at debug level for parse-under-edit scenarios
       const errorMessage = err instanceof Error ? err.message : String(err);
       const isParseError = errorMessage.includes('parse') || errorMessage.includes('syntax');
 

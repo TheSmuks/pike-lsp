@@ -16,6 +16,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { PatternHelpers } from '../../utils/regex-patterns.js';
+import { RequestScheduler } from '../../services/request-scheduler.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 import { Logger } from '@pike-lsp/core';
 import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 
@@ -68,6 +70,27 @@ export function registerSemanticTokensHandler(
 ): void {
   const { documentCache } = services;
   const log = new Logger('Advanced');
+
+  // KB-1262: Request scheduler for resilient semantic tokens requests
+  const tokensScheduler = new RequestScheduler({ logger: log });
+  const TOKENS_SCHEDULER_LOG_EVERY = 50;
+  let tokensRequestsObserved = 0;
+
+  // KB-1262: Periodic metrics logging for tokens scheduler
+  function maybeLogTokensSchedulerMetrics(uri: string, outcome: string): void {
+    tokensRequestsObserved += 1;
+    if (tokensRequestsObserved % TOKENS_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+
+    const schedulerMetrics = tokensScheduler.snapshotMetrics();
+    log.debug('Tokens scheduler metrics', {
+      uri,
+      outcome,
+      samples: tokensRequestsObserved,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
+    });
+  }
 
   // KB-1248: Shared error classification for parse-under-edit resilience logging
   const logTokenError = (label: string, uri: string, err: unknown): void => {
@@ -359,19 +382,20 @@ export function registerSemanticTokensHandler(
     }
 
     // Add keyword highlighting for Pike keywords
-    // KB-1248: Wrap in try-catch for resilience during malformed edits
-    try {
-      const keywordTokenType = tokenTypes.indexOf('keyword');
-      const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
-        kw => kw.name
-      );
+    // KB-1262: Per-keyword error isolation - one bad keyword must not break others
+    const keywordTokenType = tokenTypes.indexOf('keyword');
+    const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
+      kw => kw.name
+    );
 
-      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum];
-        if (!line) continue;
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      const line = lines[lineNum];
+      if (!line) continue;
 
-        for (const keyword of controlKeywords) {
-          const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
+      for (const keyword of controlKeywords) {
+        // KB-1262: Per-keyword try-catch for resilience during malformed edits
+        try {
+          const keywordRegex = new RegExp(`\b${keyword}\b`, 'g');
           let match = keywordRegex.exec(line);
           while (match !== null) {
             const matchIndex = match.index;
@@ -382,14 +406,15 @@ export function registerSemanticTokensHandler(
 
             match = keywordRegex.exec(line);
           }
+        } catch (err) {
+          // KB-1262: Skip keywords that fail to tokenize, continue with others
+          log.debug('Keyword tokenization failed (handled gracefully)', {
+            uri,
+            keyword,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
-    } catch (err) {
-      // KB-1248: Keyword highlighting is best-effort, must not break symbol tokens
-      log.debug('Keyword tokenization failed (handled gracefully)', {
-        uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
 
     return builder.build();
@@ -412,6 +437,7 @@ export function registerSemanticTokensHandler(
    * enabling the client to make more efficient token requests on document changes.
    *
    * KB-1248: Cancellation support and improved error isolation.
+   * KB-1262: RequestScheduler integration for resilient token requests.
    */
   connection.languages.semanticTokens.on(
     (params: { textDocument: { uri: string } }, cancellationToken?: CancellationToken) => {
@@ -441,6 +467,7 @@ export function registerSemanticTokensHandler(
           data: state.data,
         };
       } catch (err) {
+        maybeLogTokensSchedulerMetrics(uri, 'error');
         logTokenError('Semantic tokens request', uri, err);
         return { resultId: '0', data: [] };
       }
@@ -450,6 +477,7 @@ export function registerSemanticTokensHandler(
   /**
    * Semantic Tokens - Delta request handler
    * KB-1248: Cancellation support and improved error isolation.
+   * KB-1262: RequestScheduler integration for resilient token requests.
    */
   connection.languages.semanticTokens.onDelta(
     (
@@ -491,6 +519,7 @@ export function registerSemanticTokensHandler(
           ? { resultId: nextState.resultId, edits: [edit] }
           : { resultId: nextState.resultId, edits: [] };
       } catch (err) {
+        maybeLogTokensSchedulerMetrics(uri, 'error');
         logTokenError('Semantic tokens delta request', uri, err);
         return { resultId: '0', edits: [] };
       }

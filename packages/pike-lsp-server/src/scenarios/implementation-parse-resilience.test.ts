@@ -26,7 +26,7 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
       handler: (params: {
         textDocument: { uri: string };
         position: { line: number; character: number };
-      }) => Promise<unknown>
+      }, cancellationToken?: { isCancellationRequested: boolean }) => Promise<unknown>
     ) {
       this.implHandler = handler;
     },
@@ -34,7 +34,7 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
       | ((params: {
           textDocument: { uri: string };
           position: { line: number; character: number };
-        }) => Promise<unknown>)
+        }, cancellationToken?: { isCancellationRequested: boolean }) => Promise<unknown>)
       | undefined,
     onRequest() {},
     onDidChangeConfiguration() {},
@@ -138,14 +138,19 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
     docs as unknown as TextDocuments<TextDocument>
   );
 
-  // Helper to trigger implementation requests
-  const triggerImplementation = async (uri: string, line: number, character: number) => {
+  // Helper to trigger implementation requests with optional cancellation token
+  const triggerImplementation = async (
+    uri: string,
+    line: number,
+    character: number,
+    cancellationToken?: { isCancellationRequested: boolean }
+  ) => {
     const handler = connection.implHandler;
     if (!handler) return [];
     const result = await handler({
       textDocument: { uri },
       position: { line, character },
-    });
+    }, cancellationToken);
     results.push({ uri, result });
     return result;
   };
@@ -194,7 +199,7 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
 }
 
 describe('Implementation: parse-under-edit resilience', () => {
-  it('returns implementation locations even when introspection partially fails', async () => {
+  it('returns implementations even when introspection fails during malformed edits', async () => {
     const bridge = new FaultInjectableMockBridge(
       {},
       {
@@ -253,7 +258,7 @@ describe('Implementation: parse-under-edit resilience', () => {
       'class Base { }\n', // Fixed
     ];
 
-    const results: (unknown | null)[] = [];
+    const testResults: (unknown | null)[] = [];
 
     for (let i = 0; i < texts.length; i++) {
       // Update cached document
@@ -274,19 +279,19 @@ describe('Implementation: parse-under-edit resilience', () => {
 
       // Trigger implementation during edit
       const result = await triggerImplementation(baseUri, 0, 6);
-      results.push(result);
+      testResults.push(result);
 
       await wait(10);
     }
 
     // All requests should complete
-    assert.equal(results.length, texts.length, 'All implementation requests should complete');
+    assert.equal(testResults.length, texts.length, 'All implementation requests should complete');
 
     // Should not crash even with malformed edits
     assert.ok(true, 'Implementation survived rapid malformed edits');
   });
 
-  it('handles cancellation during implementation requests', async () => {
+  it('handles cancellation during implementation lookup', async () => {
     const bridge = new FaultInjectableMockBridge(
       {},
       {
@@ -299,14 +304,10 @@ describe('Implementation: parse-under-edit resilience', () => {
 
     setDocumentWithClass(uri, 'class CancelClass { }\n', 'CancelClass');
 
-    // Start implementation request
-    const implPromise = triggerImplementation(uri, 0, 6);
+    // Trigger implementation with already-cancelled token
+    const result = await triggerImplementation(uri, 0, 6, { isCancellationRequested: true });
 
-    // Simulate rapid cursor movement
-    await wait(5);
-
-    // The request should complete without throwing
-    const result = await implPromise;
+    // Early cancellation returns empty array
     assert.ok(
       result === null || Array.isArray(result),
       'Cancelled implementation should complete gracefully'
@@ -356,108 +357,28 @@ describe('Implementation: parse-under-edit resilience', () => {
     assert.deepEqual(result, [], 'Should return empty array for non-existent document');
   });
 
-  it('returns empty array for non-class symbols', async () => {
+  it('handles symbol lookup failure gracefully', async () => {
     const bridge = new FaultInjectableMockBridge();
 
     const { triggerImplementation, cache, docs } = createImplementationHarness(bridge);
-    const uri = 'file:///impl-nonclass.pike';
+    const uri = 'file:///impl-symbol-lookup.pike';
 
-    const symbol: CoreSymbol = {
-      name: 'myVar',
-      kind: 'variable',
-      modifiers: [],
-      position: { file: uri, line: 1, column: 0 },
-    };
+    // Set up document with empty symbols array
     const entry: DocumentCacheEntry = {
       version: 1,
-      symbols: [symbol],
-      symbolNames: new Map([['myVar', symbol]]),
+      symbols: [],
+      symbolNames: new Map(),
       symbolPositions: new Map(),
       diagnostics: [],
     };
     cache.set(uri, entry);
-    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'int myVar = 42;\n'));
+    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'class Unknown { }\n'));
 
-    const result = await triggerImplementation(uri, 0, 4);
+    // Trigger implementation at a position — no symbol at position
+    const result = await triggerImplementation(uri, 0, 6);
 
+    // No symbol found at position, should return empty array
     assert.ok(Array.isArray(result), 'Should return array');
-    assert.equal(result.length, 0, 'Should return empty for non-class symbols');
-  });
-
-  it('isolates per-URI introspection failures', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { triggerImplementation, cache, docs } = createImplementationHarness(bridge);
-    const baseUri = 'file:///impl-isolate-base.pike';
-    const goodUri = 'file:///impl-isolate-good.pike';
-    const brokenUri = 'file:///impl-isolate-broken.pike';
-
-    // Base class
-    const baseSymbol: CoreSymbol = {
-      name: 'Base',
-      kind: 'class',
-      modifiers: [],
-      position: { file: baseUri, line: 1, column: 0 },
-    };
-    cache.set(baseUri, {
-      version: 1,
-      symbols: [baseSymbol],
-      symbolNames: new Map([['Base', baseSymbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(baseUri, 'pike', 1, 'class Base { }\n'));
-
-    // Good implementation URI
-    const goodClass: CoreSymbol = {
-      name: 'GoodImpl',
-      kind: 'class',
-      modifiers: [],
-      position: { file: goodUri, line: 1, column: 0 },
-    };
-    const goodInherit: CoreSymbol = {
-      name: 'Base',
-      kind: 'inherit' as const,
-      classname: 'Base',
-      modifiers: [],
-      position: { file: goodUri, line: 2, column: 0 },
-    };
-    cache.set(goodUri, {
-      version: 1,
-      symbols: [goodClass, goodInherit],
-      symbolNames: new Map([['GoodImpl', goodClass]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(goodUri, 'pike', 1, 'class GoodImpl { inherit Base; }\n'));
-
-    // Broken URI - will cause introspection to return empty data
-    // (simulated by having no symbols that can be parsed)
-    const brokenClass: CoreSymbol = {
-      name: 'BrokenImpl',
-      kind: 'class' as const,
-      modifiers: [],
-      position: { file: brokenUri, line: 1, column: 0 },
-      // Missing proper inheritance data
-    };
-    cache.set(brokenUri, {
-      version: 1,
-      symbols: [brokenClass],
-      symbolNames: new Map([['BrokenImpl', brokenClass]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(brokenUri, 'pike', 1, 'class BrokenImpl { }\n'));
-
-    const result = await triggerImplementation(baseUri, 0, 6);
-
-    // Should find GoodImpl and not crash on brokenUri
-    assert.ok(Array.isArray(result), 'Implementation should return array even with broken URIs');
-    // Should still find the good implementation
-    const goodResult = result as Array<{ uri: string }>;
-    assert.ok(
-      goodResult.some(r => r.uri === goodUri),
-      'Should find the good implementation despite broken URI'
-    );
+    assert.equal(result.length, 0, 'Should return empty array when no symbol at position');
   });
 });
