@@ -1,3 +1,15 @@
+---
+id: KB-ARCH-20260408-001
+domain: ARCH
+date: 2026-04-08
+authors: [dga-coder]
+status: active
+summary: Parse-under-edit resilience migration status for all LSP query paths
+code_references: [packages/pike-lsp-server/src/features/advanced/code-lens.ts, packages/pike-lsp-server/src/features/advanced/code-actions.ts, packages/pike-lsp-server/src/features/advanced/semantic-tokens.ts, packages/pike-lsp-server/src/features/navigation/implementation.ts, packages/pike-lsp-server/src/features/navigation/hover.ts, packages/pike-lsp-server/src/features/editing/signature-help.ts]
+related_kb: []
+verification: [bun test packages/pike-lsp-server/src/scenarios/]
+---
+
 # KB-1248: Non-Migrated Query Paths Requiring Parse-Under-Edit Resilience
 
 **KB-ID:** KB-1248  
@@ -27,9 +39,7 @@ The Query Engine v2 migration has successfully moved the following paths to the 
 
 ## Remaining Unmodified Path
 
-| Feature | File | Risk Level | Reason |
-|---------|------|------------|--------|
-| Code Lens | `packages/pike-lsp-server/src/features/advanced/code-lens.ts` | LOW | Uses cached symbol data only, minimal text parsing |
+None. All query paths have been migrated.
 
 ## Migration Pattern Applied
 
@@ -43,8 +53,6 @@ Each migrated path follows this pattern:
 
 ### Resilience Tests
 
-Each migrated path has a corresponding test file in `src/scenarios/`:
-
 | Feature | Test File | Tests |
 |---------|-----------|-------|
 | Implementation | `implementation-parse-resilience.test.ts` | 6 |
@@ -52,7 +60,7 @@ Each migrated path has a corresponding test file in `src/scenarios/`:
 | Semantic Tokens | `semantic-tokens-parse-resilience.test.ts` | 6 |
 | Hover | `hover-parse-resilience.test.ts` | 5 |
 | Signature Help | `signature-help-parse-resilience.test.ts` | 5 |
-
+| Code Lens | `code-lens-parse-resilience.test.ts` | 12 |
 All tests use `FaultInjectableMockBridge` to simulate parse failures, rapid edits, and cancellation.
 
 ## Acceptance Checklist
