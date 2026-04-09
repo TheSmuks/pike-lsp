@@ -5,7 +5,7 @@
  * Feature handlers group related LSP capabilities into cohesive modules.
  */
 
-// Symbols feature - document and workspace symbol providers
+// Symbols feature - workspace symbol provider (document symbols in navigation)
 export { registerSymbolsHandlers } from './symbols.js';
 
 // Diagnostics feature - validation and document lifecycle
