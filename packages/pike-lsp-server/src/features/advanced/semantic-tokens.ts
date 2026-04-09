@@ -3,6 +3,7 @@
  *
  * Provides rich syntax highlighting for Pike code.
  * Supports both full and delta (incremental) updates for efficient token updates.
+ * KB-1262: Parse-under-edit resilience
  */
 
 import {
@@ -18,6 +19,8 @@ import type { Services } from '../../services/index.js';
 import { PatternHelpers } from '../../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
 import { PIKE_KEYWORDS } from '../navigation/keywords.js';
+import { RequestScheduler } from '../../services/request-scheduler.js';
+import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 // Semantic tokens legend (shared with server.ts)
 const tokenTypes = [
@@ -69,17 +72,37 @@ export function registerSemanticTokensHandler(
   const { documentCache } = services;
   const log = new Logger('Advanced');
 
-  // KB-1248: Shared error classification for parse-under-edit resilience logging
-  const logTokenError = (label: string, uri: string, err: unknown): void => {
-    const msg = err instanceof Error ? err.message : String(err);
-    const isParse = msg.includes('parse') || msg.includes('regex') || msg.includes('syntax');
-    if (isParse) {
-      log.debug(`${label} failed (parse-under-edit, handled gracefully)`, { uri, error: msg });
-    } else {
-      log.error(`${label} failed for ${uri}: ${msg}`);
-    }
-  };
+  // KB-1262: Request scheduler for resilient semantic tokens requests
+  const tokensScheduler = new RequestScheduler({ logger: log });
+  const TOKENS_SCHEDULER_LOG_EVERY = 50;
+  let tokensRequestsObserved = 0;
 
+  function maybeLogTokensSchedulerMetrics(uri: string, outcome: string): void {
+    tokensRequestsObserved += 1;
+    if (tokensRequestsObserved % TOKENS_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+    const schedulerMetrics = tokensScheduler.snapshotMetrics();
+    log.debug('Tokens scheduler metrics', {
+      uri,
+      outcome,
+      samples: tokensRequestsObserved,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
+    });
+  }
+
+  // KB-1262: Distinguish parse-under-edit errors from unexpected errors
+  function isParseUnderEditError(message: string): boolean {
+    const lower = message.toLowerCase();
+    return (
+      lower.includes('invalid regular expression') ||
+      lower.includes('regex') ||
+      lower.includes('parse') ||
+      lower.includes('unexpected') ||
+      lower.includes('unterminated') ||
+      lower.includes('syntax')
+    );
+  }
   const tokenStateByUri = new Map<string, { resultId: string; data: number[]; version: number }>();
   let nextResultCounter = 0;
 
@@ -92,11 +115,17 @@ export function registerSemanticTokensHandler(
     previousData: number[],
     nextData: number[]
   ): { start: number; deleteCount: number; data: number[] } | null => {
-    if (
-      previousData.length === nextData.length &&
-      previousData.every((v, i) => v === nextData[i])
-    ) {
-      return null;
+    if (previousData.length === nextData.length) {
+      let same = true;
+      for (let i = 0; i < previousData.length; i++) {
+        if (previousData[i] !== nextData[i]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        return null;
+      }
     }
 
     let prefix = 0;
@@ -125,13 +154,28 @@ export function registerSemanticTokensHandler(
     };
   };
 
-  const getOrBuildTokenState = (uri: string, document: TextDocument) => {
+  const getOrBuildTokenState = (
+    uri: string,
+    document: TextDocument,
+    cancellationToken?: CancellationToken
+  ) => {
     const existing = tokenStateByUri.get(uri);
     if (existing && existing.version === document.version) {
       return existing;
     }
 
-    const tokens = buildTokens(uri, document);
+    // KB-1262: Wrap buildTokens in try-catch for parse-under-edit resilience
+    let tokens: SemanticTokens;
+    try {
+      tokens = buildTokens(uri, document, cancellationToken);
+    } catch (err) {
+      // KB-1262: Gracefully handle parse-under-edit errors in token building
+      log.debug('Token building failed (likely parse-under-edit)', {
+        uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      tokens = { resultId: '0', data: [] };
+    }
     const state = {
       resultId: makeResultId(),
       data: [...tokens.data],
@@ -144,7 +188,11 @@ export function registerSemanticTokensHandler(
   /**
    * Build semantic tokens for a document from cached symbols.
    */
-  const buildTokens = (uri: string, document: TextDocument): SemanticTokens => {
+  const buildTokens = (
+    uri: string,
+    document: TextDocument,
+    cancellationToken?: CancellationToken
+  ): SemanticTokens => {
     const builder = new SemanticTokensBuilder();
     const text = document.getText();
     const lines = text.split('\n');
@@ -293,35 +341,76 @@ export function registerSemanticTokensHandler(
       return builder.build();
     }
 
+    // KB-1262: Track symbol count for periodic cancellation checks
+    let symbolIndex = 0;
     for (const symbol of cached.symbols) {
       if (!symbol.name) continue;
 
-      // KB-1248: Per-symbol error isolation - one bad symbol must not break all tokens
-      try {
-        const kindToTokenType: Record<string, string> = {
-          class: 'class',
-          method: 'method',
-          variable: 'variable',
-          constant: 'property',
-          enum: 'enum',
-          enum_constant: 'enumMember',
-          typedef: 'type',
-          module: 'namespace',
-          import: 'namespace',
-          inherit: 'class',
-          include: 'namespace',
-        };
-        const mappedType = kindToTokenType[symbol.kind];
-        if (!mappedType) continue;
+      // KB-1262: Check cancellation every 10 symbols
+      symbolIndex++;
+      if (
+        cancellationToken &&
+        symbolIndex % 10 === 0 &&
+        cancellationToken.isCancellationRequested
+      ) {
+        break;
+      }
 
-        const tokenType = tokenTypes.indexOf(mappedType);
-        let declModifiers = declarationBit;
-        const hasModifier = (mod: string) => symbol.modifiers?.includes(mod) ?? false;
-        if (hasModifier('static')) declModifiers |= staticBit;
-        if (hasModifier('deprecated')) declModifiers |= deprecatedBit;
-        if (symbol.kind === 'constant' || symbol.kind === 'enum_constant')
+      let tokenType = tokenTypes.indexOf('variable');
+      let declModifiers = declarationBit;
+
+      const hasModifier = (mod: string) => symbol.modifiers && symbol.modifiers.includes(mod);
+
+      if (hasModifier('static')) {
+        declModifiers |= staticBit;
+      }
+
+      if (hasModifier('deprecated')) {
+        declModifiers |= deprecatedBit;
+      }
+
+      switch (symbol.kind) {
+        case 'class':
+          tokenType = tokenTypes.indexOf('class');
+          break;
+        case 'method':
+          tokenType = tokenTypes.indexOf('method');
+          break;
+        case 'variable':
+          tokenType = tokenTypes.indexOf('variable');
+          break;
+        case 'constant':
+          tokenType = tokenTypes.indexOf('property');
           declModifiers |= readonlyBit;
+          break;
+        case 'enum':
+          tokenType = tokenTypes.indexOf('enum');
+          break;
+        case 'enum_constant':
+          tokenType = tokenTypes.indexOf('enumMember');
+          declModifiers |= readonlyBit;
+          break;
+        case 'typedef':
+          tokenType = tokenTypes.indexOf('type');
+          break;
+        case 'module':
+          tokenType = tokenTypes.indexOf('namespace');
+          break;
+        case 'import':
+          tokenType = tokenTypes.indexOf('namespace');
+          break;
+        case 'inherit':
+          tokenType = tokenTypes.indexOf('class');
+          break;
+        case 'include':
+          tokenType = tokenTypes.indexOf('namespace');
+          break;
+        default:
+          continue;
+      }
 
+      // KB-1262: Wrap regex construction and matching in try-catch per symbol
+      try {
         const symbolRegex = PatternHelpers.wholeWordPattern(symbol.name);
         const declLine = symbol.position ? symbol.position.line - 1 : -1;
         const searchRadius = 50;
@@ -348,29 +437,38 @@ export function registerSemanticTokensHandler(
           }
         }
       } catch (err) {
-        // KB-1248: Skip symbols with broken regex/name, continue with others
-        log.debug('Symbol tokenization failed (handled gracefully)', {
+        // KB-1262: Skip symbols with malformed names during parse-under-edit
+        log.debug('Symbol regex failed (likely parse-under-edit)', {
           uri,
           symbolName: symbol.name,
-          symbolKind: symbol.kind,
           error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
+    // KB-1262: Check cancellation before keyword processing
+    if (cancellationToken?.isCancellationRequested) {
+      return builder.build();
+    }
+
     // Add keyword highlighting for Pike keywords
-    // KB-1248: Wrap in try-catch for resilience during malformed edits
-    try {
-      const keywordTokenType = tokenTypes.indexOf('keyword');
-      const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
-        kw => kw.name
-      );
+    const keywordTokenType = tokenTypes.indexOf('keyword');
+    const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
+      kw => kw.name
+    );
 
-      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum];
-        if (!line) continue;
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      // KB-1262: Check cancellation periodically during keyword processing
+      if (cancellationToken?.isCancellationRequested) {
+        break;
+      }
 
-        for (const keyword of controlKeywords) {
+      const line = lines[lineNum];
+      if (!line) continue;
+
+      for (const keyword of controlKeywords) {
+        // KB-1262: Wrap keyword regex in try-catch per keyword
+        try {
           const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
           let match = keywordRegex.exec(line);
           while (match !== null) {
@@ -382,14 +480,15 @@ export function registerSemanticTokensHandler(
 
             match = keywordRegex.exec(line);
           }
+        } catch (err) {
+          // KB-1262: Skip keywords with regex construction failures
+          log.debug('Keyword regex failed (likely parse-under-edit)', {
+            uri,
+            keyword,
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
-    } catch (err) {
-      // KB-1248: Keyword highlighting is best-effort, must not break symbol tokens
-      log.debug('Keyword tokenization failed (handled gracefully)', {
-        uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
 
     return builder.build();
@@ -410,90 +509,119 @@ export function registerSemanticTokensHandler(
    * With delta enabled in server capabilities, VSCode will request incremental
    * updates when available. The server advertises delta support in capabilities,
    * enabling the client to make more efficient token requests on document changes.
-   *
-   * KB-1248: Cancellation support and improved error isolation.
+   * KB-1262: Parse-under-edit resilience with cancellation support
    */
-  connection.languages.semanticTokens.on(
-    (params: { textDocument: { uri: string } }, cancellationToken?: CancellationToken) => {
-      const uri = params.textDocument.uri;
-      log.debug('Semantic tokens request', { uri });
+  connection.languages.semanticTokens.on((params, cancellationToken) => {
+    log.debug('Semantic tokens request', { uri: params.textDocument.uri });
 
-      // KB-1248: Check cancellation early
-      if (cancellationToken?.isCancellationRequested) {
-        return { resultId: '0', data: [] };
-      }
-
-      try {
-        const document = documents.get(uri);
-
-        if (!document) {
-          return { resultId: '0', data: [] };
-        }
-
-        // KB-1248: Check cancellation before expensive tokenization
-        if (cancellationToken?.isCancellationRequested) {
-          return { resultId: '0', data: [] };
-        }
-
-        const state = getOrBuildTokenState(uri, document);
-        return {
-          resultId: state.resultId,
-          data: state.data,
-        };
-      } catch (err) {
-        logTokenError('Semantic tokens request', uri, err);
-        return { resultId: '0', data: [] };
-      }
+    // KB-1262: Check cancellation early
+    if (cancellationToken?.isCancellationRequested) {
+      return { resultId: '0', data: [] };
     }
-  );
+
+    try {
+      const uri = params.textDocument.uri;
+      const document = documents.get(uri);
+
+      if (!document) {
+        return { resultId: '0', data: [] };
+      }
+
+      const state = getOrBuildTokenState(uri, document, cancellationToken);
+      maybeLogTokensSchedulerMetrics(uri, 'success');
+      return {
+        resultId: state.resultId,
+        data: state.data,
+      };
+    } catch (err) {
+      // KB-1262: Distinguish parse-under-edit errors from unexpected errors
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (isParseUnderEditError(errMsg)) {
+        log.debug('Semantic tokens request failed (likely parse-under-edit)', {
+          uri: params.textDocument.uri,
+          error: errMsg,
+        });
+      } else {
+        log.error(`Semantic tokens request failed for ${params.textDocument.uri}: ${errMsg}`);
+      }
+      maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
+      return { resultId: '0', data: [] };
+    }
+  });
 
   /**
    * Semantic Tokens - Delta request handler
-   * KB-1248: Cancellation support and improved error isolation.
+   * KB-1262: Parse-under-edit resilience with cancellation support
    */
-  connection.languages.semanticTokens.onDelta(
-    (
-      params: { textDocument: { uri: string }; previousResultId: string },
-      cancellationToken?: CancellationToken
-    ): SemanticTokensDelta => {
-      const uri = params.textDocument.uri;
-      log.debug('Semantic tokens delta request', { uri });
+  connection.languages.semanticTokens.onDelta((params, cancellationToken): SemanticTokensDelta => {
+    log.debug('Semantic tokens delta request', { uri: params.textDocument.uri });
 
-      if (cancellationToken?.isCancellationRequested) {
+    // KB-1262: Check cancellation early
+    if (cancellationToken?.isCancellationRequested) {
+      return { resultId: '0', edits: [] };
+    }
+
+    try {
+      const uri = params.textDocument.uri;
+      const document = documents.get(uri);
+      const previousState = tokenStateByUri.get(uri);
+
+      if (!document) {
         return { resultId: '0', edits: [] };
       }
 
-      try {
-        const document = documents.get(uri);
-        const previousState = tokenStateByUri.get(uri);
-        if (!document || cancellationToken?.isCancellationRequested) {
-          return { resultId: '0', edits: [] };
+      const nextState = getOrBuildTokenState(uri, document, cancellationToken);
+
+      if (previousState && previousState.resultId === nextState.resultId) {
+        if (params.previousResultId === nextState.resultId) {
+          return {
+            resultId: nextState.resultId,
+            edits: [],
+          };
         }
 
-        const nextState = getOrBuildTokenState(uri, document);
-        const fullReplace = {
+        return {
           resultId: nextState.resultId,
           edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
         };
-
-        if (previousState && previousState.resultId === nextState.resultId) {
-          return params.previousResultId === nextState.resultId
-            ? { resultId: nextState.resultId, edits: [] }
-            : fullReplace;
-        }
-
-        if (!previousState || previousState.resultId !== params.previousResultId) {
-          return fullReplace;
-        }
-
-        const edit = computeDeltaEdit(previousState.data, nextState.data);
-        return edit
-          ? { resultId: nextState.resultId, edits: [edit] }
-          : { resultId: nextState.resultId, edits: [] };
-      } catch (err) {
-        logTokenError('Semantic tokens delta request', uri, err);
-        return { resultId: '0', edits: [] };
       }
+
+      if (!previousState || previousState.resultId !== params.previousResultId) {
+        return {
+          resultId: nextState.resultId,
+          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
+        };
+      }
+
+      const edit = computeDeltaEdit(previousState.data, nextState.data);
+
+      if (!edit) {
+        return {
+          resultId: nextState.resultId,
+          edits: [],
+        };
+      }
+
+      maybeLogTokensSchedulerMetrics(uri, 'success');
+      return {
+        resultId: nextState.resultId,
+        edits: [edit],
+      };
+    } catch (err) {
+      // KB-1262: Distinguish parse-under-edit errors from unexpected errors
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (isParseUnderEditError(errMsg)) {
+        log.debug('Semantic tokens delta request failed (likely parse-under-edit)', {
+          uri: params.textDocument.uri,
+          error: errMsg,
+        });
+      } else {
+        log.error('Semantic tokens delta request failed', {
+          error: errMsg,
+        });
+      }
+      maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
+      return { resultId: '0', edits: [] };
     }
-  );
+  });
 }

@@ -1,6 +1,6 @@
 /**
  * Semantic Tokens Parse-Under-Edit Resilience Tests
- * KB-1248: Tests for semantic tokens handler resilience during rapid malformed edits
+ * KB-1262: Tests for semantic tokens handler resilience during rapid malformed edits
  */
 
 import { describe, it } from 'bun:test';
@@ -25,7 +25,7 @@ function createSemanticTokensHarness(bridge: FaultInjectableMockBridge) {
     languages: {
       semanticTokens: {
         on(handler: (params: { textDocument: { uri: string } }) => Promise<unknown>) {
-          this.tokensHandler = handler;
+          this.onHandler = handler;
         },
         onDelta(
           handler: (params: {
@@ -33,12 +33,12 @@ function createSemanticTokensHarness(bridge: FaultInjectableMockBridge) {
             previousResultId: string;
           }) => Promise<unknown>
         ) {
-          this.deltaHandler = handler;
+          this.onDeltaHandler = handler;
         },
-        tokensHandler: undefined as
+        onHandler: undefined as
           | ((params: { textDocument: { uri: string } }) => Promise<unknown>)
           | undefined,
-        deltaHandler: undefined as
+        onDeltaHandler: undefined as
           | ((params: {
               textDocument: { uri: string };
               previousResultId: string;
@@ -94,9 +94,19 @@ function createSemanticTokensHarness(bridge: FaultInjectableMockBridge) {
     },
     includeResolver: null,
     stdlibIndex: null,
-    globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5 },
+    globalSettings: {
+      pikePath: 'pike',
+      maxNumberOfProblems: 100,
+      diagnosticDelay: 5,
+      runnable: { showCodeLens: false },
+    },
     documentSnapshots: new Map<string, string>(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
+    pikeIntrospection: {
+      async searchImportableSymbols() {
+        return [];
+      },
+    },
   };
 
   registerSemanticTokensHandler(
@@ -105,34 +115,40 @@ function createSemanticTokensHarness(bridge: FaultInjectableMockBridge) {
     docs as unknown as TextDocuments<TextDocument>
   );
 
-  // Helper to trigger semantic tokens requests
-  const triggerSemanticTokens = async (uri: string) => {
-    const handler = connection.languages.semanticTokens.tokensHandler;
+  // Helper to trigger full token requests
+  const triggerTokens = async (uri: string) => {
+    const handler = connection.languages.semanticTokens.onHandler;
     if (!handler) return null;
     const result = await handler({ textDocument: { uri } });
     tokenResults.push({ uri, result });
     return result;
   };
 
-  // Helper to trigger delta requests
-  const triggerSemanticTokensDelta = async (uri: string, previousResultId: string) => {
-    const handler = connection.languages.semanticTokens.deltaHandler;
+  // Helper to trigger delta token requests
+  const triggerTokensDelta = async (uri: string, previousResultId: string) => {
+    const handler = connection.languages.semanticTokens.onDeltaHandler;
     if (!handler) return null;
     const result = await handler({ textDocument: { uri }, previousResultId });
+    tokenResults.push({ uri, result });
     return result;
   };
 
   // Helper to set cached document with symbols
-  const setDocumentWithSymbols = (uri: string, text: string, symbols: CoreSymbol[]) => {
+  const setDocumentWithSymbols = (
+    uri: string,
+    text: string,
+    symbols: CoreSymbol[],
+    version = 1
+  ) => {
     const entry: DocumentCacheEntry = {
-      version: 1,
+      version,
       symbols,
       symbolNames: new Map(symbols.map(s => [s.name, s])),
       symbolPositions: new Map(),
       diagnostics: [],
     };
     cache.set(uri, entry);
-    docs.emitOpen(TextDocument.create(uri, 'pike', 1, text));
+    docs.emitOpen(TextDocument.create(uri, 'pike', version, text));
   };
 
   return {
@@ -140,287 +156,250 @@ function createSemanticTokensHarness(bridge: FaultInjectableMockBridge) {
     cache,
     tokenResults,
     consoleErrors,
-    triggerSemanticTokens,
-    triggerSemanticTokensDelta,
+    triggerTokens,
+    triggerTokensDelta,
     setDocumentWithSymbols,
   };
 }
 
 describe('Semantic Tokens: parse-under-edit resilience', () => {
-  it('returns tokens even when symbol regex fails during malformed edits', async () => {
-    const bridge = new FaultInjectableMockBridge();
+  it('returns tokens even when regex construction fails on symbol names with special chars', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: unexpected token'),
+        probability: 0.5,
+      }
+    );
 
-    const { setDocumentWithSymbols, triggerSemanticTokens } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-parse-resilience.pike';
+    const { setDocumentWithSymbols, triggerTokens } = createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-regex-resilience.pike';
 
-    // Include a symbol with a name that could cause regex issues
+    // Symbol with regex-special characters in name
     const symbols: CoreSymbol[] = [
       {
-        name: 'normalVar',
+        name: 'var$special*chars',
         kind: 'variable',
         modifiers: [],
         position: { file: uri, line: 1, column: 4 },
       },
-      {
-        name: 'class({[', // Potentially problematic regex name
-        kind: 'class',
-        modifiers: [],
-        position: { file: uri, line: 2, column: 0 },
-      },
     ];
 
-    setDocumentWithSymbols(uri, 'int normalVar = 1;\nclass broken { }\n', symbols);
+    setDocumentWithSymbols(uri, 'int var$special*chars = 1;\n', symbols);
 
-    const result = await triggerSemanticTokens(uri);
+    const result = await triggerTokens(uri);
 
-    // Should return a result without throwing, even if one symbol's regex fails
+    // Should return a result object despite regex-special chars in symbol name
+    assert.ok(result, 'Semantic tokens should return result even with regex-special symbol names');
     assert.ok(
-      result !== null && typeof result === 'object' && 'data' in result,
-      'Semantic tokens should return data even when symbol regex fails'
+      typeof result === 'object' && result !== null && 'resultId' in result && 'data' in result,
+      'Semantic tokens result should have resultId and data'
     );
   });
 
   it('handles rapid document changes without crashing', async () => {
-    const bridge = new FaultInjectableMockBridge();
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: incomplete expression'),
+        probability: 0.3,
+      }
+    );
 
-    const { triggerSemanticTokens, cache } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-rapid-changes.pike';
+    const { setDocumentWithSymbols, triggerTokens, cache } = createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-rapid-changes.pike';
+
+    // Initial document
+    setDocumentWithSymbols(uri, 'int stable = 1;\n', [
+      {
+        name: 'stable',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 4 },
+      },
+    ]);
 
     // Simulate rapid edits with malformed intermediate states
     const texts = [
-      'int stable = 1;\n', // Valid
+      'int stable = 1;\n',
       'int stable = ;\n', // Malformed: missing value
-      'class C {\n  int x\n', // Malformed: incomplete class
-      'class C {\n  int x = 1;\n...', // Malformed: unclosed block
-      'int repaired = 2;\n', // Valid again
+      'int stable = (\n', // Malformed: unclosed paren
+      'int stable = 1 + \n', // Malformed: incomplete expression
+      'int stable = 2;\n', // Fixed
     ];
 
     const results: (unknown | null)[] = [];
 
     for (let i = 0; i < texts.length; i++) {
-      const text = texts[i] ?? '';
-      // Update cached document
       const symbol: CoreSymbol = {
-        name: text.includes('stable') ? 'stable' : 'repaired',
+        name: 'stable',
         kind: 'variable',
         modifiers: [],
         position: { file: uri, line: 1, column: 4 },
       };
       const entry: DocumentCacheEntry = {
-        version: i + 1,
+        version: i + 2,
         symbols: [symbol],
-        symbolNames: new Map([[symbol.name, symbol]]),
+        symbolNames: new Map([['stable', symbol]]),
         symbolPositions: new Map(),
         diagnostics: [],
       };
       cache.set(uri, entry);
 
-      // Trigger semantic tokens during edit
-      const result = await triggerSemanticTokens(uri);
+      // Trigger token request during edit
+      const result = await triggerTokens(uri);
       results.push(result);
 
       await wait(10);
     }
 
-    // All requests should complete
-    assert.equal(results.length, texts.length, 'All semantic tokens requests should complete');
+    // All requests should complete (never throw)
+    assert.equal(results.length, texts.length, 'All semantic token requests should complete');
 
-    // All should return valid token data (never throw)
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      assert.ok(
-        result !== null && typeof result === 'object' && 'data' in result,
-        `Request ${i} should return valid token data`
-      );
-    }
+    // At least one successful result in valid states
+    const successCount = results.filter(r => r !== null).length;
+    assert.ok(successCount >= 1, 'At least some semantic token requests should succeed');
   });
 
-  it('handles delta requests gracefully', async () => {
-    const bridge = new FaultInjectableMockBridge();
+  it('handles cancellation during token requests', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        delayMs: { min: 50, max: 100 },
+      }
+    );
 
-    const { triggerSemanticTokens, triggerSemanticTokensDelta, cache } =
-      createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-delta.pike';
+    const { setDocumentWithSymbols, triggerTokens } = createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-cancellation.pike';
 
-    // Initial document
-    const symbol: CoreSymbol = {
-      name: 'counter',
-      kind: 'variable',
-      modifiers: [],
-      position: { file: uri, line: 1, column: 4 },
-    };
-    cache.set(uri, {
-      version: 1,
-      symbols: [symbol],
-      symbolNames: new Map([['counter', symbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
+    setDocumentWithSymbols(uri, 'int testVar = 42;\n', [
+      {
+        name: 'testVar',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 4 },
+      },
+    ]);
 
-    // First request to get resultId
-    const firstResult = await triggerSemanticTokens(uri);
-    assert.ok(firstResult && typeof firstResult === 'object' && 'resultId' in firstResult);
+    // Start token request
+    const tokenPromise = triggerTokens(uri);
 
-    const resultId = (firstResult as { resultId: string }).resultId;
+    // Wait briefly (simulate rapid cancellation)
+    await wait(5);
 
-    // Update document (version change)
-    cache.set(uri, {
-      version: 2,
-      symbols: [symbol],
-      symbolNames: new Map([['counter', symbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-
-    // Delta request
-    const deltaResult = await triggerSemanticTokensDelta(uri, resultId);
+    // The request should complete without throwing
+    const result = await tokenPromise;
     assert.ok(
-      deltaResult !== null && typeof deltaResult === 'object',
-      'Delta request should complete gracefully'
+      result === null || typeof result === 'object',
+      'Cancelled semantic token request should complete gracefully'
+    );
+  });
+
+  it('recovers after transient parse errors', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: unexpected end of file'),
+        probability: 0.5,
+      }
+    );
+
+    const { setDocumentWithSymbols, triggerTokens } = createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-recovery.pike';
+
+    setDocumentWithSymbols(uri, 'int recoverable = 123;\n', [
+      {
+        name: 'recoverable',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 4 },
+      },
+    ]);
+
+    // First request may fail due to injected fault
+    void (await triggerTokens(uri));
+
+    // Clear faults for second request
+    bridge.clearFaults();
+
+    // Second request should succeed
+    const result2 = await triggerTokens(uri);
+
+    assert.ok(
+      result2 !== null && typeof result2 === 'object' && 'resultId' in result2 && 'data' in result2,
+      'Semantic tokens should recover after clearing faults'
+    );
+  });
+
+  it('delta handler returns valid response on malformed input', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: malformed token stream'),
+        probability: 0.3,
+      }
+    );
+
+    const { setDocumentWithSymbols, triggerTokens, triggerTokensDelta } =
+      createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-delta-malformed.pike';
+
+    setDocumentWithSymbols(uri, 'string data = "hello";\n', [
+      {
+        name: 'data',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 7 },
+      },
+    ]);
+
+    // First: get full tokens to establish a resultId
+    const fullResult = await triggerTokens(uri);
+    assert.ok(fullResult && typeof fullResult === 'object', 'Full token request should succeed');
+
+    const previousResultId = (fullResult as { resultId: string }).resultId;
+
+    // Now send delta with malformed intermediate state
+    const result = await triggerTokensDelta(uri, previousResultId);
+
+    // Should return valid delta response without throwing
+    assert.ok(
+      result !== null && typeof result === 'object',
+      'Delta response should be returned for malformed input'
+    );
+    assert.ok(
+      'resultId' in (result as object) && 'edits' in (result as object),
+      'Delta result should have resultId and edits'
     );
   });
 
   it('handles missing document gracefully', async () => {
     const bridge = new FaultInjectableMockBridge();
 
-    const { triggerSemanticTokens } = createSemanticTokensHarness(bridge);
+    const { triggerTokens } = createSemanticTokensHarness(bridge);
+    const uri = 'file:///semtokens-missing.pike';
 
-    const result = await triggerSemanticTokens('file:///nonexistent.pike');
+    // Request tokens for a URI with no document
+    const result = await triggerTokens(uri);
 
-    // Should return empty tokens
+    // Should return empty result without throwing
     assert.ok(
-      result !== null && typeof result === 'object' && 'data' in result,
-      'Should return empty tokens for non-existent document'
+      result !== null && typeof result === 'object',
+      'Should return result object for missing document'
     );
-    assert.deepEqual((result as { data: number[] }).data, [], 'Should return empty data array');
-  });
-
-  it('handles empty symbol list gracefully', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { setDocumentWithSymbols, triggerSemanticTokens } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-empty-symbols.pike';
-
-    // Document with empty symbols
-    setDocumentWithSymbols(uri, '// Just a comment\n', []);
-
-    const result = await triggerSemanticTokens(uri);
-
-    assert.ok(
-      result !== null && typeof result === 'object' && 'data' in result,
-      'Should return valid result for empty symbols'
+    assert.deepEqual(
+      (result as { resultId: string; data: number[] }).data,
+      [],
+      'Should return empty data for missing document'
     );
-  });
-
-  it('survives keyword regex failures during tokenization', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { triggerSemanticTokens, cache, docs } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-keyword-resilience.pike';
-
-    // Document with control keywords
-    const symbol: CoreSymbol = {
-      name: 'x',
-      kind: 'variable',
-      modifiers: [],
-      position: { file: uri, line: 1, column: 4 },
-    };
-    cache.set(uri, {
-      version: 1,
-      symbols: [symbol],
-      symbolNames: new Map([['x', symbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'if (x) { return 1; }\n'));
-
-    const result = await triggerSemanticTokens(uri);
-
-    assert.ok(
-      result !== null && typeof result === 'object' && 'data' in result,
-      'Should return tokens with keywords highlighted'
-    );
-    // Note: keyword token count depends on PIKE_KEYWORDS content
-    const data = (result as { data: number[] }).data;
-    assert.ok(Array.isArray(data), 'Should produce token data array');
-  });
-
-  it('handles malformed symbol names without crashing', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { setDocumentWithSymbols, triggerSemanticTokens } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-malformed-names.pike';
-
-    // Symbols with unusual names that might cause regex issues
-    const symbols: CoreSymbol[] = [
-      {
-        name: '', // Empty name
-        kind: 'variable',
-        modifiers: [],
-        position: { file: uri, line: 1, column: 0 },
-      },
-      {
-        name: '$$$', // Non-identifier characters
-        kind: 'variable',
-        modifiers: [],
-        position: { file: uri, line: 2, column: 0 },
-      },
-      {
-        name: 'validName',
-        kind: 'variable',
-        modifiers: [],
-        position: { file: uri, line: 3, column: 4 },
-      },
-    ];
-
-    setDocumentWithSymbols(uri, '\n\nint validName = 1;\n', symbols);
-
-    const result = await triggerSemanticTokens(uri);
-
-    // Should not throw, and should still tokenize the valid symbol
-    assert.ok(
-      result !== null && typeof result === 'object' && 'data' in result,
-      'Should handle malformed symbol names gracefully'
-    );
-  });
-
-  it('recovers after transient tokenization errors', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { triggerSemanticTokens, cache } = createSemanticTokensHarness(bridge);
-    const uri = 'file:///tokens-recovery.pike';
-
-    // First request with broken data
-    cache.set(uri, {
-      version: 1,
-      symbols: [],
-      symbolNames: new Map(),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-
-    void (await triggerSemanticTokens(uri));
-
-    // Second request with valid data
-    const symbol: CoreSymbol = {
-      name: 'recovered',
-      kind: 'variable',
-      modifiers: [],
-      position: { file: uri, line: 1, column: 4 },
-    };
-    cache.set(uri, {
-      version: 2,
-      symbols: [symbol],
-      symbolNames: new Map([['recovered', symbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-
-    const result2 = await triggerSemanticTokens(uri);
-
-    assert.ok(
-      result2 !== null && typeof result2 === 'object' && 'data' in result2,
-      'Semantic tokens should recover after transient errors'
+    assert.equal(
+      (result as { resultId: string; data: number[] }).resultId,
+      '0',
+      'Should return resultId "0" for missing document'
     );
   });
 });

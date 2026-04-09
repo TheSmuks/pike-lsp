@@ -2,9 +2,7 @@
  * Code Lens Handler
  *
  * Provides reference counts in code.
- *
- * KB-1248: Parse-under-edit resilience with scheduler-based execution,
- * cancellation support, and per-symbol error isolation.
+ * KB-1262: Parse-under-edit resilience
  */
 
 import { Connection, CodeLens, Position } from 'vscode-languageserver/node.js';
@@ -20,7 +18,6 @@ import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 /**
  * Register code lens handlers.
- * KB-1248: Parse-under-edit resilience with snapshot-based queries and error isolation.
  */
 export function registerCodeLensHandlers(
   connection: Connection,
@@ -30,6 +27,26 @@ export function registerCodeLensHandlers(
   const { documentCache } = services;
   const log = new Logger('Advanced');
 
+  // KB-1262: Request scheduler for resilient code lens requests
+  const lensScheduler = new RequestScheduler({ logger: log });
+  const LENS_SCHEDULER_LOG_EVERY = 50;
+  let lensRequestsObserved = 0;
+
+  function maybeLogLensSchedulerMetrics(uri: string, outcome: string): void {
+    lensRequestsObserved += 1;
+    if (lensRequestsObserved % LENS_SCHEDULER_LOG_EVERY !== 0) {
+      return;
+    }
+
+    const schedulerMetrics = lensScheduler.snapshotMetrics();
+    log.debug('Code lens scheduler metrics', {
+      uri,
+      outcome,
+      samples: lensRequestsObserved,
+      ...toSchedulerMetricsLogPayload(schedulerMetrics),
+    });
+  }
+
   // Code lens cache: URI -> { version, lenses }
   // Prevents regenerating lenses when switching tabs if document hasn't changed
   const codeLensCache = new Map<string, { version: number; lenses: CodeLens[] }>();
@@ -38,43 +55,25 @@ export function registerCodeLensHandlers(
   // Prevents re-resolving lenses on window focus changes
   const resolvedLensCache = new Map<string, { version: number; refCounts: Map<string, number> }>();
 
-  // KB-1248: Request scheduler for resilient code lens requests
-  const codeLensScheduler = new RequestScheduler({ logger: log });
-  const CODE_LENS_SCHEDULER_LOG_EVERY = 50;
-  let codeLensRequestsObserved = 0;
-
-  function maybeLogCodeLensSchedulerMetrics(uri: string, outcome: string): void {
-    codeLensRequestsObserved += 1;
-    if (codeLensRequestsObserved % CODE_LENS_SCHEDULER_LOG_EVERY !== 0) {
-      return;
-    }
-
-    const schedulerMetrics = codeLensScheduler.snapshotMetrics();
-    log.debug('Code lens scheduler metrics', {
-      uri,
-      outcome,
-      samples: codeLensRequestsObserved,
-      ...toSchedulerMetricsLogPayload(schedulerMetrics),
-    });
-  }
-
   /**
    * Code Lens handler - provide inline annotations
-   * KB-1248: Parse-under-edit resilience with cancellation support and per-symbol error isolation.
+   * KB-1262: Parse-under-edit resilience with cancellation support
    */
   connection.onCodeLens((params, cancellationToken): CodeLens[] => {
-    log.debug('Code lens request', { uri: params.textDocument.uri });
+    const uri = params.textDocument.uri;
+    log.debug('Code lens request', { uri });
 
-    // KB-1248: Check cancellation early
+    // KB-1262: Check cancellation early
     if (cancellationToken?.isCancellationRequested) {
+      maybeLogLensSchedulerMetrics(uri, 'cancelled-early');
       return [];
     }
 
     try {
-      const uri = params.textDocument.uri;
       const cache = documentCache.get(uri);
 
       if (!cache) {
+        maybeLogLensSchedulerMetrics(uri, 'no-cache');
         return [];
       }
 
@@ -82,35 +81,29 @@ export function registerCodeLensHandlers(
       const cached = codeLensCache.get(uri);
       if (cached && cached.version === cache.version) {
         log.debug('Code lens cache hit', { uri, version: cache.version });
-        maybeLogCodeLensSchedulerMetrics(uri, 'cache-hit');
+        maybeLogLensSchedulerMetrics(uri, 'cache-hit');
         return cached.lenses;
-      }
-
-      // KB-1248: Check cancellation before heavy processing
-      if (cancellationToken?.isCancellationRequested) {
-        return [];
       }
 
       const lenses: CodeLens[] = [];
       const runnableConfig = services.globalSettings.runnable ?? {};
       const runnableEnabled = runnableConfig.showCodeLens !== false;
       const testPattern = getTestPattern(runnableConfig.testPattern);
+      const isFileTestFile = isTestFile(uri);
 
-      let testFunctions: Array<{ name: string }> = [];
+      // KB-1262: Wrap discoverTestFunctions in try-catch for parse-under-edit safety
+      let testFunctions: { name: string }[] = [];
       try {
-        const isFileTestFile = isTestFile(uri);
         testFunctions = isFileTestFile ? discoverTestFunctions(cache.symbols, testPattern) : [];
       } catch (err) {
-        // KB-1248: Test discovery may fail on malformed intermediate parse states
-        log.debug('Test discovery failed (handled gracefully)', {
+        log.debug('Test function discovery failed (likely parse-under-edit)', {
           uri,
           error: err instanceof Error ? err.message : String(err),
         });
       }
-
       const testFunctionNames = new Set(testFunctions.map(t => t.name));
 
-      if (runnableEnabled && testFunctions.length > 0) {
+      if (runnableEnabled && isFileTestFile && testFunctions.length > 0) {
         lenses.push({
           range: {
             start: { line: 0, character: 0 },
@@ -126,8 +119,14 @@ export function registerCodeLensHandlers(
         });
       }
 
+      // KB-1262: Check cancellation before heavy symbol iteration
+      if (cancellationToken?.isCancellationRequested) {
+        maybeLogLensSchedulerMetrics(uri, 'cancelled-mid');
+        return [];
+      }
+
       for (const symbol of cache.symbols) {
-        // KB-1248: Per-symbol error isolation - one bad symbol must not break all lenses
+        // KB-1262: Wrap per-symbol lens generation to isolate failures
         try {
           // Show reference counts for classes, methods, variables, and constants
           if (
@@ -188,10 +187,10 @@ export function registerCodeLensHandlers(
             }
           }
         } catch (err) {
-          // KB-1248: Skip individual symbol on error, continue with remaining
-          log.debug('Code lens symbol processing failed (handled gracefully)', {
+          // KB-1262: Gracefully handle per-symbol failures (likely parse-under-edit)
+          log.debug('Code lens generation failed for symbol (likely parse-under-edit)', {
             uri,
-            symbolName: symbol.name,
+            symbolName: symbol.name ?? 'unknown',
             error: err instanceof Error ? err.message : String(err),
           });
         }
@@ -203,30 +202,33 @@ export function registerCodeLensHandlers(
       connection.console.log(
         `[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`
       );
-      maybeLogCodeLensSchedulerMetrics(uri, 'success');
+      maybeLogLensSchedulerMetrics(uri, 'success');
       return lenses;
     } catch (err) {
-      // KB-1248: Gracefully handle parse-under-edit errors
-      log.debug('Code lens generation failed (handled gracefully)', {
-        uri: params.textDocument.uri,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      maybeLogCodeLensSchedulerMetrics(params.textDocument.uri, 'error');
+      // KB-1262: Distinguish parse-under-edit (debug) from unexpected (error)
+      const msg = err instanceof Error ? err.message : String(err);
+      const isParseError = /parse|syntax|under.edit/i.test(msg);
+      if (isParseError) {
+        log.debug('Code lens failed (likely parse-under-edit)', { uri, error: msg });
+      } else {
+        log.error(`Code lens failed for ${uri}: ${msg}`);
+      }
+      maybeLogLensSchedulerMetrics(uri, 'error');
       return [];
     }
   });
 
   /**
    * Code Lens resolve handler - compute reference counts
-   * KB-1248: Parse-under-edit resilience with per-URI error isolation.
+   * KB-1262: Parse-under-edit resilience with cancellation support
    */
   connection.onCodeLensResolve((lens, cancellationToken): CodeLens => {
-    try {
-      // KB-1248: Check cancellation early
-      if (cancellationToken?.isCancellationRequested) {
-        return lens;
-      }
+    // KB-1262: Check cancellation early
+    if (cancellationToken?.isCancellationRequested) {
+      return lens;
+    }
 
+    try {
       const data = lens.data as {
         uri: string;
         symbolName: string;
@@ -241,6 +243,7 @@ export function registerCodeLensHandlers(
 
       if (data.lensType === 'run-file' || data.lensType === 'run-test') {
         lens.command = buildRunnableCodeLensCommand(data.lensType, data.uri, data.symbolName);
+        maybeLogLensSchedulerMetrics(data.uri, 'resolved-runnable');
         return lens;
       }
 
@@ -258,48 +261,43 @@ export function registerCodeLensHandlers(
             data.position,
             data.symbolName
           );
+          maybeLogLensSchedulerMetrics(data.uri, 'resolved-cache-hit');
           return lens;
         }
       }
 
-      // KB-1248: Check cancellation before ref-count computation
+      // KB-1262: Check cancellation before heavy ref-count computation
       if (cancellationToken?.isCancellationRequested) {
+        maybeLogLensSchedulerMetrics(data.uri, 'cancelled-mid-resolve');
         return lens;
       }
 
       // Compute ref count
       let refCount = 0;
 
-      // KB-1248: Per-URI error isolation - wrap individual cache lookups
-      try {
-        if (currentCache && currentCache.symbolPositions) {
-          const positions = currentCache.symbolPositions.get(data.symbolName);
-          refCount = positions?.length ?? 0;
-        }
-      } catch (err) {
-        log.debug('Code lens ref-count for current doc failed (handled gracefully)', {
-          uri: data.uri,
-          symbolName: data.symbolName,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      if (currentCache && currentCache.symbolPositions) {
+        const positions = currentCache.symbolPositions.get(data.symbolName);
+        refCount = positions?.length ?? 0;
       }
 
-      try {
-        const entries = Array.from(documentCache.entries());
-        for (const [uri, cache] of entries) {
-          if (uri !== data.uri && cache.symbolPositions) {
+      // KB-1262: Wrap per-URI ref counting to isolate failures
+      const entries = Array.from(documentCache.entries());
+      for (const [entryUri, cache] of entries) {
+        if (entryUri !== data.uri && cache.symbolPositions) {
+          try {
             const positions = cache.symbolPositions.get(data.symbolName);
             if (positions) {
               refCount += positions.length;
             }
+          } catch (err) {
+            // KB-1262: Gracefully handle per-URI ref count failures
+            log.debug('Ref count lookup failed for URI (likely parse-under-edit)', {
+              uri: entryUri,
+              symbolName: data.symbolName,
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
         }
-      } catch (err) {
-        log.debug('Code lens cross-document ref-count failed (handled gracefully)', {
-          uri: data.uri,
-          symbolName: data.symbolName,
-          error: err instanceof Error ? err.message : String(err),
-        });
       }
 
       // Update cache
@@ -313,18 +311,28 @@ export function registerCodeLensHandlers(
       connection.console.log(
         `[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`
       );
+      maybeLogLensSchedulerMetrics(data.uri, 'resolved');
       return lens;
     } catch (err) {
+      // KB-1262: Distinguish parse-under-edit (debug) from unexpected (error)
       const data =
         lens.data && typeof lens.data === 'object'
           ? (lens.data as { symbolName?: string; uri?: string })
           : undefined;
-      // KB-1248: Gracefully handle resolve failures during parse-under-edit
-      log.debug('Code lens resolve failed (handled gracefully)', {
-        symbolName: data?.symbolName ?? 'unknown',
-        uri: data?.uri ?? 'unknown',
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      const isParseError = /parse|syntax|under.edit/i.test(msg);
+      if (isParseError) {
+        log.debug('Code lens resolve failed (likely parse-under-edit)', {
+          symbolName: data?.symbolName ?? 'unknown',
+          uri: data?.uri ?? 'unknown',
+          error: msg,
+        });
+      } else {
+        log.error(
+          `Code lens resolve failed for symbol "${data?.symbolName ?? 'unknown'}" in ${data?.uri ?? 'unknown'}: ${msg}`
+        );
+      }
+      maybeLogLensSchedulerMetrics(data?.uri ?? 'unknown', 'resolve-error');
       return lens;
     }
   });

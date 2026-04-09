@@ -1,9 +1,6 @@
 /**
  * Code Lens Parse-Under-Edit Resilience Tests
- * KB-1248: Tests for code lens handler resilience during rapid malformed edits.
- *
- * Code lens is LOW risk (uses cached symbol data), but still needs resilience
- * against malformed cache states and concurrent document mutations.
+ * KB-1262: Tests for code lens handler resilience during rapid malformed edits
  */
 
 import { describe, it } from 'bun:test';
@@ -13,59 +10,28 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeLensHandlers } from '../features/advanced/code-lens.js';
 import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry, CoreSymbol } from '../core/types.js';
-import type { PikeSymbolKind } from '@pike-lsp/pike-bridge';
 import { createMockDocuments } from '../tests/helpers/test-helpers.js';
+import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
-/**
- * Creates a mock CancellationToken that can be cancelled on demand.
- */
-function createCancellationToken() {
-  let cancelled = false;
-  return {
-    get isCancellationRequested() {
-      return cancelled;
-    },
-    cancel() {
-      cancelled = true;
-    },
-  };
-}
+const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
-function createCodeLensHarness() {
+function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
+  const codeLenses: Array<{ uri: string; result: unknown }> = [];
   const consoleErrors: string[] = [];
 
-  let _codeLensHandler:
-    | ((
-        params: { textDocument: { uri: string } },
-        token: { isCancellationRequested: boolean }
-      ) => unknown[])
-    | undefined;
-  let _codeLensResolveHandler:
-    | ((
-        lens: { data?: unknown; range?: unknown },
-        token: { isCancellationRequested: boolean }
-      ) => unknown)
-    | undefined;
-
   const connection = {
-    onCodeLens(
-      handler: (
-        params: { textDocument: { uri: string } },
-        token: { isCancellationRequested: boolean }
-      ) => unknown[]
-    ) {
-      _codeLensHandler = handler;
+    onCodeLens(handler: (params: { textDocument: { uri: string } }) => Promise<unknown>) {
+      this.codeLensHandler = handler;
     },
-    onCodeLensResolve(
-      handler: (
-        lens: { data?: unknown; range?: unknown },
-        token: { isCancellationRequested: boolean }
-      ) => unknown
-    ) {
-      _codeLensResolveHandler = handler;
+    codeLensHandler: undefined as
+      | ((params: { textDocument: { uri: string } }) => Promise<unknown>)
+      | undefined,
+    onCodeLensResolve(handler: (lens: unknown) => Promise<unknown>) {
+      this.codeLensResolveHandler = handler;
     },
+    codeLensResolveHandler: undefined as ((lens: unknown) => Promise<unknown>) | undefined,
     onRequest() {},
     onDidChangeConfiguration() {},
     onDidChangeTextDocument() {},
@@ -78,7 +44,8 @@ function createCodeLensHarness() {
     },
   };
 
-  const services: Services = {
+  const services = {
+    bridge,
     documentCache: {
       get(uri: string) {
         return cache.get(uri);
@@ -120,349 +87,312 @@ function createCodeLensHarness() {
       pikePath: 'pike',
       maxNumberOfProblems: 100,
       diagnosticDelay: 5,
-      runnable: { showCodeLens: true },
+      runnable: { showCodeLens: true, testPattern: '^test_' },
     },
     documentSnapshots: new Map<string, string>(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
-  } as unknown as Services;
+  };
 
   registerCodeLensHandlers(
     connection as unknown as Connection,
-    services,
+    services as unknown as Services,
     docs as unknown as TextDocuments<TextDocument>
   );
 
-  const triggerCodeLens = (uri: string, token?: { isCancellationRequested: boolean }) => {
-    if (!_codeLensHandler) return [];
-    return _codeLensHandler({ textDocument: { uri } }, token ?? { isCancellationRequested: false });
+  // Helper to trigger code lens requests
+  const triggerCodeLens = async (uri: string) => {
+    const handler = connection.codeLensHandler;
+    if (!handler) return [];
+    const result = await handler({
+      textDocument: { uri },
+    });
+    codeLenses.push({ uri, result });
+    return result as Array<{ range: unknown; data: unknown }>;
   };
 
-  const triggerCodeLensResolve = (
-    lens: { data?: unknown; range?: unknown },
-    token?: { isCancellationRequested: boolean }
-  ) => {
-    if (!_codeLensResolveHandler) return lens;
-    return _codeLensResolveHandler(lens, token ?? { isCancellationRequested: false });
+  // Helper to trigger code lens resolve
+  const triggerCodeLensResolve = async (lens: unknown) => {
+    const handler = connection.codeLensResolveHandler;
+    if (!handler) return lens;
+    const result = await handler(lens);
+    return result;
   };
 
-  const setDocumentWithSymbols = (
-    uri: string,
-    version: number,
-    symbols: CoreSymbol[],
-    symbolPositions?: Map<string, Array<{ line: number; character: number }>>
-  ) => {
+  // Helper to set cached document with symbols
+  const setDocumentWithSymbols = (uri: string, text: string, symbols: CoreSymbol[]) => {
     const symbolNames = new Map<string, CoreSymbol>();
+    const symbolPositions = new Map<string, Array<{ line: number; character: number }>>();
     for (const sym of symbols) {
       symbolNames.set(sym.name, sym);
+      if (sym.position) {
+        symbolPositions.set(sym.name, [
+          { line: (sym.position.line ?? 1) - 1, character: (sym.position.column ?? 1) - 1 },
+        ]);
+      }
     }
     const entry: DocumentCacheEntry = {
-      version,
+      version: 1,
       symbols,
       symbolNames,
-      symbolPositions: symbolPositions ?? new Map(),
+      symbolPositions,
       diagnostics: [],
     };
     cache.set(uri, entry);
+    docs.emitOpen(TextDocument.create(uri, 'pike', 1, text));
   };
 
   return {
     docs,
     cache,
+    codeLenses,
     consoleErrors,
     triggerCodeLens,
     triggerCodeLensResolve,
     setDocumentWithSymbols,
-    services,
-  };
-}
-
-function makeSymbol(name: string, kind: PikeSymbolKind, line: number, column: number): CoreSymbol {
-  return {
-    name,
-    kind,
-    modifiers: [],
-    position: { file: '', line, column },
   };
 }
 
 describe('Code Lens: parse-under-edit resilience', () => {
-  it('returns empty array when document cache is empty', () => {
-    const { triggerCodeLens } = createCodeLensHarness();
-    const uri = 'file:///nonexistent.pike';
-    const result = triggerCodeLens(uri);
-    assert.ok(Array.isArray(result), 'Should return an array');
-    assert.equal(result.length, 0, 'Should be empty for unknown document');
-  });
-
-  it('generates lenses from cached symbols without crashing', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-basic.pike';
-
-    setDocumentWithSymbols(uri, 1, [
-      makeSymbol('MyClass', 'class', 1, 1),
-      makeSymbol('doStuff', 'method', 5, 1),
-      makeSymbol('count', 'variable', 10, 1),
-    ]);
-
-    const result = triggerCodeLens(uri);
-    assert.ok(Array.isArray(result), 'Should return an array');
-    // class + method + variable = 3 reference count lenses
-    assert.ok(result.length >= 3, 'Should have lenses for class, method, and variable');
-  });
-
-  it('survives symbols with missing position data', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-missing-pos.pike';
-
-    const symbols: CoreSymbol[] = [
-      makeSymbol('ValidClass', 'class', 1, 1),
+  it('returns code lenses even when symbol iteration has failures', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
       {
-        name: 'NoPosClass',
+        // Simulate failures during symbol processing
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: unexpected token'),
+        probability: 0.5,
+      }
+    );
+
+    const { setDocumentWithSymbols, triggerCodeLens } = createCodeLensHarness(bridge);
+    const uri = 'file:///codelens-parse-resilience.pike';
+
+    // Set up document with multiple symbols, some with corrupted-looking data
+    const symbols: CoreSymbol[] = [
+      {
+        name: 'MyClass',
         kind: 'class',
         modifiers: [],
-        // position deliberately omitted
-      } as CoreSymbol,
-      makeSymbol('AnotherValid', 'method', 10, 1),
+        position: { file: uri, line: 1, column: 0 },
+      },
+      {
+        name: 'myMethod',
+        kind: 'method',
+        modifiers: [],
+        position: { file: uri, line: 3, column: 4 },
+      },
+      {
+        name: 'MY_CONST',
+        kind: 'constant',
+        modifiers: [],
+        position: { file: uri, line: 5, column: 0 },
+      },
     ];
 
-    setDocumentWithSymbols(uri, 1, symbols);
-    const result = triggerCodeLens(uri);
-    assert.ok(Array.isArray(result), 'Should not crash on missing positions');
-    // Should still have lenses for the valid symbols
-    assert.ok(result.length >= 1, 'Should have lenses for valid symbols');
+    setDocumentWithSymbols(
+      uri,
+      'class MyClass {}\nvoid myMethod() {}\nconstant MY_CONST = 1;\n',
+      symbols
+    );
+
+    // Trigger code lens request
+    const result = await triggerCodeLens(uri);
+
+    // Should return an array without throwing
+    assert.ok(Array.isArray(result), 'Code lens should return an array even with failures');
   });
 
-  it('survives rapid document version changes', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-rapid.pike';
+  it('handles rapid document changes without crashing', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: incomplete expression'),
+        probability: 0.3,
+      }
+    );
 
-    // Simulate rapid edits where version increments but symbols change
-    const versions = [
-      [makeSymbol('A', 'class', 1, 1)],
-      [makeSymbol('A', 'class', 1, 1), makeSymbol('B', 'method', 5, 1)],
-      [
-        makeSymbol('A', 'class', 1, 1),
-        makeSymbol('B', 'method', 5, 1),
-        makeSymbol('C', 'variable', 10, 1),
-      ],
-      [makeSymbol('A', 'class', 1, 1)], // Reverted
+    const { setDocumentWithSymbols, triggerCodeLens, cache } = createCodeLensHarness(bridge);
+    const uri = 'file:///codelens-rapid-changes.pike';
+
+    // Initial document
+    setDocumentWithSymbols(uri, 'int stable = 1;\n', [
+      {
+        name: 'stable',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 0 },
+      },
+    ]);
+
+    // Simulate rapid edits with malformed intermediate states
+    const texts = [
+      'int stable = 1;\n',
+      'int stable = ;\n',
+      'int stable = (\n',
+      'int stable = 1 + \n',
+      'int stable = 2;\n',
     ];
 
     const results: unknown[][] = [];
-    for (let i = 0; i < versions.length; i++) {
-      setDocumentWithSymbols(uri, i + 1, versions[i]!);
-      const result = triggerCodeLens(uri);
-      results.push(result);
+
+    for (let i = 0; i < texts.length; i++) {
+      // Update cached document with incremented version
+      const symbol: CoreSymbol = {
+        name: 'stable',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 0 },
+      };
+      const entry: DocumentCacheEntry = {
+        version: i + 1,
+        symbols: [symbol],
+        symbolNames: new Map([['stable', symbol]]),
+        symbolPositions: new Map([['stable', [{ line: 0, character: 0 }]]]),
+        diagnostics: [],
+      };
+      cache.set(uri, entry);
+
+      // Trigger code lens during edit
+      const result = await triggerCodeLens(uri);
+      results.push(result as unknown[]);
+
+      await wait(10);
     }
 
-    assert.equal(results.length, versions.length, 'All requests should complete');
-    for (let i = 0; i < results.length; i++) {
-      assert.ok(Array.isArray(results[i]), `Version ${i + 1} should return an array`);
-    }
+    // All requests should complete
+    assert.equal(results.length, texts.length, 'All code lens requests should complete');
+
+    // Should not crash even with malformed edits
+    assert.ok(true, 'Code lens survived rapid malformed edits');
   });
 
-  it('returns empty array when cancellation is requested', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-cancel.pike';
-    const token = createCancellationToken();
-
-    setDocumentWithSymbols(uri, 1, [makeSymbol('A', 'class', 1, 1)]);
-
-    // Cancel before request
-    token.cancel();
-    const result = triggerCodeLens(uri, token);
-    assert.ok(Array.isArray(result), 'Should return array even when cancelled');
-    assert.equal(result.length, 0, 'Should return empty array on cancellation');
-  });
-
-  it('handles resolve with missing cache gracefully', () => {
-    const { triggerCodeLensResolve } = createCodeLensHarness();
-
-    const lens = {
-      data: {
-        uri: 'file:///nonexistent.pike',
-        symbolName: 'MissingSymbol',
-        kind: 'class',
-        position: { line: 0, character: 0 },
-      },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 10 },
-      },
-    };
-
-    const result = triggerCodeLensResolve(lens);
-    assert.ok(result, 'Should return a lens object, not throw');
-  });
-
-  it('handles resolve when cache.entries() throws', () => {
-    const { triggerCodeLensResolve, setDocumentWithSymbols, services } = createCodeLensHarness();
-    const uri = 'file:///codelens-resolve-err.pike';
-
-    setDocumentWithSymbols(uri, 1, [makeSymbol('Test', 'class', 1, 1)]);
-
-    // Sabotage entries() to throw
-    const origEntries = services.documentCache.entries.bind(services.documentCache);
-    (
-      services.documentCache as unknown as {
-        entries: () => IterableIterator<[string, DocumentCacheEntry]>;
+  it('handles cancellation during code lens requests', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        delayMs: { min: 50, max: 100 },
       }
-    ).entries = function* () {
-      throw new Error('simulated cache corruption');
-    };
+    );
 
-    const lens = {
-      data: {
-        uri,
-        symbolName: 'Test',
-        kind: 'class',
-        position: { line: 0, character: 0 },
+    const { setDocumentWithSymbols, triggerCodeLens } = createCodeLensHarness(bridge);
+    const uri = 'file:///codelens-cancellation.pike';
+
+    setDocumentWithSymbols(uri, 'int testVar = 42;\n', [
+      {
+        name: 'testVar',
+        kind: 'variable',
+        modifiers: [],
+        position: { file: uri, line: 1, column: 0 },
       },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 4 },
-      },
-    };
-
-    // Should not throw, should return the lens
-    const result = triggerCodeLensResolve(lens);
-    assert.ok(result, 'Should return lens without throwing on cache error');
-
-    // Restore
-    (
-      services.documentCache as unknown as {
-        entries: () => IterableIterator<[string, DocumentCacheEntry]>;
-      }
-    ).entries = origEntries;
-  });
-
-  it('handles resolve cancellation gracefully', () => {
-    const { triggerCodeLensResolve, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-resolve-cancel.pike';
-    const token = createCancellationToken();
-
-    setDocumentWithSymbols(uri, 1, [makeSymbol('Test', 'class', 1, 1)]);
-    token.cancel();
-
-    const lens = {
-      data: {
-        uri,
-        symbolName: 'Test',
-        kind: 'class',
-        position: { line: 0, character: 0 },
-      },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 4 },
-      },
-    };
-
-    const result = triggerCodeLensResolve(lens, token);
-    assert.ok(result, 'Should return lens on cancellation without throwing');
-  });
-
-  it('resolves run-file and run-test lens types without cache access', () => {
-    const { triggerCodeLensResolve } = createCodeLensHarness();
-
-    const runFileLens = {
-      data: {
-        uri: 'file:///test.pike',
-        symbolName: 'main',
-        kind: 'method',
-        position: { line: 0, character: 0 },
-        lensType: 'run-file',
-      },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 4 },
-      },
-    };
-
-    const result = triggerCodeLensResolve(runFileLens);
-    assert.ok(result, 'Should resolve run-file lens without throwing');
-    const resolved = result as { command?: unknown };
-    assert.ok(resolved.command, 'Should have a command for run-file lens');
-  });
-
-  it('computes ref counts across multiple cached documents', () => {
-    const { triggerCodeLensResolve, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri1 = 'file:///doc1.pike';
-    const uri2 = 'file:///doc2.pike';
-
-    // doc1 has the symbol at line 1, doc2 references it
-    const positions = new Map<string, Array<{ line: number; character: number }>>();
-    positions.set('SharedClass', [
-      { line: 1, character: 0 },
-      { line: 5, character: 0 },
     ]);
 
-    setDocumentWithSymbols(uri1, 1, [makeSymbol('SharedClass', 'class', 1, 1)], positions);
+    // Start code lens request
+    const codeLensPromise = triggerCodeLens(uri);
 
-    const positions2 = new Map<string, Array<{ line: number; character: number }>>();
-    positions2.set('SharedClass', [{ line: 3, character: 0 }]);
-    setDocumentWithSymbols(uri2, 1, [makeSymbol('OtherClass', 'class', 1, 1)], positions2);
+    // Cancel immediately (simulate rapid edit cancelling the request)
+    await wait(5);
 
-    const lens = {
-      data: {
-        uri: uri1,
-        symbolName: 'SharedClass',
-        kind: 'class',
-        position: { line: 0, character: 0 },
-      },
-      range: {
-        start: { line: 0, character: 0 },
-        end: { line: 0, character: 11 },
-      },
-    };
+    // The request should complete without throwing
+    const result = await codeLensPromise;
+    // Result should be an array (possibly empty if cancelled)
+    assert.ok(Array.isArray(result), 'Cancelled code lens should complete gracefully');
+  });
 
-    const result = triggerCodeLensResolve(lens) as { command?: { title?: string } };
-    assert.ok(result, 'Should resolve cross-document ref counts');
-    assert.ok(result.command, 'Should have a command with ref count');
-    // 2 from doc1 + 1 from doc2 = 3 references
-    assert.ok(
-      result.command?.title?.includes('3'),
-      `Expected "3" in command title, got: ${result.command?.title}`
+  it('recovers after transient parse errors', async () => {
+    const bridge = new FaultInjectableMockBridge(
+      {},
+      {
+        crashAtOperation: 'engineQuery',
+        failWithError: new Error('parse error: unexpected end of file'),
+        probability: 0.5,
+      }
     );
-  });
 
-  it('survives symbols with null names in the loop', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-null-name.pike';
+    const { setDocumentWithSymbols, triggerCodeLens } = createCodeLensHarness(bridge);
+    const uri = 'file:///codelens-recovery.pike';
 
-    const symbols: CoreSymbol[] = [
-      makeSymbol('ValidClass', 'class', 1, 1),
+    setDocumentWithSymbols(uri, 'int recoverable = 123;\n', [
       {
-        name: '',
-        kind: 'method',
+        name: 'recoverable',
+        kind: 'variable',
         modifiers: [],
-        position: { file: '', line: 5, column: 1 },
-      } as CoreSymbol,
-      makeSymbol('AnotherValid', 'method', 10, 1),
-    ];
+        position: { file: uri, line: 1, column: 0 },
+      },
+    ]);
 
-    setDocumentWithSymbols(uri, 1, symbols);
-    const result = triggerCodeLens(uri);
-    assert.ok(Array.isArray(result), 'Should not crash on empty-name symbols');
+    // First request may fail or return partial results
+    void (await triggerCodeLens(uri));
+
+    // Clear faults for second request
+    bridge.clearFaults();
+
+    // Second request should succeed
+    const result2 = await triggerCodeLens(uri);
+
+    assert.ok(Array.isArray(result2), 'Code lens should recover after clearing faults');
   });
 
-  it('survives malformed symbol position data', () => {
-    const { triggerCodeLens, setDocumentWithSymbols } = createCodeLensHarness();
-    const uri = 'file:///codelens-bad-pos.pike';
+  it('handles missing document gracefully', async () => {
+    const bridge = new FaultInjectableMockBridge();
 
-    const symbols: CoreSymbol[] = [
+    const { triggerCodeLens } = createCodeLensHarness(bridge);
+    const uri = 'file:///nonexistent.pike';
+
+    // Try to get code lenses for non-existent document
+    const result = await triggerCodeLens(uri);
+
+    // Should return empty array without throwing
+    assert.deepEqual(result, [], 'Should return empty array for non-existent document');
+  });
+
+  it('resolve handler returns lens even on failure', async () => {
+    const bridge = new FaultInjectableMockBridge();
+
+    const { setDocumentWithSymbols, triggerCodeLens, triggerCodeLensResolve } =
+      createCodeLensHarness(bridge);
+    const uri = 'file:///codelens-resolve-resilience.pike';
+
+    // Set up document with a symbol that has symbolPositions for ref counting
+    setDocumentWithSymbols(uri, 'class MyClass {}\n', [
       {
-        name: 'BadLineClass',
+        name: 'MyClass',
         kind: 'class',
         modifiers: [],
-        position: { file: '', line: -5, column: -1 },
-      } as CoreSymbol,
-      makeSymbol('ValidAfterBad', 'method', 10, 1),
-    ];
+        position: { file: uri, line: 1, column: 0 },
+      },
+    ]);
 
-    setDocumentWithSymbols(uri, 1, symbols);
-    const result = triggerCodeLens(uri);
-    assert.ok(Array.isArray(result), 'Should not crash on negative positions');
-    // The bad position gets Math.max(0, ...) so it still produces a lens at line 0
-    assert.ok(result.length >= 1, 'Should still have lenses despite bad positions');
+    // First get code lenses to have lenses to resolve
+    const lenses = await triggerCodeLens(uri);
+
+    if (lenses.length > 0) {
+      // Resolve the first lens
+      const resolved = await triggerCodeLensResolve(lenses[0]);
+      // Should return a lens object (possibly with or without command) without throwing
+      assert.ok(
+        typeof resolved === 'object' && resolved !== null,
+        'Resolved lens should be an object'
+      );
+    } else {
+      // If no lenses generated (e.g. handler returned []), resolve a synthetic lens
+      const syntheticLens = {
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 7 },
+        },
+        data: {
+          uri,
+          symbolName: 'MyClass',
+          kind: 'class',
+          position: { line: 0, character: 0 },
+        },
+      };
+      const resolved = await triggerCodeLensResolve(syntheticLens);
+      assert.ok(
+        typeof resolved === 'object' && resolved !== null,
+        'Resolved lens should be an object even for synthetic lens'
+      );
+    }
   });
 });

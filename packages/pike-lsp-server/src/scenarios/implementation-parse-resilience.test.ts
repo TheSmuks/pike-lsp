@@ -1,6 +1,6 @@
 /**
  * Implementation Parse-Under-Edit Resilience Tests
- * KB-1248: Tests for implementation handler resilience during rapid malformed edits
+ * KB-1262: Tests for implementation handler resilience during rapid malformed edits
  */
 
 import { describe, it } from 'bun:test';
@@ -10,6 +10,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerImplementationHandler } from '../features/navigation/implementation.js';
 import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry, CoreSymbol } from '../core/types.js';
+import type { InheritRelation } from '../services/pike-introspection.js';
 import { createMockDocuments } from '../tests/helpers/test-helpers.js';
 import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
@@ -18,7 +19,7 @@ const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms
 function createImplementationHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
-  const results: Array<{ uri: string; result: unknown }> = [];
+  const impls: Array<{ uri: string; result: unknown }> = [];
   const consoleErrors: string[] = [];
 
   const connection = {
@@ -45,6 +46,19 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
       error(message: unknown) {
         consoleErrors.push(String(message));
       },
+    },
+  };
+
+  // Mutable mock so tests can override getInherits per-URI
+  const pikeIntrospectionMock: {
+    getInherits: (uri: string) => Promise<InheritRelation[]>;
+    searchImportableSymbols: () => Promise<never[]>;
+  } = {
+    async getInherits(_uri: string): Promise<InheritRelation[]> {
+      return [];
+    },
+    async searchImportableSymbols() {
+      return [];
     },
   };
 
@@ -87,49 +101,7 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5 },
     documentSnapshots: new Map<string, string>(),
     logger: { debug() {}, info() {}, warn() {}, error() {} },
-    pikeIntrospection: {
-      async getInherits(uri: string) {
-        const entry = cache.get(uri);
-        if (!entry) return [];
-
-        // Build inheritance relations from cached symbols
-        const relations: Array<{
-          uri: string;
-          ownerClass: string;
-          ownerLine: number;
-          inheritedName: string;
-          inheritedPath?: string;
-        }> = [];
-
-        const classSymbols = entry.symbols.filter(s => s.kind === 'class');
-        const inheritSymbols = entry.symbols.filter(
-          s => s.kind === 'inherit' || s.name === 'inherit'
-        );
-
-        for (const inherit of inheritSymbols) {
-          // Find owning class by position
-          const ownerClass = classSymbols.find(cls => {
-            const clsLine = (cls.position?.line ?? 1) - 1;
-            const inhLine = (inherit.position?.line ?? 1) - 1;
-            return clsLine <= inhLine;
-          });
-
-          if (ownerClass) {
-            relations.push({
-              uri,
-              ownerClass: ownerClass.name,
-              ownerLine: (ownerClass.position?.line ?? 1) - 1,
-              inheritedName: inherit.classname ?? inherit.name,
-            });
-          }
-        }
-
-        return relations;
-      },
-      async searchImportableSymbols() {
-        return [];
-      },
-    },
+    pikeIntrospection: pikeIntrospectionMock,
   };
 
   registerImplementationHandler(
@@ -141,41 +113,29 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
   // Helper to trigger implementation requests
   const triggerImplementation = async (uri: string, line: number, character: number) => {
     const handler = connection.implHandler;
-    if (!handler) return [];
+    if (!handler) return null;
     const result = await handler({
       textDocument: { uri },
       position: { line, character },
     });
-    results.push({ uri, result });
+    impls.push({ uri, result });
     return result;
   };
 
-  // Helper to set cached document with class symbol
-  const setDocumentWithClass = (
-    uri: string,
-    text: string,
-    className: string,
-    inherits: Array<{ name: string; classname?: string; line?: number }> = []
-  ) => {
-    const classSymbol: CoreSymbol = {
+  // Helper to set cached document with a class symbol.
+  // Places the class name at column 6 in the text (after "class ") so
+  // findSymbolAtPosition can extract it at (line 0, character 6).
+  const setDocumentWithClass = (uri: string, text: string, className: string) => {
+    const symbol: CoreSymbol = {
       name: className,
       kind: 'class',
       modifiers: [],
       position: { file: uri, line: 1, column: 0 },
     };
-
-    const inheritSymbols: CoreSymbol[] = inherits.map(inh => ({
-      name: inh.name,
-      kind: 'inherit' as const,
-      classname: inh.classname ?? inh.name,
-      modifiers: [],
-      position: { file: uri, line: (inh.line ?? 2) as number, column: 0 },
-    }));
-
     const entry: DocumentCacheEntry = {
       version: 1,
-      symbols: [classSymbol, ...inheritSymbols],
-      symbolNames: new Map([[className, classSymbol]]),
+      symbols: [symbol],
+      symbolNames: new Map([[className, symbol]]),
       symbolPositions: new Map(),
       diagnostics: [],
     };
@@ -186,41 +146,40 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
   return {
     docs,
     cache,
-    results,
+    impls,
     consoleErrors,
     triggerImplementation,
     setDocumentWithClass,
+    services,
+    pikeIntrospectionMock,
   };
 }
 
 describe('Implementation: parse-under-edit resilience', () => {
-  it('returns implementation locations even when introspection partially fails', async () => {
+  it('returns empty array when introspection fails during malformed edits', async () => {
     const bridge = new FaultInjectableMockBridge(
       {},
       {
         crashAtOperation: 'engineQuery',
-        failWithError: new Error('parse error: unexpected token during introspection'),
+        failWithError: new Error('parse error: unexpected token'),
         probability: 0.5,
       }
     );
 
     const { setDocumentWithClass, triggerImplementation } = createImplementationHarness(bridge);
-    const baseUri = 'file:///impl-parse-resilience-base.pike';
-    const implUri = 'file:///impl-parse-resilience-impl.pike';
+    const uri = 'file:///impl-parse-resilience.pike';
 
-    // Set up base class
-    setDocumentWithClass(baseUri, 'class BaseClass { }\n', 'BaseClass');
+    // Set up document with a class symbol. "BaseClass" starts at column 6.
+    setDocumentWithClass(uri, 'class BaseClass { }\n', 'BaseClass');
 
-    // Set up implementation
-    setDocumentWithClass(implUri, 'class ImplClass { inherit BaseClass; }\n', 'ImplClass', [
-      { name: 'BaseClass', classname: 'BaseClass', line: 1 },
-    ]);
+    // Trigger implementation lookup on the class name
+    const result = await triggerImplementation(uri, 0, 6);
 
-    // Trigger implementation on base class
-    const result = await triggerImplementation(baseUri, 0, 6);
-
-    // Should return array (possibly partial) without throwing
-    assert.ok(Array.isArray(result), 'Implementation should return an array even with failures');
+    // Should return an empty array (or Location[]) without throwing
+    assert.ok(
+      Array.isArray(result),
+      'Implementation should return array even when introspection fails'
+    );
   });
 
   it('handles rapid document changes without crashing', async () => {
@@ -228,62 +187,59 @@ describe('Implementation: parse-under-edit resilience', () => {
       {},
       {
         crashAtOperation: 'engineQuery',
-        failWithError: new Error('parse error: incomplete class definition'),
+        failWithError: new Error('parse error: incomplete expression'),
         probability: 0.3,
       }
     );
 
     const { setDocumentWithClass, triggerImplementation, cache } =
       createImplementationHarness(bridge);
-    const baseUri = 'file:///impl-rapid-changes-base.pike';
-    const implUri = 'file:///impl-rapid-changes-impl.pike';
+    const uri = 'file:///impl-rapid-changes.pike';
 
-    // Initial setup
-    setDocumentWithClass(baseUri, 'class Base { }\n', 'Base');
-    setDocumentWithClass(implUri, 'class ImplA { inherit Base; }\n', 'ImplA', [
-      { name: 'Base', line: 1 },
-    ]);
+    // Initial document
+    setDocumentWithClass(uri, 'class Stable { }\n', 'Stable');
 
-    // Simulate rapid edits with malformed intermediate states
+    // Simulate rapid edits with malformed intermediate states.
+    // Each text keeps "Stable" at column 6 so findSymbolAtPosition resolves.
     const texts = [
-      'class Base { }\n', // Valid
-      'class Base { \n', // Malformed: unclosed brace
-      'class Base\n', // Malformed: missing body
-      'class Base { inherit\n', // Malformed: incomplete inherit
-      'class Base { }\n', // Fixed
+      'class Stable { }\n',
+      'class Stable {\n', // Malformed: unclosed brace
+      'class Stable extends\n', // Malformed: incomplete inherits
+      'class Stable { ;\n', // Malformed: stray semicolon
+      'class Stable { }\n', // Fixed
     ];
 
     const results: (unknown | null)[] = [];
 
     for (let i = 0; i < texts.length; i++) {
-      // Update cached document
       const symbol: CoreSymbol = {
-        name: 'Base',
+        name: 'Stable',
         kind: 'class',
         modifiers: [],
-        position: { file: baseUri, line: 1, column: 0 },
+        position: { file: uri, line: 1, column: 0 },
       };
       const entry: DocumentCacheEntry = {
         version: i + 1,
         symbols: [symbol],
-        symbolNames: new Map([['Base', symbol]]),
+        symbolNames: new Map([['Stable', symbol]]),
         symbolPositions: new Map(),
         diagnostics: [],
       };
-      cache.set(baseUri, entry);
+      cache.set(uri, entry);
 
-      // Trigger implementation during edit
-      const result = await triggerImplementation(baseUri, 0, 6);
+      const result = await triggerImplementation(uri, 0, 6);
       results.push(result);
 
       await wait(10);
     }
 
-    // All requests should complete
+    // All requests should complete (either with result or null, never throw)
     assert.equal(results.length, texts.length, 'All implementation requests should complete');
 
-    // Should not crash even with malformed edits
-    assert.ok(true, 'Implementation survived rapid malformed edits');
+    // Every result must be null or an array
+    for (const r of results) {
+      assert.ok(r === null || Array.isArray(r), 'Each result should be null or array');
+    }
   });
 
   it('handles cancellation during implementation requests', async () => {
@@ -297,19 +253,19 @@ describe('Implementation: parse-under-edit resilience', () => {
     const { setDocumentWithClass, triggerImplementation } = createImplementationHarness(bridge);
     const uri = 'file:///impl-cancellation.pike';
 
-    setDocumentWithClass(uri, 'class CancelClass { }\n', 'CancelClass');
+    setDocumentWithClass(uri, 'class TestCancel { }\n', 'TestCancel');
 
     // Start implementation request
     const implPromise = triggerImplementation(uri, 0, 6);
 
-    // Simulate rapid cursor movement
+    // Cancel immediately (simulate rapid cursor movement)
     await wait(5);
 
     // The request should complete without throwing
     const result = await implPromise;
     assert.ok(
       result === null || Array.isArray(result),
-      'Cancelled implementation should complete gracefully'
+      'Cancelled implementation request should complete gracefully'
     );
   });
 
@@ -318,28 +274,24 @@ describe('Implementation: parse-under-edit resilience', () => {
       {},
       {
         crashAtOperation: 'engineQuery',
-        failWithError: new Error('introspection failed: parse error'),
+        failWithError: new Error('parse error: unexpected end of file'),
         probability: 0.5,
       }
     );
 
     const { setDocumentWithClass, triggerImplementation } = createImplementationHarness(bridge);
-    const baseUri = 'file:///impl-recovery-base.pike';
-    const implUri = 'file:///impl-recovery-impl.pike';
+    const uri = 'file:///impl-recovery.pike';
 
-    setDocumentWithClass(baseUri, 'class Recoverable { }\n', 'Recoverable');
-    setDocumentWithClass(implUri, 'class Recovered { inherit Recoverable; }\n', 'Recovered', [
-      { name: 'Recoverable', line: 1 },
-    ]);
+    setDocumentWithClass(uri, 'class Recoverable { }\n', 'Recoverable');
 
     // First request may fail
-    void (await triggerImplementation(baseUri, 0, 6));
+    void (await triggerImplementation(uri, 0, 6));
 
     // Clear faults for second request
     bridge.clearFaults();
 
     // Second request should succeed
-    const result2 = await triggerImplementation(baseUri, 0, 6);
+    const result2 = await triggerImplementation(uri, 0, 6);
 
     assert.ok(Array.isArray(result2), 'Implementation should recover after clearing faults');
   });
@@ -348,116 +300,88 @@ describe('Implementation: parse-under-edit resilience', () => {
     const bridge = new FaultInjectableMockBridge();
 
     const { triggerImplementation } = createImplementationHarness(bridge);
+    const uri = 'file:///nonexistent.pike';
 
-    // Try implementation for non-existent document
-    const result = await triggerImplementation('file:///nonexistent.pike', 0, 0);
+    // Request implementations for non-existent document
+    const result = await triggerImplementation(uri, 0, 0);
 
     // Should return empty array without throwing
     assert.deepEqual(result, [], 'Should return empty array for non-existent document');
   });
 
-  it('returns empty array for non-class symbols', async () => {
+  it('per-URI failure isolation: one URI failure does not block another', async () => {
     const bridge = new FaultInjectableMockBridge();
 
-    const { triggerImplementation, cache, docs } = createImplementationHarness(bridge);
-    const uri = 'file:///impl-nonclass.pike';
+    const harness = createImplementationHarness(bridge);
+    const { setDocumentWithClass, triggerImplementation, cache, pikeIntrospectionMock } = harness;
 
-    const symbol: CoreSymbol = {
-      name: 'myVar',
-      kind: 'variable',
-      modifiers: [],
-      position: { file: uri, line: 1, column: 0 },
-    };
-    const entry: DocumentCacheEntry = {
-      version: 1,
-      symbols: [symbol],
-      symbolNames: new Map([['myVar', symbol]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    };
-    cache.set(uri, entry);
-    docs.emitOpen(TextDocument.create(uri, 'pike', 1, 'int myVar = 42;\n'));
+    const uriBase = 'file:///impl-isolation-base.pike';
+    const uriFailing = 'file:///impl-isolation-failing.pike';
+    const uriChild = 'file:///impl-isolation-child.pike';
 
-    const result = await triggerImplementation(uri, 0, 4);
+    // Set up the base class document (this is what we query)
+    setDocumentWithClass(uriBase, 'class BaseClass { }\n', 'BaseClass');
 
-    assert.ok(Array.isArray(result), 'Should return array');
-    assert.equal(result.length, 0, 'Should return empty for non-class symbols');
-  });
-
-  it('isolates per-URI introspection failures', async () => {
-    const bridge = new FaultInjectableMockBridge();
-
-    const { triggerImplementation, cache, docs } = createImplementationHarness(bridge);
-    const baseUri = 'file:///impl-isolate-base.pike';
-    const goodUri = 'file:///impl-isolate-good.pike';
-    const brokenUri = 'file:///impl-isolate-broken.pike';
-
-    // Base class
-    const baseSymbol: CoreSymbol = {
-      name: 'Base',
+    // Set up a failing URI in cache — getInherits will throw for this one
+    const failSymbol: CoreSymbol = {
+      name: 'FailingClass',
       kind: 'class',
       modifiers: [],
-      position: { file: baseUri, line: 1, column: 0 },
+      position: { file: uriFailing, line: 1, column: 0 },
     };
-    cache.set(baseUri, {
+    const failEntry: DocumentCacheEntry = {
       version: 1,
-      symbols: [baseSymbol],
-      symbolNames: new Map([['Base', baseSymbol]]),
+      symbols: [failSymbol],
+      symbolNames: new Map([['FailingClass', failSymbol]]),
       symbolPositions: new Map(),
       diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(baseUri, 'pike', 1, 'class Base { }\n'));
+    };
+    cache.set(uriFailing, failEntry);
 
-    // Good implementation URI
-    const goodClass: CoreSymbol = {
-      name: 'GoodImpl',
+    // Set up a child URI in cache — getInherits returns a matching inheritance relation
+    const childSymbol: CoreSymbol = {
+      name: 'ChildClass',
       kind: 'class',
       modifiers: [],
-      position: { file: goodUri, line: 1, column: 0 },
+      position: { file: uriChild, line: 1, column: 0 },
     };
-    const goodInherit: CoreSymbol = {
-      name: 'Base',
-      kind: 'inherit' as const,
-      classname: 'Base',
-      modifiers: [],
-      position: { file: goodUri, line: 2, column: 0 },
-    };
-    cache.set(goodUri, {
+    const childEntry: DocumentCacheEntry = {
       version: 1,
-      symbols: [goodClass, goodInherit],
-      symbolNames: new Map([['GoodImpl', goodClass]]),
+      symbols: [childSymbol],
+      symbolNames: new Map([['ChildClass', childSymbol]]),
       symbolPositions: new Map(),
       diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(goodUri, 'pike', 1, 'class GoodImpl { inherit Base; }\n'));
-
-    // Broken URI - will cause introspection to return empty data
-    // (simulated by having no symbols that can be parsed)
-    const brokenClass: CoreSymbol = {
-      name: 'BrokenImpl',
-      kind: 'class' as const,
-      modifiers: [],
-      position: { file: brokenUri, line: 1, column: 0 },
-      // Missing proper inheritance data
     };
-    cache.set(brokenUri, {
-      version: 1,
-      symbols: [brokenClass],
-      symbolNames: new Map([['BrokenImpl', brokenClass]]),
-      symbolPositions: new Map(),
-      diagnostics: [],
-    });
-    docs.emitOpen(TextDocument.create(brokenUri, 'pike', 1, 'class BrokenImpl { }\n'));
+    cache.set(uriChild, childEntry);
 
-    const result = await triggerImplementation(baseUri, 0, 6);
+    // Override getInherits with per-URI behavior.
+    // The handler captured pikeIntrospectionMock at registration time; mutating
+    // the same object changes the behavior for already-registered closures.
+    pikeIntrospectionMock.getInherits = async (uri: string) => {
+      if (uri === uriFailing) {
+        throw new Error('parse error: file is malformed');
+      }
+      if (uri === uriChild) {
+        return [
+          {
+            inheritedName: 'BaseClass',
+            uri: uriChild,
+            ownerLine: 0,
+            ownerClass: 'ChildClass',
+          },
+        ];
+      }
+      return [];
+    };
 
-    // Should find GoodImpl and not crash on brokenUri
-    assert.ok(Array.isArray(result), 'Implementation should return array even with broken URIs');
-    // Should still find the good implementation
-    const goodResult = result as Array<{ uri: string }>;
+    // Trigger implementation lookup for BaseClass
+    const result = await triggerImplementation(uriBase, 0, 6);
+
+    // Should still find implementations from non-failing URIs
+    assert.ok(Array.isArray(result), 'Should return array despite per-URI failures');
     assert.ok(
-      goodResult.some(r => r.uri === goodUri),
-      'Should find the good implementation despite broken URI'
+      (result as unknown[]).length > 0,
+      'Should find implementations from non-failing URIs'
     );
   });
 });
