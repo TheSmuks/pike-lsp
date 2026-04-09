@@ -21,7 +21,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { DocumentCache } from '../services/document-cache.js';
-import { registerSymbolsHandlers } from '../features/symbols.js';
+import { registerDocumentSymbolHandler } from '../features/navigation/document-symbol.js';
 import {
   createMockConnection,
   createMockServices,
@@ -69,7 +69,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -100,7 +100,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -133,7 +133,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -155,7 +155,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -190,7 +190,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const startTime = Date.now();
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
@@ -225,7 +225,7 @@ describe('Scenario: document symbols race on file open', () => {
     const conn = createMockConnection();
     const documents = { get: () => undefined };
 
-    registerSymbolsHandlers(conn as any, services as any, documents as any);
+    registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 

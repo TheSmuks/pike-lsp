@@ -30,6 +30,7 @@ describe('Runtime Protocol Compliance', () => {
       onImplementation: () => {
         implementationRegistrations++;
       },
+      onDocumentSymbol: () => {},
     };
 
     registerNavigationHandlers(connection as any, services as any, documents as any);

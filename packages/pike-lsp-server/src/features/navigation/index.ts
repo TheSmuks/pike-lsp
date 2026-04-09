@@ -9,6 +9,7 @@
  * - Implementation: find implementations/usages
  * - References: find all symbol references
  * - DocumentHighlight: highlight occurrences
+ * - DocumentSymbol: outline view, breadcrumb navigation
  *
  * Each handler includes try/catch with logging fallback (SRV-12).
  */
@@ -21,11 +22,14 @@ import { registerHoverHandler } from './hover.js';
 import { registerDefinitionHandlers } from './definition.js';
 import { registerReferencesHandlers } from './references.js';
 import { registerImplementationHandler } from './implementation.js';
+import { registerDocumentSymbolHandler } from './document-symbol.js';
 
 export { registerHoverHandler } from './hover.js';
 export { registerDefinitionHandlers } from './definition.js';
 export { registerReferencesHandlers } from './references.js';
 export { registerImplementationHandler } from './implementation.js';
+export { registerDocumentSymbolHandler } from './document-symbol.js';
+export { convertPikeSymbol } from './document-symbol.js';
 export { extractExpressionAtPosition } from './expression-utils.js';
 
 /**
@@ -44,4 +48,5 @@ export function registerNavigationHandlers(
   registerDefinitionHandlers(connection, services, documents);
   registerReferencesHandlers(connection, services, documents);
   registerImplementationHandler(connection, services, documents);
+  registerDocumentSymbolHandler(connection, services, documents);
 }
