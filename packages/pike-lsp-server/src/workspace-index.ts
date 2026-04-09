@@ -115,10 +115,15 @@ export class WorkspaceIndex {
   // PERF-XXX: Prefix index for O(1) prefix matching
   // Maps each prefix (2+ chars) to set of symbol names that have that prefix
   private prefixIndex = new Map<string, Set<string>>();
-  // PERF-#1273: Cap prefix depth to bound memory. Only indexes prefixes up to
-  // this length. Queries longer than the cap fall back to linear scan — fast
-  // because highly selective. Reduces entries from ~len per symbol to ~min(len, cap).
+  // PERF-1273: Depth cap + size cap to bound prefixIndex memory.
+  // Truncated prefix index: only store prefixes up to MAX_DEPTH chars.
+  // Memory per symbol drops from ~len-1 entries to ~MAX_DEPTH-1 entries.
+  // For queries longer than MAX_DEPTH, the truncated prefix is looked up and
+  // candidates are filtered with startsWith — correctness is preserved.
+  // 100K entries covers ~14K unique symbols with MAX_DEPTH=8 before eviction.
   private static readonly PREFIX_INDEX_MAX_DEPTH = 8;
+  private static readonly PREFIX_INDEX_MAX_SIZE = 100_000;
+  private static readonly PREFIX_INDEX_EVICT_BATCH = 10_000;
 
   // PERF-430: LRU cache for search results
   // Caches frequently accessed search results to avoid recomputation
@@ -422,11 +427,20 @@ export class WorkspaceIndex {
     const matchingNames = new Set<string>();
 
     if (queryLower.length >= 2) {
-      // Use prefix index for prefix matching (O(1) lookup)
-      const prefixSet = this.prefixIndex.get(queryLower);
+      // Use truncated prefix index for O(1) lookup.
+      // For queries within MAX_DEPTH, look up directly.
+      // For longer queries, look up the truncated prefix then filter.
+      const lookupKey =
+        queryLower.length <= WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH
+          ? queryLower
+          : queryLower.slice(0, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+      const prefixSet = this.prefixIndex.get(lookupKey);
       if (prefixSet) {
         for (const name of prefixSet) {
-          matchingNames.add(name);
+          // Filter: only names that actually start with the full query
+          if (name.startsWith(queryLower)) {
+            matchingNames.add(name);
+          }
         }
       }
     }
@@ -901,6 +915,18 @@ export class WorkspaceIndex {
               this.prefixIndex.set(prefix, prefixSet);
             }
             prefixSet.add(nameLower);
+          }
+
+          // Batch-evict oldest prefix entries when index exceeds the size cap.
+          // Map preserves insertion order, so the first keys are the oldest.
+          // Evict EVICT_BATCH at once to amortize iterator cost during bulk indexing.
+          if (this.prefixIndex.size > WorkspaceIndex.PREFIX_INDEX_MAX_SIZE) {
+            let evicted = 0;
+            for (const key of this.prefixIndex.keys()) {
+              if (evicted >= WorkspaceIndex.PREFIX_INDEX_EVICT_BATCH) break;
+              this.prefixIndex.delete(key);
+              evicted++;
+            }
           }
         }
       }

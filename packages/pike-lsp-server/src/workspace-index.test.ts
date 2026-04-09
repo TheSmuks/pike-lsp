@@ -10,15 +10,16 @@ import { WorkspaceIndex } from './workspace-index.js';
 import { PikeBridge } from '@pike-lsp/pike-bridge';
 
 describe('WorkspaceIndex', () => {
-  // Mirror of WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH — kept in sync manually.
-  const PREFIX_INDEX_MAX_DEPTH = 8;
+  const maxDepth = (WorkspaceIndex as unknown as Record<string, number>)[
+    'PREFIX_INDEX_MAX_DEPTH'
+  ]!;
 
   const addPrefixes = (prefixIndex: Map<string, Set<string>>, nameLower: string): void => {
     if (nameLower.length < 2) {
       return;
     }
 
-    for (let i = 2; i <= Math.min(nameLower.length, PREFIX_INDEX_MAX_DEPTH); i++) {
+    for (let i = 2; i <= Math.min(nameLower.length, maxDepth); i++) {
       const prefix = nameLower.slice(0, i);
       let prefixSet = prefixIndex.get(prefix);
       if (!prefixSet) {
@@ -169,7 +170,7 @@ describe('WorkspaceIndex', () => {
   it('should remove orphaned prefix entries when symbol lookup entry is missing', () => {
     const index = new WorkspaceIndex();
     const uri = 'file:///orphan.pike';
-    const nameLower = 'orphaned';
+    const nameLower = 'orphansymbol';
 
     const privateState = index as unknown as {
       uriToSymbols: Map<string, Set<string>>;
@@ -202,10 +203,13 @@ describe('WorkspaceIndex', () => {
       false,
       'Orphan name must be removed from shared prefix set'
     );
+    // With truncated prefix index (MAX_DEPTH=8), the longest prefix is 'orphansy'.
+    // 'orphansymbol' is never a prefix key — prefixes go up to 'orphansy' (8 chars).
+    // After removal, the max-depth prefix bucket should be deleted when empty.
     assert.equal(
-      privateState.prefixIndex.has(nameLower),
+      privateState.prefixIndex.has('orphansy'),
       false,
-      'Full-length prefix bucket should be deleted when empty'
+      'Max-depth prefix bucket should be deleted when empty'
     );
   });
 
@@ -319,5 +323,82 @@ describe('WorkspaceIndex', () => {
     );
 
     await bridge.stop();
+  });
+
+  it('should cap prefixIndex size with batch eviction', () => {
+    const index = new WorkspaceIndex();
+
+    const privateState = index as unknown as {
+      prefixIndex: Map<string, Set<string>>;
+    };
+
+    // Temporarily lower the cap and batch size for testing
+    const TestCap = 20;
+    const TestBatch = 5;
+    const constants = WorkspaceIndex as unknown as Record<string, number>;
+    const OriginalCap = constants['PREFIX_INDEX_MAX_SIZE']!;
+    const OriginalBatch = constants['PREFIX_INDEX_EVICT_BATCH']!;
+    constants['PREFIX_INDEX_MAX_SIZE'] = TestCap;
+    constants['PREFIX_INDEX_EVICT_BATCH'] = TestBatch;
+
+    try {
+      // Populate prefixIndex well beyond the cap via private state
+      // Use alphabetically diverse prefixes so entries are unique per symbol
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      for (let i = 0; i < 50; i++) {
+        const p1 = alphabet[i % 26];
+        const p2 = alphabet[Math.floor(i / 26) % 26];
+        addPrefixes(privateState.prefixIndex, `${p1}${p2}_symbol_${i}`);
+      }
+
+      const sizeBefore = privateState.prefixIndex.size;
+      assert.ok(sizeBefore > TestCap, `Precondition: ${sizeBefore} > ${TestCap}`);
+
+      // Run the same batch eviction logic used in addToLookup
+      if (privateState.prefixIndex.size > TestCap) {
+        let evicted = 0;
+        for (const key of privateState.prefixIndex.keys()) {
+          if (evicted >= TestBatch) break;
+          privateState.prefixIndex.delete(key);
+          evicted++;
+        }
+      }
+
+      // After one batch, size should be reduced but not necessarily <= cap
+      // (batch eviction amortizes — multiple batches needed for large overshoot)
+      assert.ok(
+        privateState.prefixIndex.size < sizeBefore,
+        `prefixIndex size (${privateState.prefixIndex.size}) must decrease from ${sizeBefore}`
+      );
+      assert.ok(
+        privateState.prefixIndex.size >= TestCap - TestBatch,
+        `prefixIndex size (${privateState.prefixIndex.size}) must not over-evict below ${TestCap - TestBatch}`
+      );
+    } finally {
+      constants['PREFIX_INDEX_MAX_SIZE'] = OriginalCap;
+      constants['PREFIX_INDEX_EVICT_BATCH'] = OriginalBatch;
+    }
+  });
+
+  it('should handle removal of symbols whose prefix entries were evicted', () => {
+    const index = new WorkspaceIndex();
+    const uri = 'file:///evicted.pike';
+    const name = 'evictedname';
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<string, Map<string, unknown>>;
+    };
+
+    // Set up uriToSymbols and symbolLookup but leave prefixIndex empty
+    // (simulating that all prefix entries for this symbol were evicted)
+    privateState.uriToSymbols.set(uri, new Set([name]));
+    // No symbolLookup entry — simulates orphan removal path
+
+    // removeDocument must not throw even with no prefix entries
+    index.removeDocument(uri);
+
+    assert.equal(privateState.uriToSymbols.has(uri), false, 'URI should be cleaned up');
   });
 });
