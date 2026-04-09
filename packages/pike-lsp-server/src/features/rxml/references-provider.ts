@@ -7,11 +7,15 @@
  * - Find all modules using a specific tag
  *
  * Phase 6 of ROXEN_SUPPORT_ROADMAP.md
+ *
+ * Uses RequestScheduler for resilient request handling — concurrent reference
+ * requests for the same workspace are superseded so stale work is cancelled.
  */
 
 import { Location, ReferenceContext, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
+import { Logger } from '@pike-lsp/core';
 import { parseRXMLTemplate, type RXMLTag } from './parser.js';
 import { GlobCache } from './glob-cache.js';
 import {
@@ -19,10 +23,16 @@ import {
   invalidateFileContentCache,
   clearFileContentCache,
 } from './file-content-cache.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+
+const log = new Logger('RXMLReferences');
 
 // Shared glob cache - 30 second TTL
 const templateGlobCache = new GlobCache<string[]>(30);
 const pikeGlobCache = new GlobCache<string[]>(30);
+
+// Request scheduler for resilient reference lookups
+const referencesScheduler = new RequestScheduler({ logger: log });
 const TAG_REFERENCE_INDEX_TTL_MS = 30_000;
 const tagReferenceIndexCache = new Map<
   string,
@@ -125,6 +135,9 @@ async function getTagDeclarationIndex(
 /**
  * Find all references to a tag in workspace
  *
+ * Uses RequestScheduler so that rapid successive lookups for the same
+ * workspace supersede earlier in-flight requests.
+ *
  * @param tagName - Tag name to find (e.g., "my_tag")
  * @param workspaceFolders - Workspace folders to search
  * @param includeDeclaration - Include the definition itself
@@ -141,18 +154,34 @@ export async function findTagReferences(
     return locations;
   }
 
-  const referenceIndex = await getTagReferenceIndex(workspaceFolders);
-  const indexedLocations = referenceIndex.get(tagName.toLowerCase()) ?? [];
-  locations.push(...indexedLocations);
+  const wsKey = makeWorkspaceKey(workspaceFolders);
+  try {
+    return await referencesScheduler.schedule<Location[]>({
+      requestClass: 'interactive',
+      key: `findTagRefs:${wsKey}`,
+      run: async checkpoint => {
+        checkpoint();
+        const referenceIndex = await getTagReferenceIndex(workspaceFolders);
+        const indexedLocations = referenceIndex.get(tagName.toLowerCase()) ?? [];
+        locations.push(...indexedLocations);
 
-  // Also search in .pike files for tag function references
-  if (includeDeclaration) {
-    const declarationIndex = await getTagDeclarationIndex(workspaceFolders);
-    const declarationLocations = declarationIndex.get(tagName.toLowerCase()) ?? [];
-    locations.push(...declarationLocations);
+        // Also search in .pike files for tag function references
+        if (includeDeclaration) {
+          const declarationIndex = await getTagDeclarationIndex(workspaceFolders);
+          const declarationLocations = declarationIndex.get(tagName.toLowerCase()) ?? [];
+          locations.push(...declarationLocations);
+        }
+
+        return locations;
+      },
+    });
+  } catch (err) {
+    if (err instanceof RequestSupersededError) {
+      log.debug('findTagReferences superseded', { tagName, wsKey });
+      return [];
+    }
+    throw err;
   }
-
-  return locations;
 }
 
 export function invalidateRXMLReferenceCaches(uri?: string): void {
@@ -186,37 +215,53 @@ export async function findDefvarReferences(
     return locations;
   }
 
-  // Search in .pike files
-  const pikeFiles = await findPikeFiles(workspaceFolders);
+  const wsKey = makeWorkspaceKey(workspaceFolders);
+  try {
+    return await referencesScheduler.schedule<Location[]>({
+      requestClass: 'interactive',
+      key: `findDefvarRefs:${wsKey}`,
+      run: async checkpoint => {
+        checkpoint();
+        // Search in .pike files
+        const pikeFiles = await findPikeFiles(workspaceFolders);
 
-  for (const file of pikeFiles) {
-    const content = await readFileCached(file);
+        for (const file of pikeFiles) {
+          const content = await readFileCached(file);
 
-    // Look for &var.name; style references in templates
-    // Or direct variable usage in Pike code
-    const patterns = [
-      new RegExp(`&${escapeRegExp(defvarName)}\\.`, 'g'), // RXML entity reference
-      new RegExp(`\\b${escapeRegExp(defvarName)}\\s*->`, 'g'), // Pike variable access
-      new RegExp(`\\b${escapeRegExp(defvarName)}\\[`, 'g'), // Array access
-    ];
+          // Look for &var.name; style references in templates
+          // Or direct variable usage in Pike code
+          const patterns = [
+            new RegExp(`&${escapeRegExp(defvarName)}\\.`, 'g'), // RXML entity reference
+            new RegExp(`\\b${escapeRegExp(defvarName)}\\s*->`, 'g'), // Pike variable access
+            new RegExp(`\\b${escapeRegExp(defvarName)}\\[`, 'g'), // Array access
+          ];
 
-    for (const pattern of patterns) {
-      let match = pattern.exec(content);
-      while (match !== null) {
-        const position = findPositionForMatch(content, match);
-        locations.push({
-          uri: fileToUri(file),
-          range: {
-            start: position,
-            end: { line: position.line, character: position.character + defvarName.length },
-          },
-        });
-        match = pattern.exec(content);
-      }
+          for (const pattern of patterns) {
+            let match = pattern.exec(content);
+            while (match !== null) {
+              const position = findPositionForMatch(content, match);
+              locations.push({
+                uri: fileToUri(file),
+                range: {
+                  start: position,
+                  end: { line: position.line, character: position.character + defvarName.length },
+                },
+              });
+              match = pattern.exec(content);
+            }
+          }
+        }
+
+        return locations;
+      },
+    });
+  } catch (err) {
+    if (err instanceof RequestSupersededError) {
+      log.debug('findDefvarReferences superseded', { defvarName, wsKey });
+      return [];
     }
+    throw err;
   }
-
-  return locations;
 }
 
 /**
@@ -236,20 +281,34 @@ export async function findModulesUsingTag(
     return [];
   }
 
-  const templateFiles = await findTemplateFiles(workspaceFolders);
+  const wsKey = makeWorkspaceKey(workspaceFolders);
+  try {
+    return await referencesScheduler.schedule<string[]>({
+      requestClass: 'background',
+      key: `findModules:${wsKey}`,
+      run: async checkpoint => {
+        checkpoint();
+        const templateFiles = await findTemplateFiles(workspaceFolders);
 
-  for (const file of templateFiles) {
-    const content = await readFileCached(file);
-    const tags = parseRXMLTemplate(content, file);
+        for (const file of templateFiles) {
+          const content = await readFileCached(file);
+          const tags = parseRXMLTemplate(content, file);
 
-    if (findTagsByName(tags, tagName).length > 0) {
-      // Find the module that owns this template
-      // For now, just return the template file
-      modules.add(file);
+          if (findTagsByName(tags, tagName).length > 0) {
+            modules.add(file);
+          }
+        }
+
+        return Array.from(modules);
+      },
+    });
+  } catch (err) {
+    if (err instanceof RequestSupersededError) {
+      log.debug('findModulesUsingTag superseded', { tagName, wsKey });
+      return [];
     }
+    throw err;
   }
-
-  return Array.from(modules);
 }
 
 /**
