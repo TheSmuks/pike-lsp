@@ -7,11 +7,15 @@
  * - From MODULE_* constant → module documentation
  *
  * Phase 6 of ROXEN_SUPPORT_ROADMAP.md
+ *
+ * Uses RequestScheduler for resilient request handling — concurrent definition
+ * requests for the same workspace are superseded so stale work is cancelled.
  */
 
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
+import { Logger } from '@pike-lsp/core';
 import { getTagInfo } from './tag-catalog.js';
 import { GlobCache } from './glob-cache.js';
 import {
@@ -19,9 +23,15 @@ import {
   invalidateFileContentCache,
   clearFileContentCache,
 } from './file-content-cache.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+
+const log = new Logger('RXMLDefinition');
 
 // Shared glob cache - 30 second TTL
 const pikeGlobCache = new GlobCache<string[]>(30);
+
+// Request scheduler for resilient definition lookups
+const definitionScheduler = new RequestScheduler({ logger: log });
 const TAG_DEFINITION_INDEX_TTL_MS = 30_000;
 const tagDefinitionIndexCache = new Map<
   string,
@@ -176,6 +186,9 @@ export interface RoxenModuleInfo {
 /**
  * Find tag definition in workspace
  *
+ * Uses RequestScheduler so that rapid successive lookups for the same
+ * workspace supersede earlier in-flight requests.
+ *
  * @param tagName - Tag name to find (e.g., "my_tag")
  * @param workspaceFolders - Workspace folders to search
  * @returns Location of tag definition or null
@@ -188,25 +201,40 @@ export async function findTagDefinition(
     return null;
   }
 
-  const index = await getTagDefinitionIndex(workspaceFolders);
-  const indexed = index.get(tagName);
-  if (indexed) {
-    return indexed;
-  }
+  const wsKey = makeWorkspaceKey(workspaceFolders);
+  try {
+    return await definitionScheduler.schedule<RoxenTagInfo | null>({
+      requestClass: 'interactive',
+      key: `findTag:${wsKey}`,
+      run: async checkpoint => {
+        checkpoint();
+        const index = await getTagDefinitionIndex(workspaceFolders);
+        const indexed = index.get(tagName);
+        if (indexed) {
+          return indexed;
+        }
 
-  // Fallback: check if it's a built-in tag
-  const tagInfo = getTagInfo(tagName);
-  if (tagInfo) {
-    // Return catalog location (metadata only, no actual file)
-    return {
-      tagName,
-      functionName: `builtin:${tagName}`,
-      location: Location.create('builtin:tag-catalog', Range.create(0, 0, 0, 0)),
-      tagType: tagInfo.type,
-    };
-  }
+        // Fallback: check if it's a built-in tag
+        const tagInfo = getTagInfo(tagName);
+        if (tagInfo) {
+          return {
+            tagName,
+            functionName: `builtin:${tagName}`,
+            location: Location.create('builtin:tag-catalog', Range.create(0, 0, 0, 0)),
+            tagType: tagInfo.type,
+          };
+        }
 
-  return null;
+        return null;
+      },
+    });
+  } catch (err) {
+    if (err instanceof RequestSupersededError) {
+      log.debug('findTagDefinition superseded', { tagName, wsKey });
+      return null;
+    }
+    throw err;
+  }
 }
 
 export function invalidateRXMLDefinitionCaches(uri?: string): void {
@@ -237,8 +265,24 @@ export async function findDefvarDefinition(
     return null;
   }
 
-  const index = await getDefvarDefinitionIndex(workspaceFolders);
-  return index.get(defvarName.toLowerCase()) ?? null;
+  const wsKey = makeWorkspaceKey(workspaceFolders);
+  try {
+    return await definitionScheduler.schedule<RoxenDefvarInfo | null>({
+      requestClass: 'interactive',
+      key: `findDefvar:${wsKey}`,
+      run: async checkpoint => {
+        checkpoint();
+        const index = await getDefvarDefinitionIndex(workspaceFolders);
+        return index.get(defvarName.toLowerCase()) ?? null;
+      },
+    });
+  } catch (err) {
+    if (err instanceof RequestSupersededError) {
+      log.debug('findDefvarDefinition superseded', { defvarName, wsKey });
+      return null;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -267,8 +311,6 @@ export async function provideRXMLDefinition(
   // Check if we're on an attribute name
   const attrMatch = findAttributeAtPosition(content, offset);
   if (attrMatch) {
-    // Could look up attribute documentation
-    // For now, return null
     return null;
   }
 
