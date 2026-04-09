@@ -125,7 +125,9 @@ export class WorkspaceIndex {
   // Each symbol name adds ~len-1 prefix entries; cap bounds total memory.
   // Eviction is FIFO by Map insertion order — evicted prefixes fall back to
   // the O(n) scan in searchSymbols, so correctness is preserved.
-  private static readonly PREFIX_INDEX_MAX_SIZE = 10_000;
+  // 100K covers ~14K unique symbols with avg 8-char names before eviction.
+  private static readonly PREFIX_INDEX_MAX_SIZE = 100_000;
+  private static readonly PREFIX_INDEX_EVICT_BATCH = 10_000;
   private static readonly SEARCH_CACHE_MAX_SIZE = 100;
   private static readonly SEARCH_CACHE_TTL_MS = 60000; // 60 seconds
 
@@ -900,12 +902,16 @@ export class WorkspaceIndex {
             prefixSet.add(nameLower);
           }
 
-          // Evict oldest prefix entries when index exceeds the size cap.
-          // Map preserves insertion order, so the first key is the oldest.
-          while (this.prefixIndex.size > WorkspaceIndex.PREFIX_INDEX_MAX_SIZE) {
-            const oldest = this.prefixIndex.keys().next().value;
-            if (oldest === undefined) break;
-            this.prefixIndex.delete(oldest);
+          // Batch-evict oldest prefix entries when index exceeds the size cap.
+          // Map preserves insertion order, so the first keys are the oldest.
+          // Evict EVICT_BATCH at once to amortize iterator cost during bulk indexing.
+          if (this.prefixIndex.size > WorkspaceIndex.PREFIX_INDEX_MAX_SIZE) {
+            let evicted = 0;
+            for (const key of this.prefixIndex.keys()) {
+              if (evicted >= WorkspaceIndex.PREFIX_INDEX_EVICT_BATCH) break;
+              this.prefixIndex.delete(key);
+              evicted++;
+            }
           }
         }
       }
