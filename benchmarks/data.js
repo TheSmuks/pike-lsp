@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1775291895935,
+  "lastUpdate": 1775776410656,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -111650,6 +111650,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.562827442622951,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "80cdd1b4ed298ad25c23587492b4d5a311bb97c9",
+          "message": "fix(#1272): use workspace-index for ref counts in onCodeLensResolve (#1275)\n\n* fix(#1272): use workspace-index for ref counts in onCodeLensResolve\n\nReplace O(open documents) iteration per resolve call with O(1) lookup\nvia WorkspaceIndex.getSymbolReferenceCount(), which queries the existing\nsymbolLookup index that covers all workspace files, not just open ones.\n\nAdds getSymbolReferenceCount(symbolName) to WorkspaceIndex using the\nprivate symbolLookup Map for direct lookup by symbol name (lowercased).\n\nFalls back to documentCache.symbolPositions when workspace-index has\nno data (e.g., document not yet indexed).\n\n* fix: address review feedback for PR #1275\n\nI need to understand the PR #1275 changes and fix the reviewer-requested issues. Let me start by gathering context.Now let me read the current files on main and understand the full context:Now let me check the reviewer comments on the PR:Excellent. Now I have a thorough understanding of the three issues in the PR. Let me also check the `symbolPositions` building code and `buildSymbolPositionIndex`:Good — `maybeLogLensSchedulerMetrics` IS defined (line 35 of code-lens.ts). The reviewer was wrong\n\n---------\n\nCo-authored-by: Coder Agent <coder@pike-lsp.dev>\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>",
+          "timestamp": "2026-04-10T01:11:37+02:00",
+          "tree_id": "ec56eefbe8e0b36610a8b6449882064917a4cdf8",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/80cdd1b4ed298ad25c23587492b4d5a311bb97c9"
+        },
+        "date": 1775776409970,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.76856941666665,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 258.3837730833333,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 256.77689241666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 263.61401083333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.5762070160183066,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.639469628099174,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 69.53013166666668,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 7.23003759139785,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.696285134453782,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.28421536846615253,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2825066897872341,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.6337067256719184,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2165265969353764,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.21721568790240597,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00020103039609328165,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0004667232793727627,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.000463032575658421,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.00047410000580922504,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.00048474487183217433,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0005023177638194616,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.37889354463276836,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 251.14478716666665,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.25103425,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3862702253440367,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00019784177441866893,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.000636082147801243,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.617213330578513,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.568274147540984,
             "unit": "ms"
           }
         ]
