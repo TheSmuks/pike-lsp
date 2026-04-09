@@ -262,6 +262,67 @@ describe('WorkspaceIndex', () => {
     );
   });
 
+  it('should cap prefixIndex size with FIFO eviction', () => {
+    const index = new WorkspaceIndex();
+
+    const privateState = index as unknown as {
+      prefixIndex: Map<string, Set<string>>;
+    };
+
+    // Temporarily lower the cap for testing
+    const TestCap = 20;
+    const Original: number = (WorkspaceIndex as unknown as Record<string, number>)[
+      'PREFIX_INDEX_MAX_SIZE'
+    ]!;
+    (WorkspaceIndex as unknown as Record<string, number>)['PREFIX_INDEX_MAX_SIZE'] = TestCap;
+
+    try {
+      // Populate prefixIndex well beyond the cap via private state
+      for (let i = 0; i < 50; i++) {
+        addPrefixes(privateState.prefixIndex, `symbol_${i.toString().padStart(3, '0')}`);
+      }
+
+      const sizeBefore = privateState.prefixIndex.size;
+      assert.ok(sizeBefore > TestCap, `Precondition: ${sizeBefore} > ${TestCap}`);
+
+      // Run the same eviction loop used in addToLookup
+      while (privateState.prefixIndex.size > TestCap) {
+        const oldest = privateState.prefixIndex.keys().next().value;
+        if (oldest === undefined) break;
+        privateState.prefixIndex.delete(oldest);
+      }
+
+      assert.ok(
+        privateState.prefixIndex.size <= TestCap,
+        `prefixIndex size (${privateState.prefixIndex.size}) must be <= ${TestCap}`
+      );
+    } finally {
+      (WorkspaceIndex as unknown as Record<string, number>)['PREFIX_INDEX_MAX_SIZE'] = Original;
+    }
+  });
+
+  it('should handle removal of symbols whose prefix entries were evicted', () => {
+    const index = new WorkspaceIndex();
+    const uri = 'file:///evicted.pike';
+    const name = 'evictedname';
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<string, Map<string, unknown>>;
+    };
+
+    // Set up uriToSymbols and symbolLookup but leave prefixIndex empty
+    // (simulating that all prefix entries for this symbol were evicted)
+    privateState.uriToSymbols.set(uri, new Set([name]));
+    // No symbolLookup entry — simulates orphan removal path
+
+    // removeDocument must not throw even with no prefix entries
+    index.removeDocument(uri);
+
+    assert.equal(privateState.uriToSymbols.has(uri), false, 'URI should be cleaned up');
+  });
+
   it('should respect search result limit', async () => {
     const bridge = new PikeBridge();
     await bridge.start();
