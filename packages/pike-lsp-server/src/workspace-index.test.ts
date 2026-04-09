@@ -262,19 +262,21 @@ describe('WorkspaceIndex', () => {
     );
   });
 
-  it('should cap prefixIndex size with FIFO eviction', () => {
+  it('should cap prefixIndex size with batch eviction', () => {
     const index = new WorkspaceIndex();
 
     const privateState = index as unknown as {
       prefixIndex: Map<string, Set<string>>;
     };
 
-    // Temporarily lower the cap for testing
+    // Temporarily lower the cap and batch size for testing
     const TestCap = 20;
-    const Original: number = (WorkspaceIndex as unknown as Record<string, number>)[
-      'PREFIX_INDEX_MAX_SIZE'
-    ]!;
-    (WorkspaceIndex as unknown as Record<string, number>)['PREFIX_INDEX_MAX_SIZE'] = TestCap;
+    const TestBatch = 5;
+    const constants = WorkspaceIndex as unknown as Record<string, number>;
+    const OriginalCap = constants['PREFIX_INDEX_MAX_SIZE']!;
+    const OriginalBatch = constants['PREFIX_INDEX_EVICT_BATCH']!;
+    constants['PREFIX_INDEX_MAX_SIZE'] = TestCap;
+    constants['PREFIX_INDEX_EVICT_BATCH'] = TestBatch;
 
     try {
       // Populate prefixIndex well beyond the cap via private state
@@ -285,19 +287,29 @@ describe('WorkspaceIndex', () => {
       const sizeBefore = privateState.prefixIndex.size;
       assert.ok(sizeBefore > TestCap, `Precondition: ${sizeBefore} > ${TestCap}`);
 
-      // Run the same eviction loop used in addToLookup
-      while (privateState.prefixIndex.size > TestCap) {
-        const oldest = privateState.prefixIndex.keys().next().value;
-        if (oldest === undefined) break;
-        privateState.prefixIndex.delete(oldest);
+      // Run the same batch eviction logic used in addToLookup
+      if (privateState.prefixIndex.size > TestCap) {
+        let evicted = 0;
+        for (const key of privateState.prefixIndex.keys()) {
+          if (evicted >= TestBatch) break;
+          privateState.prefixIndex.delete(key);
+          evicted++;
+        }
       }
 
+      // After one batch, size should be reduced but not necessarily <= cap
+      // (batch eviction amortizes — multiple batches needed for large overshoot)
       assert.ok(
-        privateState.prefixIndex.size <= TestCap,
-        `prefixIndex size (${privateState.prefixIndex.size}) must be <= ${TestCap}`
+        privateState.prefixIndex.size < sizeBefore,
+        `prefixIndex size (${privateState.prefixIndex.size}) must decrease from ${sizeBefore}`
+      );
+      assert.ok(
+        privateState.prefixIndex.size >= TestCap - TestBatch,
+        `prefixIndex size (${privateState.prefixIndex.size}) must not over-evict below ${TestCap - TestBatch}`
       );
     } finally {
-      (WorkspaceIndex as unknown as Record<string, number>)['PREFIX_INDEX_MAX_SIZE'] = Original;
+      constants['PREFIX_INDEX_MAX_SIZE'] = OriginalCap;
+      constants['PREFIX_INDEX_EVICT_BATCH'] = OriginalBatch;
     }
   });
 
