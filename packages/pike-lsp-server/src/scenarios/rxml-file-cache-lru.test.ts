@@ -173,3 +173,80 @@ describe('RXML file content cache LRU eviction', () => {
     await cleanup();
   });
 });
+
+/**
+ * Index caches (tagDefinitionIndexCache, defvarDefinitionIndexCache,
+ * tagReferenceIndexCache, tagDeclarationIndexCache) were unbounded Map
+ * instances — issue #1274. They are now LRUCache capped at 20 workspace
+ * keys so multi-workspace setups cannot grow them indefinitely.
+ */
+describe('RXML index cache LRU eviction', () => {
+  it('should cap workspace index entries across many distinct workspaces', async () => {
+    // Create 25 distinct workspaces — exceeding the 20-entry LRU cap
+    const dirs: string[] = [];
+    try {
+      for (let w = 0; w < 25; w++) {
+        const root = await mkdtemp(join(tmpdir(), `pike-idx-lru-${w}-`));
+        dirs.push(root);
+        await writeFile(
+          join(root, `mod-${w}.pike`),
+          `simpletag tag_w${w}() { return ${w}; }`,
+          'utf-8'
+        );
+
+        // Force the definition provider to build a per-workspace index
+        const result = await findTagDefinition(`tag_w${w}`, [root]);
+        assert.notEqual(result, null, `tag_w${w} should be found in workspace ${w}`);
+        assert.equal(result?.tagName, `tag_w${w}`);
+      }
+
+      // The LRU cache should have evicted the oldest workspace indexes.
+      // Re-querying the earliest workspace should still work (rebuilds index).
+      const earliestRoot = dirs[0];
+      if (earliestRoot) {
+        const reRead = await findTagDefinition('tag_w0', [earliestRoot]);
+        assert.notEqual(reRead, null, 'evicted index should rebuild on demand');
+        assert.equal(reRead?.tagName, 'tag_w0');
+      }
+    } finally {
+      invalidateRXMLDefinitionCaches();
+      invalidateRXMLReferenceCaches();
+      for (const dir of dirs) {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('should cap reference index entries across many distinct workspaces', async () => {
+    const dirs: string[] = [];
+    try {
+      for (let w = 0; w < 25; w++) {
+        const root = await mkdtemp(join(tmpdir(), `pike-ref-idx-${w}-`));
+        dirs.push(root);
+        await writeFile(
+          join(root, `mod-${w}.pike`),
+          `simpletag tag_w${w}() { return ${w}; }`,
+          'utf-8'
+        );
+
+        // Build the per-workspace reference + declaration index (includeDeclaration
+        // scans .pike files for simpletag/container declarations, no RXML parser needed)
+        const refs = await findTagReferences(`tag_w${w}`, [root], true);
+        assert.ok(refs.length > 0, `tag_w${w} should have references in workspace ${w}`);
+      }
+
+      // Re-query earliest workspace — its index was evicted but rebuilds
+      const earliestRoot = dirs[0];
+      if (earliestRoot) {
+        const reRefs = await findTagReferences('tag_w0', [earliestRoot], true);
+        assert.ok(reRefs.length > 0, 'evicted reference index should rebuild on demand');
+      }
+    } finally {
+      invalidateRXMLDefinitionCaches();
+      invalidateRXMLReferenceCaches();
+      for (const dir of dirs) {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  });
+});

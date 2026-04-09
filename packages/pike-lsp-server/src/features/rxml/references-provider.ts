@@ -25,6 +25,7 @@ import {
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 
+import { LRUCache } from '../../utils/lru-cache.js';
 const log = new Logger('RXMLReferences');
 
 // Shared glob cache - 30 second TTL
@@ -34,20 +35,15 @@ const pikeGlobCache = new GlobCache<string[]>(30);
 // Request scheduler for resilient reference lookups
 const referencesScheduler = new RequestScheduler({ logger: log });
 const TAG_REFERENCE_INDEX_TTL_MS = 30_000;
-const tagReferenceIndexCache = new Map<
+const MAX_WORKSPACE_INDEXES = 20;
+const tagReferenceIndexCache = new LRUCache<
   string,
-  {
-    builtAt: number;
-    byTag: Map<string, Location[]>;
-  }
->();
-const tagDeclarationIndexCache = new Map<
+  { builtAt: number; byTag: Map<string, Location[]> }
+>(MAX_WORKSPACE_INDEXES);
+const tagDeclarationIndexCache = new LRUCache<
   string,
-  {
-    builtAt: number;
-    byTag: Map<string, Location[]>;
-  }
->();
+  { builtAt: number; byTag: Map<string, Location[]> }
+>(MAX_WORKSPACE_INDEXES);
 
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
