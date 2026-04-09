@@ -244,6 +244,10 @@ export function registerCodeLensHandlers(
   connection.onCodeLensResolve(async (lens, cancellationToken): Promise<CodeLens> => {
     // KB-1262: Check cancellation early
     if (cancellationToken?.isCancellationRequested) {
+      maybeLogLensSchedulerMetrics(
+        (lens.data as { uri?: string } | undefined)?.uri ?? 'unknown',
+        'cancelled-early'
+      );
       return lens;
     }
 
@@ -295,7 +299,7 @@ export function registerCodeLensHandlers(
             }
           }
 
-          // KB-1262: Check cancellation before heavy ref-count computation
+          // KB-1262: Check cancellation before ref-count computation
           if (cancellationToken?.isCancellationRequested) {
             throw new RequestSupersededError('Code lens resolve cancelled before ref-count');
           }
