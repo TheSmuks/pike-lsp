@@ -113,7 +113,7 @@ export class WorkspaceIndex {
   private uriToSymbols = new Map<string, Set<string>>();
 
   // PERF-XXX: Prefix index for O(1) prefix matching
-  // Maps each prefix (2+ chars) to set of symbol names that have that prefix
+  // Maps each prefix (1+ chars) to set of symbol names that have that prefix
   private prefixIndex = new Map<string, Set<string>>();
 
   // PERF-430: LRU cache for search results
@@ -328,11 +328,34 @@ export class WorkspaceIndex {
     const seen = new Set<string>();
     const limit = Math.max(1, options.limit ?? 20);
 
-    for (const [nameLower, entriesByUri] of this.symbolLookup) {
-      if (!nameLower.startsWith(queryLower)) {
-        continue;
+    // PERF-1285: Use prefix index for O(1) lookup instead of O(n) scan
+    const matchingNames = new Set<string>();
+    if (queryLower.length >= 1) {
+      const lookupKey =
+        queryLower.length <= WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH
+          ? queryLower
+          : queryLower.slice(0, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+      const prefixSet = this.prefixIndex.get(lookupKey);
+      if (prefixSet) {
+        for (const name of prefixSet) {
+          if (name.startsWith(queryLower)) {
+            matchingNames.add(name);
+          }
+        }
       }
+    }
+    // Fall back to scanning when prefix index misses
+    if (matchingNames.size === 0) {
+      for (const nameLower of this.symbolLookup.keys()) {
+        if (nameLower.startsWith(queryLower)) {
+          matchingNames.add(nameLower);
+        }
+      }
+    }
 
+    for (const nameLower of matchingNames) {
+      const entriesByUri = this.symbolLookup.get(nameLower);
+      if (!entriesByUri) continue;
       for (const [uri, entry] of entriesByUri) {
         if (options.excludeUri && uri === options.excludeUri) {
           continue;
@@ -426,7 +449,7 @@ export class WorkspaceIndex {
     // Collect unique symbol names that match the query
     const matchingNames = new Set<string>();
 
-    if (queryLower.length >= 2) {
+    if (queryLower.length >= 1) {
       // PERF-1273: Use truncated prefix index for O(1) lookup.
       // For queries within MAX_DEPTH, look up directly.
       // For longer queries, look up the truncated prefix then filter.
@@ -445,10 +468,8 @@ export class WorkspaceIndex {
       }
     }
 
-    // Also check for exact/substring matches in symbolLookup (for shorter queries)
-    // This handles the case where query is 1 character
-    if (queryLower.length < 2 || matchingNames.size === 0) {
-      // Fall back to scanning for short queries or when prefix index misses
+    // Fall back to scanning when prefix index misses (eviction or no results)
+    if (matchingNames.size === 0) {
       for (const name of this.symbolLookup.keys()) {
         if (name.startsWith(queryLower) || name.includes(queryLower)) {
           matchingNames.add(name);
@@ -902,9 +923,9 @@ export class WorkspaceIndex {
       if (!symbolNames.has(nameLower)) {
         symbolNames.add(nameLower);
 
-        if (nameLower.length >= 2) {
+        if (nameLower.length >= 1) {
           const maxPrefix = Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
-          for (let i = 2; i <= maxPrefix; i++) {
+          for (let i = 1; i <= maxPrefix; i++) {
             const prefix = nameLower.slice(0, i);
             let prefixSet = this.prefixIndex.get(prefix);
             if (!prefixSet) {
@@ -951,9 +972,9 @@ export class WorkspaceIndex {
         }
       }
 
-      if (removeNameFromPrefixIndex && nameLower.length >= 2) {
+      if (removeNameFromPrefixIndex && nameLower.length >= 1) {
         for (
-          let i = 2;
+          let i = 1;
           i <= Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
           i++
         ) {
