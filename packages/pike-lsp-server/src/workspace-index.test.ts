@@ -15,7 +15,11 @@ describe('WorkspaceIndex', () => {
       return;
     }
 
-    for (let i = 2; i <= nameLower.length; i++) {
+    const maxDepth = (WorkspaceIndex as unknown as Record<string, number>)[
+      'PREFIX_INDEX_MAX_DEPTH'
+    ]!;
+    const maxPrefix = Math.min(nameLower.length, maxDepth);
+    for (let i = 2; i <= maxPrefix; i++) {
       const prefix = nameLower.slice(0, i);
       let prefixSet = prefixIndex.get(prefix);
       if (!prefixSet) {
@@ -245,15 +249,19 @@ describe('WorkspaceIndex', () => {
       true,
       'Live name should remain in shared prefix bucket'
     );
+    // With truncated prefix index (MAX_DEPTH=4), the longest prefix is 'foob'.
+    // 'foobar' is never a prefix key — the full orphan name was 'foobar' which
+    // had prefixes 'fo', 'foo', 'foob'. After removal, 'foob' still contains
+    // the live name 'foobaz' but not the orphan.
     assert.equal(
       privateState.prefixIndex.has('foobar'),
       false,
-      'Unique orphan full-prefix bucket should be removed'
+      'Full name should not be a prefix key (truncated index)'
     );
     assert.equal(
-      privateState.prefixIndex.get('foobaz')?.has(liveName) ?? false,
+      privateState.prefixIndex.get('foob')?.has(liveName) ?? false,
       true,
-      'Live full-prefix bucket should remain'
+      'Live name should remain in longest truncated prefix bucket'
     );
     assert.equal(
       privateState.symbolLookup.get(liveName)?.has(liveUri) ?? false,
@@ -280,8 +288,12 @@ describe('WorkspaceIndex', () => {
 
     try {
       // Populate prefixIndex well beyond the cap via private state
+      // Use alphabetically diverse prefixes so truncated entries are unique per symbol
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
       for (let i = 0; i < 50; i++) {
-        addPrefixes(privateState.prefixIndex, `symbol_${i.toString().padStart(3, '0')}`);
+        const p1 = alphabet[i % 26];
+        const p2 = alphabet[Math.floor(i / 26) % 26];
+        addPrefixes(privateState.prefixIndex, `${p1}${p2}_symbol_${i}`);
       }
 
       const sizeBefore = privateState.prefixIndex.size;
@@ -357,5 +369,142 @@ describe('WorkspaceIndex', () => {
     assert.ok(results.length <= 2, 'Should not exceed the specified limit');
 
     await bridge.stop();
+  });
+
+  it('should only insert prefixes up to PREFIX_INDEX_MAX_DEPTH', () => {
+    const index = new WorkspaceIndex();
+    const constants = WorkspaceIndex as unknown as Record<string, number>;
+    const maxDepth = constants['PREFIX_INDEX_MAX_DEPTH']!;
+
+    const privateState = index as unknown as {
+      prefixIndex: Map<string, Set<string>>;
+    };
+
+    addPrefixes(privateState.prefixIndex, 'getcontroller');
+
+    // Should have prefixes up to maxDepth only
+    assert.ok(privateState.prefixIndex.has('ge'), '2-char prefix should exist');
+    assert.ok(privateState.prefixIndex.has('get'), '3-char prefix should exist');
+    if (maxDepth >= 4) {
+      assert.ok(
+        privateState.prefixIndex.has('getc'),
+        '4-char prefix should exist when MAX_DEPTH >= 4'
+      );
+    }
+    // Full name should NOT be a prefix key for long names
+    assert.equal(
+      privateState.prefixIndex.has('getcontroller'),
+      false,
+      'Full name should not be a prefix key for names longer than MAX_DEPTH'
+    );
+    // Prefixes beyond MAX_DEPTH should not exist
+    if (maxDepth < 13) {
+      assert.equal(
+        privateState.prefixIndex.has('getco'),
+        false,
+        'Prefix beyond MAX_DEPTH should not exist'
+      );
+    }
+  });
+
+  it('should find symbols via truncated prefix when query exceeds MAX_DEPTH', () => {
+    const index = new WorkspaceIndex();
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<
+        string,
+        Map<string, { name: string; kind: string; uri: string; line: number }>
+      >;
+      documents: Map<
+        string,
+        { uri: string; symbols: unknown[]; version: number; lastModified: number }
+      >;
+    };
+
+    // Manually set up a symbol with a long name
+    const uri = 'file:///test.pike';
+    const name = 'getcontroller';
+    const nameLower = name.toLowerCase();
+
+    privateState.uriToSymbols.set(uri, new Set([nameLower]));
+    addPrefixes(privateState.prefixIndex, nameLower);
+    privateState.symbolLookup.set(
+      nameLower,
+      new Map([[uri, { name, kind: 'method', uri, line: 1 }]])
+    );
+    privateState.documents.set(uri, {
+      uri,
+      symbols: [{ name, kind: 'method' }],
+      version: 1,
+      lastModified: Date.now(),
+    });
+
+    // Search with a query longer than MAX_DEPTH
+    const results = index.searchSymbols('getcont');
+    assert.equal(results.length, 1, 'Should find the symbol via truncated prefix');
+    assert.ok(results[0]);
+    assert.equal(results[0].name, name);
+  });
+
+  it('should find exact-match symbols shorter than MAX_DEPTH', () => {
+    const index = new WorkspaceIndex();
+
+    const privateState = index as unknown as {
+      uriToSymbols: Map<string, Set<string>>;
+      prefixIndex: Map<string, Set<string>>;
+      symbolLookup: Map<
+        string,
+        Map<string, { name: string; kind: string; uri: string; line: number }>
+      >;
+      documents: Map<
+        string,
+        { uri: string; symbols: unknown[]; version: number; lastModified: number }
+      >;
+    };
+
+    const uri = 'file:///test.pike';
+    const name = 'calc';
+    const nameLower = name.toLowerCase();
+
+    privateState.uriToSymbols.set(uri, new Set([nameLower]));
+    addPrefixes(privateState.prefixIndex, nameLower);
+    privateState.symbolLookup.set(
+      nameLower,
+      new Map([[uri, { name, kind: 'method', uri, line: 1 }]])
+    );
+    privateState.documents.set(uri, {
+      uri,
+      symbols: [{ name, kind: 'method' }],
+      version: 1,
+      lastModified: Date.now(),
+    });
+
+    // 'calc' is 4 chars, within MAX_DEPTH
+    const results = index.searchSymbols('calc');
+    assert.equal(results.length, 1, 'Should find exact match');
+    assert.ok(results[0]);
+    assert.equal(results[0].name, name);
+  });
+
+  it('should produce fewer prefix entries per symbol with truncation', () => {
+    const index = new WorkspaceIndex();
+    const constants = WorkspaceIndex as unknown as Record<string, number>;
+    const maxDepth = constants['PREFIX_INDEX_MAX_DEPTH']!;
+
+    const privateState = index as unknown as {
+      prefixIndex: Map<string, Set<string>>;
+    };
+
+    // Before truncation, 'verylongname' (12 chars) would add 11 entries.
+    // With MAX_DEPTH=4, it should add maxDepth-1 = 3 entries.
+    addPrefixes(privateState.prefixIndex, 'verylongname');
+
+    assert.equal(
+      privateState.prefixIndex.size,
+      maxDepth - 1,
+      `Should produce exactly maxDepth-1=${maxDepth - 1} entries for a long name`
+    );
   });
 });
