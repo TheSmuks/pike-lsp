@@ -276,17 +276,17 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
   });
 
   describe('Runtime behavior checks', () => {
-    it('returns empty semantic token responses for missing documents', () => {
+    it('returns empty semantic token responses for missing documents', async () => {
       const connection = createMockConnection();
       const services = createMockServices();
       const documents = createMockDocuments(new Map());
 
       registerSemanticTokensHandler(connection as any, services as any, documents as any);
 
-      const full = connection.semanticTokensHandler({
+      const full = await connection.semanticTokensHandler({
         textDocument: { uri: 'file:///missing.pike' },
       });
-      const delta = connection.semanticTokensDeltaHandler({
+      const delta = await connection.semanticTokensDeltaHandler({
         textDocument: { uri: 'file:///missing.pike' },
         previousResultId: 'unknown',
       });
@@ -317,7 +317,7 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
       assert.deepStrictEqual(seen, ['21', 'abc']);
     });
 
-    it('clears semantic token delta state when a document closes', () => {
+    it('clears semantic token delta state when a document closes', async () => {
       const uri = 'file:///close-case.pike';
       const doc = TextDocument.create(uri, 'pike', 1, 'int close_case = 1;');
       const documents = createMockDocuments(new Map([[uri, doc]]));
@@ -333,9 +333,9 @@ describe('Unhandled LSP Methods', { timeout: 30000 }, () => {
 
       registerSemanticTokensHandler(connection as any, services as any, documents as any);
 
-      const full = connection.semanticTokensHandler({ textDocument: { uri } });
+      const full = await connection.semanticTokensHandler({ textDocument: { uri } });
       (documents as any).triggerDidClose(uri);
-      const delta = connection.semanticTokensDeltaHandler({
+      const delta = await connection.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: full.resultId,
       });

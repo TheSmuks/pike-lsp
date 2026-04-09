@@ -66,7 +66,7 @@ function decodeTokens(tokensData: number[]): Array<{
 
 describe('Semantic Tokens Delta Handler', () => {
   describe('Handler Registration', () => {
-    it('should register semanticTokens full handler', () => {
+    it('should register semanticTokens full handler', async () => {
       const conn = createMockConnection();
       const services = createMockServices({});
       const documents = createMockDocuments(new Map());
@@ -77,7 +77,7 @@ describe('Semantic Tokens Delta Handler', () => {
       expect(() => conn.semanticTokensHandler).not.toThrow();
     });
 
-    it('should register semanticTokens delta handler', () => {
+    it('should register semanticTokens delta handler', async () => {
       const conn = createMockConnection();
       const services = createMockServices({});
       const documents = createMockDocuments(new Map());
@@ -90,10 +90,10 @@ describe('Semantic Tokens Delta Handler', () => {
   });
 
   describe('Delta Request Handling', () => {
-    it('should return valid delta response for existing document', () => {
+    it('should return valid delta response for existing document', async () => {
       const uri = 'file:///test.pike';
       const code = `int x = 42;
-int main() { return x; }`;
+    int main() { return x; }`;
 
       const doc = TextDocument.create(uri, 'pike', 1, code);
       const docsMap = new Map<string, TextDocument>();
@@ -116,7 +116,7 @@ int main() { return x; }`;
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
       // Call delta handler
-      const result = conn.semanticTokensDeltaHandler({
+      const result = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: 'previous-result-id',
       });
@@ -127,7 +127,7 @@ int main() { return x; }`;
       expect(Array.isArray(result.edits)).toBe(true);
     });
 
-    it('should return empty delta for non-existent document', () => {
+    it('should return empty delta for non-existent document', async () => {
       const uri = 'file:///nonexistent.pike';
       const docsMap = new Map<string, TextDocument>();
       const services = createMockServices({});
@@ -137,7 +137,7 @@ int main() { return x; }`;
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
       // Call delta handler with non-existent document
-      const result = conn.semanticTokensDeltaHandler({
+      const result = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: 'any-id',
       });
@@ -148,7 +148,7 @@ int main() { return x; }`;
       expect(result.edits).toEqual([]);
     });
 
-    it('should not return "Unhandled method" error', () => {
+    it('should not return "Unhandled method" error', async () => {
       const uri = 'file:///test.pike';
       const code = `int value = 10;`;
 
@@ -174,7 +174,7 @@ int main() { return x; }`;
       expect(typeof conn.semanticTokensDeltaHandler).toBe('function');
 
       // Should return valid response, not an error object
-      const result = conn.semanticTokensDeltaHandler({
+      const result = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: 'initial',
       });
@@ -187,11 +187,11 @@ int main() { return x; }`;
   });
 
   describe('Full Request Handling', () => {
-    it('should return tokens for document with symbols', () => {
+    it('should return tokens for document with symbols', async () => {
       const uri = 'file:///test.pike';
       const code = `class MyClass {
-    int myMethod() { return 0; }
-}`;
+        int myMethod() { return 0; }
+    }`;
 
       const doc = TextDocument.create(uri, 'pike', 1, code);
       const docsMap = new Map<string, TextDocument>();
@@ -213,7 +213,7 @@ int main() { return x; }`;
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
       // Call full handler
-      const result = conn.semanticTokensHandler({
+      const result = await conn.semanticTokensHandler({
         textDocument: { uri },
       });
 
@@ -223,7 +223,7 @@ int main() { return x; }`;
       expect(result.resultId).toBeDefined();
     });
 
-    it('should return empty tokens for non-existent document', () => {
+    it('should return empty tokens for non-existent document', async () => {
       const uri = 'file:///nonexistent.pike';
       const docsMap = new Map<string, TextDocument>();
       const services = createMockServices({});
@@ -232,7 +232,7 @@ int main() { return x; }`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const result = conn.semanticTokensHandler({
+      const result = await conn.semanticTokensHandler({
         textDocument: { uri },
       });
 
@@ -240,7 +240,7 @@ int main() { return x; }`;
       expect(result.data).toEqual([]);
     });
 
-    it('reuses full semantic token result for unchanged document version', () => {
+    it('reuses full semantic token result for unchanged document version', async () => {
       const uri = 'file:///cached-full.pike';
       const code = `int cached = 1;`;
 
@@ -260,23 +260,23 @@ int main() { return x; }`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const first = conn.semanticTokensHandler({ textDocument: { uri } });
-      const second = conn.semanticTokensHandler({ textDocument: { uri } });
+      const first = await conn.semanticTokensHandler({ textDocument: { uri } });
+      const second = await conn.semanticTokensHandler({ textDocument: { uri } });
 
       expect(second.resultId).toBe(first.resultId);
       expect(second.data).toEqual(first.data);
     });
 
-    it('skips identifiers inside multiline #"..."# string bodies but keeps nearby code tokens', () => {
+    it('skips identifiers inside multiline #"..."# string bodies but keeps nearby code tokens', async () => {
       const uri = 'file:///multiline-string-filter.pike';
       const code = `int target = 1;
-string template = #"
-target should stay plain text here
-target should also stay plain text here
-"#;
-if (target > 0) {
-    target--;
-}`;
+    string template = #"
+    target should stay plain text here
+    target should also stay plain text here
+    "#;
+    if (target > 0) {
+        target--;
+    }`;
 
       const doc = TextDocument.create(uri, 'pike', 1, code);
       const docsMap = new Map<string, TextDocument>();
@@ -294,7 +294,7 @@ if (target > 0) {
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const result = conn.semanticTokensHandler({
+      const result = await conn.semanticTokensHandler({
         textDocument: { uri },
       });
 
@@ -309,10 +309,10 @@ if (target > 0) {
   });
 
   describe('Delta Edits Format', () => {
-    it('should return edits that replace tokens from position 0', () => {
+    it('should return edits that replace tokens from position 0', async () => {
       const uri = 'file:///test.pike';
       const code = `int a = 1;
-int b = 2;`;
+    int b = 2;`;
 
       const doc = TextDocument.create(uri, 'pike', 1, code);
       const docsMap = new Map<string, TextDocument>();
@@ -333,7 +333,7 @@ int b = 2;`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const result = conn.semanticTokensDeltaHandler({
+      const result = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: 'old-id',
       });
@@ -348,7 +348,7 @@ int b = 2;`;
       }
     });
 
-    it('should return empty edits when token data is unchanged and previousResultId matches', () => {
+    it('should return empty edits when token data is unchanged and previousResultId matches', async () => {
       const uri = 'file:///stable.pike';
       const code = `int stable = 1;`;
 
@@ -368,11 +368,11 @@ int b = 2;`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const full = conn.semanticTokensHandler({
+      const full = await conn.semanticTokensHandler({
         textDocument: { uri },
       });
 
-      const delta = conn.semanticTokensDeltaHandler({
+      const delta = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: full.resultId,
       });
@@ -380,7 +380,7 @@ int b = 2;`;
       expect(delta.edits).toEqual([]);
     });
 
-    it('should reset delta state after document close', () => {
+    it('should reset delta state after document close', async () => {
       const uri = 'file:///close-reset.pike';
       const code = `int close_reset = 1;`;
 
@@ -400,13 +400,13 @@ int b = 2;`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const full = conn.semanticTokensHandler({
+      const full = await conn.semanticTokensHandler({
         textDocument: { uri },
       });
 
       (documents as any).triggerDidClose(uri);
 
-      const delta = conn.semanticTokensDeltaHandler({
+      const delta = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: full.resultId,
       });
@@ -415,7 +415,7 @@ int b = 2;`;
       expect(delta.edits[0].start).toBe(0);
     });
 
-    it('reuses delta state for unchanged version and matching previousResultId', () => {
+    it('reuses delta state for unchanged version and matching previousResultId', async () => {
       const uri = 'file:///cached-delta.pike';
       const code = `int token = 1;`;
 
@@ -435,8 +435,8 @@ int b = 2;`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const full = conn.semanticTokensHandler({ textDocument: { uri } });
-      const delta = conn.semanticTokensDeltaHandler({
+      const full = await conn.semanticTokensHandler({ textDocument: { uri } });
+      const delta = await conn.semanticTokensDeltaHandler({
         textDocument: { uri },
         previousResultId: full.resultId,
       });
@@ -445,7 +445,7 @@ int b = 2;`;
       expect(delta.edits).toEqual([]);
     });
 
-    it('invalidates semantic token cache when document version changes', () => {
+    it('invalidates semantic token cache when document version changes', async () => {
       const uri = 'file:///cached-invalidate.pike';
       const firstCode = `int invalidate = 1;`;
       const secondCode = `int invalidate = 2;`;
@@ -465,10 +465,10 @@ int b = 2;`;
 
       registerSemanticTokensHandler(conn as any, services as any, documents as any);
 
-      const first = conn.semanticTokensHandler({ textDocument: { uri } });
+      const first = await conn.semanticTokensHandler({ textDocument: { uri } });
 
       docsMap.set(uri, TextDocument.create(uri, 'pike', 2, secondCode));
-      const second = conn.semanticTokensHandler({ textDocument: { uri } });
+      const second = await conn.semanticTokensHandler({ textDocument: { uri } });
 
       expect(second.resultId).not.toBe(first.resultId);
     });
