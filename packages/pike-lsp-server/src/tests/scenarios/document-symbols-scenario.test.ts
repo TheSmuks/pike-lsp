@@ -1,7 +1,7 @@
 /**
  * Document Symbols Scenario Tests (#1061)
  *
- * Exercises real code paths through registerSymbolsHandlers with
+ * Exercises real code paths through registerDocumentSymbolHandler with
  * onDocumentSymbol handler. Covers Pike-specific constructs, nested
  * symbols, edge cases, and symbol kind mapping.
  */
@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import { registerSymbolsHandlers } from '../../features/symbols.js';
+import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
 import {
   createMockConnection,
   createMockServices,
@@ -56,7 +56,7 @@ function setup(opts: SetupOptions) {
     get: (docUri: string) => mockDocuments?.get(docUri),
   };
 
-  registerSymbolsHandlers(conn as any, services as any, documents as any);
+  registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
   return {
     documentSymbol: () => conn.documentSymbolHandler({ textDocument: { uri } }),

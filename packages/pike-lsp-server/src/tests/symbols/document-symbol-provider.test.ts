@@ -2,7 +2,7 @@
  * Document Symbol Provider Tests
  *
  * Tests for document symbols (outline view) functionality.
- * Exercises registerSymbolsHandlers() via MockConnection for onDocumentSymbol,
+ * Exercises registerDocumentSymbolHandler() via MockConnection for onDocumentSymbol,
  * and directly tests the extracted convertSymbolKind() and getSymbolDetail().
  */
 
@@ -11,7 +11,7 @@ import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
-import { registerSymbolsHandlers } from '../../features/symbols.js';
+import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
 import {
   createMockConnection,
   createMockServices,
@@ -57,7 +57,7 @@ function setup(opts: SetupOptions) {
     get: (docUri: string) => mockDocuments?.get(docUri),
   };
 
-  registerSymbolsHandlers(conn as any, services as any, documents as any);
+  registerDocumentSymbolHandler(conn as any, services as any, documents as any);
 
   return {
     documentSymbol: () => conn.documentSymbolHandler({ textDocument: { uri } }),

@@ -1,13 +1,15 @@
 /**
  * Symbols Feature Handlers
  *
- * Provides document symbols (outline view) and workspace symbols (search).
- * Extracted from server.ts for modular feature organization.
+ * Provides workspace symbol search (Ctrl+T).
+ * Document symbols (outline view) have been moved to navigation/document-symbol.ts.
+ *
+ * This module retains shared helpers (convertSymbolKind, getSymbolDetail)
+ * used by both document and workspace symbol handlers.
  */
 
 import type { Connection } from 'vscode-languageserver/node.js';
 import {
-  DocumentSymbol,
   SymbolKind,
   SymbolInformation,
   WorkspaceSymbolParams,
@@ -18,13 +20,11 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
-import { detectRoxenModule, enhanceRoxenSymbols } from './roxen/index.js';
-import { detectRXMLStrings, mergeSymbolTrees } from './rxml/mixed-content.js';
 
 /**
  * Convert Pike symbol kind to LSP SymbolKind.
  *
- * Exported for direct unit testing.
+ * Exported for direct unit testing and for use by document-symbol.ts.
  */
 export function convertSymbolKind(kind: string): SymbolKind {
   switch (kind) {
@@ -56,7 +56,7 @@ export function convertSymbolKind(kind: string): SymbolKind {
 /**
  * Get detail string for symbol (type info).
  *
- * Exported for direct unit testing.
+ * Exported for direct unit testing and for use by document-symbol.ts.
  */
 export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
   // Type info is in various fields depending on symbol kind
@@ -139,7 +139,10 @@ interface ScoredSymbol extends SymbolInformation {
 }
 
 /**
- * Register symbols handlers with the LSP connection.
+ * Register workspace symbol handler with the LSP connection.
+ *
+ * Document symbol registration has been moved to navigation/document-symbol.ts.
+ * This function now only registers the workspace symbol (Ctrl+T) handler.
  *
  * @param connection - LSP connection
  * @param services - Server services bundle
@@ -148,124 +151,10 @@ interface ScoredSymbol extends SymbolInformation {
 export function registerSymbolsHandlers(
   connection: Connection,
   services: Services,
-  documents: TextDocuments<TextDocument>
+  _documents: TextDocuments<TextDocument>
 ): void {
   const { documentCache, workspaceIndex } = services;
   const log = new Logger('symbols');
-
-  /**
-   * Convert Pike symbol to LSP DocumentSymbol
-   */
-  function convertSymbol(pikeSymbol: PikeSymbol): DocumentSymbol {
-    const line = Math.max(0, (pikeSymbol.position?.line ?? 1) - 1);
-    const name = pikeSymbol.name || 'unknown';
-
-    const detail = getSymbolDetail(pikeSymbol);
-
-    const result: DocumentSymbol = {
-      name,
-      kind: convertSymbolKind(pikeSymbol.kind),
-      range: {
-        start: { line, character: 0 },
-        end: { line, character: 1000 }, // Full line range
-      },
-      selectionRange: {
-        start: { line, character: 0 },
-        end: { line, character: name.length },
-      },
-    };
-
-    if (detail) {
-      result.detail = detail;
-    }
-
-    // Recursively convert children (nested class members)
-    if (pikeSymbol.children && pikeSymbol.children.length > 0) {
-      result.children = pikeSymbol.children.map(convertSymbol);
-    }
-
-    return result;
-  }
-
-  /**
-   * Document symbols handler - provides outline view
-   */
-  connection.onDocumentSymbol(async (params): Promise<DocumentSymbol[] | null> => {
-    const uri = params.textDocument.uri;
-
-    log.debug('Document symbol request', { uri });
-
-    try {
-      let cached = documentCache.get(uri);
-
-      if (!cached) {
-        await documentCache.waitFor(uri);
-        cached = documentCache.get(uri);
-      }
-
-      if (!cached || !cached.symbols) {
-        connection.console.log(`[SYMBOLS] No cached symbols for ${uri}`);
-        return null;
-      }
-
-      // Filter out invalid symbols and convert
-      const filtered = cached.symbols.filter((s): s is PikeSymbol => s != null && s.name != null);
-      connection.console.log(
-        `[SYMBOLS] Returning ${filtered.length} symbols (from ${cached.symbols.length} cached)`
-      );
-
-      // Log first few symbols for debugging
-      for (let i = 0; i < Math.min(5, filtered.length); i++) {
-        const sym = filtered[i]!;
-        connection.console.log(`[SYMBOLS]   ${i}: name="${sym.name}", kind=${sym.kind}`);
-      }
-
-      // --- Roxen symbols integration ---
-      const symbolsToConvert = filtered;
-      try {
-        const document = documents.get(uri);
-        if (document && services.bridge?.bridge) {
-          const text = document.getText();
-          const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
-          if (roxenInfo && roxenInfo.is_roxen_module === 1) {
-            const baseConverted = filtered.map(convertSymbol);
-            const enhanced = enhanceRoxenSymbols(baseConverted, roxenInfo);
-            connection.console.log(
-              `[SYMBOLS] Enhanced ${filtered.length} symbols with Roxen data -> ${enhanced.length} total`
-            );
-            return enhanced;
-          }
-
-          // --- Mixed RXML content integration ---
-          // Detect RXML strings in Pike multiline strings
-          const rxmlStrings = await detectRXMLStrings(text, uri, services.bridge.bridge);
-          if (rxmlStrings.length > 0) {
-            connection.console.log(
-              `[SYMBOLS] Found ${rxmlStrings.length} RXML strings in Pike code`
-            );
-            const baseConverted = filtered.map(convertSymbol);
-            const merged = mergeSymbolTrees(baseConverted, rxmlStrings);
-            connection.console.log(
-              `[SYMBOLS] Merged ${filtered.length} Pike symbols + ${rxmlStrings.length} RXML strings -> ${merged.length} total`
-            );
-            return merged;
-          }
-          // --- End mixed content integration ---
-        }
-      } catch (err) {
-        connection.console.log(`[SYMBOLS] Roxen enhancement failed: ${err}`);
-      }
-      // --- End Roxen integration ---
-
-      const converted = symbolsToConvert.map(convertSymbol);
-      return converted;
-    } catch (err) {
-      log.error(
-        `Document symbol failed for ${uri}: ${err instanceof Error ? err.message : String(err)}`
-      );
-      return null;
-    }
-  });
 
   /**
    * Workspace symbol handler - search symbols across workspace (Ctrl+T)
