@@ -19,7 +19,7 @@ import type { Services } from '../../services/index.js';
 import { PatternHelpers } from '../../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
 import { PIKE_KEYWORDS } from '../navigation/keywords.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 // Semantic tokens legend (shared with server.ts)
@@ -519,41 +519,60 @@ export function registerSemanticTokensHandler(
       return { resultId: '0', data: [] };
     }
 
-    try {
-      const uri = params.textDocument.uri;
-      const document = documents.get(uri);
+    const uri = params.textDocument.uri;
 
-      if (!document) {
+    // KB-1262: Schedule through RequestScheduler for cancellation and supersession
+    return tokensScheduler
+      .schedule<SemanticTokens>({
+        requestClass: 'interactive',
+        key: `semantic-tokens:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
+
+          if (cancellationToken?.isCancellationRequested) {
+            throw new RequestSupersededError('Semantic tokens request cancelled');
+          }
+
+          const document = documents.get(uri);
+
+          if (!document) {
+            return { resultId: '0', data: [] };
+          }
+
+          const state = getOrBuildTokenState(uri, document, cancellationToken);
+          maybeLogTokensSchedulerMetrics(uri, 'success');
+          return {
+            resultId: state.resultId,
+            data: state.data,
+          };
+        },
+      })
+      .catch(err => {
+        if (err instanceof RequestSupersededError) {
+          maybeLogTokensSchedulerMetrics(uri, 'superseded');
+          return { resultId: '0', data: [] };
+        }
+
+        // KB-1262: Distinguish parse-under-edit errors from unexpected errors
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (isParseUnderEditError(errMsg)) {
+          log.debug('Semantic tokens request failed (likely parse-under-edit)', {
+            uri: params.textDocument.uri,
+            error: errMsg,
+          });
+        } else {
+          log.error(`Semantic tokens request failed for ${params.textDocument.uri}: ${errMsg}`);
+        }
+        maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
         return { resultId: '0', data: [] };
-      }
-
-      const state = getOrBuildTokenState(uri, document, cancellationToken);
-      maybeLogTokensSchedulerMetrics(uri, 'success');
-      return {
-        resultId: state.resultId,
-        data: state.data,
-      };
-    } catch (err) {
-      // KB-1262: Distinguish parse-under-edit errors from unexpected errors
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (isParseUnderEditError(errMsg)) {
-        log.debug('Semantic tokens request failed (likely parse-under-edit)', {
-          uri: params.textDocument.uri,
-          error: errMsg,
-        });
-      } else {
-        log.error(`Semantic tokens request failed for ${params.textDocument.uri}: ${errMsg}`);
-      }
-      maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
-      return { resultId: '0', data: [] };
-    }
+      });
   });
 
   /**
    * Semantic Tokens - Delta request handler
    * KB-1262: Parse-under-edit resilience with cancellation support
    */
-  connection.languages.semanticTokens.onDelta((params, cancellationToken): SemanticTokensDelta => {
+  connection.languages.semanticTokens.onDelta(async (params, cancellationToken) => {
     log.debug('Semantic tokens delta request', { uri: params.textDocument.uri });
 
     // KB-1262: Check cancellation early
@@ -561,67 +580,86 @@ export function registerSemanticTokensHandler(
       return { resultId: '0', edits: [] };
     }
 
-    try {
-      const uri = params.textDocument.uri;
-      const document = documents.get(uri);
-      const previousState = tokenStateByUri.get(uri);
+    const uri = params.textDocument.uri;
 
-      if (!document) {
-        return { resultId: '0', edits: [] };
-      }
+    // KB-1262: Schedule through RequestScheduler for cancellation and supersession
+    return tokensScheduler
+      .schedule<SemanticTokensDelta>({
+        requestClass: 'interactive',
+        key: `semantic-tokens-delta:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
 
-      const nextState = getOrBuildTokenState(uri, document, cancellationToken);
+          if (cancellationToken?.isCancellationRequested) {
+            throw new RequestSupersededError('Semantic tokens delta request cancelled');
+          }
 
-      if (previousState && previousState.resultId === nextState.resultId) {
-        if (params.previousResultId === nextState.resultId) {
+          const document = documents.get(uri);
+          const previousState = tokenStateByUri.get(uri);
+
+          if (!document) {
+            return { resultId: '0', edits: [] };
+          }
+
+          const nextState = getOrBuildTokenState(uri, document, cancellationToken);
+
+          if (previousState && previousState.resultId === nextState.resultId) {
+            if (params.previousResultId === nextState.resultId) {
+              return {
+                resultId: nextState.resultId,
+                edits: [],
+              };
+            }
+
+            return {
+              resultId: nextState.resultId,
+              edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
+            };
+          }
+
+          if (!previousState || previousState.resultId !== params.previousResultId) {
+            return {
+              resultId: nextState.resultId,
+              edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
+            };
+          }
+
+          const edit = computeDeltaEdit(previousState.data, nextState.data);
+
+          if (!edit) {
+            return {
+              resultId: nextState.resultId,
+              edits: [],
+            };
+          }
+
+          maybeLogTokensSchedulerMetrics(uri, 'success');
           return {
             resultId: nextState.resultId,
-            edits: [],
+            edits: [edit],
           };
+        },
+      })
+      .catch(err => {
+        if (err instanceof RequestSupersededError) {
+          maybeLogTokensSchedulerMetrics(uri, 'superseded');
+          return { resultId: '0', edits: [] };
         }
 
-        return {
-          resultId: nextState.resultId,
-          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
-        };
-      }
-
-      if (!previousState || previousState.resultId !== params.previousResultId) {
-        return {
-          resultId: nextState.resultId,
-          edits: [{ start: 0, deleteCount: 0, data: nextState.data }],
-        };
-      }
-
-      const edit = computeDeltaEdit(previousState.data, nextState.data);
-
-      if (!edit) {
-        return {
-          resultId: nextState.resultId,
-          edits: [],
-        };
-      }
-
-      maybeLogTokensSchedulerMetrics(uri, 'success');
-      return {
-        resultId: nextState.resultId,
-        edits: [edit],
-      };
-    } catch (err) {
-      // KB-1262: Distinguish parse-under-edit errors from unexpected errors
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (isParseUnderEditError(errMsg)) {
-        log.debug('Semantic tokens delta request failed (likely parse-under-edit)', {
-          uri: params.textDocument.uri,
-          error: errMsg,
-        });
-      } else {
-        log.error('Semantic tokens delta request failed', {
-          error: errMsg,
-        });
-      }
-      maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
-      return { resultId: '0', edits: [] };
-    }
+        // KB-1262: Distinguish parse-under-edit errors from unexpected errors
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (isParseUnderEditError(errMsg)) {
+          log.debug('Semantic tokens delta request failed (likely parse-under-edit)', {
+            uri: params.textDocument.uri,
+            error: errMsg,
+          });
+        } else {
+          log.error('Semantic tokens delta request failed', {
+            error: errMsg,
+          });
+        }
+        maybeLogTokensSchedulerMetrics(params.textDocument.uri, 'error');
+        return { resultId: '0', edits: [] };
+      });
   });
 }
