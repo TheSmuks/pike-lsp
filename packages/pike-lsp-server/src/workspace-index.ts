@@ -122,10 +122,12 @@ export class WorkspaceIndex {
   private searchCacheHits = 0;
   private searchCacheMisses = 0;
   // PERF-1273: Max prefix index entries to prevent unbounded memory growth.
-  // Each symbol name adds ~len-1 prefix entries; cap bounds total memory.
-  // Eviction is FIFO by Map insertion order — evicted prefixes fall back to
-  // the O(n) scan in searchSymbols, so correctness is preserved.
-  // 100K covers ~14K unique symbols with avg 8-char names before eviction.
+  // Truncated prefix index: only store prefixes up to MAX_DEPTH chars.
+  // Memory per symbol drops from ~len-1 entries to ~MAX_DEPTH-1 entries.
+  // For queries longer than MAX_DEPTH, the truncated prefix is looked up and
+  // candidates are filtered with startsWith — correctness is preserved.
+  // 100K entries covers ~33K unique symbols with MAX_DEPTH=4 before eviction.
+  private static readonly PREFIX_INDEX_MAX_DEPTH = 4;
   private static readonly PREFIX_INDEX_MAX_SIZE = 100_000;
   private static readonly PREFIX_INDEX_EVICT_BATCH = 10_000;
   private static readonly SEARCH_CACHE_MAX_SIZE = 100;
@@ -425,11 +427,20 @@ export class WorkspaceIndex {
     const matchingNames = new Set<string>();
 
     if (queryLower.length >= 2) {
-      // Use prefix index for prefix matching (O(1) lookup)
-      const prefixSet = this.prefixIndex.get(queryLower);
+      // PERF-1273: Use truncated prefix index for O(1) lookup.
+      // For queries within MAX_DEPTH, look up directly.
+      // For longer queries, look up the truncated prefix then filter.
+      const lookupKey =
+        queryLower.length <= WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH
+          ? queryLower
+          : queryLower.slice(0, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+      const prefixSet = this.prefixIndex.get(lookupKey);
       if (prefixSet) {
         for (const name of prefixSet) {
-          matchingNames.add(name);
+          // Filter: only names that actually start with the full query
+          if (name.startsWith(queryLower)) {
+            matchingNames.add(name);
+          }
         }
       }
     }
@@ -892,7 +903,8 @@ export class WorkspaceIndex {
         symbolNames.add(nameLower);
 
         if (nameLower.length >= 2) {
-          for (let i = 2; i <= nameLower.length; i++) {
+          const maxPrefix = Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+          for (let i = 2; i <= maxPrefix; i++) {
             const prefix = nameLower.slice(0, i);
             let prefixSet = this.prefixIndex.get(prefix);
             if (!prefixSet) {
@@ -940,7 +952,11 @@ export class WorkspaceIndex {
       }
 
       if (removeNameFromPrefixIndex && nameLower.length >= 2) {
-        for (let i = 2; i <= nameLower.length; i++) {
+        for (
+          let i = 2;
+          i <= Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+          i++
+        ) {
           const prefix = nameLower.slice(0, i);
           const prefixSet = this.prefixIndex.get(prefix);
           if (prefixSet) {
