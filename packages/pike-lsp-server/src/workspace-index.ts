@@ -121,6 +121,11 @@ export class WorkspaceIndex {
   private searchCache = new Map<string, { results: SymbolInformation[]; timestamp: number }>();
   private searchCacheHits = 0;
   private searchCacheMisses = 0;
+  // PERF-1273: Max prefix index entries to prevent unbounded memory growth.
+  // Each symbol name adds ~len-1 prefix entries; cap bounds total memory.
+  // Eviction is FIFO by Map insertion order — evicted prefixes fall back to
+  // the O(n) scan in searchSymbols, so correctness is preserved.
+  private static readonly PREFIX_INDEX_MAX_SIZE = 10_000;
   private static readonly SEARCH_CACHE_MAX_SIZE = 100;
   private static readonly SEARCH_CACHE_TTL_MS = 60000; // 60 seconds
 
@@ -893,6 +898,14 @@ export class WorkspaceIndex {
               this.prefixIndex.set(prefix, prefixSet);
             }
             prefixSet.add(nameLower);
+          }
+
+          // Evict oldest prefix entries when index exceeds the size cap.
+          // Map preserves insertion order, so the first key is the oldest.
+          while (this.prefixIndex.size > WorkspaceIndex.PREFIX_INDEX_MAX_SIZE) {
+            const oldest = this.prefixIndex.keys().next().value;
+            if (oldest === undefined) break;
+            this.prefixIndex.delete(oldest);
           }
         }
       }
