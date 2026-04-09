@@ -306,14 +306,6 @@ export class WorkspaceIndex {
     return symbols.map(symbol => this.toFlattenedSymbolEntry(symbol).symbol);
   }
 
-  /**
-   * Get the number of indexed documents that contain a symbol with the given name.
-   * Uses symbolLookup for O(1) lookup instead of iterating documentCache.
-   */
-  getSymbolReferenceCount(symbolName: string): number {
-    return this.symbolLookup.get(symbolName.toLowerCase())?.size ?? 0;
-  }
-
   searchImportableSymbols(
     query: string,
     options: { excludeUri?: string; limit?: number } = {}
