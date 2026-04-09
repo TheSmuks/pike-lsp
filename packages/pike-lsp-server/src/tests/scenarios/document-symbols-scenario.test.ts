@@ -1,7 +1,7 @@
 /**
  * Document Symbols Scenario Tests (#1061)
  *
- * Exercises real code paths through registerSymbolsHandlers with
+ * Exercises real code paths through registerDocumentSymbolHandler with
  * onDocumentSymbol handler. Covers Pike-specific constructs, nested
  * symbols, edge cases, and symbol kind mapping.
  */
