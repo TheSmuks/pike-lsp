@@ -575,7 +575,7 @@ function parseChangelog() {
             version: currentVersion,
             date: currentDate,
             title: 'Performance Optimizations',
-            items: []
+            items: [],
           };
           optimizations.push(optEntry);
         }
@@ -595,7 +595,7 @@ function fetchBenchmarkData() {
   try {
     const data = execSync('git show origin/gh-pages:benchmarks/data.js 2>/dev/null', {
       encoding: 'utf8',
-      maxBuffer: 10 * 1024 * 1024
+      maxBuffer: 10 * 1024 * 1024,
     });
 
     const jsonMatch = data.match(/window\.BENCHMARK_DATA\s*=\s*(\{[\s\S]*\})\s*;?\s*$/);
@@ -632,7 +632,7 @@ function prepareChartData(historicalData) {
       byName[bench.name].push({
         date: run.date,
         commit: run.commit,
-        value: bench.value
+        value: bench.value,
       });
     }
   }
@@ -653,7 +653,7 @@ function prepareChartData(historicalData) {
       const avg = window.reduce((s, v) => s + v.value, 0) / window.length;
       rollingData.push({
         date: values[i].date,
-        value: avg
+        value: avg,
       });
     }
 
@@ -681,14 +681,14 @@ function prepareChartData(historicalData) {
       name: name.replace(/_/g, ' '),
       value: latest,
       deltaClass,
-      deltaText
+      deltaText,
     });
 
     history.push({
       id: name.replace(/[^a-z0-9]/gi, '-'),
       name: name.replace(/_/g, ' '),
       labels,
-      values: chartValues
+      values: chartValues,
     });
   }
 
@@ -717,7 +717,7 @@ function generatePage() {
 
   try {
     version = execSync('git describe --tags --abbrev=0 2>/dev/null || echo "dev"', {
-      encoding: 'utf8'
+      encoding: 'utf8',
     }).trim();
   } catch (e) {
     try {
@@ -726,8 +726,7 @@ function generatePage() {
     } catch (e2) {}
   }
 
-  let html = HTML_TEMPLATE
-    .replace(/\{\{VERSION\}\}/g, version)
+  let html = HTML_TEMPLATE.replace(/\{\{VERSION\}\}/g, version)
     .replace(/\{\{DATE\}\}/g, date)
     .replace(/\{\{BENCHMARK_DATA\}\}/g, JSON.stringify({ current, history }, null, 2))
     .replace(/\{\{OPTIMIZATIONS\}\}/g, JSON.stringify(optimizations, null, 2));

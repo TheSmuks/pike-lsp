@@ -8,7 +8,6 @@ description: Development guide for features/rxml/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerRXMLHandlers` | function | 18 |
-
+| Symbol                 | Type     | Line |
+| ---------------------- | -------- | ---- |
+| `registerRXMLHandlers` | function | 18   |

@@ -8,7 +8,6 @@ description: Development guide for features/rxml/glob-cache.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `GlobCache` | class | 13 |
-
+| Symbol      | Type  | Line |
+| ----------- | ----- | ---- |
+| `GlobCache` | class | 13   |

@@ -12,7 +12,6 @@ Simple test for parser error recovery
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `main` | function | 4 |
-
+| Symbol | Type     | Line |
+| ------ | -------- | ---- |
+| `main` | function | 4    |

@@ -58,7 +58,9 @@ let failed = false;
 if (hitMean < 0.5 && missMean < 0.5) {
   console.log(`SKIPPED: Values too small for reliable comparison (< 0.5ms)`);
 } else if (speedupPercent < COMPILE_SPEEDUP_THRESHOLD) {
-  console.error(`\nERROR: Cache speedup (${speedupPercent.toFixed(1)}%) below threshold (${COMPILE_SPEEDUP_THRESHOLD}%)`);
+  console.error(
+    `\nERROR: Cache speedup (${speedupPercent.toFixed(1)}%) below threshold (${COMPILE_SPEEDUP_THRESHOLD}%)`
+  );
   failed = true;
 } else {
   console.log(`OK: Cache speedup meets threshold (${COMPILE_SPEEDUP_THRESHOLD}%)`);

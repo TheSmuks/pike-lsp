@@ -8,7 +8,6 @@ description: Development guide for features/rxml/module-scanner.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `extractTagsFromPikeCode` | function | 37 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `extractTagsFromPikeCode` | function | 37   |

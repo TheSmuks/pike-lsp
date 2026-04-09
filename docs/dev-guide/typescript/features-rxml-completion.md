@@ -8,10 +8,9 @@ description: Development guide for features/rxml/completion.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `provideRXMLCompletions` | function | 26 |
-| `getTagCompletions` | function | 139 |
-| `getAttributeCompletions` | function | 162 |
-| `getAttributeValueCompletions` | function | 190 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `provideRXMLCompletions`       | function | 26   |
+| `getTagCompletions`            | function | 139  |
+| `getAttributeCompletions`      | function | 162  |
+| `getAttributeValueCompletions` | function | 190  |

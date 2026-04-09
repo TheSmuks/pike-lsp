@@ -8,7 +8,6 @@ description: Development guide for features/advanced/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerAdvancedHandlers` | function | 57 |
-
+| Symbol                     | Type     | Line |
+| -------------------------- | -------- | ---- |
+| `registerAdvancedHandlers` | function | 57   |

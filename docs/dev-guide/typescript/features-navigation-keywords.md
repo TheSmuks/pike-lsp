@@ -8,9 +8,8 @@ description: Development guide for features/navigation/keywords.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `PikeKeyword` | interface | 7 |
-| `isPikeKeyword` | function | 91 |
-| `getKeywordInfo` | function | 98 |
-
+| Symbol           | Type      | Line |
+| ---------------- | --------- | ---- |
+| `PikeKeyword`    | interface | 7    |
+| `isPikeKeyword`  | function  | 91   |
+| `getKeywordInfo` | function  | 98   |

@@ -8,9 +8,8 @@ description: Development guide for features/file-watcher.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `isPikeFile` | function | 41 |
-| `registerFileWatcher` | function | 71 |
-| `getPikeFileWatchPatterns` | function | 227 |
-
+| Symbol                     | Type     | Line |
+| -------------------------- | -------- | ---- |
+| `isPikeFile`               | function | 41   |
+| `registerFileWatcher`      | function | 71   |
+| `getPikeFileWatchPatterns` | function | 227  |

@@ -8,11 +8,10 @@ description: Development guide for type-database.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `TypeDatabase` | class | 69 |
-| `Position` | interface | 17 |
-| `CompiledProgramInfo` | interface | 25 |
-| `SymbolLocation` | interface | 51 |
-| `InferenceContext` | interface | 60 |
-
+| Symbol                | Type      | Line |
+| --------------------- | --------- | ---- |
+| `TypeDatabase`        | class     | 69   |
+| `Position`            | interface | 17   |
+| `CompiledProgramInfo` | interface | 25   |
+| `SymbolLocation`      | interface | 51   |
+| `InferenceContext`    | interface | 60   |

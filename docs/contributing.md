@@ -73,6 +73,7 @@ scripts/test-agent.sh --fast
 ### 4. Commit Changes
 
 Use clear, descriptive commit messages with conventional prefixes:
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation only
@@ -91,10 +92,10 @@ Use clear, descriptive commit messages with conventional prefixes:
 
 ### Test Structure
 
-| File | Purpose |
-|------|---------|
-| `lsp-tests.ts` | Core LSP functionality |
-| `integration-tests.ts` | End-to-end workflows |
+| File                   | Purpose                |
+| ---------------------- | ---------------------- |
+| `lsp-tests.ts`         | Core LSP functionality |
+| `integration-tests.ts` | End-to-end workflows   |
 | `pike-source-tests.ts` | Pike stdlib validation |
 
 ### Adding Tests
@@ -119,6 +120,7 @@ All new features must have tests. Tests must pass before merging.
 ## Reporting Issues
 
 Include in bug reports:
+
 1. **Pike version** (`pike --version`)
 2. Node.js version (`node --version`)
 3. VS Code version

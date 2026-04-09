@@ -8,8 +8,7 @@ description: Development guide for features/advanced/formatting.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerFormattingHandlers` | function | 54 |
-| `formatPikeCode` | function | 150 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerFormattingHandlers` | function | 54   |
+| `formatPikeCode`             | function | 150  |

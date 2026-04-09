@@ -8,8 +8,7 @@ description: Development guide for features/advanced/extract-method.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `ExtractMethodResult` | interface | 19 |
-| `getExtractMethodAction` | function | 37 |
-
+| Symbol                   | Type      | Line |
+| ------------------------ | --------- | ---- |
+| `ExtractMethodResult`    | interface | 19   |
+| `getExtractMethodAction` | function  | 37   |

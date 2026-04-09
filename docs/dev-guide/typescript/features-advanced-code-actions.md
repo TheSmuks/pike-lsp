@@ -8,7 +8,6 @@ description: Development guide for features/advanced/code-actions.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerCodeActionsHandler` | function | 28 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerCodeActionsHandler` | function | 28   |

@@ -8,7 +8,6 @@ description: Development guide for features/advanced/inlay-hints.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerInlayHintsHandler` | function | 27 |
-
+| Symbol                      | Type     | Line |
+| --------------------------- | -------- | ---- |
+| `registerInlayHintsHandler` | function | 27   |

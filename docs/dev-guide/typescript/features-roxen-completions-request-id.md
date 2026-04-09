@@ -8,7 +8,6 @@ description: Development guide for features/roxen/completions/request-id.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `getRequestIDCompletions` | function | 12 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `getRequestIDCompletions` | function | 12   |

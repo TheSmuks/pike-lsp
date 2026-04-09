@@ -14,7 +14,6 @@ This documents the EXPECTED output format for cursor detection
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `main` | function | 2 |
-
+| Symbol | Type     | Line |
+| ------ | -------- | ---- |
+| `main` | function | 2    |

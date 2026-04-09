@@ -156,20 +156,19 @@ Merges documentation into symbols, functions, and variables arrays.
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `Cache` | constant | 14 |
-| `BOOTSTRAP_MODULES` | constant | 24 |
-| `create` | function | 40 |
-| `handle_resolve` | function | 47 |
-| `handle_resolve_stdlib` | function | 151 |
-| `get_module_path` | function | 345 |
-| `extract_local_module_symbols` | function | 401 |
-| `read_source_file` | function | 441 |
-| `parse_stdlib_documentation` | function | 480 |
-| `extract_bootstrap_autodoc` | function | 575 |
-| `merge_documentation` | function | 601 |
-| `if` | function | 605 |
-| `if` | function | 619 |
-| `if` | function | 633 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `Cache`                        | constant | 14   |
+| `BOOTSTRAP_MODULES`            | constant | 24   |
+| `create`                       | function | 40   |
+| `handle_resolve`               | function | 47   |
+| `handle_resolve_stdlib`        | function | 151  |
+| `get_module_path`              | function | 345  |
+| `extract_local_module_symbols` | function | 401  |
+| `read_source_file`             | function | 441  |
+| `parse_stdlib_documentation`   | function | 480  |
+| `extract_bootstrap_autodoc`    | function | 575  |
+| `merge_documentation`          | function | 601  |
+| `if`                           | function | 605  |
+| `if`                           | function | 619  |
+| `if`                           | function | 633  |

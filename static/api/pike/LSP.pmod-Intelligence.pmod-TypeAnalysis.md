@@ -74,12 +74,11 @@ Format a group (array/mapping/multiset) as markdown-formatted text
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `create` | function | 15 |
-| `handle_get_inherited` | function | 33 |
-| `parse_autodoc` | function | 125 |
-| `parse_autodoc_impl` | function | 138 |
-| `save_text_buffer` | function | 748 |
-| `format_group_as_text` | function | 868 |
-
+| Symbol                 | Type     | Line |
+| ---------------------- | -------- | ---- |
+| `create`               | function | 15   |
+| `handle_get_inherited` | function | 33   |
+| `parse_autodoc`        | function | 125  |
+| `parse_autodoc_impl`   | function | 138  |
+| `save_text_buffer`     | function | 748  |
+| `format_group_as_text` | function | 868  |

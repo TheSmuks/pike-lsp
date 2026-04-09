@@ -8,7 +8,6 @@ description: Development guide for features/advanced/code-lens.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerCodeLensHandlers` | function | 21 |
-
+| Symbol                     | Type     | Line |
+| -------------------------- | -------- | ---- |
+| `registerCodeLensHandlers` | function | 21   |

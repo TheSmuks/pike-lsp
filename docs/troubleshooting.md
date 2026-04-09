@@ -17,9 +17,11 @@ Pike executable not found at "pike"
 ## Extension not activating
 
 **Symptoms:**
+
 - Extension doesn't load when opening a `.pike` file
 
 **Solutions:**
+
 1. Check that you have a `.pike` or `.pmod` file open
 2. Check the Output panel (View > Output > Pike Language Server) for errors
 3. Verify Pike is in your PATH by running `pike --version` in terminal
@@ -35,6 +37,7 @@ Pike executable not found at "pike"
 **Symptoms:** Syntax errors not highlighted in the editor
 
 **Solutions:**
+
 1. Check the Problems panel (View > Problems)
 2. Ensure the file is saved with a `.pike` or `.pmod` extension
 3. Check that diagnostics are enabled in VS Code settings

@@ -8,7 +8,6 @@ description: Development guide for features/editing/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerEditingHandlers` | function | 36 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `registerEditingHandlers` | function | 36   |

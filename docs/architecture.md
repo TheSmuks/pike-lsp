@@ -82,28 +82,34 @@ This document describes the architecture of the Pike Language Server implementat
 ## Key Directories and Module Responsibilities
 
 ### `/packages/vscode-pike` - VSCode Extension
+
 **Purpose:** User-facing VSCode extension that activates the LSP server.
 
 **Key Files:**
+
 - `src/extension.ts` - Extension activation, LSP client startup, commands
 - `src/pike-detector.ts` - Auto-detects Pike installation paths (Windows/Linux/macOS)
 - `package.json` - Extension manifest, configuration schema
 
 **Configuration Settings (passed to LSP server via initializationOptions):**
+
 - `pike.pikePath` - Path to Pike executable (default: "pike")
 - `pike.pikeModulePath` - Array of module search paths
 - `pike.pikeIncludePath` - Array of include search paths
 - `pike.roxenPath` - Path to Roxen installation (for Roxen module support)
 
 **Commands:**
+
 - `pike.detectPike` - Manual Pike detection trigger
 - `pike.showReferences` - Show all references to a symbol
 - `pike.lsp.showDiagnostics` - Show diagnostics for current document
 
 ### `/packages/pike-lsp-server` - TypeScript LSP Server
+
 **Purpose:** Implements LSP protocol, manages workspace state, orchestrates features.
 
 **Directory Structure:**
+
 ```
 src/
 ├── server.ts              # Entry point, connection setup, feature registration
@@ -142,6 +148,7 @@ src/
 ```
 
 **Key Services:**
+
 - **WorkspaceIndex** - Fast symbol search across workspace (O(1) lookup)
 - **TypeDatabase** - Caches compiled programs with inheritance graph
 - **StdlibIndexManager** - Lazy-loads stdlib modules with LRU caching (20MB budget)
@@ -149,9 +156,11 @@ src/
 - **BridgeManager** - Manages PikeBridge lifecycle and health monitoring
 
 ### `/packages/pike-bridge` - TypeScript ↔ Pike IPC
+
 **Purpose:** Manages Pike subprocess and JSON-RPC communication.
 
 **Key Files:**
+
 - `src/bridge.ts` - Main PikeBridge class, subprocess management
 - `src/process.ts` - PikeProcess wrapper (spawn, stdin/stdout handling)
 - `src/types.ts` - TypeScript types for all Pike protocol messages
@@ -160,6 +169,7 @@ src/
 - `src/response-validator.ts` - Runtime response validation (ADR-012)
 
 **Key Features:**
+
 - **Request Deduping:** Identical in-flight requests share the same promise
 - **Token Cache:** Caches tokenization results for completion context (PERF-003)
 - **Batch Parse:** Processes multiple files in single IPC call (PERF-007)
@@ -167,20 +177,24 @@ src/
 - **Performance Timing:** All responses include `_perf` metadata
 
 **Protocol:** JSON-RPC 2.0 over stdin/stdout
+
 - Request: `{ "jsonrpc": "2.0", "id": 1, "method": "parse", "params": {...} }`
 - Response: `{ "jsonrpc": "2.0", "id": 1, "result": {...} }`
 - Error Response: `{ "jsonrpc": "2.0", "id": 1, "error": {...} }`
 
 ### `/pike-scripts` - Pure Pike Analyzer
+
 **Purpose:** All Pike language analysis happens here using Pike's stdlib.
 
 **Entry Point:**
+
 - `analyzer.pike` - JSON-RPC router with dispatch table pattern
   - Line-by-line stdin reading (CRITICAL: uses `Stdio.stdin.gets()`, NOT `read()`)
   - Lazy Context initialization (defers module loading until first request)
   - Dispatch table: O(1) method lookup
 
 **LSP Modules (`LSP.pmod/`):**
+
 ```
 LSP.pmod/
 ├── Parser.pike          # parse(), tokenize(), compile(), batch_parse()
@@ -206,11 +220,13 @@ LSP.pmod/
 ```
 
 **Critical Architecture Invariants:**
+
 1. **Use Pike stdlib first** (ADR-001): `Parser.Pike.split()` not regex
 2. **Pike 8.0.1116 target** (ADR-002): `String.trim_all_whites()` not `String.trim()`
 3. **Line-by-line stdin reading**: `Stdio.stdin.gets()` in loop, never `Stdio.stdin->read()`
 
 **JSON-RPC Methods (dispatched from `analyzer.pike`):**
+
 - `parse` - Parse and extract symbols (DEPRECATED: use `analyze`)
 - `tokenize` - Tokenize using Pike's tokenizer
 - `compile` - Compile and get compiler diagnostics
@@ -238,6 +254,7 @@ LSP.pmod/
 The LSP provides specialized support for Roxen WebServer module development.
 
 **Detection Flow:**
+
 1. **Fast Path Check** (`detector.ts:hasMarkers()`):
    - Check for Roxen-specific markers in code:
      - `inherit "module"`, `inherit "filesystem"`, `inherit "roxen"`
@@ -256,11 +273,13 @@ The LSP provides specialized support for Roxen WebServer module development.
    - RXML symbol extraction in mixed content
 
 **Configuration:**
+
 - `pike.roxenPath` setting (optional) - Path to Roxen installation
 - Used for resolving Roxen-specific includes and modules
 - Falls back to pure Pike analysis if not configured
 
 **Pure Pike Fallback:**
+
 - If `roxenPath` is not set, the LSP uses pure Pike analysis
 - Roxen API stubs (`LSP.pmod/RoxenStubs.pmod`) provide type information
 - Works without Roxen installed, but with limited Roxen-specific features
@@ -268,76 +287,81 @@ The LSP provides specialized support for Roxen WebServer module development.
 ## Important Files and Their Purposes
 
 ### Configuration and Entry Points
-| File | Purpose |
-|------|---------|
-| `packages/vscode-pike/src/extension.ts` | VSCode extension activation, LSP client startup |
-| `packages/pike-lsp-server/src/server.ts` | LSP server entry point, feature registration |
-| `packages/pike-bridge/src/bridge.ts` | Pike subprocess management, JSON-RPC client |
-| `pike-scripts/analyzer.pike` | JSON-RPC server, dispatches to LSP modules |
+
+| File                                     | Purpose                                         |
+| ---------------------------------------- | ----------------------------------------------- |
+| `packages/vscode-pike/src/extension.ts`  | VSCode extension activation, LSP client startup |
+| `packages/pike-lsp-server/src/server.ts` | LSP server entry point, feature registration    |
+| `packages/pike-bridge/src/bridge.ts`     | Pike subprocess management, JSON-RPC client     |
+| `pike-scripts/analyzer.pike`             | JSON-RPC server, dispatches to LSP modules      |
 
 ### Core Services
-| File | Purpose |
-|------|---------|
-| `packages/pike-lsp-server/src/workspace-index.ts` | O(1) symbol search across workspace |
-| `packages/pike-lsp-server/src/type-database.ts` | Compiled program cache with inheritance |
-| `packages/pike-lsp-server/src/stdlib-index.ts` | Lazy stdlib loading with LRU caching |
-| `packages/pike-lsp-server/src/services/bridge-manager.ts` | Bridge lifecycle and health monitoring |
+
+| File                                                      | Purpose                                 |
+| --------------------------------------------------------- | --------------------------------------- |
+| `packages/pike-lsp-server/src/workspace-index.ts`         | O(1) symbol search across workspace     |
+| `packages/pike-lsp-server/src/type-database.ts`           | Compiled program cache with inheritance |
+| `packages/pike-lsp-server/src/stdlib-index.ts`            | Lazy stdlib loading with LRU caching    |
+| `packages/pike-lsp-server/src/services/bridge-manager.ts` | Bridge lifecycle and health monitoring  |
 
 ### Feature Implementations
-| File | Purpose |
-|------|---------|
-| `packages/pike-lsp-server/src/features/diagnostics.ts` | Real-time error/warning diagnostics |
-| `packages/pike-lsp-server/src/features/navigation/hover.ts` | Hover information |
-| `packages/pike-lsp-server/src/features/navigation/definition.ts` | Go-to-definition |
-| `packages/pike-lsp-server/src/features/navigation/references.ts` | Find all references |
-| `packages/pike-lsp-server/src/features/editing/completion.ts` | Code completion |
-| `packages/pike-lsp-server/src/features/roxen/detector.ts` | Roxen module detection |
-| `packages/pike-lsp-server/src/features/roxen/completion.ts` | Roxen-aware completions |
+
+| File                                                             | Purpose                             |
+| ---------------------------------------------------------------- | ----------------------------------- |
+| `packages/pike-lsp-server/src/features/diagnostics.ts`           | Real-time error/warning diagnostics |
+| `packages/pike-lsp-server/src/features/navigation/hover.ts`      | Hover information                   |
+| `packages/pike-lsp-server/src/features/navigation/definition.ts` | Go-to-definition                    |
+| `packages/pike-lsp-server/src/features/navigation/references.ts` | Find all references                 |
+| `packages/pike-lsp-server/src/features/editing/completion.ts`    | Code completion                     |
+| `packages/pike-lsp-server/src/features/roxen/detector.ts`        | Roxen module detection              |
+| `packages/pike-lsp-server/src/features/roxen/completion.ts`      | Roxen-aware completions             |
 
 ### Pike Modules
-| File | Purpose |
-|------|---------|
-| `pike-scripts/LSP.pmod/Parser.pike` | Parsing and tokenization |
-| `pike-scripts/LSP.pmod/Intelligence.pmod/Intelligence.pike` | Introspection, resolution |
-| `pike-scripts/LSP.pmod/Analysis.pmod/Analysis.pike` | Diagnostics, completions |
-| `pike-scripts/LSP.pmod/Roxen.pmod/Roxen.pike` | Roxen module analysis |
-| `pike-scripts/LSP.pmod/Compat.pmod` | Pike version compatibility |
+
+| File                                                        | Purpose                    |
+| ----------------------------------------------------------- | -------------------------- |
+| `pike-scripts/LSP.pmod/Parser.pike`                         | Parsing and tokenization   |
+| `pike-scripts/LSP.pmod/Intelligence.pmod/Intelligence.pike` | Introspection, resolution  |
+| `pike-scripts/LSP.pmod/Analysis.pmod/Analysis.pike`         | Diagnostics, completions   |
+| `pike-scripts/LSP.pmod/Roxen.pmod/Roxen.pike`               | Roxen module analysis      |
+| `pike-scripts/LSP.pmod/Compat.pmod`                         | Pike version compatibility |
 
 ### Testing
-| Directory | Purpose |
-|----------|---------|
-| `packages/vscode-pike/src/test/integration/` | E2E LSP feature tests |
-| `packages/pike-lsp-server/src/tests/` | Unit tests for LSP server |
-| `packages/pike-bridge/src/` | Bridge unit tests (colocated) |
+
+| Directory                                    | Purpose                       |
+| -------------------------------------------- | ----------------------------- |
+| `packages/vscode-pike/src/test/integration/` | E2E LSP feature tests         |
+| `packages/pike-lsp-server/src/tests/`        | Unit tests for LSP server     |
+| `packages/pike-bridge/src/`                  | Bridge unit tests (colocated) |
 
 ## Architectural Decisions
 
 This architecture is governed by the ADRs in `.sisyphus/decisions/`:
 
-| ADR | Decision | Impact |
-|-----|----------|--------|
-| ADR-001 | Use `Parser.Pike` over regex | All Pike parsing uses native parser |
-| ADR-002 | Target Pike 8.0.1116 | No `String.trim()`, use `String.trim_all_whites()` |
-| ADR-003 | JSON-RPC over stdin/stdout | Bridge protocol |
-| ADR-004 | Version sync across 5 packages | Release process |
-| ADR-005 | Feature branch workflow | Git workflow |
-| ADR-006 | TDD mandatory | All features tested first |
-| ADR-007 | Release via skill only | No direct pushes to main |
-| ADR-008 | Test integrity enforced | No placeholder tests allowed |
-| ADR-009 | Agent-oriented testing | Carlini protocol |
-| ADR-010 | Project-specific agent roles | Builder, Pike Critic, etc. |
-| ADR-011 | Carlini quality standards | Code quality requirements |
+| ADR     | Decision                       | Impact                                             |
+| ------- | ------------------------------ | -------------------------------------------------- |
+| ADR-001 | Use `Parser.Pike` over regex   | All Pike parsing uses native parser                |
+| ADR-002 | Target Pike 8.0.1116           | No `String.trim()`, use `String.trim_all_whites()` |
+| ADR-003 | JSON-RPC over stdin/stdout     | Bridge protocol                                    |
+| ADR-004 | Version sync across 5 packages | Release process                                    |
+| ADR-005 | Feature branch workflow        | Git workflow                                       |
+| ADR-006 | TDD mandatory                  | All features tested first                          |
+| ADR-007 | Release via skill only         | No direct pushes to main                           |
+| ADR-008 | Test integrity enforced        | No placeholder tests allowed                       |
+| ADR-009 | Agent-oriented testing         | Carlini protocol                                   |
+| ADR-010 | Project-specific agent roles   | Builder, Pike Critic, etc.                         |
+| ADR-011 | Carlini quality standards      | Code quality requirements                          |
 
 ## Performance Optimizations
 
-| Optimization | Location | Description |
-|-------------|----------|-------------|
-| PERF-003 | Token cache | `PikeBridge` caches tokenization for completion context |
-| PERF-007 | Batch parsing | `batchParse()` processes multiple files in single IPC call |
-| Lazy Context | `analyzer.pike` | Defers module loading until first request |
-| LRU Caching | `StdlibIndexManager` | 20MB memory budget for stdlib cache |
-| Request Deduping | `PikeBridge` | Identical in-flight requests share promise |
-| Workspace Index | `WorkspaceIndex` | O(1) symbol lookup with nested Map structure |
+| Optimization     | Location             | Description                                                |
+| ---------------- | -------------------- | ---------------------------------------------------------- |
+| PERF-003         | Token cache          | `PikeBridge` caches tokenization for completion context    |
+| PERF-007         | Batch parsing        | `batchParse()` processes multiple files in single IPC call |
+| Lazy Context     | `analyzer.pike`      | Defers module loading until first request                  |
+| LRU Caching      | `StdlibIndexManager` | 20MB memory budget for stdlib cache                        |
+| Request Deduping | `PikeBridge`         | Identical in-flight requests share promise                 |
+| Workspace Index  | `WorkspaceIndex`     | O(1) symbol lookup with nested Map structure               |
 
 ## Error Handling Strategy
 
@@ -412,6 +436,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","f
 ```
 
 ### Build Order
+
 ```
 1. @pike-lsp/core (no deps)
 2. @pike-lsp/pike-bridge (depends on core)
@@ -420,6 +445,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","f
 ```
 
 ### Cross-Package Import Rules
+
 - Use `@pike-lsp/*` for cross-package imports
 - No relative imports crossing package boundaries
 - Enforced by: `scripts/quality-gate.sh`
@@ -427,11 +453,14 @@ echo '{"jsonrpc":"2.0","id":1,"method":"introspect","params":{"code":"int x;","f
 ## Quality Standards
 
 ### File Size Limit
+
 - **Source files**: Max 500 lines (enforced by `scripts/quality-gate.sh`)
 - **Test files**: Exempt (often 1000+ lines for comprehensive coverage)
 
 ### Error Handling Pattern
+
 All packages use consistent error handling:
+
 - Custom error types extend base `PikeError` (planned for @pike-lsp/core)
 - Sensitive paths anonymized in logs
 - Context preserved for debugging
@@ -439,5 +468,6 @@ All packages use consistent error handling:
 ## Architecture Decision Records
 
 See `docs/adr/` directory for detailed decisions:
+
 - [ADR-001: Monorepo Structure](adr/001-monorepo-structure.md)
 - [ADR-002: Bridge Subprocess Model](adr/002-bridge-subprocess-model.md)

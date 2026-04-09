@@ -8,7 +8,6 @@ description: Development guide for features/advanced/getters-setters.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `getGenerateGetterSetterActions` | function | 14 |
-
+| Symbol                           | Type     | Line |
+| -------------------------------- | -------- | ---- |
+| `getGenerateGetterSetterActions` | function | 14   |

@@ -8,7 +8,6 @@ description: Development guide for features/editing/signature-help.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerSignatureHelpHandler` | function | 23 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `registerSignatureHelpHandler` | function | 23   |

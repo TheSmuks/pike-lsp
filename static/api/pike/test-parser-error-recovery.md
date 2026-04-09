@@ -20,8 +20,7 @@ Tests that the parser can:
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `main` | function | 7 |
-| `method` | function | 74 |
-
+| Symbol   | Type     | Line |
+| -------- | -------- | ---- |
+| `main`   | function | 7    |
+| `method` | function | 74   |

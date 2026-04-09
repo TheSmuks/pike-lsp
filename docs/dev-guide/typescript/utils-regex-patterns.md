@@ -5,4 +5,3 @@ description: Development guide for utils/regex-patterns.ts
 ---
 
 # utils/regex-patterns.ts
-

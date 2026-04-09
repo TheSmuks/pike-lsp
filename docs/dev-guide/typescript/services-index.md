@@ -8,7 +8,6 @@ description: Development guide for services/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `Services` | interface | 25 |
-
+| Symbol     | Type      | Line |
+| ---------- | --------- | ---- |
+| `Services` | interface | 25   |

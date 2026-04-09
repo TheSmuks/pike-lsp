@@ -8,7 +8,6 @@ description: Development guide for utils/code-lens.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `buildCodeLensCommand` | function | 3 |
-
+| Symbol                 | Type     | Line |
+| ---------------------- | -------- | ---- |
+| `buildCodeLensCommand` | function | 3    |

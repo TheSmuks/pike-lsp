@@ -8,7 +8,6 @@ description: Development guide for features/diagnostics/index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerDiagnosticsHandlers` | function | 42 |
-
+| Symbol                        | Type     | Line |
+| ----------------------------- | -------- | ---- |
+| `registerDiagnosticsHandlers` | function | 42   |

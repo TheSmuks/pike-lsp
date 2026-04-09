@@ -8,7 +8,6 @@ description: Development guide for features/editing/completion.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerCompletionHandlers` | function | 27 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerCompletionHandlers` | function | 27   |

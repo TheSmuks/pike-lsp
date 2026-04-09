@@ -8,7 +8,6 @@ description: Development guide for features/navigation/definition.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerDefinitionHandlers` | function | 40 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerDefinitionHandlers` | function | 40   |

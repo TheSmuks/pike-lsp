@@ -82,7 +82,7 @@ for repeated completion requests on unchanged documents.
 
 Check if cursor is immediately after a dot operator (with optional whitespace)
 
-When the cursor is at "Array.|" or "Array.   |" (with whitespace), this
+When the cursor is at "Array.|" or "Array. |" (with whitespace), this
 
 function detects that the user wants member access completion even though
 
@@ -112,12 +112,11 @@ the cursor position for word characters.
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `create` | function | 22 |
-| `handle_get_completion_context` | function | 45 |
-| `name` | function | 162 |
-| `handle_get_completion_context_cached` | function | 222 |
-| `name` | function | 324 |
-| `extract_prefix_at_cursor` | function | 409 |
-
+| Symbol                                 | Type     | Line |
+| -------------------------------------- | -------- | ---- |
+| `create`                               | function | 22   |
+| `handle_get_completion_context`        | function | 45   |
+| `name`                                 | function | 162  |
+| `handle_get_completion_context_cached` | function | 222  |
+| `name`                                 | function | 324  |
+| `extract_prefix_at_cursor`             | function | 409  |

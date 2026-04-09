@@ -8,7 +8,6 @@ description: Development guide for features/navigation/expression-utils.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `extractExpressionAtPosition` | function | 22 |
-
+| Symbol                        | Type     | Line |
+| ----------------------------- | -------- | ---- |
+| `extractExpressionAtPosition` | function | 22   |

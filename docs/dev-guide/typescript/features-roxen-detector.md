@@ -8,8 +8,7 @@ description: Development guide for features/roxen/detector.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `detectRoxenModule` | function | 31 |
-| `invalidateCache` | function | 51 |
-
+| Symbol              | Type     | Line |
+| ------------------- | -------- | ---- |
+| `detectRoxenModule` | function | 31   |
+| `invalidateCache`   | function | 51   |

@@ -8,9 +8,8 @@ description: Development guide for features/advanced/on-type-formatting.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerOnTypeFormattingHandler` | function | 21 |
-| `calculateIndentation` | function | 131 |
-| `findMatchingOpeningBrace` | function | 160 |
-
+| Symbol                            | Type     | Line |
+| --------------------------------- | -------- | ---- |
+| `registerOnTypeFormattingHandler` | function | 21   |
+| `calculateIndentation`            | function | 131  |
+| `findMatchingOpeningBrace`        | function | 160  |

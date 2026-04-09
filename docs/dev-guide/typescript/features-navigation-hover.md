@@ -8,7 +8,6 @@ description: Development guide for features/navigation/hover.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerHoverHandler` | function | 30 |
-
+| Symbol                 | Type     | Line |
+| ---------------------- | -------- | ---- |
+| `registerHoverHandler` | function | 30   |

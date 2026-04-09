@@ -56,19 +56,18 @@ Unified analyze handler
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `Analysis` | class | 10 |
-| `create` | function | 19 |
-| `get_diagnostics_handler` | function | 25 |
-| `get_completions_handler` | function | 36 |
-| `get_variables_handler` | function | 47 |
-| `get_static_env_info` | function | 58 |
-| `handle_analyze_uninitialized` | function | 69 |
-| `handle_get_completion_context` | function | 79 |
-| `handle_get_completion_context_cached` | function | 89 |
-| `handle_find_occurrences` | function | 103 |
-| `get_compilation_cache` | function | 113 |
-| `handle_analyze` | function | 121 |
-| `capture_compile_error` | function | 243 |
-
+| Symbol                                 | Type     | Line |
+| -------------------------------------- | -------- | ---- |
+| `Analysis`                             | class    | 10   |
+| `create`                               | function | 19   |
+| `get_diagnostics_handler`              | function | 25   |
+| `get_completions_handler`              | function | 36   |
+| `get_variables_handler`                | function | 47   |
+| `get_static_env_info`                  | function | 58   |
+| `handle_analyze_uninitialized`         | function | 69   |
+| `handle_get_completion_context`        | function | 79   |
+| `handle_get_completion_context_cached` | function | 89   |
+| `handle_find_occurrences`              | function | 103  |
+| `get_compilation_cache`                | function | 113  |
+| `handle_analyze`                       | function | 121  |
+| `capture_compile_error`                | function | 243  |

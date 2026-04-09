@@ -8,7 +8,6 @@ description: Development guide for features/navigation/references.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerReferencesHandlers` | function | 23 |
-
+| Symbol                       | Type     | Line |
+| ---------------------------- | -------- | ---- |
+| `registerReferencesHandlers` | function | 23   |

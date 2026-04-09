@@ -8,13 +8,13 @@ I’m adopting the role of **LSP architect + language tooling maintainer** with 
 
 ### Counterargument
 
-Starting with error infrastructure, logging, and testing before structural refactors optimizes *observability of a system that hasn’t yet changed*.
+Starting with error infrastructure, logging, and testing before structural refactors optimizes _observability of a system that hasn’t yet changed_.
 
 You invest significant effort in:
 
-* error hierarchies
-* log propagation
-* health reporting
+- error hierarchies
+- log propagation
+- health reporting
 
 …before the main sources of complexity (monolithic bridge/server/Pike logic) are reduced.
 
@@ -22,16 +22,16 @@ You invest significant effort in:
 
 You may end up:
 
-* Designing abstractions that fit the *current* shape but fight the *future* one
-* Rewriting error/log plumbing once refactors reveal different boundaries
+- Designing abstractions that fit the _current_ shape but fight the _future_ one
+- Rewriting error/log plumbing once refactors reveal different boundaries
 
 ### Alternative perspective
 
 A **thin-slice refactor first** (e.g., split `bridge.ts` + one LSP handler) would surface:
 
-* real error flows
-* real lifecycle boundaries
-* real logging needs
+- real error flows
+- real lifecycle boundaries
+- real logging needs
 
 Then infrastructure can be shaped by evidence instead of anticipation.
 
@@ -45,9 +45,9 @@ The plan assumes Pike can participate meaningfully in a structured, layered erro
 
 In practice:
 
-* Pike returns *data*, not control flow
-* Errors are flattened into mappings
-* Stack context is lost at the language boundary
+- Pike returns _data_, not control flow
+- Errors are flattened into mappings
+- Stack context is lost at the language boundary
 
 This makes the TypeScript `LSPError` hierarchy **syntactic, not semantic**.
 
@@ -65,10 +65,10 @@ Only the top two layers actually have stack context.
 
 You gain:
 
-* verbose error chains
+- verbose error chains
   But lose:
-* trustworthy causality
-* actionable debugging data
+- trustworthy causality
+- actionable debugging data
 
 Worse: developers may assume the chain reflects execution reality.
 
@@ -76,8 +76,8 @@ Worse: developers may assume the chain reflects execution reality.
 
 Treat Pike errors as:
 
-* **opaque fault domains**, not layered causes
-* enriched with *classification + metadata*, not faux stack chains
+- **opaque fault domains**, not layered causes
+- enriched with _classification + metadata_, not faux stack chains
 
 A flatter model:
 
@@ -102,9 +102,9 @@ The plan enforces parallel logging systems (TS + Pike) with aligned levels and f
 
 In reality:
 
-* Pike logs are async, buffered, and stderr-based
-* TS logs are structured, timestamped, and contextual
-* Correlation requires request IDs everywhere
+- Pike logs are async, buffered, and stderr-based
+- TS logs are structured, timestamped, and contextual
+- Correlation requires request IDs everywhere
 
 Without **mandatory request correlation**, log symmetry gives a false sense of traceability.
 
@@ -112,17 +112,17 @@ Without **mandatory request correlation**, log symmetry gives a false sense of t
 
 During real incidents:
 
-* Pike logs won’t line up with TS logs
-* “TRACE everywhere” increases noise without clarity
-* Developers still grep blindly
+- Pike logs won’t line up with TS logs
+- “TRACE everywhere” increases noise without clarity
+- Developers still grep blindly
 
 ### Alternative perspective
 
 Bias toward:
 
-* **structured logs only in TS**
-* Pike logs as *event emitters*, not full log streams
-* enforce `request_id` as first-class, not optional
+- **structured logs only in TS**
+- Pike logs as _event emitters_, not full log streams
+- enforce `request_id` as first-class, not optional
 
 Otherwise, verbosity scales faster than insight.
 
@@ -134,19 +134,19 @@ Otherwise, verbosity scales faster than insight.
 
 Your pre-commit hook enforces:
 
-* full TS build
-* Pike compile
-* smoke LSP tests
+- full TS build
+- Pike compile
+- smoke LSP tests
 
-This is appropriate for a *stable* codebase, not an active refactor.
+This is appropriate for a _stable_ codebase, not an active refactor.
 
 ### Risk
 
 Developers will:
 
-* bypass hooks
-* squash commits
-* lose granularity in history
+- bypass hooks
+- squash commits
+- lose granularity in history
 
 That directly contradicts the goal of “zero breaking changes per commit”.
 
@@ -154,8 +154,8 @@ That directly contradicts the goal of “zero breaking changes per commit”.
 
 Two-tier enforcement:
 
-* **pre-commit**: formatting + typecheck of touched packages
-* **pre-push / CI**: full build + smoke tests
+- **pre-commit**: formatting + typecheck of touched packages
+- **pre-push / CI**: full build + smoke tests
 
 This preserves velocity while still protecting main.
 
@@ -167,11 +167,11 @@ This preserves velocity while still protecting main.
 
 Although split into modules, the bridge still owns:
 
-* lifecycle
-* protocol
-* error translation
-* health
-* retry/restart policy
+- lifecycle
+- protocol
+- error translation
+- health
+- retry/restart policy
 
 This makes it a **policy hub**, not just an IPC layer.
 
@@ -179,16 +179,16 @@ This makes it a **policy hub**, not just an IPC layer.
 
 Future changes (e.g., new Pike commands, batching, streaming responses) will:
 
-* cross multiple bridge modules
-* re-introduce tight coupling
-* recreate the 795-line problem across files
+- cross multiple bridge modules
+- re-introduce tight coupling
+- recreate the 795-line problem across files
 
 ### Alternative perspective
 
 Invert responsibility:
 
-* Bridge = dumb transport + framing
-* Server services own retries, health semantics, fallbacks
+- Bridge = dumb transport + framing
+- Server services own retries, health semantics, fallbacks
 
 That keeps Pike replaceable and bridge logic stable.
 
@@ -200,9 +200,9 @@ That keeps Pike replaceable and bridge logic stable.
 
 Splitting Pike code into many `.pmod` units assumes:
 
-* Pike developers are comfortable navigating module hierarchies
-* cross-module object lifetimes are obvious
-* context injection (`ctx->logging`, `ctx->errors`) stays disciplined
+- Pike developers are comfortable navigating module hierarchies
+- cross-module object lifetimes are obvious
+- context injection (`ctx->logging`, `ctx->errors`) stays disciplined
 
 Pike’s tooling and editor support do not reward fine-grained modularity.
 
@@ -210,11 +210,11 @@ Pike’s tooling and editor support do not reward fine-grained modularity.
 
 You trade:
 
-* large files
+- large files
   for:
-* fragmented logic
-* implicit coupling via shared context
-* harder grep-based debugging
+- fragmented logic
+- implicit coupling via shared context
+- harder grep-based debugging
 
 Especially dangerous in a language with weaker static guarantees.
 
@@ -222,9 +222,9 @@ Especially dangerous in a language with weaker static guarantees.
 
 Prefer:
 
-* **fewer, cohesive Pike modules**
-* internal namespacing via comments and sections
-* refactor *within* files before splitting across files
+- **fewer, cohesive Pike modules**
+- internal namespacing via comments and sections
+- refactor _within_ files before splitting across files
 
 Modularity should follow fault lines, not symmetry with TS.
 
@@ -236,9 +236,9 @@ Modularity should follow fault lines, not symmetry with TS.
 
 Splitting `server.ts` into ~11 handlers improves locality but introduces:
 
-* registration indirection
-* cross-handler shared state reasoning
-* duplicated error/log boilerplate
+- registration indirection
+- cross-handler shared state reasoning
+- duplicated error/log boilerplate
 
 The LSP surface area is inherently cohesive.
 
@@ -258,9 +258,9 @@ That’s a five-hop mental trace for a hover.
 
 Group handlers by **capability**, not protocol verb:
 
-* “Navigation”
-* “Symbols”
-* “Completion”
+- “Navigation”
+- “Symbols”
+- “Completion”
 
 This preserves modularity while reducing scatter.
 
@@ -276,9 +276,9 @@ Auto-restarting Pike on failed health checks prioritizes uptime over correctness
 
 You may:
 
-* hide deterministic crashes
-* restart endlessly on bad inputs
-* lose the exact state that caused failure
+- hide deterministic crashes
+- restart endlessly on bad inputs
+- lose the exact state that caused failure
 
 From a tooling perspective, silent recovery is not always desirable.
 
@@ -286,8 +286,8 @@ From a tooling perspective, silent recovery is not always desirable.
 
 Differentiate:
 
-* **recoverable faults** → auto-restart
-* **logic faults** → surface loudly, stop restarting
+- **recoverable faults** → auto-restart
+- **logic faults** → surface loudly, stop restarting
 
 Otherwise diagnostics become optimistic fiction.
 
@@ -301,15 +301,15 @@ This constraint is aspirational, not operational.
 
 During:
 
-* bridge extraction
-* Pike refactors
-* server decomposition
+- bridge extraction
+- Pike refactors
+- server decomposition
 
 There will be commits that are:
 
-* temporarily broken
-* incomplete
-* only meaningful when squashed
+- temporarily broken
+- incomplete
+- only meaningful when squashed
 
 ### Risk
 
@@ -319,8 +319,8 @@ The constraint forces unnatural sequencing and micro-commits that obscure intent
 
 Guarantee:
 
-* **green main**
-* **working phase boundaries**
+- **green main**
+- **working phase boundaries**
 
 Not every intermediate commit.
 
@@ -332,24 +332,24 @@ Not every intermediate commit.
 
 The plan optimizes for:
 
-* observability
-* correctness
-* theoretical maintainability
+- observability
+- correctness
+- theoretical maintainability
 
 But it significantly increases:
 
-* number of concepts
-* files
-* abstractions
-* mental overhead
+- number of concepts
+- files
+- abstractions
+- mental overhead
 
 This is acceptable only if:
 
-* multiple long-term maintainers exist
-* Pike expertise is stable
-* feature velocity is secondary
+- multiple long-term maintainers exist
+- Pike expertise is stable
+- feature velocity is secondary
 
-Otherwise, the system risks becoming *architecturally impressive but fragile to change*.
+Otherwise, the system risks becoming _architecturally impressive but fragile to change_.
 
 ---
 
@@ -357,9 +357,9 @@ Otherwise, the system risks becoming *architecturally impressive but fragile to 
 
 This design is **internally consistent and technically sound**, but:
 
-* It front-loads infrastructure before reducing complexity
-* It assumes symmetry between TS and Pike that doesn’t fully exist
-* It increases abstraction faster than it removes uncertainty
+- It front-loads infrastructure before reducing complexity
+- It assumes symmetry between TS and Pike that doesn’t fully exist
+- It increases abstraction faster than it removes uncertainty
 
 A leaner sequencing and more asymmetric design would reduce risk while preserving most benefits.
 

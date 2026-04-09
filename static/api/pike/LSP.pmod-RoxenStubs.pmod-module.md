@@ -22,8 +22,7 @@ Export the main RXML stub class
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `Roxen` | constant | 8 |
-| `RXML` | constant | 11 |
-
+| Symbol  | Type     | Line |
+| ------- | -------- | ---- |
+| `Roxen` | constant | 8    |
+| `RXML`  | constant | 11   |

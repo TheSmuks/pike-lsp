@@ -82,19 +82,18 @@ Initializes the cache if not already present in the Context
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `Context` | class | 41 |
-| `MAX_TOP_LEVEL_ITERATIONS` | constant | 16 |
-| `MAX_BLOCK_ITERATIONS` | constant | 17 |
-| `BUILD_ID` | constant | 23 |
-| `debug` | function | 25 |
-| `create` | function | 50 |
-| `dispatch` | function | 103 |
-| `get_compilation_cache` | function | 183 |
-| `main` | function | 191 |
-| `__eval` | function | 351 |
-| `create` | function | 597 |
-| `start` | function | 598 |
-| `stop` | function | 599 |
-
+| Symbol                     | Type     | Line |
+| -------------------------- | -------- | ---- |
+| `Context`                  | class    | 41   |
+| `MAX_TOP_LEVEL_ITERATIONS` | constant | 16   |
+| `MAX_BLOCK_ITERATIONS`     | constant | 17   |
+| `BUILD_ID`                 | constant | 23   |
+| `debug`                    | function | 25   |
+| `create`                   | function | 50   |
+| `dispatch`                 | function | 103  |
+| `get_compilation_cache`    | function | 183  |
+| `main`                     | function | 191  |
+| `__eval`                   | function | 351  |
+| `create`                   | function | 597  |
+| `start`                    | function | 598  |
+| `stop`                     | function | 599  |

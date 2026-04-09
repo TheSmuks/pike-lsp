@@ -31,7 +31,7 @@ function extractAutodoc(content) {
         docs.push({
           type: 'module',
           text: docText,
-          line: lineNumber
+          line: lineNumber,
         });
       }
     }
@@ -44,7 +44,7 @@ function extractAutodoc(content) {
           type: 'class',
           name: classMatch[1],
           text: '',
-          line: lineNumber
+          line: lineNumber,
         };
         inBlock = true;
       }
@@ -52,7 +52,11 @@ function extractAutodoc(content) {
     // Method/function doc
     else if (trimmed.startsWith('//! ') && inBlock) {
       const docText = trimmed.substring(3).trim();
-      if (docText.startsWith('@param') || docText.startsWith('@returns') || docText.startsWith('@throws')) {
+      if (
+        docText.startsWith('@param') ||
+        docText.startsWith('@returns') ||
+        docText.startsWith('@throws')
+      ) {
         currentDoc.text += '\n' + docText;
       } else if (docText) {
         currentDoc.text += '\n' + docText;
@@ -83,19 +87,32 @@ function extractSymbols(content) {
   const classRegex = /^(?:private\s+)?class\s+(\w+)/gm;
   let match;
   while ((match = classRegex.exec(content)) !== null) {
-    symbols.push({ type: 'class', name: match[1], line: content.substring(0, match.index).split('\n').length });
+    symbols.push({
+      type: 'class',
+      name: match[1],
+      line: content.substring(0, match.index).split('\n').length,
+    });
   }
 
   // Match constant definitions
   const constantRegex = /^(?:private\s+)?constant\s+(\w+)\s*=/gm;
   while ((match = constantRegex.exec(content)) !== null) {
-    symbols.push({ type: 'constant', name: match[1], line: content.substring(0, match.index).split('\n').length });
+    symbols.push({
+      type: 'constant',
+      name: match[1],
+      line: content.substring(0, match.index).split('\n').length,
+    });
   }
 
   // Match function definitions
-  const funcRegex = /(?:protected|private|public)?\s*(?:static\s*)?(?:void|mapping|int|string|array|mixed|program|object|function|multiset|float)\s+(\w+)\s*\(/gm;
+  const funcRegex =
+    /(?:protected|private|public)?\s*(?:static\s*)?(?:void|mapping|int|string|array|mixed|program|object|function|multiset|float)\s+(\w+)\s*\(/gm;
   while ((match = funcRegex.exec(content)) !== null) {
-    symbols.push({ type: 'function', name: match[1], line: content.substring(0, match.index).split('\n').length });
+    symbols.push({
+      type: 'function',
+      name: match[1],
+      line: content.substring(0, match.index).split('\n').length,
+    });
   }
 
   return symbols;
@@ -224,7 +241,10 @@ Auto-generated from Pike source files using //! autodoc comments.
 
   index += `## Modules\n\n`;
   for (const f of pikeApiFiles) {
-    const title = f.replace('.md', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const title = f
+      .replace('.md', '')
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
     index += `- [${title}](/docs/api/pike/${f.replace('.md', '')})\n`;
   }
 

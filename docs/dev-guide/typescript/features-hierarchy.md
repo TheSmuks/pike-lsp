@@ -8,7 +8,6 @@ description: Development guide for features/hierarchy.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerHierarchyHandlers` | function | 98 |
-
+| Symbol                      | Type     | Line |
+| --------------------------- | -------- | ---- |
+| `registerHierarchyHandlers` | function | 98   |

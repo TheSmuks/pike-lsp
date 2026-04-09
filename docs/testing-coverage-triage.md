@@ -7,7 +7,7 @@ When a feature/bug PR cannot include complete tests, add one row before merge an
 ## Open Coverage Gaps
 
 | Area | Change/Behavior Not Fully Tested | Risk | Follow-up Issue | Owner | Target Milestone | Status |
-| --- | --- | --- | --- | --- | --- | --- |
+| ---- | -------------------------------- | ---- | --------------- | ----- | ---------------- | ------ |
 
 ## Exit Criteria
 

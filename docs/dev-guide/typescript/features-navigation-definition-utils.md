@@ -8,12 +8,11 @@ description: Development guide for features/navigation/definition-utils.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `getWordAtPosition` | function | 19 |
-| `findSymbolInCollection` | function | 56 |
-| `isCursorOnDefinition` | function | 79 |
-| `resolveRelativePath` | function | 99 |
-| `buildLocationForSymbol` | function | 132 |
-| `findWordOccurrences` | function | 160 |
-
+| Symbol                   | Type     | Line |
+| ------------------------ | -------- | ---- |
+| `getWordAtPosition`      | function | 19   |
+| `findSymbolInCollection` | function | 56   |
+| `isCursorOnDefinition`   | function | 79   |
+| `resolveRelativePath`    | function | 99   |
+| `buildLocationForSymbol` | function | 132  |
+| `findWordOccurrences`    | function | 160  |

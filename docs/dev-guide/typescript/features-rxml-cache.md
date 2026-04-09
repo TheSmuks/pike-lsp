@@ -8,7 +8,6 @@ description: Development guide for features/rxml/cache.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `RXMLTagCatalogCache` | class | 50 |
-
+| Symbol                | Type  | Line |
+| --------------------- | ----- | ---- |
+| `RXMLTagCatalogCache` | class | 50   |

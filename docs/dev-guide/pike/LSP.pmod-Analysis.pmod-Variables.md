@@ -70,9 +70,8 @@ Find the nth occurrence of a token in a line (1-indexed)
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `create` | function | 20 |
-| `handle_find_occurrences` | function | 36 |
-| `find_nth_occurrence` | function | 122 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `create`                  | function | 20   |
+| `handle_find_occurrences` | function | 36   |
+| `find_nth_occurrence`     | function | 122  |
