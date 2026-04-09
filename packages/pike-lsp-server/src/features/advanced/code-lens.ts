@@ -24,7 +24,7 @@ export function registerCodeLensHandlers(
   services: Services,
   _documents: TextDocuments<TextDocument>
 ): void {
-  const { documentCache } = services;
+  const { documentCache, workspaceIndex } = services;
   const log = new Logger('Advanced');
 
   // KB-1262: Request scheduler for resilient code lens requests
@@ -244,6 +244,10 @@ export function registerCodeLensHandlers(
   connection.onCodeLensResolve(async (lens, cancellationToken): Promise<CodeLens> => {
     // KB-1262: Check cancellation early
     if (cancellationToken?.isCancellationRequested) {
+      maybeLogLensSchedulerMetrics(
+        (lens.data as { uri?: string } | undefined)?.uri ?? 'unknown',
+        'cancelled-early'
+      );
       return lens;
     }
 
@@ -295,37 +299,21 @@ export function registerCodeLensHandlers(
             }
           }
 
-          // KB-1262: Check cancellation before heavy ref-count computation
+          // KB-1262: Check cancellation before ref-count computation
           if (cancellationToken?.isCancellationRequested) {
             throw new RequestSupersededError('Code lens resolve cancelled before ref-count');
           }
 
-          // Compute ref count
-          let refCount = 0;
+          // Compute ref count via workspace-index (O(1) lookup)
+          // Uses symbolLookup which indexes all workspace files, not just open ones.
+          // Falls back to documentCache.symbolPositions for the current file
+          // when the workspace-index hasn't indexed it yet.
+          let refCount = workspaceIndex.getSymbolReferenceCount(data.symbolName);
 
-          if (currentCache && currentCache.symbolPositions) {
-            const positions = currentCache.symbolPositions.get(data.symbolName);
+          // If workspace-index has no data, fall back to documentCache for the current file
+          if (refCount === 0) {
+            const positions = currentCache?.symbolPositions?.get(data.symbolName);
             refCount = positions?.length ?? 0;
-          }
-
-          // KB-1262: Wrap per-URI ref counting to isolate failures
-          const entries = Array.from(documentCache.entries());
-          for (const [entryUri, cache] of entries) {
-            if (entryUri !== data.uri && cache.symbolPositions) {
-              try {
-                const positions = cache.symbolPositions.get(data.symbolName);
-                if (positions) {
-                  refCount += positions.length;
-                }
-              } catch (err) {
-                // KB-1262: Gracefully handle per-URI ref count failures
-                log.debug('Ref count lookup failed for URI (likely parse-under-edit)', {
-                  uri: entryUri,
-                  symbolName: data.symbolName,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }
           }
 
           // Update cache
