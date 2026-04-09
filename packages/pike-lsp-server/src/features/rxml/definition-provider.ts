@@ -25,6 +25,7 @@ import {
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 
+import { LRUCache } from '../../utils/lru-cache.js';
 const log = new Logger('RXMLDefinition');
 
 // Shared glob cache - 30 second TTL
@@ -33,21 +34,16 @@ const pikeGlobCache = new GlobCache<string[]>(30);
 // Request scheduler for resilient definition lookups
 const definitionScheduler = new RequestScheduler({ logger: log });
 const TAG_DEFINITION_INDEX_TTL_MS = 30_000;
-const tagDefinitionIndexCache = new Map<
+const MAX_WORKSPACE_INDEXES = 20;
+const tagDefinitionIndexCache = new LRUCache<
   string,
-  {
-    builtAt: number;
-    byTag: Map<string, RoxenTagInfo>;
-  }
->();
+  { builtAt: number; byTag: Map<string, RoxenTagInfo> }
+>(MAX_WORKSPACE_INDEXES);
 const DEFVAR_DEFINITION_INDEX_TTL_MS = 30_000;
-const defvarDefinitionIndexCache = new Map<
+const defvarDefinitionIndexCache = new LRUCache<
   string,
-  {
-    builtAt: number;
-    byName: Map<string, RoxenDefvarInfo>;
-  }
->();
+  { builtAt: number; byName: Map<string, RoxenDefvarInfo> }
+>(MAX_WORKSPACE_INDEXES);
 
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
