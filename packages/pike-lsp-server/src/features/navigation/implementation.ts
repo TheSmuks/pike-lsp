@@ -24,7 +24,7 @@ import {
   type InheritRelation,
 } from '../../services/pike-introspection.js';
 import { uriToFsPath } from '../../utils/uri-path.js';
-import { RequestScheduler } from '../../services/request-scheduler.js';
+import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
 export function registerImplementationHandler(
@@ -105,116 +105,135 @@ export function registerImplementationHandler(
       return [];
     }
 
+    const uri = params.textDocument.uri;
+
     try {
-      const uri = params.textDocument.uri;
-      const cached = documentCache.get(uri);
-      const document = documents.get(uri);
+      // KB-1262: Schedule through RequestScheduler for cancellation and supersession
+      const implementations = await implScheduler.schedule<Location[]>({
+        requestClass: 'interactive',
+        key: `implementation:${uri}`,
+        run: async checkpoint => {
+          checkpoint();
 
-      if (!cached || !document) {
-        return [];
-      }
+          if (cancellationToken?.isCancellationRequested) {
+            throw new RequestSupersededError('Implementation request cancelled');
+          }
 
-      // KB-1262: Wrap symbol lookup in try-catch for parse-under-edit resilience
-      let symbol: PikeSymbol | null = null;
-      try {
-        symbol = findSymbolAtPosition(cached.symbols, params.position, document);
-      } catch (err) {
-        log.debug('Symbol lookup failed (handled gracefully)', {
-          uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        maybeLogImplSchedulerMetrics(uri, 'symbol-lookup-error');
-        return [];
-      }
+          const cached = documentCache.get(uri);
+          const document = documents.get(uri);
 
-      if (!symbol) {
-        log.debug('Implementation: no symbol at position');
-        maybeLogImplSchedulerMetrics(uri, 'no-symbol');
-        return [];
-      }
+          if (!cached || !document) {
+            return [];
+          }
 
-      if (symbol.kind !== 'class') {
-        log.debug('Implementation: symbol is not a class/interface', { kind: symbol.kind });
-        maybeLogImplSchedulerMetrics(uri, 'not-class');
-        return [];
-      }
-
-      // KB-1262: Check cancellation before heavy processing
-      if (cancellationToken?.isCancellationRequested) {
-        return [];
-      }
-
-      const className = normalizeSymbolName(symbol.name);
-      const classPath = normalizeSymbolName(uriToFsPath(uri));
-      const implementations: Location[] = [];
-
-      // KB-1262: Wrap getKnownUris in try-catch (type assertions could fail)
-      let knownUris: string[];
-      try {
-        knownUris = getKnownUris(services);
-      } catch (err) {
-        log.debug('getKnownUris failed (handled gracefully)', {
-          uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        knownUris = [];
-      }
-
-      const seenLocations = new Set<string>();
-
-      for (const candidateUri of knownUris) {
-        // KB-1262: Check cancellation between URI iterations
-        if (cancellationToken?.isCancellationRequested) {
-          return implementations;
-        }
-
-        // KB-1262: Use resilient per-URI introspection to isolate failures
-        const inherits = await getInheritsResilient(candidateUri, cancellationToken);
-        for (const relation of inherits) {
+          // KB-1262: Wrap symbol lookup in try-catch for parse-under-edit resilience
+          let symbol: PikeSymbol | null = null;
           try {
-            if (
-              !matchesInheritance(
-                relation.inheritedName,
-                className,
-                relation.inheritedPath,
-                classPath
-              )
-            ) {
-              continue;
-            }
-
-            const dedupeKey = `${relation.uri}:${relation.ownerLine}:${relation.ownerClass}`;
-            if (seenLocations.has(dedupeKey)) {
-              continue;
-            }
-            seenLocations.add(dedupeKey);
-
-            implementations.push({
-              uri: relation.uri,
-              range: {
-                start: { line: relation.ownerLine, character: 0 },
-                end: { line: relation.ownerLine, character: relation.ownerClass.length },
-              },
-            });
+            symbol = findSymbolAtPosition(cached.symbols, params.position, document);
           } catch (err) {
-            // KB-1262: Isolate per-relation failures
-            log.debug('Relation processing failed (handled gracefully)', {
-              candidateUri,
+            log.debug('Symbol lookup failed (handled gracefully)', {
+              uri,
               error: err instanceof Error ? err.message : String(err),
             });
+            return [];
           }
-        }
-      }
 
-      log.debug('Implementation: found', {
-        className,
-        count: implementations.length,
-        implementations: implementations.map(loc => ({ uri: loc.uri, range: loc.range })),
+          if (!symbol) {
+            log.debug('Implementation: no symbol at position');
+            return [];
+          }
+
+          if (symbol.kind !== 'class') {
+            log.debug('Implementation: symbol is not a class/interface', { kind: symbol.kind });
+            return [];
+          }
+
+          // KB-1262: Check cancellation before heavy processing
+          if (cancellationToken?.isCancellationRequested) {
+            throw new RequestSupersededError('Implementation request cancelled');
+          }
+
+          const className = normalizeSymbolName(symbol.name);
+          const classPath = normalizeSymbolName(uriToFsPath(uri));
+          const result: Location[] = [];
+
+          // KB-1262: Wrap getKnownUris in try-catch (type assertions could fail)
+          let knownUris: string[];
+          try {
+            knownUris = getKnownUris(services);
+          } catch (err) {
+            log.debug('getKnownUris failed (handled gracefully)', {
+              uri,
+              error: err instanceof Error ? err.message : String(err),
+            });
+            knownUris = [];
+          }
+
+          const seenLocations = new Set<string>();
+
+          for (const candidateUri of knownUris) {
+            // KB-1262: Check cancellation between URI iterations
+            if (cancellationToken?.isCancellationRequested) {
+              return result;
+            }
+
+            // KB-1262: Use resilient per-URI introspection to isolate failures
+            const inherits = await getInheritsResilient(candidateUri, cancellationToken);
+            for (const relation of inherits) {
+              try {
+                if (
+                  !matchesInheritance(
+                    relation.inheritedName,
+                    className,
+                    relation.inheritedPath,
+                    classPath
+                  )
+                ) {
+                  continue;
+                }
+
+                const dedupeKey = `${relation.uri}:${relation.ownerLine}:${relation.ownerClass}`;
+                if (seenLocations.has(dedupeKey)) {
+                  continue;
+                }
+                seenLocations.add(dedupeKey);
+
+                result.push({
+                  uri: relation.uri,
+                  range: {
+                    start: { line: relation.ownerLine, character: 0 },
+                    end: { line: relation.ownerLine, character: relation.ownerClass.length },
+                  },
+                });
+              } catch (err) {
+                // KB-1262: Isolate per-relation failures
+                log.debug('Relation processing failed (handled gracefully)', {
+                  candidateUri,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+          }
+
+          log.debug('Implementation: found', {
+            className,
+            count: result.length,
+            implementations: result.map(loc => ({ uri: loc.uri, range: loc.range })),
+          });
+
+          return result;
+        },
       });
 
       maybeLogImplSchedulerMetrics(uri, implementations.length > 0 ? 'success' : 'empty');
       return implementations;
     } catch (err) {
+      // RequestSupersededError means a newer request superseded this one
+      if (err instanceof RequestSupersededError) {
+        maybeLogImplSchedulerMetrics(uri, 'superseded');
+        return [];
+      }
+
       // KB-1262: Log at debug level for parse-under-edit scenarios, error only for unexpected
       const errorMessage = err instanceof Error ? err.message : String(err);
       const isParseError = errorMessage.includes('parse') || errorMessage.includes('syntax');
