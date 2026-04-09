@@ -115,19 +115,16 @@ export class WorkspaceIndex {
   // PERF-XXX: Prefix index for O(1) prefix matching
   // Maps each prefix (2+ chars) to set of symbol names that have that prefix
   private prefixIndex = new Map<string, Set<string>>();
+  // PERF-#1273: Cap prefix depth to bound memory. Only indexes prefixes up to
+  // this length. Queries longer than the cap fall back to linear scan — fast
+  // because highly selective. Reduces entries from ~len per symbol to ~min(len, cap).
+  private static readonly PREFIX_INDEX_MAX_DEPTH = 8;
 
   // PERF-430: LRU cache for search results
   // Caches frequently accessed search results to avoid recomputation
   private searchCache = new Map<string, { results: SymbolInformation[]; timestamp: number }>();
   private searchCacheHits = 0;
   private searchCacheMisses = 0;
-  // PERF-1273: Max prefix index entries to prevent unbounded memory growth.
-  // Each symbol name adds ~len-1 prefix entries; cap bounds total memory.
-  // Eviction is FIFO by Map insertion order — evicted prefixes fall back to
-  // the O(n) scan in searchSymbols, so correctness is preserved.
-  // 100K covers ~14K unique symbols with avg 8-char names before eviction.
-  private static readonly PREFIX_INDEX_MAX_SIZE = 100_000;
-  private static readonly PREFIX_INDEX_EVICT_BATCH = 10_000;
   private static readonly SEARCH_CACHE_MAX_SIZE = 100;
   private static readonly SEARCH_CACHE_TTL_MS = 60000; // 60 seconds
 
@@ -892,7 +889,11 @@ export class WorkspaceIndex {
         symbolNames.add(nameLower);
 
         if (nameLower.length >= 2) {
-          for (let i = 2; i <= nameLower.length; i++) {
+          for (
+            let i = 2;
+            i <= Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+            i++
+          ) {
             const prefix = nameLower.slice(0, i);
             let prefixSet = this.prefixIndex.get(prefix);
             if (!prefixSet) {
@@ -900,18 +901,6 @@ export class WorkspaceIndex {
               this.prefixIndex.set(prefix, prefixSet);
             }
             prefixSet.add(nameLower);
-          }
-
-          // Batch-evict oldest prefix entries when index exceeds the size cap.
-          // Map preserves insertion order, so the first keys are the oldest.
-          // Evict EVICT_BATCH at once to amortize iterator cost during bulk indexing.
-          if (this.prefixIndex.size > WorkspaceIndex.PREFIX_INDEX_MAX_SIZE) {
-            let evicted = 0;
-            for (const key of this.prefixIndex.keys()) {
-              if (evicted >= WorkspaceIndex.PREFIX_INDEX_EVICT_BATCH) break;
-              this.prefixIndex.delete(key);
-              evicted++;
-            }
           }
         }
       }
@@ -940,7 +929,11 @@ export class WorkspaceIndex {
       }
 
       if (removeNameFromPrefixIndex && nameLower.length >= 2) {
-        for (let i = 2; i <= nameLower.length; i++) {
+        for (
+          let i = 2;
+          i <= Math.min(nameLower.length, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
+          i++
+        ) {
           const prefix = nameLower.slice(0, i);
           const prefixSet = this.prefixIndex.get(prefix);
           if (prefixSet) {
