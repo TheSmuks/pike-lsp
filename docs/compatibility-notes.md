@@ -14,11 +14,11 @@ during this audit.
 
 ## Supported Pike Versions
 
-| Version | Status | Notes |
-|---------|--------|-------|
-| 7.8     | Legacy | `__REAL_VERSION__` not available; fallback to `__VERSION__` in Compat.pmod |
-| 8.0     | Primary target | `#pike __REAL_VERSION__` used in entry-point scripts |
-| 8.1+    | Forward compat | Same as 8.0; no version-specific guards for 8.1+ APIs yet |
+| Version | Status         | Notes                                                                      |
+| ------- | -------------- | -------------------------------------------------------------------------- |
+| 7.8     | Legacy         | `__REAL_VERSION__` not available; fallback to `__VERSION__` in Compat.pmod |
+| 8.0     | Primary target | `#pike __REAL_VERSION__` used in entry-point scripts                       |
+| 8.1+    | Forward compat | Same as 8.0; no version-specific guards for 8.1+ APIs yet                  |
 
 ---
 
@@ -41,6 +41,7 @@ during this audit.
 #### OBS-1: Duplicate `trim_whites()` polyfills in Intelligence modules
 
 **Files**:
+
 - `pike-scripts/LSP.pmod/Intelligence.pmod/Introspection.pike` (line ~58)
 - `pike-scripts/LSP.pmod/Intelligence.pmod/ModuleResolution.pike` (line ~44)
 
@@ -52,10 +53,11 @@ during this audit.
 
 **Files**: `Parser.pike`, `CompilationCache.pmod`, `Intelligence.pmod/module.pmod`, `Roxen.pmod/MixedContent.pike`
 **Problem**: `String.trim_all_whites()` is used directly in 15+ locations. This function trims **all** whitespace characters (including `\0`) and is available in Pike 7.8+, so this is safe across versions. However, it is **not** wrapped by the Compat module, meaning:
-  - If behavior changes in a future Pike version, all 15+ call sites would need updating.
-  - There is no single point of control.
-**Risk**: Low — `trim_all_whites` has been stable across all Pike versions.
-**Recommendation**: Consider wrapping in `LSP.Compat` for future-proofing, but this is not urgent.
+
+- If behavior changes in a future Pike version, all 15+ call sites would need updating.
+- There is no single point of control.
+  **Risk**: Low — `trim_all_whites` has been stable across all Pike versions.
+  **Recommendation**: Consider wrapping in `LSP.Compat` for future-proofing, but this is not urgent.
 
 ---
 
@@ -63,25 +65,25 @@ during this audit.
 
 ### APIs used across pike-lsp and their cross-version status
 
-| API | 7.8 | 8.0 | 8.1+ | Notes |
-|-----|-----|-----|------|-------|
-| `__REAL_VERSION__` | ❌ | ✅ | ✅ | Float (e.g., `8.0`). Compat.pmod has fallback to `__VERSION__`. |
-| `#pike __REAL_VERSION__` | ❌ | ✅ | ✅ | Only used in `analyzer.pike` and test scripts (entry points). |
-| `__VERSION__` | ✅ | ✅ | ✅ | Available everywhere; Compat.pmod fallback. |
-| `#pragma strict_types` | ✅ | ✅ | ✅ | Used extensively. Safe. |
-| `Standards.JSON.decode/encode` | ✅ | ✅ | ✅ | Stable API. |
-| `String.trim_whites()` | ✅* | ✅* | ✅* | ⚠️ Does NOT trim `\n`/`\r` in 8.x. Compat layer handles this. |
-| `String.trim_all_whites()` | ✅ | ✅ | ✅ | Trims all whitespace. Stable. |
-| `master()->resolv()` | ✅ | ✅ | ✅ | Stable. |
-| `master()->add_module_path()` | ✅ | ✅ | ✅ | Stable. |
-| `file_stat()` | ✅ | ✅ | ✅ | Returns `Stdio.Stat` object or 0. Stable. |
-| `combine_path()` | ✅ | ✅ | ✅ | Stable. |
-| `dirname()` / `basename()` | ✅ | ✅ | ✅ | Stable. |
-| `sprintf()` | ✅ | ✅ | ✅ | Stable, but format specifiers may vary. |
-| `s[0]`, `s[-1]`, `s[1..]`, `s[0..<1]` | ✅ | ✅ | ✅ | Range indexing stable since 7.4+. |
-| `objectp()`, `mappingp()`, etc. | ✅ | ✅ | ✅ | Type check functions are stable. |
-| `has_prefix()`, `has_suffix()` | ✅ | ✅ | ✅ | Stable since 7.4+. |
-| `has_value()` | ✅ | ✅ | ✅ | Stable. |
+| API                                   | 7.8  | 8.0  | 8.1+ | Notes                                                           |
+| ------------------------------------- | ---- | ---- | ---- | --------------------------------------------------------------- |
+| `__REAL_VERSION__`                    | ❌   | ✅   | ✅   | Float (e.g., `8.0`). Compat.pmod has fallback to `__VERSION__`. |
+| `#pike __REAL_VERSION__`              | ❌   | ✅   | ✅   | Only used in `analyzer.pike` and test scripts (entry points).   |
+| `__VERSION__`                         | ✅   | ✅   | ✅   | Available everywhere; Compat.pmod fallback.                     |
+| `#pragma strict_types`                | ✅   | ✅   | ✅   | Used extensively. Safe.                                         |
+| `Standards.JSON.decode/encode`        | ✅   | ✅   | ✅   | Stable API.                                                     |
+| `String.trim_whites()`                | ✅\* | ✅\* | ✅\* | ⚠️ Does NOT trim `\n`/`\r` in 8.x. Compat layer handles this.   |
+| `String.trim_all_whites()`            | ✅   | ✅   | ✅   | Trims all whitespace. Stable.                                   |
+| `master()->resolv()`                  | ✅   | ✅   | ✅   | Stable.                                                         |
+| `master()->add_module_path()`         | ✅   | ✅   | ✅   | Stable.                                                         |
+| `file_stat()`                         | ✅   | ✅   | ✅   | Returns `Stdio.Stat` object or 0. Stable.                       |
+| `combine_path()`                      | ✅   | ✅   | ✅   | Stable.                                                         |
+| `dirname()` / `basename()`            | ✅   | ✅   | ✅   | Stable.                                                         |
+| `sprintf()`                           | ✅   | ✅   | ✅   | Stable, but format specifiers may vary.                         |
+| `s[0]`, `s[-1]`, `s[1..]`, `s[0..<1]` | ✅   | ✅   | ✅   | Range indexing stable since 7.4+.                               |
+| `objectp()`, `mappingp()`, etc.       | ✅   | ✅   | ✅   | Type check functions are stable.                                |
+| `has_prefix()`, `has_suffix()`        | ✅   | ✅   | ✅   | Stable since 7.4+.                                              |
+| `has_value()`                         | ✅   | ✅   | ✅   | Stable.                                                         |
 
 ### Key Version-Specific Behavior
 
@@ -96,13 +98,16 @@ during this audit.
 ## Architecture Recommendations
 
 ### Short-term (already done in this PR)
+
 - ✅ Fixed `Parser.pike` to use `LSP.Compat.trim_whites()` instead of native `String.trim_whites()`.
 
 ### Medium-term
+
 - Remove duplicate `trim_whites()` polyfills in `Introspection.pike` and `ModuleResolution.pike`; use `LSP.Compat.trim_whites()` instead.
 - Add `String.trim_all_whites()` wrapper to `LSP.Compat` for future-proofing.
 
 ### Long-term
+
 - Add runtime version checks in `LSP.Compat` for any 8.1+ specific APIs as they are adopted.
 - Consider adding CI matrix testing against Pike 7.8 and 8.0 to catch regressions.
 
@@ -111,11 +116,13 @@ during this audit.
 ## Test Coverage
 
 The existing `test/tests/cross-version-tests.pike` covers:
+
 - `Compat.trim_whites()` edge cases (spaces, newlines, empty string, tabs)
 - String handling across versions
 - All 12 LSP handlers producing correct output on the current Pike version
 
 **Missing test coverage**:
+
 - No tests that verify `String.trim_whites()` vs `LSP.Compat.trim_whites()` behavioral differences
 - No tests for Pike 7.8-specific code paths (the `__VERSION__` fallback)
 - No CI matrix testing against multiple Pike versions

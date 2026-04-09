@@ -8,9 +8,8 @@ description: Development guide for workspace-index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `WorkspaceIndex` | class | 87 |
-| `IndexMetrics` | interface | 67 |
-| `IndexErrorCallback` | type | 39 |
-
+| Symbol               | Type      | Line |
+| -------------------- | --------- | ---- |
+| `WorkspaceIndex`     | class     | 87   |
+| `IndexMetrics`       | interface | 67   |
+| `IndexErrorCallback` | type      | 39   |

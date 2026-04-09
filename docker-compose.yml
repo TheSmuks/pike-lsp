@@ -5,8 +5,8 @@ services:
       dockerfile: Dockerfile
     container_name: pike-lsp-dev
     ports:
-      - "2222:22"    # SSH
-      - "3033:3033"  # LSP server port
+      - '2222:22' # SSH
+      - '3033:3033' # LSP server port
     volumes:
       - .:/workspace
       - claude_data:/home/developer/.claude
@@ -40,13 +40,13 @@ services:
       dockerfile: Dockerfile
     container_name: pike-lsp-prod
     ports:
-      - "3033:3033"
+      - '3033:3033'
     environment:
       - PIKE_SRC=/workspace/pike
       - ROXEN_SRC=/workspace/roxen
     volumes:
       - .:/workspace
-    command: ["bun", "run", "packages/pike-lsp-server/src/server.ts"]
+    command: ['bun', 'run', 'packages/pike-lsp-server/src/server.ts']
     profiles:
       - prod
     restart: unless-stopped

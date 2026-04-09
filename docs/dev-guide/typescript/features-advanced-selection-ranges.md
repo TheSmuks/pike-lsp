@@ -8,7 +8,6 @@ description: Development guide for features/advanced/selection-ranges.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerSelectionRangesHandler` | function | 116 |
-
+| Symbol                           | Type     | Line |
+| -------------------------------- | -------- | ---- |
+| `registerSelectionRangesHandler` | function | 116  |

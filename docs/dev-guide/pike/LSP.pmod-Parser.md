@@ -150,22 +150,22 @@ Detects load_module() and compile_file() calls with string literal arguments
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `MAX_TOP_LEVEL_ITERATIONS` | constant | 11 |
-| `MAX_BLOCK_ITERATIONS` | constant | 12 |
-| `create` | function | 14 |
-| `parse_request` | function | 22 |
-| `array` | function | 311 |
-| `tokenize_request` | function | 602 |
-| `compile_request` | function | 688 |
-| `capture_error` | function | 695 |
-| `foo` | function | 1074 |
+| Symbol                              | Type     | Line |
+| ----------------------------------- | -------- | ---- |
+| `MAX_TOP_LEVEL_ITERATIONS`          | constant | 11   |
+| `MAX_BLOCK_ITERATIONS`              | constant | 12   |
+| `create`                            | function | 14   |
+| `parse_request`                     | function | 22   |
+| `array`                             | function | 311  |
+| `tokenize_request`                  | function | 602  |
+| `compile_request`                   | function | 688  |
+| `capture_error`                     | function | 695  |
+| `foo`                               | function | 1074 |
 | `parse_preprocessor_blocks_request` | function | 1138 |
-| `batch_parse_request` | function | 1153 |
-| `get_symbol_kind` | function | 1213 |
-| `simple_parse_autodoc` | function | 1242 |
-| `symbol_to_json` | function | 1387 |
-| `improve_syntax_error_message` | function | 1478 |
-| `type_to_json` | function | 1536 |
-| `content` | function | 1655 |
+| `batch_parse_request`               | function | 1153 |
+| `get_symbol_kind`                   | function | 1213 |
+| `simple_parse_autodoc`              | function | 1242 |
+| `symbol_to_json`                    | function | 1387 |
+| `improve_syntax_error_message`      | function | 1478 |
+| `type_to_json`                      | function | 1536 |
+| `content`                           | function | 1655 |

@@ -84,10 +84,9 @@ Extract RXML strings from Pike multiline string literals
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `KNOWN_RXML_TAGS` | constant | 104 |
-| `calculate_rxml_confidence` | function | 72 |
-| `find_token_offset_for_token` | function | 302 |
-| `roxen_extract_rxml_strings` | function | 335 |
-
+| Symbol                        | Type     | Line |
+| ----------------------------- | -------- | ---- |
+| `KNOWN_RXML_TAGS`             | constant | 104  |
+| `calculate_rxml_confidence`   | function | 72   |
+| `find_token_offset_for_token` | function | 302  |
+| `roxen_extract_rxml_strings`  | function | 335  |

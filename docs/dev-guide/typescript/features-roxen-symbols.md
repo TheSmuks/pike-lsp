@@ -8,7 +8,6 @@ description: Development guide for features/roxen/symbols.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `enhanceRoxenSymbols` | function | 4 |
-
+| Symbol                | Type     | Line |
+| --------------------- | -------- | ---- |
+| `enhanceRoxenSymbols` | function | 4    |

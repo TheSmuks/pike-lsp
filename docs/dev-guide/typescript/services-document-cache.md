@@ -8,9 +8,8 @@ description: Development guide for services/document-cache.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `DocumentCache` | class | 75 |
-| `computeContentHash` | function | 18 |
-| `computeLineHashes` | function | 29 |
-
+| Symbol               | Type     | Line |
+| -------------------- | -------- | ---- |
+| `DocumentCache`      | class    | 75   |
+| `computeContentHash` | function | 18   |
+| `computeLineHashes`  | function | 29   |

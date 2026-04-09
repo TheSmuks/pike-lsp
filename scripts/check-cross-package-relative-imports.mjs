@@ -10,7 +10,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const packagesDir = path.join(repoRoot, 'packages');
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
-const IMPORT_REGEX = /(?:import|export)\s+(?:[^'";]+?\s+from\s+)?['"]([^'"\n]+)['"]|\bimport\(\s*['"]([^'"\n]+)['"]\s*\)|\brequire\(\s*['"]([^'"\n]+)['"]\s*\)/g;
+const IMPORT_REGEX =
+  /(?:import|export)\s+(?:[^'";]+?\s+from\s+)?['"]([^'"\n]+)['"]|\bimport\(\s*['"]([^'"\n]+)['"]\s*\)|\brequire\(\s*['"]([^'"\n]+)['"]\s*\)/g;
 
 const ignoredPathSegments = new Set([
   'dist',
@@ -59,13 +60,13 @@ function normalizedPath(value) {
 }
 
 const packageDirs = readdirSync(packagesDir)
-  .map((entry) => path.join(packagesDir, entry))
-  .filter((entryPath) => statSync(entryPath).isDirectory());
+  .map(entry => path.join(packagesDir, entry))
+  .filter(entryPath => statSync(entryPath).isDirectory());
 
 const violations = [];
 
 for (const packageDir of packageDirs) {
-  walk(packageDir, (absoluteFilePath) => {
+  walk(packageDir, absoluteFilePath => {
     const sourcePackage = packageNameFromPath(absoluteFilePath);
     if (!sourcePackage) {
       return;

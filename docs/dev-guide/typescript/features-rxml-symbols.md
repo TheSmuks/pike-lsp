@@ -8,7 +8,6 @@ description: Development guide for features/rxml/symbols.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `provideRXMLSymbols` | function | 87 |
-
+| Symbol               | Type     | Line |
+| -------------------- | -------- | ---- |
+| `provideRXMLSymbols` | function | 87   |

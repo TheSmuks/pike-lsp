@@ -8,8 +8,7 @@ description: Development guide for features/utils/hover-builder.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `convertPikeDocToMarkdown` | function | 228 |
-| `buildHoverContent` | function | 365 |
-
+| Symbol                     | Type     | Line |
+| -------------------------- | -------- | ---- |
+| `convertPikeDocToMarkdown` | function | 228  |
+| `buildHoverContent`        | function | 365  |

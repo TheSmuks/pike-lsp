@@ -8,7 +8,6 @@ description: Development guide for features/advanced/moniker.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerMonikerHandler` | function | 36 |
-
+| Symbol                   | Type     | Line |
+| ------------------------ | -------- | ---- |
+| `registerMonikerHandler` | function | 36   |

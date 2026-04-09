@@ -8,8 +8,7 @@ description: Development guide for features/utils/pike-type-formatter.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `formatPikeType` | function | 11 |
-| `extractTypeName` | function | 86 |
-
+| Symbol            | Type     | Line |
+| ----------------- | -------- | ---- |
+| `formatPikeType`  | function | 11   |
+| `extractTypeName` | function | 86   |

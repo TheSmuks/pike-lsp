@@ -165,7 +165,7 @@ Based on existing extension build CI. Rocky Linux, Pike 8.1116.
 ```yaml
 jobs:
   fast-tests:
-    runs-on: ubuntu-latest  # or rocky linux
+    runs-on: ubuntu-latest # or rocky linux
     steps:
       - uses: actions/checkout@v4
       - run: pnpm install
@@ -204,13 +204,13 @@ packages/pike-bridge/src/
 
 **Responsibilities:**
 
-| Module | Does | Doesn't |
-|--------|------|---------|
-| `bridge.ts` | Coordinates calls, exposes public API | Manage process, parse JSON |
-| `process.ts` | Spawn/kill Pike, handle stdin/stdout/stderr | Know about LSP methods |
-| `protocol.ts` | Encode requests, decode responses, handle timeouts | Know about Pike process |
-| `health.ts` | Ping Pike, report status, restart if needed | Business logic |
-| `errors.ts` | Wrap errors with context, translate Pike errors | Handle errors |
+| Module        | Does                                               | Doesn't                    |
+| ------------- | -------------------------------------------------- | -------------------------- |
+| `bridge.ts`   | Coordinates calls, exposes public API              | Manage process, parse JSON |
+| `process.ts`  | Spawn/kill Pike, handle stdin/stdout/stderr        | Know about LSP methods     |
+| `protocol.ts` | Encode requests, decode responses, handle timeouts | Know about Pike process    |
+| `health.ts`   | Ping Pike, report status, restart if needed        | Business logic             |
+| `errors.ts`   | Wrap errors with context, translate Pike errors    | Handle errors              |
 
 **process.ts isolates IPC:**
 
@@ -418,17 +418,20 @@ mapping handle_health() {
 ## Final Structure After Refactor
 
 **TypeScript (~15-20 modules):**
+
 - `pike-bridge/src/` - 6 modules
 - `pike-lsp-server/src/core/` - 3 modules
 - `pike-lsp-server/src/handlers/` - 11 modules
 - `pike-lsp-server/src/services/` - 5 modules
 
 **Pike (~10 modules):**
+
 - `LSP.pmod/` - 4 top-level (Errors, Logging, Parser, module)
 - `LSP.pmod/Intelligence.pmod/` - 4 classes + module
 - `LSP.pmod/Analysis.pmod/` - 4 classes + module
 
 **Testing:**
+
 - Pre-commit: <30s smoke tests
 - CI: Full test suite + VSCode E2E with xvfb
 

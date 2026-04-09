@@ -3,6 +3,7 @@
 ## Current State
 
 The test.yml workflow runs on every push/PR to main/master with these jobs:
+
 1. **test** - Node.js tests (bridge, server, smoke, integration)
 2. **pike-test** - Pike version tests (8.1116, latest)
 3. **build-extension** - VSIX build (needs: test, pike-test)
@@ -11,6 +12,7 @@ The test.yml workflow runs on every push/PR to main/master with these jobs:
 ## Problem
 
 Every push/PR runs the full CI suite even when changes don't affect certain areas:
+
 - Documentation-only changes run full test suite
 - Non-Pike changes run Pike tests
 - Non-VSCode changes run E2E tests
@@ -69,6 +71,7 @@ vscode-e2e:
 
 - Bun cache is handled by oven-sh/setup-bun
 - Add caching for Pike installations:
+
 ```yaml
 - name: Cache Pike
   uses: actions/cache@v4
@@ -82,6 +85,7 @@ vscode-e2e:
 ### 4. Skip E2E on Non-Breaking Changes
 
 Use labels to skip E2E:
+
 ```yaml
 vscode-e2e:
   if: >
@@ -93,11 +97,12 @@ vscode-e2e:
 ### 5. Parallel Pike Tests
 
 Reduce Pike test matrix:
+
 ```yaml
 pike-test:
   strategy:
     matrix:
-      pike-version: ["8.1116"]  # Only critical version, remove 'latest'
+      pike-version: ['8.1116'] # Only critical version, remove 'latest'
   fail-fast: true
 ```
 
@@ -106,6 +111,7 @@ pike-test:
 ### Priority 1: Path Filters (High Impact)
 
 Add to workflow root to skip entire CI for docs/md changes:
+
 ```yaml
 on:
   push:
@@ -130,11 +136,11 @@ Add Pike cache to speed up installation.
 
 ## Expected Savings
 
-| Strategy | Impact |
-|----------|--------|
-| Path filters | Skip ~50% of CI runs (docs-only PRs) |
-| Conditional jobs | Skip ~30% of jobs per run |
-| Caching | Save ~2-5 min per run |
+| Strategy         | Impact                               |
+| ---------------- | ------------------------------------ |
+| Path filters     | Skip ~50% of CI runs (docs-only PRs) |
+| Conditional jobs | Skip ~30% of jobs per run            |
+| Caching          | Save ~2-5 min per run                |
 
 ## Risks
 

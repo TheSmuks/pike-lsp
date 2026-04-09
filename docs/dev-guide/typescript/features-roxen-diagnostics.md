@@ -8,7 +8,6 @@ description: Development guide for features/roxen/diagnostics.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `provideRoxenDiagnostics` | function | 10 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `provideRoxenDiagnostics` | function | 10   |

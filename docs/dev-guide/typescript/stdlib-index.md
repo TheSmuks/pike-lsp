@@ -8,8 +8,7 @@ description: Development guide for stdlib-index.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `StdlibIndexManager` | class | 61 |
-| `StdlibModuleInfo` | interface | 21 |
-
+| Symbol               | Type      | Line |
+| -------------------- | --------- | ---- |
+| `StdlibIndexManager` | class     | 61   |
+| `StdlibModuleInfo`   | interface | 21   |

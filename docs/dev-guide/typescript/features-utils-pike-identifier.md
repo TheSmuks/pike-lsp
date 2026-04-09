@@ -8,10 +8,9 @@ description: Development guide for features/utils/pike-identifier.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `WordRangeResult` | interface | 13 |
-| `isPikeIdentifierStart` | function | 25 |
-| `isPikeIdentifierChar` | function | 37 |
-| `getWordRangeAtPosition` | function | 50 |
-
+| Symbol                   | Type      | Line |
+| ------------------------ | --------- | ---- |
+| `WordRangeResult`        | interface | 13   |
+| `isPikeIdentifierStart`  | function  | 25   |
+| `isPikeIdentifierChar`   | function  | 37   |
+| `getWordRangeAtPosition` | function  | 50   |

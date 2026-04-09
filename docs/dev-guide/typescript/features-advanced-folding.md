@@ -8,8 +8,7 @@ description: Development guide for features/advanced/folding.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `getFoldingRanges` | function | 26 |
-| `registerFoldingRangeHandler` | function | 141 |
-
+| Symbol                        | Type     | Line |
+| ----------------------------- | -------- | ---- |
+| `getFoldingRanges`            | function | 26   |
+| `registerFoldingRangeHandler` | function | 141  |

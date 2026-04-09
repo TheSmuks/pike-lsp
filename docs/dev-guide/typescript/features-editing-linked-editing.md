@@ -8,7 +8,6 @@ description: Development guide for features/editing/linked-editing.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerLinkedEditingHandler` | function | 10 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `registerLinkedEditingHandler` | function | 10   |

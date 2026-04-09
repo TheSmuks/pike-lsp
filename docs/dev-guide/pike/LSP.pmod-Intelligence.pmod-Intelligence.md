@@ -80,21 +80,20 @@ Delegates to ModuleResolution class in Intelligence.pmod/
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `create` | function | 16 |
-| `make_error_response` | function | 22 |
-| `get_introspection_handler` | function | 37 |
-| `get_resolution_handler` | function | 48 |
-| `get_type_analysis_handler` | function | 59 |
-| `get_module_resolution_handler` | function | 70 |
-| `handle_introspect` | function | 81 |
-| `handle_resolve` | function | 91 |
-| `handle_resolve_stdlib` | function | 101 |
-| `handle_get_inherited` | function | 111 |
-| `introspect_program` | function | 127 |
-| `handle_extract_imports` | function | 137 |
-| `handle_resolve_import` | function | 147 |
-| `handle_check_circular` | function | 157 |
-| `handle_get_waterfall_symbols` | function | 167 |
-
+| Symbol                          | Type     | Line |
+| ------------------------------- | -------- | ---- |
+| `create`                        | function | 16   |
+| `make_error_response`           | function | 22   |
+| `get_introspection_handler`     | function | 37   |
+| `get_resolution_handler`        | function | 48   |
+| `get_type_analysis_handler`     | function | 59   |
+| `get_module_resolution_handler` | function | 70   |
+| `handle_introspect`             | function | 81   |
+| `handle_resolve`                | function | 91   |
+| `handle_resolve_stdlib`         | function | 101  |
+| `handle_get_inherited`          | function | 111  |
+| `introspect_program`            | function | 127  |
+| `handle_extract_imports`        | function | 137  |
+| `handle_resolve_import`         | function | 147  |
+| `handle_check_circular`         | function | 157  |
+| `handle_get_waterfall_symbols`  | function | 167  |

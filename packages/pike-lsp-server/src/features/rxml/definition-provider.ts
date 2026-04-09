@@ -12,10 +12,13 @@
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
-import { readFile, stat } from 'fs/promises';
-import { Logger } from '@pike-lsp/core';
 import { getTagInfo } from './tag-catalog.js';
 import { GlobCache } from './glob-cache.js';
+import {
+  readFileCached,
+  invalidateFileContentCache,
+  clearFileContentCache,
+} from './file-content-cache.js';
 
 // Shared glob cache - 30 second TTL
 const pikeGlobCache = new GlobCache<string[]>(30);
@@ -35,36 +38,9 @@ const defvarDefinitionIndexCache = new Map<
     byName: Map<string, RoxenDefvarInfo>;
   }
 >();
-const fileContentCache = new Map<string, { mtimeMs: number; content: string }>();
-const log = new Logger('RXMLDefinition');
-
-function uriToFilePath(uri: string): string {
-  return decodeURIComponent(uri.replace(/^file:\/\//, ''));
-}
 
 function makeWorkspaceKey(workspaceFolders: string[]): string {
   return [...workspaceFolders].sort().join('|');
-}
-
-async function readFileCached(filePath: string): Promise<string> {
-  try {
-    const fileStats = await stat(filePath);
-    const cached = fileContentCache.get(filePath);
-    if (cached && cached.mtimeMs === fileStats.mtimeMs) {
-      return cached.content;
-    }
-
-    const content = await readFile(filePath, 'utf-8');
-    fileContentCache.set(filePath, { mtimeMs: fileStats.mtimeMs, content });
-    return content;
-  } catch (error) {
-    log.debug('RXML read-through cache miss fallback', {
-      filePath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    const content = await readFile(filePath, 'utf-8');
-    return content;
-  }
 }
 
 async function getTagDefinitionIndex(
@@ -239,11 +215,11 @@ export function invalidateRXMLDefinitionCaches(uri?: string): void {
   pikeGlobCache.clear();
 
   if (!uri) {
-    fileContentCache.clear();
+    clearFileContentCache();
     return;
   }
 
-  fileContentCache.delete(uriToFilePath(uri));
+  invalidateFileContentCache(uri);
 }
 
 /**

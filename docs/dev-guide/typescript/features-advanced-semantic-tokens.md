@@ -8,7 +8,6 @@ description: Development guide for features/advanced/semantic-tokens.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerSemanticTokensHandler` | function | 37 |
-
+| Symbol                          | Type     | Line |
+| ------------------------------- | -------- | ---- |
+| `registerSemanticTokensHandler` | function | 37   |

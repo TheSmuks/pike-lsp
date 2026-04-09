@@ -8,8 +8,7 @@ description: Development guide for features/advanced/document-links.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerDocumentLinksHandler` | function | 23 |
-| `resolveModulePath` | function | 132 |
-
+| Symbol                         | Type     | Line |
+| ------------------------------ | -------- | ---- |
+| `registerDocumentLinksHandler` | function | 23   |
+| `resolveModulePath`            | function | 132  |

@@ -8,7 +8,6 @@ description: Development guide for features/advanced/inline-values.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `registerInlineValuesHandler` | function | 26 |
-
+| Symbol                        | Type     | Line |
+| ----------------------------- | -------- | ---- |
+| `registerInlineValuesHandler` | function | 26   |

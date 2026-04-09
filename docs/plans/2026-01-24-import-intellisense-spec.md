@@ -3,6 +3,7 @@
 ## Overview
 
 Add IntelliSense support for Pike imports, enabling go-to-definition, hover, and completion for:
+
 1. Module paths (`Stdio.File`, `Parser.Pike`)
 2. Inherit statements (`inherit Parent;`)
 3. `#include` directives (`#include "header.h"`)
@@ -10,14 +11,17 @@ Add IntelliSense support for Pike imports, enabling go-to-definition, hover, and
 ## Scope
 
 ### Phase 1: Module Resolution (This Spec)
+
 - Go-to-definition for module paths (`.` operator)
 - Go-to-definition for member access (`->` operator)
 - Hover info for modules and members
 
 ### Phase 2: Inherit Statements (Future)
+
 - Go-to-definition on `inherit` keyword targets
 
 ### Phase 3: Include Directives (Future)
+
 - Go-to-definition on `#include` paths
 
 ---
@@ -28,21 +32,21 @@ Add IntelliSense support for Pike imports, enabling go-to-definition, hover, and
 
 Pike uses two operators for access:
 
-| Operator | Usage | Example |
-|----------|-------|---------|
-| `.` | Module hierarchy / static access | `Stdio.File`, `Parser.Pike.split` |
-| `->` | Instance member access | `file->read()`, `mapping->key` |
+| Operator | Usage                            | Example                           |
+| -------- | -------------------------------- | --------------------------------- |
+| `.`      | Module hierarchy / static access | `Stdio.File`, `Parser.Pike.split` |
+| `->`     | Instance member access           | `file->read()`, `mapping->key`    |
 
 #### Pattern Classification
 
-| Pattern | Classification | Resolution Strategy |
-|---------|---------------|---------------------|
-| `Stdio` | Module | Resolve as module |
-| `Stdio.File` | Module path | Resolve dotted path |
-| `Parser.Pike.split` | Module + member | Resolve `Parser.Pike`, find `split` |
-| `file` | Variable | Look up in local symbols |
-| `file->read` | Variable + member | Get type of `file`, resolve type, find `read` |
-| `Stdio.File()->read` | Module + instantiate + member | Resolve `Stdio.File`, find `read` |
+| Pattern              | Classification                | Resolution Strategy                           |
+| -------------------- | ----------------------------- | --------------------------------------------- |
+| `Stdio`              | Module                        | Resolve as module                             |
+| `Stdio.File`         | Module path                   | Resolve dotted path                           |
+| `Parser.Pike.split`  | Module + member               | Resolve `Parser.Pike`, find `split`           |
+| `file`               | Variable                      | Look up in local symbols                      |
+| `file->read`         | Variable + member             | Get type of `file`, resolve type, find `read` |
+| `Stdio.File()->read` | Module + instantiate + member | Resolve `Stdio.File`, find `read`             |
 
 ### 1.2 Expression Extraction Algorithm
 
@@ -212,49 +216,51 @@ async function findMemberInModule(
 /**
  * Get the type of a symbol (for variable -> member resolution).
  */
-function getSymbolType(
-  symbol: PikeSymbol
-): string | null;
+function getSymbolType(symbol: PikeSymbol): string | null;
 ```
 
 ### 1.6 File Changes
 
-| File | Changes |
-|------|---------|
-| `features/navigation/definition.ts` | Main logic: expression extraction, resolution flow |
-| `features/navigation/expression-utils.ts` | New file: `extractExpressionAtPosition()` |
-| `services/index.ts` | Expose `bridge` and `stdlibIndex` to handlers |
-| `pike-bridge/src/types.ts` | Add `ExpressionInfo` type (if shared) |
+| File                                      | Changes                                            |
+| ----------------------------------------- | -------------------------------------------------- |
+| `features/navigation/definition.ts`       | Main logic: expression extraction, resolution flow |
+| `features/navigation/expression-utils.ts` | New file: `extractExpressionAtPosition()`          |
+| `services/index.ts`                       | Expose `bridge` and `stdlibIndex` to handlers      |
+| `pike-bridge/src/types.ts`                | Add `ExpressionInfo` type (if shared)              |
 
 ### 1.7 Edge Cases
 
-| Case | Handling |
-|------|----------|
-| Cursor on whitespace | Return null |
-| Cursor on operator (`.` or `->`) | Look at adjacent identifier |
-| Incomplete expression (`Stdio.`) | Try resolving partial path |
-| Unknown module | Return null (graceful failure) |
-| Variable with unknown type | Fall back to local symbol lookup |
-| Circular module resolution | Pike bridge handles this |
-| Cursor on `()` in `Stdio.File()` | Resolve `Stdio.File` |
+| Case                             | Handling                         |
+| -------------------------------- | -------------------------------- |
+| Cursor on whitespace             | Return null                      |
+| Cursor on operator (`.` or `->`) | Look at adjacent identifier      |
+| Incomplete expression (`Stdio.`) | Try resolving partial path       |
+| Unknown module                   | Return null (graceful failure)   |
+| Variable with unknown type       | Fall back to local symbol lookup |
+| Circular module resolution       | Pike bridge handles this         |
+| Cursor on `()` in `Stdio.File()` | Resolve `Stdio.File`             |
 
 ### 1.8 Examples
 
 #### Example 1: Module Path
+
 ```pike
 Stdio.File file;
 //    ^^^^ cursor
 ```
+
 - Extract: `{ base: "Stdio.File", member: null, isModulePath: true }`
 - Resolve: `bridge.resolveModule("Stdio.File")`
 - Result: Location to `/usr/local/pike/.../Stdio.pmod/File.pike`
 
 #### Example 2: Member Access on Variable
+
 ```pike
 Stdio.File file = Stdio.File();
 file->read(1024);
 //    ^^^^ cursor
 ```
+
 - Extract: `{ base: "file", member: "read", operator: "->", isModulePath: false }`
 - Find `file` in symbols → type = `Stdio.File`
 - Resolve `Stdio.File` module
@@ -262,10 +268,12 @@ file->read(1024);
 - Result: Location to `read` function in File.pike
 
 #### Example 3: Chained Module Access
+
 ```pike
 Parser.Pike.split(code);
 //          ^^^^^ cursor
 ```
+
 - Extract: `{ base: "Parser.Pike", member: "split", operator: ".", isModulePath: true }`
 - Resolve `Parser.Pike` module
 - Find `split` in module symbols
@@ -274,15 +282,18 @@ Parser.Pike.split(code);
 ### 1.9 Testing Strategy
 
 #### Unit Tests
+
 - `extractExpressionAtPosition()` with various patterns
 - Edge cases (whitespace, operators, incomplete)
 
 #### Integration Tests
+
 - Go-to-definition on `Stdio.File` → navigates to Pike stdlib
 - Go-to-definition on `file->read` → navigates to member
 - Hover on module shows module info
 
 #### E2E Tests
+
 - Add test cases to `lsp-features.test.ts`
 - Test with real Pike stdlib modules
 

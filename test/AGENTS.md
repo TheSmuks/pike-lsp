@@ -8,10 +8,10 @@
 
 ## Two Layers — Pick the Right One
 
-| Layer | Where | When to use |
-|---|---|---|
-| Unit | `packages/pike-lsp-server/src/tests/` | Testing a function directly |
-| E2E | `packages/vscode-pike/src/test/integration/` | Testing the full VS Code → LSP → Pike chain |
+| Layer | Where                                        | When to use                                 |
+| ----- | -------------------------------------------- | ------------------------------------------- |
+| Unit  | `packages/pike-lsp-server/src/tests/`        | Testing a function directly                 |
+| E2E   | `packages/vscode-pike/src/test/integration/` | Testing the full VS Code → LSP → Pike chain |
 
 Do not write a unit test when the bug lives in the wiring.
 Do not write an E2E test for something a unit test can cover.
@@ -29,10 +29,15 @@ assert.ok(result !== undefined, 'may be empty');
 // CORRECT
 const edit = edits.find(e => e.range.start.line === targetLine);
 assert.ok(edit, 'Should have edit for "int class_x"');
-assert.strictEqual(edit!.newText, '        ', '8-space indent required — 2 levels deep inside class');
+assert.strictEqual(
+  edit!.newText,
+  '        ',
+  '8-space indent required — 2 levels deep inside class'
+);
 ```
 
 Order of assertions for every test:
+
 1. Not null/undefined.
 2. Shape is valid.
 3. **At least one specific value matches.** Do not stop at step 2.
@@ -64,10 +69,10 @@ Line numbers break whenever the fixture changes.
 
 ```typescript
 // WRONG
-new vscode.Position(164, 0)
+new vscode.Position(164, 0);
 
 // CORRECT
-positionForRegex(doc, /void class_method\(\)/).line
+positionForRegex(doc, /void class_method\(\)/).line;
 ```
 
 **Do not apply edits to fixture files inside tests.**

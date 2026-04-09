@@ -8,8 +8,7 @@ description: Development guide for features/roxen/completion.ts
 
 ## Symbols
 
-| Symbol | Type | Line |
-|--------|------|------|
-| `isRoxenModule` | function | 19 |
-| `provideRoxenCompletions` | function | 66 |
-
+| Symbol                    | Type     | Line |
+| ------------------------- | -------- | ---- |
+| `isRoxenModule`           | function | 19   |
+| `provideRoxenCompletions` | function | 66   |
