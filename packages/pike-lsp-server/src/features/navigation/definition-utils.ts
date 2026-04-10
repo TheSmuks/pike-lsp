@@ -5,7 +5,7 @@
  * Extracted from definition.ts for testability.
  */
 
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 /**
