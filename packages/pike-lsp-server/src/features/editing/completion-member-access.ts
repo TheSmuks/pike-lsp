@@ -291,8 +291,8 @@ function resolveWorkspaceClassMembers(
   completionContext: 'type' | 'expression',
   logger: Services['logger']
 ): CompletionItem[] {
-  const members = classSymbol.children || [];
-  logger.debug('Class members from parse', { typeName, count: members.length });
+  const allMembers = collectClassMembers(classSymbol, doc);
+  logger.debug('Class members from parse', { typeName, count: allMembers.length });
 
   // Build deprecated lookup from introspection
   const deprecatedMap = new Map<string, boolean>();
@@ -305,14 +305,13 @@ function resolveWorkspaceClassMembers(
   }
 
   const completions: CompletionItem[] = [];
-  for (const member of members) {
+  for (const member of allMembers) {
+    if (!member.name) continue;
     if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-      let memberWithDeprecated = member;
       const isDeprecated =
         member.deprecated || deprecatedMap.has(member.name) || member.documentation?.deprecated;
-      if (isDeprecated && !member.deprecated) {
-        memberWithDeprecated = { ...member, deprecated: true };
-      }
+      const memberWithDeprecated =
+        isDeprecated && !member.deprecated ? { ...member, deprecated: true } : member;
 
       completions.push(
         buildCompletionItem(
@@ -331,26 +330,35 @@ function resolveWorkspaceClassMembers(
 /**
  * Collect all members from a class symbol, including inherited members.
  */
-function collectClassMembers(classSymbol: PikeSymbol, _doc: DocumentCacheEntry): PikeSymbol[] {
+function collectClassMembers(classSymbol: PikeSymbol, doc: DocumentCacheEntry): PikeSymbol[] {
   const allMembers: PikeSymbol[] = [];
 
-  // Add direct members
+  // Add direct members (skip inherit statements)
   for (const member of classSymbol.children || []) {
     if (member.kind !== 'inherit') {
       allMembers.push(member);
     }
   }
 
-  // Add inherited members
+  // Add inherited members: resolve parent classes in the same document
   const inheritChildren = (classSymbol.children || []).filter(c => c.kind === 'inherit');
   for (const inheritChild of inheritChildren) {
     const parentClassName = getSymbolClassname(inheritChild) ?? inheritChild.name;
     if (parentClassName) {
-      allMembers.push({
-        ...inheritChild,
-        inherited: true,
-        inheritedFrom: parentClassName,
-      });
+      const parentClass = doc.symbols.find(
+        s => s.kind === 'class' && s.name === parentClassName
+      );
+      if (parentClass?.children) {
+        for (const parentMember of parentClass.children) {
+          if (parentMember.kind !== 'inherit' && parentMember.name) {
+            allMembers.push({
+              ...parentMember,
+              inherited: true,
+              inheritedFrom: parentClassName,
+            });
+          }
+        }
+      }
     }
   }
 
