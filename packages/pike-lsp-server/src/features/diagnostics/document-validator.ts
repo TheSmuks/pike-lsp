@@ -243,11 +243,10 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
         hasDiagnostics: !!analyzeResult.result?.diagnostics,
       });
 
-      if (analyzeResult._perf) {
-        log.debug('Analyze cache status', { uri, cacheHit: analyzeResult._perf.cache_hit });
-      }
-
       const cacheHit = analyzeResult._perf?.cache_hit ?? false;
+      if (analyzeResult._perf) {
+        log.debug('Analyze cache status', { uri, cacheHit });
+      }
       if (analyzeResult.failures && Object.keys(analyzeResult.failures).length > 0) {
         log.debug('Analyze partial failures', {
           uri,
@@ -362,6 +361,12 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
           diagnostics: toProtocolDiagnostics([fallbackDiagnostic]),
         });
       }
+      // Record failed validation cycle (not blocked/superseded)
+      cycleTracker.record({
+        totalMs: performance.now() - cycleStart,
+        cacheHit: false,
+        blocked: false,
+      });
       connection.console.error(`[VALIDATE] \u2717 Validation failed for ${uri}: ${err}`);
     }
   }
