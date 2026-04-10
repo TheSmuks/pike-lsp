@@ -32,6 +32,7 @@ import { registerDiagnosticsLifecycleHandlers } from './lifecycle.js';
 import { registerPullDiagnosticHandlers } from './pull-diagnostics.js';
 import { createDebouncedValidation } from './debounced-validation.js';
 import { createDocumentValidator } from './document-validator.js';
+import { ValidationCycleTracker } from './validation-metrics.js';
 
 // Re-export functions from submodules
 export {
@@ -103,6 +104,7 @@ export function registerDiagnosticsHandlers(
   const pullDiagnosticResultIds = new Map<string, string>();
   const diagnosticsScheduler = new RequestScheduler({ logger: log });
   const validationCompletions = { value: 0 };
+  const cycleTracker = new ValidationCycleTracker(log);
 
   // Configuration settings
   const defaultSettings: PikeSettings = {
@@ -120,6 +122,7 @@ export function registerDiagnosticsHandlers(
     documentSnapshots,
     diagnosticsScheduler,
     validationCompletions,
+    cycleTracker,
     log,
   });
 
