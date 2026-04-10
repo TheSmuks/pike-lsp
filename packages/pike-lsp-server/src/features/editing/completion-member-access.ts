@@ -345,9 +345,7 @@ function collectClassMembers(classSymbol: PikeSymbol, doc: DocumentCacheEntry): 
   for (const inheritChild of inheritChildren) {
     const parentClassName = getSymbolClassname(inheritChild) ?? inheritChild.name;
     if (parentClassName) {
-      const parentClass = doc.symbols.find(
-        s => s.kind === 'class' && s.name === parentClassName
-      );
+      const parentClass = doc.symbols.find(s => s.kind === 'class' && s.name === parentClassName);
       if (parentClass?.children) {
         for (const parentMember of parentClass.children) {
           if (parentMember.kind !== 'inherit' && parentMember.name) {
