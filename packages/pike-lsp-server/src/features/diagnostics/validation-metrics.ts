@@ -10,15 +10,6 @@
 
 import type { Logger } from '@pike-lsp/core';
 
-/** Metrics for a single validation cycle */
-export interface ValidationCycleMetrics {
-  /** Wall-clock time from validate start to publish, in milliseconds */
-  totalMs: number;
-  /** Number of validations that hit the bridge compilation cache */
-  cacheHits: number;
-  /** Number of validations blocked (superseded by a newer request) */
-  blocked: number;
-}
 
 /** Summary snapshot of accumulated validation metrics */
 export interface ValidationMetricsSummary {

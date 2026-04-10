@@ -10,6 +10,8 @@
  *   import { createMockDocuments, createMockBridge, createMockServices, makeCachedEntry } from './test-helpers.js';
  */
 
+import type { Logger } from '@pike-lsp/core';
+
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
@@ -222,4 +224,32 @@ export function pikeAnalyzer(text: string): { hasError: boolean; errorMessage?: 
     }
   }
   return { hasError: false };
+}
+
+
+// ---------------------------------------------------------------------------
+// Logger mock
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a mock Logger for tests.
+ * Optionally captures calls by level for assertion.
+ */
+export function createMockLogger(options?: { captureInfos?: boolean }): Logger & { infos?: unknown[][] } {
+  if (options?.captureInfos) {
+    const infos: unknown[][] = [];
+    return {
+      info: (...args: unknown[]) => infos.push(args),
+      debug: () => {},
+      warn: () => {},
+      error: () => {},
+      infos,
+    } as unknown as Logger & { infos: unknown[][] };
+  }
+  return {
+    info: () => {},
+    debug: () => {},
+    warn: () => {},
+    error: () => {},
+  } as unknown as Logger;
 }

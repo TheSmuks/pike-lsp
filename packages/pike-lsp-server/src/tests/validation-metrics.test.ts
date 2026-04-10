@@ -1,19 +1,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { ValidationCycleTracker } from '../features/diagnostics/validation-metrics.js';
-import type { Logger } from '@pike-lsp/core';
-
-/** Minimal Logger mock that captures log calls */
-function createMockLogger(): Logger & { infos: unknown[][] } {
-  const infos: unknown[][] = [];
-  return {
-    info: (...args: unknown[]) => infos.push(args),
-    debug: () => {},
-    warn: () => {},
-    error: () => {},
-    infos,
-  } as unknown as Logger & { infos: unknown[][] };
-}
+import { createMockLogger } from './helpers/test-helpers.js';
 
 describe('ValidationCycleTracker', () => {
   it('should start with all-zero snapshot', () => {
@@ -95,25 +83,25 @@ describe('ValidationCycleTracker', () => {
   });
 
   it('should log summary every 50 cycles', () => {
-    const log = createMockLogger();
+    const log = createMockLogger({ captureInfos: true });
     const tracker = new ValidationCycleTracker(log);
 
     // Record 49 cycles — no summary log yet
     for (let i = 0; i < 49; i++) {
       tracker.record({ totalMs: 10, cacheHit: false, blocked: false });
     }
-    assert.strictEqual(log.infos.length, 0);
+    assert.strictEqual(log.infos!.length, 0);
 
     // 50th cycle triggers summary
     tracker.record({ totalMs: 10, cacheHit: true, blocked: false });
-    assert.strictEqual(log.infos.length, 1);
+    assert.strictEqual(log.infos!.length, 1);
 
     // 100th cycle triggers another summary
     for (let i = 0; i < 49; i++) {
       tracker.record({ totalMs: 10, cacheHit: false, blocked: false });
     }
     tracker.record({ totalMs: 10, cacheHit: true, blocked: false });
-    assert.strictEqual(log.infos.length, 2);
+    assert.strictEqual(log.infos!.length, 2);
   });
 
   it('should not report NaN for avgMs when cycles is zero after reset', () => {
