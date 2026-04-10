@@ -2,6 +2,14 @@
  * Code Completion Handler
  *
  * Provides code completion suggestions for Pike code.
+ * Delegates to:
+ * - completion-qe.ts — query engine path + shared helpers
+ * - completion-scope.ts — :: scope operator resolution
+ * - completion-member-access.ts — obj->, Module., member access
+ * - completion-resolve.ts — onCompletionResolve handler
+ * - completion-auto-import.ts — auto-import suggestions
+ * - completion-symbols.ts — general symbol resolution + builtins
+ * - completion-helpers.ts — shared item building utilities
  */
 
 import {
@@ -15,13 +23,10 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
-import { buildCompletionItem, extractTypeName } from './completion-helpers.js';
 import { getAutoDocCompletion } from './autodoc.js';
-import { buildHoverContent } from '../utils/hover-builder.js';
 import { PIKE_PREDEFINED_MACROS } from '../navigation/keywords.js';
 import { provideRoxenCompletions } from '../roxen/index.js';
-import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import { RequestScheduler } from '../../services/request-scheduler.js';
 import {
   detectRXMLStrings,
   findRXMLStringAtPosition,
@@ -29,61 +34,25 @@ import {
   getRXMLAttributeCompletions,
 } from '../rxml/mixed-content.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+import { resolveScopeCompletions } from './completion-scope.js';
+import {
+  resolveArrowWorkaround,
+  resolveModuleDotWorkaround,
+  resolvePikeContextMemberAccess,
+} from './completion-member-access.js';
+import { registerCompletionResolveHandler } from './completion-resolve.js';
+import {
+  handleQueryEngineCompletion,
+  getWordAtPosition,
+  getCompletionContext,
+} from './completion-qe.js';
+import { addAutoImportCompletions } from './completion-auto-import.js';
+import { collectGeneralCompletions, addBuiltinCompletions } from './completion-symbols.js';
 
-const inFlightCompletionRequests = new Map<string, string>();
-const completionRequestSequence = new Map<string, number>();
 const useQueryEngineCompletions = process.env['PIKE_LSP_QE2_COMPLETION'] !== '0';
 
-function getSymbolClassname(symbol: PikeSymbol): string | undefined {
-  if ('classname' in symbol && typeof symbol.classname === 'string') {
-    return symbol.classname;
-  }
-  return undefined;
-}
-
-interface AutoImportCompletionData {
-  autoImport: true;
-  symbol: string;
-  modulePath: string;
-  importKind: 'import' | 'inherit';
-}
-
-function getImportInsertionLine(lines: string[]): number {
-  let insertionLine = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = (lines[i] ?? '').trim();
-    if (
-      trimmed.startsWith('#include ') ||
-      trimmed.startsWith('import ') ||
-      trimmed.startsWith('inherit ')
-    ) {
-      insertionLine = i + 1;
-      continue;
-    }
-    if (trimmed === '') {
-      continue;
-    }
-    break;
-  }
-  return insertionLine;
-}
-
-function buildAutoImportStatement(modulePath: string, importKind: 'import' | 'inherit'): string {
-  return importKind === 'inherit' ? `inherit ${modulePath};\n` : `import ${modulePath};\n`;
-}
-
-function hasImportStatement(
-  lines: string[],
-  modulePath: string,
-  importKind: 'import' | 'inherit'
-): boolean {
-  const expected = importKind === 'inherit' ? `inherit ${modulePath};` : `import ${modulePath};`;
-  return lines.some(line => line.trim() === expected);
-}
-
 /**
- * Add Pike predefined macros (__FILE__, __LINE__, etc.) to completions.
- * Only adds macros that match the prefix.
+ * Add Pike predefined macros to completions.
  */
 function addMacrosToCompletions(
   completions: CompletionItem[],
@@ -115,7 +84,6 @@ export function registerCompletionHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  // Note: stdlibIndex accessed via services.stdlibIndex for late binding (initialized after registration)
   const { logger, documentCache, moduleContext } = services;
   const completionScheduler = new RequestScheduler({ logger });
   const COMPLETION_SCHEDULER_LOG_EVERY = 50;
@@ -123,10 +91,7 @@ export function registerCompletionHandlers(
 
   function maybeLogCompletionSchedulerMetrics(uri: string, outcome: string): void {
     completionRequestsObserved += 1;
-    if (completionRequestsObserved % COMPLETION_SCHEDULER_LOG_EVERY !== 0) {
-      return;
-    }
-
+    if (completionRequestsObserved % COMPLETION_SCHEDULER_LOG_EVERY !== 0) return;
     const schedulerMetrics = completionScheduler.snapshotMetrics();
     logger.debug('Completion scheduler metrics', {
       uri,
@@ -136,130 +101,22 @@ export function registerCompletionHandlers(
     });
   }
 
-  /**
-   * Helper to wrap completion items in CompletionList
-   */
   function toCompletionList(items: CompletionItem[]): CompletionList {
-    const COMPLETION_LIST_THRESHOLD = 50;
-    return {
-      isIncomplete: items.length > COMPLETION_LIST_THRESHOLD,
-      items,
-    };
+    return { isIncomplete: items.length > 50, items };
   }
 
   function dedupeCompletionItems(items: CompletionItem[]): CompletionItem[] {
     const seen = new Set<string>();
     const deduped: CompletionItem[] = [];
-
     for (const item of items) {
       const key = `${item.label}:${item.kind ?? 0}:${item.detail ?? ''}`;
-      if (seen.has(key)) {
-        continue;
-      }
+      if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(item);
     }
-
     return deduped;
   }
 
-  async function addAutoImportCompletions(
-    completions: CompletionItem[],
-    params: {
-      uri: string;
-      prefix: string;
-      text: string;
-      lineText: string;
-      localSymbols: PikeSymbol[];
-    }
-  ): Promise<void> {
-    if (!services.pikeIntrospection) {
-      return;
-    }
-
-    const prefix = params.prefix.trim();
-    if (prefix.length === 0) {
-      return;
-    }
-
-    if (params.lineText.includes('->') || params.lineText.includes('::')) {
-      return;
-    }
-
-    const initialLabels = new Set<string>(completions.map(item => item.label));
-    for (const symbol of params.localSymbols) {
-      if (symbol.name) {
-        initialLabels.add(symbol.name);
-      }
-    }
-
-    const lines = params.text.split('\n');
-    const insertionLine = getImportInsertionLine(lines);
-    const candidates = await services.pikeIntrospection.searchImportableSymbols(prefix, {
-      excludeUri: params.uri,
-      limit: 12,
-    });
-
-    const sortedCandidates = [...candidates].sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      if (a.symbol !== b.symbol) {
-        return a.symbol.localeCompare(b.symbol);
-      }
-      if (a.importKind !== b.importKind) {
-        return a.importKind.localeCompare(b.importKind);
-      }
-      return a.modulePath.localeCompare(b.modulePath);
-    });
-
-    for (const candidate of sortedCandidates) {
-      if (!candidate.symbol.toLowerCase().startsWith(prefix.toLowerCase())) {
-        continue;
-      }
-
-      if (initialLabels.has(candidate.symbol)) {
-        continue;
-      }
-
-      if (hasImportStatement(lines, candidate.modulePath, candidate.importKind)) {
-        continue;
-      }
-
-      const statement = buildAutoImportStatement(candidate.modulePath, candidate.importKind);
-      completions.push({
-        label: candidate.symbol,
-        kind:
-          candidate.importKind === 'inherit'
-            ? CompletionItemKind.Class
-            : CompletionItemKind.Function,
-        detail:
-          candidate.importKind === 'inherit'
-            ? `Auto-import via inherit from ${candidate.modulePath}`
-            : `Auto-import from ${candidate.modulePath}`,
-        sortText: `0-auto-${candidate.symbol}-${candidate.modulePath}`,
-        data: {
-          autoImport: true,
-          symbol: candidate.symbol,
-          modulePath: candidate.modulePath,
-          importKind: candidate.importKind,
-        } satisfies AutoImportCompletionData,
-        additionalTextEdits: [
-          {
-            range: {
-              start: { line: insertionLine, character: 0 },
-              end: { line: insertionLine, character: 0 },
-            },
-            newText: statement,
-          },
-        ],
-      });
-    }
-  }
-
-  /**
-   * Parse completion trigger context from LSP params
-   */
   interface CompletionTrigger {
     kind: 'invoked' | 'triggerCharacter' | 'triggerForIncomplete';
     character?: string;
@@ -269,77 +126,13 @@ export function registerCompletionHandlers(
     triggerKind: number;
     triggerCharacter?: string;
   }): CompletionTrigger {
-    if (!context) {
-      return { kind: 'invoked' };
-    }
-
-    const triggerKind = context.triggerKind;
-
-    // LSP spec: 1 = Invoked, 2 = TriggerCharacter, 3 = TriggerForIncompleteCompletions
-    if (triggerKind === 2 && context.triggerCharacter) {
-      return {
-        kind: 'triggerCharacter',
-        character: context.triggerCharacter,
-      };
-    } else if (triggerKind === 3) {
+    if (!context) return { kind: 'invoked' };
+    if (context.triggerKind === 2 && context.triggerCharacter) {
+      return { kind: 'triggerCharacter', character: context.triggerCharacter };
+    } else if (context.triggerKind === 3) {
       return { kind: 'triggerForIncomplete' };
     }
-
     return { kind: 'invoked' };
-  }
-
-  function asRecord(value: unknown): Record<string, unknown> | null {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return null;
-    }
-    return value as Record<string, unknown>;
-  }
-
-  function toCompletionItemArray(value: unknown): CompletionItem[] | null {
-    if (!Array.isArray(value)) {
-      return null;
-    }
-
-    const items: CompletionItem[] = [];
-    for (const entry of value) {
-      const item = asRecord(entry);
-      if (!item) {
-        continue;
-      }
-      if (typeof item['label'] !== 'string') {
-        continue;
-      }
-
-      const label = item['label'] as string;
-      const kindStr = item['kind'] as string | undefined;
-      const detail = item['detail'] as string | undefined;
-
-      const kindMap: Record<string, CompletionItemKind> = {
-        function: CompletionItemKind.Function,
-        class: CompletionItemKind.Class,
-        variable: CompletionItemKind.Variable,
-        constant: CompletionItemKind.Constant,
-        method: CompletionItemKind.Method,
-        property: CompletionItemKind.Property,
-        enum: CompletionItemKind.Enum,
-        interface: CompletionItemKind.Interface,
-        module: CompletionItemKind.Module,
-      };
-
-      const kind = kindMap[kindStr || ''] || CompletionItemKind.Text;
-
-      const completionItem: CompletionItem = {
-        label,
-        kind,
-      };
-
-      if (detail) {
-        completionItem.detail = detail;
-      }
-
-      items.push(completionItem);
-    }
-    return items;
   }
 
   /**
@@ -360,248 +153,23 @@ export function registerCompletionHandlers(
       return toCompletionList([]);
     }
 
-    if (useQueryEngineCompletions && bridge?.isRunning?.()) {
-      const nextSequence = (completionRequestSequence.get(uri) ?? 0) + 1;
-      completionRequestSequence.set(uri, nextSequence);
-      const requestId = `completion:${uri}:${document.version}:${Date.now()}:${nextSequence}`;
-      const filename = decodeURIComponent(uri.replace(/^file:\/\//, ''));
-      let cancelledByToken = false;
-      const cancellationDisposable = cancellationToken?.onCancellationRequested(() => {
-        cancelledByToken = true;
-        void bridge.engineCancelRequest({ requestId }).catch(error => {
-          logger.warn('Completion cancellation request failed', {
-            uri,
-            requestId,
-            error,
-          });
-        });
-      });
-      const clearInFlight = (): void => {
-        if (inFlightCompletionRequests.get(uri) === requestId) {
-          inFlightCompletionRequests.delete(uri);
-        }
-      };
-      try {
-        const scheduledItems = await completionScheduler.schedule<CompletionItem[] | null>({
-          requestClass: 'typing',
-          key: `completion:${uri}`,
-          run: async checkpoint => {
-            checkpoint();
-            if (cancelledByToken || cancellationToken?.isCancellationRequested) {
-              throw new RequestSupersededError('Completion request cancelled by LSP token');
-            }
-            const previousRequestId = inFlightCompletionRequests.get(uri);
-            if (previousRequestId && previousRequestId !== requestId) {
-              try {
-                await bridge.engineCancelRequest({ requestId: previousRequestId });
-              } catch (err) {
-                logger.debug('Completion query cancellation for superseded request failed', {
-                  uri,
-                  requestId: previousRequestId,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }
-            inFlightCompletionRequests.set(uri, requestId);
-            const snapshotId = services.documentSnapshots?.get(uri);
-
-            const qeResponse = await bridge.engineQuery({
-              feature: 'completion',
-              requestId,
-              snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
-              queryParams: {
-                uri,
-                filename,
-                position: params.position,
-                context: params.context ?? null,
-              },
-            });
-            checkpoint();
-
-            if (cancelledByToken || cancellationToken?.isCancellationRequested) {
-              throw new RequestSupersededError('Completion request cancelled by LSP token');
-            }
-
-            const directItems = toCompletionItemArray(qeResponse.result['items']);
-            if (directItems && directItems.length > 0) {
-              return directItems;
-            }
-
-            const nested = asRecord(qeResponse.result['result']);
-            if (nested && nested['status'] !== 'stub') {
-              const nestedItems = toCompletionItemArray(nested['items']);
-              if (nestedItems && nestedItems.length > 0) {
-                return nestedItems;
-              }
-            }
-
-            return null;
-          },
-        });
-
-        clearInFlight();
-        cancellationDisposable?.dispose();
-        if (scheduledItems && scheduledItems.length > 0) {
-          const completions = [...scheduledItems];
-          const text = document.getText();
-          const offset = document.offsetAt(params.position);
-          const prefix = getWordAtPosition(text, offset);
-          const prefixLower = prefix.toLowerCase();
-          const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
-          const lineText = text.slice(lineStart, offset);
-          const completionContext = getCompletionContext(lineText);
-
-          if (cached) {
-            const existingNames = new Set<string>();
-            for (const item of completions) {
-              existingNames.add(item.label);
-            }
-            for (const symbol of cached.symbols) {
-              if (symbol.name) {
-                existingNames.add(symbol.name);
-              }
-            }
-
-            if (services.includeResolver && cached.dependencies?.includes) {
-              for (const include of cached.dependencies.includes) {
-                for (const symbol of include.symbols) {
-                  if (!symbol.name || existingNames.has(symbol.name)) continue;
-                  if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                    const item = buildCompletionItem(
-                      symbol.name,
-                      symbol,
-                      `From ${include.originalPath}`,
-                      undefined,
-                      completionContext
-                    );
-                    item.data = { uri: include.resolvedPath, name: symbol.name };
-                    completions.push(item);
-                    existingNames.add(symbol.name);
-                  }
-                }
-              }
-            }
-
-            if (cached.dependencies?.imports) {
-              for (const imp of cached.dependencies.imports) {
-                if (imp.isStdlib && services.stdlibIndex) {
-                  try {
-                    const moduleInfo = await services.stdlibIndex.getModule(imp.modulePath);
-                    if (moduleInfo?.symbols) {
-                      for (const [name, symbol] of moduleInfo.symbols) {
-                        if (existingNames.has(name)) continue;
-                        if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
-                          const item = buildCompletionItem(
-                            name,
-                            symbol,
-                            `From ${imp.modulePath}`,
-                            undefined,
-                            completionContext
-                          );
-                          item.data = { modulePath: imp.modulePath, name, isStdlib: true };
-                          completions.push(item);
-                          existingNames.add(name);
-                        }
-                      }
-                    }
-                  } catch (err) {
-                    logger.debug('Failed to get stdlib import symbols', {
-                      modulePath: imp.modulePath,
-                      error: err instanceof Error ? err.message : String(err),
-                    });
-                  }
-                }
-
-                if (!imp.isStdlib && imp.symbols) {
-                  for (const symbol of imp.symbols) {
-                    if (!symbol.name || existingNames.has(symbol.name)) continue;
-                    if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                      const item = buildCompletionItem(
-                        symbol.name,
-                        symbol,
-                        `From ${imp.modulePath}`,
-                        undefined,
-                        completionContext
-                      );
-                      item.data = {
-                        modulePath: imp.modulePath,
-                        name: symbol.name,
-                        isStdlib: false,
-                      };
-                      completions.push(item);
-                      existingNames.add(symbol.name);
-                    }
-                  }
-                }
-              }
-            }
-
-            const shouldFetchWaterfall =
-              prefixLower.length > 0 &&
-              !!(cached.dependencies?.includes?.length || cached.dependencies?.imports?.length);
-
-            if (shouldFetchWaterfall && moduleContext && services.bridge?.bridge) {
-              try {
-                const waterfallResult = await moduleContext.getWaterfallSymbolsForDocument(
-                  uri,
-                  text,
-                  services.bridge.bridge,
-                  3
-                );
-
-                for (const symbol of waterfallResult.symbols) {
-                  if (!symbol.name || existingNames.has(symbol.name)) continue;
-                  if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                    const provenance = symbol.provenance_file
-                      ? `From ${symbol.provenance_file}`
-                      : 'Imported symbol';
-                    completions.push(
-                      buildCompletionItem(
-                        symbol.name,
-                        symbol,
-                        provenance,
-                        undefined,
-                        completionContext
-                      )
-                    );
-                    existingNames.add(symbol.name);
-                  }
-                }
-              } catch (err) {
-                logger.debug('Failed to get waterfall symbols', {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }
-          }
-
-          await addAutoImportCompletions(completions, {
-            uri,
-            prefix,
-            text,
-            lineText,
-            localSymbols: cached?.symbols ?? [],
-          });
-
-          maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
-          const macroNames = new Set(completions.map(c => c.label));
-          addMacrosToCompletions(completions, macroNames, prefix);
-          return toCompletionList(dedupeCompletionItems(completions));
-        }
-        maybeLogCompletionSchedulerMetrics(uri, 'qe_empty');
-      } catch (err) {
-        clearInFlight();
-        cancellationDisposable?.dispose();
-        if (err instanceof RequestSupersededError) {
-          maybeLogCompletionSchedulerMetrics(uri, 'superseded');
-          return toCompletionList([]);
-        }
-        maybeLogCompletionSchedulerMetrics(uri, 'qe_fallback');
-        logger.debug('Completion query fallback', {
-          uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+    // Try query engine path
+    if (useQueryEngineCompletions) {
+      const qeResult = await handleQueryEngineCompletion(
+        params,
+        document,
+        uri,
+        cached,
+        cancellationToken,
+        services,
+        completionScheduler,
+        toCompletionList,
+        dedupeCompletionItems,
+        (completions, p) => addAutoImportCompletions(completions, p, services),
+        addMacrosToCompletions,
+        maybeLogCompletionSchedulerMetrics
+      );
+      if (qeResult) return qeResult;
     }
 
     if (!cached) {
@@ -611,7 +179,6 @@ export function registerCompletionHandlers(
 
     logger.debug('Completion request', { uri, symbolCount: cached.symbols.length });
 
-    // Parse trigger context
     const trigger = parseCompletionTrigger(params.context);
     logger.debug('Completion trigger', { trigger });
 
@@ -619,16 +186,12 @@ export function registerCompletionHandlers(
     const text = document.getText();
     const offset = document.offsetAt(params.position);
 
-    // Check for AutoDoc trigger
+    // AutoDoc trigger
     const autoDocItems = getAutoDocCompletion(document, params.position);
     if (autoDocItems.length > 0) {
       return toCompletionList(autoDocItems);
     }
 
-    // Apply trigger-specific filtering
-    // For scope operator (:), only show :: members (handled in scopeMatch below)
-    // For member access (>, .), the filtering is handled by the Pike context
-    // Log trigger behavior for debugging
     logger.debug('Completion triggered', {
       kind: trigger.kind,
       character: trigger.character,
@@ -636,11 +199,8 @@ export function registerCompletionHandlers(
       position: params.position,
     });
 
-    // Get the text before cursor to determine context
     const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
     const lineText = text.slice(lineStart, offset);
-
-    // Determine if we're in a type context or expression context
     const completionContext = getCompletionContext(lineText);
     logger.debug('Completion context', {
       context: completionContext,
@@ -651,9 +211,7 @@ export function registerCompletionHandlers(
     const attributeArgMatch = lineText.match(/__attribute__\(\s*"?([a-zA-Z_]*)$/);
     if (attributeArgMatch) {
       const attrPrefix = (attributeArgMatch[1] ?? '').toLowerCase();
-      const commonAttributes = ['deprecated', 'experimental', 'unused', 'strict_types'];
-
-      for (const attr of commonAttributes) {
+      for (const attr of ['deprecated', 'experimental', 'unused', 'strict_types']) {
         if (!attrPrefix || attr.startsWith(attrPrefix)) {
           completions.push({
             label: attr,
@@ -666,150 +224,31 @@ export function registerCompletionHandlers(
       return toCompletionList(completions);
     }
 
-    // Check for scope operator (::) for special cases like this_program::, this::
+    // Scope operator (::)
     const scopeMatch = lineText.match(IDENTIFIER_PATTERNS.SCOPED_ACCESS);
-
     if (scopeMatch) {
-      // Pike scope operator: this_program::, this::, ParentClass::, etc.
       const scopeName = scopeMatch[1] ?? '';
       const prefix = scopeMatch[2] ?? '';
-
       logger.debug('Scope access completion', { scopeName, prefix });
 
-      if (scopeName === 'this_program' || scopeName === 'this') {
-        // this_program:: or this:: - show local class members
-        if (cached) {
-          // Find the enclosing class by looking for the class with the latest start line before cursor
-          const classSymbols = cached.symbols.filter(s => s.kind === 'class');
-          const enclosingClass = findEnclosingClassSymbol(cached.symbols, params.position.line);
-
-          logger.debug('[COMPLETION:Q.1] this_program:: scope resolution', {
-            cursorLine: params.position.line,
-            totalSymbols: cached.symbols.length,
-            classCount: classSymbols.length,
-            classes: classSymbols.map(c => ({
-              name: c.name,
-              positionLine: c.position?.line,
-              hasChildren: !!c.children,
-              childrenCount: c.children?.length ?? 0,
-            })),
-            foundEnclosingClass: enclosingClass
-              ? {
-                  name: enclosingClass.name,
-                  hasChildren: !!enclosingClass.children,
-                  childrenCount: enclosingClass.children?.length ?? 0,
-                }
-              : null,
-          });
-
-          if (enclosingClass && enclosingClass.kind === 'class' && enclosingClass.children) {
-            logger.debug('[COMPLETION:Q.1] Found enclosing class for this_program::', {
-              className: enclosingClass.name,
-              memberCount: enclosingClass.children.length,
-            });
-
-            // Add members from the parsed class children (which includes methods and variables)
-            for (const member of enclosingClass.children) {
-              if (!member.name) continue;
-
-              // Skip inherit statements in the listing (but we use them below to find parent members)
-              if (member.kind === 'inherit') continue;
-
-              if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                completions.push(
-                  buildCompletionItem(
-                    member.name,
-                    member,
-                    'Local member',
-                    undefined,
-                    completionContext
-                  )
-                );
-              }
-            }
-
-            // Add inherited members from parent classes
-            const inherits = enclosingClass.children.filter(s => s.kind === 'inherit');
-            if (services.stdlibIndex) {
-              for (const inheritSymbol of inherits) {
-                const parentName = getSymbolClassname(inheritSymbol) ?? inheritSymbol.name;
-                if (parentName) {
-                  try {
-                    const parentModule = await services.stdlibIndex.getModule(parentName);
-                    if (parentModule?.symbols) {
-                      for (const [name, symbol] of parentModule.symbols) {
-                        if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                          completions.push(
-                            buildCompletionItem(
-                              name,
-                              symbol,
-                              `Inherited from ${parentName}`,
-                              undefined,
-                              completionContext
-                            )
-                          );
-                        }
-                      }
-                    }
-                  } catch (err) {
-                    logger.debug('Failed to get inherited members', {
-                      error: err instanceof Error ? err.message : String(err),
-                    });
-                  }
-                }
-              }
-            }
-          } else {
-            logger.debug('[COMPLETION:Q.1] No enclosing class found for this_program::', {
-              line: params.position.line,
-              hasEnclosingClass: !!enclosingClass,
-              isClass: enclosingClass?.kind === 'class',
-              hasChildren: !!enclosingClass?.children,
-            });
-          }
-        } else {
-          logger.debug('[COMPLETION:Q.1] Document not cached for this_program::');
-        }
-
-        return toCompletionList(completions);
-      } else if (services.stdlibIndex) {
-        // ParentClass:: - show members of that specific parent class
-        try {
-          const parentModule = await services.stdlibIndex.getModule(scopeName);
-          if (parentModule?.symbols) {
-            logger.debug('Found stdlib module members', {
-              module: scopeName,
-              count: parentModule.symbols.size,
-            });
-            for (const [name, symbol] of parentModule.symbols) {
-              if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                completions.push(
-                  buildCompletionItem(
-                    name,
-                    symbol,
-                    `From ${scopeName}`,
-                    undefined,
-                    completionContext
-                  )
-                );
-              }
-            }
-            return toCompletionList(completions);
-          }
-        } catch (err) {
-          logger.debug('Failed to resolve scope module', {
-            scopeName,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+      const scopeCompletions = await resolveScopeCompletions(
+        scopeName,
+        prefix,
+        cached,
+        services,
+        params.position.line,
+        completionContext,
+        logger
+      );
+      if (scopeCompletions) {
+        return toCompletionList(scopeCompletions);
       }
     }
 
-    // Use Pike's tokenizer to get accurate completion context
+    // Pike tokenizer context
     let pikeContext: import('@pike-lsp/pike-bridge').CompletionContext | null = null;
     if (bridge) {
       try {
-        // PERF-003: Pass document URI and version for tokenization caching
         pikeContext = await bridge.getCompletionContext(
           text,
           params.position.line + 1,
@@ -825,466 +264,74 @@ export function registerCompletionHandlers(
       }
     }
 
-    // WORKAROUND: Pike tokenizer doesn't recognize "obj->" as member_access when cursor
-    // is between -> and the next identifier. Detect this pattern manually.
-    // Match pattern like "obj->" at the cursor position with possible identifier after
-    const cursorChar = params.position.character;
-    const beforeCursor = lineText.substring(0, cursorChar);
-    const arrowMatch = beforeCursor.match(/(\w+)\s*->\s*$/);
-    if (arrowMatch && arrowMatch[1]) {
-      const objectRef = arrowMatch[1];
-      const prefixAfterCursor = lineText.substring(cursorChar).match(/^(\w*)/)?.[1] || '';
-      logger.debug('Detected obj-> pattern (workaround)', {
-        objectRef,
-        prefixAfterCursor,
-        beforeCursor: beforeCursor.slice(-10),
-      });
-
-      // Try to resolve the object's type and get its members
-      if (cached) {
-        const localSymbol = cached.symbols.find(s => s.name === objectRef);
-        if (localSymbol?.type) {
-          const typeName = extractTypeName(localSymbol.type);
-          if (typeName) {
-            logger.debug('Extracted type from obj-> workaround', { objectRef, typeName });
-
-            // Try stdlib first
-            if (services.stdlibIndex) {
-              try {
-                const module = await services.stdlibIndex.getModule(typeName);
-                if (module?.symbols) {
-                  for (const [name, symbol] of module.symbols) {
-                    if (
-                      !prefixAfterCursor ||
-                      name.toLowerCase().startsWith(prefixAfterCursor.toLowerCase())
-                    ) {
-                      completions.push(
-                        buildCompletionItem(
-                          name,
-                          symbol,
-                          `From ${typeName}`,
-                          undefined,
-                          completionContext
-                        )
-                      );
-                    }
-                  }
-                  return toCompletionList(completions);
-                }
-              } catch (err) {
-                logger.debug('Type not in stdlib (obj-> workaround)', {
-                  typeName,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }
-
-            // Then try workspace documents
-            for (const [, doc] of documentCache.entries()) {
-              const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
-              if (classSymbol?.children) {
-                // Collect all members including inherited ones
-                const allMembers: import('@pike-lsp/pike-bridge').PikeSymbol[] = [];
-
-                // Add direct members
-                for (const member of classSymbol.children) {
-                  if (member.kind !== 'inherit') {
-                    allMembers.push(member);
-                  }
-                }
-
-                // Add inherited members (collect parent classes to resolve)
-                const inheritChildren = classSymbol.children.filter(c => c.kind === 'inherit');
-                for (const inheritChild of inheritChildren) {
-                  const parentClassName = getSymbolClassname(inheritChild) ?? inheritChild.name;
-                  if (parentClassName) {
-                    // Find parent class in same document
-                    const parentClass = doc.symbols.find(
-                      s => s.kind === 'class' && s.name === parentClassName
-                    );
-                    if (parentClass?.children) {
-                      for (const parentMember of parentClass.children) {
-                        if (parentMember.kind !== 'inherit' && parentMember.name) {
-                          // Mark as inherited
-                          allMembers.push({
-                            ...parentMember,
-                            inherited: true,
-                            inheritedFrom: parentClassName,
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-
-                // Build completions for all members
-                for (const member of allMembers) {
-                  if (!member.name) continue;
-                  if (
-                    !prefixAfterCursor ||
-                    member.name.toLowerCase().startsWith(prefixAfterCursor.toLowerCase())
-                  ) {
-                    // Check for deprecated
-                    const isDeprecated = member.deprecated || member.documentation?.deprecated;
-                    const memberWithDeprecated =
-                      isDeprecated && !member.deprecated ? { ...member, deprecated: true } : member;
-                    completions.push(
-                      buildCompletionItem(
-                        member.name,
-                        memberWithDeprecated,
-                        `Member of ${typeName}`,
-                        undefined,
-                        completionContext
-                      )
-                    );
-                  }
-                }
-                return toCompletionList(completions);
-              }
-            }
-          }
-        }
-      }
+    // Arrow workaround: obj->
+    const arrowResult = await resolveArrowWorkaround(
+      lineText,
+      params.position.character,
+      cached,
+      services,
+      documentCache,
+      completionContext,
+      logger
+    );
+    if (arrowResult && arrowResult.length > 0) {
+      return toCompletionList(arrowResult);
     }
 
-    // WORKAROUND: Pike tokenizer doesn't recognize "Module." as member_access when cursor
-    // is immediately after the dot with no partial identifier. Detect this pattern manually.
-    // Match "Module." at end of line (with possible whitespace before)
-    // NOTE: This workaround is kept as fallback until E2E tests confirm Pike-side fix works
-    const moduleDotMatch = lineText.match(/([A-Z][a-zA-Z0-9_]*)\.\s*$/);
-    if (moduleDotMatch && moduleDotMatch[1] && services.stdlibIndex) {
-      const moduleName = moduleDotMatch[1];
-      logger.debug('Detected Module. pattern (workaround)', { moduleName, lineText });
-      try {
-        const testModule = await services.stdlibIndex.getModule(moduleName);
-        if (testModule?.symbols && testModule.symbols.size > 0) {
-          logger.debug('Module. workaround succeeded', {
-            moduleName,
-            count: testModule.symbols.size,
-          });
-          for (const [name, symbol] of testModule.symbols) {
-            completions.push(
-              buildCompletionItem(name, symbol, `From ${moduleName}`, undefined, completionContext)
-            );
-          }
-          return toCompletionList(completions);
-        }
-      } catch (err) {
-        logger.debug('Module. workaround failed', {
-          moduleName,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
+    // Module. dot workaround
+    const moduleDotResult = await resolveModuleDotWorkaround(
+      lineText,
+      services,
+      completionContext,
+      logger
+    );
+    if (moduleDotResult) {
+      return toCompletionList(moduleDotResult);
     }
 
-    // Handle member access (obj->meth, Module.sub, this::member)
+    // Pike tokenizer member/scope access
     if (pikeContext?.context === 'member_access' || pikeContext?.context === 'scope_access') {
-      const objectRef = pikeContext.objectName;
-      const prefix = pikeContext.prefix.trim();
-      const operator = pikeContext.operator;
-
-      logger.debug('Member/scope access completion', { objectRef, operator, prefix });
-
-      // Determine the type name to look up using a multi-strategy approach
-      let typeName: string | null = null;
-
-      // Strategy 1: If it looks like a fully qualified module (e.g., "Stdio.File"), use directly
-      if (objectRef.includes('.')) {
-        typeName = objectRef;
-        logger.debug('Using fully qualified name', { typeName });
+      const memberResult = await resolvePikeContextMemberAccess(
+        pikeContext,
+        cached,
+        services,
+        documentCache,
+        completionContext,
+        logger
+      );
+      if (memberResult) {
+        return toCompletionList(memberResult);
       }
-      // Strategy 2: Try to resolve as a top-level stdlib module
-      else if (services.stdlibIndex) {
-        try {
-          const testModule = await services.stdlibIndex.getModule(objectRef);
-          if (testModule?.symbols && testModule.symbols.size > 0) {
-            typeName = objectRef;
-            logger.debug('Resolved as stdlib module', { typeName, count: testModule.symbols.size });
-          }
-        } catch (err) {
-          logger.debug('Not a stdlib module', {
-            objectRef,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      // Strategy 3: Look up local symbol to get its type
-      if (!typeName && cached) {
-        const localSymbol = cached.symbols.find(s => s.name === objectRef);
-        if (localSymbol?.type) {
-          typeName = extractTypeName(localSymbol.type);
-          logger.debug('Extracted type from local symbol', { objectRef, typeName });
-        }
-      }
-
-      // Use resolved type to get members
-      if (typeName && services.stdlibIndex) {
-        // First try to resolve from stdlib
-        try {
-          const module = await services.stdlibIndex.getModule(typeName);
-          if (module?.symbols) {
-            logger.debug('Found stdlib type members', { typeName, count: module.symbols.size });
-            for (const [name, symbol] of module.symbols) {
-              if (!prefix || name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                completions.push(
-                  buildCompletionItem(
-                    name,
-                    symbol,
-                    `From ${typeName}`,
-                    undefined,
-                    completionContext
-                  )
-                );
-              }
-            }
-            return toCompletionList(completions);
-          }
-        } catch (err) {
-          logger.debug('Type not in stdlib', {
-            typeName,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-
-        // If not in stdlib, try to find it in workspace documents
-        logger.debug('Searching workspace documents', { typeName });
-        for (const [docUri, doc] of documentCache.entries()) {
-          const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
-          if (classSymbol) {
-            logger.debug('Found class in workspace', {
-              typeName,
-              uri: docUri,
-              childrenCount: classSymbol.children?.length || 0,
-            });
-
-            // P.2 FIX: Use parsed children (correct class members) but merge deprecated from introspection
-            const members = classSymbol.children || [];
-            logger.debug('Class members from parse', { typeName, count: members.length });
-
-            // Build a lookup map from introspection for deprecated flags
-            const deprecatedMap = new Map<string, boolean>();
-            if (doc.introspection?.symbols) {
-              for (const sym of doc.introspection.symbols) {
-                if (sym.deprecated || sym.documentation?.deprecated) {
-                  deprecatedMap.set(sym.name, true);
-                }
-              }
-            }
-
-            for (const member of members) {
-              if (!prefix || member.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-                // Merge deprecated flag: check parse result, introspection, and documentation
-                let memberWithDeprecated = member;
-                const isDeprecated =
-                  member.deprecated ||
-                  deprecatedMap.has(member.name) ||
-                  member.documentation?.deprecated;
-                if (isDeprecated && !member.deprecated) {
-                  memberWithDeprecated = { ...member, deprecated: true };
-                }
-
-                completions.push(
-                  buildCompletionItem(
-                    member.name,
-                    memberWithDeprecated,
-                    `Member of ${typeName}`,
-                    undefined,
-                    completionContext
-                  )
-                );
-              }
-            }
-            return toCompletionList(completions);
-          }
-        }
-      }
-
-      logger.debug('Could not resolve type for member access', { objectRef });
       return toCompletionList([]);
     }
 
-    // General completion - suggest all symbols from current document
-    const prefix = getWordAtPosition(text, offset);
+    // General completion
+    const generalCompletions = await collectGeneralCompletions(
+      text,
+      offset,
+      uri,
+      cached,
+      services,
+      { logger, documentCache, moduleContext }
+    );
+    completions.push(...generalCompletions);
 
-    // PERF-096: Pre-compute lowercase prefix once for case-insensitive comparison
-    const prefixLower = prefix.toLowerCase();
-
-    // PERF-096: Build Set of local symbol names for O(1) duplicate checking
-    // This avoids O(n*m) complexity from repeated some() calls in nested loops
-    const localSymbolNames = new Set<string>();
-    for (const s of cached.symbols) {
-      if (s.name) localSymbolNames.add(s.name);
-    }
-
-    // Add local symbols
-    if (cached) {
-      for (const symbol of cached.symbols) {
-        if (!symbol.name) continue;
-
-        if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-          const item = buildCompletionItem(
-            symbol.name,
-            symbol,
-            'Local symbol',
-            cached.symbols,
-            completionContext
-          );
-          item.data = { uri, name: symbol.name };
-          completions.push(item);
-        }
-      }
-
-      // Add waterfall symbols from imports/include/inherit/require using ModuleContext
-      // This provides symbols from transitive dependencies with provenance tracking
-      const shouldFetchWaterfall =
-        prefixLower.length > 0 &&
-        !!(cached.dependencies?.includes?.length || cached.dependencies?.imports?.length);
-
-      if (shouldFetchWaterfall && moduleContext && services.bridge?.bridge) {
-        try {
-          const waterfallResult = await moduleContext.getWaterfallSymbolsForDocument(
-            uri,
-            text,
-            services.bridge.bridge,
-            3 // maxDepth for transitive resolution
-          );
-
-          // Add waterfall symbols with provenance tracking
-          for (const symbol of waterfallResult.symbols) {
-            if (!symbol.name) continue;
-
-            // PERF-096: Use Set.has() instead of Array.some() for O(1) lookup
-            if (localSymbolNames.has(symbol.name)) {
-              continue;
-            }
-
-            if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-              const provenance = symbol.provenance_file
-                ? `From ${symbol.provenance_file}`
-                : 'Imported symbol';
-              completions.push(
-                buildCompletionItem(symbol.name, symbol, provenance, undefined, completionContext)
-              );
-            }
-          }
-        } catch (err) {
-          logger.debug('Failed to get waterfall symbols', {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      // Legacy fallback: Add symbols from included files via includeResolver
-      if (services.includeResolver && cached.dependencies?.includes) {
-        for (const include of cached.dependencies.includes) {
-          for (const symbol of include.symbols) {
-            if (!symbol.name) continue;
-
-            // PERF-096: Use Set.has() for O(1) duplicate check
-            if (localSymbolNames.has(symbol.name)) {
-              continue;
-            }
-
-            if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-              const item = buildCompletionItem(
-                symbol.name,
-                symbol,
-                `From ${include.originalPath}`,
-                undefined,
-                completionContext
-              );
-              item.data = { uri: include.resolvedPath, name: symbol.name };
-              completions.push(item);
-            }
-          }
-        }
-      }
-
-      // Add symbols from imported modules (stdlib and workspace)
-      if (cached.dependencies?.imports) {
-        for (const imp of cached.dependencies.imports) {
-          // Try stdlib index first
-          if (imp.isStdlib && services.stdlibIndex) {
-            try {
-              const moduleInfo = await services.stdlibIndex.getModule(imp.modulePath);
-              if (moduleInfo?.symbols) {
-                for (const [name, symbol] of moduleInfo.symbols) {
-                  // PERF-096: Use Set.has() for O(1) duplicate check
-                  if (localSymbolNames.has(name)) {
-                    continue;
-                  }
-
-                  if (!prefix || name.toLowerCase().startsWith(prefixLower)) {
-                    const item = buildCompletionItem(
-                      name,
-                      symbol,
-                      `From ${imp.modulePath}`,
-                      undefined,
-                      completionContext
-                    );
-                    item.data = { modulePath: imp.modulePath, name, isStdlib: true };
-                    completions.push(item);
-                  }
-                }
-              }
-            } catch (err) {
-              logger.debug('Failed to get stdlib import symbols', {
-                modulePath: imp.modulePath,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-          }
-
-          // For workspace imports, use cached symbols if available
-          if (!imp.isStdlib && imp.symbols) {
-            for (const symbol of imp.symbols) {
-              if (!symbol.name) continue;
-
-              // PERF-096: Use Set.has() for O(1) duplicate check
-              if (localSymbolNames.has(symbol.name)) {
-                continue;
-              }
-
-              if (!prefix || symbol.name.toLowerCase().startsWith(prefixLower)) {
-                const item = buildCompletionItem(
-                  symbol.name,
-                  symbol,
-                  `From ${imp.modulePath}`,
-                  undefined,
-                  completionContext
-                );
-                item.data = { modulePath: imp.modulePath, name: symbol.name, isStdlib: false };
-                completions.push(item);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // --- Roxen completion integration ---
+    // Roxen/RXML completion
     try {
-      // First check if cursor is inside an RXML string in Pike code
       if (bridge) {
         const rxmlStrings = await detectRXMLStrings(text, uri, bridge);
         const inRXMLString = findRXMLStringAtPosition(params.position, rxmlStrings);
 
         if (inRXMLString) {
-          // Cursor is inside RXML content - provide RXML tag/attribute completions
           logger.debug('Completion inside RXML string', {
             confidence: inRXMLString.confidence,
             markerCount: inRXMLString.markers.length,
           });
 
-          // Check if we're completing a tag name or attribute
-          // Look for opening tag pattern: <tagname or <tagname attr=
           const beforeCursorInString = getBeforeCursorInRXMLString(text, offset, inRXMLString);
 
-          // Check if we're inside a tag (after < but before >)
           const tagMatch = beforeCursorInString.match(/<([a-z0-9_]*)$/i);
           if (tagMatch) {
-            // Completing tag name
             const tagNames = getRXMLTagCompletions(inRXMLString, params.position);
             for (const tagName of tagNames) {
               completions.push({
@@ -1296,10 +343,8 @@ export function registerCompletionHandlers(
             return toCompletionList(completions);
           }
 
-          // Check if we're completing an attribute: inside <tag ... |
           const attrMatch = beforeCursorInString.match(/<[a-z0-9_]+\s+([a-z0-9_]*)$/i);
           if (attrMatch) {
-            // We're in attribute position - provide attribute completions for the tag
             const tagNameMatch = beforeCursorInString.match(/<([a-z0-9_]+)/);
             if (tagNameMatch) {
               const tagName = tagNameMatch[1] ?? '';
@@ -1317,7 +362,6 @@ export function registerCompletionHandlers(
         }
       }
 
-      // Standard Roxen module completions
       const roxenCompletions = provideRoxenCompletions(lineText, params.position);
       if (roxenCompletions && roxenCompletions.length > 0) {
         completions.push(...roxenCompletions);
@@ -1327,346 +371,43 @@ export function registerCompletionHandlers(
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    // --- End Roxen integration ---
 
-    // Add Pike built-in types and common functions
-    const pikeBuiltins = [
-      { name: 'int', kind: CompletionItemKind.Keyword },
-      { name: 'string', kind: CompletionItemKind.Keyword },
-      { name: 'float', kind: CompletionItemKind.Keyword },
-      { name: 'zero', kind: CompletionItemKind.Keyword },
-      { name: 'type', kind: CompletionItemKind.Keyword },
-      { name: 'unknown', kind: CompletionItemKind.Keyword },
-      { name: 'array', kind: CompletionItemKind.Keyword },
-      { name: 'mapping', kind: CompletionItemKind.Keyword },
-      { name: 'multiset', kind: CompletionItemKind.Keyword },
-      { name: 'object', kind: CompletionItemKind.Keyword },
-      { name: 'function', kind: CompletionItemKind.Keyword },
-      { name: 'program', kind: CompletionItemKind.Keyword },
-      { name: 'mixed', kind: CompletionItemKind.Keyword },
-      { name: 'void', kind: CompletionItemKind.Keyword },
-      { name: 'class', kind: CompletionItemKind.Keyword },
-      { name: 'inherit', kind: CompletionItemKind.Keyword },
-      { name: 'import', kind: CompletionItemKind.Keyword },
-      { name: 'constant', kind: CompletionItemKind.Keyword },
-      { name: 'if', kind: CompletionItemKind.Keyword },
-      { name: 'else', kind: CompletionItemKind.Keyword },
-      { name: 'for', kind: CompletionItemKind.Keyword },
-      { name: 'foreach', kind: CompletionItemKind.Keyword },
-      { name: 'while', kind: CompletionItemKind.Keyword },
-      { name: 'do', kind: CompletionItemKind.Keyword },
-      { name: 'switch', kind: CompletionItemKind.Keyword },
-      { name: 'case', kind: CompletionItemKind.Keyword },
-      { name: 'default', kind: CompletionItemKind.Keyword },
-      { name: 'break', kind: CompletionItemKind.Keyword },
-      { name: 'continue', kind: CompletionItemKind.Keyword },
-      { name: 'return', kind: CompletionItemKind.Keyword },
-      { name: 'public', kind: CompletionItemKind.Keyword },
-      { name: 'private', kind: CompletionItemKind.Keyword },
-      { name: 'protected', kind: CompletionItemKind.Keyword },
-      { name: 'static', kind: CompletionItemKind.Keyword },
-      { name: 'final', kind: CompletionItemKind.Keyword },
-      { name: 'local', kind: CompletionItemKind.Keyword },
-      { name: '__attribute__', kind: CompletionItemKind.Keyword },
-      { name: 'int(0..255)', kind: CompletionItemKind.Snippet },
-      { name: 'sizeof', kind: CompletionItemKind.Function },
-      { name: 'typeof', kind: CompletionItemKind.Function },
-      { name: 'Stdio', kind: CompletionItemKind.Module },
-      { name: 'Array', kind: CompletionItemKind.Module },
-      { name: 'String', kind: CompletionItemKind.Module },
-      { name: 'Mapping', kind: CompletionItemKind.Module },
-      { name: 'Math', kind: CompletionItemKind.Module },
-    ];
+    // Built-in keywords and types
+    const prefix = getWordAtPosition(text, offset);
+    addBuiltinCompletions(completions, prefix);
 
-    for (const builtin of pikeBuiltins) {
-      if (!prefix || builtin.name.toLowerCase().startsWith(prefix.toLowerCase())) {
-        completions.push({
-          label: builtin.name,
-          kind: builtin.kind,
-        });
-      }
-    }
-
-    await addAutoImportCompletions(completions, {
-      uri,
-      prefix,
-      text,
-      lineText,
-      localSymbols: cached.symbols,
-    });
+    await addAutoImportCompletions(
+      completions,
+      {
+        uri,
+        prefix,
+        text,
+        lineText,
+        localSymbols: cached.symbols,
+      },
+      services
+    );
 
     const existingNames = new Set(completions.map(c => c.label));
     addMacrosToCompletions(completions, existingNames, prefix ?? '');
     return toCompletionList(dedupeCompletionItems(completions));
   });
 
-  /**
-   * Completion item resolve - add documentation and additionalTextEdits for auto-import
-   */
-  connection.onCompletionResolve(async (item): Promise<CompletionItem> => {
-    const data = item.data as
-      | { uri?: string; name?: string }
-      | { modulePath?: string; name?: string; isStdlib?: boolean }
-      | AutoImportCompletionData
-      | undefined;
-
-    if (data && 'autoImport' in data && data.autoImport) {
-      if (!item.additionalTextEdits || item.additionalTextEdits.length === 0) {
-        const statement = buildAutoImportStatement(data.modulePath, data.importKind);
-        item.additionalTextEdits = [
-          {
-            range: {
-              start: { line: 0, character: 0 },
-              end: { line: 0, character: 0 },
-            },
-            newText: statement,
-          },
-        ];
-      }
-      return item;
-    }
-
-    // Handle local symbol resolution (existing behavior)
-    if (data && 'uri' in data && data.uri && data.name) {
-      const cached = documentCache.get(data.uri);
-      if (cached) {
-        const symbol = cached.symbols.find(s => s.name === data.name);
-        if (symbol) {
-          item.documentation = {
-            kind: MarkupKind.Markdown,
-            value: buildHoverContent(symbol) ?? '',
-          };
-        }
-      }
-      return item;
-    }
-
-    // Handle import symbol resolution (new auto-import feature)
-    if (
-      data &&
-      'modulePath' in data &&
-      data.modulePath &&
-      'name' in data &&
-      typeof data.name === 'string'
-    ) {
-      const modulePath = data.modulePath;
-      const symbolName = data.name;
-      const isStdlib = 'isStdlib' in data ? (data.isStdlib ?? true) : true;
-
-      // Look up the symbol to get documentation (async)
-      if (services.stdlibIndex && isStdlib) {
-        try {
-          const moduleInfo = await services.stdlibIndex.getModule(modulePath);
-          if (moduleInfo?.symbols) {
-            const symbol = moduleInfo.symbols.get(symbolName);
-            if (symbol) {
-              item.documentation = {
-                kind: MarkupKind.Markdown,
-                value: buildHoverContent(symbol as PikeSymbol, modulePath) ?? '',
-              };
-            }
-          }
-        } catch (err) {
-          logger.debug('Failed to get symbol for completion resolve', {
-            modulePath,
-            symbolName,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      // Add auto-import additionalTextEdits
-      // We add the import statement unconditionally - the editor will handle duplicates
-      const importStatement = isStdlib ? `import ${modulePath};\n` : `import .${modulePath};\n`;
-
-      item.additionalTextEdits = [
-        {
-          range: {
-            start: { line: 0, character: 0 },
-            end: { line: 0, character: 0 },
-          },
-          newText: importStatement,
-        },
-      ];
-    }
-
-    return item;
-  });
+  // Register the resolve handler
+  registerCompletionResolveHandler(connection, services);
 }
 
-// ==================== Helper Functions ====================
-
-/**
- * Get word at position in text
- */
-function getWordAtPosition(text: string, offset: number): string {
-  let start = offset;
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-  let end = offset;
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-  return text.slice(start, end);
-}
-
-/**
- * Determine completion context from text before cursor
- */
-function getCompletionContext(lineText: string): 'type' | 'expression' {
-  const trimmed = lineText.replace(/\w*$/, '').trimEnd();
-
-  if (trimmed.length === 0) {
-    return 'type';
-  }
-
-  if (/\breturn\s*$/.test(trimmed)) {
-    return 'expression';
-  }
-
-  const expressionPatterns = [
-    /=\s*$/,
-    /\[\s*$/,
-    /\(\s*$/,
-    /,\s*$/,
-    /[+\-*/%]\s*$/,
-    /[<>]=?\s*$/,
-    /[!=]=\s*$/,
-    /&&\s*$/,
-    /\|\|\s*$/,
-    /!\s*$/,
-    /\?\s*$/,
-    /:\s*$/,
-    /=>\s*$/,
-  ];
-
-  const typePatterns = [
-    /^\s*$/,
-    /;\s*$/,
-    /\{\s*$/,
-    /\b(public|private|protected|static|local|final|constant|optional)\s+$/i,
-    /\bclass\s+\w+\s*$/,
-    /\binherit\s+$/,
-    /\|$/,
-    /&$/,
-  ];
-
-  for (const pattern of expressionPatterns) {
-    if (pattern.test(trimmed)) {
-      if (/,\s*$/.test(trimmed)) {
-        const beforeComma = trimmed.replace(/,\s*$/, '');
-        const lastOpenParen = beforeComma.lastIndexOf('(');
-        const lastCloseParen = beforeComma.lastIndexOf(')');
-
-        if (lastOpenParen > lastCloseParen) {
-          const beforeParen = beforeComma.slice(0, lastOpenParen).trimEnd();
-          if (/\b\w+\s+\w+\s*$/.test(beforeParen)) {
-            return 'type';
-          }
-          return 'expression';
-        }
-
-        if (/\)\s*\{/.test(trimmed)) {
-          return 'expression';
-        }
-        return 'expression';
-      }
-
-      if (/\(\s*$/.test(trimmed)) {
-        if (/\b\w+\s+\w+\s*\(\s*$/.test(trimmed)) {
-          return 'type';
-        }
-        return 'expression';
-      }
-
-      if (/:\s*$/.test(trimmed) && /\binherit\s+\w+\s*:\s*$/.test(trimmed)) {
-        return 'type';
-      }
-
-      return 'expression';
-    }
-  }
-
-  for (const pattern of typePatterns) {
-    if (pattern.test(trimmed)) {
-      return 'type';
-    }
-  }
-
-  return 'type';
-}
-
-/**
- * Find the enclosing class symbol that contains the given line position.
- * Returns the class symbol if found, null otherwise.
- *
- * Strategy:
- * 1. If position has line info: Find class with latest start line still <= cursor line
- * 2. Fallback: Return the most recent/last class in the symbol list (assumes
- *    code is written in declaration order and we're likely in the last class)
- */
-function findEnclosingClassSymbol(
-  symbols: import('@pike-lsp/pike-bridge').PikeSymbol[],
-  line: number
-): import('@pike-lsp/pike-bridge').PikeSymbol | null {
-  let bestMatch: import('@pike-lsp/pike-bridge').PikeSymbol | null = null;
-  let bestMatchLine = -1;
-  let lastClass: import('@pike-lsp/pike-bridge').PikeSymbol | null = null;
-
-  // Find the class with the latest start line that is still <= cursor line
-  for (const symbol of symbols) {
-    if (symbol.kind === 'class' && symbol.name) {
-      lastClass = symbol; // Track the last class we see
-
-      if (symbol.position) {
-        const startLine = (symbol.position.line ?? 1) - 1; // Convert to 0-indexed
-
-        // Only consider classes that start at or before the cursor
-        if (startLine <= line && startLine > bestMatchLine) {
-          bestMatch = symbol;
-          bestMatchLine = startLine;
-        }
-      }
-    }
-  }
-
-  // Use position-based match if found, otherwise fallback to last class
-  const enclosingClass = bestMatch || lastClass;
-
-  // If we found a match, also check for nested classes
-  if (enclosingClass && enclosingClass.children) {
-    const nestedClass = findEnclosingClassSymbol(enclosingClass.children, line);
-    return nestedClass || enclosingClass;
-  }
-
-  return enclosingClass;
-}
-
-/**
- * Get the text before cursor position within an RXML string.
- * Used for context-aware RXML completion.
- *
- * @param text - Full document text
- * @param offset - Cursor offset in document
- * @param rxmlString - The RXML string containing the cursor
- * @returns Text before cursor within the RXML string content
- */
+/** Get the text before cursor position within an RXML string */
 function getBeforeCursorInRXMLString(
   text: string,
   offset: number,
   rxmlString: import('../rxml/mixed-content.js').RXMLStringLiteral
 ): string {
-  // Calculate offset within RXML content
   const stringStartOffset = text.indexOf(rxmlString.content, Math.max(0, offset - 1000));
-  if (stringStartOffset < 0) {
-    return '';
-  }
+  if (stringStartOffset < 0) return '';
 
   const contentOffset = offset - stringStartOffset;
-  if (contentOffset < 0 || contentOffset > rxmlString.content.length) {
-    return '';
-  }
+  if (contentOffset < 0 || contentOffset > rxmlString.content.length) return '';
 
   return rxmlString.content.slice(0, contentOffset);
 }
