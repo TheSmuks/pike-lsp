@@ -17,6 +17,7 @@ import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike
 import { readFile } from 'node:fs/promises';
 import { handleDirectiveNavigation } from './definition-directives.js';
 import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
+import { escapeRegExp } from '../rxml/references-provider.js';
 
 const uriDecodeLog = new Logger('Navigation');
 
@@ -661,7 +662,7 @@ async function findSymbolTextInIncludedFiles(
     return null;
   }
 
-  const pattern = new RegExp(`\\b${symbolName}\\b`);
+  const pattern = new RegExp(`\\b${escapeRegExp(symbolName)}\\b`);
   for (const include of cached.dependencies.includes) {
     try {
       const content = await readFile(include.resolvedPath, 'utf-8');
@@ -708,7 +709,7 @@ async function findSymbolInDirectIncludes(
 
   const source = document.getText();
   const includeRegex = /^#include\s+["<]([^">]+)[">]/gm;
-  const symbolRegex = new RegExp(`\\b${symbolName}\\b`);
+  const symbolRegex = new RegExp(`\\b${escapeRegExp(symbolName)}\\b`);
   const currentFilePath = uriToFilePath(uri);
 
   let includeMatch = includeRegex.exec(source);
