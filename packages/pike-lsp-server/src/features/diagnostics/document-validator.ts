@@ -19,6 +19,7 @@ import type { RequestScheduler } from '../../services/request-scheduler.js';
 import { toProtocolDiagnostics } from '../../services/protocol-mappers.js';
 import { buildStaleFallbackEntry } from './cache-helpers.js';
 import { processAnalysisResults } from './diagnostics-processor.js';
+import { type ValidationCycleTracker } from './validation-metrics.js';
 
 export interface DocumentValidatorDeps {
   connection: Connection;
@@ -28,6 +29,7 @@ export interface DocumentValidatorDeps {
   documentSnapshots: Map<string, string>;
   diagnosticsScheduler: RequestScheduler;
   validationCompletions: { value: number };
+  cycleTracker: ValidationCycleTracker;
   log: Logger;
 }
 
@@ -53,6 +55,7 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
     documentSnapshots,
     diagnosticsScheduler,
     validationCompletions,
+    cycleTracker,
     log,
   } = deps;
 
@@ -64,7 +67,7 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
   ): Promise<void> {
     const uri = document.uri;
     const version = document.version;
-
+    const cycleStart = performance.now();
     log.debug('VALIDATE_START', { uri, version });
 
     const bridge = services.bridge;
@@ -244,6 +247,7 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
         log.debug('Analyze cache status', { uri, cacheHit: analyzeResult._perf.cache_hit });
       }
 
+      const cacheHit = analyzeResult._perf?.cache_hit ?? false;
       if (analyzeResult.failures && Object.keys(analyzeResult.failures).length > 0) {
         log.debug('Analyze partial failures', {
           uri,
@@ -316,8 +320,21 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
           ensureLatest,
         }
       );
+
+      // Record successful validation cycle metrics
+      cycleTracker.record({
+        totalMs: performance.now() - cycleStart,
+        cacheHit,
+        blocked: false,
+      });
     } catch (err) {
       if (err instanceof RequestSupersededError) {
+        // Record blocked (superseded) validation cycle
+        cycleTracker.record({
+          totalMs: performance.now() - cycleStart,
+          cacheHit: false,
+          blocked: true,
+        });
         return;
       }
       inFlightDiagnosticRequests.delete(uri);
