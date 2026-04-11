@@ -219,17 +219,7 @@ export function registerDefinitionHandlers(
         }
 
         // Extract the word at cursor position
-        const text = document.getText();
-        const offset = document.offsetAt(params.position);
-        let start = offset;
-        let end = offset;
-        while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-          start--;
-        }
-        while (end < text.length && /\w/.test(text[end] ?? '')) {
-          end++;
-        }
-        const word = text.slice(start, end);
+        const word = getWordAtPositionGeneric(document, params.position);
 
         if (word) {
           const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
@@ -762,21 +752,7 @@ function findSymbolAtPosition(
   position: { line: number; character: number },
   document: TextDocument
 ): PikeSymbol | null {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-
-  // Find word boundaries
-  let start = offset;
-  let end = offset;
-
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-
-  const word = text.slice(start, end);
+  const word = getWordAtPositionGeneric(document, position);
   if (!word) {
     return null;
   }
