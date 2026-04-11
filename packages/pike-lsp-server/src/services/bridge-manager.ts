@@ -1,13 +1,6 @@
-/**
- * Bridge Manager - PikeBridge wrapper with health monitoring
- *
- * Wraps PikeBridge with lifecycle management and health monitoring.
- * Provides a single interface for feature handlers to interact
- * with the Pike subprocess.
- */
-
 import type {
   PikeBridge,
+  PikeSymbol,
   PikeVersionInfo,
   ProtocolInfo,
   QueryEngineMutationAck,
@@ -18,7 +11,15 @@ import type {
   AnalysisOperation,
 } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
+import { readFile } from 'node:fs/promises';
 import * as fs from 'fs';
+/**
+ * Bridge Manager - PikeBridge wrapper with health monitoring
+ *
+ * Wraps PikeBridge with lifecycle management and health monitoring.
+ * Provides a single interface for feature handlers to interact
+ * with the Pike subprocess.
+ */
 
 /**
  * Pike version information with path details.
@@ -526,6 +527,30 @@ export class BridgeManager {
       );
 
     return this.bridge.roxenValidate(code, filename, moduleInfo);
+  }
+
+  /**
+   * Read a file from disk and parse it for symbols using the bridge.
+   *
+   * Encapsulates file-reading + analysis so callers don't need to
+   * reach through to bridge internals.
+   *
+   * @param filePath - Absolute path to the file to parse
+   * @returns Array of symbols extracted from the file, or empty array on failure
+   */
+  async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+    if (!this.bridge) {
+      return [];
+    }
+
+    try {
+      const content = await readFile(filePath, 'utf-8');
+      const response = await this.analyze(content, ['parse'], filePath);
+
+      return response.result?.parse?.symbols ?? [];
+    } catch {
+      return [];
+    }
   }
 
   /**

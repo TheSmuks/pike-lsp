@@ -9,7 +9,7 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 
 /**
  * Cache for resolved includes with their symbols.
@@ -221,6 +221,9 @@ export class IncludeResolver {
   /**
    * Parse an included file to extract its symbols.
    *
+   * Delegates to BridgeManager.parseFileSymbols which handles
+   * file reading and bridge analysis through the typed interface.
+   *
    * @param filePath - Absolute path to the included file
    * @returns Array of symbols from the file
    */
@@ -230,40 +233,7 @@ export class IncludeResolver {
     }
 
     try {
-      // Read file content
-      const content = await readFile(filePath, 'utf-8');
-
-      // Use analyze to get symbols (parse operation only)
-      const bridgeLike = this.bridge as unknown as {
-        analyze?: (
-          code: string,
-          include: ['parse'],
-          filename: string
-        ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
-        bridge?: {
-          analyze?: (
-            code: string,
-            include: ['parse'],
-            filename: string
-          ) => Promise<{ result?: { parse?: { symbols?: PikeSymbol[] } } }>;
-        };
-      };
-
-      const response = bridgeLike.analyze
-        ? await bridgeLike.analyze(content, ['parse'], filePath)
-        : bridgeLike.bridge?.analyze
-          ? await bridgeLike.bridge.analyze(content, ['parse'], filePath)
-          : null;
-
-      if (!response) {
-        return [];
-      }
-
-      if (response.result?.parse?.symbols) {
-        return response.result.parse.symbols;
-      }
-
-      return [];
+      return await this.bridge.parseFileSymbols(filePath);
     } catch (err) {
       this.logger.debug('Failed to parse included file', {
         filePath,
