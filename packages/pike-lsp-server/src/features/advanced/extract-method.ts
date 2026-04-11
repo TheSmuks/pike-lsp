@@ -3,11 +3,15 @@
  *
  * Provides 'Extract Method' refactoring for Pike code.
  * Takes selected code and extracts it into a new method.
+ *
+ * Uses DocumentCacheEntry (symbol table + type data) instead of regex
+ * for variable detection and return type inference.
  */
 
 import { CodeAction, CodeActionKind, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod, PikeVariable, PikeType } from '@pike-lsp/pike-bridge';
+import type { DocumentCacheEntry } from '../../core/types.js';
 
 /**
  * Extract Method Result
@@ -28,6 +32,7 @@ export interface ExtractMethodResult {
  * @param range - The selected range
  * @param fullText - Full document text
  * @param onlyKinds - Optional filter for context.only
+ * @param cached - Document cache entry with symbol and type data
  * @returns CodeAction or null if selection is invalid
  */
 export function getExtractMethodAction(
@@ -36,7 +41,7 @@ export function getExtractMethodAction(
   range: Range,
   fullText: string,
   onlyKinds: string[] | undefined,
-  symbols: PikeSymbol[] = []
+  cached: DocumentCacheEntry
 ): CodeAction | null {
   // Validate selection range
   if (!isValidSelection(range, fullText)) {
@@ -64,7 +69,7 @@ export function getExtractMethodAction(
   }
 
   // Analyze selected code to determine parameters and return value
-  const analysis = analyzeSelectedCode(selectedCode, symbols);
+  const analysis = analyzeSelectedCode(selectedCode, cached);
 
   // Generate new function name
   const functionName = generateFunctionName(document, range);
@@ -250,26 +255,26 @@ function stripCodeContent(code: string): string {
 
 /**
  * Analyze selected code to determine parameters and return value.
- * Uses symbol-table variable names and code-stripping to avoid
+ * Uses symbol-table variable names, type data, and code-stripping to avoid
  * false matches inside comments and string literals.
  */
 function analyzeSelectedCode(
   selectedCode: string,
-  symbols: PikeSymbol[]
+  cached: DocumentCacheEntry
 ): { parameters: string[]; returnType: string; returnValue: string | null } {
   const parameters: string[] = [];
   let returnType = 'void';
   let returnValue: string | null = null;
 
-  // Collect variable names from the symbol table
-  const definedVars = collectVariableNames(symbols);
+  // Collect variable names and types from the symbol table
+  const varTypes = collectVariableTypes(cached.symbols);
 
   // Strip comments and string literals to avoid false identifier matches
   const strippedCode = stripCodeContent(selectedCode);
 
   // Check which symbol-table variables are referenced in actual code
   const usedVars = new Set<string>();
-  for (const varName of definedVars) {
+  for (const varName of varTypes.keys()) {
     if (isIdentPresent(strippedCode, varName)) {
       usedVars.add(varName);
     }
@@ -285,7 +290,7 @@ function analyzeSelectedCode(
   const returnInfo = detectReturnStatement(selectedCode, strippedCode);
   if (returnInfo) {
     returnValue = returnInfo.value;
-    returnType = inferReturnType(returnValue, definedVars);
+    returnType = inferReturnType(returnValue, varTypes, cached);
   }
 
   return { parameters, returnType, returnValue };
@@ -335,16 +340,44 @@ function detectReturnStatement(
 
 /**
  * Infer the return type from a return value expression.
- * Uses the symbol table for variable type lookups.
+ * Uses the symbol table for variable type lookups and PikeType data
+ * from the cache instead of regex-based heuristics.
  */
-function inferReturnType(returnValue: string, definedVars: Set<string>): string {
-  // Literal integer
-  if (/^\d+$/.test(returnValue)) return 'int';
-  // Literal string
-  if (/^["'']/.test(returnValue)) return 'string';
-  // Known variable — type unknown without introspection
-  if (definedVars.has(returnValue)) return 'mixed';
+function inferReturnType(
+  returnValue: string,
+  varTypes: Map<string, PikeType | undefined>,
+  cached: DocumentCacheEntry
+): string {
+  // Check if the return value is a known variable with type info
+  const varType = varTypes.get(returnValue);
+  if (varType) {
+    return pikeTypeToString(varType);
+  }
+
+  // Try to look up in the symbol name index for any typed symbol
+  const sym = cached.symbolNames.get(returnValue);
+  if (sym?.type) {
+    return pikeTypeToString(sym.type);
+  }
+
+  // Literal string: starts with quote (single or double)
+  if (/^["']/.test(returnValue)) return 'string';
+
+  // Literal integer: decimal, hex (0x...), or octal (0...)
+  // Covers negative numbers via optional leading minus
+  if (/^-?(0[xX][0-9a-fA-F]+|0[0-7]*|[1-9]\d*)$/.test(returnValue)) return 'int';
+
+  // Literal float: contains a decimal point or scientific notation
+  if (/^-?\d+(\.\d+([eE][+-]?\d+)?|[eE][+-]?\d+)$/.test(returnValue)) return 'float';
+
   return 'mixed';
+}
+
+/**
+ * Convert a PikeType to a human-readable type string.
+ */
+function pikeTypeToString(t: PikeType): string {
+  return t.kind;
 }
 
 /**
@@ -447,33 +480,36 @@ function findInsertPosition(
 }
 
 /**
- * Recursively collect all variable names from the symbol table.
- * Replaces regex-based variable declaration parsing with symbol-table lookups.
+ * Recursively collect all variable names with their PikeType from the symbol table.
+ * Includes method parameters (which are local variables in scope).
  */
-function collectVariableNames(symbols: PikeSymbol[]): Set<string> {
-  const names = new Set<string>();
+function collectVariableTypes(symbols: PikeSymbol[]): Map<string, PikeType | undefined> {
+  const types = new Map<string, PikeType | undefined>();
 
   for (const sym of symbols) {
     if (sym.kind === 'variable' && sym.name) {
-      names.add(sym.name);
+      const variable = sym as PikeVariable;
+      types.set(sym.name, variable.type);
     }
     // Method parameters are local variables in scope
     if (sym.kind === 'method' && 'argNames' in sym) {
       const method = sym as PikeMethod;
-      for (const argName of method.argNames) {
+      for (let i = 0; i < method.argNames.length; i++) {
+        const argName = method.argNames[i];
         if (argName) {
-          names.add(argName);
+          const argType = method.argTypes[i] ?? undefined;
+          types.set(argName, argType ?? undefined);
         }
       }
     }
     // Recurse into children (class members, nested scopes)
     if (sym.children) {
-      const childNames = collectVariableNames(sym.children);
-      for (const name of childNames) {
-        names.add(name);
+      const childTypes = collectVariableTypes(sym.children);
+      for (const [name, type] of childTypes) {
+        types.set(name, type);
       }
     }
   }
 
-  return names;
+  return types;
 }
