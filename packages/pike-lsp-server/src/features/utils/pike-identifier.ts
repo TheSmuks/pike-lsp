@@ -303,8 +303,9 @@ export function findSymbolAtPosition(
     }
 
     if (symbol.kind === 'inherit' || symbol.kind === 'import' || symbol.kind === 'include') {
-      const classname = (symbol as { classname?: string }).classname?.replace(/['"]/g, '');
-      if (classname === word) {
+      const classname = symbol.classname?.replace(/['"]/g, '');
+      // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
+      if (classname === word || (classname && classname.includes(word))) {
         return symbol;
       }
     }
