@@ -9,39 +9,6 @@ const cache = new Map<string, RoxenModuleInfo | null>();
 const log = new Logger('RoxenDetector');
 
 /**
- * Check if code contains `constant [int] module_type = MODULE_*`.
- * Uses string scanning — no regex.
- */
-function hasModuleTypeConstant(code: string): boolean {
-  let pos = code.indexOf('constant ');
-  while (pos !== -1) {
-    let i = pos + 9; // skip 'constant '
-    // skip optional 'int' followed by whitespace
-    if (code.startsWith('int', i)) {
-      let k = i + 3;
-      if (k < code.length && (code[k] === ' ' || code[k] === '\t')) {
-        // skip all whitespace after 'int'
-        while (k < code.length && (code[k] === ' ' || code[k] === '\t')) k++;
-        i = k;
-      }
-    }
-    if (code.startsWith('module_type', i)) {
-      const after = i + 11; // skip 'module_type'
-      // skip whitespace to '='
-      let j = after;
-      while (j < code.length && (code[j] === ' ' || code[j] === '\t')) j++;
-      if (j < code.length && code[j] === '=') {
-        j++;
-        while (j < code.length && (code[j] === ' ' || code[j] === '\t')) j++;
-        if (code.startsWith('MODULE_', j)) return true;
-      }
-    }
-    pos = code.indexOf('constant ', pos + 1);
-  }
-  return false;
-}
-
-/**
  * Check if code contains a `register_module(` call.
  * Uses string scanning — no regex.
  */
@@ -65,6 +32,14 @@ function isWordChar(c: number): boolean {
   );
 }
 
+/**
+ * Quick check for `module_type = MODULE_` declaration.
+ * Uses simple string search — the bridge does authoritative detection.
+ */
+function hasModuleTypeDecl(code: string): boolean {
+  return code.includes('module_type = MODULE_');
+}
+
 export function hasMarkers(code: string): boolean {
   const hasRoxenInheritance =
     code.includes('inherit "module"') ||
@@ -78,7 +53,7 @@ export function hasMarkers(code: string): boolean {
     hasRoxenInheritance ||
     code.includes('#include <module.h>') ||
     code.includes('#include "module.h"') ||
-    hasModuleTypeConstant(code) ||
+    hasModuleTypeDecl(code) ||
     hasRegisterModule(code)
   );
 }
