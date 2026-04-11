@@ -10,12 +10,10 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Location } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCache } from '../../services/document-cache.js';
-import type { DocumentCacheEntry } from '../../core/types.js';
+import type { DocumentCacheEntry, ResolvedInclude } from '../../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
-import { readFile } from 'node:fs/promises';
 import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
-import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
  * Find symbol at given position in document.
@@ -157,61 +155,38 @@ export function findSymbolInWorkspaceCache(
 }
 
 /**
- * Parse included files via bridge to find a symbol by name.
- * Uses the dependency-resolved include list.
+ * Search cached include symbols for a matching symbol name.
+ * Uses the symbols already parsed and cached by IncludeResolver.resolveDependencies(),
+ * avoiding redundant file reads and bridge re-parsing.
  */
 export async function findSymbolTextInIncludedFiles(
   symbolName: string,
   cached: DocumentCacheEntry,
-  services: Services,
+  _services: Services,
   log: Logger
 ): Promise<{ filePath: string; line: number; character: number } | null> {
-  if (!symbolName || !cached.dependencies?.includes || !services.includeResolver) {
+  if (!symbolName || !cached.dependencies?.includes) {
     return null;
   }
 
-  // Parse included files via bridge analyze to get real symbol tables
   for (const include of cached.dependencies.includes) {
-    try {
-      if (!services.bridge?.bridge) {
-        continue;
-      }
+    if (!include.symbols) continue;
 
-      const content = await readFile(include.resolvedPath, 'utf-8');
-      const response = await services.bridge.bridge.analyze(
-        content,
-        ['parse'],
-        include.resolvedPath
-      );
-
-      const symbols = response.result?.parse?.symbols;
-      if (!symbols) {
-        continue;
-      }
-
-      const matched = symbols.find(s => s.name === symbolName && s.position);
-      if (matched?.position) {
-        // Pike positions are 1-based; LSP uses 0-based
-        const line = Math.max(0, (matched.position.line ?? 1) - 1);
-        const character = Math.max(0, (matched.position.column ?? 1) - 1);
-        log.debug('Definition: found symbol in included file via bridge parse', {
-          symbolName,
-          filePath: include.resolvedPath,
-          line,
-          character,
-        });
-        return {
-          filePath: include.resolvedPath,
-          line,
-          character,
-        };
-      }
-    } catch (err) {
-      log.debug('Definition: failed to parse included file', {
-        includePath: include.resolvedPath,
-        error: err instanceof Error ? err.message : String(err),
+    const matched = include.symbols.find(s => s.name === symbolName && s.position);
+    if (matched?.position) {
+      const line = Math.max(0, (matched.position.line ?? 1) - 1);
+      const character = Math.max(0, (matched.position.column ?? 1) - 1);
+      log.debug('Definition: found symbol in included file via cached symbols', {
+        symbolName,
+        filePath: include.resolvedPath,
+        line,
+        character,
       });
-      continue;
+      return {
+        filePath: include.resolvedPath,
+        line,
+        character,
+      };
     }
   }
 
@@ -219,78 +194,81 @@ export async function findSymbolTextInIncludedFiles(
 }
 
 /**
- * Find a symbol by parsing #include directives directly from the source document.
- * Traverses each include path, resolves it, parses the included file, and searches symbols.
+ * Find a symbol by resolving includes via the includeResolver.
+ * Uses cached dependencies when available, falling back to on-demand resolution.
+ * All symbol lookups use the parser-backed symbols from IncludeResolver, never regex.
  */
 export async function findSymbolInDirectIncludes(
   symbolName: string,
-  document: TextDocument,
+  _document: TextDocument,
   uri: string,
   services: Services,
   log: Logger
 ): Promise<{ filePath: string; line: number; character: number } | null> {
-  if (!symbolName || !services.bridge?.bridge) {
+  if (!symbolName || !services.includeResolver) {
     return null;
   }
 
-  // Parse #include directives via bridge extractImports instead of regex
-  let imports: Awaited<ReturnType<typeof services.bridge.bridge.extractImports>>;
+  // Check document cache for already-resolved dependencies
+  const cached = services.documentCache.get(uri);
+
+  // If dependencies are already resolved, search them directly
+  if (cached?.dependencies?.includes && cached.dependencies.includes.length > 0) {
+    const result = searchIncludesForSymbol(cached.dependencies.includes, symbolName, log);
+    if (result) return result;
+  }
+
+  // Resolve dependencies on-demand via includeResolver
   try {
-    imports = await services.bridge.bridge.extractImports(document.getText(), uriToFsPath(uri));
+    const dependencies = await services.includeResolver.resolveDependencies(
+      uri,
+      cached?.symbols ?? []
+    );
+    if (!dependencies?.includes) {
+      return null;
+    }
+
+    // Update cache for future lookups
+    if (cached) {
+      cached.dependencies = dependencies;
+    }
+
+    return searchIncludesForSymbol(dependencies.includes, symbolName, log);
   } catch (err) {
-    log.debug('Definition: failed to extract imports', {
+    log.debug('Definition: failed to resolve dependencies for direct include search', {
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
   }
+}
 
-  const includePaths = imports.imports
-    .filter(imp => imp.type === 'include')
-    .map(imp => imp.path ?? '');
+/**
+ * Search an array of resolved includes for a symbol by name.
+ * Returns the first match with a valid position.
+ */
+function searchIncludesForSymbol(
+  includes: ResolvedInclude[],
+  symbolName: string,
+  log: Logger
+): { filePath: string; line: number; character: number } | null {
+  for (const include of includes) {
+    if (!include.symbols) continue;
 
-  for (const includePath of includePaths) {
-    if (!includePath) continue;
-
-    try {
-      const resolved = await services.bridge.bridge.resolveInclude(includePath, uriToFsPath(uri));
-      if (!resolved.exists || !resolved.path) {
-        continue;
-      }
-
-      const includeContent = await readFile(resolved.path, 'utf-8');
-      const response = await services.bridge.bridge.analyze(
-        includeContent,
-        ['parse'],
-        resolved.path
-      );
-
-      const symbols = response.result?.parse?.symbols;
-      if (!symbols) {
-        continue;
-      }
-
-      const matched = symbols.find(s => s.name === symbolName && s.position);
-      if (matched?.position) {
-        const line = Math.max(0, (matched.position.line ?? 1) - 1);
-        const character = Math.max(0, (matched.position.column ?? 1) - 1);
-        log.debug('Definition: resolved symbol through direct include via bridge parse', {
-          symbolName,
-          includePath,
-          resolvedPath: resolved.path,
-          line,
-          character,
-        });
-        return {
-          filePath: resolved.path,
-          line,
-          character,
-        };
-      }
-    } catch (err) {
-      log.debug('Definition: include traversal failed', {
-        includePath,
-        error: err instanceof Error ? err.message : String(err),
+    const matched = include.symbols.find(s => s.name === symbolName && s.position);
+    if (matched?.position) {
+      const line = Math.max(0, (matched.position.line ?? 1) - 1);
+      const character = Math.max(0, (matched.position.column ?? 1) - 1);
+      log.debug('Definition: found symbol in include via cached symbols', {
+        symbolName,
+        filePath: include.resolvedPath,
+        line,
+        character,
       });
+      return {
+        filePath: include.resolvedPath,
+        line,
+        character,
+      };
     }
   }
 
