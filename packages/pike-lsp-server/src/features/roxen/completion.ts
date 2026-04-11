@@ -5,27 +5,10 @@
 import { CompletionItemKind } from 'vscode-languageserver/node.js';
 import type { CompletionItem } from 'vscode-languageserver/node.js';
 import type { Position } from 'vscode-languageserver-textdocument';
-import type { DocumentCacheEntry } from '../../core/types.js';
-import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { MODULE_CONSTANTS, TYPE_CONSTANTS, VAR_FLAGS } from './constants.js';
 
 // Re-export request-id completions (keep separate - useful)
 export { getRequestIDCompletions } from './completions/request-id.js';
-
-/**
- * Check if a document cache entry represents a Roxen module
- * by checking inherit paths for "module" or "roxen" keywords
- */
-export function isRoxenModule(cache: DocumentCacheEntry | undefined): boolean {
-  if (!cache || !cache.inherits) {
-    return false;
-  }
-
-  return cache.inherits.some(
-    (inh: InheritanceInfo) =>
-      inh.path?.toLowerCase().includes('module') || inh.path?.toLowerCase().includes('roxen')
-  );
-}
 
 /**
  * Get MODULE_* completions from constants.ts
