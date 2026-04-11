@@ -10,8 +10,7 @@
 
 import type { CompletionItem, Diagnostic, Position } from 'vscode-languageserver';
 import { CompletionItemKind, DiagnosticSeverity } from 'vscode-languageserver/node.js';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
-import type { PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeToken, RoxenModuleInfo } from '@pike-lsp/pike-bridge';
 import { TYPE_CONSTANTS, MODULE_CONSTANTS, VAR_FLAGS } from './constants.js';
 import {
   extractDefvarsFromTokens,
@@ -54,10 +53,16 @@ export interface ConfigError {
 
 /**
  * Optional inputs from Pike bridge for parser-backed analysis.
- * When provided, inherit and constant detection uses bridge parse results
- * instead of string scanning. Tokens enable defvar extraction via token walking.
+ *
+ * Priority order for module_type and inherit detection:
+ * 1. roxenInfo (bridge.roxenDetect()) — most authoritative, uses Parser.Pike
+ * 2. symbols (bridge parse) — parser-backed symbol table
+ * 3. String scanning fallback — last resort
+ *
+ * Tokens enable defvar extraction via token walking.
  */
 export interface BridgeParseInput {
+  roxenInfo?: RoxenModuleInfo;
   symbols?: PikeSymbol[];
   tokens?: PikeToken[];
 }
@@ -160,8 +165,10 @@ function detectModuleType(code: string, symbols?: PikeSymbol[]): string | null {
 /**
  * Parse Roxen configuration from code.
  *
- * When BridgeParseInput is provided with symbols/tokens from the Pike bridge,
- * uses parser-backed analysis (ADR-001). Otherwise falls back to string scanning.
+ * When BridgeParseInput is provided, uses bridge data in priority order:
+ * 1. roxenInfo (bridge.roxenDetect()) — authoritative, uses Parser.Pike
+ * 2. symbols/tokens — parser-backed symbol table and token walking
+ * 3. String scanning — fallback
  */
 export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): RoxenConfig {
   const result: RoxenConfig = {
@@ -171,8 +178,23 @@ export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): 
     errors: [],
   };
 
-  result.isInheritModule = detectInheritModule(code, bridgeInput?.symbols);
-  result.moduleType = detectModuleType(code, bridgeInput?.symbols);
+  // Priority 1: roxenInfo from bridge.roxenDetect()
+  if (bridgeInput?.roxenInfo && bridgeInput.roxenInfo.is_roxen_module === 1) {
+    const info = bridgeInput.roxenInfo;
+    const inheritsModuleOrRoxen = info.inherits.some(
+      (name: string) => name === 'module' || name === 'roxen'
+    );
+    result.isInheritModule = inheritsModuleOrRoxen;
+    if (info.module_type.length > 0) {
+      result.moduleType = info.module_type[0]!;
+    } else {
+      result.moduleType = detectModuleType(code, bridgeInput.symbols);
+    }
+  } else {
+    // Priority 2: symbols from bridge parse, 3: string scanning
+    result.isInheritModule = detectInheritModule(code, bridgeInput?.symbols);
+    result.moduleType = detectModuleType(code, bridgeInput?.symbols);
+  }
 
   // Extract defvars: prefer token-based extraction, fall back to code scanning
   if (bridgeInput?.tokens && bridgeInput.tokens.length > 0) {
