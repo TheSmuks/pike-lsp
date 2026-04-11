@@ -12,6 +12,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
 import * as path from 'path';
 import * as fsSync from 'fs';
+import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
@@ -41,8 +42,9 @@ export function registerDocumentLinksHandler(
       const lines = text.split('\n');
       const documentDir = getDocumentDirectory(params.textDocument.uri);
 
-      const inheritRegex = /inherit\s+([A-Z][\w.]*)/g;
-      const docLinkRegex = /\/\/[!/]?\s*@(?:file|see|link):\s*([^\s]+)/g;
+      // Autodoc regex: kept as known exception — autodoc parsing is a separate concern
+      // (tracked separately from Parser.Pike-backed include/inherit handling).
+      const docLinkRegex = /\/\/[!?]\s*@(?:file|see|link):\s*(\S+)/g;
 
       // Use bridge.extractImports for #include directives (handles all edge cases)
       // Falls back to cached symbols when bridge is unavailable
@@ -105,30 +107,21 @@ export function registerDocumentLinksHandler(
         }
       }
 
+      // Generate inherit links from cached introspection data (not regex).
+      // The cache's inherits field comes from Parser.Pike introspection and handles
+      // string-path inherits, lowercase module paths, and all edge cases.
+      if (cached?.inherits && cached.inherits.length > 0) {
+        for (const inheritInfo of cached.inherits) {
+          const link = buildInheritLink(inheritInfo, lines, documentDir, documentCache);
+          if (link) {
+            links.push(link);
+          }
+        }
+      }
+
+      // Autodoc @file/@see/@link link generation (regex-based — known exception).
       for (let lineNum = 0; lineNum < lines.length; lineNum++) {
         const line = lines[lineNum] ?? '';
-
-        let inheritMatch: RegExpExecArray | null = inheritRegex.exec(line);
-        while (inheritMatch !== null) {
-          const index = inheritMatch.index;
-          const modulePath = inheritMatch[1];
-          if (index !== undefined && modulePath) {
-            const link = resolveModulePath(modulePath, documentDir, documentCache);
-            if (link) {
-              links.push({
-                range: {
-                  start: { line: lineNum, character: index },
-                  end: { line: lineNum, character: index + modulePath.length },
-                },
-                target: link.target,
-                tooltip: link.tooltip,
-              });
-            }
-          }
-
-          inheritMatch = inheritRegex.exec(line);
-        }
-        inheritRegex.lastIndex = 0;
 
         let docMatch: RegExpExecArray | null = docLinkRegex.exec(line);
         while (docMatch !== null) {
@@ -181,12 +174,16 @@ export function resolveModulePath(
   documentCache: DocumentCache
 ): { target: string; tooltip: string } | null {
   // Iterate through document cache entries
+  // Case-insensitive comparison: Pike module names like 'OtherModule' may
+  // correspond to files like 'other.pike' or 'OtherModule.pike'.
   const entries = Array.from(documentCache.keys());
+  const lowerModulePath = modulePath.toLowerCase();
   for (const uri of entries) {
+    const lowerUri = uri.toLowerCase();
     if (
-      uri.includes(modulePath) ||
-      uri.endsWith(modulePath + '.pike') ||
-      uri.endsWith(modulePath + '.pmod')
+      lowerUri.includes(lowerModulePath) ||
+      lowerUri.endsWith(lowerModulePath + '.pike') ||
+      lowerUri.endsWith(lowerModulePath + '.pmod')
     ) {
       return {
         target: uri,
@@ -194,6 +191,44 @@ export function resolveModulePath(
       };
     }
   }
+  return null;
+}
+
+/**
+ * Build a DocumentLink from a cached InheritanceInfo entry.
+ * Uses source_name to locate the inherit in the source text for range.
+ * Falls back to searching for the path string if source_name is absent.
+ * @export For testing purposes
+ */
+export function buildInheritLink(
+  inheritInfo: InheritanceInfo,
+  lines: string[],
+  documentDir: string,
+  documentCache: DocumentCache
+): DocumentLink | null {
+  const modulePath = inheritInfo.path;
+  if (!modulePath) return null;
+
+  const resolved = resolveModulePath(modulePath, documentDir, documentCache);
+  if (!resolved) return null;
+
+  // Use source_name (the raw text after 'inherit') to find the range in source.
+  const searchText = inheritInfo.source_name || modulePath;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const charIndex = line.indexOf(searchText);
+    if (charIndex !== -1) {
+      return {
+        range: {
+          start: { line: i, character: charIndex },
+          end: { line: i, character: charIndex + searchText.length },
+        },
+        target: resolved.target,
+        tooltip: resolved.tooltip,
+      };
+    }
+  }
+
   return null;
 }
 
