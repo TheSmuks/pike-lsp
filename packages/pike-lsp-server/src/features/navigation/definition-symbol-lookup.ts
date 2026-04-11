@@ -3,17 +3,27 @@
  *
  * Functions for finding symbols at cursor positions and in
  * included files, workspace cache, and direct includes.
- * Extracted from definition.ts for maintainability.
+ * All include-based lookups use parser-backed symbols from
+ * IncludeResolver and cached dependencies — never regex.
  */
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Location } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCache } from '../../services/document-cache.js';
-import type { DocumentCacheEntry, ResolvedInclude } from '../../core/types.js';
+import type { ResolvedInclude } from '../../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
+
+/** Result of searching for a symbol in resolved includes. */
+export interface IncludeSymbolMatch {
+  filePath: string;
+  line: number;
+  character: number;
+  /** Length of the symbol name, for building the end-of-range character. */
+  nameLength: number;
+}
 
 /**
  * Find symbol at given position in document.
@@ -48,35 +58,85 @@ export function findSymbolAtPosition(
 }
 
 /**
- * Find a symbol by name in included file symbols.
- * Used for go-to-definition when the symbol is defined in an included header file.
+ * Search an array of resolved includes for a symbol by name.
+ * Returns the first match with a valid position.
  */
-export function findSymbolInIncludedFiles(
+export function searchIncludesForSymbol(
+  includes: ResolvedInclude[],
   symbolName: string,
-  cached: DocumentCacheEntry,
-  services: Services,
   log: Logger
-): { symbol: PikeSymbol; filePath: string } | null {
-  // Check if we have dependencies with included symbols
-  if (!cached.dependencies?.includes || !services.includeResolver) {
-    return null;
-  }
-
-  for (const include of cached.dependencies.includes) {
+): IncludeSymbolMatch | null {
+  for (const include of includes) {
     if (!include.symbols) continue;
 
-    for (const symbol of include.symbols) {
-      if (symbol.name === symbolName && symbol.position) {
-        log.debug('Definition: found symbol in included file', {
-          symbolName,
-          filePath: include.resolvedPath,
-        });
-        return { symbol, filePath: include.resolvedPath };
-      }
+    const matched = include.symbols.find(s => s.name === symbolName && s.position);
+    if (matched?.position) {
+      const line = Math.max(0, (matched.position.line ?? 1) - 1);
+      const character = Math.max(0, (matched.position.column ?? 1) - 1);
+      log.debug('Definition: found symbol in include via cached symbols', {
+        symbolName,
+        filePath: include.resolvedPath,
+        line,
+        character,
+      });
+      return {
+        filePath: include.resolvedPath,
+        line,
+        character,
+        nameLength: matched.name.length,
+      };
     }
   }
 
   return null;
+}
+
+/**
+ * Find a symbol by resolving includes via the includeResolver.
+ * Uses cached dependencies when available, falling back to on-demand resolution.
+ * All symbol lookups use the parser-backed symbols from IncludeResolver.
+ */
+export async function findSymbolInDirectIncludes(
+  symbolName: string,
+  uri: string,
+  services: Services,
+  log: Logger
+): Promise<IncludeSymbolMatch | null> {
+  if (!symbolName || !services.includeResolver) {
+    return null;
+  }
+
+  // Check document cache for already-resolved dependencies
+  const cached = services.documentCache.get(uri);
+
+  // If dependencies are already resolved, search them directly
+  if (cached?.dependencies?.includes && cached.dependencies.includes.length > 0) {
+    const result = searchIncludesForSymbol(cached.dependencies.includes, symbolName, log);
+    if (result) return result;
+  }
+
+  // Resolve dependencies on-demand via includeResolver
+  try {
+    const dependencies = await services.includeResolver.resolveDependencies(
+      uri,
+      cached?.symbols ?? []
+    );
+    if (!dependencies?.includes) {
+      return null;
+    }
+
+    // Update cache for future lookups
+    if (cached) {
+      cached.dependencies = dependencies;
+    }
+
+    return searchIncludesForSymbol(dependencies.includes, symbolName, log);
+  } catch (err) {
+    log.debug('Definition: failed to resolve dependencies for direct include search', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
 /**
@@ -152,125 +212,4 @@ export function findSymbolInWorkspaceCache(
       end: { line, character: label.length },
     },
   };
-}
-
-/**
- * Search cached include symbols for a matching symbol name.
- * Uses the symbols already parsed and cached by IncludeResolver.resolveDependencies(),
- * avoiding redundant file reads and bridge re-parsing.
- */
-export async function findSymbolTextInIncludedFiles(
-  symbolName: string,
-  cached: DocumentCacheEntry,
-  _services: Services,
-  log: Logger
-): Promise<{ filePath: string; line: number; character: number } | null> {
-  if (!symbolName || !cached.dependencies?.includes) {
-    return null;
-  }
-
-  for (const include of cached.dependencies.includes) {
-    if (!include.symbols) continue;
-
-    const matched = include.symbols.find(s => s.name === symbolName && s.position);
-    if (matched?.position) {
-      const line = Math.max(0, (matched.position.line ?? 1) - 1);
-      const character = Math.max(0, (matched.position.column ?? 1) - 1);
-      log.debug('Definition: found symbol in included file via cached symbols', {
-        symbolName,
-        filePath: include.resolvedPath,
-        line,
-        character,
-      });
-      return {
-        filePath: include.resolvedPath,
-        line,
-        character,
-      };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Find a symbol by resolving includes via the includeResolver.
- * Uses cached dependencies when available, falling back to on-demand resolution.
- * All symbol lookups use the parser-backed symbols from IncludeResolver, never regex.
- */
-export async function findSymbolInDirectIncludes(
-  symbolName: string,
-  _document: TextDocument,
-  uri: string,
-  services: Services,
-  log: Logger
-): Promise<{ filePath: string; line: number; character: number } | null> {
-  if (!symbolName || !services.includeResolver) {
-    return null;
-  }
-
-  // Check document cache for already-resolved dependencies
-  const cached = services.documentCache.get(uri);
-
-  // If dependencies are already resolved, search them directly
-  if (cached?.dependencies?.includes && cached.dependencies.includes.length > 0) {
-    const result = searchIncludesForSymbol(cached.dependencies.includes, symbolName, log);
-    if (result) return result;
-  }
-
-  // Resolve dependencies on-demand via includeResolver
-  try {
-    const dependencies = await services.includeResolver.resolveDependencies(
-      uri,
-      cached?.symbols ?? []
-    );
-    if (!dependencies?.includes) {
-      return null;
-    }
-
-    // Update cache for future lookups
-    if (cached) {
-      cached.dependencies = dependencies;
-    }
-
-    return searchIncludesForSymbol(dependencies.includes, symbolName, log);
-  } catch (err) {
-    log.debug('Definition: failed to resolve dependencies for direct include search', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
-}
-
-/**
- * Search an array of resolved includes for a symbol by name.
- * Returns the first match with a valid position.
- */
-function searchIncludesForSymbol(
-  includes: ResolvedInclude[],
-  symbolName: string,
-  log: Logger
-): { filePath: string; line: number; character: number } | null {
-  for (const include of includes) {
-    if (!include.symbols) continue;
-
-    const matched = include.symbols.find(s => s.name === symbolName && s.position);
-    if (matched?.position) {
-      const line = Math.max(0, (matched.position.line ?? 1) - 1);
-      const character = Math.max(0, (matched.position.column ?? 1) - 1);
-      log.debug('Definition: found symbol in include via cached symbols', {
-        symbolName,
-        filePath: include.resolvedPath,
-        line,
-        character,
-      });
-      return {
-        filePath: include.resolvedPath,
-        line,
-        character,
-      };
-    }
-  }
-
-  return null;
 }
