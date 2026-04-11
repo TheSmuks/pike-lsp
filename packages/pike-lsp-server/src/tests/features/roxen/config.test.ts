@@ -2,7 +2,7 @@
  * Roxen Configuration File Support Tests
  *
  * Tests for parsing, validation, and completion of Roxen module configuration.
- * Roxen modules use defvar() calls to define configuration variables.
+ * All tests use bridge/parser API (symbols, tokens, inherits) — no source-text scanning.
  */
 
 import { describe, it } from 'bun:test';
@@ -13,48 +13,83 @@ import {
   getRoxenConfigCompletions,
   getDefvarCompletions,
   isInDefvarContext,
-  type DefvarDeclaration,
   type RoxenConfig,
   type BridgeParseInput,
 } from '../../../features/roxen/config.js';
 import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 
+/** Helper: build tokens for a single defvar call. */
+function defvarTokens(
+  name: string,
+  displayName: string,
+  type: string,
+  doc: string,
+  flags: string,
+  line = 1
+): PikeToken[] {
+  return [
+    { text: 'defvar', line, character: 0, file: 0 },
+    { text: '(', line, character: 6, file: 0 },
+    { text: '"', line, character: 7, file: 0 },
+    { text: name, line, character: 8, file: 0 },
+    { text: '"', line, character: 8 + name.length, file: 0 },
+    { text: ',', line, character: 8 + name.length + 1, file: 0 },
+    { text: '"', line, character: 0, file: 0 },
+    { text: displayName, line, character: 0, file: 0 },
+    { text: '"', line, character: 0, file: 0 },
+    { text: ',', line, character: 0, file: 0 },
+    { text: type, line, character: 0, file: 0 },
+    { text: ',', line, character: 0, file: 0 },
+    { text: '"', line, character: 0, file: 0 },
+    { text: doc, line, character: 0, file: 0 },
+    { text: '"', line, character: 0, file: 0 },
+    { text: ',', line, character: 0, file: 0 },
+    { text: flags, line, character: 0, file: 0 },
+    { text: ')', line, character: 0, file: 0 },
+  ];
+}
+
+/** Helper: module_type constant symbol. */
+function moduleTypeSymbol(value: string): PikeSymbol {
+  return {
+    kind: 'constant',
+    name: 'module_type',
+    modifiers: [],
+    type: { name: value } as unknown as import('@pike-lsp/pike-bridge').PikeType,
+  };
+}
+
 describe('Roxen Configuration Parser', () => {
   it('should detect inherit "module" from bridge cache', () => {
-    const code = 'inherit "module";';
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const result = parseRoxenConfig('inherit "module";', { inherits: [{ path: 'module' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect module inherit');
   });
 
   it('should detect inherit "roxen" from bridge cache', () => {
-    const code = 'inherit "roxen";';
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'roxen' }] });
+    const result = parseRoxenConfig('inherit "roxen";', { inherits: [{ path: 'roxen' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect roxen inherit');
   });
 
   it('should detect inherit via single-quoted path', () => {
-    const code = "inherit 'module';";
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const result = parseRoxenConfig("inherit 'module';", { inherits: [{ path: 'module' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect single quote inherit');
   });
 
-  it('should parse constant module_type = MODULE_TAG', () => {
-    const code = 'constant module_type = MODULE_TAG;';
-    const result = parseRoxenConfig(code);
+  it('should parse constant module_type = MODULE_TAG via symbols', () => {
+    const result = parseRoxenConfig('constant module_type = MODULE_TAG;', {
+      symbols: [moduleTypeSymbol('MODULE_TAG')],
+    });
     assert.strictEqual(result.moduleType, 'MODULE_TAG', 'Should extract module type');
   });
 
-  it('should parse constant int module_type = MODULE_LOCATION', () => {
-    const code = 'constant int module_type = MODULE_LOCATION;';
-    const result = parseRoxenConfig(code);
-    assert.strictEqual(result.moduleType, 'MODULE_LOCATION', 'Should extract module type with int');
-  });
+  it('should parse defvar with all components via tokens', () => {
+    const tokens = defvarTokens('myvar', 'My Variable', 'TYPE_STRING', 'Documentation', '0');
+    const result = parseRoxenConfig(
+      'defvar("myvar", "My Variable", TYPE_STRING, "Documentation", 0);',
+      { tokens }
+    );
 
-  it('should parse defvar with all components', () => {
-    const code = 'defvar("myvar", "My Variable", TYPE_STRING, "Documentation", 0);';
-    const result = parseRoxenConfig(code);
     assert.strictEqual(result.defvars.length, 1, 'Should parse one defvar');
-
     const defvar = result.defvars[0]!;
     assert.strictEqual(defvar.name, 'myvar');
     assert.strictEqual(defvar.displayName, 'My Variable');
@@ -63,38 +98,40 @@ describe('Roxen Configuration Parser', () => {
     assert.strictEqual(defvar.flags, 0);
   });
 
-  it('should parse multiple defvar declarations', () => {
-    const code = `
-defvar("var1", "Variable 1", TYPE_STRING, "Doc 1", 0);
-defvar("var2", "Variable 2", TYPE_INT, "Doc 2", VAR_EXPERT);
-defvar("var3", "Variable 3", TYPE_FLAG, "Doc 3", VAR_MORE);
-`;
-    const result = parseRoxenConfig(code);
+  it('should parse multiple defvar declarations via tokens', () => {
+    const tokens: PikeToken[] = [
+      ...defvarTokens('var1', 'Variable 1', 'TYPE_STRING', 'Doc 1', '0', 1),
+      { text: ';', line: 1, character: 0, file: 0 },
+      ...defvarTokens('var2', 'Variable 2', 'TYPE_INT', 'Doc 2', 'VAR_EXPERT', 2),
+      { text: ';', line: 2, character: 0, file: 0 },
+      ...defvarTokens('var3', 'Variable 3', 'TYPE_FLAG', 'Doc 3', 'VAR_MORE', 3),
+      { text: ';', line: 3, character: 0, file: 0 },
+    ];
+    const result = parseRoxenConfig('', { tokens });
     assert.strictEqual(result.defvars.length, 3, 'Should parse three defvars');
     assert.strictEqual(result.defvars[0]!.name, 'var1');
     assert.strictEqual(result.defvars[1]!.name, 'var2');
     assert.strictEqual(result.defvars[2]!.name, 'var3');
   });
 
-  it('should parse defvar with VAR_* flags', () => {
-    const code = 'defvar("secret", "Secret", TYPE_PASSWORD, "Hidden", VAR_EXPERT | VAR_MORE);';
-    const result = parseRoxenConfig(code);
+  it('should parse defvar with VAR_* flags via tokens', () => {
+    const tokens = defvarTokens('secret', 'Secret', 'TYPE_PASSWORD', 'Hidden', 'VAR_EXPERT');
+    const result = parseRoxenConfig('', { tokens });
     assert.strictEqual(result.defvars.length, 1, 'Should parse defvar with flags');
-    // Note: the regex doesn't capture complex flag expressions, just simple numbers
-    // This is expected - the bridge handles full validation
   });
 
-  it('should parse complete Roxen module structure', () => {
-    const code = `
-inherit "module";
-
-constant module_type = MODULE_TAG;
-constant module_name = "My Tag";
-
-defvar("enabled", "Enabled", TYPE_FLAG, "Enable this tag", 0);
-defvar("timeout", "Timeout", TYPE_INT, "Timeout in seconds", VAR_EXPERT);
-`;
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+  it('should parse complete Roxen module structure with bridge data', () => {
+    const tokens: PikeToken[] = [
+      ...defvarTokens('enabled', 'Enabled', 'TYPE_FLAG', 'Enable this tag', '0', 4),
+      { text: ';', line: 4, character: 0, file: 0 },
+      ...defvarTokens('timeout', 'Timeout', 'TYPE_INT', 'Timeout in seconds', 'VAR_EXPERT', 5),
+      { text: ';', line: 5, character: 0, file: 0 },
+    ];
+    const result = parseRoxenConfig('', {
+      inherits: [{ path: 'module' }],
+      symbols: [moduleTypeSymbol('MODULE_TAG')],
+      tokens,
+    });
 
     assert.strictEqual(result.isInheritModule, true, 'Should detect inherit');
     assert.strictEqual(result.moduleType, 'MODULE_TAG', 'Should extract module type');
@@ -104,21 +141,20 @@ defvar("timeout", "Timeout", TYPE_INT, "Timeout in seconds", VAR_EXPERT);
 
 describe('Roxen Configuration Validation', () => {
   it('should return empty diagnostics for valid config', () => {
-    const code = 'defvar("x", "X", TYPE_STRING, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+    const tokens = defvarTokens('x', 'X', 'TYPE_STRING', 'Doc', '0');
+    const result = validateRoxenConfig('', { tokens });
     assert.strictEqual(result.length, 0, 'Should have no errors');
   });
 
-  it('should error on unknown TYPE constant', () => {
-    const code = 'defvar("x", "X", TYPE_INVALID, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+  it('should error on unknown TYPE constant via tokens', () => {
+    const tokens = defvarTokens('x', 'X', 'TYPE_INVALID', 'Doc', '0');
+    const result = validateRoxenConfig('', { tokens });
     assert.ok(result.length > 0, 'Should have errors');
     assert.ok(result[0]!.message.includes('TYPE_INVALID'), 'Should mention invalid type');
   });
 
   it('should warn when module has inherit but no module_type', () => {
-    const code = 'inherit "module";\ndefvar("x", "X", TYPE_STRING, "Doc", 0);';
-    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const result = validateRoxenConfig('', { inherits: [{ path: 'module' }] });
     assert.ok(
       result.some(d => d.message.includes('module_type')),
       'Should warn about missing module_type'
@@ -126,12 +162,10 @@ describe('Roxen Configuration Validation', () => {
   });
 
   it('should not warn when module has both inherit and module_type', () => {
-    const code = `
-inherit "module";
-constant module_type = MODULE_TAG;
-defvar("x", "X", TYPE_STRING, "Doc", 0);
-`;
-    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const result = validateRoxenConfig('', {
+      inherits: [{ path: 'module' }],
+      symbols: [moduleTypeSymbol('MODULE_TAG')],
+    });
     assert.ok(
       !result.some(d => d.message.includes('module_type')),
       'Should not warn about module_type when present'
@@ -141,8 +175,7 @@ defvar("x", "X", TYPE_STRING, "Doc", 0);
 
 describe('Roxen Configuration Completions', () => {
   it('should return defvar snippet when typing defvar(', () => {
-    const line = 'defvar(';
-    const result = getRoxenConfigCompletions(line, { line: 0, character: 7 });
+    const result = getRoxenConfigCompletions('defvar(', { line: 0, character: 7 });
     assert.ok(result !== null, 'Should return completions');
     assert.ok(
       result!.some(item => item.label === 'defvar'),
@@ -151,8 +184,7 @@ describe('Roxen Configuration Completions', () => {
   });
 
   it('should return TYPE_* completions after TYPE_ prefix', () => {
-    const line = 'defvar("x", "X", TYPE_';
-    const result = getRoxenConfigCompletions(line, { line: 0, character: 20 });
+    const result = getRoxenConfigCompletions('defvar("x", "X", TYPE_', { line: 0, character: 20 });
     assert.ok(result !== null, 'Should return completions');
     assert.ok(
       result!.some(item => item.label === 'TYPE_STRING'),
@@ -169,8 +201,10 @@ describe('Roxen Configuration Completions', () => {
   });
 
   it('should return MODULE_* completions after MODULE_ prefix', () => {
-    const line = 'constant module_type = MODULE_';
-    const result = getRoxenConfigCompletions(line, { line: 0, character: 28 });
+    const result = getRoxenConfigCompletions('constant module_type = MODULE_', {
+      line: 0,
+      character: 28,
+    });
     assert.ok(result !== null, 'Should return completions');
     assert.ok(
       result!.some(item => item.label === 'MODULE_TAG'),
@@ -187,8 +221,10 @@ describe('Roxen Configuration Completions', () => {
   });
 
   it('should return VAR_* completions after VAR_ prefix', () => {
-    const line = 'defvar("x", "X", TYPE_STRING, "Doc", VAR_';
-    const result = getRoxenConfigCompletions(line, { line: 0, character: 40 });
+    const result = getRoxenConfigCompletions('defvar("x", "X", TYPE_STRING, "Doc", VAR_', {
+      line: 0,
+      character: 40,
+    });
     assert.ok(result !== null, 'Should return completions');
     assert.ok(
       result!.some(item => item.label === 'VAR_EXPERT'),
@@ -205,8 +241,7 @@ describe('Roxen Configuration Completions', () => {
   });
 
   it('should return null for non-Roxen context', () => {
-    const line = 'int x = 42;';
-    const result = getRoxenConfigCompletions(line, { line: 0, character: 10 });
+    const result = getRoxenConfigCompletions('int x = 42;', { line: 0, character: 10 });
     assert.strictEqual(result, null, 'Should return null for non-Roxen code');
   });
 
@@ -223,19 +258,24 @@ describe('Roxen Configuration Completions', () => {
 
 describe('Context Detection', () => {
   it('should detect defvar context when cursor after defvar', () => {
-    const line = 'defvar("x", "X", TYPE_';
-    assert.strictEqual(isInDefvarContext(line, 20), true, 'Should be in defvar context');
+    assert.strictEqual(
+      isInDefvarContext('defvar("x", "X", TYPE_', 20),
+      true,
+      'Should be in defvar context'
+    );
   });
 
   it('should not detect defvar context when defvar not present', () => {
-    const line = 'int x = 42;';
-    assert.strictEqual(isInDefvarContext(line, 5), false, 'Should not be in defvar context');
+    assert.strictEqual(
+      isInDefvarContext('int x = 42;', 5),
+      false,
+      'Should not be in defvar context'
+    );
   });
 
   it('should not detect defvar context when cursor before defvar', () => {
-    const line = '  defvar("x"';
     assert.strictEqual(
-      isInDefvarContext(line, 2),
+      isInDefvarContext('  defvar("x"', 2),
       false,
       'Should not be in defvar context before keyword'
     );
@@ -244,34 +284,31 @@ describe('Context Detection', () => {
 
 describe('Integration: Complete Module Parsing', () => {
   it('should parse a realistic Roxen tag module', () => {
-    const code = `
-inherit "module";
-#include <module.h>
-
-constant module_type = MODULE_TAG;
-constant module_name = "Custom Tag";
-constant module_doc = "A custom RXML tag";
-
-void create() {
-    defvar("attr1", "Attribute 1", TYPE_STRING,
-           "Description of attribute 1", 0);
-    defvar("attr2", "Attribute 2", TYPE_INT,
-           "Description of attribute 2", VAR_EXPERT);
-    defvar("enabled", "Enable", TYPE_FLAG,
-           "Enable this tag", 0);
-}
-
-string simpletag_custom(mapping args) {
-    return "Hello";
-}
-`;
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const tokens: PikeToken[] = [
+      ...defvarTokens('attr1', 'Attribute 1', 'TYPE_STRING', 'Description of attribute 1', '0', 1),
+      { text: ';', line: 1, character: 0, file: 0 },
+      ...defvarTokens(
+        'attr2',
+        'Attribute 2',
+        'TYPE_INT',
+        'Description of attribute 2',
+        'VAR_EXPERT',
+        2
+      ),
+      { text: ';', line: 2, character: 0, file: 0 },
+      ...defvarTokens('enabled', 'Enable', 'TYPE_FLAG', 'Enable this tag', '0', 3),
+      { text: ';', line: 3, character: 0, file: 0 },
+    ];
+    const result = parseRoxenConfig('', {
+      inherits: [{ path: 'module' }],
+      symbols: [moduleTypeSymbol('MODULE_TAG')],
+      tokens,
+    });
 
     assert.strictEqual(result.isInheritModule, true);
     assert.strictEqual(result.moduleType, 'MODULE_TAG');
     assert.strictEqual(result.defvars.length, 3);
 
-    // Verify defvar details
     const attr1 = result.defvars.find(d => d.name === 'attr1');
     assert.ok(attr1, 'Should find attr1');
     assert.strictEqual(attr1!.type, 'TYPE_STRING');
@@ -283,22 +320,30 @@ string simpletag_custom(mapping args) {
   });
 
   it('should parse a Roxen filesystem module', () => {
-    const code = `
-inherit "module";
-inherit "filesystem";
-
-constant module_type = MODULE_LOCATION;
-constant module_name = "Custom FS";
-
-void create() {
-    defvar("mountpoint", "Mount Point", TYPE_STRING,
-           "Where to mount this filesystem", 0);
-    defvar("root", "Root Directory", TYPE_DIR,
-           "Root directory for files", VAR_EXPERT);
-}
-`;
-    const result = parseRoxenConfig(code, {
+    const tokens: PikeToken[] = [
+      ...defvarTokens(
+        'mountpoint',
+        'Mount Point',
+        'TYPE_STRING',
+        'Where to mount this filesystem',
+        '0',
+        1
+      ),
+      { text: ';', line: 1, character: 0, file: 0 },
+      ...defvarTokens(
+        'root',
+        'Root Directory',
+        'TYPE_DIR',
+        'Root directory for files',
+        'VAR_EXPERT',
+        2
+      ),
+      { text: ';', line: 2, character: 0, file: 0 },
+    ];
+    const result = parseRoxenConfig('', {
       inherits: [{ path: 'module' }, { path: 'filesystem' }],
+      symbols: [moduleTypeSymbol('MODULE_LOCATION')],
+      tokens,
     });
 
     assert.strictEqual(result.isInheritModule, true);
@@ -315,22 +360,19 @@ void create() {
   });
 
   it('should parse a Roxen filter module', () => {
-    const code = `
-inherit "module";
-
-constant module_type = MODULE_FILTER;
-constant module_name = "Content Filter";
-
-void create() {
-    defvar("pattern", "Pattern", TYPE_STRING,
-           "Regex pattern to match", 0);
-    defvar("replacement", "Replacement", TYPE_STRING,
-           "Replacement text", 0);
-    defvar("case_sensitive", "Case Sensitive", TYPE_FLAG,
-           "Match case", 0);
-}
-`;
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const tokens: PikeToken[] = [
+      ...defvarTokens('pattern', 'Pattern', 'TYPE_STRING', 'Regex pattern to match', '0', 1),
+      { text: ';', line: 1, character: 0, file: 0 },
+      ...defvarTokens('replacement', 'Replacement', 'TYPE_STRING', 'Replacement text', '0', 2),
+      { text: ';', line: 2, character: 0, file: 0 },
+      ...defvarTokens('case_sensitive', 'Case Sensitive', 'TYPE_FLAG', 'Match case', '0', 3),
+      { text: ';', line: 3, character: 0, file: 0 },
+    ];
+    const result = parseRoxenConfig('', {
+      inherits: [{ path: 'module' }],
+      symbols: [moduleTypeSymbol('MODULE_FILTER')],
+      tokens,
+    });
 
     assert.strictEqual(result.moduleType, 'MODULE_FILTER');
     assert.strictEqual(result.defvars.length, 3);
@@ -338,43 +380,44 @@ void create() {
 });
 
 describe('Error Cases', () => {
-  it('should handle empty code gracefully', () => {
-    const code = '';
-    const result = parseRoxenConfig(code);
+  it('should handle empty code with no bridge data gracefully', () => {
+    const result = parseRoxenConfig('');
     assert.strictEqual(result.isInheritModule, false);
     assert.strictEqual(result.moduleType, null);
     assert.strictEqual(result.defvars.length, 0);
     assert.strictEqual(result.errors.length, 0);
   });
 
-  it('should handle code with only comments', () => {
-    const code = `
-// This is a comment
-/* Multi-line
-   comment */
-`;
-    const result = parseRoxenConfig(code);
+  it('should handle code with only comments (no bridge data)', () => {
+    const result = parseRoxenConfig('// comment\n/* block */');
     assert.strictEqual(result.defvars.length, 0);
   });
 
-  it('should handle malformed defvar gracefully', () => {
-    const code = 'defvar(unclosed';
-    const result = parseRoxenConfig(code);
-    assert.strictEqual(result.defvars.length, 0, 'Should not crash on malformed input');
+  it('should handle malformed defvar tokens gracefully', () => {
+    const tokens: PikeToken[] = [
+      { text: 'defvar', line: 1, character: 0, file: 0 },
+      { text: '(', line: 1, character: 6, file: 0 },
+    ];
+    const result = parseRoxenConfig('', { tokens });
+    assert.strictEqual(result.defvars.length, 0, 'Should not crash on malformed tokens');
   });
 
-  it('should handle defvar with missing components', () => {
-    const code = 'defvar("name")'; // Missing type and doc
-    const result = parseRoxenConfig(code);
-    // The regex requires full pattern, so this won't match
+  it('should handle defvar with missing components via tokens', () => {
+    // Only name token, not enough arg groups
+    const tokens: PikeToken[] = [
+      { text: 'defvar', line: 1, character: 0, file: 0 },
+      { text: '(', line: 1, character: 6, file: 0 },
+      { text: 'name', line: 1, character: 7, file: 0 },
+      { text: ')', line: 1, character: 11, file: 0 },
+    ];
+    const result = parseRoxenConfig('', { tokens });
     assert.strictEqual(result.defvars.length, 0);
   });
 });
 
 describe('Inherit detection: no false positives', () => {
   it('should return false when no bridge data is provided', () => {
-    const code = '// inherit "module";\nint x = 1;';
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig('// inherit "module";\nint x = 1;');
     assert.strictEqual(result.isInheritModule, false, 'No bridge data → false');
   });
 
@@ -389,32 +432,33 @@ describe('Inherit detection: no false positives', () => {
   });
 
   it('should detect real inherit from bridge cache alongside comment code', () => {
-    const code =
-      '// This module inherits module\ninherit "module";\nconstant module_type = MODULE_TAG;';
-    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const result = parseRoxenConfig('', {
+      inherits: [{ path: 'module' }],
+      symbols: [moduleTypeSymbol('MODULE_TAG')],
+    });
     assert.strictEqual(result.isInheritModule, true, 'Real inherit should be detected');
     assert.strictEqual(result.moduleType, 'MODULE_TAG');
   });
 });
 
 describe('Validation Error Reporting', () => {
-  it('should provide correct line and column for errors', () => {
-    const code = 'defvar("x", "X", TYPE_BAD, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+  it('should provide correct line for errors from token-based parsing', () => {
+    const tokens = defvarTokens('x', 'X', 'TYPE_BAD', 'Doc', '0');
+    const result = validateRoxenConfig('', { tokens });
     assert.ok(result.length > 0, 'Should have errors');
     assert.strictEqual(result[0]!.range.start.line, 0, 'Error should be on line 0');
   });
 
   it('should have correct source in diagnostics', () => {
-    const code = 'inherit "module";\ndefvar("x", "X", TYPE_BAD, "Doc", 0);';
-    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
+    const tokens = defvarTokens('x', 'X', 'TYPE_BAD', 'Doc', '0');
+    const result = validateRoxenConfig('', { inherits: [{ path: 'module' }], tokens });
     const configDiags = result.filter(d => d.source === 'roxen-config');
     assert.ok(configDiags.length > 0, 'Should have roxen-config source diagnostics');
   });
 
   it('should distinguish between error and warning severity', () => {
-    const code = 'defvar("x", "X", TYPE_BAD, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+    const tokens = defvarTokens('x', 'X', 'TYPE_BAD', 'Doc', '0');
+    const result = validateRoxenConfig('', { tokens });
     const errorDiag = result.find(d => d.message.includes('TYPE_BAD'));
     assert.ok(errorDiag, 'Should have TYPE_BAD error');
     assert.strictEqual(errorDiag!.severity, 1, 'Should be error severity (1)');
@@ -447,15 +491,7 @@ describe('BridgeParseInput: Symbol-based Parsing', () => {
   });
 
   it('should extract module_type from constant symbol', () => {
-    const symbols: PikeSymbol[] = [
-      {
-        kind: 'constant',
-        name: 'module_type',
-        modifiers: [],
-        type: { name: 'MODULE_TAG' } as unknown as import('@pike-lsp/pike-bridge').PikeType,
-      },
-    ];
-    const result = parseRoxenConfig('anything', { symbols });
+    const result = parseRoxenConfig('anything', { symbols: [moduleTypeSymbol('MODULE_TAG')] });
     assert.strictEqual(result.moduleType, 'MODULE_TAG');
   });
 
@@ -490,12 +526,7 @@ describe('BridgeParseInput: Symbol-based Parsing', () => {
   it('should validate with bridge symbols', () => {
     const symbols: PikeSymbol[] = [
       { kind: 'inherit', name: 'module', modifiers: [], classname: 'module' },
-      {
-        kind: 'constant',
-        name: 'module_type',
-        modifiers: [],
-        type: { name: 'MODULE_TAG' } as unknown as import('@pike-lsp/pike-bridge').PikeType,
-      },
+      moduleTypeSymbol('MODULE_TAG'),
     ];
     const result = validateRoxenConfig('anything', { symbols });
     assert.ok(
@@ -520,7 +551,6 @@ describe('BridgeParseInput: Inherits-based Parsing', () => {
     const symbols: PikeSymbol[] = [
       { kind: 'inherit', name: 'BaseClass', modifiers: [], classname: 'BaseClass' },
     ];
-    // symbols say no, but inherits say yes
     const result = parseRoxenConfig('anything', { inherits: [{ path: 'module' }], symbols });
     assert.strictEqual(result.isInheritModule, true, 'inherits should take priority');
   });

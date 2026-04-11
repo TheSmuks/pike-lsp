@@ -17,11 +17,7 @@ import type {
   InheritanceInfo,
 } from '@pike-lsp/pike-bridge';
 import { TYPE_CONSTANTS, MODULE_CONSTANTS, VAR_FLAGS } from './constants.js';
-import {
-  extractDefvarsFromTokens,
-  extractDefvarsFromCode,
-  parseFlagsValue,
-} from './defvar-scanner.js';
+import { extractDefvarsFromTokens, parseFlagsValue } from './defvar-scanner.js';
 
 /**
  * Parsed defvar declaration
@@ -62,7 +58,7 @@ export interface ConfigError {
  * Priority order for module_type and inherit detection:
  * 1. roxenInfo (bridge.roxenDetect()) — most authoritative, uses Parser.Pike
  * 2. symbols (bridge parse) — parser-backed symbol table
- * 3. String scanning fallback — last resort
+ * 3. inherits (bridge cache) — cached InheritanceInfo from bridge
  *
  * Tokens enable defvar extraction via token walking.
  */
@@ -131,9 +127,9 @@ function detectInheritModule(inherits?: InheritanceInfo[], symbols?: PikeSymbol[
 
 /**
  * Detect module_type constant value from symbols (bridge parse).
- * Falls back to line scanning when symbols unavailable.
+ * Returns null when symbols are unavailable — no source-text scanning.
  */
-function detectModuleType(code: string, symbols?: PikeSymbol[]): string | null {
+function detectModuleType(symbols?: PikeSymbol[]): string | null {
   if (symbols && symbols.length > 0) {
     for (const sym of symbols) {
       const mt = getModuleTypeFromConstant(sym);
@@ -145,21 +141,6 @@ function detectModuleType(code: string, symbols?: PikeSymbol[]): string | null {
         }
       }
     }
-    return null;
-  }
-  // Fallback: scan lines for "constant [int] module_type = MODULE_*"
-  const lines = code.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith('constant ')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-    const lhs = trimmed.slice(0, eqIdx).trim();
-    if (!lhs.endsWith('module_type')) continue;
-    const rhsFull = trimmed.slice(eqIdx + 1).trim();
-    const semiIdx = rhsFull.indexOf(';');
-    const rhs = semiIdx >= 0 ? rhsFull.slice(0, semiIdx).trim() : rhsFull;
-    if (rhs.startsWith('MODULE_')) return rhs;
   }
   return null;
 }
@@ -170,9 +151,9 @@ function detectModuleType(code: string, symbols?: PikeSymbol[]): string | null {
  * When BridgeParseInput is provided, uses bridge data in priority order:
  * 1. roxenInfo (bridge.roxenDetect()) — authoritative, uses Parser.Pike
  * 2. symbols/tokens — parser-backed symbol table and token walking
- * 3. String scanning — fallback
+ * 3. inherits — cached InheritanceInfo from bridge
  */
-export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): RoxenConfig {
+export function parseRoxenConfig(_code: string, bridgeInput?: BridgeParseInput): RoxenConfig {
   const result: RoxenConfig = {
     isInheritModule: false,
     moduleType: null,
@@ -190,15 +171,15 @@ export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): 
     if (info.module_type.length > 0) {
       result.moduleType = info.module_type[0]!;
     } else {
-      result.moduleType = detectModuleType(code, bridgeInput.symbols);
+      result.moduleType = detectModuleType(bridgeInput.symbols);
     }
   } else {
     // Priority 2: inherits from bridge cache, 3: symbols from bridge parse
     result.isInheritModule = detectInheritModule(bridgeInput?.inherits, bridgeInput?.symbols);
-    result.moduleType = detectModuleType(code, bridgeInput?.symbols);
+    result.moduleType = detectModuleType(bridgeInput?.symbols);
   }
 
-  // Extract defvars: prefer token-based extraction, fall back to code scanning
+  // Extract defvars: token-based extraction only (bridge tokenize)
   if (bridgeInput?.tokens && bridgeInput.tokens.length > 0) {
     const rawDefvars = extractDefvarsFromTokens(bridgeInput.tokens);
     for (const dv of rawDefvars) {
@@ -220,18 +201,6 @@ export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): 
         line: dv.line,
         column: dv.column,
       });
-    }
-  } else {
-    result.defvars = extractDefvarsFromCode(code);
-    for (const dv of result.defvars) {
-      if (!TYPE_CONSTANTS[dv.type as keyof typeof TYPE_CONSTANTS]) {
-        result.errors.push({
-          line: dv.line,
-          column: dv.column,
-          message: `Unknown TYPE constant: ${dv.type}. Valid values are: ${Object.keys(TYPE_CONSTANTS).join(', ')}`,
-          severity: 'error',
-        });
-      }
     }
   }
 
