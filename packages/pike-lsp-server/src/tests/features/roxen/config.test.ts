@@ -15,7 +15,9 @@ import {
   isInDefvarContext,
   type DefvarDeclaration,
   type RoxenConfig,
+  type BridgeParseInput,
 } from '../../../features/roxen/config.js';
+import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 
 describe('Roxen Configuration Parser', () => {
   it('should detect inherit "module" pattern', () => {
@@ -388,5 +390,186 @@ describe('Validation Error Reporting', () => {
     const errorDiag = result.find(d => d.message.includes('TYPE_BAD'));
     assert.ok(errorDiag, 'Should have TYPE_BAD error');
     assert.strictEqual(errorDiag!.severity, 1, 'Should be error severity (1)');
+  });
+});
+
+describe('BridgeParseInput: Symbol-based Parsing', () => {
+  it('should detect inherit module from bridge symbols', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'module', modifiers: [], classname: 'module' },
+    ];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.isInheritModule, true, 'Should detect inherit from symbols');
+  });
+
+  it('should detect inherit roxen from bridge symbols', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'roxen', modifiers: [], classname: 'roxen' },
+    ];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.isInheritModule, true);
+  });
+
+  it('should not detect inherit from unrelated symbols', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'BaseClass', modifiers: [], classname: 'BaseClass' },
+    ];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.isInheritModule, false);
+  });
+
+  it('should extract module_type from constant symbol', () => {
+    const symbols: PikeSymbol[] = [
+      {
+        kind: 'constant',
+        name: 'module_type',
+        modifiers: [],
+        type: { name: 'MODULE_TAG' } as unknown as import('@pike-lsp/pike-bridge').PikeType,
+      },
+    ];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.moduleType, 'MODULE_TAG');
+  });
+
+  it('should extract module_type from nested child symbol', () => {
+    const symbols: PikeSymbol[] = [
+      {
+        kind: 'class',
+        name: 'MyModule',
+        modifiers: [],
+        children: [
+          {
+            kind: 'constant',
+            name: 'module_type',
+            modifiers: [],
+            type: {
+              name: 'MODULE_LOCATION',
+            } as unknown as import('@pike-lsp/pike-bridge').PikeType,
+          },
+        ],
+      },
+    ];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.moduleType, 'MODULE_LOCATION');
+  });
+
+  it('should return null module_type when symbol has no matching type', () => {
+    const symbols: PikeSymbol[] = [{ kind: 'constant', name: 'module_type', modifiers: [] }];
+    const result = parseRoxenConfig('anything', { symbols });
+    assert.strictEqual(result.moduleType, null);
+  });
+
+  it('should validate with bridge symbols', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'module', modifiers: [], classname: 'module' },
+      {
+        kind: 'constant',
+        name: 'module_type',
+        modifiers: [],
+        type: { name: 'MODULE_TAG' } as unknown as import('@pike-lsp/pike-bridge').PikeType,
+      },
+    ];
+    const result = validateRoxenConfig('anything', { symbols });
+    assert.ok(
+      !result.some(d => d.message.includes('module_type')),
+      'Should not warn when module_type present in symbols'
+    );
+  });
+});
+
+describe('BridgeParseInput: Token-based Defvar Parsing', () => {
+  it('should extract defvar from tokens', () => {
+    const tokens: PikeToken[] = [
+      { text: 'defvar', line: 1, character: 4, file: 0 },
+      { text: '(', line: 1, character: 10, file: 0 },
+      { text: '"', line: 1, character: 11, file: 0 },
+      { text: 'myvar', line: 1, character: 12, file: 0 },
+      { text: '"', line: 1, character: 17, file: 0 },
+      { text: ',', line: 1, character: 18, file: 0 },
+      { text: '"', line: 1, character: 20, file: 0 },
+      { text: 'My Var', line: 1, character: 21, file: 0 },
+      { text: '"', line: 1, character: 27, file: 0 },
+      { text: ',', line: 1, character: 28, file: 0 },
+      { text: 'TYPE_STRING', line: 1, character: 30, file: 0 },
+      { text: ',', line: 1, character: 41, file: 0 },
+      { text: '"', line: 1, character: 43, file: 0 },
+      { text: 'Doc text', line: 1, character: 44, file: 0 },
+      { text: '"', line: 1, character: 52, file: 0 },
+      { text: ',', line: 1, character: 53, file: 0 },
+      { text: '0', line: 1, character: 55, file: 0 },
+      { text: ')', line: 1, character: 56, file: 0 },
+    ];
+
+    const result = parseRoxenConfig('', { tokens });
+    assert.strictEqual(result.defvars.length, 1);
+    assert.strictEqual(result.defvars[0]!.name, 'myvar');
+    assert.strictEqual(result.defvars[0]!.displayName, 'My Var');
+    assert.strictEqual(result.defvars[0]!.type, 'TYPE_STRING');
+    assert.strictEqual(result.defvars[0]!.documentation, 'Doc text');
+  });
+
+  it('should extract multiple defvars from tokens', () => {
+    const tokens: PikeToken[] = [
+      { text: 'defvar', line: 1, character: 0, file: 0 },
+      { text: '(', line: 1, character: 6, file: 0 },
+      { text: 'var1', line: 1, character: 7, file: 0 },
+      { text: ',', line: 1, character: 13, file: 0 },
+      { text: 'Name1', line: 1, character: 15, file: 0 },
+      { text: ',', line: 1, character: 22, file: 0 },
+      { text: 'TYPE_INT', line: 1, character: 24, file: 0 },
+      { text: ',', line: 1, character: 32, file: 0 },
+      { text: 'Doc1', line: 1, character: 34, file: 0 },
+      { text: ',', line: 1, character: 40, file: 0 },
+      { text: '0', line: 1, character: 42, file: 0 },
+      { text: ')', line: 1, character: 43, file: 0 },
+      { text: ';', line: 1, character: 44, file: 0 },
+      { text: 'defvar', line: 2, character: 0, file: 0 },
+      { text: '(', line: 2, character: 6, file: 0 },
+      { text: 'var2', line: 2, character: 7, file: 0 },
+      { text: ',', line: 2, character: 13, file: 0 },
+      { text: 'Name2', line: 2, character: 15, file: 0 },
+      { text: ',', line: 2, character: 22, file: 0 },
+      { text: 'TYPE_FLAG', line: 2, character: 24, file: 0 },
+      { text: ',', line: 2, character: 32, file: 0 },
+      { text: 'Doc2', line: 2, character: 34, file: 0 },
+      { text: ',', line: 2, character: 40, file: 0 },
+      { text: 'VAR_EXPERT', line: 2, character: 42, file: 0 },
+      { text: ')', line: 2, character: 52, file: 0 },
+    ];
+
+    const result = parseRoxenConfig('', { tokens });
+    assert.strictEqual(result.defvars.length, 2);
+    assert.strictEqual(result.defvars[0]!.name, 'var1');
+    assert.strictEqual(result.defvars[0]!.type, 'TYPE_INT');
+    assert.strictEqual(result.defvars[1]!.name, 'var2');
+    assert.strictEqual(result.defvars[1]!.type, 'TYPE_FLAG');
+  });
+
+  it('should report error for unknown TYPE in token-based parsing', () => {
+    const tokens: PikeToken[] = [
+      { text: 'defvar', line: 1, character: 0, file: 0 },
+      { text: '(', line: 1, character: 6, file: 0 },
+      { text: 'x', line: 1, character: 7, file: 0 },
+      { text: ',', line: 1, character: 10, file: 0 },
+      { text: 'X', line: 1, character: 12, file: 0 },
+      { text: ',', line: 1, character: 15, file: 0 },
+      { text: 'TYPE_BAD', line: 1, character: 17, file: 0 },
+      { text: ',', line: 1, character: 25, file: 0 },
+      { text: 'D', line: 1, character: 27, file: 0 },
+      { text: ',', line: 1, character: 30, file: 0 },
+      { text: '0', line: 1, character: 32, file: 0 },
+      { text: ')', line: 1, character: 33, file: 0 },
+    ];
+
+    const result = parseRoxenConfig('', { tokens });
+    assert.strictEqual(result.defvars.length, 1);
+    assert.strictEqual(result.errors.length, 1);
+    assert.ok(result.errors[0]!.message.includes('TYPE_BAD'));
+  });
+
+  it('should handle empty tokens gracefully', () => {
+    const tokens: PikeToken[] = [];
+    const result = parseRoxenConfig('', { tokens });
+    assert.strictEqual(result.defvars.length, 0);
   });
 });

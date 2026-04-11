@@ -74,6 +74,7 @@ export {
   type DefvarDeclaration,
   type RoxenConfig,
   type ConfigError,
+  type BridgeParseInput,
 } from './config.js';
 
 // Re-export types
