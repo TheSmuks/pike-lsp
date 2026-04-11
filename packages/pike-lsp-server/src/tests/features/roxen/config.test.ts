@@ -20,21 +20,21 @@ import {
 import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 
 describe('Roxen Configuration Parser', () => {
-  it('should detect inherit "module" pattern', () => {
+  it('should detect inherit "module" from bridge cache', () => {
     const code = 'inherit "module";';
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect module inherit');
   });
 
-  it('should detect inherit "roxen" pattern', () => {
+  it('should detect inherit "roxen" from bridge cache', () => {
     const code = 'inherit "roxen";';
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'roxen' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect roxen inherit');
   });
 
-  it('should detect inherit with single quotes', () => {
+  it('should detect inherit via single-quoted path', () => {
     const code = "inherit 'module';";
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
     assert.strictEqual(result.isInheritModule, true, 'Should detect single quote inherit');
   });
 
@@ -94,7 +94,7 @@ constant module_name = "My Tag";
 defvar("enabled", "Enabled", TYPE_FLAG, "Enable this tag", 0);
 defvar("timeout", "Timeout", TYPE_INT, "Timeout in seconds", VAR_EXPERT);
 `;
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
 
     assert.strictEqual(result.isInheritModule, true, 'Should detect inherit');
     assert.strictEqual(result.moduleType, 'MODULE_TAG', 'Should extract module type');
@@ -118,7 +118,7 @@ describe('Roxen Configuration Validation', () => {
 
   it('should warn when module has inherit but no module_type', () => {
     const code = 'inherit "module";\ndefvar("x", "X", TYPE_STRING, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
     assert.ok(
       result.some(d => d.message.includes('module_type')),
       'Should warn about missing module_type'
@@ -131,7 +131,7 @@ inherit "module";
 constant module_type = MODULE_TAG;
 defvar("x", "X", TYPE_STRING, "Doc", 0);
 `;
-    const result = validateRoxenConfig(code);
+    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
     assert.ok(
       !result.some(d => d.message.includes('module_type')),
       'Should not warn about module_type when present'
@@ -265,7 +265,7 @@ string simpletag_custom(mapping args) {
     return "Hello";
 }
 `;
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
 
     assert.strictEqual(result.isInheritModule, true);
     assert.strictEqual(result.moduleType, 'MODULE_TAG');
@@ -297,7 +297,9 @@ void create() {
            "Root directory for files", VAR_EXPERT);
 }
 `;
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, {
+      inherits: [{ path: 'module' }, { path: 'filesystem' }],
+    });
 
     assert.strictEqual(result.isInheritModule, true);
     assert.strictEqual(result.moduleType, 'MODULE_LOCATION');
@@ -328,7 +330,7 @@ void create() {
            "Match case", 0);
 }
 `;
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
 
     assert.strictEqual(result.moduleType, 'MODULE_FILTER');
     assert.strictEqual(result.defvars.length, 3);
@@ -369,35 +371,27 @@ describe('Error Cases', () => {
   });
 });
 
-describe('Inherit detection: no false positives from comments/strings', () => {
-  it('should not detect inherit inside a single-line comment', () => {
+describe('Inherit detection: no false positives', () => {
+  it('should return false when no bridge data is provided', () => {
     const code = '// inherit "module";\nint x = 1;';
     const result = parseRoxenConfig(code);
-    assert.strictEqual(result.isInheritModule, false, 'Comment inherit should be ignored');
+    assert.strictEqual(result.isInheritModule, false, 'No bridge data → false');
   });
 
-  it('should not detect inherit inside a multi-line comment', () => {
-    const code = '/* inherit "module"; */\nint x = 1;';
-    const result = parseRoxenConfig(code);
-    assert.strictEqual(result.isInheritModule, false, 'ML comment inherit should be ignored');
+  it('should not detect inherit from unrelated inherits in cache', () => {
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'filesystem' }] });
+    assert.strictEqual(result.isInheritModule, false, 'Unrelated inherit should be ignored');
   });
 
-  it('should not detect inherit inside a string literal', () => {
-    const code = 'string s = "inherit \\"module\\";";\nint x = 1;';
-    const result = parseRoxenConfig(code);
-    assert.strictEqual(result.isInheritModule, false, 'String inherit should be ignored');
+  it('should not detect inherit "roxen" from unrelated inherits', () => {
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'some_lib' }] });
+    assert.strictEqual(result.isInheritModule, false, 'Unrelated inherit should be ignored');
   });
 
-  it('should not detect inherit "roxen" inside a comment', () => {
-    const code = '// inherit "roxen";\nint x = 1;';
-    const result = parseRoxenConfig(code);
-    assert.strictEqual(result.isInheritModule, false, 'Comment roxen inherit should be ignored');
-  });
-
-  it('should detect real inherit alongside comments', () => {
+  it('should detect real inherit from bridge cache alongside comment code', () => {
     const code =
       '// This module inherits module\ninherit "module";\nconstant module_type = MODULE_TAG;';
-    const result = parseRoxenConfig(code);
+    const result = parseRoxenConfig(code, { inherits: [{ path: 'module' }] });
     assert.strictEqual(result.isInheritModule, true, 'Real inherit should be detected');
     assert.strictEqual(result.moduleType, 'MODULE_TAG');
   });
@@ -413,7 +407,7 @@ describe('Validation Error Reporting', () => {
 
   it('should have correct source in diagnostics', () => {
     const code = 'inherit "module";\ndefvar("x", "X", TYPE_BAD, "Doc", 0);';
-    const result = validateRoxenConfig(code);
+    const result = validateRoxenConfig(code, { inherits: [{ path: 'module' }] });
     const configDiags = result.filter(d => d.source === 'roxen-config');
     assert.ok(configDiags.length > 0, 'Should have roxen-config source diagnostics');
   });
@@ -508,6 +502,40 @@ describe('BridgeParseInput: Symbol-based Parsing', () => {
       !result.some(d => d.message.includes('module_type')),
       'Should not warn when module_type present in symbols'
     );
+  });
+});
+
+describe('BridgeParseInput: Inherits-based Parsing', () => {
+  it('should detect inherit module from inherits cache', () => {
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'module' }] });
+    assert.strictEqual(result.isInheritModule, true);
+  });
+
+  it('should detect inherit roxen from inherits cache', () => {
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'roxen' }] });
+    assert.strictEqual(result.isInheritModule, true);
+  });
+
+  it('should prefer inherits over symbols when both provided', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'BaseClass', modifiers: [], classname: 'BaseClass' },
+    ];
+    // symbols say no, but inherits say yes
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'module' }], symbols });
+    assert.strictEqual(result.isInheritModule, true, 'inherits should take priority');
+  });
+
+  it('should fall back to symbols when inherits is empty', () => {
+    const symbols: PikeSymbol[] = [
+      { kind: 'inherit', name: 'module', modifiers: [], classname: 'module' },
+    ];
+    const result = parseRoxenConfig('anything', { inherits: [], symbols });
+    assert.strictEqual(result.isInheritModule, true, 'Should fall back to symbols');
+  });
+
+  it('should return false when neither inherits nor symbols match', () => {
+    const result = parseRoxenConfig('anything', { inherits: [{ path: 'filesystem' }] });
+    assert.strictEqual(result.isInheritModule, false);
   });
 });
 
