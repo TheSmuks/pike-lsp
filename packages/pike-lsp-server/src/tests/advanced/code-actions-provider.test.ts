@@ -324,9 +324,16 @@ int main() {
         end: { line: 1, character: 19 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code, undefined);
-
-      // Should return an action
+      const result = getExtractMethodAction(document, uri, range, code, undefined, {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      });
       assert.ok(result, 'Should return extract method action');
       if (result) {
         assert.equal(
@@ -357,7 +364,16 @@ int main() {
         end: { line: 3, character: 18 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code, undefined);
+      const result = getExtractMethodAction(document, uri, range, code, undefined, {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      });
 
       // Should return an action with parameters
       assert.ok(result, 'Should return extract method action');
@@ -383,7 +399,16 @@ int main() {
         end: { line: 0, character: 0 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code, undefined);
+      const result = getExtractMethodAction(document, uri, range, code, undefined, {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      });
 
       assert.equal(result, null, 'Should return null for invalid selection');
     });
@@ -407,7 +432,16 @@ int main() {
       // Filter that excludes refactor.extract
       const onlyKinds = [CodeActionKind.QuickFix];
 
-      const result = getExtractMethodAction(document, uri, range, code, onlyKinds);
+      const result = getExtractMethodAction(document, uri, range, code, onlyKinds, {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      });
 
       assert.equal(result, null, 'Should return null when filter excludes refactor');
     });
@@ -431,7 +465,16 @@ int main() {
       // Filter that includes Refactor
       const onlyKinds = [CodeActionKind.Refactor];
 
-      const result = getExtractMethodAction(document, uri, range, code, onlyKinds);
+      const result = getExtractMethodAction(document, uri, range, code, onlyKinds, {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      });
 
       assert.ok(result, 'Should return action when filter includes Refactor');
       if (result) {
