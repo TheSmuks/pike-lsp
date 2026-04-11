@@ -12,7 +12,7 @@
 
 import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { IncludeResolver } from '../../services/include-resolver.js';
@@ -518,18 +518,17 @@ describe('IncludeResolver - Cache Management', () => {
             originalPath: '"dynamic.h"',
           }),
           resolveStdlib: async () => ({ found: 0 }),
-          analyze: async (content: string) => ({
-            result: {
-              parse: {
-                symbols: [
-                  {
-                    name: content.includes('second_symbol') ? 'second_symbol' : 'first_symbol',
-                    kind: 'variable' as const,
-                  },
-                ],
-              },
+        },
+        async parseFileSymbols(
+          filePath: string
+        ): Promise<import('@pike-lsp/pike-bridge').PikeSymbol[]> {
+          const content = await readFile(filePath, 'utf-8');
+          return [
+            {
+              name: content.includes('second_symbol') ? 'second_symbol' : 'first_symbol',
+              kind: 'variable' as const,
             },
-          }),
+          ];
         },
       };
 
@@ -563,13 +562,11 @@ describe('IncludeResolver - Cache Management', () => {
             originalPath: '"existing.h"',
           }),
           resolveStdlib: async () => ({ found: 0 }),
-          analyze: async (_content: string, _operations: string[], filename: string) => ({
-            result: {
-              parse: {
-                symbols: [{ name: `symbol_from_${filename}`, kind: 'variable' as const }],
-              },
-            },
-          }),
+        },
+        async parseFileSymbols(
+          filePath: string
+        ): Promise<import('@pike-lsp/pike-bridge').PikeSymbol[]> {
+          return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
         },
       };
 
