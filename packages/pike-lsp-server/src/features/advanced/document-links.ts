@@ -28,7 +28,7 @@ export function registerDocumentLinksHandler(
   /**
    * Document Links handler - find clickable file paths
    */
-  connection.onDocumentLinks((params): DocumentLink[] => {
+  connection.onDocumentLinks(async (params): Promise<DocumentLink[]> => {
     log.debug('Document links request', { uri: params.textDocument.uri });
     try {
       const document = documents.get(params.textDocument.uri);
@@ -42,8 +42,68 @@ export function registerDocumentLinksHandler(
       const documentDir = getDocumentDirectory(params.textDocument.uri);
 
       const inheritRegex = /inherit\s+([A-Z][\w.]*)/g;
-      const includeRegex = /#include\s+"([^"]+)"/g;
       const docLinkRegex = /\/\/[!/]?\s*@(?:file|see|link):\s*([^\s]+)/g;
+
+      // Use bridge.extractImports for #include directives (handles all edge cases)
+      // Falls back to cached symbols when bridge is unavailable
+      const cached = documentCache.get(params.textDocument.uri);
+      if (services.bridge?.bridge) {
+        try {
+          const imports = await services.bridge.bridge.extractImports(
+            text,
+            uriToFsPath(params.textDocument.uri)
+          );
+          for (const imp of imports.imports) {
+            if (imp.type !== 'include' || !imp.path) continue;
+
+            const link = resolveIncludePath(imp.path, documentDir, services.includePaths);
+            if (!link) continue;
+
+            // Find the character range for the include path on the source line
+            const lineNum = Math.max(0, imp.line - 1);
+            const line = lines[lineNum] ?? '';
+            const pathStart = line.indexOf(imp.path);
+            if (pathStart === -1) continue;
+
+            links.push({
+              range: {
+                start: { line: lineNum, character: pathStart },
+                end: { line: lineNum, character: pathStart + imp.path.length },
+              },
+              target: link.target,
+              tooltip: link.tooltip,
+            });
+          }
+        } catch (err) {
+          log.debug('Document links: extractImports failed', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      } else if (cached?.symbols) {
+        // Fallback: use cached include symbols (already parsed by Parser.Pike)
+        for (const symbol of cached.symbols) {
+          if (symbol.kind !== 'include' || !symbol.position) continue;
+          const includePath = symbol.classname || symbol.name;
+          if (!includePath) continue;
+
+          const link = resolveIncludePath(includePath, documentDir, services.includePaths);
+          if (!link) continue;
+
+          const lineNum = Math.max(0, (symbol.position.line ?? 1) - 1);
+          const line = lines[lineNum] ?? '';
+          const pathStart = line.indexOf(includePath);
+          if (pathStart === -1) continue;
+
+          links.push({
+            range: {
+              start: { line: lineNum, character: pathStart },
+              end: { line: lineNum, character: pathStart + includePath.length },
+            },
+            target: link.target,
+            tooltip: link.tooltip,
+          });
+        }
+      }
 
       for (let lineNum = 0; lineNum < lines.length; lineNum++) {
         const line = lines[lineNum] ?? '';
@@ -69,28 +129,6 @@ export function registerDocumentLinksHandler(
           inheritMatch = inheritRegex.exec(line);
         }
         inheritRegex.lastIndex = 0;
-
-        let includeMatch: RegExpExecArray | null = includeRegex.exec(line);
-        while (includeMatch !== null) {
-          const index = includeMatch.index;
-          const filePath = includeMatch[1];
-          if (index !== undefined && filePath) {
-            const link = resolveIncludePath(filePath, documentDir, services.includePaths);
-            if (link) {
-              links.push({
-                range: {
-                  start: { line: lineNum, character: index },
-                  end: { line: lineNum, character: index + filePath.length + 2 },
-                },
-                target: link.target,
-                tooltip: link.tooltip,
-              });
-            }
-          }
-
-          includeMatch = includeRegex.exec(line);
-        }
-        includeRegex.lastIndex = 0;
 
         let docMatch: RegExpExecArray | null = docLinkRegex.exec(line);
         while (docMatch !== null) {

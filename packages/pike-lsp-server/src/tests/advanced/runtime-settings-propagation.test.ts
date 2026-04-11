@@ -150,11 +150,12 @@ describe('Runtime settings propagation', () => {
     expect(enabledResult[0]?.text).toContain('42');
   });
 
-  it('uses latest include paths from services for document links', () => {
-    let linksHandler: ((params: { textDocument: { uri: string } }) => unknown) | null = null;
+  it('uses latest include paths from services for document links', async () => {
+    let linksHandler: ((params: { textDocument: { uri: string } }) => Promise<unknown[]>) | null =
+      null;
 
     const connection = {
-      onDocumentLinks(handler: (params: { textDocument: { uri: string } }) => unknown) {
+      onDocumentLinks(handler: (params: { textDocument: { uri: string } }) => Promise<unknown[]>) {
         linksHandler = handler;
       },
       onDocumentLinkResolve: () => {},
@@ -173,7 +174,19 @@ describe('Runtime settings propagation', () => {
     const document = TextDocument.create(uri, 'pike', 1, '#include "foo.h"\n');
 
     const services = {
-      documentCache: { keys: () => [][Symbol.iterator]() },
+      documentCache: {
+        keys: () => [][Symbol.iterator](),
+        get: () => ({
+          symbols: [
+            {
+              kind: 'include',
+              name: 'foo.h',
+              classname: 'foo.h',
+              position: { line: 1, character: 10 },
+            },
+          ],
+        }),
+      },
       includePaths: [] as string[],
     };
 
@@ -184,12 +197,14 @@ describe('Runtime settings propagation', () => {
     registerDocumentLinksHandler(connection as any, services as any, documents as any);
     expect(linksHandler).not.toBeNull();
 
-    const withoutIncludePath = linksHandler!({ textDocument: { uri } }) as Array<unknown>;
+    const withoutIncludePath = await linksHandler!({ textDocument: { uri } });
     expect(withoutIncludePath).toEqual([]);
 
     services.includePaths = [includeDir];
 
-    const withIncludePath = linksHandler!({ textDocument: { uri } }) as Array<{ target: string }>;
+    const withIncludePath = (await linksHandler!({ textDocument: { uri } })) as Array<{
+      target: string;
+    }>;
     expect(withIncludePath.length).toBe(1);
     expect(withIncludePath[0]?.target).toContain('foo.h');
   });
