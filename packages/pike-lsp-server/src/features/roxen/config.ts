@@ -10,7 +10,12 @@
 
 import type { CompletionItem, Diagnostic, Position } from 'vscode-languageserver';
 import { CompletionItemKind, DiagnosticSeverity } from 'vscode-languageserver/node.js';
-import type { PikeSymbol, PikeToken, RoxenModuleInfo } from '@pike-lsp/pike-bridge';
+import type {
+  PikeSymbol,
+  PikeToken,
+  RoxenModuleInfo,
+  InheritanceInfo,
+} from '@pike-lsp/pike-bridge';
 import { TYPE_CONSTANTS, MODULE_CONSTANTS, VAR_FLAGS } from './constants.js';
 import {
   extractDefvarsFromTokens,
@@ -65,6 +70,8 @@ export interface BridgeParseInput {
   roxenInfo?: RoxenModuleInfo;
   symbols?: PikeSymbol[];
   tokens?: PikeToken[];
+  /** Cached inherit data from bridge (DocumentCacheEntry.inherits) */
+  inherits?: InheritanceInfo[];
 }
 
 /**
@@ -105,24 +112,19 @@ function getModuleTypeFromConstant(sym: PikeSymbol): string | null {
 }
 
 /**
- * Detect inherit of "module" or "roxen" from symbols (bridge parse).
- * Falls back to simple string scanning when symbols unavailable.
+ * Detect inherit of "module" or "roxen".
+ *
+ * Priority: (1) InheritanceInfo[] from bridge cache, (2) PikeSymbol[] from bridge parse.
+ * Returns false when neither is available.
  */
-function detectInheritModule(code: string, symbols?: PikeSymbol[]): boolean {
+function detectInheritModule(inherits?: InheritanceInfo[], symbols?: PikeSymbol[]): boolean {
+  if (inherits && inherits.length > 0) {
+    return inherits.some(
+      inh => inh.path?.toLowerCase() === 'module' || inh.path?.toLowerCase() === 'roxen'
+    );
+  }
   if (symbols && symbols.length > 0) {
     return symbols.some(isInheritModuleSymbol);
-  }
-  // Fallback: simple string search (no regex)
-  const lines = code.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('inherit ')) {
-      const arg = trimmed.slice(8).trim();
-      const semiIdx = arg.indexOf(';');
-      const noSemi = semiIdx >= 0 ? arg.slice(0, semiIdx).trim() : arg;
-      const unquoted = stripQuotes(noSemi);
-      if (unquoted === 'module' || unquoted === 'roxen') return true;
-    }
   }
   return false;
 }
@@ -191,8 +193,8 @@ export function parseRoxenConfig(code: string, bridgeInput?: BridgeParseInput): 
       result.moduleType = detectModuleType(code, bridgeInput.symbols);
     }
   } else {
-    // Priority 2: symbols from bridge parse, 3: string scanning
-    result.isInheritModule = detectInheritModule(code, bridgeInput?.symbols);
+    // Priority 2: inherits from bridge cache, 3: symbols from bridge parse
+    result.isInheritModule = detectInheritModule(bridgeInput?.inherits, bridgeInput?.symbols);
     result.moduleType = detectModuleType(code, bridgeInput?.symbols);
   }
 
