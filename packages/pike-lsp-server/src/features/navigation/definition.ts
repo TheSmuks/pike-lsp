@@ -16,7 +16,7 @@ import { extractExpressionAtPosition } from './expression-utils.js';
 import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { readFile } from 'node:fs/promises';
 import { handleDirectiveNavigation } from './definition-directives.js';
-import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
+import { getWordAtPositionGeneric, findSymbolAtPosition } from '../utils/pike-identifier.js';
 import { escapeRegExp } from '../rxml/references-provider.js';
 
 const uriDecodeLog = new Logger('Navigation');
@@ -219,17 +219,7 @@ export function registerDefinitionHandlers(
         }
 
         // Extract the word at cursor position
-        const text = document.getText();
-        const offset = document.offsetAt(params.position);
-        let start = offset;
-        let end = offset;
-        while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-          start--;
-        }
-        while (end < text.length && /\w/.test(text[end] ?? '')) {
-          end++;
-        }
-        const word = text.slice(start, end);
+        const word = getWordAtPositionGeneric(document, params.position);
 
         if (word) {
           const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
@@ -747,54 +737,6 @@ async function findSymbolInDirectIncludes(
     }
 
     includeMatch = includeRegex.exec(source);
-  }
-
-  return null;
-}
-
-// handleDirectiveNavigation moved to definition-directives.ts
-
-/**
- * Find symbol at given position in document.
- */
-function findSymbolAtPosition(
-  symbols: PikeSymbol[],
-  position: { line: number; character: number },
-  document: TextDocument
-): PikeSymbol | null {
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-
-  // Find word boundaries
-  let start = offset;
-  let end = offset;
-
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
-  }
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
-  }
-
-  const word = text.slice(start, end);
-  if (!word) {
-    return null;
-  }
-
-  // Find symbol with matching name
-  for (const symbol of symbols) {
-    if (symbol.name === word) {
-      return symbol;
-    }
-
-    // Match against classname for inherits, imports, and includes (stripping quotes)
-    if (symbol.kind === 'inherit' || symbol.kind === 'import' || symbol.kind === 'include') {
-      const classname = symbol.classname?.replace(/['"]/g, '');
-      // Check if classname matches word or part of it (e.g. Stdio in Stdio.File)
-      if (classname === word || (classname && classname.includes(word))) {
-        return symbol;
-      }
-    }
   }
 
   return null;

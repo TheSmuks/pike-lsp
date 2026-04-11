@@ -17,6 +17,7 @@ import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
 import { basename } from 'node:path';
 import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
+import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
 
 /**
  * Register references handlers.
@@ -64,26 +65,17 @@ export function registerReferencesHandlers(
       // Default is true - include declaration in results
       const includeDeclaration = params.context.includeDeclaration ?? true;
 
-      const text = document.getText();
       const offset = document.offsetAt(params.position);
+      const text = document.getText();
 
       // Find word boundaries
-      let start = offset;
-      let end = offset;
-      while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-        start--;
-      }
-      while (end < text.length && /\w/.test(text[end] ?? '')) {
-        end++;
-      }
-
-      let word = text.slice(start, end);
+      let word = getWordAtPositionGeneric(document, params.position);
       if (!word) {
         log.debug('References: no word at position');
         return [];
       }
 
-      log.debug('References: searching for word', { word, offset, start, end, includeDeclaration });
+      log.debug('References: searching for word', { word, offset, includeDeclaration });
 
       // Check if this word matches a known symbol
       let matchingSymbol = cached.symbols.find(s => s.name === word);
