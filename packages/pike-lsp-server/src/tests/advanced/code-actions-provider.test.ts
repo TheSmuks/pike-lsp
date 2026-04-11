@@ -324,7 +324,7 @@ int main() {
         end: { line: 1, character: 19 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code);
+      const result = getExtractMethodAction(document, uri, range, code, undefined);
 
       // Should return an action
       assert.ok(result, 'Should return extract method action');
@@ -357,7 +357,7 @@ int main() {
         end: { line: 3, character: 18 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code);
+      const result = getExtractMethodAction(document, uri, range, code, undefined);
 
       // Should return an action with parameters
       assert.ok(result, 'Should return extract method action');
@@ -383,7 +383,7 @@ int main() {
         end: { line: 0, character: 0 },
       };
 
-      const result = getExtractMethodAction(document, uri, range, code);
+      const result = getExtractMethodAction(document, uri, range, code, undefined);
 
       assert.equal(result, null, 'Should return null for invalid selection');
     });

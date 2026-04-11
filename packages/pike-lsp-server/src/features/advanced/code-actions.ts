@@ -514,7 +514,8 @@ export function registerCodeActionsHandler(
                 uri,
                 params.range,
                 text,
-                onlyKinds // Pass filter for consistency
+                onlyKinds,
+                cached.symbols
               );
               if (extractMethodAction) {
                 result.push(extractMethodAction);
