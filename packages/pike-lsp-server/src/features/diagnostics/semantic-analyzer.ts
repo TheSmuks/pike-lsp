@@ -13,6 +13,7 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
+import { isPikeIdentifierStart, isPikeIdentifierChar } from '../utils/pike-identifier.js';
 
 export interface SemanticAnalysisResult {
   diagnostics: Diagnostic[];
@@ -312,7 +313,7 @@ function analyzeUndefinedSymbols(
 
     const { text, line, character } = token;
 
-    if (!text || !isIdentifier(text)) {
+    if (!text || !isPikeIdentifier(text)) {
       continue;
     }
 
@@ -409,6 +410,11 @@ function extractFunctionLocalVars(symbols: PikeSymbol[]): Set<string> {
   return localVars;
 }
 
-function isIdentifier(text: string): boolean {
-  return /^[a-zA-Z_]\w*$/.test(text);
+function isPikeIdentifier(text: string): boolean {
+  if (!text) return false;
+  if (!isPikeIdentifierStart(text[0]!)) return false;
+  for (let i = 1; i < text.length; i++) {
+    if (!isPikeIdentifierChar(text[i]!)) return false;
+  }
+  return true;
 }
