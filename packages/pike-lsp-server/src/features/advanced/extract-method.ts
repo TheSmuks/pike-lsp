@@ -144,7 +144,114 @@ function getSelectedCode(document: TextDocument, range: Range): string {
 }
 
 /**
- * Analyze selected code to determine parameters and return value
+ * Strip Pike string literals, line comments, and block comments from code.
+ * Replaces their content with spaces while preserving line structure so that
+ * identifier positions remain valid for word-boundary checks.
+ *
+ * This is a lightweight alternative to full Parser.Pike tokenization for the
+ * narrow purpose of checking whether a known symbol name appears in actual
+ * code vs. inside a comment or string literal.
+ */
+function stripCodeContent(code: string): string {
+  const chars = code.split('');
+  let i = 0;
+
+  while (i < chars.length) {
+    // Block comment /* ... */
+    if (chars[i] === '/' && chars[i + 1] === '*') {
+      chars[i] = ' ';
+      chars[i + 1] = ' ';
+      i += 2;
+      while (i < chars.length && !(chars[i] === '*' && chars[i + 1] === '/')) {
+        chars[i] = ' ';
+        i++;
+      }
+      if (i < chars.length) {
+        chars[i] = ' ';
+        chars[i + 1] = ' ';
+        i += 2;
+      }
+      continue;
+    }
+
+    // Line comment //
+    if (chars[i] === '/' && chars[i + 1] === '/') {
+      while (i < chars.length && chars[i] !== '\n') {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+
+    // Multi-line string literal #"..."
+    if (chars[i] === '#' && chars[i + 1] === '"') {
+      chars[i] = ' ';
+      chars[i + 1] = ' ';
+      i += 2;
+      while (i < chars.length && chars[i] !== '"') {
+        chars[i] = ' ';
+        i++;
+      }
+      if (i < chars.length) {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+
+    // Regular string literal "..."
+    if (chars[i] === '"') {
+      chars[i] = ' ';
+      i++;
+      while (i < chars.length && chars[i] !== '"') {
+        // Skip escaped characters
+        if (chars[i] === '\\' && i + 1 < chars.length) {
+          chars[i] = ' ';
+          chars[i + 1] = ' ';
+          i += 2;
+          continue;
+        }
+        chars[i] = ' ';
+        i++;
+      }
+      if (i < chars.length) {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+
+    // Single-quoted character literal
+    if (chars[i] === "'") {
+      chars[i] = ' ';
+      i++;
+      while (i < chars.length && chars[i] !== "'") {
+        if (chars[i] === '\\' && i + 1 < chars.length) {
+          chars[i] = ' ';
+          chars[i + 1] = ' ';
+          i += 2;
+          continue;
+        }
+        chars[i] = ' ';
+        i++;
+      }
+      if (i < chars.length) {
+        chars[i] = ' ';
+        i++;
+      }
+      continue;
+    }
+
+    i++;
+  }
+
+  return chars.join('');
+}
+
+/**
+ * Analyze selected code to determine parameters and return value.
+ * Uses symbol-table variable names and code-stripping to avoid
+ * false matches inside comments and string literals.
  */
 function analyzeSelectedCode(
   selectedCode: string,
@@ -157,14 +264,13 @@ function analyzeSelectedCode(
   // Collect variable names from the symbol table
   const definedVars = collectVariableNames(symbols);
 
-  // Check which symbol-table variables are referenced in the selection.
-  // For each known variable, test whether it appears as a standalone
-  // identifier in the selected code. This avoids scanning every word in the
-  // text (which would match inside strings/comments) and avoids treating
-  // Pike keywords as variable candidates.
+  // Strip comments and string literals to avoid false identifier matches
+  const strippedCode = stripCodeContent(selectedCode);
+
+  // Check which symbol-table variables are referenced in actual code
   const usedVars = new Set<string>();
   for (const varName of definedVars) {
-    if (isIdentPresent(selectedCode, varName)) {
+    if (isIdentPresent(strippedCode, varName)) {
       usedVars.add(varName);
     }
   }
@@ -172,45 +278,73 @@ function analyzeSelectedCode(
   // Add used variables as parameters
   parameters.push(...usedVars);
 
-  // Determine return type and value
-  // Check if selection has a return statement
-  if (selectedCode.includes('return')) {
-    const returnMatch = selectedCode.match(/return\s+([^;]+);/);
-    if (returnMatch) {
-      returnValue = returnMatch[1]!.trim();
-
-      // Try to infer type from the return value
-      if (returnValue.match(/^\d+$/)) {
-        returnType = 'int';
-      } else if (returnValue.match(/^["']/)) {
-        returnType = 'string';
-      } else if (returnValue === '0' || returnValue === '1') {
-        returnType = 'int';
-      } else if (definedVars.has(returnValue)) {
-        // Variable used from outer scope - use its type if we can determine
-        returnType = 'mixed';
-      } else {
-        returnType = 'mixed';
-      }
-    }
+  // Detect return statements using structured search.
+  // We search the stripped code for the 'return' keyword position to confirm
+  // it's real code (not a comment/string), but extract the expression from
+  // the original code to preserve literals for type inference.
+  const returnInfo = detectReturnStatement(selectedCode, strippedCode);
+  if (returnInfo) {
+    returnValue = returnInfo.value;
+    returnType = inferReturnType(returnValue, definedVars);
   }
 
-  // If there's no return but assignment to a variable, we return void
   return { parameters, returnType, returnValue };
 }
 
 /**
  * Test whether `ident` appears as a standalone identifier in `code`.
- * Uses a word-boundary check scoped to a single known name rather than
- * scanning every token in the text — avoids false matches inside strings
- * or comments for identifiers that are not in the symbol table.
+ * The caller is responsible for stripping comments/strings first.
+ * Uses a word-boundary check scoped to a single known name.
  */
 function isIdentPresent(code: string, ident: string): boolean {
-  // Reject identifiers that would produce an invalid regex pattern
   if (ident.length === 0) return false;
   const escaped = ident.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`\\b${escaped}\\b`);
   return pattern.test(code);
+}
+
+/**
+ * Detect a return statement in code.
+ * Uses `strippedCode` to locate the 'return' keyword (immune to matches in
+ * comments/strings), but extracts the expression from `originalCode` so that
+ * string literal delimiters are preserved for type inference.
+ *
+ * @param originalCode - The raw selected code (unstripped).
+ * @param strippedCode - The same code with comments/strings replaced by spaces.
+ */
+function detectReturnStatement(
+  originalCode: string,
+  strippedCode: string
+): { value: string } | null {
+  const returnIdx = strippedCode.indexOf('return');
+  if (returnIdx === -1) return null;
+
+  // Locate the expression bounds in stripped code to avoid comment/string matches,
+  // then extract the corresponding span from original code for accurate content.
+  const strippedAfterReturn = strippedCode.substring(returnIdx + 'return'.length);
+  const semiIdx = strippedAfterReturn.indexOf(';');
+  if (semiIdx === -1) return null;
+
+  const value = originalCode
+    .substring(returnIdx + 'return'.length, returnIdx + 'return'.length + semiIdx)
+    .trim();
+  if (value.length === 0) return null;
+
+  return { value };
+}
+
+/**
+ * Infer the return type from a return value expression.
+ * Uses the symbol table for variable type lookups.
+ */
+function inferReturnType(returnValue: string, definedVars: Set<string>): string {
+  // Literal integer
+  if (/^\d+$/.test(returnValue)) return 'int';
+  // Literal string
+  if (/^["'']/.test(returnValue)) return 'string';
+  // Known variable — type unknown without introspection
+  if (definedVars.has(returnValue)) return 'mixed';
+  return 'mixed';
 }
 
 /**
