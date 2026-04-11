@@ -157,45 +157,15 @@ function analyzeSelectedCode(
   // Collect variable names from the symbol table
   const definedVars = collectVariableNames(symbols);
 
-  // Check which defined variables are used in the selection
+  // Check which symbol-table variables are referenced in the selection.
+  // For each known variable, test whether it appears as a standalone
+  // identifier in the selected code. This avoids scanning every word in the
+  // text (which would match inside strings/comments) and avoids treating
+  // Pike keywords as variable candidates.
   const usedVars = new Set<string>();
-  const wordPattern = /\b[a-zA-Z_]\w*\b/g;
-  let match;
-  while ((match = wordPattern.exec(selectedCode)) !== null) {
-    const word = match[0]!;
-    // Skip keywords and built-ins
-    const keywords = [
-      'int',
-      'string',
-      'float',
-      'array',
-      'mapping',
-      'program',
-      'function',
-      'mixed',
-      'object',
-      'void',
-      'return',
-      'if',
-      'else',
-      'for',
-      'while',
-      'do',
-      'switch',
-      'case',
-      'break',
-      'continue',
-      'sizeof',
-      'array_sizeof',
-      'm_sizeof',
-      'this',
-      'this_program',
-      'true',
-      'false',
-      'null',
-    ];
-    if (!keywords.includes(word) && definedVars.has(word)) {
-      usedVars.add(word);
+  for (const varName of definedVars) {
+    if (isIdentPresent(selectedCode, varName)) {
+      usedVars.add(varName);
     }
   }
 
@@ -227,6 +197,20 @@ function analyzeSelectedCode(
 
   // If there's no return but assignment to a variable, we return void
   return { parameters, returnType, returnValue };
+}
+
+/**
+ * Test whether `ident` appears as a standalone identifier in `code`.
+ * Uses a word-boundary check scoped to a single known name rather than
+ * scanning every token in the text — avoids false matches inside strings
+ * or comments for identifiers that are not in the symbol table.
+ */
+function isIdentPresent(code: string, ident: string): boolean {
+  // Reject identifiers that would produce an invalid regex pattern
+  if (ident.length === 0) return false;
+  const escaped = ident.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\b${escaped}\\b`);
+  return pattern.test(code);
 }
 
 /**
