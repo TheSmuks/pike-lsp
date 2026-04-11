@@ -12,7 +12,7 @@
 
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { PikeSymbol, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
 
 export interface SemanticAnalysisResult {
   diagnostics: Diagnostic[];
@@ -187,7 +187,6 @@ export function analyzeSemantics(
       tokens,
       definedSymbols,
       symbols,
-      lines,
       opts.maxProblems - diagnostics.length
     );
     diagnostics.push(...undefinedDiags);
@@ -293,7 +292,6 @@ function analyzeUndefinedSymbols(
   tokens: PikeToken[],
   definedSymbols: Set<string>,
   symbols: PikeSymbol[],
-  lines: string[],
   maxDiagnostics: number
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
@@ -306,7 +304,7 @@ function analyzeUndefinedSymbols(
     }
   }
 
-  const functionLocalVars = extractFunctionLocalVars(lines);
+  const functionLocalVars = extractFunctionLocalVars(symbols);
 
   for (let i = 0; i < tokens.length && diagnostics.length < maxDiagnostics; i++) {
     const token = tokens[i];
@@ -383,21 +381,27 @@ function analyzeUndefinedSymbols(
   return diagnostics;
 }
 
-function extractFunctionLocalVars(lines: string[]): Set<string> {
+function extractFunctionLocalVars(symbols: PikeSymbol[]): Set<string> {
   const localVars = new Set<string>();
-  const funcPattern = /(?:function\s+)?(\w+)\s*\(([^)]*)\)/g;
-  const paramPattern = /(?:\w+\s+)?(\$?\w+)\s*[,)]/g;
 
-  for (const line of lines) {
-    let match;
-    while ((match = funcPattern.exec(line)) !== null) {
-      const params = match[2];
-      let paramMatch;
-      while ((paramMatch = paramPattern.exec(params + ')')) !== null) {
-        const paramName = paramMatch[1];
-        if (paramName && !PIKE_KEYWORDS.has(paramName)) {
-          localVars.add(paramName);
+  for (const sym of symbols) {
+    if (sym.kind === 'method' && 'argNames' in sym) {
+      const method = sym as PikeMethod;
+      for (const name of method.argNames) {
+        if (name && !PIKE_KEYWORDS.has(name)) {
+          localVars.add(name);
         }
+      }
+    }
+    // Also add variables declared in scope
+    if (sym.kind === 'variable' && sym.name && !PIKE_KEYWORDS.has(sym.name)) {
+      localVars.add(sym.name);
+    }
+    // Recurse into children (class methods, etc.)
+    if (sym.children) {
+      const childVars = extractFunctionLocalVars(sym.children);
+      for (const v of childVars) {
+        localVars.add(v);
       }
     }
   }

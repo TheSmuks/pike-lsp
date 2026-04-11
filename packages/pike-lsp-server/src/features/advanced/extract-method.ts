@@ -7,6 +7,7 @@
 
 import { CodeAction, CodeActionKind, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 
 /**
  * Extract Method Result
@@ -34,7 +35,8 @@ export function getExtractMethodAction(
   uri: string,
   range: Range,
   fullText: string,
-  onlyKinds?: string[]
+  onlyKinds: string[] | undefined,
+  symbols: PikeSymbol[] = []
 ): CodeAction | null {
   // Validate selection range
   if (!isValidSelection(range, fullText)) {
@@ -62,7 +64,7 @@ export function getExtractMethodAction(
   }
 
   // Analyze selected code to determine parameters and return value
-  const analysis = analyzeSelectedCode(selectedCode, fullText, range);
+  const analysis = analyzeSelectedCode(selectedCode, symbols);
 
   // Generate new function name
   const functionName = generateFunctionName(document, range);
@@ -146,30 +148,14 @@ function getSelectedCode(document: TextDocument, range: Range): string {
  */
 function analyzeSelectedCode(
   selectedCode: string,
-  fullText: string,
-  range: Range
+  symbols: PikeSymbol[]
 ): { parameters: string[]; returnType: string; returnValue: string | null } {
   const parameters: string[] = [];
   let returnType = 'void';
   let returnValue: string | null = null;
 
-  // Simple analysis: look for local variables used in the selection
-  // that are defined before the selection
-
-  // Get all lines before the selection
-  const linesBefore = fullText.split('\n').slice(0, range.start.line);
-
-  // Find variable declarations before selection
-  const varPattern =
-    /\b(int|string|float|array|mapping|program|function|mixed|object)\s+(\w+)\s*=/g;
-  const definedVars = new Set<string>();
-
-  for (const line of linesBefore) {
-    let match;
-    while ((match = varPattern.exec(line)) !== null) {
-      definedVars.add(match[2]!);
-    }
-  }
+  // Collect variable names from the symbol table
+  const definedVars = collectVariableNames(symbols);
 
   // Check which defined variables are used in the selection
   const usedVars = new Set<string>();
@@ -340,4 +326,36 @@ function findInsertPosition(
   }
 
   return { line: insertLine, character: 0 };
+}
+
+/**
+ * Recursively collect all variable names from the symbol table.
+ * Replaces regex-based variable declaration parsing with symbol-table lookups.
+ */
+function collectVariableNames(symbols: PikeSymbol[]): Set<string> {
+  const names = new Set<string>();
+
+  for (const sym of symbols) {
+    if (sym.kind === 'variable' && sym.name) {
+      names.add(sym.name);
+    }
+    // Method parameters are local variables in scope
+    if (sym.kind === 'method' && 'argNames' in sym) {
+      const method = sym as PikeMethod;
+      for (const argName of method.argNames) {
+        if (argName) {
+          names.add(argName);
+        }
+      }
+    }
+    // Recurse into children (class members, nested scopes)
+    if (sym.children) {
+      const childNames = collectVariableNames(sym.children);
+      for (const name of childNames) {
+        names.add(name);
+      }
+    }
+  }
+
+  return names;
 }
