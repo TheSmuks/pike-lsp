@@ -13,6 +13,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CodeActionKind } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
+import type { DocumentCacheEntry } from '../../core/types.js';
+
 // ---------------------------------------------------------------------------
 // Import the module under test.
 // Internal helpers are not exported so we test them indirectly through
@@ -29,25 +31,47 @@ function doc(source: string, uri = 'file:///test.pike'): TextDocument {
   return TextDocument.create(uri, 'pike', 1, source);
 }
 
-/** Build PikeSymbol[] with variable children. */
-function vars(...names: string[]): PikeSymbol[] {
-  return names.map(name => ({
-    name,
-    kind: 'variable',
-    children: [],
-  }));
+/** Build a minimal DocumentCacheEntry with the given variable names. */
+function cachedWithVars(...names: string[]): DocumentCacheEntry {
+  return {
+    version: 1,
+    symbols: names.map(name => ({
+      name,
+      kind: 'variable' as const,
+      children: [],
+    })),
+    diagnostics: [],
+    symbolPositions: new Map(),
+    symbolNames: new Map(
+      names.map(name => [name, { name, kind: 'variable' as const, children: [] }])
+    ),
+    contentHash: '',
+    lineHashes: [],
+    analysisState: { isStale: false, parseFailed: false },
+  };
 }
 
-/** Build a PikeSymbol for a method with argNames. */
-function method(name: string, argNames: (string | null)[]): PikeSymbol {
-  return {
-    name,
+/** Build a DocumentCacheEntry with a method that has argNames. */
+function cachedWithMethod(methodName: string, argNames: (string | null)[]): DocumentCacheEntry {
+  const method: PikeSymbol = {
+    name: methodName,
     kind: 'method',
     children: [],
     argNames,
     argTypes: argNames.map(() => 'mixed'),
     returnType: 'void',
   } as PikeSymbol;
+
+  return {
+    version: 1,
+    symbols: [method],
+    diagnostics: [],
+    symbolPositions: new Map(),
+    symbolNames: new Map([[methodName, method]]),
+    contentHash: '',
+    lineHashes: [],
+    analysisState: { isStale: false, parseFailed: false },
+  };
 }
 
 /** Extract the replacement text (first edit) from a CodeAction. */
@@ -86,7 +110,7 @@ describe('Extract Method — comment/string false positives', () => {
       range,
       code,
       undefined,
-      vars('count')
+      cachedWithVars('count')
     );
     assert.ok(result, 'Should return an action');
 
@@ -120,7 +144,7 @@ describe('Extract Method — comment/string false positives', () => {
       range,
       code,
       undefined,
-      vars('name')
+      cachedWithVars('name')
     );
     assert.ok(result, 'Should return an action');
 
@@ -160,7 +184,7 @@ describe('Extract Method — comment/string false positives', () => {
       range,
       code,
       undefined,
-      vars('data')
+      cachedWithVars('data')
     );
     assert.ok(result, 'Should return an action');
 
@@ -192,7 +216,7 @@ describe('Extract Method — return statement handling', () => {
       range,
       code,
       undefined,
-      vars('x')
+      cachedWithVars('x')
     );
     assert.ok(result, 'Should return an action');
 
@@ -224,7 +248,7 @@ describe('Extract Method — return statement handling', () => {
       range,
       code,
       undefined,
-      vars('x')
+      cachedWithVars('x')
     );
     assert.ok(result, 'Should return an action');
 
@@ -258,7 +282,7 @@ describe('Extract Method — return statement handling', () => {
       range,
       code,
       undefined,
-      vars('x')
+      cachedWithVars('x')
     );
     assert.ok(result, 'Should return an action');
 
@@ -278,14 +302,16 @@ describe('Extract Method — return statement handling', () => {
       end: { line: 1, character: 26 },
     };
 
-    const result = getExtractMethodAction(
-      document,
-      'file:///test.pike',
-      range,
-      code,
-      undefined,
-      []
-    );
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
     assert.ok(result, 'Should return an action');
 
     // The inserted function should have a string return type
@@ -311,7 +337,16 @@ describe('Extract Method — basic functionality', () => {
       end: { line: 1, character: 4 }, // empty selection
     };
 
-    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined);
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
     assert.equal(result, null, 'Should return null for empty selection');
   });
 
@@ -326,7 +361,16 @@ describe('Extract Method — basic functionality', () => {
       end: { line: 1, character: 19 },
     };
 
-    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined);
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
     assert.ok(result, 'Should return an action');
     assert.equal(result!.kind, CodeActionKind.RefactorExtract);
     assert.ok(result!.edit, 'Should have an edit');
@@ -347,15 +391,13 @@ describe('Extract Method — basic functionality', () => {
     };
 
     // Simulate method with parameters a and b
-    const symbols: PikeSymbol[] = [method('main', ['a', 'b'])];
-
     const result = getExtractMethodAction(
       document,
       'file:///test.pike',
       range,
       code,
       undefined,
-      symbols
+      cachedWithMethod('main', ['a', 'b'])
     );
     assert.ok(result, 'Should return an action');
 
@@ -382,7 +424,17 @@ describe('Extract Method — basic functionality', () => {
       'file:///test.pike',
       range,
       code,
-      [CodeActionKind.QuickFix] // excludes refactor.extract
+      [CodeActionKind.QuickFix], // excludes refactor.extract
+      {
+        version: 1,
+        symbols: [],
+        diagnostics: [],
+        symbolPositions: new Map(),
+        symbolNames: new Map(),
+        contentHash: '',
+        lineHashes: [],
+        analysisState: { isStale: false, parseFailed: false },
+      }
     );
     assert.equal(result, null, 'Should return null when filter excludes refactor');
   });

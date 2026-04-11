@@ -515,7 +515,7 @@ export function registerCodeActionsHandler(
                 params.range,
                 text,
                 onlyKinds,
-                cached.symbols
+                cached
               );
               if (extractMethodAction) {
                 result.push(extractMethodAction);
