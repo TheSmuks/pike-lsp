@@ -13,6 +13,7 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
+import { hasMarkers } from '../roxen/index.js';
 import { isPikeIdentifierStart, isPikeIdentifierChar } from '../utils/pike-identifier.js';
 
 export interface SemanticAnalysisResult {
@@ -266,19 +267,13 @@ function buildDefinedSymbolSet(
 }
 
 function detectRoxenModule(text: string, symbols: PikeSymbol[]): boolean {
-  // String-based detection (no regex, ADR-001 compliant)
-  const roxenStrings = [
-    'inherit "roxen"',
-    "inherit 'roxen'",
-    'inherit "Roxen"',
-    "inherit 'Roxen'",
-    'MODULE_',
-    'ID_DEFINED',
-    'ID_RUNTIME',
-    'VERSION_',
-  ];
+  if (hasMarkers(text)) return true;
 
-  for (const marker of roxenStrings) {
+  // Additional Roxen markers not covered by hasMarkers (which focuses on
+  // structural markers for bridge detection; these are looser heuristics
+  // for semantic analysis where false positives are harmless)
+  const extraMarkers = ['MODULE_', 'ID_DEFINED', 'ID_RUNTIME', 'VERSION_'];
+  for (const marker of extraMarkers) {
     if (text.includes(marker)) return true;
   }
 
