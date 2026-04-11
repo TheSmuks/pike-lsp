@@ -65,7 +65,7 @@ function isWordChar(c: number): boolean {
   );
 }
 
-function hasMarkers(code: string): boolean {
+export function hasMarkers(code: string): boolean {
   const hasRoxenInheritance =
     code.includes('inherit "module"') ||
     code.includes("inherit 'module'") ||
