@@ -31,6 +31,22 @@ function createMockServices(options: {
     roxenDetect: async () => ({ is_roxen_module: 0 }),
     resolveInclude: async () => options.includeResult ?? { exists: false },
     resolveImport: async () => options.importResult ?? { exists: false },
+    // Extract imports from source — returns include at line 1 for test documents
+    extractImports: async (code: string) => {
+      const imports: Array<{
+        type: 'include' | 'import' | 'inherit' | 'require';
+        path: string;
+        line: number;
+      }> = [];
+      const lines = code.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+        const m = line.match(/^#include\s+["<]([^">]+)[">]/);
+        if (m) imports.push({ type: 'include', path: m[1], line: i + 1 });
+      }
+      return { imports };
+    },
   } as unknown as RoxenDetectorBridge;
 
   return {
