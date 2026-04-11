@@ -9,6 +9,7 @@ import { Logger } from '@pike-lsp/core';
 import type { RequestScheduler } from './request-scheduler.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { BridgeManager } from './bridge-manager.js';
+import { uriToFsPath } from '../utils/uri-path.js';
 
 const log = new Logger('WorkspaceDiagnostics');
 
@@ -199,11 +200,15 @@ export class WorkspaceDiagnosticsManager {
         requestClass: 'background',
         key: `workspace-diagnostics:${uriList.join(',')}`,
         run: async () => {
-          // Process each file in the batch
+          const fs = await import('node:fs/promises');
+
           for (const item of batch) {
             try {
-              // Quick parse-only analysis for background diagnostics
-              await bridge.analyze('', ['parse', 'diagnostics'], item.uri);
+              // Read file content from disk (unopened files aren't in DocumentCache)
+              const fsPath = uriToFsPath(item.uri);
+              const text = await fs.readFile(fsPath, 'utf-8');
+
+              await bridge.analyze(text, ['parse', 'diagnostics'], item.uri);
             } catch (err) {
               log.debug('Background diagnostic failed', {
                 uri: item.uri,
