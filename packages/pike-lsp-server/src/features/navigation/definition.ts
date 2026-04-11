@@ -17,7 +17,6 @@ import type { ExpressionInfo, PikeSymbol, InheritanceInfo } from '@pike-lsp/pike
 import { readFile } from 'node:fs/promises';
 import { handleDirectiveNavigation } from './definition-directives.js';
 import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
-import { escapeRegExp } from '../rxml/references-provider.js';
 
 const uriDecodeLog = new Logger('Navigation');
 
@@ -652,30 +651,44 @@ async function findSymbolTextInIncludedFiles(
     return null;
   }
 
-  const pattern = new RegExp(`\\b${escapeRegExp(symbolName)}\\b`);
+  // Parse included files via bridge analyze to get real symbol tables
   for (const include of cached.dependencies.includes) {
     try {
+      if (!services.bridge?.bridge) {
+        continue;
+      }
+
       const content = await readFile(include.resolvedPath, 'utf-8');
-      const lines = content.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i] ?? '';
-        const match = line.match(pattern);
-        if (match && match.index !== undefined) {
-          log.debug('Definition: found text symbol in included file', {
-            symbolName,
-            filePath: include.resolvedPath,
-            line: i,
-            character: match.index,
-          });
-          return {
-            filePath: include.resolvedPath,
-            line: i,
-            character: match.index,
-          };
-        }
+      const response = await services.bridge.bridge.analyze(
+        content,
+        ['parse'],
+        include.resolvedPath
+      );
+
+      const symbols = response.result?.parse?.symbols;
+      if (!symbols) {
+        continue;
+      }
+
+      const matched = symbols.find(s => s.name === symbolName && s.position);
+      if (matched?.position) {
+        // Pike positions are 1-based; LSP uses 0-based
+        const line = Math.max(0, (matched.position.line ?? 1) - 1);
+        const character = Math.max(0, (matched.position.column ?? 1) - 1);
+        log.debug('Definition: found symbol in included file via bridge parse', {
+          symbolName,
+          filePath: include.resolvedPath,
+          line,
+          character,
+        });
+        return {
+          filePath: include.resolvedPath,
+          line,
+          character,
+        };
       }
     } catch (err) {
-      log.debug('Definition: failed to scan included file content', {
+      log.debug('Definition: failed to parse included file', {
         includePath: include.resolvedPath,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -697,37 +710,58 @@ async function findSymbolInDirectIncludes(
     return null;
   }
 
-  const source = document.getText();
-  const includeRegex = /^#include\s+["<]([^">]+)[">]/gm;
-  const symbolRegex = new RegExp(`\\b${escapeRegExp(symbolName)}\\b`);
-  const currentFilePath = uriToFilePath(uri);
+  // Parse #include directives via bridge extractImports instead of regex
+  let imports: Awaited<ReturnType<typeof services.bridge.bridge.extractImports>>;
+  try {
+    imports = await services.bridge.bridge.extractImports(document.getText(), uriToFilePath(uri));
+  } catch (err) {
+    log.debug('Definition: failed to extract imports', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 
-  let includeMatch = includeRegex.exec(source);
-  while (includeMatch) {
-    const includePath = includeMatch[1] ?? '';
+  const includePaths = imports.imports
+    .filter(imp => imp.type === 'include')
+    .map(imp => imp.path ?? '');
+
+  for (const includePath of includePaths) {
+    if (!includePath) continue;
+
     try {
-      const resolved = await services.bridge.bridge.resolveInclude(includePath, currentFilePath);
-      if (resolved.exists && resolved.path) {
-        const includeContent = await readFile(resolved.path, 'utf-8');
-        const lines = includeContent.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i] ?? '';
-          const symbolMatch = line.match(symbolRegex);
-          if (symbolMatch && symbolMatch.index !== undefined) {
-            log.debug('Definition: resolved symbol through direct include', {
-              symbolName,
-              includePath,
-              resolvedPath: resolved.path,
-              line: i,
-              character: symbolMatch.index,
-            });
-            return {
-              filePath: resolved.path,
-              line: i,
-              character: symbolMatch.index,
-            };
-          }
-        }
+      const resolved = await services.bridge.bridge.resolveInclude(includePath, uriToFilePath(uri));
+      if (!resolved.exists || !resolved.path) {
+        continue;
+      }
+
+      const includeContent = await readFile(resolved.path, 'utf-8');
+      const response = await services.bridge.bridge.analyze(
+        includeContent,
+        ['parse'],
+        resolved.path
+      );
+
+      const symbols = response.result?.parse?.symbols;
+      if (!symbols) {
+        continue;
+      }
+
+      const matched = symbols.find(s => s.name === symbolName && s.position);
+      if (matched?.position) {
+        const line = Math.max(0, (matched.position.line ?? 1) - 1);
+        const character = Math.max(0, (matched.position.column ?? 1) - 1);
+        log.debug('Definition: resolved symbol through direct include via bridge parse', {
+          symbolName,
+          includePath,
+          resolvedPath: resolved.path,
+          line,
+          character,
+        });
+        return {
+          filePath: resolved.path,
+          line,
+          character,
+        };
       }
     } catch (err) {
       log.debug('Definition: include traversal failed', {
@@ -735,8 +769,6 @@ async function findSymbolInDirectIncludes(
         error: err instanceof Error ? err.message : String(err),
       });
     }
-
-    includeMatch = includeRegex.exec(source);
   }
 
   return null;
