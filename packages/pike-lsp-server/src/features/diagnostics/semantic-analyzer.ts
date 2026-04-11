@@ -266,22 +266,24 @@ function buildDefinedSymbolSet(
 }
 
 function detectRoxenModule(text: string, symbols: PikeSymbol[]): boolean {
-  const roxenPatterns = [
-    /inherit\s+["']?roxen/,
-    /inherit\s+["']?Roxen/,
-    /MODULE_/,
-    /ID_(DEFINED|RUNTIME)/,
-    /VERSION_/,
+  // String-based detection (no regex, ADR-001 compliant)
+  const roxenStrings = [
+    'inherit "roxen"',
+    "inherit 'roxen'",
+    'inherit "Roxen"',
+    "inherit 'Roxen'",
+    'MODULE_',
+    'ID_DEFINED',
+    'ID_RUNTIME',
+    'VERSION_',
   ];
 
-  for (const pattern of roxenPatterns) {
-    if (pattern.test(text)) {
-      return true;
-    }
+  for (const marker of roxenStrings) {
+    if (text.includes(marker)) return true;
   }
 
   for (const sym of symbols) {
-    if (sym.name && /^register_/.test(sym.name)) {
+    if (sym.name && sym.name.startsWith('register_')) {
       return true;
     }
   }
