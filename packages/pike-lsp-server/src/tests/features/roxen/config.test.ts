@@ -369,6 +369,40 @@ describe('Error Cases', () => {
   });
 });
 
+describe('Inherit detection: no false positives from comments/strings', () => {
+  it('should not detect inherit inside a single-line comment', () => {
+    const code = '// inherit "module";\nint x = 1;';
+    const result = parseRoxenConfig(code);
+    assert.strictEqual(result.isInheritModule, false, 'Comment inherit should be ignored');
+  });
+
+  it('should not detect inherit inside a multi-line comment', () => {
+    const code = '/* inherit "module"; */\nint x = 1;';
+    const result = parseRoxenConfig(code);
+    assert.strictEqual(result.isInheritModule, false, 'ML comment inherit should be ignored');
+  });
+
+  it('should not detect inherit inside a string literal', () => {
+    const code = 'string s = "inherit \\"module\\";";\nint x = 1;';
+    const result = parseRoxenConfig(code);
+    assert.strictEqual(result.isInheritModule, false, 'String inherit should be ignored');
+  });
+
+  it('should not detect inherit "roxen" inside a comment', () => {
+    const code = '// inherit "roxen";\nint x = 1;';
+    const result = parseRoxenConfig(code);
+    assert.strictEqual(result.isInheritModule, false, 'Comment roxen inherit should be ignored');
+  });
+
+  it('should detect real inherit alongside comments', () => {
+    const code =
+      '// This module inherits module\ninherit "module";\nconstant module_type = MODULE_TAG;';
+    const result = parseRoxenConfig(code);
+    assert.strictEqual(result.isInheritModule, true, 'Real inherit should be detected');
+    assert.strictEqual(result.moduleType, 'MODULE_TAG');
+  });
+});
+
 describe('Validation Error Reporting', () => {
   it('should provide correct line and column for errors', () => {
     const code = 'defvar("x", "X", TYPE_BAD, "Doc", 0);';
