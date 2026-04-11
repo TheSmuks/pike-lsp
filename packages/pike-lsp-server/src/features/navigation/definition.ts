@@ -15,11 +15,10 @@ import { handleDirectiveNavigation } from './definition-directives.js';
 import { getWordAtPositionGeneric } from '../utils/pike-identifier.js';
 import {
   findSymbolAtPosition,
-  findSymbolInIncludedFiles,
-  findSymbolInWorkspaceCache,
-  findSymbolTextInIncludedFiles,
   findSymbolInDirectIncludes,
+  findSymbolInWorkspaceCache,
 } from './definition-symbol-lookup.js';
+import type { IncludeSymbolMatch } from './definition-symbol-lookup.js';
 import { findReferencesForSymbol } from './definition-references.js';
 import {
   resolveModulePath,
@@ -27,6 +26,21 @@ import {
   resolveModuleMember,
 } from './definition-resolution.js';
 import { resolveOnDefinitionImport } from './definition-import-resolution.js';
+
+/**
+ * Convert an include match to an LSP Location.
+ */
+function includeMatchToLocation(match: IncludeSymbolMatch): Location {
+  const uri = match.filePath.startsWith('file://') ? match.filePath : `file://${match.filePath}`;
+  return {
+    uri,
+    range: {
+      start: { line: match.line, character: match.character },
+      end: { line: match.line, character: match.character + match.nameLength },
+    },
+  };
+}
+
 /**
  * Register definition handlers.
  */
@@ -106,6 +120,7 @@ export function registerDefinitionHandlers(
 
       const wordAtCursor = getWordAtPositionGeneric(document, params.position);
       if (wordAtCursor) {
+        // Resolve include dependencies on-demand if not yet cached
         if (!cached.dependencies && services.includeResolver) {
           try {
             cached.dependencies = await services.includeResolver.resolveDependencies(
@@ -119,76 +134,28 @@ export function registerDefinitionHandlers(
           }
         }
 
-        const includedSymbol = findSymbolInIncludedFiles(wordAtCursor, cached, services, log);
-        if (includedSymbol) {
-          const targetUri = includedSymbol.filePath.startsWith('file://')
-            ? includedSymbol.filePath
-            : `file://${includedSymbol.filePath}`;
-          const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
-
+        // Search include dependencies for the symbol (cache first, then on-demand)
+        const includeMatch = await findSymbolInDirectIncludes(wordAtCursor, uri, services, log);
+        if (includeMatch) {
           log.debug('Definition: navigating to included symbol', {
             symbolName: wordAtCursor,
-            filePath: includedSymbol.filePath,
-            line,
+            filePath: includeMatch.filePath,
+            line: includeMatch.line,
           });
-
-          return {
-            uri: targetUri,
-            range: {
-              start: { line, character: 0 },
-              end: { line, character: (includedSymbol.symbol.name || '').length },
-            },
-          };
+          return includeMatchToLocation(includeMatch);
         }
 
-        const includedTextMatch = await findSymbolTextInIncludedFiles(
-          wordAtCursor,
-          cached,
-          services,
-          log
-        );
-        if (includedTextMatch) {
-          return {
-            uri: includedTextMatch.filePath.startsWith('file://')
-              ? includedTextMatch.filePath
-              : `file://${includedTextMatch.filePath}`,
-            range: {
-              start: { line: includedTextMatch.line, character: includedTextMatch.character },
-              end: {
-                line: includedTextMatch.line,
-                character: includedTextMatch.character + wordAtCursor.length,
-              },
-            },
-          };
-        }
-
-        const directIncludeMatch = await findSymbolInDirectIncludes(
-          wordAtCursor,
-          document,
-          uri,
-          services,
-          log
-        );
-        if (directIncludeMatch) {
-          return {
-            uri: directIncludeMatch.filePath.startsWith('file://')
-              ? directIncludeMatch.filePath
-              : `file://${directIncludeMatch.filePath}`,
-            range: {
-              start: { line: directIncludeMatch.line, character: directIncludeMatch.character },
-              end: {
-                line: directIncludeMatch.line,
-                character: directIncludeMatch.character + wordAtCursor.length,
-              },
-            },
-          };
+        // Fallback: search full workspace cache
+        const workspaceDefinition = findSymbolInWorkspaceCache(wordAtCursor, uri, documentCache);
+        if (workspaceDefinition) {
+          return workspaceDefinition;
         }
       }
 
       // Fallback to local symbol lookup
       const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
 
-      // If not found locally, search in included files
+      // If not found locally, search workspace cache with extracted word
       if (!symbol || !symbol.position) {
         // Ensure dependencies are resolved (on-demand resolution)
         if (!cached.dependencies && services.includeResolver) {
@@ -204,31 +171,12 @@ export function registerDefinitionHandlers(
           }
         }
 
-        // Extract the word at cursor position
         const word = getWordAtPositionGeneric(document, params.position);
 
         if (word) {
-          const includedSymbol = findSymbolInIncludedFiles(word, cached, services, log);
-          if (includedSymbol) {
-            // Found symbol in included file - return its location
-            const targetUri = includedSymbol.filePath.startsWith('file://')
-              ? includedSymbol.filePath
-              : `file://${includedSymbol.filePath}`;
-            const line = Math.max(0, (includedSymbol.symbol.position?.line ?? 1) - 1);
-
-            log.debug('Definition: navigating to symbol from included file', {
-              symbolName: word,
-              filePath: includedSymbol.filePath,
-              line,
-            });
-
-            return {
-              uri: targetUri,
-              range: {
-                start: { line, character: 0 },
-                end: { line, character: (includedSymbol.symbol.name || '').length },
-              },
-            };
+          const includeMatch = await findSymbolInDirectIncludes(word, uri, services, log);
+          if (includeMatch) {
+            return includeMatchToLocation(includeMatch);
           }
 
           const workspaceDefinition = findSymbolInWorkspaceCache(word, uri, documentCache);
