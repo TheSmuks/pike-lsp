@@ -38,26 +38,53 @@ export async function handleDirectiveNavigation(
 
   const filePath = uriToFsPath(uri);
 
-  // Handle #include directives
-  const includeMatch = lineText.match(/^#include\s+["<]([^">]+)[">]/);
-  if (includeMatch && services.bridge?.bridge) {
-    const includePath = includeMatch[1] ?? '';
-    log.debug('Definition: directive include navigation', { includePath });
+  // Handle #include directives — use cached symbols or bridge.extractImports instead of regex
+  if (lineText.startsWith('#include') && services.bridge?.bridge) {
+    let includePath: string | undefined;
 
-    try {
-      const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
-      if (result.exists && result.path) {
-        return {
-          uri: `file://${result.path}`,
-          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-        };
+    // Try cached symbols first (already parsed by Parser.Pike)
+    if (cached.symbols) {
+      const includeSymbol = cached.symbols.find(
+        s => s.kind === 'include' && s.position && s.position.line - 1 === position.line
+      );
+      if (includeSymbol) {
+        includePath = includeSymbol.classname || includeSymbol.name;
       }
-    } catch (err) {
-      log.debug('Definition: include resolution failed', {
-        includePath,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
+
+    // Fall back to bridge.extractImports for a fresh parse
+    if (!includePath) {
+      try {
+        const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
+        const lineInclude = imports.imports.find(
+          imp => imp.type === 'include' && imp.line - 1 === position.line
+        );
+        includePath = lineInclude?.path;
+      } catch (err) {
+        log.debug('Definition: failed to extract imports', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (includePath) {
+      log.debug('Definition: directive include navigation', { includePath });
+      try {
+        const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
+        if (result.exists && result.path) {
+          return {
+            uri: `file://${result.path}`,
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+          };
+        }
+      } catch (err) {
+        log.debug('Definition: include resolution failed', {
+          includePath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     return null;
   }
 
