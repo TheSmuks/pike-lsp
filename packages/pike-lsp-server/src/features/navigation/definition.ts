@@ -140,88 +140,87 @@ export function registerDefinitionHandlers(
           }
         }
       }
-
-      const wordAtCursor = getWordAtPositionGeneric(document, params.position);
-      if (wordAtCursor) {
-        // Resolve include dependencies on-demand if not yet cached
-        await ensureDependenciesResolved(uri, cached);
-
-        // Search include dependencies for the symbol (cache first, then on-demand)
-        const includeMatch = await findSymbolInDirectIncludes(wordAtCursor, uri, services, log);
-        if (includeMatch) {
-          log.debug('Definition: navigating to included symbol', {
-            symbolName: wordAtCursor,
-            filePath: includeMatch.filePath,
-            line: includeMatch.line,
-          });
-          return includeMatchToLocation(includeMatch);
-        }
-
-        // Fallback: search full workspace cache
-        const workspaceDefinition = findSymbolInWorkspaceCache(wordAtCursor, uri, documentCache);
-        if (workspaceDefinition) {
-          return workspaceDefinition;
-        }
-      }
-
-      // Fallback to local symbol lookup
+      // Try local symbol lookup first (fast, same-file)
       const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
 
-      if (!symbol || !symbol.position) {
-        // wordAtCursor + include/workspace search was already performed above.
-        return null;
-      }
-      // Check if we're clicking ON the definition itself
-      // Pike uses 1-based lines, LSP uses 0-based
-      const symbolLine = (symbol.position.line ?? 1) - 1;
-      const isOnDefinition = symbolLine === params.position.line;
+      if (symbol && symbol.position) {
+        // Check if we're clicking ON the definition itself
+        // Pike uses 1-based lines, LSP uses 0-based
+        const symbolLine = (symbol.position.line ?? 1) - 1;
+        const isOnDefinition = symbolLine === params.position.line;
 
-      if (isOnDefinition) {
-        // If this is an import, include, or inherit, navigate to the target module/file
-        if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
-          const importResult = await resolveOnDefinitionImport(
-            symbol,
-            document,
-            uri,
-            cached,
-            services,
-            log
-          );
-          if (importResult) {
-            return importResult;
+        if (isOnDefinition) {
+          // If this is an import, include, or inherit, navigate to the target module/file
+          if (symbol.kind === 'import' || symbol.kind === 'include' || symbol.kind === 'inherit') {
+            const importResult = await resolveOnDefinitionImport(
+              symbol,
+              document,
+              uri,
+              cached,
+              services,
+              log
+            );
+            if (importResult) {
+              return importResult;
+            }
           }
+
+          // User clicked on a definition - show references instead
+          log.debug('Definition: cursor on definition, returning references', {
+            symbol: symbol.name,
+          });
+
+          const references = findReferencesForSymbol(
+            symbol.name,
+            uri,
+            document,
+            cached,
+            documentCache,
+            documents
+          );
+
+          if (references.length > 0) {
+            return references;
+          }
+          // No references found, return null (nothing to show)
+          return null;
         }
 
-        // User clicked on a definition - show references instead
-        log.debug('Definition: cursor on definition, returning references', {
-          symbol: symbol.name,
-        });
-
-        const references = findReferencesForSymbol(
-          symbol.name,
+        // Normal case: return location of symbol definition
+        const line = Math.max(0, symbolLine);
+        return {
           uri,
-          document,
-          cached,
-          documentCache,
-          documents
-        );
+          range: {
+            start: { line, character: 0 },
+            end: { line, character: (symbol.name || symbol.classname || '').length },
+          },
+        };
+      }
 
-        if (references.length > 0) {
-          return references;
-        }
-        // No references found, return null (nothing to show)
+      // No local symbol found — try cross-file lookup via word at cursor
+      const wordAtCursor = getWordAtPositionGeneric(document, params.position);
+      if (!wordAtCursor) {
         return null;
       }
 
-      // Normal case: return location of symbol definition
-      const line = Math.max(0, symbolLine);
-      return {
-        uri,
-        range: {
-          start: { line, character: 0 },
-          end: { line, character: (symbol.name || symbol.classname || '').length },
-        },
-      };
+      await ensureDependenciesResolved(uri, cached);
+
+      const includeMatch = await findSymbolInDirectIncludes(wordAtCursor, uri, services, log);
+      if (includeMatch) {
+        log.debug('Definition: navigating to included symbol', {
+          symbolName: wordAtCursor,
+          filePath: includeMatch.filePath,
+          line: includeMatch.line,
+        });
+        return includeMatchToLocation(includeMatch);
+      }
+
+      const workspaceDefinition = findSymbolInWorkspaceCache(wordAtCursor, uri, documentCache);
+      if (workspaceDefinition) {
+        return workspaceDefinition;
+      }
+
+      return null;
     } catch (err) {
       log.error(
         `Definition failed for ${params.textDocument.uri} at line ${params.position.line + 1}, col ${params.position.character}: ${err instanceof Error ? err.message : String(err)}`
