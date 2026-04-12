@@ -136,7 +136,10 @@ export function registerInlineValuesHandler(
           }
         }
 
-        // For each variable, find its value by evaluating initializers
+        // Need bridge for evaluation
+        const bridge = services.bridge?.bridge;
+        if (!bridge) return null;
+
         for (const variable of variables) {
           // Skip private variables
           if (variable.modifiers?.includes('private')) {
@@ -154,31 +157,22 @@ export function registerInlineValuesHandler(
             continue;
           }
 
-          // Try to find the variable's value expression from the source
-          // Line numbers from Pike are 1-indexed, array is 0-indexed
-          const lines = text.split('\n');
-          const lineIndex = varLine - 1;
-          if (lineIndex < 0 || lineIndex >= lines.length) continue;
+          // Extract value expression using symbol ranges from parsed AST.
+          // selectionRange covers the variable name; the value is everything
+          // between the name end and the declaration end, minus = and ;.
+          const selEnd = variable.selectionRange?.end;
+          if (!selEnd) continue;
 
-          const line = lines[lineIndex];
-          if (!line) continue;
-
-          // Look for pattern: type name = value;
-          const assignMatch = line.match(/=\s*([^;]+);?\s*$/);
-          if (!assignMatch || !assignMatch[1]) continue;
-
-          const valueExpr = assignMatch[1]?.trim() ?? '';
+          const valueExpr = extractValueExpr(text, selEnd, variable.range.end);
+          if (!valueExpr) continue;
 
           // Skip complex expressions that can't be evaluated
-          if (valueExpr.includes('(') && !valueExpr.match(/^["'\[\{0-9]/)) {
+          if (valueExpr.includes('(') && !valueExpr.match(/^["'[\[{0-9]/)) {
             continue;
           }
 
           // Try to evaluate the constant expression
           try {
-            const bridge = services.bridge?.bridge;
-            if (!bridge) continue;
-
             const result = await bridge.evaluateConstant(valueExpr, document.uri);
 
             if (result.success && result.value !== undefined) {
@@ -210,4 +204,40 @@ export function registerInlineValuesHandler(
       }
     }
   );
+}
+
+/**
+ * Extract the value expression from a Pike constant/variable declaration.
+ * Uses the parsed symbol's selectionRange (name end) and range (declaration end)
+ * to slice the source text, correctly handling semicolons in strings,
+ * multi-line expressions, and nested structures.
+ */
+function extractValueExpr(
+  text: string,
+  nameEnd: { line: number; character: number },
+  declEnd: { line: number; character: number }
+): string | null {
+  // Convert Pike 1-indexed lines to 0-indexed for TextDocument offset
+  const lines = text.split('\n');
+  const startLine = nameEnd.line - 1;
+  const endLine = declEnd.line - 1;
+  if (startLine < 0 || endLine >= lines.length || startLine > endLine) return null;
+
+  let raw = '';
+  if (startLine === endLine) {
+    raw = lines[startLine]!.slice(nameEnd.character, declEnd.character);
+  } else {
+    raw = lines[startLine]!.slice(nameEnd.character);
+    for (let i = startLine + 1; i < endLine; i++) {
+      raw += '\n' + lines[i]!;
+    }
+    raw += '\n' + lines[endLine]!.slice(0, declEnd.character);
+  }
+
+  // Strip leading = and trailing ; whitespace
+  const trimmed = raw
+    .replace(/^=\s*/, '')
+    .replace(/\s*;\s*$/, '')
+    .trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
