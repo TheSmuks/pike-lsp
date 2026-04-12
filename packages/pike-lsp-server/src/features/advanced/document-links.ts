@@ -105,6 +105,31 @@ export function registerDocumentLinksHandler(
             tooltip: `${includePath} → ${inc.resolvedPath}`,
           });
         }
+      } else if (cached?.symbols) {
+        // Second fallback: resolve includes from cached symbol entries via filesystem.
+        // Used when bridge and cached dependencies are both unavailable.
+        for (const sym of cached.symbols) {
+          if (sym.kind !== 'include' || !sym.name) continue;
+
+          const link = resolveIncludePath(sym.name, documentDir, services.includePaths);
+          if (!link) continue;
+
+          const lineNum = findLineContaining(lines, sym.name);
+          if (lineNum === -1) continue;
+
+          const line = lines[lineNum] ?? '';
+          const pathStart = line.indexOf(sym.name);
+          if (pathStart === -1) continue;
+
+          links.push({
+            range: {
+              start: { line: lineNum, character: pathStart },
+              end: { line: lineNum, character: pathStart + sym.name.length },
+            },
+            target: link.target,
+            tooltip: link.tooltip,
+          });
+        }
       }
 
       // Generate inherit links from cached introspection data (not regex).
