@@ -17,7 +17,9 @@ import {
   isIntegerLiteral,
   isFloatLiteral,
   getLeadingWhitespace,
+  tokenizeCode,
 } from './extract-method-utils.js';
+import type { CodeToken } from './extract-method-utils.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
 /**
@@ -157,8 +159,8 @@ function getSelectedCode(document: TextDocument, range: Range): string {
 
 /**
  * Analyze selected code to determine parameters and return value.
- * Uses symbol-table variable names, type data, and code-stripping to avoid
- * false matches inside comments and string literals.
+ * Uses symbol-table variable names, type data, and token-based scanning
+ * to avoid false matches inside comments and string literals.
  */
 function analyzeSelectedCode(
   selectedCode: string,
@@ -185,55 +187,76 @@ function analyzeSelectedCode(
   // Add used variables as parameters
   parameters.push(...usedVars);
 
-  // Detect return statements using structured search.
-  // We search the stripped code for the 'return' keyword position to confirm
-  // it's real code (not a comment/string), but extract the expression from
-  // the original code to preserve literals for type inference.
-  const returnInfo = detectReturnStatement(selectedCode, strippedCode);
+  // Detect return statements using token-based AST walk.
+  const tokens = tokenizeCode(selectedCode);
+  const returnInfo = detectReturnStatement(selectedCode, tokens);
   if (returnInfo) {
     returnValue = returnInfo.value;
-    returnType = inferReturnType(returnValue, varTypes, cached);
+    returnType = inferReturnType(returnInfo.firstExprToken, returnValue, varTypes, cached);
   }
 
   return { parameters, returnType, returnValue };
 }
 
 /**
- * Detect a return statement in code.
- * Uses `strippedCode` to locate the 'return' keyword (immune to matches in
- * comments/strings), but extracts the expression from `originalCode` so that
- * string literal delimiters are preserved for type inference.
+ * Detect a return statement by walking tokens from the lightweight lexer.
+ * Finds a `return` keyword token that is NOT inside a comment or string
+ * (the tokenizer already separates those), then collects expression tokens
+ * until a semicolon.
  *
- * @param originalCode - The raw selected code (unstripped).
- * @param strippedCode - The same code with comments/strings replaced by spaces.
+ * @param code   - The raw selected code.
+ * @param tokens - Tokens produced by `tokenizeCode(code)`.
  */
 function detectReturnStatement(
-  originalCode: string,
-  strippedCode: string
-): { value: string } | null {
-  const returnIdx = strippedCode.indexOf('return');
+  code: string,
+  tokens: CodeToken[]
+): { value: string; firstExprToken: CodeToken | null } | null {
+  // Find the first 'return' keyword token
+  const returnIdx = tokens.findIndex(t => t.kind === 'keyword' && t.text === 'return');
   if (returnIdx === -1) return null;
 
-  // Locate the expression bounds in stripped code to avoid comment/string matches,
-  // then extract the corresponding span from original code for accurate content.
-  const strippedAfterReturn = strippedCode.substring(returnIdx + 'return'.length);
-  const semiIdx = strippedAfterReturn.indexOf(';');
+  // Collect expression tokens after 'return' until ';'
+  const exprStart = returnIdx + 1;
+  const exprTokens: CodeToken[] = [];
+  let semiIdx = -1;
+
+  for (let j = exprStart; j < tokens.length; j++) {
+    const tok = tokens[j]!;
+    if (tok.kind === 'punctuation' && tok.text === ';') {
+      semiIdx = j;
+      break;
+    }
+    // Skip whitespace and comments — they are not part of the expression
+    if (tok.kind === 'whitespace' || tok.kind === 'comment') continue;
+    exprTokens.push(tok);
+  }
+
   if (semiIdx === -1) return null;
 
-  const value = originalCode
-    .substring(returnIdx + 'return'.length, returnIdx + 'return'.length + semiIdx)
-    .trim();
+  // Use token offsets to extract the exact text from the original code.
+  // This preserves original formatting within the expression span.
+  if (exprTokens.length === 0) return null;
+
+  const firstExpr = exprTokens[0]!;
+  const lastExpr = exprTokens[exprTokens.length - 1]!;
+  const value = code.substring(firstExpr.start, lastExpr.end).trim();
   if (value.length === 0) return null;
 
-  return { value };
+  return { value, firstExprToken: firstExpr };
 }
 
 /**
  * Infer the return type from a return value expression.
- * Uses the symbol table for variable type lookups and PikeType data
- * from the cache instead of regex-based heuristics.
+ * Uses token kind for literal detection, the symbol table for variable
+ * type lookups, and PikeType data from the cache.
+ *
+ * @param firstExprToken - First non-whitespace/non-comment token in the return expression.
+ * @param returnValue    - The return expression text.
+ * @param varTypes       - Map of variable names to their PikeType.
+ * @param cached         - Document cache entry with symbol data.
  */
 function inferReturnType(
+  firstExprToken: CodeToken | null,
   returnValue: string,
   varTypes: Map<string, PikeType | undefined>,
   cached: DocumentCacheEntry
@@ -250,13 +273,21 @@ function inferReturnType(
     return pikeTypeToString(sym.type);
   }
 
-  // Literal string: starts with quote (single or double)
-  if (returnValue.length > 0 && (returnValue[0] === '"' || returnValue[0] === "'")) return 'string';
+  // Use token kind for literal detection — no character-level inspection
+  if (firstExprToken) {
+    if (firstExprToken.kind === 'string') return 'string';
+    if (firstExprToken.kind === 'number') {
+      // Distinguish float vs int by checking the token text
+      const numText = firstExprToken.text;
+      if (numText.includes('.') || numText.includes('e') || numText.includes('E')) {
+        return 'float';
+      }
+      return 'int';
+    }
+  }
 
-  // Literal integer: decimal, hex (0x...), or octal (0...)
+  // Fallback literal checks for compound expressions or negative literals
   if (isIntegerLiteral(returnValue)) return 'int';
-
-  // Literal float: contains a decimal point or scientific notation
   if (isFloatLiteral(returnValue)) return 'float';
 
   return 'mixed';
