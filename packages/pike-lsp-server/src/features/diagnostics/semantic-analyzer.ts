@@ -13,7 +13,7 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
-import { hasMarkers } from '../roxen/index.js';
+import { isRoxenModuleHeuristic } from '../roxen/index.js';
 import { isPikeIdentifierStart, isPikeIdentifierChar } from '../utils/pike-identifier.js';
 
 export interface SemanticAnalysisResult {
@@ -182,7 +182,7 @@ export function analyzeSemantics(
   const lines = text.split('\n');
 
   const definedSymbols = buildDefinedSymbolSet(symbols, introspection);
-  const isRoxenModule = detectRoxenModule(text, symbols);
+  const isRoxenModule = isRoxenModuleHeuristic(text, symbols);
 
   if (opts.enableUndefinedDetection && tokens && tokens.length > 0) {
     const undefinedDiags = analyzeUndefinedSymbols(
@@ -264,26 +264,6 @@ function buildDefinedSymbolSet(
   }
 
   return defined;
-}
-
-function detectRoxenModule(text: string, symbols: PikeSymbol[]): boolean {
-  if (hasMarkers(text)) return true;
-
-  // Additional Roxen markers not covered by hasMarkers (which focuses on
-  // structural markers for bridge detection; these are looser heuristics
-  // for semantic analysis where false positives are harmless)
-  const extraMarkers = ['MODULE_', 'ID_DEFINED', 'ID_RUNTIME', 'VERSION_'];
-  for (const marker of extraMarkers) {
-    if (text.includes(marker)) return true;
-  }
-
-  for (const sym of symbols) {
-    if (sym.name && sym.name.startsWith('register_')) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function analyzeUndefinedSymbols(

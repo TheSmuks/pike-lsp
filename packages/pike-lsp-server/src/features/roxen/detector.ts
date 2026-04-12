@@ -1,3 +1,4 @@
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { RoxenModuleInfo } from './types.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -84,4 +85,30 @@ export async function detectRoxenModule(
 
 export function invalidateCache(uri: string): void {
   cache.delete(uri);
+}
+
+/**
+ * Heuristic check for whether source text and symbols indicate a Roxen module.
+ * Combines hasMarkers() with looser string/symbol checks used by semantic analysis.
+ * Uses string.includes and startsWith — no regex.
+ */
+export function isRoxenModuleHeuristic(text: string, symbols?: PikeSymbol[]): boolean {
+  if (hasMarkers(text)) return true;
+
+  // Additional markers: looser heuristics for semantic analysis
+  // where false positives are harmless (they just suppress some warnings).
+  const extraMarkers = ['MODULE_', 'ID_DEFINED', 'ID_RUNTIME', 'VERSION_'];
+  for (const marker of extraMarkers) {
+    if (text.includes(marker)) return true;
+  }
+
+  if (symbols) {
+    for (const sym of symbols) {
+      if (sym.name && sym.name.startsWith('register_')) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
