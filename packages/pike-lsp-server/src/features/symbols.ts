@@ -48,6 +48,10 @@ export function convertSymbolKind(kind: string): SymbolKind {
       return SymbolKind.Module;
     case 'module':
       return SymbolKind.Module;
+    case 'macro':
+      return SymbolKind.Constant;
+    case 'program':
+      return SymbolKind.Class;
     default:
       return SymbolKind.Variable;
   }
