@@ -106,6 +106,17 @@ export function invalidateCache(uri: string): void {
 }
 
 /**
+ * Recursively check symbols for a register_ prefixed name.
+ */
+function hasRegisterSymbol(symbols: PikeSymbol[]): boolean {
+  for (const sym of symbols) {
+    if (sym.name && sym.name.startsWith('register_')) return true;
+    if (sym.children && hasRegisterSymbol(sym.children)) return true;
+  }
+  return false;
+}
+
+/**
  * Single source of truth for Roxen module detection.
  *
  * Combines fast text scanning (hasMarkers) with symbol-table inspection
@@ -115,13 +126,7 @@ export function invalidateCache(uri: string): void {
 export function isRoxenModule(text: string, symbols?: PikeSymbol[]): boolean {
   if (hasMarkers(text)) return true;
 
-  if (symbols) {
-    for (const sym of symbols) {
-      if (sym.name && sym.name.startsWith('register_')) {
-        return true;
-      }
-    }
-  }
+  if (symbols && hasRegisterSymbol(symbols)) return true;
 
   return false;
 }
