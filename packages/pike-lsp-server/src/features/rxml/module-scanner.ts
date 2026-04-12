@@ -38,10 +38,14 @@ export interface TagFunctionMatch {
 
 // Canonical regex covering both `simpletag tagName(` and `simpletag_tagName(` forms.
 // Captures: group 1 = separator (space or underscore), group 2 = tag name.
-const SIMPLETAG_PATTERN = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+// Global variants for full-code scanning (findTagFunctionsInCode).
+export const SIMPLETAG_PATTERN = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+export const CONTAINER_PATTERN = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
-const CONTAINER_PATTERN = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-
+// Non-global variants for single-line matching (detectTagFunctions).
+// Same regex body — avoids pattern drift between line-level and code-level scanning.
+const SIMPLETAG_LINE = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
+const CONTAINER_LINE = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
 /**
  * Scan Pike source code for all simpletag and container function declarations.
  *
@@ -164,6 +168,10 @@ export async function extractTagsFromPikeCode(pikeCode: string): Promise<RXMLTag
 /**
  * Detect tag function patterns in Pike code
  *
+ * Uses the canonical SIMPLETAG_PATTERN and CONTAINER_PATTERN to ensure
+ * consistency with findTagFunctionsInCode(). Processes line-by-line to
+ * extract //! doc comments preceding each declaration.
+ *
  * @param code - Pike source code
  * @returns Array of detected tag functions
  */
@@ -178,12 +186,10 @@ function detectTagFunctions(code: string): DetectedTagFunction[] {
     if (!line) continue;
     const trimmed = line.trim();
 
-    // Match using canonical patterns (single-tag per line via trimmed context)
-    const simpleMatch = trimmed.match(
-      /(?:void|mapping|string)\s+simpletag[ _]([A-Za-z_][A-Za-z0-9_]*)\s*\(/
-    );
+    // Use canonical non-global patterns for single-line match with capture groups
+    const simpleMatch = trimmed.match(SIMPLETAG_LINE);
     if (simpleMatch) {
-      const tagName = simpleMatch[1]!;
+      const tagName = simpleMatch[2]!;
       const desc = extractDescription(lines, i);
       tags.push({
         name: tagName,
@@ -193,11 +199,9 @@ function detectTagFunctions(code: string): DetectedTagFunction[] {
       continue;
     }
 
-    const containerMatch = trimmed.match(
-      /(?:void|mapping|string)\s+container[ _]([A-Za-z_][A-Za-z0-9_]*)\s*\(/
-    );
+    const containerMatch = trimmed.match(CONTAINER_LINE);
     if (containerMatch) {
-      const tagName = containerMatch[1]!;
+      const tagName = containerMatch[2]!;
       const desc = extractDescription(lines, i);
       tags.push({
         name: tagName,

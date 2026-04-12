@@ -11,6 +11,8 @@ import {
   extractTagsFromPikeCode,
   findTagFunctionsInCode,
   buildTagPattern,
+  SIMPLETAG_PATTERN,
+  CONTAINER_PATTERN,
 } from '../../features/rxml/module-scanner.js';
 import type { RXMLTagCatalogEntry } from '../../features/rxml/types.js';
 
@@ -352,5 +354,48 @@ string container_html(mapping args, string content) { }
       const code = 'void simpletag other_tag(mapping args) { }';
       expect(pattern.test(code)).toBe(false);
     });
+  });
+});
+
+describe('canonical pattern consistency', () => {
+  it('SIMPLETAG_PATTERN matches both space and underscore forms', () => {
+    const spaceForm = 'void simpletag my_tag(mapping args) { }';
+    const underscoreForm = 'void simpletag_my_tag(mapping args) { }';
+
+    // Reset global regex state before each test
+    SIMPLETAG_PATTERN.lastIndex = 0;
+    expect(SIMPLETAG_PATTERN.test(spaceForm)).toBe(true);
+    SIMPLETAG_PATTERN.lastIndex = 0;
+    expect(SIMPLETAG_PATTERN.test(underscoreForm)).toBe(true);
+  });
+
+  it('CONTAINER_PATTERN matches both space and underscore forms', () => {
+    const spaceForm = 'void container my_cont(mapping args, string c) { }';
+    const underscoreForm = 'void container_my_cont(mapping args, string c) { }';
+
+    CONTAINER_PATTERN.lastIndex = 0;
+    expect(CONTAINER_PATTERN.test(spaceForm)).toBe(true);
+    CONTAINER_PATTERN.lastIndex = 0;
+    expect(CONTAINER_PATTERN.test(underscoreForm)).toBe(true);
+  });
+
+  it('extractTagsFromPikeCode and findTagFunctionsInCode agree on all forms', async () => {
+    const code = [
+      'void simpletag space_tag(mapping args) { }',
+      'void simpletag_underscore_tag(mapping args) { }',
+      'void container space_cont(mapping args, string c) { }',
+      'void container_underscore_cont(mapping args, string c) { }',
+    ].join('\n');
+
+    const catalogEntries = await extractTagsFromPikeCode(code);
+    const matches = findTagFunctionsInCode(code);
+
+    // Both must find the same 4 tags with same names and types
+    expect(catalogEntries).toHaveLength(4);
+    expect(matches).toHaveLength(4);
+
+    const catalogNames = catalogEntries.map(e => `${e.type}:${e.name}`).sort();
+    const matchNames = matches.map(m => `${m.type}:${m.name}`).sort();
+    expect(catalogNames).toEqual(matchNames);
   });
 });
