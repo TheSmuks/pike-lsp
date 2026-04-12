@@ -235,7 +235,7 @@ export async function buildSymbolPositionIndex(
 
   // Fallback: Regex-based search (original implementation)
   // PERF-1229: Pass pre-split lines to avoid re-splitting in fallback
-  return buildSymbolPositionIndexRegex(text, symbols, linesArray);
+  return buildSymbolPositionIndexRegex(text, symbols, linesArray, tokens);
 }
 
 /**
@@ -291,23 +291,70 @@ export function buildCallPositionIndex(
 export function buildSymbolPositionIndexRegex(
   text: string,
   symbols: PikeSymbol[],
-  lines?: string[]
+  lines?: string[],
+  tokens?: PikeToken[]
 ): Map<string, CorePosition[]> {
   const index = new Map<string, CorePosition[]>();
   // PERF-1229: Use pre-split lines if provided, otherwise split once
   const linesArray = lines ?? text.split('\n');
   const exclusions = createLexicalExclusionMap(text);
 
-  // Index all symbol names and their positions
+  // Build set of symbol names and their definition lines for token matching
+  const symbolNames = new Set<string>();
+  const definitionLines = new Map<string, number>();
   for (const symbol of symbols) {
-    // Skip symbols with null names (can occur with certain Pike constructs)
-    if (!symbol.name) {
-      continue;
+    if (!symbol.name) continue;
+    symbolNames.add(symbol.name);
+    const defLine =
+      (symbol as { line?: number; position?: { line?: number } }).line ?? symbol.position?.line;
+    if (defLine !== undefined) {
+      definitionLines.set(symbol.name, defLine);
+    }
+  }
+
+  // Token-based path: use pre-computed Pike tokens for accurate position matching
+  if (tokens && tokens.length > 0) {
+    for (const token of tokens) {
+      if (!symbolNames.has(token.text)) continue;
+      if (token.character < 0) continue;
+
+      const lineIdx = token.line - 1;
+      if (lineIdx < 0 || lineIdx >= linesArray.length) continue;
+
+      const defLine = definitionLines.get(token.text);
+      if (defLine !== undefined && token.line === defLine) continue;
+
+      if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
+
+      const line = linesArray[lineIdx];
+      if (!line) continue;
+
+      // Verify word boundary (tokens may match identifier substrings)
+      const beforeChar = token.character > 0 ? line[token.character - 1] : ' ';
+      const afterChar =
+        token.character + token.text.length < line.length
+          ? line[token.character + token.text.length]
+          : ' ';
+
+      if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
+        const pos: CorePosition = { line: lineIdx, character: token.character };
+        if (!index.has(token.text)) {
+          index.set(token.text, []);
+        }
+        index.get(token.text)!.push(pos);
+      }
     }
 
+    if (index.size > 0) {
+      return index;
+    }
+  }
+
+  // indexOf fallback: scan lines for symbol name occurrences
+  for (const symbol of symbols) {
+    if (!symbol.name) continue;
     const positions: CorePosition[] = [];
 
-    // Search for all occurrences of the symbol name
     for (let lineNum = 0; lineNum < linesArray.length; lineNum++) {
       const line = linesArray[lineNum];
       if (!line) continue;
@@ -322,11 +369,8 @@ export function buildSymbolPositionIndexRegex(
             ? line[matchIndex + symbol.name.length]
             : ' ';
 
-        // Check for word boundary
         if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
           if (!exclusions.isCommentPosition(lineNum, matchIndex)) {
-            // Skip definition line (don't count definition as reference)
-            // Parse symbols have .line, introspection symbols have .position?.line
             const defLine =
               (symbol as { line?: number; position?: { line?: number } }).line ??
               symbol.position?.line;
@@ -336,10 +380,7 @@ export function buildSymbolPositionIndexRegex(
               continue;
             }
 
-            positions.push({
-              line: lineNum,
-              character: matchIndex,
-            });
+            positions.push({ line: lineNum, character: matchIndex });
           }
         }
         searchStart = matchIndex + 1;
