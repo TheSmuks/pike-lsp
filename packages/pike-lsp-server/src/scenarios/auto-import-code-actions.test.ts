@@ -2,7 +2,10 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CodeActionKind, type CodeAction, type Diagnostic } from 'vscode-languageserver/node.js';
-import { registerCodeActionsHandler, type ImportSymbol } from '../features/advanced/code-actions.js';
+import {
+  registerCodeActionsHandler,
+  type ImportSymbol,
+} from '../features/advanced/code-actions.js';
 
 type CodeActionHandler = (params: {
   textDocument: { uri: string };
@@ -66,19 +69,37 @@ function parseImports(code: string): ImportSymbol[] {
       const match = trimmed.match(/^#include\s+<(.+)>/);
       if (match) {
         const name = match[1]!;
-        result.push({ name, kind: 'include', classname: name, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+        result.push({
+          name,
+          kind: 'include',
+          classname: name,
+          modifiers: [],
+          position: { line: i, character: raw.length - trimmed.length },
+        });
       }
     } else if (trimmed.startsWith('import ')) {
       const match = trimmed.match(/^import\s+(\S+)/);
       if (match) {
         const mod = match[1]!.replace(/;$/, '');
-        result.push({ name: mod, kind: 'import', classname: mod, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+        result.push({
+          name: mod,
+          kind: 'import',
+          classname: mod,
+          modifiers: [],
+          position: { line: i, character: raw.length - trimmed.length },
+        });
       }
     } else if (trimmed.startsWith('inherit ')) {
       const match = trimmed.match(/^inherit\s+(\S+)/);
       if (match) {
         const mod = match[1]!.replace(/;$/, '');
-        result.push({ name: mod, kind: 'inherit', classname: mod, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+        result.push({
+          name: mod,
+          kind: 'inherit',
+          classname: mod,
+          modifiers: [],
+          position: { line: i, character: raw.length - trimmed.length },
+        });
       }
     }
   }
