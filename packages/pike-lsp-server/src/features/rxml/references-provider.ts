@@ -24,6 +24,7 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { findTagFunctionsInCode } from './module-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
 const log = new Logger('RXMLReferences');
@@ -95,32 +96,21 @@ async function getTagDeclarationIndex(
 
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const patterns = [
-      /\bsimpletag\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
-      /\bcontainer\s+([A-Za-z_][A-Za-z0-9_]*)\b/g,
-    ];
+    const matches = findTagFunctionsInCode(content);
 
-    for (const pattern of patterns) {
-      let match = pattern.exec(content);
-      while (match !== null) {
-        const matchedTag = match[1];
-        if (matchedTag) {
-          const keyName = matchedTag.toLowerCase();
-          const locations = byTag.get(keyName) ?? [];
-          const position = findPositionForMatch(content, match);
+    for (const m of matches) {
+      const keyName = m.name.toLowerCase();
+      const locations = byTag.get(keyName) ?? [];
+      const position = findPositionForIndex(content, m.index);
 
-          locations.push({
-            uri: fileToUri(file),
-            range: {
-              start: position,
-              end: { line: position.line, character: position.character + matchedTag.length },
-            },
-          });
-          byTag.set(keyName, locations);
-        }
-
-        match = pattern.exec(content);
-      }
+      locations.push({
+        uri: fileToUri(file),
+        range: {
+          start: position,
+          end: { line: position.line, character: position.character + m.name.length },
+        },
+      });
+      byTag.set(keyName, locations);
     }
   }
 
@@ -235,7 +225,7 @@ export async function findDefvarReferences(
           for (const pattern of patterns) {
             let match = pattern.exec(content);
             while (match !== null) {
-              const position = findPositionForMatch(content, match);
+              const position = findPositionForIndex(content, match.index);
               locations.push({
                 uri: fileToUri(file),
                 range: {
@@ -428,12 +418,8 @@ export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function findPositionForMatch(content: string, match: RegExpExecArray): Position {
-  if (match.index === undefined) {
-    return { line: 0, character: 0 };
-  }
-
-  const before = content.substring(0, match.index);
+function findPositionForIndex(content: string, index: number): Position {
+  const before = content.substring(0, index);
   const lines = before.split('\n');
 
   return {

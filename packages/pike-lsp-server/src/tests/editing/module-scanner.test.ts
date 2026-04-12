@@ -7,7 +7,11 @@
 
 import { describe, it, expect } from 'bun:test';
 import assert from 'node:assert/strict';
-import { extractTagsFromPikeCode } from '../../features/rxml/module-scanner.js';
+import {
+  extractTagsFromPikeCode,
+  findTagFunctionsInCode,
+  buildTagPattern,
+} from '../../features/rxml/module-scanner.js';
 import type { RXMLTagCatalogEntry } from '../../features/rxml/types.js';
 
 describe('Module Scanner', () => {
@@ -236,7 +240,7 @@ void container_container_123(mapping args, string content) { }
       expect(result[2].name).toBe('container_123');
     });
 
-    it('should not detect tags with uppercase letters', async () => {
+    it('should detect tags with uppercase and mixed-case names', async () => {
       const pikeCode = `
 void simpletag_UPPERCASE(mapping args) { }
 void simpletag_MixedCase(mapping args) { }
@@ -245,8 +249,23 @@ void simpletag_valid_tag(mapping args) { }
 
       const result = await extractTagsFromPikeCode(pikeCode);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].name).toBe('valid_tag');
+      expect(result).toHaveLength(3);
+      expect(result.map(t => t.name)).toEqual(['UPPERCASE', 'MixedCase', 'valid_tag']);
+    });
+
+    it('should detect space-separated simpletag/container forms', async () => {
+      const pikeCode = `
+void simpletag my_space_tag(mapping args) { }
+void container my_space_container(mapping args, string content) { }
+`;
+
+      const result = await extractTagsFromPikeCode(pikeCode);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('my_space_tag');
+      expect(result[0].type).toBe('simple');
+      expect(result[1].name).toBe('my_space_container');
+      expect(result[1].type).toBe('container');
     });
 
     it('should handle container with string type return', async () => {
@@ -259,6 +278,79 @@ string container_html(mapping args, string content) { }
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('html');
       expect(result[0].type).toBe('container');
+    });
+  });
+
+  describe('findTagFunctionsInCode', () => {
+    it('should find both space and underscore forms', () => {
+      const code = [
+        'void simpletag my_tag(mapping args) { }',
+        'void simpletag_other(mapping args) { }',
+        'void container my_cont(mapping args, string c) { }',
+        'void container_another(mapping args, string c) { }',
+      ].join('\n');
+
+      const matches = findTagFunctionsInCode(code);
+
+      expect(matches).toHaveLength(4);
+      expect(matches[0]).toEqual({ name: 'my_tag', type: 'simple', index: code.indexOf('my_tag') });
+      expect(matches[1]).toEqual({ name: 'other', type: 'simple', index: code.indexOf('other') });
+      expect(matches[2]).toEqual({
+        name: 'my_cont',
+        type: 'container',
+        index: code.indexOf('my_cont'),
+      });
+      expect(matches[3]).toEqual({
+        name: 'another',
+        type: 'container',
+        index: code.indexOf('another'),
+      });
+    });
+
+    it('should return correct byte offsets for tag names', () => {
+      const code = 'void simpletag hello(mapping args) { }';
+      const matches = findTagFunctionsInCode(code);
+
+      expect(matches).toHaveLength(1);
+      // Name offset should point to 'hello' in the source
+      expect(code.substring(matches[0].index, matches[0].index + 5)).toBe('hello');
+    });
+
+    it('should return empty array for code with no tags', () => {
+      const matches = findTagFunctionsInCode('int main() { return 0; }');
+      expect(matches).toHaveLength(0);
+    });
+  });
+
+  describe('buildTagPattern', () => {
+    it('should match space-separated simpletag', () => {
+      const pattern = buildTagPattern('simple', 'my_tag');
+      const code = 'void simpletag my_tag(mapping args) { }';
+      expect(pattern.test(code)).toBe(true);
+    });
+
+    it('should match underscore-separated simpletag', () => {
+      const pattern = buildTagPattern('simple', 'my_tag');
+      const code = 'void simpletag_my_tag(mapping args) { }';
+      expect(pattern.test(code)).toBe(true);
+    });
+
+    it('should match space-separated container', () => {
+      const pattern = buildTagPattern('container', 'my_cont');
+      const code = 'void container my_cont(mapping args, string c) { }';
+      expect(pattern.test(code)).toBe(true);
+    });
+
+    it('should match underscore-separated container', () => {
+      const pattern = buildTagPattern('container', 'my_cont');
+      const code = 'void container_my_cont(mapping args, string c) { }';
+      expect(pattern.test(code)).toBe(true);
+    });
+
+    it('should not match different tag names', () => {
+      const pattern = buildTagPattern('simple', 'my_tag');
+      const code = 'void simpletag other_tag(mapping args) { }';
+      expect(pattern.test(code)).toBe(false);
     });
   });
 });
