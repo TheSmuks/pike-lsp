@@ -7,16 +7,12 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import assert from 'node:assert/strict';
 import {
   extractTagsFromPikeCode,
   detectTagFunctions,
   findTagFunctionsInCode,
   buildTagPattern,
-  SIMPLETAG_PATTERN,
-  CONTAINER_PATTERN,
 } from '../../features/rxml/module-scanner.js';
-import type { RXMLTagCatalogEntry } from '../../features/rxml/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 /** Helper to create a mock PikeSymbol for a method */
@@ -409,27 +405,6 @@ void simpletag_fallback(mapping args) { }`;
 });
 
 describe('canonical pattern consistency', () => {
-  it('SIMPLETAG_PATTERN matches both space and underscore forms', () => {
-    const spaceForm = 'void simpletag my_tag(mapping args) { }';
-    const underscoreForm = 'void simpletag_my_tag(mapping args) { }';
-
-    // Reset global regex state before each test
-    SIMPLETAG_PATTERN.lastIndex = 0;
-    expect(SIMPLETAG_PATTERN.test(spaceForm)).toBe(true);
-    SIMPLETAG_PATTERN.lastIndex = 0;
-    expect(SIMPLETAG_PATTERN.test(underscoreForm)).toBe(true);
-  });
-
-  it('CONTAINER_PATTERN matches both space and underscore forms', () => {
-    const spaceForm = 'void container my_cont(mapping args, string c) { }';
-    const underscoreForm = 'void container_my_cont(mapping args, string c) { }';
-
-    CONTAINER_PATTERN.lastIndex = 0;
-    expect(CONTAINER_PATTERN.test(spaceForm)).toBe(true);
-    CONTAINER_PATTERN.lastIndex = 0;
-    expect(CONTAINER_PATTERN.test(underscoreForm)).toBe(true);
-  });
-
   it('extractTagsFromPikeCode and findTagFunctionsInCode agree on underscore forms', async () => {
     const code = [
       'void simpletag_underscore_tag(mapping args) { }',
@@ -442,7 +417,7 @@ describe('canonical pattern consistency', () => {
     ];
 
     const catalogEntries = await extractTagsFromPikeCode(code, symbols);
-    const matches = findTagFunctionsInCode(code);
+    const matches = findTagFunctionsInCode(code, symbols);
 
     // Both must find the same 2 tags with same names and types
     expect(catalogEntries).toHaveLength(2);
