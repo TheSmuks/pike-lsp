@@ -34,6 +34,15 @@ interface ImportCandidate {
   score: number;
 }
 
+export interface ImportSymbol {
+  kind: string;
+  name: string;
+  classname?: string;
+  modifiers: string[];
+  position: { line: number; character: number };
+}
+
+
 interface UnresolvedDiagnosticData {
   kind?: string;
   symbol?: string;
@@ -89,24 +98,30 @@ function sortImportCandidates(candidates: ImportCandidate[]): ImportCandidate[] 
   });
 }
 
-function getImportInsertionLine(lines: string[]): number {
-  let insertionLine = 0;
+function getImportInsertionLine(
+  symbols: Array<{ kind: string; position?: { line: number } }>,
+  lines: string[]
+): number {
+  // Determine which lines contain import/inherit/include symbols
+  const importSymbolLines = new Set<number>();
+  for (const sym of symbols) {
+    if (sym.position !== undefined) {
+      importSymbolLines.add(sym.position.line);
+    }
+  }
+
+  // Scan top-to-bottom: stop at first line that is neither an import/inherit/include line nor blank
   for (let i = 0; i < lines.length; i++) {
     const trimmed = (lines[i] ?? '').trim();
-    if (
-      trimmed.startsWith('#include ') ||
-      trimmed.startsWith('import ') ||
-      trimmed.startsWith('inherit ')
-    ) {
-      insertionLine = i + 1;
+    if (importSymbolLines.has(i) || trimmed.startsWith('#include ')) {
       continue;
     }
     if (trimmed === '') {
       continue;
     }
-    break;
+    return i;
   }
-  return insertionLine;
+  return lines.length;
 }
 
 function buildImportStatement(candidate: ImportCandidate): string {
@@ -115,12 +130,21 @@ function buildImportStatement(candidate: ImportCandidate): string {
     : `import ${candidate.modulePath};\n`;
 }
 
-function hasImportStatement(lines: string[], candidate: ImportCandidate): boolean {
-  const expected =
-    candidate.importKind === 'inherit'
-      ? `inherit ${candidate.modulePath};`
-      : `import ${candidate.modulePath};`;
-  return lines.some(line => line.trim() === expected);
+function getExistingImportNames(
+  symbols: Array<{ kind: string; name: string; classname?: string }>
+): Set<string> {
+  const names = new Set<string>();
+  for (const sym of symbols) {
+    if (sym.kind === 'import' || sym.kind === 'inherit') {
+      const moduleName = sym.classname?.replace(/['"]/g, '') || sym.name;
+      names.add(moduleName);
+    }
+  }
+  return names;
+}
+
+function hasImportStatement(existingNames: Set<string>, candidate: ImportCandidate): boolean {
+  return existingNames.has(candidate.modulePath);
 }
 
 /**
@@ -301,11 +325,12 @@ export function registerCodeActionsHandler(
                   .map(imp => imp.moduleName as string);
 
                 if (importModuleNames.length > 0) {
-                  // Get code after the last import line to find actual symbol references
-                  const lastImportLine = importLines[importLines.length - 1]!.line;
-                  const codeOnlyLines = lines.slice(lastImportLine + 1).join('\n');
-                  const allReferences = codeOnlyLines.match(/\b([A-Z][A-Za-z0-9_]*)\b/g) || [];
-                  const referenceSet = new Set(allReferences);
+                const referenceSet = new Set<string>();
+                for (const [name, sym] of cached.symbolNames) {
+                  if (sym.kind !== 'import' && sym.kind !== 'inherit' && sym.kind !== 'include') {
+                    referenceSet.add(name);
+                  }
+                }
 
                   for (const imp of importLines) {
                     const moduleName = imp.moduleName;
@@ -413,10 +438,15 @@ export function registerCodeActionsHandler(
                 }
 
                 const sortedCandidates = sortImportCandidates(candidates);
-                const insertionLine = getImportInsertionLine(lines);
+                const importSymbols = cached.symbols.filter(
+                  (s): s is typeof s & { kind: 'import' | 'inherit' } =>
+                    s.kind === 'import' || s.kind === 'inherit'
+                );
+                const insertionLine = getImportInsertionLine(importSymbols, lines);
 
+                const existingImportNames = getExistingImportNames(importSymbols);
                 for (const candidate of sortedCandidates) {
-                  if (hasImportStatement(lines, candidate)) {
+                  if (hasImportStatement(existingImportNames, candidate)) {
                     continue;
                   }
 
