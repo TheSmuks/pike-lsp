@@ -8,6 +8,9 @@
 import type { Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { computeContentHash, computeSemanticLineHash } from '../../services/document-cache.js';
+
+// Re-export stripLineComments from document-cache (canonical location) for backward compatibility
+export { stripLineComments } from '../../services/document-cache.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
 /**
@@ -27,19 +30,6 @@ export interface ChangeClassification {
 }
 
 export type AnalysisMode = 'typing' | 'full';
-
-/**
- * INC-002: Strip comments from a line of Pike code.
- * Handles both line comments (//) and block comment markers.
- */
-export function stripLineComments(line: string): string {
-  // Remove line comments
-  const commentPos = line.indexOf('//');
-  if (commentPos >= 0) {
-    line = line.substring(0, commentPos);
-  }
-  return line.trim();
-}
 
 /**
  * INC-002: Classify document change to determine if re-parsing is needed.
