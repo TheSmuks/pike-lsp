@@ -439,3 +439,199 @@ describe('Extract Method — basic functionality', () => {
     assert.equal(result, null, 'Should return null when filter excludes refactor');
   });
 });
+
+describe('Extract Method — token-based return detection edge cases', () => {
+  it('should not detect return keyword inside a string literal', () => {
+    const code = `int main() {
+    string s = "return 42;";
+    return s;
+}`;
+    const document = doc(code);
+    // Select line 2 (return s;)
+    const range = {
+      start: { line: 2, character: 4 },
+      end: { line: 2, character: 13 },
+    };
+
+    const result = getExtractMethodAction(
+      document,
+      'file:///test.pike',
+      range,
+      code,
+      undefined,
+      cachedWithVars('s')
+    );
+    assert.ok(result, 'Should return an action');
+
+    const edit = replacementEdit(result) as { newText?: string } | null;
+    assert.ok(edit, 'Should have a replacement edit');
+    // Should detect 'return s;' as the return statement with 's' as the value
+    assert.ok(
+      edit!.newText!.includes('s ='),
+      `Should assign return value 's' — got: ${edit!.newText}`
+    );
+  });
+
+  it('should not detect return keyword inside a line comment', () => {
+    const code = `int main() {
+    // return should happen here
+    int x = 1;
+    return x;
+}`;
+    const document = doc(code);
+    // Select only line 2 (int x = 1;) — no return statement in this code
+    const range = {
+      start: { line: 2, character: 4 },
+      end: { line: 2, character: 14 },
+    };
+
+    const result = getExtractMethodAction(
+      document,
+      'file:///test.pike',
+      range,
+      code,
+      undefined,
+      cachedWithVars('x')
+    );
+    assert.ok(result, 'Should return an action');
+
+    const edit = replacementEdit(result) as { newText?: string } | null;
+    assert.ok(edit, 'Should have a replacement edit');
+    // No return statement in the selection, so it should be a void call
+    assert.ok(
+      !edit!.newText!.includes('='),
+      `Should be a void call (no return) — got: ${edit!.newText}`
+    );
+  });
+
+  it('should handle return expression with semicolon inside string', () => {
+    const code = `string main() {
+    return "hello; world";
+}`;
+    const document = doc(code);
+    // Select line 1 (return "hello; world";)
+    const range = {
+      start: { line: 1, character: 4 },
+      end: { line: 1, character: 28 },
+    };
+
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
+    assert.ok(result, 'Should return an action');
+
+    // The inserted function should detect the string literal and infer 'string' type
+    const allEdits = result!.edit!.changes!['file:///test.pike'] as { newText: string }[];
+    const insertEdit = allEdits[1];
+    assert.ok(insertEdit, 'Should have an insert edit for the new function');
+    assert.ok(
+      insertEdit.newText.includes('string'),
+      `Return type should be 'string' for literal with semicolon — got: ${insertEdit.newText}`
+    );
+    // The return expression should include the full string, not truncated at the inner ';'
+    assert.ok(
+      insertEdit.newText.includes('"hello; world"'),
+      `Return expression should preserve full string — got: ${insertEdit.newText}`
+    );
+  });
+
+  it('should infer int type for numeric return expression', () => {
+    const code = `int main() {
+    return 42;
+}`;
+    const document = doc(code);
+    const range = {
+      start: { line: 1, character: 4 },
+      end: { line: 1, character: 14 },
+    };
+
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
+    assert.ok(result, 'Should return an action');
+
+    const allEdits = result!.edit!.changes!['file:///test.pike'] as { newText: string }[];
+    const insertEdit = allEdits[1];
+    assert.ok(insertEdit, 'Should have an insert edit');
+    assert.ok(
+      insertEdit.newText.includes('int '),
+      `Return type should be 'int' for integer literal — got: ${insertEdit.newText}`
+    );
+  });
+
+  it('should infer float type for decimal literal return', () => {
+    const code = `float main() {
+    return 3.14;
+}`;
+    const document = doc(code);
+    const range = {
+      start: { line: 1, character: 4 },
+      end: { line: 1, character: 16 },
+    };
+
+    const result = getExtractMethodAction(document, 'file:///test.pike', range, code, undefined, {
+      version: 1,
+      symbols: [],
+      diagnostics: [],
+      symbolPositions: new Map(),
+      symbolNames: new Map(),
+      contentHash: '',
+      lineHashes: [],
+      analysisState: { isStale: false, parseFailed: false },
+    });
+    assert.ok(result, 'Should return an action');
+
+    const allEdits = result!.edit!.changes!['file:///test.pike'] as { newText: string }[];
+    const insertEdit = allEdits[1];
+    assert.ok(insertEdit, 'Should have an insert edit');
+    assert.ok(
+      insertEdit.newText.includes('float '),
+      `Return type should be 'float' for decimal literal — got: ${insertEdit.newText}`
+    );
+  });
+
+  it('should not detect return inside a block comment', () => {
+    const code = `int main() {
+    /* return 42; */
+    int x = 1;
+}`;
+    const document = doc(code);
+    // Select lines 1-2 (the comment + assignment)
+    const range = {
+      start: { line: 1, character: 4 },
+      end: { line: 2, character: 14 },
+    };
+
+    const result = getExtractMethodAction(
+      document,
+      'file:///test.pike',
+      range,
+      code,
+      undefined,
+      cachedWithVars('x')
+    );
+    assert.ok(result, 'Should return an action');
+
+    const edit = replacementEdit(result) as { newText?: string } | null;
+    assert.ok(edit, 'Should have a replacement edit');
+    // No real return statement — should be a void call
+    assert.ok(
+      !edit!.newText!.includes('='),
+      `Should be a void call (return is in comment) — got: ${edit!.newText}`
+    );
+  });
+});
