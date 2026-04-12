@@ -13,7 +13,6 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
-import { isRoxenModule } from '../roxen/index.js';
 import { isPikeIdentifierStart, isPikeIdentifierChar } from '../utils/pike-identifier.js';
 
 export interface SemanticAnalysisResult {
@@ -166,6 +165,35 @@ export {
   analyzeMissingRoxenCallbacks,
 };
 
+/**
+ * Detect Roxen module using introspection data and parsed symbols.
+ * Uses bridge-provided inheritance info instead of raw text scanning.
+ */
+function detectRoxenModule(
+  introspection: IntrospectionResult | undefined,
+  symbols: PikeSymbol[]
+): boolean {
+  // Check inheritance paths from bridge introspection
+  if (introspection?.inherits && introspection.inherits.length > 0) {
+    const hasRoxenInherit = introspection.inherits.some(
+      inh => inh.path?.toLowerCase() === 'module' || inh.path?.toLowerCase() === 'roxen'
+    );
+    if (hasRoxenInherit) return true;
+  }
+
+  // Check for register_ prefixed symbols
+  return hasRegisterSymbol(symbols);
+}
+
+/** Recursively check symbols for a register_ prefixed name. */
+function hasRegisterSymbol(symbols: PikeSymbol[]): boolean {
+  for (const sym of symbols) {
+    if (sym.name && sym.name.startsWith('register_')) return true;
+    if (sym.children && hasRegisterSymbol(sym.children)) return true;
+  }
+  return false;
+}
+
 export function analyzeSemantics(
   document: TextDocument,
   symbols: PikeSymbol[],
@@ -185,7 +213,7 @@ export function analyzeSemantics(
   const lines = text.split('\n');
 
   const definedSymbols = buildDefinedSymbolSet(symbols, introspection);
-  const isRoxenMod = isRoxenModule(text, symbols);
+  const isRoxenMod = detectRoxenModule(introspection, symbols);
 
   if (opts.enableUndefinedDetection && tokens && tokens.length > 0) {
     const undefinedDiags = analyzeUndefinedSymbols(
