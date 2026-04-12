@@ -42,7 +42,6 @@ export interface ImportSymbol {
   position: { line: number; character: number };
 }
 
-
 interface UnresolvedDiagnosticData {
   kind?: string;
   symbol?: string;
@@ -325,12 +324,12 @@ export function registerCodeActionsHandler(
                   .map(imp => imp.moduleName as string);
 
                 if (importModuleNames.length > 0) {
-                const referenceSet = new Set<string>();
-                for (const [name, sym] of cached.symbolNames) {
-                  if (sym.kind !== 'import' && sym.kind !== 'inherit' && sym.kind !== 'include') {
-                    referenceSet.add(name);
+                  const referenceSet = new Set<string>();
+                  for (const [name, sym] of cached.symbolNames) {
+                    if (sym.kind !== 'import' && sym.kind !== 'inherit' && sym.kind !== 'include') {
+                      referenceSet.add(name);
+                    }
                   }
-                }
 
                   for (const imp of importLines) {
                     const moduleName = imp.moduleName;
