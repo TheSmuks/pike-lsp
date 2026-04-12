@@ -24,6 +24,7 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { findTagFunctionsInCode } from './module-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
 const log = new Logger('RXMLDefinition');
@@ -65,27 +66,22 @@ async function getTagDefinitionIndex(
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
 
-    const simpleTagPattern = /^\s*simpletag\s+([A-Za-z_]\w*)\s*\(/gm;
-    let match = simpleTagPattern.exec(content);
-    while (match !== null) {
-      const tagName = match[1];
-      if (!tagName || byTag.has(tagName)) {
-        match = simpleTagPattern.exec(content);
+    const matches = findTagFunctionsInCode(content);
+    for (const m of matches) {
+      if (byTag.has(m.name)) {
         continue;
       }
 
-      const position = findPositionForMatch(content, match);
-      byTag.set(tagName, {
-        tagName,
-        functionName: `simpletag_${tagName}`,
+      const position = findPositionForIndex(content, m.index);
+      byTag.set(m.name, {
+        tagName: m.name,
+        functionName: `${m.type === 'simple' ? 'simpletag' : 'container'}_${m.name}`,
         location: Location.create(fileToUri(file), {
           start: position,
-          end: { line: position.line, character: position.character + tagName.length },
+          end: { line: position.line, character: position.character + m.name.length },
         }),
-        tagType: 'simple',
+        tagType: m.type,
       });
-
-      match = simpleTagPattern.exec(content);
     }
   }
 
@@ -116,7 +112,7 @@ async function getDefvarDefinitionIndex(
       if (name) {
         const keyName = name.toLowerCase();
         if (!byName.has(keyName)) {
-          const position = findPositionForMatch(content, match);
+          const position = findPositionForIndex(content, match.index);
           byName.set(keyName, {
             name,
             type: 'mixed',
@@ -390,14 +386,10 @@ function fileToUri(filePath: string): string {
 }
 
 /**
- * Find line/column position for regex match
+ * Find line/column position for a byte index in content
  */
-function findPositionForMatch(content: string, match: RegExpExecArray): Position {
-  if (match.index === undefined) {
-    return { line: 0, character: 0 };
-  }
-
-  const before = content.substring(0, match.index);
+function findPositionForIndex(content: string, index: number): Position {
+  const before = content.substring(0, index);
   const lines = before.split('\n');
 
   return {
