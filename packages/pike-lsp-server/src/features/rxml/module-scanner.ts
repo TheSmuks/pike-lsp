@@ -6,11 +6,10 @@
  * all RXML providers (definition, references, rename).
  *
  * Tag function detection uses bridge.parse() symbols (ADR-001 compliant).
- * Tag name patterns (both forms recognized via symbol name inspection):
- * - simpletag tagName( ... )   — space separator (e.g. Roxen tag API)
- * - simpletag_tagName( ... )   — underscore separator
- * - container tagName( ... )   — space separator
- * - container_tagName( ... )   — underscore separator
+ * All symbol-based functions filter for kind === 'method' and inspect names
+ * for `simpletag_` / `container_` prefixes.
+ *
+ * buildTagPattern() provides regex for text-based rename operations only.
  */
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -38,34 +37,117 @@ export interface TagFunctionMatch {
   index: number;
 }
 
-// Canonical regex covering both `simpletag tagName(` and `simpletag_tagName(` forms.
-// Captures: group 1 = separator (space or underscore), group 2 = tag name.
-// Global variants for full-code scanning (findTagFunctionsInCode).
-export const SIMPLETAG_PATTERN = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-export const CONTAINER_PATTERN = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
-
 /**
- * Scan Pike source code for all simpletag and container function declarations.
+ * Scan Pike source for all simpletag and container tag function matches.
  *
- * Returns one {@link TagFunctionMatch} per occurrence, including the byte offset
- * of the tag name so callers can compute positions for LSP operations.
+ * Returns one {@link TagFunctionMatch} per tag method found, including the byte
+ * offset of the tag name so callers can compute positions for LSP operations.
  *
- * @param code - Full Pike module source code
+ * When `symbols` are provided, uses them directly (ADR-001 compliant).
+ * When omitted, performs a simple string scan for backward compatibility
+ * with callers that have not yet been migrated to pass symbols.
+ *
+ * @param code    - Full Pike module source code (for byte offset computation)
+ * @param symbols - Parsed PikeSymbol[] from bridge.parse() (recommended)
  * @returns All tag function matches found
  */
-export function findTagFunctionsInCode(code: string): TagFunctionMatch[] {
-  const results: TagFunctionMatch[] = [];
+export function findTagFunctionsInCode(code: string, symbols?: PikeSymbol[]): TagFunctionMatch[] {
+  if (symbols) {
+    return findTagMatchesFromSymbols(code, symbols);
+  }
+  return findTagMatchesByStringScan(code);
+}
 
-  collectMatches(code, SIMPLETAG_PATTERN, 'simple', results);
-  collectMatches(code, CONTAINER_PATTERN, 'container', results);
+/**
+ * Find tag matches using parsed PikeSymbol[] (ADR-001 compliant).
+ *
+ * Filters symbols for kind === 'method' with simpletag_/container_ prefixes,
+ * then computes the byte offset of each tag name in the source.
+ */
+function findTagMatchesFromSymbols(code: string, symbols: PikeSymbol[]): TagFunctionMatch[] {
+  const results: TagFunctionMatch[] = [];
+  const lines = code.split('\n');
+
+  for (const symbol of symbols) {
+    if (symbol.kind !== 'method' || !symbol.name) continue;
+
+    const tagInfo = extractTagInfo(symbol.name);
+    if (!tagInfo) continue;
+
+    const nameStart = computeNameOffset(lines, symbol, tagInfo.name);
+    if (nameStart < 0) continue;
+
+    results.push({ name: tagInfo.name, type: tagInfo.type, index: nameStart });
+  }
 
   return results;
 }
 
 /**
+ * Find tag matches by scanning source code for function name patterns.
+ *
+ * Backward-compatible fallback for callers without bridge.parse() symbols.
+ * Scans each line for simpletag_/container_ prefixed identifiers and computes
+ * the byte offset of the tag name portion.
+ */
+function findTagMatchesByStringScan(code: string): TagFunctionMatch[] {
+  const results: TagFunctionMatch[] = [];
+  const lines = code.split('\n');
+  let offset = 0;
+
+  // Each entry: [keyword, type, separatorChar]
+  // 'simpletag_' and 'simpletag ' both extract a simple tag;
+  // 'container_' and 'container ' both extract a container tag.
+  const patterns: ReadonlyArray<[string, 'simple' | 'container']> = [
+    ['simpletag_', 'simple'],
+    ['simpletag ', 'simple'],
+    ['container_', 'container'],
+    ['container ', 'container'],
+  ];
+
+  for (const line of lines) {
+    if (line) {
+      for (const [prefix, tagType] of patterns) {
+        let searchFrom = 0;
+        while (true) {
+          const idx = line.indexOf(prefix, searchFrom);
+          if (idx < 0) break;
+
+          // Verify boundary before the keyword
+          if (idx === 0 || !isIdentChar(line[idx - 1] ?? '')) {
+            const nameStart = idx + prefix.length;
+            let end = nameStart;
+            while (end < line.length && isIdentChar(line[end] ?? '')) {
+              end++;
+            }
+            const tagName = line.slice(nameStart, end);
+            if (tagName.length > 0) {
+              results.push({ name: tagName, type: tagType, index: offset + nameStart });
+            }
+          }
+          searchFrom = idx + prefix.length;
+        }
+      }
+    }
+    offset += (line?.length ?? 0) + 1;
+  }
+
+  // Deduplicate: underscore form takes precedence over space form
+  const seen = new Map<string, TagFunctionMatch>();
+  for (const match of results) {
+    const key = `${match.type}:${match.name}`;
+    if (!seen.has(key)) {
+      seen.set(key, match);
+    }
+  }
+
+  return [...seen.values()];
+}
+
+/**
  * Build a regex that matches a specific tag name in either space or underscore form.
  *
- * Useful for rename operations and targeted searches.
+ * Used for text-based rename operations in .pike source files.
  *
  * @param kind    - `'simple'` or `'container'`
  * @param tagName - The tag name to match literally
@@ -75,34 +157,6 @@ export function buildTagPattern(kind: 'simple' | 'container', tagName: string): 
   const keyword = kind === 'simple' ? 'simpletag' : 'container';
   const escaped = tagName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`\\b${keyword}([ _])${escaped}\\b`, 'g');
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function collectMatches(
-  code: string,
-  pattern: RegExp,
-  type: 'simple' | 'container',
-  out: TagFunctionMatch[]
-): void {
-  // Reset lastIndex for reused RegExp literals with /g flag
-  pattern.lastIndex = 0;
-
-  let match = pattern.exec(code);
-  while (match !== null) {
-    const separator = match[1];
-    const name = match[2];
-    if (name) {
-      // Name starts after the keyword + separator.
-      const keyword = type === 'simple' ? 'simpletag' : 'container';
-      const keywordEnd = match.index + keyword.length;
-      const nameStart = separator === '_' ? keywordEnd + 1 : keywordEnd + 1; // skip separator
-      out.push({ name, type, index: nameStart });
-    }
-    match = pattern.exec(code);
-  }
 }
 
 /**
@@ -243,4 +297,53 @@ function findLineByName(lines: string[], name: string): number {
     }
   }
   return -1;
+}
+function computeNameOffset(lines: string[], symbol: PikeSymbol, tagName: string): number {
+  // Prefer symbol position when available
+  if (symbol.position?.line != null) {
+    const lineIdx = symbol.position.line - 1; // convert 1-based to 0-based
+    if (lineIdx >= 0 && lineIdx < lines.length) {
+      const line = lines[lineIdx];
+      if (line) {
+        // Find the tag name within the line — it appears after the function prefix
+        const prefix = symbol.name.startsWith('simpletag_') ? 'simpletag_' : 'container_';
+        const tagIdx = line.indexOf(tagName, line.indexOf(prefix));
+        if (tagIdx >= 0) {
+          // Byte offset = sum of all previous line lengths + newlines + column
+          let offset = 0;
+          for (let i = 0; i < lineIdx; i++) {
+            offset += (lines[i]?.length ?? 0) + 1; // +1 for newline
+          }
+          return offset + tagIdx;
+        }
+      }
+    }
+  }
+
+  // Fallback: scan all lines for the full function name
+  let offset = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line) {
+      const funcIdx = line.indexOf(symbol.name);
+      if (funcIdx >= 0) {
+        const prefix = symbol.name.startsWith('simpletag_') ? 'simpletag_' : 'container_';
+        return offset + funcIdx + prefix.length;
+      }
+    }
+    offset += (line?.length ?? 0) + 1;
+  }
+
+  return -1;
+}
+
+/** Check whether a character is a valid Pike identifier character. */
+function isIdentChar(ch: string): boolean {
+  const code = ch.charCodeAt(0);
+  return (
+    (code >= 48 && code <= 57) || // 0-9
+    (code >= 65 && code <= 90) || // A-Z
+    (code >= 97 && code <= 122) || // a-z
+    code === 95
+  ); // _
 }
