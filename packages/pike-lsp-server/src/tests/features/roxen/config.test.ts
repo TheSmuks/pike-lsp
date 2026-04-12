@@ -55,10 +55,7 @@ function moduleTypeSymbol(value: string): PikeSymbol {
     kind: 'constant',
     name: 'module_type',
     modifiers: [],
-    type: {
-      kind: 'name' as const,
-      name: value,
-    } as unknown as import('@pike-lsp/pike-bridge').PikeType,
+    type: { name: value } as unknown as import('@pike-lsp/pike-bridge').PikeType,
   };
 }
 
@@ -510,7 +507,6 @@ describe('BridgeParseInput: Symbol-based Parsing', () => {
             name: 'module_type',
             modifiers: [],
             type: {
-              kind: 'name' as const,
               name: 'MODULE_LOCATION',
             } as unknown as import('@pike-lsp/pike-bridge').PikeType,
           },

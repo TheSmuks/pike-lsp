@@ -39,7 +39,7 @@ function createHarness(
   }
 ): {
   signatureAt: (offset: number) => Promise<SignatureHelp | null>;
-  inlayHints: () => InlayHint[] | null;
+  inlayHints: () => Promise<InlayHint[] | null>;
   offsetOf: (marker: string) => number;
 } {
   const uri = 'file:///scenario-signature-help.pike';
@@ -68,6 +68,68 @@ function createHarness(
       },
     },
     globalSettings: { inlayHints: inlaySettings },
+    bridge: {
+      tokenize: async (_code: string) => {
+        // Minimal tokenization: split on word boundaries and single-char delimiters
+        // sufficient for the test scenarios in this file
+        const tokens: Array<{ text: string; line: number; character: number }> = [];
+        const lines = text.split('\n');
+        for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+          const line = lines[lineIdx]!;
+          let i = 0;
+          while (i < line.length) {
+            // Skip whitespace
+            if (/\s/.test(line[i]!)) {
+              i++;
+              continue;
+            }
+            // Line comments
+            if (line[i] === '/' && line[i + 1] === '/') {
+              tokens.push({ text: line.slice(i), line: lineIdx + 1, character: i });
+              break;
+            }
+            // String literals
+            if (line[i] === '"' || line[i] === "'") {
+              const quote = line[i]!;
+              let j = i + 1;
+              while (j < line.length && line[j] !== quote) {
+                if (line[j] === '\\') j++;
+                j++;
+              }
+              tokens.push({ text: line.slice(i, j + 1), line: lineIdx + 1, character: i });
+              i = j + 1;
+              continue;
+            }
+            // Identifiers / keywords
+            if (/[a-zA-Z_]/.test(line[i]!)) {
+              let j = i;
+              while (j < line.length && /[a-zA-Z0-9_]/.test(line[j]!)) j++;
+              tokens.push({ text: line.slice(i, j), line: lineIdx + 1, character: i });
+              i = j;
+              continue;
+            }
+            // Numbers
+            if (/[0-9]/.test(line[i]!)) {
+              let j = i;
+              while (j < line.length && /[0-9]/.test(line[j]!)) j++;
+              tokens.push({ text: line.slice(i, j), line: lineIdx + 1, character: i });
+              i = j;
+              continue;
+            }
+            // -> operator
+            if (line[i] === '-' && line[i + 1] === '>') {
+              tokens.push({ text: '->', line: lineIdx + 1, character: i });
+              i += 2;
+              continue;
+            }
+            // Single-character tokens
+            tokens.push({ text: line[i]!, line: lineIdx + 1, character: i });
+            i++;
+          }
+        }
+        return tokens;
+      },
+    },
   } as unknown as Services;
 
   let signatureHandler:
@@ -83,7 +145,7 @@ function createHarness(
           start: { line: number; character: number };
           end: { line: number; character: number };
         };
-      }) => InlayHint[] | null)
+      }) => Promise<InlayHint[] | null>)
     | null = null;
 
   const connection = {
@@ -111,7 +173,7 @@ function createHarness(
         position: document.positionAt(offset),
       });
     },
-    inlayHints() {
+    async inlayHints() {
       assert.ok(inlayHandler);
       return inlayHandler({
         textDocument: { uri },
@@ -217,64 +279,68 @@ describe('Scenario: signature help and inlay hints for complex calls', () => {
     assert.equal(help, null);
   });
 
-  it('provides inlay hints for plain calls', () => {
+  it('provides inlay hints for plain calls', async () => {
     const harness = createHarness('sum(1, 2);', [
       makeMethodSymbol('sum', ['left', 'right'], ['int', 'int']),
     ]);
-    const hints = harness.inlayHints();
+    const hints = await harness.inlayHints();
     const labels = (hints ?? []).map(h => String(h.label));
     assert.deepEqual(labels, ['left:', 'right:']);
   });
 
-  it('provides inlay hints for member calls', () => {
+  it('provides inlay hints for member calls', async () => {
     const harness = createHarness('obj->move(10, 20);', [
       makeMethodSymbol('move', ['x', 'y'], ['int', 'int']),
     ]);
-    const labels = (harness.inlayHints() ?? []).map(h => String(h.label));
+    const hints = await harness.inlayHints();
+    const labels = (hints ?? []).map(h => String(h.label));
     assert.deepEqual(labels, ['x:', 'y:']);
   });
 
-  it('provides inlay hints for nested calls', () => {
+  it('provides inlay hints for nested calls', async () => {
     const harness = createHarness('outer(inner(1, 2), 3);', [
       makeMethodSymbol('outer', ['value', 'count'], ['int', 'int']),
       makeMethodSymbol('inner', ['x', 'y'], ['int', 'int']),
     ]);
-    const labels = (harness.inlayHints() ?? []).map(h => String(h.label));
+    const hints = await harness.inlayHints();
+    const labels = (hints ?? []).map(h => String(h.label));
     assert.deepEqual(labels, ['x:', 'y:', 'value:', 'count:']);
   });
 
-  it('uses varargs parameter label for extra arguments in inlay hints', () => {
+  it('uses varargs parameter label for extra arguments in inlay hints', async () => {
     const harness = createHarness('fmt("%d", 1, 2, 3);', [
       makeMethodSymbol('fmt', ['pattern', 'args'], ['string', { name: 'varargs', type: 'mixed' }]),
     ]);
-    const labels = (harness.inlayHints() ?? []).map(h => String(h.label));
+    const hints = await harness.inlayHints();
+    const labels = (hints ?? []).map(h => String(h.label));
     assert.deepEqual(labels, ['pattern:', '...args:', '...args:', '...args:']);
   });
 
-  it('respects semantic call target between plain and member calls', () => {
+  it('respects semantic call target between plain and member calls', async () => {
     const harness = createHarness('run(1); obj->run(2);', [
       makeMethodSymbol('run', ['memberValue'], ['int'], { inherited: true }),
       makeMethodSymbol('run', ['plainValue'], ['int']),
     ]);
-    const labels = (harness.inlayHints() ?? []).map(h => String(h.label));
+    const hints = await harness.inlayHints();
+    const labels = (hints ?? []).map(h => String(h.label));
     assert.deepEqual(labels, ['plainValue:', 'memberValue:']);
   });
 
-  it('does not produce inlay hints for comment call-like text', () => {
+  it('does not produce inlay hints for comment call-like text', async () => {
     const harness = createHarness('// run(1, 2);', [
       makeMethodSymbol('run', ['a', 'b'], ['int', 'int']),
     ]);
-    assert.equal(harness.inlayHints(), null);
+    assert.equal(await harness.inlayHints(), null);
   });
 
-  it('does not produce inlay hints for string call-like text', () => {
+  it('does not produce inlay hints for string call-like text', async () => {
     const harness = createHarness('string s = "run(1, 2)";', [
       makeMethodSymbol('run', ['a', 'b'], ['int', 'int']),
     ]);
-    assert.equal(harness.inlayHints(), null);
+    assert.equal(await harness.inlayHints(), null);
   });
 
-  it('returns no inlay hints when parameter names are disabled', () => {
+  it('returns no inlay hints when parameter names are disabled', async () => {
     const harness = createHarness(
       'sum(1, 2);',
       [makeMethodSymbol('sum', ['a', 'b'], ['int', 'int'])],
@@ -284,6 +350,6 @@ describe('Scenario: signature help and inlay hints for complex calls', () => {
         typeHints: false,
       }
     );
-    assert.equal(harness.inlayHints(), null);
+    assert.equal(await harness.inlayHints(), null);
   });
 });

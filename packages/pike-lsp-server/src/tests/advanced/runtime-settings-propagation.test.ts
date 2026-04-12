@@ -17,7 +17,7 @@ afterEach(() => {
 });
 
 describe('Runtime settings propagation', () => {
-  it('uses latest inlay hint settings from services', () => {
+  it('uses latest inlay hint settings from services', async () => {
     let inlayHandler: ((params: { textDocument: { uri: string } }) => unknown) | null = null;
 
     const connection = {
@@ -40,6 +40,15 @@ describe('Runtime settings propagation', () => {
           symbols: [{ name: 'foo', kind: 'method', argNames: ['value'], argTypes: ['int'] }],
         }),
       },
+      bridge: {
+        tokenize: async () => [
+          { text: 'foo', line: 0, character: 0 },
+          { text: '(', line: 0, character: 3 },
+          { text: '1', line: 0, character: 4 },
+          { text: ')', line: 0, character: 5 },
+          { text: ';', line: 0, character: 6 },
+        ],
+      },
       globalSettings: {
         pikePath: 'pike',
         maxNumberOfProblems: 100,
@@ -47,7 +56,6 @@ describe('Runtime settings propagation', () => {
         inlayHints: { enabled: false, parameterNames: true, typeHints: false },
       },
     };
-
     const documents = {
       get: () => document,
     };
@@ -55,7 +63,7 @@ describe('Runtime settings propagation', () => {
     registerInlayHintsHandler(connection as any, services as any, documents as any);
     expect(inlayHandler).not.toBeNull();
 
-    const disabledResult = inlayHandler!({ textDocument: { uri } });
+    const disabledResult = await inlayHandler!({ textDocument: { uri } });
     expect(disabledResult).toBeNull();
 
     services.globalSettings = {
@@ -63,7 +71,9 @@ describe('Runtime settings propagation', () => {
       inlayHints: { enabled: true, parameterNames: true, typeHints: false },
     };
 
-    const enabledResult = inlayHandler!({ textDocument: { uri } }) as Array<{ label: string }>;
+    const enabledResult = (await inlayHandler!({ textDocument: { uri } })) as Array<{
+      label: string;
+    }> | null;
     expect(enabledResult).toBeArray();
     expect(enabledResult.length).toBe(1);
     expect(enabledResult[0]?.label).toBe('value:');

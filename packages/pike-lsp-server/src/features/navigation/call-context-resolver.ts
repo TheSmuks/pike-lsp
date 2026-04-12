@@ -1,7 +1,7 @@
-interface OffsetRange {
-  start: number;
-  end: number;
-}
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+import { buildLineOffsets, positionToOffset } from '../roxen/parser-helpers.js';
+
+// ── Public types ──────────────────────────────────────────────────────────
 
 export interface ResolvedCallTarget {
   name: string;
@@ -22,6 +22,8 @@ export interface ResolvedCallContext {
   activeParameter: number;
   argumentRanges: CallArgumentRange[];
 }
+
+// ── Internal helpers ──────────────────────────────────────────────────────
 
 interface OpenCallState {
   target: ResolvedCallTarget;
@@ -44,161 +46,120 @@ const CONTROL_KEYWORDS = new Set([
   'do',
 ]);
 
-function isIdentifierChar(char: string | undefined): boolean {
-  return !!char && /[a-zA-Z0-9_]/.test(char);
+/** Build an offset → token-index map for efficient nearest-token lookups. */
+function buildTokenOffsetIndex(tokens: PikeToken[], lineOffsets: number[]): number[] {
+  const offsets: number[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    offsets.push(positionToOffset({ line: tok.line - 1, character: tok.character }, lineOffsets));
+  }
+  return offsets;
 }
 
-function trimRange(text: string, start: number, end: number): CallArgumentRange | null {
-  let left = start;
-  let right = end;
-  while (left < right && /\s/.test(text[left] ?? '')) {
-    left += 1;
-  }
-  while (right > left && /\s/.test(text[right - 1] ?? '')) {
-    right -= 1;
-  }
-  return left < right ? { start: left, end: right } : null;
-}
-
-function buildExclusionRanges(text: string): OffsetRange[] {
-  const ranges: OffsetRange[] = [];
-
-  let i = 0;
-  while (i < text.length) {
-    const char = text[i]!;
-    const next = i + 1 < text.length ? text[i + 1]! : '';
-
-    if (char === '/' && next === '/') {
-      const start = i;
-      i += 2;
-      while (i < text.length && text[i] !== '\n') {
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '/' && next === '*') {
-      const start = i;
-      i += 2;
-      while (i + 1 < text.length) {
-        if (text[i] === '*' && text[i + 1] === '/') {
-          i += 2;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '#' && next === '"') {
-      const start = i;
-      i += 2;
-      while (i + 1 < text.length) {
-        if (text[i] === '"' && text[i + 1] === '#') {
-          i += 2;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      const quote = char;
-      const start = i;
-      i += 1;
-      while (i < text.length) {
-        if (text[i] === '\\') {
-          i += 2;
-          continue;
-        }
-        if (text[i] === quote) {
-          i += 1;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    i += 1;
-  }
-
-  return ranges;
-}
-
-function isExcludedOffset(ranges: OffsetRange[], offset: number): boolean {
+/** Find the token index whose start offset is <= `offset`, searching backward. */
+function findTokenAtOrBefore(offsets: number[], offset: number): number {
   let lo = 0;
-  let hi = ranges.length - 1;
+  let hi = offsets.length - 1;
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2);
-    const range = ranges[mid]!;
-    if (offset < range.start) {
-      hi = mid - 1;
-    } else if (offset >= range.end) {
+    if (offsets[mid]! <= offset) {
       lo = mid + 1;
     } else {
-      return true;
+      hi = mid - 1;
     }
   }
+  return hi; // -1 if nothing found
+}
+
+/** Check if a token is inside a string or comment. */
+function isNonCodeToken(tok: PikeToken): boolean {
+  const t = tok.text;
+  if (t.startsWith('//') || t.startsWith('/*') || t === '*/') return true;
+  if (t.startsWith('#"') || t === '"#') return true;
+  if (t.startsWith('"') || t.startsWith("'")) return true;
   return false;
 }
 
-function skipWhitespaceLeft(text: string, index: number): number {
-  let i = index;
-  while (i >= 0 && /\s/.test(text[i] ?? '')) {
-    i -= 1;
+/** Check if token text is a valid Pike identifier. */
+function isIdentifier(text: string): boolean {
+  if (text.length === 0) return false;
+  const first = text.charCodeAt(0);
+  if (!((first >= 0x41 && first <= 0x5a) || (first >= 0x61 && first <= 0x7a) || first === 0x5f))
+    return false;
+  for (let i = 1; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if (
+      !(
+        (c >= 0x41 && c <= 0x5a) ||
+        (c >= 0x61 && c <= 0x7a) ||
+        (c >= 0x30 && c <= 0x39) ||
+        c === 0x5f
+      )
+    )
+      return false;
   }
-  return i;
+  return true;
 }
 
-function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarget | null {
-  const i = skipWhitespaceLeft(text, openParen - 1);
-  if (i < 0 || !isIdentifierChar(text[i])) {
+function resolveTargetAtToken(
+  tokens: PikeToken[],
+  _tokenOffsets: number[],
+  parenTokenIdx: number
+): ResolvedCallTarget | null {
+  // Walk backward from the '(' token to find the preceding identifier
+  let idx = parenTokenIdx - 1;
+  while (idx >= 0 && isNonCodeToken(tokens[idx]!)) {
+    idx--;
+  }
+  if (idx < 0 || !isIdentifier(tokens[idx]!.text)) {
     return null;
   }
 
-  let nameStart = i;
-  while (nameStart >= 0 && isIdentifierChar(text[nameStart])) {
-    nameStart -= 1;
-  }
-  nameStart += 1;
-
-  const name = text.slice(nameStart, i + 1);
-  if (!name || CONTROL_KEYWORDS.has(name)) {
+  const nameTok = tokens[idx]!;
+  const name = nameTok.text;
+  if (CONTROL_KEYWORDS.has(name)) {
     return null;
   }
 
-  const beforeName = skipWhitespaceLeft(text, nameStart - 1);
+  // Check for member operator preceding the name
   let memberOperator: '->' | '.' | null = null;
-  let receiverStart = nameStart;
+  let receiverStartIdx = idx;
 
-  if (beforeName >= 0 && text[beforeName] === '.') {
+  let prevIdx = idx - 1;
+  while (prevIdx >= 0 && isNonCodeToken(tokens[prevIdx]!)) {
+    prevIdx--;
+  }
+
+  if (prevIdx >= 0 && tokens[prevIdx]!.text === '.') {
     memberOperator = '.';
-    let j = skipWhitespaceLeft(text, beforeName - 1);
-    while (j >= 0 && /[a-zA-Z0-9_.]/.test(text[j] ?? '')) {
-      j -= 1;
+    receiverStartIdx = prevIdx - 1;
+    // Walk further back over receiver expression tokens
+    while (receiverStartIdx >= 0 && isNonCodeToken(tokens[receiverStartIdx]!)) {
+      receiverStartIdx--;
     }
-    receiverStart = j + 1;
-  } else if (beforeName >= 1 && text[beforeName] === '>' && text[beforeName - 1] === '-') {
+    if (receiverStartIdx >= 0 && isIdentifier(tokens[receiverStartIdx]!.text)) {
+      receiverStartIdx--;
+    }
+    receiverStartIdx++;
+  } else if (prevIdx >= 0 && tokens[prevIdx]!.text === '->') {
     memberOperator = '->';
-    let j = skipWhitespaceLeft(text, beforeName - 2);
-    while (j >= 0 && /[a-zA-Z0-9_.\-<>]/.test(text[j] ?? '')) {
-      if (text[j] === '>' && text[j - 1] === '-') {
-        j -= 2;
-        continue;
-      }
-      j -= 1;
+    receiverStartIdx = prevIdx - 1;
+    while (receiverStartIdx >= 0 && isNonCodeToken(tokens[receiverStartIdx]!)) {
+      receiverStartIdx--;
     }
-    receiverStart = j + 1;
+    if (receiverStartIdx >= 0 && isIdentifier(tokens[receiverStartIdx]!.text)) {
+      receiverStartIdx--;
+    }
+    receiverStartIdx++;
   }
 
   const expression =
-    memberOperator === null ? name : text.slice(receiverStart, i + 1).replace(/\s+/g, '');
+    memberOperator === null
+      ? name
+      : tokens
+          .slice(receiverStartIdx, idx + 1)
+          .map(t => t.text)
+          .join('');
 
   return {
     name,
@@ -209,76 +170,83 @@ function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarg
 }
 
 function computeActiveParameter(
-  text: string,
-  openParen: number,
-  offset: number,
-  exclusionRanges: OffsetRange[]
+  tokens: PikeToken[],
+  tokenOffsets: number[],
+  openParenOffset: number,
+  offset: number
 ): number {
   let parameterIndex = 0;
   let parenDepth = 0;
   let bracketDepth = 0;
   let braceDepth = 0;
 
-  for (let i = openParen + 1; i < offset; i++) {
-    if (isExcludedOffset(exclusionRanges, i)) {
-      continue;
-    }
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    const tokStart = tokenOffsets[i]!;
 
-    const char = text[i]!;
-    if (char === '(') {
-      parenDepth += 1;
-    } else if (char === ')' && parenDepth > 0) {
-      parenDepth -= 1;
-    } else if (char === '[') {
-      bracketDepth += 1;
-    } else if (char === ']' && bracketDepth > 0) {
-      bracketDepth -= 1;
-    } else if (char === '{') {
-      braceDepth += 1;
-    } else if (char === '}' && braceDepth > 0) {
-      braceDepth -= 1;
-    } else if (char === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
-      parameterIndex += 1;
+    // Only consider tokens inside the open-paren region
+    if (tokStart <= openParenOffset) continue;
+    if (tokStart >= offset) break;
+
+    const t = tok.text;
+    if (isNonCodeToken(tok)) continue;
+
+    if (t === '(') parenDepth++;
+    else if (t === ')' && parenDepth > 0) parenDepth--;
+    else if (t === '[') bracketDepth++;
+    else if (t === ']' && bracketDepth > 0) bracketDepth--;
+    else if (t === '{') braceDepth++;
+    else if (t === '}' && braceDepth > 0) braceDepth--;
+    else if (t === ',' && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+      parameterIndex++;
     }
   }
 
   return parameterIndex;
 }
 
-export function resolveCallContextAtOffset(
-  text: string,
-  offset: number
-): ResolvedCallContext | null {
-  const exclusionRanges = buildExclusionRanges(text);
-  if (offset < 0 || offset > text.length || isExcludedOffset(exclusionRanges, offset)) {
-    return null;
-  }
+// ── Public API ────────────────────────────────────────────────────────────
 
+export async function resolveCallContextAtOffset(
+  text: string,
+  offset: number,
+  tokenize: (text: string) => Promise<PikeToken[]>
+): Promise<ResolvedCallContext | null> {
+  if (offset < 0 || offset > text.length) return null;
+
+  const tokens = await tokenize(text);
+  if (tokens.length === 0) return null;
+
+  const lineOffsets = buildLineOffsets(text);
+  const tokenOffsets = buildTokenOffsetIndex(tokens, lineOffsets);
+
+  // Walk tokens backward from offset to find an unmatched '('
+  const startIdx = findTokenAtOrBefore(tokenOffsets, offset);
   let depth = 0;
-  for (let i = offset - 1; i >= 0; i--) {
-    if (isExcludedOffset(exclusionRanges, i)) {
+
+  for (let i = startIdx; i >= 0; i--) {
+    const tok = tokens[i]!;
+    if (isNonCodeToken(tok)) continue;
+
+    if (tok.text === ')') {
+      depth++;
       continue;
     }
-
-    const char = text[i]!;
-    if (char === ')') {
-      depth += 1;
-    } else if (char === '(') {
+    if (tok.text === '(') {
       if (depth > 0) {
-        depth -= 1;
+        depth--;
         continue;
       }
 
-      const target = resolveTargetAtParen(text, i);
-      if (!target) {
-        continue;
-      }
+      const target = resolveTargetAtToken(tokens, tokenOffsets, i);
+      if (!target) continue;
 
+      const openParenOffset = tokenOffsets[i]!;
       return {
         target,
-        openParen: i,
+        openParen: openParenOffset,
         closeParen: null,
-        activeParameter: computeActiveParameter(text, i, offset, exclusionRanges),
+        activeParameter: computeActiveParameter(tokens, tokenOffsets, openParenOffset, offset),
         argumentRanges: [],
       };
     }
@@ -287,83 +255,89 @@ export function resolveCallContextAtOffset(
   return null;
 }
 
-export function collectCallContexts(text: string): ResolvedCallContext[] {
-  const exclusionRanges = buildExclusionRanges(text);
+export async function collectCallContexts(
+  text: string,
+  tokenize: (text: string) => Promise<PikeToken[]>
+): Promise<ResolvedCallContext[]> {
+  const tokens = await tokenize(text);
+  if (tokens.length === 0) return [];
+
+  const lineOffsets = buildLineOffsets(text);
+  const tokenOffsets = buildTokenOffsetIndex(tokens, lineOffsets);
   const openCalls: OpenCallState[] = [];
   const resolved: ResolvedCallContext[] = [];
 
-  for (let i = 0; i < text.length; i++) {
-    if (isExcludedOffset(exclusionRanges, i)) {
-      continue;
-    }
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    if (isNonCodeToken(tok)) continue;
 
-    const char = text[i]!;
+    const t = tok.text;
+    const tokOffset = tokenOffsets[i]!;
     const top = openCalls[openCalls.length - 1];
 
-    if (char === '[' && top) {
-      top.bracketDepth += 1;
+    if (t === '[' && top) {
+      top.bracketDepth++;
+      continue;
+    }
+    if (t === ']' && top && top.bracketDepth > 0) {
+      top.bracketDepth--;
+      continue;
+    }
+    if (t === '{' && top) {
+      top.braceDepth++;
+      continue;
+    }
+    if (t === '}' && top && top.braceDepth > 0) {
+      top.braceDepth--;
       continue;
     }
 
-    if (char === ']' && top && top.bracketDepth > 0) {
-      top.bracketDepth -= 1;
-      continue;
-    }
-
-    if (char === '{' && top) {
-      top.braceDepth += 1;
-      continue;
-    }
-
-    if (char === '}' && top && top.braceDepth > 0) {
-      top.braceDepth -= 1;
-      continue;
-    }
-
-    if (char === '(') {
-      const target = resolveTargetAtParen(text, i);
+    if (t === '(') {
+      const target = resolveTargetAtToken(tokens, tokenOffsets, i);
       if (target) {
         openCalls.push({
           target,
-          openParen: i,
-          argumentStart: i + 1,
+          openParen: tokOffset,
+          argumentStart: tokOffset + 1,
           argumentRanges: [],
           nonCallParenDepth: 0,
           bracketDepth: 0,
           braceDepth: 0,
         });
       } else if (top) {
-        top.nonCallParenDepth += 1;
+        top.nonCallParenDepth++;
       }
       continue;
     }
 
-    if (char === ',') {
+    if (t === ',') {
       if (top && top.nonCallParenDepth === 0 && top.bracketDepth === 0 && top.braceDepth === 0) {
-        const range = trimRange(text, top.argumentStart, i);
-        if (range) {
-          top.argumentRanges.push(range);
+        const argStart = top.argumentStart;
+        const argEnd = tokOffset;
+        if (argEnd > argStart) {
+          top.argumentRanges.push({ start: argStart, end: argEnd });
         }
-        top.argumentStart = i + 1;
+        top.argumentStart = tokOffset + 1;
       }
       continue;
     }
 
-    if (char === ')' && top) {
+    if (t === ')' && top) {
       if (top.nonCallParenDepth > 0) {
-        top.nonCallParenDepth -= 1;
+        top.nonCallParenDepth--;
         continue;
       }
 
-      const lastRange = trimRange(text, top.argumentStart, i);
-      if (lastRange) {
-        top.argumentRanges.push(lastRange);
+      const argStart = top.argumentStart;
+      const argEnd = tokOffset;
+      if (argEnd > argStart) {
+        top.argumentRanges.push({ start: argStart, end: argEnd });
       }
 
       resolved.push({
         target: top.target,
         openParen: top.openParen,
-        closeParen: i,
+        closeParen: tokOffset,
         activeParameter: 0,
         argumentRanges: top.argumentRanges,
       });

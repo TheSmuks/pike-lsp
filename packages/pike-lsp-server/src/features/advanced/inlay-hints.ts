@@ -121,7 +121,7 @@ export function registerInlayHintsHandler(
   /**
    * Inlay Hints - show parameter names and types at call sites.
    */
-  connection.languages.inlayHint.on((params): InlayHint[] | null => {
+  connection.languages.inlayHint.on(async (params): Promise<InlayHint[] | null> => {
     log.debug('Inlay hints request', { uri: params.textDocument.uri });
     try {
       // Check if inlay hints are enabled
@@ -145,7 +145,10 @@ export function registerInlayHintsHandler(
       const text = document.getText();
 
       const methods = cached.symbols.filter(s => s.kind === 'method');
-      const calls = collectCallContexts(text);
+      if (!services.bridge) {
+        return null;
+      }
+      const calls = await collectCallContexts(text, t => services.bridge!.tokenize(t));
 
       for (const call of calls) {
         const method =

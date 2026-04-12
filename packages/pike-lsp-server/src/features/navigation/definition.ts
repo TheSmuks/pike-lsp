@@ -168,9 +168,26 @@ export function registerDefinitionHandlers(
       const symbol = findSymbolAtPosition(cached.symbols, params.position, document);
 
       if (!symbol || !symbol.position) {
-        // wordAtCursor + include/workspace search was already performed above.
+        // Ensure dependencies are resolved (on-demand resolution)
+        await ensureDependenciesResolved(uri, cached);
+
+        const word = getWordAtPositionGeneric(document, params.position);
+
+        if (word) {
+          const includeMatch = await findSymbolInDirectIncludes(word, uri, services, log);
+          if (includeMatch) {
+            return includeMatchToLocation(includeMatch);
+          }
+
+          const workspaceDefinition = findSymbolInWorkspaceCache(word, uri, documentCache);
+          if (workspaceDefinition) {
+            return workspaceDefinition;
+          }
+        }
+
         return null;
       }
+
       // Check if we're clicking ON the definition itself
       // Pike uses 1-based lines, LSP uses 0-based
       const symbolLine = (symbol.position.line ?? 1) - 1;
