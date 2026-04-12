@@ -322,7 +322,7 @@ function resolveIncludePath(
  * Extract autodoc annotation values (@file, @see, @link) from a comment token.
  * Uses string scanning — no regex.
  */
-function extractDocAnnotations(
+export function extractDocAnnotations(
   commentText: string
 ): Array<{ tag: string; value: string; charOffset: number }> {
   const results: Array<{ tag: string; value: string; charOffset: number }> = [];

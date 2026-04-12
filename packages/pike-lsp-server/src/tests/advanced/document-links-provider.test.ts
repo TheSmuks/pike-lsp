@@ -12,7 +12,11 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { resolveModulePath } from '../../features/advanced/document-links.js';
+import {
+  resolveModulePath,
+  buildInheritLink,
+  extractDocAnnotations,
+} from '../../features/advanced/document-links.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
@@ -291,6 +295,166 @@ describe('Document Links Provider', () => {
       const result = resolveModulePath('AnyModule', documentDir, cache as unknown as DocumentCache);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('buildInheritLink', () => {
+    it('should return link when inherit matches cached module', () => {
+      const inheritInfo = { path: 'BaseModule' };
+      const lines = ['inherit BaseModule;'];
+      const cache = createMockDocumentCache(['file:///workspace/project/BaseModule.pike']);
+
+      const result = buildInheritLink(
+        inheritInfo,
+        lines,
+        '/workspace/project',
+        cache as unknown as DocumentCache
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!.target).toBe('file:///workspace/project/BaseModule.pike');
+      expect(result!.tooltip).toContain('BaseModule');
+      expect(result!.range.start.line).toBe(0);
+      expect(result!.range.start.character).toBe(8); // after 'inherit '
+    });
+
+    it('should return null when module not in cache', () => {
+      const inheritInfo = { path: 'NonExistent' };
+      const lines = ['inherit NonExistent;'];
+      const cache = createMockDocumentCache([]);
+
+      const result = buildInheritLink(
+        inheritInfo,
+        lines,
+        '/workspace',
+        cache as unknown as DocumentCache
+      );
+      expect(result).toBeNull();
+    });
+
+    it('should return null when path is empty', () => {
+      const inheritInfo = { path: '' };
+      const cache = createMockDocumentCache(['file:///workspace/Foo.pike']);
+
+      const result = buildInheritLink(
+        inheritInfo,
+        [],
+        '/workspace',
+        cache as unknown as DocumentCache
+      );
+      expect(result).toBeNull();
+    });
+
+    it('should return null when source text not found in lines', () => {
+      const inheritInfo = { path: 'Ghost', source_name: 'Ghost' };
+      const lines = ['class Foo {}'];
+      const cache = createMockDocumentCache(['file:///workspace/Ghost.pike']);
+
+      const result = buildInheritLink(
+        inheritInfo,
+        lines,
+        '/workspace',
+        cache as unknown as DocumentCache
+      );
+      expect(result).toBeNull();
+    });
+
+    it('should prefer source_name over path for range matching', () => {
+      // When source_name differs from path (e.g., lowercase path, mixed-case source)
+      const inheritInfo = { path: 'somemodule', source_name: 'SomeModule' };
+      const lines = ['inherit SomeModule;'];
+      const cache = createMockDocumentCache(['file:///workspace/somemodule.pike']);
+
+      const result = buildInheritLink(
+        inheritInfo,
+        lines,
+        '/workspace',
+        cache as unknown as DocumentCache
+      );
+      expect(result).not.toBeNull();
+      expect(result!.range.start.character).toBe(8); // after 'inherit '
+    });
+  });
+
+  describe('extractDocAnnotations', () => {
+    it('should extract @file: annotation', () => {
+      const comment = '//! @file:module.pike';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].tag).toBe('@file');
+      expect(annotations[0].value).toBe('module.pike');
+    });
+
+    it('should extract @see: annotation', () => {
+      const comment = '//! @see:some_module';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].tag).toBe('@see');
+      expect(annotations[0].value).toBe('some_module');
+    });
+
+    it('should extract @link: annotation', () => {
+      const comment = '//! @link:utils/helpers.pike';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].tag).toBe('@link');
+      expect(annotations[0].value).toBe('utils/helpers.pike');
+    });
+
+    it('should extract multiple annotations from single comment', () => {
+      const comment = '//! @file:main.pike @see:config';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(2);
+      expect(annotations[0].value).toBe('main.pike');
+      expect(annotations[1].value).toBe('config');
+    });
+
+    it('should handle annotation value followed by space', () => {
+      const comment = '//! @file:module.pike some description';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].value).toBe('module.pike');
+    });
+
+    it('should return empty for no annotations', () => {
+      const annotations = extractDocAnnotations('//! just a comment');
+      expect(annotations).toHaveLength(0);
+    });
+
+    it('should handle annotation with no value', () => {
+      const annotations = extractDocAnnotations('//! @file:');
+      expect(annotations).toHaveLength(0);
+    });
+
+    it('should handle repeated same tag', () => {
+      const comment = '//! @see:foo @see:bar';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(2);
+      expect(annotations[0].value).toBe('foo');
+      expect(annotations[1].value).toBe('bar');
+    });
+
+    it('should report correct charOffset', () => {
+      const comment = '//! @file:test.pike';
+      const annotations = extractDocAnnotations(comment);
+
+      // '//! ' is 4 chars, '@file:' is 6 chars → charOffset = 10
+      expect(annotations[0].charOffset).toBe(10);
+    });
+
+    it('should handle block doc comment style', () => {
+      const comment = '/*! @file:lib.pike */';
+      const annotations = extractDocAnnotations(comment);
+
+      expect(annotations).toHaveLength(1);
+      expect(annotations[0].tag).toBe('@file');
+      expect(annotations[0].value).toBe('lib.pike');
     });
   });
 });
