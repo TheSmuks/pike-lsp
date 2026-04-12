@@ -275,33 +275,25 @@ export function registerCodeActionsHandler(
                 type: string;
                 moduleName?: string;
               }[] = [];
-              for (let i = 0; i < lines.length; i++) {
-                const lt = (lines[i] ?? '').trim();
-                if (lt.startsWith('inherit ')) {
-                  const match = lt.match(/^inherit\s+([A-Za-z_][A-Za-z0-9_]*)/);
-                  const entry: { line: number; text: string; type: string; moduleName?: string } = {
-                    line: i,
-                    text: lines[i] ?? '',
-                    type: 'inherit',
-                  };
-                  if (match?.[1]) entry.moduleName = match[1];
-                  importLines.push(entry);
-                } else if (lt.startsWith('import ')) {
-                  const match = lt.match(
-                    /^import\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/
-                  );
-                  const entry: { line: number; text: string; type: string; moduleName?: string } = {
-                    line: i,
-                    text: lines[i] ?? '',
-                    type: 'import',
-                  };
-                  if (match?.[1]) entry.moduleName = match[1];
-                  importLines.push(entry);
-                } else if (lt.startsWith('#include ')) {
-                  importLines.push({ line: i, text: lines[i] ?? '', type: 'include' });
+              for (const sym of cached.symbols) {
+                if (sym.kind === 'import' || sym.kind === 'inherit') {
+                  const moduleName = sym.classname?.replace(/['"]/g, '') || sym.name;
+                  if (sym.position !== undefined) {
+                    importLines.push({
+                      line: sym.position.line,
+                      text: lines[sym.position.line] ?? '',
+                      type: sym.kind,
+                      moduleName,
+                    });
+                  }
+                } else if (sym.kind === 'include' && sym.position !== undefined) {
+                  importLines.push({
+                    line: sym.position.line,
+                    text: lines[sym.position.line] ?? '',
+                    type: 'include',
+                  });
                 }
               }
-
               const unusedImports = new Set<number>();
               if (removeUnused) {
                 const importModuleNames = importLines
