@@ -16,11 +16,16 @@ import {
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
-import { PatternHelpers } from '../../utils/regex-patterns.js';
 import { Logger } from '@pike-lsp/core';
 import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
+
+/** Create a word-boundary regex for exact identifier matching. */
+function wholeWordPattern(identifier: string): RegExp {
+  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'g');
+}
 
 // Issue #1389: Pre-compiled keyword regex — avoids per-invocation RegExp construction
 const CONTROL_KEYWORD_NAMES = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
@@ -417,7 +422,7 @@ export function registerSemanticTokensHandler(
 
       // KB-1262: Wrap regex construction and matching in try-catch per symbol
       try {
-        const symbolRegex = PatternHelpers.wholeWordPattern(symbol.name);
+        const symbolRegex = wholeWordPattern(symbol.name);
         const declLine = symbol.position ? symbol.position.line - 1 : -1;
         const searchRadius = 50;
 
