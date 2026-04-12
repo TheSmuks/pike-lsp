@@ -34,6 +34,15 @@ interface ImportCandidate {
   score: number;
 }
 
+export interface ImportSymbol {
+  kind: string;
+  name: string;
+  classname?: string;
+  modifiers: string[];
+  position: { line: number; character: number };
+}
+
+
 interface UnresolvedDiagnosticData {
   kind?: string;
   symbol?: string;
@@ -93,25 +102,26 @@ function getImportInsertionLine(
   symbols: Array<{ kind: string; position?: { line: number } }>,
   lines: string[]
 ): number {
-  let insertionLine = 0;
+  // Determine which lines contain import/inherit/include symbols
+  const importSymbolLines = new Set<number>();
   for (const sym of symbols) {
     if (sym.position !== undefined) {
-      insertionLine = Math.max(insertionLine, sym.position.line + 1);
+      importSymbolLines.add(sym.position.line);
     }
   }
-  // Also scan for #include directives (preprocessor, simpler syntax)
+
+  // Scan top-to-bottom: stop at first line that is neither an import/inherit/include line nor blank
   for (let i = 0; i < lines.length; i++) {
     const trimmed = (lines[i] ?? '').trim();
-    if (trimmed.startsWith('#include ')) {
-      insertionLine = Math.max(insertionLine, i + 1);
+    if (importSymbolLines.has(i) || trimmed.startsWith('#include ')) {
       continue;
     }
     if (trimmed === '') {
       continue;
     }
-    break;
+    return i;
   }
-  return insertionLine;
+  return lines.length;
 }
 
 function buildImportStatement(candidate: ImportCandidate): string {
@@ -315,10 +325,12 @@ export function registerCodeActionsHandler(
                   .map(imp => imp.moduleName as string);
 
                 if (importModuleNames.length > 0) {
-                  const referenceSet = new Set<string>();
-                  for (const [name] of cached.symbolNames) {
+                const referenceSet = new Set<string>();
+                for (const [name, sym] of cached.symbolNames) {
+                  if (sym.kind !== 'import' && sym.kind !== 'inherit' && sym.kind !== 'include') {
                     referenceSet.add(name);
                   }
+                }
 
                   for (const imp of importLines) {
                     const moduleName = imp.moduleName;

@@ -2,7 +2,7 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { CodeActionKind, type CodeAction, type Diagnostic } from 'vscode-languageserver/node.js';
-import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
+import { registerCodeActionsHandler, type ImportSymbol } from '../features/advanced/code-actions.js';
 
 type CodeActionHandler = (params: {
   textDocument: { uri: string };
@@ -58,10 +58,43 @@ function unresolvedDiagnostic(
   };
 }
 
+function parseImports(code: string): ImportSymbol[] {
+  const result: ImportSymbol[] = [];
+  for (const [i, raw] of code.split('\n').entries()) {
+    const trimmed = raw.trimStart();
+    if (trimmed.startsWith('#include ')) {
+      const match = trimmed.match(/^#include\s+<(.+)>/);
+      if (match) {
+        const name = match[1]!;
+        result.push({ name, kind: 'include', classname: name, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+      }
+    } else if (trimmed.startsWith('import ')) {
+      const match = trimmed.match(/^import\s+(\S+)/);
+      if (match) {
+        const mod = match[1]!.replace(/;$/, '');
+        result.push({ name: mod, kind: 'import', classname: mod, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+      }
+    } else if (trimmed.startsWith('inherit ')) {
+      const match = trimmed.match(/^inherit\s+(\S+)/);
+      if (match) {
+        const mod = match[1]!.replace(/;$/, '');
+        result.push({ name: mod, kind: 'inherit', classname: mod, modifiers: [], position: { line: i, character: raw.length - trimmed.length } });
+      }
+    }
+  }
+  return result;
+}
+
 function setup(code: string) {
   const uri = 'file:///auto-import-code-actions.pike';
   const document = TextDocument.create(uri, 'pike', 1, code);
   const connection = createConnection();
+  const importSymbols = parseImports(code);
+
+  const symbolNames = new Map<string, { kind: string }>();
+  for (const sym of importSymbols) {
+    symbolNames.set(sym.classname ?? sym.name, { kind: sym.kind });
+  }
 
   const services = {
     documentCache: {
@@ -69,10 +102,10 @@ function setup(code: string) {
         if (requestUri !== uri) return undefined;
         return {
           version: 1,
-          symbols: [],
+          symbols: importSymbols,
           diagnostics: [],
           symbolPositions: new Map(),
-          symbolNames: new Map(),
+          symbolNames,
         };
       },
     },
