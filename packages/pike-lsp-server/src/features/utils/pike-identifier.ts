@@ -313,3 +313,31 @@ export function findSymbolAtPosition(
 
   return null;
 }
+
+/**
+ * Escape special regex metacharacters in a string.
+ * Required when constructing dynamic RegExp from user-defined or symbol names.
+ * Pike allows backtick identifiers (e.g. `+`, `[]`) containing regex metacharacters.
+ *
+ * @param value - Raw string to escape
+ * @returns Regex-safe escaped string
+ */
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Check if a position in text is at a word boundary (non-word char on both sides).
+ * Equivalent to \b but works for any identifier, including Pike backtick operators
+ * where \b semantics are unreliable.
+ *
+ * @param text - The full line of text
+ * @param start - Start index of the match
+ * @param end - End index of the match (exclusive)
+ * @returns true if the match is at word boundaries
+ */
+export function isAtWordBoundary(text: string, start: number, end: number): boolean {
+  const beforeChar = start > 0 ? (text[start - 1] ?? '') : '';
+  const afterChar = end < text.length ? (text[end] ?? '') : '';
+  return !/\w/.test(beforeChar) && !/\w/.test(afterChar);
+}
