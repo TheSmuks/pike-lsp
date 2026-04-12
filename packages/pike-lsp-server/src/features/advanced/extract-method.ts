@@ -11,6 +11,13 @@
 import { CodeAction, CodeActionKind, Range, TextEdit } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, PikeVariable, PikeType } from '@pike-lsp/pike-bridge';
+import {
+  stripCodeContent,
+  isIdentPresent,
+  isIntegerLiteral,
+  isFloatLiteral,
+  getLeadingWhitespace,
+} from './extract-method-utils.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 
 /**
@@ -149,111 +156,6 @@ function getSelectedCode(document: TextDocument, range: Range): string {
 }
 
 /**
- * Strip Pike string literals, line comments, and block comments from code.
- * Replaces their content with spaces while preserving line structure so that
- * identifier positions remain valid for word-boundary checks.
- *
- * This is a lightweight alternative to full Parser.Pike tokenization for the
- * narrow purpose of checking whether a known symbol name appears in actual
- * code vs. inside a comment or string literal.
- */
-function stripCodeContent(code: string): string {
-  const chars = code.split('');
-  let i = 0;
-
-  while (i < chars.length) {
-    // Block comment /* ... */
-    if (chars[i] === '/' && chars[i + 1] === '*') {
-      chars[i] = ' ';
-      chars[i + 1] = ' ';
-      i += 2;
-      while (i < chars.length && !(chars[i] === '*' && chars[i + 1] === '/')) {
-        chars[i] = ' ';
-        i++;
-      }
-      if (i < chars.length) {
-        chars[i] = ' ';
-        chars[i + 1] = ' ';
-        i += 2;
-      }
-      continue;
-    }
-
-    // Line comment //
-    if (chars[i] === '/' && chars[i + 1] === '/') {
-      while (i < chars.length && chars[i] !== '\n') {
-        chars[i] = ' ';
-        i++;
-      }
-      continue;
-    }
-
-    // Multi-line string literal #"..."
-    if (chars[i] === '#' && chars[i + 1] === '"') {
-      chars[i] = ' ';
-      chars[i + 1] = ' ';
-      i += 2;
-      while (i < chars.length && chars[i] !== '"') {
-        chars[i] = ' ';
-        i++;
-      }
-      if (i < chars.length) {
-        chars[i] = ' ';
-        i++;
-      }
-      continue;
-    }
-
-    // Regular string literal "..."
-    if (chars[i] === '"') {
-      chars[i] = ' ';
-      i++;
-      while (i < chars.length && chars[i] !== '"') {
-        // Skip escaped characters
-        if (chars[i] === '\\' && i + 1 < chars.length) {
-          chars[i] = ' ';
-          chars[i + 1] = ' ';
-          i += 2;
-          continue;
-        }
-        chars[i] = ' ';
-        i++;
-      }
-      if (i < chars.length) {
-        chars[i] = ' ';
-        i++;
-      }
-      continue;
-    }
-
-    // Single-quoted character literal
-    if (chars[i] === "'") {
-      chars[i] = ' ';
-      i++;
-      while (i < chars.length && chars[i] !== "'") {
-        if (chars[i] === '\\' && i + 1 < chars.length) {
-          chars[i] = ' ';
-          chars[i + 1] = ' ';
-          i += 2;
-          continue;
-        }
-        chars[i] = ' ';
-        i++;
-      }
-      if (i < chars.length) {
-        chars[i] = ' ';
-        i++;
-      }
-      continue;
-    }
-
-    i++;
-  }
-
-  return chars.join('');
-}
-
-/**
  * Analyze selected code to determine parameters and return value.
  * Uses symbol-table variable names, type data, and code-stripping to avoid
  * false matches inside comments and string literals.
@@ -294,18 +196,6 @@ function analyzeSelectedCode(
   }
 
   return { parameters, returnType, returnValue };
-}
-
-/**
- * Test whether `ident` appears as a standalone identifier in `code`.
- * The caller is responsible for stripping comments/strings first.
- * Uses a word-boundary check scoped to a single known name.
- */
-function isIdentPresent(code: string, ident: string): boolean {
-  if (ident.length === 0) return false;
-  const escaped = ident.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`\\b${escaped}\\b`);
-  return pattern.test(code);
 }
 
 /**
@@ -361,14 +251,13 @@ function inferReturnType(
   }
 
   // Literal string: starts with quote (single or double)
-  if (/^["']/.test(returnValue)) return 'string';
+  if (returnValue.length > 0 && (returnValue[0] === '"' || returnValue[0] === "'")) return 'string';
 
   // Literal integer: decimal, hex (0x...), or octal (0...)
-  // Covers negative numbers via optional leading minus
-  if (/^-?(0[xX][0-9a-fA-F]+|0[0-7]*|[1-9]\d*)$/.test(returnValue)) return 'int';
+  if (isIntegerLiteral(returnValue)) return 'int';
 
   // Literal float: contains a decimal point or scientific notation
-  if (/^-?\d+(\.\d+([eE][+-]?\d+)?|[eE][+-]?\d+)$/.test(returnValue)) return 'float';
+  if (isFloatLiteral(returnValue)) return 'float';
 
   return 'mixed';
 }
@@ -442,8 +331,7 @@ function getLineIndent(document: TextDocument, line: number): string {
     start: { line, character: 0 },
     end: { line, character: 1000 },
   });
-  const match = lineText.match(/^(\s*)/);
-  return match?.[1] ?? '';
+  return getLeadingWhitespace(lineText);
 }
 
 /**
