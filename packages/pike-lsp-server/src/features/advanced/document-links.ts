@@ -47,7 +47,7 @@ export function registerDocumentLinksHandler(
       const docLinkRegex = /\/\/[!?]\s*@(?:file|see|link):\s*(\S+)/g;
 
       // Use bridge.extractImports for #include directives (handles all edge cases)
-      // Falls back to cached symbols when bridge is unavailable
+      // Falls back to cached dependencies when bridge is unavailable
       const cached = documentCache.get(params.textDocument.uri);
       if (services.bridge?.bridge) {
         try {
@@ -81,17 +81,17 @@ export function registerDocumentLinksHandler(
             error: err instanceof Error ? err.message : String(err),
           });
         }
-      } else if (cached?.symbols) {
-        // Fallback: use cached include symbols (already parsed by Parser.Pike)
-        for (const symbol of cached.symbols) {
-          if (symbol.kind !== 'include' || !symbol.position) continue;
-          const includePath = symbol.classname || symbol.name;
-          if (!includePath) continue;
+      } else if (cached?.dependencies?.includes && cached.dependencies.includes.length > 0) {
+        // Fallback: use cached dependency includes (resolved by Parser.Pike via include-resolver).
+        // This replaces the old regex-based #include scanning that missed angle-bracket
+        // includes and trigraph edge cases.
+        for (const inc of cached.dependencies.includes) {
+          if (!inc.resolvedPath) continue;
 
-          const link = resolveIncludePath(includePath, documentDir, services.includePaths);
-          if (!link) continue;
+          const includePath = inc.originalPath;
+          const lineNum = findLineContaining(lines, includePath);
+          if (lineNum === -1) continue;
 
-          const lineNum = Math.max(0, (symbol.position.line ?? 1) - 1);
           const line = lines[lineNum] ?? '';
           const pathStart = line.indexOf(includePath);
           if (pathStart === -1) continue;
@@ -101,8 +101,8 @@ export function registerDocumentLinksHandler(
               start: { line: lineNum, character: pathStart },
               end: { line: lineNum, character: pathStart + includePath.length },
             },
-            target: link.target,
-            tooltip: link.tooltip,
+            target: `file://${inc.resolvedPath}`,
+            tooltip: `${includePath} → ${inc.resolvedPath}`,
           });
         }
       }
@@ -230,6 +230,19 @@ export function buildInheritLink(
   }
 
   return null;
+}
+
+/**
+ * Find the first line containing the given text.
+ * @returns 0-based line number, or -1 if not found.
+ */
+function findLineContaining(lines: string[], searchText: string): number {
+  for (let i = 0; i < lines.length; i++) {
+    if ((lines[i] ?? '').includes(searchText)) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 /**
