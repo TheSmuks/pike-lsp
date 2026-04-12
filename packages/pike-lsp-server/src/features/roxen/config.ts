@@ -96,13 +96,14 @@ function isInheritModuleSymbol(sym: PikeSymbol): boolean {
 
 /**
  * Extract module_type value from a constant symbol named "module_type".
+ * Uses the symbol's type field which is a PikeNameType (kind='name') holding
+ * the MODULE_* constant name.
  */
 function getModuleTypeFromConstant(sym: PikeSymbol): string | null {
   if (sym.kind !== 'constant' || sym.name !== 'module_type') return null;
   const typeName = sym.type;
-  if (typeName && typeof typeName === 'object' && 'name' in typeName) {
-    const name = (typeName as { name: string }).name;
-    if (name.startsWith('MODULE_')) return name;
+  if (typeName && typeName.kind === 'name' && typeName.name.startsWith('MODULE_')) {
+    return typeName.name;
   }
   return null;
 }
