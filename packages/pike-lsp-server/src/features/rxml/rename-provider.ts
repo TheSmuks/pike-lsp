@@ -13,7 +13,8 @@
 import { WorkspaceEdit, Position, TextDocumentEdit, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { OptionalVersionedTextDocumentIdentifier } from 'vscode-languageserver';
-import { findTagReferences, escapeRegExp } from './references-provider.js';
+import { findTagReferences } from './references-provider.js';
+import { buildTagPattern } from './module-scanner.js';
 import { glob } from 'glob';
 import { readFile } from 'fs/promises';
 import { GlobCache } from './glob-cache.js';
@@ -109,12 +110,12 @@ async function prepareTagRename(
     // Look for simpletag_* or container_* function definitions
     const patterns = [
       {
-        regex: new RegExp(`(simpletag\\s+)${escapeRegExp(oldTagName)}\\b`, 'g'),
-        replacement: `$1${newTagName}`,
+        regex: buildTagPattern('simple', oldTagName),
+        replacement: newTagName,
       },
       {
-        regex: new RegExp(`(container\\s+)${escapeRegExp(oldTagName)}\\b`, 'g'),
-        replacement: `$1${newTagName}`,
+        regex: buildTagPattern('container', oldTagName),
+        replacement: newTagName,
       },
     ];
 
@@ -127,16 +128,19 @@ async function prepareTagRename(
           changesByFile.set(uri, []);
         }
 
-        const position = findPositionForMatch(content, match);
-        const start = match.index!;
-        const end = start + oldTagName.length;
+        // The regex matches `keyword separator tagName`.
+        // Group 1 is the separator (space or underscore).
+        // The tag name starts at index + keyword length + 1 (separator).
+        const keyword = pattern.regex.source.startsWith('\\bsimpletag') ? 'simpletag' : 'container';
+        const nameOffset = match.index + keyword.length + 1; // skip keyword + separator
+        const position = findPositionForIndex(content, nameOffset);
 
         changesByFile.get(uri)!.push({
           range: {
             start: position,
             end: {
               line: position.line,
-              character: position.character + (end - start),
+              character: position.character + oldTagName.length,
             },
           },
           newText: newTagName,
@@ -217,14 +221,10 @@ function fileToUri(filePath: string): string {
 }
 
 /**
- * Find line/column position for regex match
+ * Find line/column position for a byte index in content
  */
-function findPositionForMatch(content: string, match: RegExpExecArray): Position {
-  if (match.index === undefined) {
-    return { line: 0, character: 0 };
-  }
-
-  const before = content.substring(0, match.index);
+function findPositionForIndex(content: string, index: number): Position {
+  const before = content.substring(0, index);
   const lines = before.split('\n');
 
   return {
