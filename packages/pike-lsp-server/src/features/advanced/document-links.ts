@@ -140,10 +140,14 @@ export function registerDocumentLinksHandler(
         }
       }
 
-      // Autodoc @file/@see/@link link generation via bridge tokenization.
+      // Autodoc @file/@see/@link link generation via bridge parse API.
       if (services.bridge?.bridge) {
         try {
-          const tokens: PikeToken[] = await services.bridge.bridge.tokenize(text);
+          const parseResult = await services.bridge.bridge.parse(
+            text,
+            uriToFsPath(params.textDocument.uri)
+          );
+          const tokens: PikeToken[] = parseResult.tokens ?? [];
           for (const token of tokens) {
             const isAutodoc = token.text.startsWith('//!') || token.text.startsWith('/*!');
             if (!isAutodoc) continue;
@@ -173,7 +177,7 @@ export function registerDocumentLinksHandler(
             }
           }
         } catch (err) {
-          log.debug('Document links: tokenize failed for autodoc', {
+          log.debug('Document links: parse failed for autodoc', {
             error: err instanceof Error ? err.message : String(err),
           });
         }
