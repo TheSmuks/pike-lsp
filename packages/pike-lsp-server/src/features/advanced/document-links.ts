@@ -12,7 +12,7 @@ import type { DocumentCache } from '../../services/document-cache.js';
 import { Logger } from '@pike-lsp/core';
 import * as path from 'path';
 import * as fsSync from 'fs';
-import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
+import type { InheritanceInfo, PikeToken } from '@pike-lsp/pike-bridge';
 import { uriToFsPath } from '../../utils/uri-path.js';
 
 /**
@@ -41,10 +41,6 @@ export function registerDocumentLinksHandler(
       const text = document.getText();
       const lines = text.split('\n');
       const documentDir = getDocumentDirectory(params.textDocument.uri);
-
-      // Autodoc regex: kept as known exception — autodoc parsing is a separate concern
-      // (tracked separately from Parser.Pike-backed include/inherit handling).
-      const docLinkRegex = /\/\/[!?]\s*@(?:file|see|link):\s*(\S+)/g;
 
       // Use bridge.extractImports for #include directives (handles all edge cases)
       // Falls back to cached dependencies when bridge is unavailable
@@ -144,33 +140,43 @@ export function registerDocumentLinksHandler(
         }
       }
 
-      // Autodoc @file/@see/@link link generation (regex-based — known exception).
-      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum] ?? '';
+      // Autodoc @file/@see/@link link generation via bridge tokenization.
+      if (services.bridge?.bridge) {
+        try {
+          const tokens: PikeToken[] = await services.bridge.bridge.tokenize(text);
+          for (const token of tokens) {
+            const isAutodoc = token.text.startsWith('//!') || token.text.startsWith('/*!');
+            if (!isAutodoc) continue;
 
-        let docMatch: RegExpExecArray | null = docLinkRegex.exec(line);
-        while (docMatch !== null) {
-          const index = docMatch.index;
-          const filePath = docMatch[1];
-          if (index !== undefined && filePath) {
-            if (filePath.includes('/') || filePath.includes('.')) {
-              const link = resolveIncludePath(filePath, documentDir, services.includePaths);
-              if (link) {
-                links.push({
-                  range: {
-                    start: { line: lineNum, character: index },
-                    end: { line: lineNum, character: index + filePath.length },
-                  },
-                  target: link.target,
-                  tooltip: link.tooltip,
-                });
-              }
+            const annotations = extractDocAnnotations(token.text);
+            const lineNum = token.line - 1; // convert to 0-indexed
+            const line = lines[lineNum] ?? '';
+
+            for (const ann of annotations) {
+              if (!ann.value.includes('/') && !ann.value.includes('.')) continue;
+
+              const link = resolveIncludePath(ann.value, documentDir, services.includePaths);
+              if (!link) continue;
+
+              // Locate the annotation value in the source line for an accurate range.
+              const valueStart = line.indexOf(ann.value, ann.charOffset);
+              if (valueStart === -1) continue;
+
+              links.push({
+                range: {
+                  start: { line: lineNum, character: valueStart },
+                  end: { line: lineNum, character: valueStart + ann.value.length },
+                },
+                target: link.target,
+                tooltip: link.tooltip,
+              });
             }
           }
-
-          docMatch = docLinkRegex.exec(line);
+        } catch (err) {
+          log.debug('Document links: tokenize failed for autodoc', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
-        docLinkRegex.lastIndex = 0;
       }
 
       connection.console.log(`[DOC_LINKS] Found ${links.length} links`);
@@ -306,6 +312,46 @@ function resolveIncludePath(
 
   // File not found - don't return a broken link
   return null;
+}
+
+/**
+ * Extract autodoc annotation values (@file, @see, @link) from a comment token.
+ * Uses string scanning — no regex.
+ */
+function extractDocAnnotations(
+  commentText: string
+): Array<{ tag: string; value: string; charOffset: number }> {
+  const results: Array<{ tag: string; value: string; charOffset: number }> = [];
+  const tags = ['@file:', '@see:', '@link:'] as const;
+
+  for (const tag of tags) {
+    let searchFrom = 0;
+    while (searchFrom < commentText.length) {
+      const idx = commentText.indexOf(tag, searchFrom);
+      if (idx === -1) break;
+
+      const valueStart = idx + tag.length;
+      // Scan forward to find the end of the value (whitespace or end of line).
+      let valueEnd = valueStart;
+      while (
+        valueEnd < commentText.length &&
+        commentText[valueEnd] !== ' ' &&
+        commentText[valueEnd] !== '\t' &&
+        commentText[valueEnd] !== '\n'
+      ) {
+        valueEnd++;
+      }
+
+      const value = commentText.substring(valueStart, valueEnd);
+      if (value.length > 0) {
+        results.push({ tag: tag.slice(0, -1), value, charOffset: valueStart });
+      }
+
+      searchFrom = valueEnd;
+    }
+  }
+
+  return results;
 }
 
 /**
