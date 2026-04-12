@@ -117,6 +117,9 @@ export async function indexDirectory(
     return 0;
   }
 
+  storage.metrics.lastParsingMs = 0;
+  storage.metrics.lastIndexingMs = 0;
+
   // PERF-008: Chunk size for file reading (smaller than bridge's 50)
   const CHUNK_SIZE = 20;
 
