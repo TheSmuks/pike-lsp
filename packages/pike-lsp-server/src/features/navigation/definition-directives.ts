@@ -88,48 +88,100 @@ export async function handleDirectiveNavigation(
     return null;
   }
 
-  // Handle import statements
-  const importMatch = lineText.match(/^import\s+([^;]+)/);
-  if (importMatch && services.bridge?.bridge) {
-    const importPath = (importMatch[1] ?? '').trim();
-    log.debug('Definition: directive import navigation', { importPath });
+  // Handle import statements — use bridge.extractImports instead of regex
+  if (lineText.startsWith('import ') && services.bridge?.bridge) {
+    let importPath: string | undefined;
 
-    // Check cached dependencies first
-    if (cached.dependencies?.imports) {
-      for (const imp of cached.dependencies.imports) {
-        if (imp.modulePath === importPath || imp.modulePath.endsWith('/' + importPath)) {
-          if (imp.resolvedPath) {
-            return {
-              uri: `file://${imp.resolvedPath}`,
-              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-            };
+    // Try bridge.extractImports for a fresh parse
+    try {
+      const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
+      const lineImport = imports.imports.find(
+        imp => imp.type === 'import' && imp.line - 1 === position.line
+      );
+      importPath = lineImport?.path;
+    } catch (err) {
+      log.debug('Definition: failed to extract imports for import', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (!importPath) {
+      // Simple string extraction: strip 'import ' prefix, take up to ';'
+      const trimmed = lineText.slice(7).trim();
+      const semiIdx = trimmed.indexOf(';');
+      importPath = (semiIdx >= 0 ? trimmed.slice(0, semiIdx) : trimmed).trim();
+    }
+
+    if (importPath) {
+      log.debug('Definition: directive import navigation', { importPath });
+
+      // Check cached dependencies first
+      if (cached.dependencies?.imports) {
+        for (const imp of cached.dependencies.imports) {
+          if (imp.modulePath === importPath || imp.modulePath.endsWith('/' + importPath)) {
+            if (imp.resolvedPath) {
+              return {
+                uri: `file://${imp.resolvedPath}`,
+                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+              };
+            }
           }
         }
       }
-    }
 
-    // Fall back to bridge resolution
-    try {
-      const result = await services.bridge.bridge.resolveImport('import', importPath, filePath);
-      if (result.exists && result.path) {
-        return {
-          uri: `file://${result.path}`,
-          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-        };
+      // Fall back to bridge resolution
+      try {
+        const result = await services.bridge.bridge.resolveImport('import', importPath, filePath);
+        if (result.exists && result.path) {
+          return {
+            uri: `file://${result.path}`,
+            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+          };
+        }
+      } catch (err) {
+        log.debug('Definition: import resolution failed', {
+          importPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      log.debug('Definition: import resolution failed', {
-        importPath,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
     return null;
   }
 
-  // Handle inherit statements
-  const inheritMatch = lineText.match(/^inherit\s+([^;:]+)/);
-  if (inheritMatch) {
-    const inheritPath = (inheritMatch[1] ?? '').trim().replace(/["\s]/g, '');
+  // Handle inherit statements — use bridge.extractImports instead of regex
+  if (lineText.startsWith('inherit ')) {
+    let inheritPath: string | undefined;
+
+    // Try bridge.extractImports for a fresh parse
+    if (services.bridge?.bridge) {
+      try {
+        const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
+        const lineInherit = imports.imports.find(
+          imp => imp.type === 'inherit' && imp.line - 1 === position.line
+        );
+        inheritPath = lineInherit?.path;
+      } catch (err) {
+        log.debug('Definition: failed to extract imports for inherit', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (!inheritPath) {
+      // Simple string extraction: strip 'inherit ' prefix, remove quotes/whitespace
+      const trimmed = lineText.slice(8).trim();
+      // Take up to first ; or :
+      let end = trimmed.length;
+      for (let i = 0; i < trimmed.length; i++) {
+        const ch = trimmed[i];
+        if (ch === ';' || ch === ':') {
+          end = i;
+          break;
+        }
+      }
+      inheritPath = trimmed.slice(0, end).replace(/"/g, '').trim();
+    }
+
     log.debug('Definition: directive inherit navigation', { inheritPath });
 
     // Check cached inherits first (works even without bridge)
@@ -166,12 +218,40 @@ export async function handleDirectiveNavigation(
     return null;
   }
 
-  // Handle #require directives
-  const requireMatch = lineText.match(/^#require\s+["<]?([^">;]+)/);
-  if (requireMatch) {
-    log.debug('Definition: directive require (no navigation)', {
-      feature: requireMatch[1],
-    });
+  // Handle #require directives — use bridge.extractImports instead of regex
+  if (lineText.startsWith('#require ') && services.bridge?.bridge) {
+    let feature: string | undefined;
+
+    // Try bridge.extractImports first
+    try {
+      const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
+      const lineRequire = imports.imports.find(
+        imp => imp.type === 'require' && imp.line - 1 === position.line
+      );
+      feature = lineRequire?.path;
+    } catch (err) {
+      log.debug('Definition: failed to extract imports for require', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    if (!feature) {
+      // Simple string extraction: strip '#require ' prefix, trim delimiters
+      const trimmed = lineText.slice(9).trim();
+      let end = trimmed.length;
+      for (let i = 0; i < trimmed.length; i++) {
+        const ch = trimmed[i];
+        if (ch === '"' || ch === '>' || ch === ';') {
+          end = i;
+          break;
+        }
+      }
+      feature = trimmed.slice(0, end).trim();
+    }
+
+    if (feature) {
+      log.debug('Definition: directive require (no navigation)', { feature });
+    }
     // #require doesn't point to a file, no navigation
     return null;
   }
