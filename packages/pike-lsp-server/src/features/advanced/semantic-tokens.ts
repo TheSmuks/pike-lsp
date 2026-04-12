@@ -22,6 +22,12 @@ import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 
+// Issue #1389: Pre-compiled keyword regex — avoids per-invocation RegExp construction
+const CONTROL_KEYWORD_NAMES = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
+  kw => kw.name
+);
+const CONTROL_KEYWORDS_REGEX = new RegExp('\\b(' + CONTROL_KEYWORD_NAMES.join('|') + ')\\b', 'g');
+
 // Semantic tokens legend (shared with server.ts)
 const tokenTypes = [
   'namespace',
@@ -451,11 +457,8 @@ export function registerSemanticTokensHandler(
       return builder.build();
     }
 
-    // Add keyword highlighting for Pike keywords
+    // Issue #1389: Control keywords matched via pre-compiled module-level regex
     const keywordTokenType = tokenTypes.indexOf('keyword');
-    const controlKeywords = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
-      kw => kw.name
-    );
 
     for (let lineNum = 0; lineNum < lines.length; lineNum++) {
       // KB-1262: Check cancellation periodically during keyword processing
@@ -466,28 +469,23 @@ export function registerSemanticTokensHandler(
       const line = lines[lineNum];
       if (!line) continue;
 
-      for (const keyword of controlKeywords) {
-        // KB-1262: Wrap keyword regex in try-catch per keyword
-        try {
-          const keywordRegex = new RegExp(`\\b${keyword}\\b`, 'g');
-          let match = keywordRegex.exec(line);
-          while (match !== null) {
-            const matchIndex = match.index;
+      // Issue #1389: Single regex scan instead of per-keyword RegExp construction
+      // Reset lastIndex for stateful 'g' flag when switching lines
+      CONTROL_KEYWORDS_REGEX.lastIndex = 0;
+      try {
+        let match = CONTROL_KEYWORDS_REGEX.exec(line);
+        while (match !== null) {
+          const matchIndex = match.index;
+          const matchedKeyword = match[0];
 
-            if (!isIgnoredPosition(lineNum, matchIndex)) {
-              builder.push(lineNum, matchIndex, keyword.length, keywordTokenType, 0);
-            }
-
-            match = keywordRegex.exec(line);
+          if (matchedKeyword && !isIgnoredPosition(lineNum, matchIndex)) {
+            builder.push(lineNum, matchIndex, matchedKeyword.length, keywordTokenType, 0);
           }
-        } catch (err) {
-          // KB-1262: Skip keywords with regex construction failures
-          log.debug('Keyword regex failed (likely parse-under-edit)', {
-            uri,
-            keyword,
-            error: err instanceof Error ? err.message : String(err),
-          });
+
+          match = CONTROL_KEYWORDS_REGEX.exec(line);
         }
+      } catch (_) {
+        // Skip lines with regex matching failures during parse-under-edit
       }
     }
 
