@@ -8,8 +8,16 @@
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeDiagnostic } from '@pike-lsp/pike-bridge';
 import type { CoreDiagnostic, CoreDiagnosticSeverity, CoreRange } from '../../core/types.js';
+
+/** Comment line prefixes for Pike code. */
+const COMMENT_LINE_STARTERS = ['//', '*', '/*'] as const;
+
+/** Check if a trimmed line starts with a comment marker. */
+function isCommentLine(line: string): boolean {
+  return COMMENT_LINE_STARTERS.some(prefix => line.startsWith(prefix));
+}
+
 import { CORE_DIAGNOSTIC_SEVERITY, CORE_DIAGNOSTIC_TAG } from '../../core/types.js';
-import { PatternHelpers } from '../../utils/regex-patterns.js';
 
 /**
  * Extract deprecated status from parsed symbols recursively.
@@ -111,12 +119,12 @@ export function convertDiagnostic(
 
   // Check if the line is a comment - if so, try to find the actual error line
   const trimmedLine = lineText.trim();
-  if (PatternHelpers.isCommentLine(trimmedLine)) {
+  if (isCommentLine(trimmedLine)) {
     // This line is a comment, look for the next non-comment line for highlighting
     // Or just use a minimal range to avoid confusing the user
     for (let i = line + 1; i < lines.length && i < line + 5; i++) {
       const nextLine = lines[i]?.trim() ?? '';
-      if (nextLine && PatternHelpers.isNotCommentLine(nextLine)) {
+      if (nextLine && !isCommentLine(nextLine)) {
         // Found a code line, but don't change the position - just use minimal highlight
         break;
       }

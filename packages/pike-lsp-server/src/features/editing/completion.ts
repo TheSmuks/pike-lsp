@@ -22,7 +22,6 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import { IDENTIFIER_PATTERNS } from '../../utils/regex-patterns.js';
 import { getAutoDocCompletion } from './autodoc.js';
 import { PIKE_PREDEFINED_MACROS } from '../navigation/keywords.js';
 import { provideRoxenCompletions } from '../roxen/index.js';
@@ -47,6 +46,10 @@ import {
   getCompletionContext,
 } from './completion-qe.js';
 import { addAutoImportCompletions } from './completion-auto-import.js';
+
+/** Regex to match a Pike scoped access expression (e.g., Module::member). */
+const SCOPED_ACCESS = /([\w.]+)::(\w*)$/;
+
 import { collectGeneralCompletions, addBuiltinCompletions } from './completion-symbols.js';
 
 const useQueryEngineCompletions = process.env['PIKE_LSP_QE2_COMPLETION'] !== '0';
@@ -225,7 +228,7 @@ export function registerCompletionHandlers(
     }
 
     // Scope operator (::)
-    const scopeMatch = lineText.match(IDENTIFIER_PATTERNS.SCOPED_ACCESS);
+    const scopeMatch = lineText.match(SCOPED_ACCESS);
     if (scopeMatch) {
       const scopeName = scopeMatch[1] ?? '';
       const prefix = scopeMatch[2] ?? '';

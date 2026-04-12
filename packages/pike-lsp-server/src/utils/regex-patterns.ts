@@ -1,8 +1,13 @@
 /**
  * Common Regex Patterns for Pike LSP Server
  *
- * MAINT-003: Centralized regex patterns to avoid duplication
- * and ensure consistency across the codebase.
+ * @deprecated Issue #1415: This module is deprecated.
+ * - LEADING_WHITESPACE moved to leading-whitespace.ts
+ * - Comment checking inlined in diagnostics/utils.ts
+ * - Scoped access pattern inlined in completion.ts
+ * - wholeWordPattern inlined in semantic-tokens.ts
+ * All Pike source parsing should use bridge.parse() or bridge.tokenize()
+ * from '@pike-lsp/pike-bridge' instead of regex patterns.
  */
 
 /**

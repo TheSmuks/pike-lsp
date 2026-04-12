@@ -1,5 +1,5 @@
 import { ErrorCodes, ResponseError, TextEdit } from 'vscode-languageserver/node.js';
-import { INDENT_PATTERNS } from '../utils/regex-patterns.js';
+import { LEADING_WHITESPACE } from '../utils/leading-whitespace.js';
 
 export interface FormattingOptions {
   tabSize?: number;
@@ -225,8 +225,8 @@ function applyBraceStyleTransformation(text: string, startLine: number): TextEdi
             newText: '',
           });
 
-          const currentIndent = line.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
-          const prevIndent = prevLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+          const currentIndent = line.match(LEADING_WHITESPACE)?.[1] ?? '';
+          const prevIndent = prevLine.match(LEADING_WHITESPACE)?.[1] ?? '';
 
           if (currentIndent !== prevIndent) {
             edits.push({
@@ -308,7 +308,7 @@ function applyLineLengthLimit(text: string, startLine: number, maxLineLength: nu
     const line = lines[i] ?? '';
 
     if (line.length > maxLineLength) {
-      const leadingWhitespace = line.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+      const leadingWhitespace = line.match(LEADING_WHITESPACE)?.[1] ?? '';
 
       let breakPoint = maxLineLength;
       while (breakPoint > leadingWhitespace.length && line[breakPoint] !== ' ') {
@@ -401,7 +401,7 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
         commentIndentLevel++;
       }
       const expectedIndent = indent.repeat(commentIndentLevel);
-      const currentIndent = originalLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+      const currentIndent = originalLine.match(LEADING_WHITESPACE)?.[1] ?? '';
 
       if (currentIndent !== expectedIndent && !trimmed.startsWith('//!')) {
         edits.push({
@@ -460,7 +460,7 @@ function computeIndentEdits(text: string, indent: string, startLine: number): Te
     }
 
     const expectedIndent = indent.repeat(currentLevel);
-    const currentIndent = originalLine.match(INDENT_PATTERNS.LEADING_WHITESPACE)?.[1] ?? '';
+    const currentIndent = originalLine.match(LEADING_WHITESPACE)?.[1] ?? '';
 
     if (currentIndent !== expectedIndent) {
       edits.push({
