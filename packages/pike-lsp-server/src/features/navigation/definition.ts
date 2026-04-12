@@ -53,6 +53,29 @@ export function registerDefinitionHandlers(
   const log = new Logger('Navigation');
 
   /**
+   * Resolve include dependencies on-demand if not yet cached.
+   * Deduplicated from the two original call sites in onDefinition.
+   */
+  async function ensureDependenciesResolved(
+    uri: string,
+    cached: NonNullable<ReturnType<typeof documentCache.get>>
+  ): Promise<void> {
+    if (cached.dependencies || !services.includeResolver) {
+      return;
+    }
+    try {
+      cached.dependencies = await services.includeResolver.resolveDependencies(
+        uri,
+        cached.symbols || []
+      );
+    } catch (err) {
+      log.debug('Definition: failed to resolve dependencies', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
    * Definition handler - go to symbol definition
    * Supports:
    * - Local symbol navigation
@@ -121,18 +144,7 @@ export function registerDefinitionHandlers(
       const wordAtCursor = getWordAtPositionGeneric(document, params.position);
       if (wordAtCursor) {
         // Resolve include dependencies on-demand if not yet cached
-        if (!cached.dependencies && services.includeResolver) {
-          try {
-            cached.dependencies = await services.includeResolver.resolveDependencies(
-              uri,
-              cached.symbols || []
-            );
-          } catch (err) {
-            log.debug('Definition: failed to resolve dependencies', {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
+        await ensureDependenciesResolved(uri, cached);
 
         // Search include dependencies for the symbol (cache first, then on-demand)
         const includeMatch = await findSymbolInDirectIncludes(wordAtCursor, uri, services, log);
@@ -158,18 +170,7 @@ export function registerDefinitionHandlers(
       // If not found locally, search workspace cache with extracted word
       if (!symbol || !symbol.position) {
         // Ensure dependencies are resolved (on-demand resolution)
-        if (!cached.dependencies && services.includeResolver) {
-          try {
-            cached.dependencies = await services.includeResolver.resolveDependencies(
-              uri,
-              cached.symbols || []
-            );
-          } catch (err) {
-            log.debug('Definition: failed to resolve dependencies', {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
+        await ensureDependenciesResolved(uri, cached);
 
         const word = getWordAtPositionGeneric(document, params.position);
 
