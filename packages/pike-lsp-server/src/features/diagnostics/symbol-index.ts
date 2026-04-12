@@ -97,6 +97,93 @@ export function flattenSymbols(symbols: PikeSymbol[], parentName = ''): PikeSymb
 }
 
 /**
+ * Metadata extracted from a symbol list for token-based position matching.
+ */
+interface SymbolMatchMetadata {
+  /** Set of symbol names to search for in token streams. */
+  symbolNames: Set<string>;
+  /** Map from symbol name to its definition line (1-indexed). */
+  definitionLines: Map<string, number>;
+}
+
+/**
+ * Extract searchable metadata from a symbol list.
+ * Shared by buildSymbolPositionIndex and buildSymbolPositionIndexRegex
+ * so both callers use a single definition of "what counts as a definition line".
+ */
+function extractSymbolMatchMetadata(symbols: PikeSymbol[]): SymbolMatchMetadata {
+  const symbolNames = new Set<string>();
+  const definitionLines = new Map<string, number>();
+
+  for (const symbol of symbols) {
+    if (!symbol.name) continue;
+    symbolNames.add(symbol.name);
+    // Parse symbols have .line, introspection symbols have .position?.line
+    const defLine =
+      (symbol as { line?: number; position?: { line?: number } }).line ?? symbol.position?.line;
+    if (defLine !== undefined) {
+      definitionLines.set(symbol.name, defLine);
+    }
+  }
+
+  return { symbolNames, definitionLines };
+}
+
+/**
+ * Match tokens against a symbol list, filtering out definitions and comments.
+ * Returns a map of symbol name -> array of reference positions.
+ * @param tokens - Token stream to scan
+ * @param meta - Symbol metadata (names + definition lines)
+ * @param exclusions - Comment/string position exclusion map
+ * @param lines - Pre-split source lines (used for word-boundary check)
+ * @param checkWordBoundary - When true, verify surrounding chars are non-word chars
+ */
+function matchTokensToSymbolPositions(
+  tokens: PikeToken[],
+  meta: SymbolMatchMetadata,
+  exclusions: { isCommentPosition: (line: number, char: number) => boolean },
+  lines: string[],
+  checkWordBoundary: boolean
+): Map<string, CorePosition[]> {
+  const index = new Map<string, CorePosition[]>();
+  const { symbolNames, definitionLines } = meta;
+
+  for (const token of tokens) {
+    if (!symbolNames.has(token.text)) continue;
+    if (token.character < 0) continue;
+
+    const lineIdx = token.line - 1;
+    if (lineIdx < 0 || lineIdx >= lines.length) continue;
+
+    // Skip tokens at the definition line
+    const defLine = definitionLines.get(token.text);
+    if (defLine !== undefined && token.line === defLine) continue;
+
+    // Skip tokens inside comments or strings
+    if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
+
+    if (checkWordBoundary) {
+      const line = lines[lineIdx];
+      if (!line) continue;
+      const beforeChar = token.character > 0 ? line[token.character - 1]! : ' ';
+      const afterChar =
+        token.character + token.text.length < line.length
+          ? line[token.character + token.text.length]!
+          : ' ';
+      if (/\w/.test(beforeChar) || /\w/.test(afterChar)) continue;
+    }
+
+    const pos: CorePosition = { line: lineIdx, character: token.character };
+    if (!index.has(token.text)) {
+      index.set(token.text, []);
+    }
+    index.get(token.text)!.push(pos);
+  }
+
+  return index;
+}
+
+/**
  * Build symbol position index for O(1) lookups.
  * PERF-001: Uses Pike tokenization for accuracy and performance
  * PERF-004: Reuses tokens from analyze() to avoid separate findOccurrences() IPC call
@@ -115,81 +202,14 @@ export async function buildSymbolPositionIndex(
   },
   lines?: string[]
 ): Promise<Map<string, CorePosition[]>> {
-  const index = new Map<string, CorePosition[]>();
   const exclusions = createLexicalExclusionMap(text);
-  // PERF-1229: Use pre-split lines if provided, otherwise split once
   const linesArray = lines ?? text.split('\n');
-
-  // Build set of symbol names we care about AND map to definition lines
-  const symbolNames = new Set<string>();
-  const definitionLines = new Map<string, number>(); // symbol name -> definition line
-
-  for (const symbol of symbols) {
-    if (symbol.name) {
-      symbolNames.add(symbol.name);
-      // Track definition line to exclude from reference count
-      // Parse symbols have .line, introspection symbols have .position?.line
-      const defLine =
-        (symbol as { line?: number; position?: { line?: number } }).line ?? symbol.position?.line;
-      if (defLine !== undefined) {
-        definitionLines.set(symbol.name, defLine);
-      }
-    }
-  }
+  const meta = extractSymbolMatchMetadata(symbols);
 
   // PERF-004: Use tokens from analyze() when available (no additional IPC)
-  // Tokens now include character positions (computed in Pike, faster than JS string search)
-  // PERF-1229: Use pre-split lines array passed from caller
   if (tokens && tokens.length > 0) {
-    // Filter tokens for our symbols and build positions
-    for (const token of tokens) {
-      if (symbolNames.has(token.text)) {
-        const lineIdx = token.line - 1; // Convert to 0-indexed
-
-        // Skip if character position is not available (-1)
-        if (token.character < 0) {
-          continue;
-        }
-
-        // Skip tokens at the definition line (don't count definition as reference)
-        const defLine = definitionLines.get(token.text);
-        if (defLine !== undefined && token.line === defLine) {
-          continue; // This is the definition, not a reference
-        }
-
-        if (lineIdx >= 0 && lineIdx < linesArray.length) {
-          if (exclusions.isCommentPosition(lineIdx, token.character)) {
-            continue;
-          }
-
-          const line = linesArray[lineIdx];
-          if (!line) continue;
-
-          // Verify word boundary (still needed for accuracy)
-          const beforeChar = token.character > 0 ? line[token.character - 1]! : ' ';
-          const afterChar =
-            token.character + token.text.length < line.length
-              ? line[token.character + token.text.length]!
-              : ' ';
-
-          if (!/\w/.test(beforeChar) && !/\w/.test(afterChar)) {
-            const pos: CorePosition = {
-              line: lineIdx,
-              character: token.character,
-            };
-
-            if (!index.has(token.text)) {
-              index.set(token.text, []);
-            }
-            index.get(token.text)!.push(pos);
-          }
-        }
-      }
-    }
-
-    if (index.size > 0) {
-      return index;
-    }
+    const index = matchTokensToSymbolPositions(tokens, meta, exclusions, linesArray, true);
+    if (index.size > 0) return index;
   }
 
   // PERF-001: Fallback to findOccurrences IPC call if tokens not available
@@ -197,45 +217,29 @@ export async function buildSymbolPositionIndex(
     try {
       const result = await bridge.findOccurrences(text);
 
-      // Group occurrences by symbol name
+      const index = new Map<string, CorePosition[]>();
       for (const occ of result.occurrences) {
-        if (symbolNames.has(occ.text)) {
-          if (exclusions.isCommentPosition(occ.line - 1, occ.character)) {
-            continue;
-          }
+        if (!meta.symbolNames.has(occ.text)) continue;
+        if (exclusions.isCommentPosition(occ.line - 1, occ.character)) continue;
 
-          // Skip definition line (don't count definition as reference)
-          const defLine = definitionLines.get(occ.text);
-          if (defLine !== undefined && occ.line === defLine) {
-            continue;
-          }
+        // Skip definition line
+        const defLine = meta.definitionLines.get(occ.text);
+        if (defLine !== undefined && occ.line === defLine) continue;
 
-          const pos: CorePosition = {
-            line: occ.line - 1, // Convert 1-indexed to 0-indexed
-            character: occ.character,
-          };
-
-          if (!index.has(occ.text)) {
-            index.set(occ.text, []);
-          }
-          index.get(occ.text)!.push(pos);
-        }
+        const pos: CorePosition = { line: occ.line - 1, character: occ.character };
+        if (!index.has(occ.text)) index.set(occ.text, []);
+        index.get(occ.text)!.push(pos);
       }
 
-      // If we found all our symbols, return early
-      if (index.size === symbolNames.size) {
-        return index;
-      }
+      if (index.size === meta.symbolNames.size) return index;
     } catch (err) {
-      // Log error details before falling back to regex
       log.error('Token-based symbol position finding failed', {
         error: err instanceof Error ? err.message : String(err),
       });
     }
   }
 
-  // Fallback: tokenize-based search using bridge if available
-  // PERF-1229: Pass pre-split lines to avoid re-splitting in fallback
+  // Final fallback: tokenize via bridge
   return buildSymbolPositionIndexRegex(text, symbols, linesArray, tokens, bridge);
 }
 
@@ -298,26 +302,11 @@ export async function buildSymbolPositionIndexRegex(
     tokenize: (text: string) => Promise<PikeToken[]>;
   }
 ): Promise<Map<string, CorePosition[]>> {
-  const index = new Map<string, CorePosition[]>();
-  // PERF-1229: Use pre-split lines if provided, otherwise split once
   const linesArray = lines ?? text.split('\n');
   const exclusions = createLexicalExclusionMap(text);
+  const meta = extractSymbolMatchMetadata(symbols);
 
-  // Build set of symbol names and their definition lines for token matching
-  const symbolNames = new Set<string>();
-  const definitionLines = new Map<string, number>();
-  for (const symbol of symbols) {
-    if (!symbol.name) continue;
-    symbolNames.add(symbol.name);
-    const defLine =
-      (symbol as { line?: number; position?: { line?: number } }).line ?? symbol.position?.line;
-    if (defLine !== undefined) {
-      definitionLines.set(symbol.name, defLine);
-    }
-  }
-
-  // Token-based path: use pre-computed Pike tokens for accurate position matching
-  // If no pre-computed tokens, try bridge.tokenize() for precise identifier matching
+  // Token-based path: use pre-computed tokens or bridge.tokenize()
   let resolvedTokens = tokens;
   if (!resolvedTokens?.length && bridge) {
     try {
@@ -328,30 +317,10 @@ export async function buildSymbolPositionIndexRegex(
   }
 
   if (resolvedTokens && resolvedTokens.length > 0) {
-    for (const token of resolvedTokens) {
-      if (!symbolNames.has(token.text)) continue;
-      if (token.character < 0) continue;
-
-      const lineIdx = token.line - 1;
-      if (lineIdx < 0 || lineIdx >= linesArray.length) continue;
-
-      const defLine = definitionLines.get(token.text);
-      if (defLine !== undefined && token.line === defLine) continue;
-
-      if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
-
-      const pos: CorePosition = { line: lineIdx, character: token.character };
-      if (!index.has(token.text)) {
-        index.set(token.text, []);
-      }
-      index.get(token.text)!.push(pos);
-    }
-
-    if (index.size > 0) {
-      return index;
-    }
+    const index = matchTokensToSymbolPositions(resolvedTokens, meta, exclusions, linesArray, false);
+    if (index.size > 0) return index;
   }
 
-  // Final fallback: return empty index when no tokens available
-  return index;
+  // No tokens available — return empty index
+  return new Map();
 }
