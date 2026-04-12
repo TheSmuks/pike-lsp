@@ -124,13 +124,20 @@ export function stripCodeContent(code: string): string {
  * The caller is responsible for stripping comments/strings first.
  * Uses indexOf + char-level word-boundary check instead of RegExp.
  */
-export function isIdentPresent(code: string, ident: string): boolean {
-  if (ident.length === 0) return false;
+
+/**
+ * Find the index of the first occurrence of `ident` as a standalone identifier
+ * in `code`, respecting word boundaries. Returns -1 if not found.
+ * Used by both isIdentPresent and detectReturnStatement to avoid duplication
+ * of the word-boundary scanning loop.
+ */
+export function findIdentIndex(code: string, ident: string): number {
+  if (ident.length === 0) return -1;
 
   let pos = 0;
   while (true) {
     const idx = code.indexOf(ident, pos);
-    if (idx === -1) return false;
+    if (idx === -1) return -1;
 
     // Check character before — must not be a word char
     if (idx > 0 && isWordChar(code.charAt(idx - 1))) {
@@ -145,8 +152,11 @@ export function isIdentPresent(code: string, ident: string): boolean {
       continue;
     }
 
-    return true;
+    return idx;
   }
+}
+export function isIdentPresent(code: string, ident: string): boolean {
+  return findIdentIndex(code, ident) !== -1;
 }
 
 function isWordChar(ch: string): boolean {

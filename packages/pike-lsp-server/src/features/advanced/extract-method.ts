@@ -14,6 +14,7 @@ import type { PikeSymbol, PikeMethod, PikeVariable, PikeType } from '@pike-lsp/p
 import {
   stripCodeContent,
   isIdentPresent,
+  findIdentIndex,
   isIntegerLiteral,
   isFloatLiteral,
   getLeadingWhitespace,
@@ -211,7 +212,7 @@ function detectReturnStatement(
   originalCode: string,
   strippedCode: string
 ): { value: string } | null {
-  const returnIdx = strippedCode.indexOf('return');
+  const returnIdx = findIdentIndex(strippedCode, 'return');
   if (returnIdx === -1) return null;
 
   // Locate the expression bounds in stripped code to avoid comment/string matches,
