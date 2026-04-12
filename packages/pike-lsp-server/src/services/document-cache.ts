@@ -45,22 +45,21 @@ export function computeLineHashes(content: string): number[] {
   return hashes;
 }
 
-export function computeSemanticLineHash(line: string): number {
-  const semantic = stripComments(line.trim());
-  return simpleHash(semantic);
-}
-
 /**
- * INC-002: Strip comments from a line of Pike code.
- * Handles both line comments (//) and removes whitespace.
+ * Strip line comments from a line of Pike code.
+ * Removes content after '//' comment markers and trims whitespace.
  */
-function stripComments(line: string): string {
-  // Find line comment position
+export function stripLineComments(line: string): string {
   const commentPos = line.indexOf('//');
   if (commentPos >= 0) {
     line = line.substring(0, commentPos);
   }
   return line.trim();
+}
+
+export function computeSemanticLineHash(line: string): number {
+  const semantic = stripLineComments(line.trim());
+  return simpleHash(semantic);
 }
 
 /**
