@@ -160,7 +160,6 @@ function matchTokensToSymbolPositions(
     // Skip tokens inside comments or strings
     if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
 
-
     const pos: CorePosition = { line: lineIdx, character: token.character };
     if (!index.has(token.text)) {
       index.set(token.text, []);
