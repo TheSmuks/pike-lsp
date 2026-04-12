@@ -176,5 +176,41 @@ describe('symbol-index', () => {
 
       assert.strictEqual(index.size, 0);
     });
+
+    it('uses token-based path when tokens are provided', () => {
+      const text = 'int foo();\nint x = foo();\n';
+      const symbols: PikeSymbol[] = [
+        sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
+      ];
+      const tokens = [
+        { text: 'foo', line: 1, character: 4, file: 'test.pike' },
+        { text: 'foo', line: 2, character: 8, file: 'test.pike' },
+      ];
+
+      const index = buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
+
+      // Definition (line 1) excluded; reference (line 2) should be found via tokens
+      const positions = index.get('foo');
+      assert.ok(positions !== undefined);
+      assert.strictEqual(positions.length, 1);
+      assert.strictEqual(positions[0]?.line, 1);
+      assert.strictEqual(positions[0]?.character, 8);
+    });
+
+    it('falls back to indexOf when tokens produce no matches', () => {
+      const text = 'int foo();\nint x = foo();\n';
+      const symbols: PikeSymbol[] = [
+        sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
+      ];
+      // Tokens that don't match any symbol name
+      const tokens = [{ text: 'bar', line: 2, character: 8, file: 'test.pike' }];
+
+      const index = buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
+
+      // Should fall back to indexOf and find foo on line 2
+      const positions = index.get('foo');
+      assert.ok(positions !== undefined);
+      assert.ok(positions.length >= 1);
+    });
   });
 });
