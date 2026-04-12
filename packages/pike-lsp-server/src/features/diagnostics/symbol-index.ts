@@ -135,15 +135,13 @@ function extractSymbolMatchMetadata(symbols: PikeSymbol[]): SymbolMatchMetadata 
  * @param tokens - Token stream to scan
  * @param meta - Symbol metadata (names + definition lines)
  * @param exclusions - Comment/string position exclusion map
- * @param lines - Pre-split source lines (used for word-boundary check)
- * @param checkWordBoundary - When true, verify surrounding chars are non-word chars
+ * @param lines - Pre-split source lines
  */
 function matchTokensToSymbolPositions(
   tokens: PikeToken[],
   meta: SymbolMatchMetadata,
   exclusions: { isCommentPosition: (line: number, char: number) => boolean },
-  lines: string[],
-  checkWordBoundary: boolean
+  lines: string[]
 ): Map<string, CorePosition[]> {
   const index = new Map<string, CorePosition[]>();
   const { symbolNames, definitionLines } = meta;
@@ -162,16 +160,6 @@ function matchTokensToSymbolPositions(
     // Skip tokens inside comments or strings
     if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
 
-    if (checkWordBoundary) {
-      const line = lines[lineIdx];
-      if (!line) continue;
-      const beforeChar = token.character > 0 ? line[token.character - 1]! : ' ';
-      const afterChar =
-        token.character + token.text.length < line.length
-          ? line[token.character + token.text.length]!
-          : ' ';
-      if (/\w/.test(beforeChar) || /\w/.test(afterChar)) continue;
-    }
 
     const pos: CorePosition = { line: lineIdx, character: token.character };
     if (!index.has(token.text)) {
@@ -208,7 +196,7 @@ export async function buildSymbolPositionIndex(
 
   // PERF-004: Use tokens from analyze() when available (no additional IPC)
   if (tokens && tokens.length > 0) {
-    const index = matchTokensToSymbolPositions(tokens, meta, exclusions, linesArray, true);
+    const index = matchTokensToSymbolPositions(tokens, meta, exclusions, linesArray);
     if (index.size > 0) return index;
   }
 
@@ -317,7 +305,7 @@ export async function buildSymbolPositionIndexRegex(
   }
 
   if (resolvedTokens && resolvedTokens.length > 0) {
-    const index = matchTokensToSymbolPositions(resolvedTokens, meta, exclusions, linesArray, false);
+    const index = matchTokensToSymbolPositions(resolvedTokens, meta, exclusions, linesArray);
     if (index.size > 0) return index;
   }
 
