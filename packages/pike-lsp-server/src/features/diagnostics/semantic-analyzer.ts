@@ -13,7 +13,7 @@
 import type { Diagnostic, Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
-import { isRoxenModuleHeuristic } from '../roxen/index.js';
+import { isRoxenModule } from '../roxen/index.js';
 import { isPikeIdentifierStart, isPikeIdentifierChar } from '../utils/pike-identifier.js';
 
 export interface SemanticAnalysisResult {
@@ -182,7 +182,7 @@ export function analyzeSemantics(
   const lines = text.split('\n');
 
   const definedSymbols = buildDefinedSymbolSet(symbols, introspection);
-  const isRoxenModule = isRoxenModuleHeuristic(text, symbols);
+  const isRoxenMod = isRoxenModule(text, symbols);
 
   if (opts.enableUndefinedDetection && tokens && tokens.length > 0) {
     const undefinedDiags = analyzeUndefinedSymbols(
@@ -205,7 +205,7 @@ export function analyzeSemantics(
     stats.typeMismatches = typeDiags.length;
   }
 
-  if (opts.enableMissingCallbacks && isRoxenModule) {
+  if (opts.enableMissingCallbacks && isRoxenMod) {
     const callbackDiags = analyzeMissingRoxenCallbacks(
       symbols,
       opts.maxProblems - diagnostics.length

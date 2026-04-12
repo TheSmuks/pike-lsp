@@ -34,14 +34,25 @@ function isWordChar(c: number): boolean {
 }
 
 /**
- * Quick check for `module_type = MODULE_` declaration.
- * Uses simple string search — the bridge does authoritative detection.
+ * Quick check for `module_type = MODULE_` declaration or standalone MODULE_ constant.
  */
 function hasModuleTypeDecl(code: string): boolean {
-  return code.includes('module_type = MODULE_');
+  return code.includes('module_type = MODULE_') || code.includes('MODULE_');
 }
 
-export function hasMarkers(code: string): boolean {
+/**
+ * Fast text-level scan for Roxen module markers.
+ * Used as the early-exit gate before invoking the bridge.
+ *
+ * Covers all known Roxen markers:
+ * - inherit "module" / "roxen" / "filesystem" (single/double quoted)
+ * - #include <module.h> / "module.h"
+ * - module_type = MODULE_* declaration
+ * - register_module() call
+ * - ID_DEFINED, ID_RUNTIME, VERSION_ constants (Roxen metadata macros)
+ * - standalone MODULE_ constant references
+ */
+function hasMarkers(code: string): boolean {
   const hasRoxenInheritance =
     code.includes('inherit "module"') ||
     code.includes("inherit 'module'") ||
@@ -50,13 +61,20 @@ export function hasMarkers(code: string): boolean {
     code.includes('inherit "roxen"') ||
     code.includes("inherit 'roxen'");
 
-  return (
-    hasRoxenInheritance ||
-    code.includes('#include <module.h>') ||
-    code.includes('#include "module.h"') ||
-    hasModuleTypeDecl(code) ||
-    hasRegisterModule(code)
-  );
+  if (hasRoxenInheritance) return true;
+
+  if (code.includes('#include <module.h>') || code.includes('#include "module.h"')) return true;
+
+  if (hasModuleTypeDecl(code)) return true;
+
+  if (hasRegisterModule(code)) return true;
+
+  // Roxen metadata constant markers
+  if (code.includes('ID_DEFINED') || code.includes('ID_RUNTIME') || code.includes('VERSION_')) {
+    return true;
+  }
+
+  return false;
 }
 
 export async function detectRoxenModule(
@@ -88,19 +106,14 @@ export function invalidateCache(uri: string): void {
 }
 
 /**
- * Heuristic check for whether source text and symbols indicate a Roxen module.
- * Combines hasMarkers() with looser string/symbol checks used by semantic analysis.
+ * Single source of truth for Roxen module detection.
+ *
+ * Combines fast text scanning (hasMarkers) with symbol-table inspection
+ * for register_* symbol checks. All callers should delegate to this function.
  * Uses string.includes and startsWith — no regex.
  */
-export function isRoxenModuleHeuristic(text: string, symbols?: PikeSymbol[]): boolean {
+export function isRoxenModule(text: string, symbols?: PikeSymbol[]): boolean {
   if (hasMarkers(text)) return true;
-
-  // Additional markers: looser heuristics for semantic analysis
-  // where false positives are harmless (they just suppress some warnings).
-  const extraMarkers = ['MODULE_', 'ID_DEFINED', 'ID_RUNTIME', 'VERSION_'];
-  for (const marker of extraMarkers) {
-    if (text.includes(marker)) return true;
-  }
 
   if (symbols) {
     for (const sym of symbols) {

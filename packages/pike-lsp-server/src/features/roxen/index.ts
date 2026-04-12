@@ -54,12 +54,7 @@ export function registerRoxenHandlers(
 }
 
 // Re-export helper functions for use by other features
-export {
-  detectRoxenModule,
-  invalidateCache,
-  hasMarkers,
-  isRoxenModuleHeuristic,
-} from './detector.js';
+export { detectRoxenModule, invalidateCache, isRoxenModule } from './detector.js';
 
 export { enhanceRoxenSymbols } from './symbols.js';
 
