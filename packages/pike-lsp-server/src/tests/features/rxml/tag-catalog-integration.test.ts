@@ -12,6 +12,7 @@
 import { describe, it, beforeEach, afterEach } from 'bun:test';
 import * as assert from 'node:assert';
 import type { RXMLTagCatalogEntry } from '../../features/rxml/types.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 // Mock types for testing
 interface MockPikeBridge {
@@ -32,8 +33,20 @@ interface DetectedTagFunction {
   description?: string;
 }
 
-async function extractTagsFromPikeCodeImpl(pikeCode: string): Promise<RXMLTagCatalogEntry[]> {
-  const detectedTags = detectTagFunctions(pikeCode);
+/** Helper to create a mock PikeSymbol for a method */
+function methodSymbol(name: string, line?: number): PikeSymbol {
+  return {
+    name,
+    kind: 'method',
+    ...(line != null && { position: { line, column: 1 } }),
+  };
+}
+
+async function extractTagsFromPikeCodeImpl(
+  pikeCode: string,
+  symbols: PikeSymbol[]
+): Promise<RXMLTagCatalogEntry[]> {
+  const detectedTags = detectTagFunctions(symbols, pikeCode);
 
   // Convert detected functions to catalog entries
   return detectedTags.map(
@@ -47,52 +60,55 @@ async function extractTagsFromPikeCodeImpl(pikeCode: string): Promise<RXMLTagCat
   );
 }
 
-function detectTagFunctions(code: string): DetectedTagFunction[] {
+function detectTagFunctions(symbols: PikeSymbol[], code: string): DetectedTagFunction[] {
   const tags: DetectedTagFunction[] = [];
-
-  // Split into lines for analysis
   const lines = code.split('\n');
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-    const trimmed = line.trim();
+  for (const symbol of symbols) {
+    if (symbol.kind !== 'method' || !symbol.name) continue;
 
-    // Check for simpletag pattern
-    const simpletagMatch = trimmed.match(
-      /(?:void|mapping|string)\s+simpletag_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
-    );
+    const tagInfo = extractTagInfo(symbol.name);
+    if (!tagInfo) continue;
 
-    if (simpletagMatch) {
-      const tagName = simpletagMatch[1];
-      const description = extractDescription(lines, i);
+    const functionLine =
+      symbol.position?.line != null ? symbol.position.line - 1 : findLineByName(lines, symbol.name);
 
-      tags.push({
-        name: tagName,
-        type: 'simple',
-        description,
-      });
-      continue;
-    }
+    if (functionLine < 0) continue;
 
-    // Check for container pattern
-    const containerMatch = trimmed.match(
-      /(?:void|mapping|string)\s+container_([a-z_][a-z0-9_]*)\s*\((.*?)\)/
-    );
-
-    if (containerMatch) {
-      const tagName = containerMatch[1];
-      const description = extractDescription(lines, i);
-
-      tags.push({
-        name: tagName,
-        type: 'container',
-        description,
-      });
-    }
+    const desc = extractDescription(lines, functionLine);
+    tags.push({
+      name: tagInfo.name,
+      type: tagInfo.type,
+      ...(desc !== undefined && { description: desc }),
+    });
   }
 
   return tags;
+}
+
+function extractTagInfo(methodName: string): { type: 'simple' | 'container'; name: string } | null {
+  if (methodName.startsWith('simpletag_')) {
+    const tagName = methodName.slice('simpletag_'.length);
+    if (tagName.length > 0) {
+      return { type: 'simple', name: tagName };
+    }
+  }
+  if (methodName.startsWith('container_')) {
+    const tagName = methodName.slice('container_'.length);
+    if (tagName.length > 0) {
+      return { type: 'container', name: tagName };
+    }
+  }
+  return null;
+}
+
+function findLineByName(lines: string[], name: string): number {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]?.includes(name)) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 function extractDescription(lines: string[], functionLine: number): string | undefined {
@@ -226,10 +242,13 @@ class MyModule {
 };
 `;
 
-      // After implementation, this should extract:
-      // - my_custom_tag (simple)
-      // - my_container (container)
-      const extractedTags = await extractTagsFromPikeCodeImpl(pikeCode);
+      // Simulate what bridge.parse() would return
+      const symbols: PikeSymbol[] = [
+        methodSymbol('simpletag_my_custom_tag', 6),
+        methodSymbol('container_my_container', 11),
+      ];
+
+      const extractedTags = await extractTagsFromPikeCodeImpl(pikeCode, symbols);
 
       assert.strictEqual(extractedTags.length, 2);
       assert.strictEqual(extractedTags[0].name, 'my_custom_tag');
@@ -255,8 +274,12 @@ class AuthModule {
     }
 };
 `;
+      const symbols: PikeSymbol[] = [
+        methodSymbol('simpletag_login_form', 6),
+        methodSymbol('container_authenticated', 12),
+      ];
 
-      const tags = await extractTagsFromPikeCodeImpl(pikeCode);
+      const tags = await extractTagsFromPikeCodeImpl(pikeCode, symbols);
 
       assert.strictEqual(tags[0].name, 'login_form');
       assert.ok(tags[0].description?.includes('Login form'));
@@ -273,8 +296,12 @@ class Utils {
     }
 };
 `;
+      // No tag symbols
+      const symbols: PikeSymbol[] = [
+        { name: 'add', kind: 'method', position: { line: 4, column: 5 } },
+      ];
 
-      const tags = await extractTagsFromPikeCodeImpl(pikeCode);
+      const tags = await extractTagsFromPikeCodeImpl(pikeCode, symbols);
       assert.strictEqual(tags.length, 0);
     });
 
@@ -289,8 +316,9 @@ class DocModule {
     }
 };
 `;
+      const symbols: PikeSymbol[] = [methodSymbol('simpletag_user_profile', 6)];
 
-      const tags = await extractTagsFromPikeCodeImpl(pikeCode);
+      const tags = await extractTagsFromPikeCodeImpl(pikeCode, symbols);
 
       assert.ok(tags[0].description?.includes('user profile'));
       assert.ok(tags[0].description?.includes('user_id'));

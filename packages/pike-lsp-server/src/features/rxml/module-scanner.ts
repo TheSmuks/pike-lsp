@@ -5,13 +5,15 @@
  * Provides the single source of truth for tag extraction patterns used by
  * all RXML providers (definition, references, rename).
  *
- * Tag Function Patterns (both forms are recognized):
+ * Tag function detection uses bridge.parse() symbols (ADR-001 compliant).
+ * Tag name patterns (both forms recognized via symbol name inspection):
  * - simpletag tagName( ... )   — space separator (e.g. Roxen tag API)
  * - simpletag_tagName( ... )   — underscore separator
  * - container tagName( ... )   — space separator
  * - container_tagName( ... )   — underscore separator
  */
 
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { RXMLTagCatalogEntry } from './types.js';
 
 /**
@@ -42,10 +44,6 @@ export interface TagFunctionMatch {
 export const SIMPLETAG_PATTERN = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 export const CONTAINER_PATTERN = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
-// Non-global variants for single-line matching (detectTagFunctions).
-// Same regex body — avoids pattern drift between line-level and code-level scanning.
-const SIMPLETAG_LINE = /\bsimpletag([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
-const CONTAINER_LINE = /\bcontainer([ _])([A-Za-z_][A-Za-z0-9_]*)\s*\(/;
 /**
  * Scan Pike source code for all simpletag and container function declarations.
  *
@@ -113,7 +111,7 @@ function collectMatches(
  * Looks for //! comments immediately preceding the function definition.
  *
  * @param lines - All source code lines
- * @param functionLine - Line number of function definition
+ * @param functionLine - 0-based line number of function definition
  * @returns Concatenated doc comment text
  */
 function extractDescription(lines: string[], functionLine: number): string | undefined {
@@ -143,15 +141,20 @@ function extractDescription(lines: string[], functionLine: number): string | und
 }
 
 /**
- * Extract RXML tag definitions from Pike module source code
+ * Extract RXML tag definitions from parsed Pike symbols and source code.
  *
- * Uses findTagFunctionsInCode() for pattern matching (ADR-001 compliant).
+ * Uses bridge.parse() symbols for tag detection (ADR-001 compliant).
+ * Source code is used only for //! doc comment extraction.
  *
- * @param pikeCode - Pike module source code
+ * @param pikeCode - Pike module source code (used for description extraction)
+ * @param symbols  - Parsed PikeSymbol[] from bridge.parse()
  * @returns Array of detected tag definitions
  */
-export async function extractTagsFromPikeCode(pikeCode: string): Promise<RXMLTagCatalogEntry[]> {
-  const detectedTags = detectTagFunctions(pikeCode);
+export async function extractTagsFromPikeCode(
+  pikeCode: string,
+  symbols: PikeSymbol[]
+): Promise<RXMLTagCatalogEntry[]> {
+  const detectedTags = detectTagFunctions(symbols, pikeCode);
 
   // Convert detected functions to catalog entries
   return detectedTags.map(
@@ -166,50 +169,78 @@ export async function extractTagsFromPikeCode(pikeCode: string): Promise<RXMLTag
 }
 
 /**
- * Detect tag function patterns in Pike code
+ * Detect tag function patterns from parsed Pike symbols
  *
- * Uses the canonical SIMPLETAG_PATTERN and CONTAINER_PATTERN to ensure
- * consistency with findTagFunctionsInCode(). Processes line-by-line to
- * extract //! doc comments preceding each declaration.
+ * Filters symbols for kind === 'method' and names starting with
+ * 'simpletag_' or 'container_' prefix. Extracts //! doc comments
+ * from source code preceding each declaration.
  *
- * @param code - Pike source code
+ * @param symbols - Parsed PikeSymbol[] from bridge.parse()
+ * @param code    - Pike source code (for //! description extraction)
  * @returns Array of detected tag functions
  */
-function detectTagFunctions(code: string): DetectedTagFunction[] {
+export function detectTagFunctions(symbols: PikeSymbol[], code: string): DetectedTagFunction[] {
   const tags: DetectedTagFunction[] = [];
-
-  // Split into lines for description extraction
   const lines = code.split('\n');
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
-    const trimmed = line.trim();
+  for (const symbol of symbols) {
+    if (symbol.kind !== 'method' || !symbol.name) continue;
 
-    // Use canonical non-global patterns for single-line match with capture groups
-    const simpleMatch = trimmed.match(SIMPLETAG_LINE);
-    if (simpleMatch) {
-      const tagName = simpleMatch[2]!;
-      const desc = extractDescription(lines, i);
-      tags.push({
-        name: tagName,
-        type: 'simple',
-        ...(desc !== undefined && { description: desc }),
-      });
-      continue;
-    }
+    const tagInfo = extractTagInfo(symbol.name);
+    if (!tagInfo) continue;
 
-    const containerMatch = trimmed.match(CONTAINER_LINE);
-    if (containerMatch) {
-      const tagName = containerMatch[2]!;
-      const desc = extractDescription(lines, i);
-      tags.push({
-        name: tagName,
-        type: 'container',
-        ...(desc !== undefined && { description: desc }),
-      });
-    }
+    const functionLine =
+      symbol.position?.line != null
+        ? symbol.position.line - 1 // convert 1-based to 0-based
+        : findLineByName(lines, symbol.name);
+
+    if (functionLine < 0) continue;
+
+    const desc = extractDescription(lines, functionLine);
+    tags.push({
+      name: tagInfo.name,
+      type: tagInfo.type,
+      ...(desc !== undefined && { description: desc }),
+    });
   }
 
   return tags;
+}
+
+/**
+ * Extract tag type and name from a method symbol name.
+ *
+ * Handles underscore-separated forms:
+ * - simpletag_my_tag -> { type: 'simple', name: 'my_tag' }
+ * - container_my_cont -> { type: 'container', name: 'my_cont' }
+ *
+ * @returns Tag info object, or null if not a tag function
+ */
+function extractTagInfo(methodName: string): { type: 'simple' | 'container'; name: string } | null {
+  if (methodName.startsWith('simpletag_')) {
+    const tagName = methodName.slice('simpletag_'.length);
+    if (tagName.length > 0) {
+      return { type: 'simple', name: tagName };
+    }
+  }
+  if (methodName.startsWith('container_')) {
+    const tagName = methodName.slice('container_'.length);
+    if (tagName.length > 0) {
+      return { type: 'container', name: tagName };
+    }
+  }
+  return null;
+}
+
+/**
+ * Find the 0-based line index where a method name appears in source.
+ * Fallback when symbol position is unavailable.
+ */
+function findLineByName(lines: string[], name: string): number {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]?.includes(name)) {
+      return i;
+    }
+  }
+  return -1;
 }
