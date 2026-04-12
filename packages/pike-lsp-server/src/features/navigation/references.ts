@@ -16,6 +16,7 @@ import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
 import { basename } from 'node:path';
+import { escapeRegExp, isAtWordBoundary } from '../utils/pike-identifier.js';
 import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
 
 /**
@@ -414,17 +415,16 @@ export function registerReferencesHandlers(
             }
           }
 
-          const escapeRegex = (value: string): string =>
-            value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const escapedWord = escapeRegex(word);
-          const declarationRegex = new RegExp(
-            `\\b(?:int|string|float|mapping|array|object|mixed|multiset|program|function|void)\\s+${escapedWord}\\b`
-          );
+          const escapedWord = escapeRegExp(word);
+          const typeKeywords =
+            '(?:int|string|float|mapping|array|object|mixed|multiset|program|function|void)';
+          const declarationPattern = new RegExp(`${typeKeywords}\\s+${escapedWord}`);
 
           const isWriteOccurrence = (line: string, character: number): boolean => {
             const before = line.slice(0, character);
             const after = line.slice(character + word.length);
-            if (declarationRegex.test(line)) {
+            const match = declarationPattern.exec(line);
+            if (match && isAtWordBoundary(line, match.index, match.index + match[0].length)) {
               return true;
             }
             if (/^\s*(\+\+|--|[+\-*/%&|^]?=)/.test(after)) {

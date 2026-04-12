@@ -13,6 +13,8 @@ import {
   getWordRangeAtPosition,
   getWordAtPosition,
   getWordAtOffset,
+  escapeRegExp,
+  isAtWordBoundary,
 } from '../features/utils/pike-identifier.js';
 
 function createDocument(source: string): TextDocument {
@@ -613,5 +615,71 @@ describe('getWordAtOffset', () => {
     const result = getWordAtOffset(source, 100);
 
     assert.strictEqual(result, null);
+  });
+});
+
+describe('escapeRegExp', () => {
+  it('should escape all regex metacharacters', () => {
+    assert.strictEqual(escapeRegExp('.*+?^${}()|[]\\'), String.raw`\.\*\+\?\^\$\{\}\(\)\|\[\]\\`);
+  });
+
+  it('should leave alphanumeric characters untouched', () => {
+    assert.strictEqual(escapeRegExp('abc123'), 'abc123');
+  });
+
+  it('should handle Pike backtick operator identifiers', () => {
+    // `+` is a valid Pike identifier
+    assert.strictEqual(escapeRegExp('+'), String.raw`\+`);
+    assert.strictEqual(escapeRegExp('[]'), String.raw`\[\]`);
+    // backtick is NOT a regex metacharacter, so it passes through unescaped
+    assert.strictEqual(escapeRegExp('`<<`'), '`<<`');
+  });
+
+  it('should not crash on empty string', () => {
+    assert.strictEqual(escapeRegExp(''), '');
+  });
+
+  it('should produce a valid regex that matches the literal', () => {
+    const tricky = 'func(name)[]+*?';
+    const re = new RegExp(`^${escapeRegExp(tricky)}$`);
+    assert.ok(re.test(tricky));
+    assert.ok(!re.test('func(name)[]+*?extra'));
+  });
+});
+
+describe('isAtWordBoundary', () => {
+  it('should return true at word boundaries in a line', () => {
+    // "int foo" — "foo" starts at 4, ends at 7
+    assert.strictEqual(isAtWordBoundary('int foo = 1;', 4, 7), true);
+  });
+
+  it('should return false when embedded in a longer word', () => {
+    // "foobar" — "foo" at 0..3 is NOT at boundary (bar follows)
+    assert.strictEqual(isAtWordBoundary('foobar', 0, 3), false);
+  });
+
+  it('should return true at start and end of text', () => {
+    assert.strictEqual(isAtWordBoundary('hello', 0, 5), true);
+  });
+
+  it('should return true for match at start of line', () => {
+    assert.strictEqual(isAtWordBoundary('  foo bar', 2, 5), true);
+  });
+
+  it('should return true for match at end of line', () => {
+    assert.strictEqual(isAtWordBoundary('foo bar  ', 4, 7), true);
+  });
+
+  it('should return false when preceded by word char', () => {
+    assert.strictEqual(isAtWordBoundary('afoo', 1, 4), false);
+  });
+
+  it('should return false when followed by word char', () => {
+    assert.strictEqual(isAtWordBoundary('foob', 0, 3), false);
+  });
+
+  it('should handle Pike backtick operators correctly', () => {
+    // `x + y` — the "+" at position 2 is surrounded by spaces
+    assert.strictEqual(isAtWordBoundary('x + y', 2, 3), true);
   });
 });
