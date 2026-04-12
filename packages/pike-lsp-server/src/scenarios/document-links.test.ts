@@ -7,7 +7,7 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerDocumentLinksHandler } from '../features/advanced/document-links.js';
-import type { DocumentCacheEntry } from '../core/types.js';
+import type { DocumentCacheEntry, ResolvedInclude } from '../core/types.js';
 import { createMockDocuments } from '../tests/helpers/test-helpers.js';
 import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
 
@@ -107,7 +107,14 @@ function createDocumentLinksHarness() {
     }
   };
 
-  return { requestLinks, openDocument, setInherits, cache, services };
+  const setDependencies = (uri: string, includes: ResolvedInclude[]) => {
+    const entry = cache.get(uri);
+    if (entry) {
+      entry.dependencies = { includes, imports: [] };
+    }
+  };
+
+  return { requestLinks, openDocument, setInherits, setDependencies, cache, services };
 }
 
 describe('Document Links', () => {
@@ -196,5 +203,80 @@ describe('Document Links', () => {
     // Autodoc regex may or may not produce links depending on filesystem,
     // but the request must not throw.
     assert.ok(Array.isArray(links), 'Should return an array without crashing');
+  });
+
+  it('should generate include links from cached dependencies.includes', async () => {
+    const harness = createDocumentLinksHarness();
+    const mainUri = 'file:///project/main.pike';
+    const includePath = '/project/utils.pike';
+
+    harness.openDocument(mainUri, '#include "utils.pike"\nint main() { return 0; }');
+    harness.setDependencies(mainUri, [
+      {
+        originalPath: '"utils.pike"',
+        resolvedPath: includePath,
+        symbols: [],
+        lastModified: Date.now(),
+      },
+    ]);
+
+    const links = await harness.requestLinks(mainUri);
+
+    // Should produce a link for the include using cached data, not regex
+    const includeLink = links.find(l => l.target?.includes('utils.pike'));
+    assert.ok(includeLink, 'Include link should be generated from cached dependencies');
+    assert.ok(includeLink!.target?.startsWith('file://'), 'Target should be a file URI');
+    assert.ok(
+      includeLink!.target?.includes('/project/utils.pike'),
+      'Target should point to resolved path'
+    );
+  });
+
+  it('should handle multiple includes from cached dependencies', async () => {
+    const harness = createDocumentLinksHarness();
+    const mainUri = 'file:///project/main.pike';
+
+    harness.openDocument(mainUri, '#include "a.pike"\n#include "b.pike"\nint main() {}');
+    harness.setDependencies(mainUri, [
+      {
+        originalPath: '"a.pike"',
+        resolvedPath: '/project/a.pike',
+        symbols: [],
+        lastModified: Date.now(),
+      },
+      {
+        originalPath: '"b.pike"',
+        resolvedPath: '/project/b.pike',
+        symbols: [],
+        lastModified: Date.now(),
+      },
+    ]);
+
+    const links = await harness.requestLinks(mainUri);
+
+    const aLink = links.find(l => l.target?.includes('/project/a.pike'));
+    const bLink = links.find(l => l.target?.includes('/project/b.pike'));
+    assert.ok(aLink, 'First include should be linked');
+    assert.ok(bLink, 'Second include should be linked');
+  });
+
+  it('should skip includes with empty resolvedPath', async () => {
+    const harness = createDocumentLinksHarness();
+    const mainUri = 'file:///project/main.pike';
+
+    harness.openDocument(mainUri, '#include "missing.pike"\nint x;');
+    harness.setDependencies(mainUri, [
+      {
+        originalPath: '"missing.pike"',
+        resolvedPath: '',
+        symbols: [],
+        lastModified: Date.now(),
+      },
+    ]);
+
+    const links = await harness.requestLinks(mainUri);
+
+    const includeLinks = links.filter(l => l.target?.includes('missing.pike'));
+    assert.strictEqual(includeLinks.length, 0, 'Empty resolvedPath should produce no include link');
   });
 });
