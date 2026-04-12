@@ -7,12 +7,13 @@
 
 import type { Range } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import { computeContentHash, computeSemanticLineHash } from '../../services/document-cache.js';
-
-// Re-export stripLineComments from document-cache (canonical location) for backward compatibility
-export { stripLineComments } from '../../services/document-cache.js';
+import {
+  computeContentHash,
+  computeSemanticLineHash,
+  stripLineComments,
+} from '../../services/document-cache.js';
+export { stripLineComments };
 import type { DocumentCacheEntry } from '../../core/types.js';
-
 /**
  * INC-002: Change detection result from classification
  */
