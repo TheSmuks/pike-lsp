@@ -1,6 +1,7 @@
 import type {
   PikeBridge,
   PikeSymbol,
+  PikeToken,
   PikeVersionInfo,
   ProtocolInfo,
   QueryEngineMutationAck,
@@ -314,6 +315,17 @@ export class BridgeManager {
         'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
       );
     return this.bridge.findOccurrences(text);
+  }
+
+  /**
+   * Tokenize Pike source code into identifier tokens.
+   */
+  async tokenize(text: string): Promise<PikeToken[]> {
+    if (!this.bridge)
+      throw new Error(
+        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
+      );
+    return this.bridge.tokenize(text);
   }
 
   /**

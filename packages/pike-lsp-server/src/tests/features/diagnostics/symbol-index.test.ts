@@ -138,46 +138,42 @@ describe('symbol-index', () => {
   });
 
   describe('buildSymbolPositionIndexRegex', () => {
-    it('finds symbol positions in text', () => {
+    it('finds symbol positions using tokens', async () => {
       const text = 'int foo();\nint x = foo();\n';
       const symbols: PikeSymbol[] = [
         sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
       ];
 
-      const index = buildSymbolPositionIndexRegex(text, symbols);
+      const index = await buildSymbolPositionIndexRegex(text, symbols);
 
-      const positions = index.get('foo');
-      assert.ok(positions !== undefined);
-      // Definition is excluded, so only the reference on line 2 counts
-      assert.ok(positions.length >= 1);
+      // With no tokens and no bridge, returns empty index
+      assert.strictEqual(index.size, 0);
     });
 
-    it('excludes comments from positions', () => {
+    it('excludes comments from positions', async () => {
       const text = 'int foo();\n// foo is defined here\n';
       const symbols: PikeSymbol[] = [
         sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
       ];
 
-      const index = buildSymbolPositionIndexRegex(text, symbols);
+      const index = await buildSymbolPositionIndexRegex(text, symbols);
 
-      // The foo in the comment should be excluded
-      const positions = index.get('foo');
-      // Only definition present (which is excluded), so positions should be empty or not exist
-      assert.ok(positions === undefined || positions.length === 0);
+      // No tokens available, so empty index
+      assert.strictEqual(index.size, 0);
     });
 
-    it('handles empty text', () => {
+    it('handles empty text', async () => {
       const text = '';
       const symbols: PikeSymbol[] = [
         sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
       ];
 
-      const index = buildSymbolPositionIndexRegex(text, symbols);
+      const index = await buildSymbolPositionIndexRegex(text, symbols);
 
       assert.strictEqual(index.size, 0);
     });
 
-    it('uses token-based path when tokens are provided', () => {
+    it('uses token-based path when tokens are provided', async () => {
       const text = 'int foo();\nint x = foo();\n';
       const symbols: PikeSymbol[] = [
         sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
@@ -187,7 +183,7 @@ describe('symbol-index', () => {
         { text: 'foo', line: 2, character: 8, file: 'test.pike' },
       ];
 
-      const index = buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
+      const index = await buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
 
       // Definition (line 1) excluded; reference (line 2) should be found via tokens
       const positions = index.get('foo');
@@ -197,7 +193,7 @@ describe('symbol-index', () => {
       assert.strictEqual(positions[0]?.character, 8);
     });
 
-    it('falls back to indexOf when tokens produce no matches', () => {
+    it('returns empty when tokens produce no matches', async () => {
       const text = 'int foo();\nint x = foo();\n';
       const symbols: PikeSymbol[] = [
         sym('foo', 'method', { position: { file: 'test.pike', line: 1 } }),
@@ -205,12 +201,10 @@ describe('symbol-index', () => {
       // Tokens that don't match any symbol name
       const tokens = [{ text: 'bar', line: 2, character: 8, file: 'test.pike' }];
 
-      const index = buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
+      const index = await buildSymbolPositionIndexRegex(text, symbols, undefined, tokens);
 
-      // Should fall back to indexOf and find foo on line 2
-      const positions = index.get('foo');
-      assert.ok(positions !== undefined);
-      assert.ok(positions.length >= 1);
+      // No matching tokens found, returns empty index
+      assert.strictEqual(index.size, 0);
     });
   });
 });

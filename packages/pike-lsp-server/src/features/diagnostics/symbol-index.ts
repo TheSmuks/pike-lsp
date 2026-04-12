@@ -111,6 +111,7 @@ export async function buildSymbolPositionIndex(
     findOccurrences: (
       text: string
     ) => Promise<{ occurrences: Array<{ text: string; line: number; character: number }> }>;
+    tokenize: (text: string) => Promise<PikeToken[]>;
   },
   lines?: string[]
 ): Promise<Map<string, CorePosition[]>> {
@@ -233,9 +234,9 @@ export async function buildSymbolPositionIndex(
     }
   }
 
-  // Fallback: Regex-based search (original implementation)
+  // Fallback: tokenize-based search using bridge if available
   // PERF-1229: Pass pre-split lines to avoid re-splitting in fallback
-  return buildSymbolPositionIndexRegex(text, symbols, linesArray, tokens);
+  return buildSymbolPositionIndexRegex(text, symbols, linesArray, tokens, bridge);
 }
 
 /**
@@ -284,16 +285,19 @@ export function buildCallPositionIndex(
 }
 
 /**
- * Fallback regex-based symbol position finding.
- * Used when Pike tokenization is unavailable.
+ * Fallback tokenize-based symbol position finding.
+ * Uses bridge.tokenize() when pre-computed tokens are unavailable.
  * PERF-1229: Accepts pre-split lines array to avoid redundant text.split('\n') calls
  */
-export function buildSymbolPositionIndexRegex(
+export async function buildSymbolPositionIndexRegex(
   text: string,
   symbols: PikeSymbol[],
   lines?: string[],
-  tokens?: PikeToken[]
-): Map<string, CorePosition[]> {
+  tokens?: PikeToken[],
+  bridge?: {
+    tokenize: (text: string) => Promise<PikeToken[]>;
+  }
+): Promise<Map<string, CorePosition[]>> {
   const index = new Map<string, CorePosition[]>();
   // PERF-1229: Use pre-split lines if provided, otherwise split once
   const linesArray = lines ?? text.split('\n');
@@ -313,8 +317,18 @@ export function buildSymbolPositionIndexRegex(
   }
 
   // Token-based path: use pre-computed Pike tokens for accurate position matching
-  if (tokens && tokens.length > 0) {
-    for (const token of tokens) {
+  // If no pre-computed tokens, try bridge.tokenize() for precise identifier matching
+  let resolvedTokens = tokens;
+  if (!resolvedTokens?.length && bridge) {
+    try {
+      resolvedTokens = await bridge.tokenize(text);
+    } catch {
+      resolvedTokens = undefined;
+    }
+  }
+
+  if (resolvedTokens && resolvedTokens.length > 0) {
+    for (const token of resolvedTokens) {
       if (!symbolNames.has(token.text)) continue;
       if (token.character < 0) continue;
 
@@ -326,23 +340,11 @@ export function buildSymbolPositionIndexRegex(
 
       if (exclusions.isCommentPosition(lineIdx, token.character)) continue;
 
-      const line = linesArray[lineIdx];
-      if (!line) continue;
-
-      // Verify word boundary (tokens may match identifier substrings)
-      const beforeChar = token.character > 0 ? line[token.character - 1] : ' ';
-      const afterChar =
-        token.character + token.text.length < line.length
-          ? line[token.character + token.text.length]
-          : ' ';
-
-      if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-        const pos: CorePosition = { line: lineIdx, character: token.character };
-        if (!index.has(token.text)) {
-          index.set(token.text, []);
-        }
-        index.get(token.text)!.push(pos);
+      const pos: CorePosition = { line: lineIdx, character: token.character };
+      if (!index.has(token.text)) {
+        index.set(token.text, []);
       }
+      index.get(token.text)!.push(pos);
     }
 
     if (index.size > 0) {
@@ -350,48 +352,6 @@ export function buildSymbolPositionIndexRegex(
     }
   }
 
-  // indexOf fallback: scan lines for symbol name occurrences
-  for (const symbol of symbols) {
-    if (!symbol.name) continue;
-    const positions: CorePosition[] = [];
-
-    for (let lineNum = 0; lineNum < linesArray.length; lineNum++) {
-      const line = linesArray[lineNum];
-      if (!line) continue;
-
-      let searchStart = 0;
-      let matchIndex = line.indexOf(symbol.name, searchStart);
-
-      while (matchIndex !== -1) {
-        const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-        const afterChar =
-          matchIndex + symbol.name.length < line.length
-            ? line[matchIndex + symbol.name.length]
-            : ' ';
-
-        if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-          if (!exclusions.isCommentPosition(lineNum, matchIndex)) {
-            const defLine =
-              (symbol as { line?: number; position?: { line?: number } }).line ??
-              symbol.position?.line;
-            if (defLine !== undefined && lineNum + 1 === defLine) {
-              searchStart = matchIndex + 1;
-              matchIndex = line.indexOf(symbol.name, searchStart);
-              continue;
-            }
-
-            positions.push({ line: lineNum, character: matchIndex });
-          }
-        }
-        searchStart = matchIndex + 1;
-        matchIndex = line.indexOf(symbol.name, searchStart);
-      }
-    }
-
-    if (positions.length > 0) {
-      index.set(symbol.name, positions);
-    }
-  }
-
+  // Final fallback: return empty index when no tokens available
   return index;
 }
