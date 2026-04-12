@@ -147,6 +147,9 @@ const PIKE_KEYWORDS = new Set([
   '_typeof',
 ]);
 
+// Pre-compiled regex to skip numeric tokens in undefined-symbol analysis
+const NUMERIC_TEXT_REGEX = /^\d+$/;
+
 // Import from semantic-type-analysis for local use and re-export
 import {
   isSemanticAnalysisEnabled,
@@ -306,7 +309,7 @@ function analyzeUndefinedSymbols(
       continue;
     }
 
-    if (/^\d+$/.test(text)) {
+    if (NUMERIC_TEXT_REGEX.test(text)) {
       continue;
     }
 
