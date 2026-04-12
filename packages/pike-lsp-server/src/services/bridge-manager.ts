@@ -297,13 +297,15 @@ export class BridgeManager {
 
   /**
    * Parse Pike source code and extract symbols.
+   * Delegates to analyze() with ['parse'] operation.
    */
   async parse(code: string, filename: string) {
     if (!this.bridge)
       throw new Error(
         'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
       );
-    return this.bridge.parse(code, filename);
+    const response = await this.analyze(code, ['parse'], filename);
+    return response.result?.parse ?? { symbols: [], diagnostics: [] };
   }
 
   /**
