@@ -36,6 +36,15 @@ describe('Runtime settings propagation', () => {
     const document = TextDocument.create(uri, 'pike', 1, 'foo(1);');
 
     const services = {
+      bridge: {
+        isRunning: () => true,
+        tokenize: async (_text: string) => [
+          { text: 'foo', line: 1, character: 0, file: 'test.pike' },
+          { text: '(', line: 1, character: 3, file: 'test.pike' },
+          { text: '1', line: 1, character: 4, file: 'test.pike' },
+          { text: ')', line: 1, character: 5, file: 'test.pike' },
+        ],
+      },
       documentCache: {
         get: () => ({
           symbols: [{ name: 'foo', kind: 'method', argNames: ['value'], argTypes: ['int'] }],

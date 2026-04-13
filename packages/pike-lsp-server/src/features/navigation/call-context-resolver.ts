@@ -100,10 +100,8 @@ function trimRange(text: string, start: number, end: number): CallArgumentRange 
  */
 function resolveTargetAtParen(
   tokens: PikeToken[],
-  text: string,
   lines: string[],
-  openParenOffset: number,
-  excludedOffsets: Set<number>
+  openParenOffset: number
 ): ResolvedCallTarget | null {
   // Find the token at or immediately before the open paren
   let parenTokenIdx = -1;
@@ -115,8 +113,7 @@ function resolveTargetAtParen(
     }
   }
   if (parenTokenIdx < 0) {
-    // The paren might not be its own token — fallback: scan chars but use exclusion set
-    return resolveTargetAtParenFallback(text, openParenOffset, excludedOffsets);
+    return null;
   }
 
   // Walk backward from paren token to find identifier
@@ -146,7 +143,7 @@ function resolveTargetAtParen(
   }
 
   if (nameIdx < 0) {
-    return resolveTargetAtParenFallback(text, openParenOffset, excludedOffsets);
+    return null;
   }
 
   const name = tokens[nameIdx]!.text.trim();
@@ -178,74 +175,6 @@ function resolveTargetAtParen(
     isMemberCall: memberOperator !== null,
     memberOperator,
   };
-}
-
-/** Fallback char-based target resolution when tokens don't cleanly align. */
-function resolveTargetAtParenFallback(
-  text: string,
-  openParen: number,
-  _excludedOffsets: Set<number>
-): ResolvedCallTarget | null {
-  let i = openParen - 1;
-  while (i >= 0 && /\s/.test(text[i] ?? '')) {
-    i -= 1;
-  }
-  if (i < 0 || !/[a-zA-Z_]/.test(text[i]!)) {
-    return null;
-  }
-
-  let nameStart = i;
-  while (nameStart >= 0 && /[a-zA-Z0-9_]/.test(text[nameStart]!)) {
-    nameStart -= 1;
-  }
-  nameStart += 1;
-
-  const name = text.slice(nameStart, i + 1);
-  if (!name || CONTROL_KEYWORDS.has(name)) {
-    return null;
-  }
-
-  const beforeName = skipWhitespaceLeft(text, nameStart - 1);
-  let memberOperator: '->' | '.' | null = null;
-  let receiverStart = nameStart;
-
-  if (beforeName >= 0 && text[beforeName] === '.') {
-    memberOperator = '.';
-    let j = skipWhitespaceLeft(text, beforeName - 1);
-    while (j >= 0 && /[a-zA-Z0-9_.]/.test(text[j] ?? '')) {
-      j -= 1;
-    }
-    receiverStart = j + 1;
-  } else if (beforeName >= 1 && text[beforeName] === '>' && text[beforeName - 1] === '-') {
-    memberOperator = '->';
-    let j = skipWhitespaceLeft(text, beforeName - 2);
-    while (j >= 0 && /[a-zA-Z0-9_.\-<>]/.test(text[j] ?? '')) {
-      if (text[j] === '>' && j > 0 && text[j - 1] === '-') {
-        j -= 2;
-        continue;
-      }
-      j -= 1;
-    }
-    receiverStart = j + 1;
-  }
-
-  const expression =
-    memberOperator === null ? name : text.slice(receiverStart, i + 1).replace(/\s+/g, '');
-
-  return {
-    name,
-    expression,
-    isMemberCall: memberOperator !== null,
-    memberOperator,
-  };
-}
-
-function skipWhitespaceLeft(text: string, index: number): number {
-  let i = index;
-  while (i >= 0 && /\s/.test(text[i] ?? '')) {
-    i -= 1;
-  }
-  return i;
 }
 
 function computeActiveParameter(
@@ -311,7 +240,7 @@ export function resolveCallContextAtOffset(
         continue;
       }
 
-      const target = resolveTargetAtParen(tokens, text, lines, i, excludedOffsets);
+      const target = resolveTargetAtParen(tokens, lines, i);
       if (!target) {
         continue;
       }
@@ -365,7 +294,7 @@ export function collectCallContexts(text: string, tokens: PikeToken[]): Resolved
     }
 
     if (char === '(') {
-      const target = resolveTargetAtParen(tokens, text, lines, i, excludedOffsets);
+      const target = resolveTargetAtParen(tokens, lines, i);
       if (target) {
         openCalls.push({
           target,
