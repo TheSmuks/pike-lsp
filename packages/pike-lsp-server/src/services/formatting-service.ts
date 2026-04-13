@@ -143,7 +143,7 @@ export class FormattingService {
 
     const edits = formatPikeCodeWithProfile(text, indent, 0, profile);
     return edits.filter(
-      edit => edit.range.start.line >= startLine && edit.range.start.line <= endLine
+      edit => edit.range.start.line <= endLine && edit.range.end.line >= startLine
     );
   }
 }
