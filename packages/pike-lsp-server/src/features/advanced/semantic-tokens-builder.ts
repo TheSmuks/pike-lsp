@@ -5,6 +5,7 @@
  * Extracted from semantic-tokens.ts to keep file sizes under 500 lines.
  */
 
+import type { PikeToken, PikeSymbol } from '@pike-lsp/pike-bridge';
 import {
   SemanticTokensBuilder,
   SemanticTokens,
@@ -16,12 +17,6 @@ import { Logger } from '@pike-lsp/core';
 import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 import { buildIgnoredRangesFromTokens, buildIgnoredRangesFallback } from './ignored-ranges.js';
 import type { IgnoredRange } from './ignored-ranges.js';
-
-/** Create a word-boundary regex for exact identifier matching. */
-function wholeWordPattern(identifier: string): RegExp {
-  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`, 'g');
-}
 
 // Issue #1389: Pre-compiled keyword regex — avoids per-invocation RegExp construction
 const CONTROL_KEYWORD_NAMES = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
@@ -84,13 +79,14 @@ export async function buildTokens(
   const text = document.getText();
   const lines = text.split('\n');
 
-  // Issue #1581: Build ignored ranges from bridge.tokenize() output.
+  // Tokenize and build ignored ranges.
   // When bridge is unavailable (tests, parse-under-edit), falls back to a
   // lightweight line scanner that detects //, /* */, "...", and #"..."#.
   let ignoredRangesByLine: IgnoredRange[][];
+  let tokens: PikeToken[] | null = null;
   if (services.bridge) {
     try {
-      const tokens = await services.bridge.tokenize(text);
+      tokens = await services.bridge.tokenize(text);
       ignoredRangesByLine = buildIgnoredRangesFromTokens(tokens, lines.length);
     } catch {
       // Tokenize failure (parse-under-edit) — fall back to line scanner
@@ -125,104 +121,160 @@ export async function buildTokens(
     return builder.build();
   }
 
-  // KB-1262: Track symbol count for periodic cancellation checks
-  let symbolIndex = 0;
-  for (const symbol of cached.symbols) {
-    if (!symbol.name) continue;
-
-    // KB-1262: Check cancellation every 10 symbols
-    symbolIndex++;
-    if (cancellationToken && symbolIndex % 10 === 0 && cancellationToken.isCancellationRequested) {
-      break;
+  // Build name → symbols lookup from cached symbols.
+  // A single name may map to multiple symbols (different kinds/positions).
+  const symbolMap = new Map<string, PikeSymbol[]>();
+  for (const sym of cached.symbols) {
+    if (!sym.name) continue;
+    let list = symbolMap.get(sym.name);
+    if (!list) {
+      list = [];
+      symbolMap.set(sym.name, list);
     }
+    list.push(sym);
+  }
 
-    let tokenType = tokenTypes.indexOf('variable');
-    let declModifiers = declarationBit;
-
-    const hasModifier = (mod: string) => symbol.modifiers && symbol.modifiers.includes(mod);
-
-    if (hasModifier('static')) {
-      declModifiers |= staticBit;
-    }
-
-    if (hasModifier('deprecated')) {
-      declModifiers |= deprecatedBit;
-    }
-
-    switch (symbol.kind) {
+  // Resolve token type and modifiers for a symbol kind.
+  const getTokenType = (kind: string): number => {
+    switch (kind) {
       case 'class':
-        tokenType = tokenTypes.indexOf('class');
-        break;
+        return tokenTypes.indexOf('class');
       case 'method':
-        tokenType = tokenTypes.indexOf('method');
-        break;
+        return tokenTypes.indexOf('method');
       case 'variable':
-        tokenType = tokenTypes.indexOf('variable');
-        break;
+        return tokenTypes.indexOf('variable');
       case 'constant':
-        tokenType = tokenTypes.indexOf('property');
-        declModifiers |= readonlyBit;
-        break;
+        return tokenTypes.indexOf('property');
       case 'enum':
-        tokenType = tokenTypes.indexOf('enum');
-        break;
+        return tokenTypes.indexOf('enum');
       case 'enum_constant':
-        tokenType = tokenTypes.indexOf('enumMember');
-        declModifiers |= readonlyBit;
-        break;
+        return tokenTypes.indexOf('enumMember');
       case 'typedef':
-        tokenType = tokenTypes.indexOf('type');
-        break;
+        return tokenTypes.indexOf('type');
       case 'module':
-        tokenType = tokenTypes.indexOf('namespace');
-        break;
+        return tokenTypes.indexOf('namespace');
       case 'import':
-        tokenType = tokenTypes.indexOf('namespace');
-        break;
+        return tokenTypes.indexOf('namespace');
       case 'inherit':
-        tokenType = tokenTypes.indexOf('class');
-        break;
+        return tokenTypes.indexOf('class');
       case 'include':
-        tokenType = tokenTypes.indexOf('namespace');
-        break;
+        return tokenTypes.indexOf('namespace');
       default:
-        continue;
+        return -1;
     }
+  };
 
-    // KB-1262: Wrap regex construction and matching in try-catch per symbol
-    try {
-      const symbolRegex = wholeWordPattern(symbol.name);
-      const declLine = symbol.position ? symbol.position.line - 1 : -1;
-      const searchRadius = 50;
+  const getModifiers = (sym: PikeSymbol, tokenType: number): number => {
+    if (tokenType < 0) return 0;
+    const hasModifier = (mod: string) => sym.modifiers && sym.modifiers.includes(mod);
+    let mods = declarationBit;
+    if (hasModifier('static')) mods |= staticBit;
+    if (hasModifier('deprecated')) mods |= deprecatedBit;
+    if (sym.kind === 'constant' || sym.kind === 'enum_constant') mods |= readonlyBit;
+    return mods;
+  };
 
-      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum];
-        if (!line) continue;
+  // --- Fast path: token-based matching when bridge tokens are available ---
+  if (tokens) {
+    let symbolIndex = 0;
+    for (const token of tokens) {
+      // KB-1262: Check cancellation periodically
+      symbolIndex++;
+      if (
+        cancellationToken &&
+        symbolIndex % 200 === 0 &&
+        cancellationToken.isCancellationRequested
+      ) {
+        break;
+      }
 
-        if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
-          continue;
-        }
+      const syms = symbolMap.get(token.text);
+      if (!syms) continue;
 
-        let match = symbolRegex.exec(line);
-        while (match !== null) {
-          const matchIndex = match.index;
+      // Only match identifier-like tokens (not comments, strings, operators).
+      // Heuristic: must start with a letter/underscore and contain only word chars.
+      if (!/^\w/.test(token.text)) continue;
 
-          if (!isIgnoredPosition(lineNum, matchIndex)) {
-            const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
-            const modifiers = isDeclaration ? declModifiers : 0;
-            builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
+      const lineNum = token.line - 1;
+      const charPos = token.character;
+      if (lineNum < 0 || charPos < 0) continue;
+
+      if (isIgnoredPosition(lineNum, charPos)) continue;
+
+      for (const sym of syms) {
+        const tokenType = getTokenType(sym.kind);
+        if (tokenType < 0) continue;
+        const isDeclaration = sym.position && sym.position.line - 1 === lineNum;
+        builder.push(
+          lineNum,
+          charPos,
+          token.text.length,
+          tokenType,
+          isDeclaration ? getModifiers(sym, tokenType) : 0
+        );
+      }
+    }
+  } else {
+    // --- Fallback: regex scan per symbol (no bridge available) ---
+    let symbolIndex = 0;
+    for (const sym of cached.symbols) {
+      if (!sym.name) continue;
+
+      symbolIndex++;
+      if (
+        cancellationToken &&
+        symbolIndex % 10 === 0 &&
+        cancellationToken.isCancellationRequested
+      ) {
+        break;
+      }
+
+      const tokenType = getTokenType(sym.kind);
+      if (tokenType < 0) continue;
+      const declModifiers = getModifiers(sym, tokenType);
+
+      // KB-1262: Wrap regex construction and matching in try-catch per symbol
+      try {
+        const escaped = sym.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const symbolRegex = new RegExp(`\\b${escaped}\\b`, 'g');
+        const declLine = sym.position ? sym.position.line - 1 : -1;
+        const searchRadius = 50;
+
+        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+          const line = lines[lineNum];
+          if (!line) continue;
+
+          if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
+            continue;
           }
 
-          match = symbolRegex.exec(line);
+          symbolRegex.lastIndex = 0;
+          let match = symbolRegex.exec(line);
+          while (match !== null) {
+            const matchIndex = match.index;
+
+            if (!isIgnoredPosition(lineNum, matchIndex)) {
+              const isDeclaration = sym.position && sym.position.line - 1 === lineNum;
+              builder.push(
+                lineNum,
+                matchIndex,
+                sym.name.length,
+                tokenType,
+                isDeclaration ? declModifiers : 0
+              );
+            }
+
+            match = symbolRegex.exec(line);
+          }
         }
+      } catch (err) {
+        // KB-1262: Skip symbols with malformed names during parse-under-edit
+        log.debug('Symbol regex failed (likely parse-under-edit)', {
+          uri,
+          symbolName: sym.name,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      // KB-1262: Skip symbols with malformed names during parse-under-edit
-      log.debug('Symbol regex failed (likely parse-under-edit)', {
-        uri,
-        symbolName: symbol.name,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
   }
 
