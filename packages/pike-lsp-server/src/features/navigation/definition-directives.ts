@@ -7,7 +7,9 @@
  * - inherit "module";
  * - #require feature
  *
- * Extracted from definition.ts for maintainability.
+ * Uses cached symbols from bridge.parse() (available in cached.symbols)
+ * to extract directive paths, avoiding brittle regex patterns.
+ * Falls back to bridge.extractImports() only when symbols are unavailable.
  */
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -17,9 +19,79 @@ import type { DocumentCacheEntry } from '../../core/types.js';
 import type { Logger } from '@pike-lsp/core';
 import { uriToFsPath } from '../../utils/uri-path.js';
 
+/** Directive kinds we handle for navigation */
+const DIRECTIVE_KINDS = ['include', 'import', 'inherit', 'require'] as const;
+type DirectiveKind = (typeof DIRECTIVE_KINDS)[number];
+
+interface ExtractedDirective {
+  kind: DirectiveKind;
+  path: string;
+}
+
+/**
+ * Look up a directive symbol at the given line from cached.symbols.
+ * The bridge parse output already classifies directives by kind with
+ * resolved path information in classname/name fields.
+ */
+function findDirectiveSymbol(
+  symbols: DocumentCacheEntry['symbols'],
+  line: number,
+  kind?: DirectiveKind
+): ExtractedDirective | undefined {
+  if (!symbols || symbols.length === 0) return undefined;
+
+  const directiveKinds: ReadonlySet<string> = new Set(['include', 'import', 'inherit', 'require']);
+  for (const s of symbols) {
+    if (kind && s.kind !== kind) continue;
+    if (!directiveKinds.has(s.kind)) continue;
+    if (s.position && s.position.line - 1 === line) {
+      return {
+        kind: s.kind as DirectiveKind,
+        path: (s.classname || s.name || '').trim(),
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract a directive at the given line using bridge.extractImports.
+ * Used as fallback when cached symbols are unavailable.
+ */
+async function extractDirectiveFromBridge(
+  document: TextDocument,
+  filePath: string,
+  line: number,
+  services: Services,
+  log: Logger,
+  kind?: DirectiveKind
+): Promise<ExtractedDirective | undefined> {
+  if (!services.bridge?.bridge) return undefined;
+  try {
+    const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
+    const match = imports.imports.find(imp => {
+      if (kind && imp.type !== kind) return false;
+      return imp.line - 1 === line;
+    });
+    if (match) {
+      return { kind: match.type as DirectiveKind, path: match.path };
+    }
+  } catch (err) {
+    log.debug('Definition: bridge.extractImports failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return undefined;
+}
+
 /**
  * Handle go-to-definition for directive lines (#include, import, inherit, #require).
  * Returns a Location or null if cursor is not on a directive.
+ *
+ * Resolution strategy:
+ * 1. Look up directive symbol from cached.symbols (parsed by bridge)
+ * 2. Fall back to bridge.extractImports for fresh parse
+ * 3. Resolve the extracted path via bridge or cached dependencies
  */
 export async function handleDirectiveNavigation(
   document: TextDocument,
@@ -36,226 +108,194 @@ export async function handleDirectiveNavigation(
     })
     .trim();
 
+  // Determine expected directive kind from line prefix for fast rejection
+  let expectedKind: DirectiveKind | undefined;
+  if (lineText.startsWith('#include')) expectedKind = 'include';
+  else if (lineText.startsWith('import ')) expectedKind = 'import';
+  else if (lineText.startsWith('inherit ')) expectedKind = 'inherit';
+  else if (lineText.startsWith('#require ')) expectedKind = 'require';
+  else return null; // Not a directive line
+
   const filePath = uriToFsPath(uri);
 
-  // Handle #include directives — use cached symbols or bridge.extractImports instead of regex
-  if (lineText.startsWith('#include') && services.bridge?.bridge) {
-    let includePath: string | undefined;
+  // Try cached symbols first (already parsed by Parser.Pike)
+  const directive = findDirectiveSymbol(cached.symbols, position.line, expectedKind);
 
-    // Try cached symbols first (already parsed by Parser.Pike)
-    if (cached.symbols) {
-      const includeSymbol = cached.symbols.find(
-        s => s.kind === 'include' && s.position && s.position.line - 1 === position.line
-      );
-      if (includeSymbol) {
-        includePath = includeSymbol.classname || includeSymbol.name;
+  // Fall back to bridge.extractImports for a fresh parse
+  if (!directive) {
+    const bridgeDirective = await extractDirectiveFromBridge(
+      document,
+      filePath,
+      position.line,
+      services,
+      log,
+      expectedKind
+    );
+    if (!bridgeDirective) {
+      // Last resort for inherit: try cached.inherits directly by line
+      // (supports scenarios where bridge is unavailable)
+      if (expectedKind === 'inherit' && cached.inherits?.length) {
+        return resolveInheritByLine(cached.inherits, position.line);
       }
+      return null;
     }
+    return resolveDirective(bridgeDirective, cached, services, filePath, log);
+  }
 
-    // Fall back to bridge.extractImports for a fresh parse
-    if (!includePath) {
-      try {
-        const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
-        const lineInclude = imports.imports.find(
-          imp => imp.type === 'include' && imp.line - 1 === position.line
-        );
-        includePath = lineInclude?.path;
-      } catch (err) {
-        log.debug('Definition: failed to extract imports', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+  return resolveDirective(directive, cached, services, filePath, log);
+}
 
-    if (includePath) {
-      log.debug('Definition: directive include navigation', { includePath });
-      try {
-        const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
-        if (result.exists && result.path) {
-          return {
-            uri: `file://${result.path}`,
-            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-          };
-        }
-      } catch (err) {
-        log.debug('Definition: include resolution failed', {
-          includePath,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
+/**
+ * Resolve a directive to a file Location using cached dependencies or bridge.
+ */
+async function resolveDirective(
+  directive: ExtractedDirective,
+  cached: DocumentCacheEntry,
+  services: Services,
+  filePath: string,
+  log: Logger
+): Promise<Location | null> {
+  // #require doesn't point to a file, no navigation
+  if (directive.kind === 'require') {
+    log.debug('Definition: directive require (no navigation)', { feature: directive.path });
     return null;
   }
 
-  // Handle import statements — use bridge.extractImports instead of regex
-  if (lineText.startsWith('import ') && services.bridge?.bridge) {
-    let importPath: string | undefined;
+  if (!directive.path) return null;
 
-    // Try bridge.extractImports for a fresh parse
-    try {
-      const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
-      const lineImport = imports.imports.find(
-        imp => imp.type === 'import' && imp.line - 1 === position.line
-      );
-      importPath = lineImport?.path;
-    } catch (err) {
-      log.debug('Definition: failed to extract imports for import', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    if (!importPath) {
-      // Simple string extraction: strip 'import ' prefix, take up to ';'
-      const trimmed = lineText.slice(7).trim();
-      const semiIdx = trimmed.indexOf(';');
-      importPath = (semiIdx >= 0 ? trimmed.slice(0, semiIdx) : trimmed).trim();
-    }
-
-    if (importPath) {
-      log.debug('Definition: directive import navigation', { importPath });
-
-      // Check cached dependencies first
-      if (cached.dependencies?.imports) {
-        for (const imp of cached.dependencies.imports) {
-          if (imp.modulePath === importPath || imp.modulePath.endsWith('/' + importPath)) {
-            if (imp.resolvedPath) {
-              return {
-                uri: `file://${imp.resolvedPath}`,
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-              };
-            }
-          }
-        }
-      }
-
-      // Fall back to bridge resolution
-      try {
-        const result = await services.bridge.bridge.resolveImport('import', importPath, filePath);
-        if (result.exists && result.path) {
-          return {
-            uri: `file://${result.path}`,
-            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-          };
-        }
-      } catch (err) {
-        log.debug('Definition: import resolution failed', {
-          importPath,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-    return null;
+  // #include: resolve via bridge.resolveInclude or cached dependencies
+  if (directive.kind === 'include') {
+    return resolveIncludeDirective(directive.path, cached, services, filePath, log);
   }
 
-  // Handle inherit statements — use bridge.extractImports instead of regex
-  if (lineText.startsWith('inherit ')) {
-    let inheritPath: string | undefined;
-
-    // Try bridge.extractImports for a fresh parse
-    if (services.bridge?.bridge) {
-      try {
-        const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
-        const lineInherit = imports.imports.find(
-          imp => imp.type === 'inherit' && imp.line - 1 === position.line
-        );
-        inheritPath = lineInherit?.path;
-      } catch (err) {
-        log.debug('Definition: failed to extract imports for inherit', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    if (!inheritPath) {
-      // Simple string extraction: strip 'inherit ' prefix, remove quotes/whitespace
-      const trimmed = lineText.slice(8).trim();
-      // Take up to first ; or :
-      let end = trimmed.length;
-      for (let i = 0; i < trimmed.length; i++) {
-        const ch = trimmed[i];
-        if (ch === ';' || ch === ':') {
-          end = i;
-          break;
-        }
-      }
-      inheritPath = trimmed.slice(0, end).replace(/"/g, '').trim();
-    }
-
-    log.debug('Definition: directive inherit navigation', { inheritPath });
-
-    // Check cached inherits first (works even without bridge)
-    if (cached.inherits) {
-      for (const inh of cached.inherits) {
-        if (inh.source_name === inheritPath || inh.path === inheritPath) {
-          if (inh.path) {
-            return {
-              uri: `file://${inh.path}`,
-              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-            };
-          }
-        }
-      }
-    }
-
-    // Fall back to bridge resolution
-    if (services.bridge?.bridge) {
-      try {
-        const result = await services.bridge.bridge.resolveImport('inherit', inheritPath, filePath);
-        if (result.exists && result.path) {
-          return {
-            uri: `file://${result.path}`,
-            range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-          };
-        }
-      } catch (err) {
-        log.debug('Definition: inherit resolution failed', {
-          inheritPath,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-    return null;
+  // import: check cached dependencies first, then bridge.resolveImport
+  if (directive.kind === 'import') {
+    return resolveImportDirective(directive.path, cached, services, filePath, log);
   }
 
-  // Handle #require directives — use bridge.extractImports instead of regex
-  if (lineText.startsWith('#require ') && services.bridge?.bridge) {
-    let feature: string | undefined;
-
-    // Try bridge.extractImports first
-    try {
-      const imports = await services.bridge.bridge.extractImports(document.getText(), filePath);
-      const lineRequire = imports.imports.find(
-        imp => imp.type === 'require' && imp.line - 1 === position.line
-      );
-      feature = lineRequire?.path;
-    } catch (err) {
-      log.debug('Definition: failed to extract imports for require', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    if (!feature) {
-      // Simple string extraction: strip '#require ' prefix, trim delimiters
-      const trimmed = lineText.slice(9).trim();
-      let end = trimmed.length;
-      for (let i = 0; i < trimmed.length; i++) {
-        const ch = trimmed[i];
-        if (ch === '"' || ch === '>' || ch === ';') {
-          end = i;
-          break;
-        }
-      }
-      feature = trimmed.slice(0, end).trim();
-    }
-
-    if (feature) {
-      log.debug('Definition: directive require (no navigation)', { feature });
-    }
-    // #require doesn't point to a file, no navigation
-    return null;
+  // inherit: check cached inherits first, then bridge.resolveImport
+  if (directive.kind === 'inherit') {
+    return resolveInheritDirective(directive.path, cached, services, filePath, log);
   }
 
-  // Not a directive line
+  return null;
+}
+
+function makeLocation(resolvedPath: string): Location {
+  return {
+    uri: `file://${resolvedPath}`,
+    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+  };
+}
+
+async function resolveIncludeDirective(
+  includePath: string,
+  _cached: DocumentCacheEntry,
+  services: Services,
+  filePath: string,
+  log: Logger
+): Promise<Location | null> {
+  log.debug('Definition: directive include navigation', { includePath });
+
+  if (!services.bridge?.bridge) return null;
+  try {
+    const result = await services.bridge.bridge.resolveInclude(includePath, filePath);
+    if (result.exists && result.path) {
+      return makeLocation(result.path);
+    }
+  } catch (err) {
+    log.debug('Definition: include resolution failed', {
+      includePath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return null;
+}
+
+async function resolveImportDirective(
+  importPath: string,
+  cached: DocumentCacheEntry,
+  services: Services,
+  filePath: string,
+  log: Logger
+): Promise<Location | null> {
+  log.debug('Definition: directive import navigation', { importPath });
+
+  // Check cached dependencies first
+  if (cached.dependencies?.imports) {
+    for (const imp of cached.dependencies.imports) {
+      if (imp.modulePath === importPath || imp.modulePath.endsWith('/' + importPath)) {
+        if (imp.resolvedPath) {
+          return makeLocation(imp.resolvedPath);
+        }
+      }
+    }
+  }
+
+  // Fall back to bridge resolution
+  if (!services.bridge?.bridge) return null;
+  try {
+    const result = await services.bridge.bridge.resolveImport('import', importPath, filePath);
+    if (result.exists && result.path) {
+      return makeLocation(result.path);
+    }
+  } catch (err) {
+    log.debug('Definition: import resolution failed', {
+      importPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return null;
+}
+
+/**
+ * Resolve inherit by matching cached.inherits entries at the given line.
+ * Used as last resort when neither symbols nor bridge are available.
+ */
+function resolveInheritByLine(
+  inherits: NonNullable<DocumentCacheEntry['inherits']>,
+  _line: number
+): Location | null {
+  // cached.inherits doesn't carry line info, so return the first match.
+  // This is a best-effort fallback for offline/no-bridge scenarios.
+  const first = inherits[0];
+  if (first?.path) {
+    return makeLocation(first.path);
+  }
+  return null;
+}
+async function resolveInheritDirective(
+  inheritPath: string,
+  cached: DocumentCacheEntry,
+  services: Services,
+  filePath: string,
+  log: Logger
+): Promise<Location | null> {
+  log.debug('Definition: directive inherit navigation', { inheritPath });
+
+  // Check cached inherits first (works even without bridge)
+  if (cached.inherits) {
+    for (const inh of cached.inherits) {
+      if (inh.source_name === inheritPath || inh.path === inheritPath) {
+        if (inh.path) {
+          return makeLocation(inh.path);
+        }
+      }
+    }
+  }
+
+  // Fall back to bridge resolution
+  if (!services.bridge?.bridge) return null;
+  try {
+    const result = await services.bridge.bridge.resolveImport('inherit', inheritPath, filePath);
+    if (result.exists && result.path) {
+      return makeLocation(result.path);
+    }
+  } catch (err) {
+    log.debug('Definition: inherit resolution failed', {
+      inheritPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   return null;
 }
