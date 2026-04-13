@@ -31,7 +31,7 @@ function createMockServices(options: {
     roxenDetect: async () => ({ is_roxen_module: 0 }),
     resolveInclude: async () => options.includeResult ?? { exists: false },
     resolveImport: async () => options.importResult ?? { exists: false },
-    // Extract imports from source — returns include at line 1 for test documents
+    // Extract imports from source — handles all directive types
     extractImports: async (code: string) => {
       const imports: Array<{
         type: 'include' | 'import' | 'inherit' | 'require';
@@ -42,8 +42,30 @@ function createMockServices(options: {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (!line) continue;
-        const m = line.match(/^#include\s+["<]([^">]+)[">]/);
-        if (m) imports.push({ type: 'include', path: m[1], line: i + 1 });
+        // #include
+        const incMatch = line.match(/^#include\s+["<]([^">]+)[">]/);
+        if (incMatch) {
+          imports.push({ type: 'include', path: incMatch[1], line: i + 1 });
+          continue;
+        }
+        // import
+        const impMatch = line.match(/^import\s+([^;]+)/);
+        if (impMatch) {
+          imports.push({ type: 'import', path: impMatch[1].trim(), line: i + 1 });
+          continue;
+        }
+        // inherit
+        const inhMatch = line.match(/^inherit\s+["']?([^"';:]+)/);
+        if (inhMatch) {
+          imports.push({ type: 'inherit', path: inhMatch[1].trim(), line: i + 1 });
+          continue;
+        }
+        // #require
+        const reqMatch = line.match(/^#require\s+["<]?([^";>]+)/);
+        if (reqMatch) {
+          imports.push({ type: 'require', path: reqMatch[1].trim(), line: i + 1 });
+          continue;
+        }
       }
       return { imports };
     },
@@ -303,6 +325,14 @@ describe('handleDirectiveNavigation', () => {
             resolveImport: async () => {
               bridgeCalled = true;
               return { exists: true, path: '/fallback/Other.pike' };
+            },
+            extractImports: async (code: string) => {
+              const lines = code.split('\n');
+              for (let i = 0; i < lines.length; i++) {
+                const m = lines[i]!.match(/^inherit\s+["']?([^"';:]+)/);
+                if (m) return { imports: [{ type: 'inherit', path: m[1].trim(), line: i + 1 }] };
+              }
+              return { imports: [] };
             },
           },
           isRunning: () => true,
