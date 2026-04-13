@@ -15,6 +15,7 @@ import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { WorkspaceScanner } from '../../services/workspace-scanner.js';
 import type { Logger } from '@pike-lsp/core';
+import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 
 // ============================================================================
 // Mock Logger
@@ -530,6 +531,31 @@ describe('WorkspaceScanner - 26.5 Lazy loading', () => {
     assert.ok(Array.isArray(results));
   });
 
+  it('26.5.4b should exclude files without cached symbols from searchSymbol results', async () => {
+    // Arrange
+    const logger = createMockLogger();
+    const scanner = new WorkspaceScanner(logger, () => ({}));
+    await scanner.initialize(['/workspace']);
+
+    // Add three files: one with matching symbol, one with non-matching, one uncached
+    scanner.upsertFile('file:///a.pike', 1);
+    scanner.upsertFile('file:///b.pike', 1);
+    scanner.upsertFile('file:///c.pike', 1);
+    scanner.updateFileData('file:///a.pike', {
+      symbols: [{ name: 'targetFunc', kind: 12 } as IntrospectedSymbol],
+    });
+    scanner.updateFileData('file:///b.pike', {
+      symbols: [{ name: 'otherFunc', kind: 12 } as IntrospectedSymbol],
+    });
+    // c.pike remains uncached (no symbols set)
+
+    // Act
+    const results = await scanner.searchSymbol('targetFunc');
+
+    // Assert
+    assert.equal(results.length, 1, 'Should only return files with matching cached symbols');
+    assert.equal(results[0], 'file:///a.pike');
+  });
   it('26.5.5 should return files without cached data for lazy parsing', () => {
     // Arrange
     const logger = createMockLogger();
