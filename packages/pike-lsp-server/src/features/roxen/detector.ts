@@ -11,13 +11,16 @@ const log = new Logger('RoxenDetector');
 
 /**
  * Text-level marker check for synchronous Roxen detection.
- * Used only by isRoxenModule() when bridge is unavailable.
+ * Uses string.includes — no regex.
  */
-const INHERIT_RE = /inherit\s+["'](module|filesystem|roxen)["']/i;
-
 function hasMarkers(code: string): boolean {
   return (
-    INHERIT_RE.test(code) ||
+    code.includes('inherit "module"') ||
+    code.includes("inherit 'module'") ||
+    code.includes('inherit "roxen"') ||
+    code.includes("inherit 'roxen'") ||
+    code.includes('inherit "filesystem"') ||
+    code.includes("inherit 'filesystem'") ||
     code.includes('#include <module.h>') ||
     code.includes('#include "module.h"') ||
     code.includes('ID_DEFINED') ||
@@ -66,13 +69,32 @@ function hasRegisterSymbol(symbols: PikeSymbol[]): boolean {
 }
 
 /**
+ * Recursively check symbols for an inherit of module/roxen/filesystem.
+ */
+function hasInheritSymbol(symbols: PikeSymbol[]): boolean {
+  for (const sym of symbols) {
+    if (
+      sym.kind === 'inherit' &&
+      sym.classname &&
+      ['module', 'roxen', 'filesystem'].includes(sym.classname)
+    ) {
+      return true;
+    }
+    if (sym.children && hasInheritSymbol(sym.children)) return true;
+  }
+  return false;
+}
+
+/**
  * Single source of truth for Roxen module detection.
  *
- * Combines fast text scanning (hasMarkers) with symbol-table inspection
- * for register_* symbol checks. All callers should delegate to this function.
- * Uses string.includes and startsWith — no regex.
+ * Combines symbol-table inspection (inherit + register_ checks) with
+ * fast text scanning (hasMarkers) as fallback. All callers should
+ * delegate to this function. Uses string.includes — no regex.
  */
 export function isRoxenModule(text: string, symbols?: PikeSymbol[]): boolean {
+  if (symbols && hasInheritSymbol(symbols)) return true;
+
   if (hasMarkers(text)) return true;
 
   if (symbols && hasRegisterSymbol(symbols)) return true;
