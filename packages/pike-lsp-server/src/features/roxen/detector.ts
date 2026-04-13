@@ -11,24 +11,53 @@ const log = new Logger('RoxenDetector');
 
 /**
  * Text-level marker check for synchronous Roxen detection.
- * Uses string.includes — no regex.
+ * Single-pass scan: checks all markers in a single O(n) traversal
+ * instead of 13 separate O(n) includes() calls.
  */
 function hasMarkers(code: string): boolean {
-  return (
-    code.includes('inherit "module"') ||
-    code.includes("inherit 'module'") ||
-    code.includes('inherit "roxen"') ||
-    code.includes("inherit 'roxen'") ||
-    code.includes('inherit "filesystem"') ||
-    code.includes("inherit 'filesystem'") ||
-    code.includes('#include <module.h>') ||
-    code.includes('#include "module.h"') ||
-    code.includes('ID_DEFINED') ||
-    code.includes('ID_RUNTIME') ||
-    code.includes('VERSION_') ||
-    code.includes('MODULE_') ||
-    code.includes('register_module(')
-  );
+  const len = code.length;
+  let pos = 0;
+
+  while (pos < len) {
+    const ch = code[pos];
+
+    // Fast path: skip characters that can't start any marker
+    if (ch !== '#' && ch !== 'i' && ch !== 'I' && ch !== 'V' && ch !== 'M' && ch !== 'r') {
+      pos++;
+      continue;
+    }
+
+    // Single-char-start markers: ID_DEFINED, ID_RUNTIME
+    if (ch === 'I') {
+      if (code.startsWith('ID_DEFINED', pos) || code.startsWith('ID_RUNTIME', pos)) return true;
+      pos++;
+      continue;
+    }
+    if (ch === 'V' && code.startsWith('VERSION_', pos)) return true;
+    if (ch === 'M' && code.startsWith('MODULE_', pos)) return true;
+    if (ch === 'r' && code.startsWith('register_module(', pos)) return true;
+
+    // Multi-char-start markers
+    if (ch === 'i' && code.startsWith('inherit ', pos)) {
+      const off = pos + 8;
+      if (
+        code.startsWith('"module"', off) ||
+        code.startsWith("'module'", off) ||
+        code.startsWith('"roxen"', off) ||
+        code.startsWith("'roxen'", off) ||
+        code.startsWith('"filesystem"', off) ||
+        code.startsWith("'filesystem'", off)
+      )
+        return true;
+    }
+    if (ch === '#' && code.startsWith('#include ', pos)) {
+      const off = pos + 9;
+      if (code.startsWith('<module.h>', off) || code.startsWith('"module.h"', off)) return true;
+    }
+
+    pos++;
+  }
+  return false;
 }
 
 export async function detectRoxenModule(
@@ -90,7 +119,7 @@ function hasInheritSymbol(symbols: PikeSymbol[]): boolean {
  *
  * Combines symbol-table inspection (inherit + register_ checks) with
  * fast text scanning (hasMarkers) as fallback. All callers should
- * delegate to this function. Uses string.includes — no regex.
+ * delegate to this function. Single-pass scan — no regex.
  */
 export function isRoxenModule(text: string, symbols?: PikeSymbol[]): boolean {
   if (symbols && hasInheritSymbol(symbols)) return true;
