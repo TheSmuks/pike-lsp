@@ -23,6 +23,77 @@ import {
   sym,
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
+// ---------------------------------------------------------------------------
+// Mock helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple tokenizer that extracts identifier-like tokens from Pike text.
+ * Simulates bridge.tokenize() output for test scenarios.
+ * Handles single-line comments, block comments, and string literals.
+ */
+function mockTokenize(text: string): PikeToken[] {
+  const tokens: PikeToken[] = [];
+  const lines = text.split('\n');
+  let inBlockComment = false;
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    let line = lines[lineIdx]!;
+
+    // Track block comment state across lines
+    if (inBlockComment) {
+      const endIdx = line.indexOf('*/');
+      if (endIdx >= 0) {
+        line = line.slice(endIdx + 2);
+        inBlockComment = false;
+      } else {
+        continue;
+      }
+    }
+
+    // Remove block comments within this line
+    let effectiveLine = '';
+    let remaining = line;
+    while (remaining.length > 0) {
+      const blockStart = remaining.indexOf('/*');
+      const lineComment = remaining.indexOf('//');
+      if (blockStart >= 0 && (lineComment < 0 || blockStart < lineComment)) {
+        effectiveLine += remaining.slice(0, blockStart);
+        const blockEnd = remaining.indexOf('*/', blockStart + 2);
+        if (blockEnd >= 0) {
+          remaining = remaining.slice(blockEnd + 2);
+        } else {
+          inBlockComment = true;
+          remaining = '';
+        }
+      } else if (lineComment >= 0) {
+        effectiveLine += remaining.slice(0, lineComment);
+        remaining = '';
+      } else {
+        effectiveLine += remaining;
+        remaining = '';
+      }
+    }
+
+    // Match word tokens (identifiers and keywords)
+    const wordRe = /\b\w+\b/g;
+    let match;
+    while ((match = wordRe.exec(effectiveLine)) !== null) {
+      // Skip tokens inside string literals (simple heuristic)
+      const before = effectiveLine.slice(0, match.index);
+      const quoteCount = (before.match(/"/g) ?? []).length;
+      if (quoteCount % 2 === 1) continue;
+      tokens.push({
+        text: match[0],
+        line: lineIdx + 1, // 1-indexed as per PikeToken
+        character: match.index,
+        file: 'test.pike',
+      });
+    }
+  }
+  return tokens;
+}
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -37,7 +108,7 @@ interface SetupOptions {
   noDocument?: boolean;
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
-  bridge?: any;
+  bridge?: { tokenize: (text: string) => Promise<PikeToken[]>; [key: string]: unknown } | null;
 }
 
 function setup(opts: SetupOptions) {
@@ -65,9 +136,13 @@ function setup(opts: SetupOptions) {
     );
   }
 
+  const defaultBridge = {
+    isRunning: () => true,
+    tokenize: (text: string) => Promise.resolve(mockTokenize(text)),
+  };
   const services = createMockServices({
     cacheEntries,
-    bridge: opts.bridge ?? null,
+    bridge: opts.bridge ? { ...defaultBridge, ...opts.bridge } : defaultBridge,
   });
   const documents = createMockDocuments(docsMap);
   const conn = createMockConnection();
