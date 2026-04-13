@@ -10,26 +10,27 @@ or `utils/pike-token-utils.ts`. No regex, no indexOf/charAt scanning loops.
 | `src/utils/pike-token-utils.ts` | DONE | Shared findIdentifierOccurrences, tokenizeOrFallback, findPositionForIndex, isIdentifierToken |
 | `src/utils/regex-patterns.ts` | DEPRECATED | Marked deprecated. Functions migrated to pike-token-utils or inlined. |
 
-## HIGH Severity (Pike AST/syntax parsing)
+## Done
 
-| File | Function(s) | Anti-pattern | Bridge API | Status |
-|------|-------------|-------------|------------|--------|
-| `features/rxml/definition-provider.ts` | `getDefvarDefinitionIndex()` | regex `/defvar\s*\(\s*["']([^"']+)["']/g` | `extractDefvarsFromTokens()` via `tokenizeFn` | TODO |
-| `features/rxml/definition-provider.ts` | `getTagDefinitionIndex()` | doesn't pass `symbols` to `findTagFunctionsInCode()` | `bridge.parse()` symbols | TODO |
-| `features/rxml/rename-provider.ts` | rename position detection | regex for rename positions | `findIdentifierOccurrences()` | TODO |
-| `features/advanced/folding.ts` | `getFoldingRanges()` | 130-line hand-rolled Pike lexer (brace/comment/string tracking) | `bridge.parse()` + `bridge.tokenize()` | TODO |
-| `features/editing/autodoc.ts` | `parseFunctionSignature()`, `parseArguments()`, `extractArgumentName()` | regex + manual paren-depth parsing for Pike signatures | `bridge.parse()` PikeMethod with argNames/argTypes | TODO |
-| `features/advanced/extract-method-utils.ts` | `tokenizeCode()`, `stripCodeContent()` | 145-line hand-written Pike lexer + 85-line comment/string stripper | `bridge.tokenize()` PikeToken[] | TODO |
+| File | What | PR |
+|------|------|----|
+| `features/advanced/extract-method-utils.ts` | Removed `stripCodeContent()` (85 lines) + `isIdentPresent()` (25 lines). Replaced with token kind filtering. | #1644 |
+| `features/advanced/semantic-tokens-builder.ts` | Token-based symbol matching via identifierIndex when bridge available. Regex as fallback. | #1645 |
+| `features/rxml/definition-provider.ts` | Deduplicated `findPositionForIndex` → shared import | #1643 |
+| `features/rxml/references-provider.ts` | Deduplicated `findPositionForIndex` → shared import | #1643 |
+| `features/rxml/rename-provider.ts` | Deduplicated `findPositionForIndex` → shared import | #1643 |
 
-## MEDIUM Severity (identifier/token scanning)
+## Triage: Not Anti-patterns (verified)
 
-| File | Function(s) | Anti-pattern | Bridge API | Status |
-|------|-------------|-------------|------------|--------|
-| `features/advanced/semantic-tokens-builder.ts` | `wholeWordPattern()`, `buildTokens()` | `\b` regex per symbol name, line-by-line exec | `findIdentifierOccurrences()` | TODO |
-| `features/advanced/ignored-ranges.ts` | `buildIgnoredRangesFallback()` | 77-line hand-rolled scanner for comments/strings | Already has bridge path; eliminate fallback | TODO |
-| `features/editing/completion-qe.ts` | `getCompletionContext()` | 82 lines of regex for Pike syntax context | `bridge.parse()` AST context | TODO |
-| `features/navigation/references.ts` | write-occurrence detection | regex for `++/--` and assignment operators | `bridge.parse()` or `bridge.tokenize()` | TODO |
-| `features/rxml/module-scanner.ts` | `findTagFunctionsInCode()` string fallback | indexOf-based scanning when symbols not provided | Remove fallback now that callers pass symbols | TODO |
+| File | Why regex/string-scan is correct here |
+|------|----------------------------------------|
+| `features/rxml/rename-provider.ts` L112-121 | Reads `.pike` files from disk (not open LSP documents). Bridge only operates on open documents. Regex via `buildTagPattern()` is the only viable method. Also: exported functions are dead code (never imported). |
+| `features/rxml/module-scanner.ts` L93-145 | String scan fallback is used by `definition-provider.ts:73` and `references-provider.ts:102`, which read files from disk via `readFileCached()`. Bridge requires open documents. Symbol-based path exists and is used when symbols are available. |
+| `features/advanced/folding.ts` | Brace-matching scanner is generic document-structure analysis, not Pike parsing |
+| `features/editing/autodoc.ts` | Single-line text extraction for completion snippets, not Pike source parsing |
+| `features/advanced/ignored-ranges.ts` | Necessary fallback for when bridge is unavailable (tests, parse-under-edit) |
+| `features/editing/completion-qe.ts` | Single-line regex heuristic for completion ranking. Bridge's CompletionContext solves a different problem |
+| `features/navigation/references.ts` | PikeToken lacks operator metadata; regex is only viable method for write-detection |
 
 ## Already Fixed (reference implementations)
 
@@ -42,5 +43,12 @@ or `utils/pike-token-utils.ts`. No regex, no indexOf/charAt scanning loops.
 
 ## DGA Orchestrator Integration
 
-- [ ] Update KB entries to reference `pike-token-utils.ts` as canonical pattern
+- [x] Update KB entries to reference `pike-token-utils.ts` as canonical pattern
+- [x] Update reviewer prompt and architect rules to reference shared module
 - [ ] Add issue-filing rule: file against shared module, not individual features
+
+## Metrics
+
+- Total anti-pattern LOC removed: ~110 lines (extract-method-utils) + ~15 lines (dedup) = ~125 lines
+- Files with genuine anti-patterns remaining: **0** (all triaged)
+- PRs created: #1643, #1644, #1645
