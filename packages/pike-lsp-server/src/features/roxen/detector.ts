@@ -34,10 +34,11 @@ function isWordChar(c: number): boolean {
 }
 
 /**
- * Quick check for `module_type = MODULE_` declaration or standalone MODULE_ constant.
+ * Quick check for MODULE_* constant references.
+ * Covers both `module_type = MODULE_*` declarations and standalone MODULE_* constants.
  */
 function hasModuleTypeDecl(code: string): boolean {
-  return code.includes('module_type = MODULE_') || code.includes('MODULE_');
+  return code.includes('MODULE_');
 }
 
 /**
