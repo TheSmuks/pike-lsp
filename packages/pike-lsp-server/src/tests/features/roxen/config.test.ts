@@ -573,6 +573,157 @@ describe('BridgeParseInput: Inherits-based Parsing', () => {
   });
 });
 
+describe('BridgeParseInput: roxenInfo-based Defvar Extraction', () => {
+  it('should extract defvars from roxenInfo.variables', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: ['MODULE_TAG'] as string[],
+      module_name: 'test_module',
+      inherits: ['module'],
+      variables: [
+        {
+          name: 'myvar',
+          type: 'TYPE_STRING',
+          name_string: 'My Variable',
+          doc_str: 'Documentation for myvar',
+          position: { file: 'test.pike', line: 5, column: 4 },
+        },
+      ],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const result = parseRoxenConfig('', { roxenInfo });
+
+    assert.strictEqual(result.isInheritModule, true);
+    assert.strictEqual(result.moduleType, 'MODULE_TAG');
+    assert.strictEqual(result.defvars.length, 1);
+    assert.strictEqual(result.defvars[0]!.name, 'myvar');
+    assert.strictEqual(result.defvars[0]!.displayName, 'My Variable');
+    assert.strictEqual(result.defvars[0]!.type, 'TYPE_STRING');
+    assert.strictEqual(result.defvars[0]!.documentation, 'Documentation for myvar');
+    assert.strictEqual(result.defvars[0]!.flags, 0);
+    assert.strictEqual(result.defvars[0]!.line, 4, 'Line should be 0-indexed (5 - 1)');
+    assert.strictEqual(result.defvars[0]!.column, 4);
+  });
+
+  it('should extract multiple defvars from roxenInfo', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: ['MODULE_LOCATION'] as string[],
+      module_name: 'fs_module',
+      inherits: ['module'],
+      variables: [
+        {
+          name: 'mount',
+          type: 'TYPE_STRING',
+          name_string: 'Mount',
+          doc_str: 'Doc1',
+          position: { file: '', line: 1, column: 0 },
+        },
+        {
+          name: 'root',
+          type: 'TYPE_DIR',
+          name_string: 'Root',
+          doc_str: 'Doc2',
+          position: { file: '', line: 2, column: 0 },
+        },
+      ],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const result = parseRoxenConfig('', { roxenInfo });
+    assert.strictEqual(result.defvars.length, 2);
+    assert.strictEqual(result.defvars[0]!.name, 'mount');
+    assert.strictEqual(result.defvars[1]!.name, 'root');
+  });
+
+  it('should report error for unknown TYPE in roxenInfo variables', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: [] as string[],
+      module_name: 'bad_module',
+      inherits: ['module'],
+      variables: [
+        {
+          name: 'x',
+          type: 'TYPE_INVALID',
+          name_string: 'X',
+          doc_str: '',
+          position: { file: '', line: 3, column: 2 },
+        },
+      ],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const result = parseRoxenConfig('', { roxenInfo });
+    assert.strictEqual(result.defvars.length, 1);
+    assert.strictEqual(result.errors.length, 1);
+    assert.ok(result.errors[0]!.message.includes('TYPE_INVALID'));
+    assert.strictEqual(result.errors[0]!.line, 2, 'Error line should be 0-indexed');
+  });
+
+  it('should fall back to tokens when roxenInfo has no variables', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: ['MODULE_TAG'] as string[],
+      module_name: 'empty_module',
+      inherits: ['module'],
+      variables: [],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const tokens = defvarTokens('from_tokens', 'From Tokens', 'TYPE_INT', 'Doc', '0');
+    const result = parseRoxenConfig('', { roxenInfo, tokens });
+    assert.strictEqual(result.defvars.length, 1, 'Should fall back to token-based extraction');
+    assert.strictEqual(result.defvars[0]!.name, 'from_tokens');
+  });
+
+  it('should use name as displayName when name_string is empty', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: [] as string[],
+      module_name: 'm',
+      inherits: [],
+      variables: [
+        {
+          name: 'bare_var',
+          type: 'TYPE_FLAG',
+          name_string: '',
+          doc_str: '',
+          position: { file: '', line: 1, column: 0 },
+        },
+      ],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const result = parseRoxenConfig('', { roxenInfo });
+    assert.strictEqual(result.defvars[0]!.displayName, 'bare_var');
+  });
+
+  it('should handle missing column in roxenInfo position', () => {
+    const roxenInfo = {
+      is_roxen_module: 1 as const,
+      module_type: [] as string[],
+      module_name: 'm',
+      inherits: [],
+      variables: [
+        {
+          name: 'v',
+          type: 'TYPE_STRING',
+          name_string: 'V',
+          doc_str: 'D',
+          position: { file: '', line: 10 },
+        },
+      ],
+      tags: [],
+      lifecycle: { callbacks: [], has_create: 0, has_start: 0, has_stop: 0, has_status: 0 },
+    };
+    const result = parseRoxenConfig('', { roxenInfo });
+    assert.strictEqual(result.defvars[0]!.line, 9);
+    assert.strictEqual(result.defvars[0]!.column, 0, 'Missing column should default to 0');
+  });
+});
+
 describe('BridgeParseInput: Token-based Defvar Parsing', () => {
   it('should extract defvar from tokens', () => {
     const tokens: PikeToken[] = [
