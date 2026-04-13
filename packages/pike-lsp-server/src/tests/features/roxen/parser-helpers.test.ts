@@ -9,6 +9,7 @@ import assert from 'node:assert';
 import {
   positionAt,
   offsetAt,
+  LineIndex,
   buildLineOffsets,
   offsetToPosition,
   positionToOffset,
@@ -379,6 +380,53 @@ describe('Parser Helpers', () => {
       assert.strictEqual(lsp.start.character, 0);
       assert.strictEqual(lsp.end.line, 1);
       assert.strictEqual(lsp.end.character, 4);
+    });
+  });
+
+  describe('LineIndex', () => {
+    it('should return position at offset 0', () => {
+      const idx = new LineIndex('hello');
+      const pos = idx.positionAt(0);
+      assert.strictEqual(pos.line, 0);
+      assert.strictEqual(pos.character, 0);
+    });
+
+    it('should handle offset on first line', () => {
+      const idx = new LineIndex('hello');
+      const pos = idx.positionAt(3);
+      assert.strictEqual(pos.line, 0);
+      assert.strictEqual(pos.character, 3);
+    });
+
+    it('should handle offset after newline', () => {
+      const idx = new LineIndex('hello\nworld');
+      const pos = idx.positionAt(6);
+      assert.strictEqual(pos.line, 1);
+      assert.strictEqual(pos.character, 0);
+    });
+
+    it('should handle multiple newlines', () => {
+      const idx = new LineIndex('a\nb\nc\nd');
+      assert.deepStrictEqual(idx.positionAt(0), { line: 0, character: 0 });
+      assert.deepStrictEqual(idx.positionAt(2), { line: 1, character: 0 });
+      assert.deepStrictEqual(idx.positionAt(4), { line: 2, character: 0 });
+      assert.deepStrictEqual(idx.positionAt(6), { line: 3, character: 0 });
+    });
+
+    it('should return offset for a position', () => {
+      const idx = new LineIndex('hello\nworld');
+      assert.strictEqual(idx.offsetAt({ line: 0, character: 3 }), 3);
+      assert.strictEqual(idx.offsetAt({ line: 1, character: 0 }), 6);
+      assert.strictEqual(idx.offsetAt({ line: 1, character: 3 }), 9);
+    });
+
+    it('should roundtrip positionAt -> offsetAt', () => {
+      const text = 'line1\nline2\nline3';
+      const idx = new LineIndex(text);
+      for (let offset = 0; offset <= text.length; offset++) {
+        const pos = idx.positionAt(offset);
+        assert.strictEqual(idx.offsetAt(pos), offset, `roundtrip failed at offset ${offset}`);
+      }
     });
   });
 });

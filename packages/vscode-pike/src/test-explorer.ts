@@ -213,7 +213,9 @@ async function createSession(
   };
 
   // TestRunProfileKind.Run = 1 in VS Code's stable API.
-  const TestRunProfileKind = (vscode as unknown as Record<string, unknown>)['TestRunProfileKind'] as { Run: number } | undefined;
+  const TestRunProfileKind = (vscode as unknown as Record<string, unknown>)[
+    'TestRunProfileKind'
+  ] as { Run: number } | undefined;
   const profile = controller.createRunProfile(
     'Run',
     TestRunProfileKind?.Run ?? 1,
