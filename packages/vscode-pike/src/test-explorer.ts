@@ -20,7 +20,7 @@ interface TestingApi {
     };
     createRunProfile(
       label: string,
-      kind: { Run: number; Debug: number; Coverage: number },
+      kind: number,
       runHandler: (
         request: { include?: unknown[]; exclude?: unknown[] },
         token: vscode.CancellationToken
@@ -212,12 +212,11 @@ async function createSession(
     }
   };
 
-  // TestRunProfileKind is a built-in enum available at runtime.
-  // Accessing it via bracket notation to avoid the TS-level definition mismatch.
+  // TestRunProfileKind.Run = 1 in VS Code's stable API.
   const TestRunProfileKind = (vscode as unknown as Record<string, unknown>)['TestRunProfileKind'] as { Run: number } | undefined;
   const profile = controller.createRunProfile(
     'Run',
-    { Run: TestRunProfileKind?.Run ?? 1, Debug: 2, Coverage: 3 },
+    TestRunProfileKind?.Run ?? 1,
     async (request, token) => {
       const run = controller.createTestRun(request);
       const showOutput = vscode.workspace
