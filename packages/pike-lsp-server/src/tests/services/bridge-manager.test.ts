@@ -117,11 +117,16 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager(createBridge(true, 1234) as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      createBridge(true, 1234) as unknown as PikeBridge,
+      mockLogger
+    );
 
     await assert.rejects(
       () => manager.parseFileSymbols('/nonexistent/path/file.pike'),
@@ -134,7 +139,10 @@ describe('BridgeManager parseFileSymbols', () => {
 
     assert.ok(warnCalls.length >= 1, 'warn should be called for readFile error');
     const warnArg = String(warnCalls[0][0]);
-    assert.ok(warnArg.includes('/nonexistent/path/file.pike'), `warn message should include filePath, got: ${warnArg}`);
+    assert.ok(
+      warnArg.includes('/nonexistent/path/file.pike'),
+      `warn message should include filePath, got: ${warnArg}`
+    );
   });
 
   it('throws on readFile EACCES and logs filePath', async () => {
@@ -142,11 +150,16 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager(createBridge(true, 1234) as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      createBridge(true, 1234) as unknown as PikeBridge,
+      mockLogger
+    );
 
     // Use /proc/kcore or another path that will trigger EACCES on Linux
     // If running as root, this won't trigger EACCES, so we skip
@@ -171,16 +184,23 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager({
-      isRunning: () => true,
-      on: () => undefined,
-      getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
-      analyze: () => { throw new Error('analyze failed'); },
-    } as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
+        analyze: () => {
+          throw new Error('analyze failed');
+        },
+      } as unknown as PikeBridge,
+      mockLogger
+    );
 
     // Write a temporary file with valid content so readFile succeeds
     const { writeFile, mkdtemp, rm } = await import('node:fs/promises');
@@ -204,5 +224,44 @@ describe('BridgeManager parseFileSymbols', () => {
     const manager = new BridgeManager(null, createMockLogger());
     const result = await manager.parseFileSymbols('/any/path.pike');
     assert.deepEqual(result, []);
+  });
+});
+
+describe('BridgeManager stop() guards against stale writes', () => {
+  it('does not overwrite cachedVersion after stop() clears it', async () => {
+    let resolveVersion: (v: unknown) => void;
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        start: async () => undefined,
+        stop: async () => undefined,
+        getVersionInfo: () =>
+          new Promise(r => {
+            resolveVersion = r;
+          }),
+        getDiagnostics: () => ({ options: { pikePath: '/usr/bin/pike' }, isRunning: true, pid: 1 }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    // start() fires fetchVersionInfoInternal as fire-and-forget
+    await manager.start();
+
+    // Resolve version AFTER stop() is called but BEFORE stop() returns
+    // We achieve this by calling stop() and resolving the promise in sequence.
+    // Since stop() is async but the flag is set synchronously, the in-flight
+    // await should see stopped=true.
+    await manager.stop();
+
+    // Now resolve the pending promise (if it hasn't already)
+    resolveVersion!({ major: 8, minor: 0, build: 1116, version: '8.0.1116', display: 8.01116 });
+
+    // Wait a tick for the promise microtask to run
+    await new Promise(r => setTimeout(r, 0));
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null, 'cachedVersion should remain null after stop()');
+    assert.equal(health.startupMetrics, null, 'startupMetrics should remain null after stop()');
   });
 });
