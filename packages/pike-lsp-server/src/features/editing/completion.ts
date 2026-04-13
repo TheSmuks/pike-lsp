@@ -34,11 +34,7 @@ import {
 } from '../rxml/mixed-content.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 import { resolveScopeCompletions } from './completion-scope.js';
-import {
-  resolveArrowWorkaround,
-  resolveModuleDotWorkaround,
-  resolvePikeContextMemberAccess,
-} from './completion-member-access.js';
+import { resolvePikeContextMemberAccess } from './completion-member-access.js';
 import { registerCompletionResolveHandler } from './completion-resolve.js';
 import {
   handleQueryEngineCompletion,
@@ -265,31 +261,6 @@ export function registerCompletionHandlers(
           error: err instanceof Error ? err.message : String(err),
         });
       }
-    }
-
-    // Arrow workaround: obj->
-    const arrowResult = await resolveArrowWorkaround(
-      lineText,
-      params.position.character,
-      cached,
-      services,
-      documentCache,
-      completionContext,
-      logger
-    );
-    if (arrowResult && arrowResult.length > 0) {
-      return toCompletionList(arrowResult);
-    }
-
-    // Module. dot workaround
-    const moduleDotResult = await resolveModuleDotWorkaround(
-      lineText,
-      services,
-      completionContext,
-      logger
-    );
-    if (moduleDotResult) {
-      return toCompletionList(moduleDotResult);
     }
 
     // Pike tokenizer member/scope access
