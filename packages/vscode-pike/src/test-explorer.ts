@@ -20,12 +20,12 @@ interface TestingApi {
     };
     createRunProfile(
       label: string,
-      kind: number,
+      kind: { Run: number; Debug: number; Coverage: number },
       runHandler: (
         request: { include?: unknown[]; exclude?: unknown[] },
         token: vscode.CancellationToken
       ) => Promise<void>,
-      isDefault: boolean
+      isDefault?: boolean
     ): vscode.Disposable;
     createTestItem(
       id: string,
@@ -58,7 +58,6 @@ interface TestingApi {
     };
     dispose(): void;
   };
-  TestRunProfileKind: { Run: number };
   TestMessage: new (message: string) => unknown;
 }
 
@@ -84,11 +83,13 @@ interface TestMeta {
 }
 
 function getTestingApi(): TestingApi {
-  const api = vscode as unknown as { tests?: TestingApi };
-  if (!api.tests) {
+  // vscode.tests is the stable testing API (VS Code 1.88+)
+  const raw = vscode as unknown as Record<string, unknown>;
+  const api = raw['tests'] as TestingApi | undefined;
+  if (!api) {
     throw new Error('VS Code testing API is unavailable');
   }
-  return api.tests;
+  return api;
 }
 
 export function registerPikeTestExplorer(options: PikeTestExplorerOptions): vscode.Disposable {
@@ -211,9 +212,12 @@ async function createSession(
     }
   };
 
+  // TestRunProfileKind is a built-in enum available at runtime.
+  // Accessing it via bracket notation to avoid the TS-level definition mismatch.
+  const TestRunProfileKind = (vscode as unknown as Record<string, unknown>)['TestRunProfileKind'] as { Run: number } | undefined;
   const profile = controller.createRunProfile(
     'Run',
-    testing.TestRunProfileKind.Run,
+    { Run: TestRunProfileKind?.Run ?? 1, Debug: 2, Coverage: 3 },
     async (request, token) => {
       const run = controller.createTestRun(request);
       const showOutput = vscode.workspace
