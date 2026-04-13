@@ -14,6 +14,7 @@ subprocess via JSON-RPC over stdin/stdout, line-delimited.
 ## Two-Layer Design
 
 **PikeProcess** (`process.ts`) — low-level IPC:
+
 - Spawns `pike analyzer.pike` with piped stdio
 - `readline` on stdout emits one `message` event per JSON line
 - `send(json)` writes to stdin with trailing newline
@@ -22,6 +23,7 @@ subprocess via JSON-RPC over stdin/stdout, line-delimited.
 - No request correlation or timeouts
 
 **PikeBridge** (`bridge.ts`) — business logic:
+
 - Owns PikeProcess, correlates requests via auto-incrementing `requestId`
 - Per-request timeouts (default 30s), deduplicates in-flight requests
 - Auto-restart on unexpected exit (max 3 attempts)
@@ -57,6 +59,7 @@ Methods: `parse`, `tokenize`, `compile`, `analyze`, `resolve`,
 `children?`, `inherited?`, `documentation?`, `conditional?`.
 
 Subtypes (discriminated on `kind`):
+
 - `PikeClass` — `children`, `inherits`
 - `PikeMethod` — `argNames`, `argTypes`, `returnType`
 - `PikeVariable`, `PikeConstant`, `PikeTypedef` — `type?: PikeType`
