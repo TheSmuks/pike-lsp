@@ -61,30 +61,23 @@ describe('Roxen Detector', () => {
   });
 
   describe('detectRoxenModule', () => {
-    it('should return null quickly when no markers present', async () => {
-      const code = `
-        int add(int a, int b) {
-          return a + b;
-        }
-      `;
-      const bridge = createMockBridge(roxenModuleInfo);
+    it('should return null when bridge confirms not a Roxen module', async () => {
+      const code = 'int add(int a, int b) { return a + b; }';
+      const bridge = createMockBridge(nonRoxenModuleInfo);
       const result = await detectRoxenModule(code, testUri, bridge);
-      assert.strictEqual(result, null, 'Should return null for code without markers');
+      assert.strictEqual(result, null, 'Should return null for non-Roxen code');
     });
 
     it('should return null for code with only comments', async () => {
-      const code = `
-        // This is a comment
-        /* Multi-line comment */
-      `;
-      const bridge = createMockBridge(roxenModuleInfo);
+      const code = '\n        // This is a comment\n        /* Multi-line comment */\n      ';
+      const bridge = createMockBridge(nonRoxenModuleInfo);
       const result = await detectRoxenModule(code, testUri, bridge);
       assert.strictEqual(result, null, 'Should return null for comments only');
     });
 
     it('should return null for empty code', async () => {
       const code = '';
-      const bridge = createMockBridge(roxenModuleInfo);
+      const bridge = createMockBridge(nonRoxenModuleInfo);
       const result = await detectRoxenModule(code, testUri, bridge);
       assert.strictEqual(result, null, 'Should return null for empty code');
     });
@@ -152,7 +145,7 @@ describe('Roxen Detector', () => {
       assert.strictEqual(result?.is_roxen_module, 1);
     });
 
-    it('should return null when bridge confirms not a Roxen module', async () => {
+    it('should return null when bridge confirms not a Roxen module (marker present)', async () => {
       const code = 'inherit "module";';
       const bridge = createMockBridge(nonRoxenModuleInfo);
       const result = await detectRoxenModule(code, 'file:///test/non-roxen.pike', bridge);

@@ -10,12 +10,8 @@ const cache = new Map<string, RoxenModuleInfo | null>();
 const log = new Logger('RoxenDetector');
 
 /**
- * Fast text-level pre-filter for Roxen module markers.
- * Used as an early-exit gate before invoking the bridge.
- *
- * Covers all known Roxen markers via cheap string.includes() checks.
- * No regex — register_module and MODULE_ patterns are checked via
- * simple substring inclusion; bridge.roxenDetect() handles full validation.
+ * Text-level marker check for synchronous Roxen detection.
+ * Used only by isRoxenModule() when bridge is unavailable.
  */
 function hasMarkers(code: string): boolean {
   return (
@@ -40,10 +36,8 @@ export async function detectRoxenModule(
   uri: string,
   bridge: RoxenDetectorBridge
 ): Promise<RoxenModuleInfo | null> {
-  if (!hasMarkers(code)) return null;
-
   const cached = cache.get(uri);
-  if (cached) return cached;
+  if (cached !== undefined) return cached;
 
   try {
     const result = await bridge.roxenDetect(code, uri);

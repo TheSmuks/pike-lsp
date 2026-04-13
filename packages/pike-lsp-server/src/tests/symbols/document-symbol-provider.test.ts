@@ -6,11 +6,12 @@
  * and directly tests the extracted convertSymbolKind() and getSymbolDetail().
  */
 
-import { describe, it, expect, test } from 'bun:test';
+import { describe, it, expect, test, beforeEach } from 'bun:test';
 import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
+import { invalidateCache } from '../../features/roxen/index.js';
 import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
 import {
   createMockConnection,
@@ -836,6 +837,10 @@ describe('Document Symbol Provider', () => {
   // =========================================================================
 
   describe('Scenario 11.9: Document symbols - Roxen module integration', () => {
+    beforeEach(() => {
+      invalidateCache('file:///test.pike');
+    });
+
     it('should enhance Roxen module symbols with defvar children', async () => {
       // TDD GREEN Phase: Test Roxen module symbol classification
       const uri = 'file:///test.pike';
