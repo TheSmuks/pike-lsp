@@ -2,6 +2,8 @@ import type { InheritanceInfo, IntrospectedSymbol, PikeSymbol } from '@pike-lsp/
 import type { Services } from './index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
+import { readFile } from 'node:fs/promises';
+
 import { LRUCache } from '../utils/lru-cache.js';
 import { uriToFsPath } from '../utils/uri-path.js';
 
@@ -180,9 +182,15 @@ export class PikeIntrospectionService {
     }
 
     try {
-      const fs = await import('node:fs/promises');
-      return await fs.readFile(uriToFsPath(uri), 'utf-8');
-    } catch {
+      return await readFile(uriToFsPath(uri), 'utf-8');
+    } catch (error) {
+      const code =
+        error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined;
+      if (code === 'ENOENT') return null;
+      this.services.logger.debug('readDocumentText failed', {
+        uri,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
