@@ -127,6 +127,29 @@ describe('symbol-index', () => {
       assert.strictEqual((flat[1] as { qualifiedName?: string })?.qualifiedName, 'A.B');
     });
 
+    it('produces correct qualified names for 3+ nesting levels', () => {
+      const symbols: PikeSymbol[] = [
+        sym('A', 'class', {
+          position: { file: 'test.pike', line: 1 },
+          children: [
+            sym('B', 'class', {
+              position: { file: 'test.pike', line: 2 },
+              children: [sym('C', 'method', { position: { file: 'test.pike', line: 3 } })],
+            }),
+          ],
+        }),
+      ];
+
+      const flat = flattenSymbols(symbols);
+
+      assert.strictEqual(flat.length, 3);
+      assert.strictEqual(flat[0]?.name, 'A');
+      assert.strictEqual(flat[1]?.name, 'B');
+      assert.strictEqual(flat[2]?.name, 'C');
+      assert.strictEqual((flat[1] as { qualifiedName?: string })?.qualifiedName, 'A.B');
+      assert.strictEqual((flat[2] as { qualifiedName?: string })?.qualifiedName, 'A.B.C');
+    });
+
     it('handles empty symbol array', () => {
       const flat = flattenSymbols([]);
       assert.strictEqual(flat.length, 0);

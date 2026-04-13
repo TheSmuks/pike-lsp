@@ -65,31 +65,22 @@ function indexSymbolsRecursive(
  * Flatten nested symbol tree into a single-level array.
  * This ensures all class members are indexed at the document level.
  */
-export function flattenSymbols(symbols: PikeSymbol[], parentName = ''): PikeSymbol[] {
-  const flat: PikeSymbol[] = [];
+export function flattenSymbols(
+  symbols: PikeSymbol[],
+  parentName = ''
+): (PikeSymbol & { qualifiedName?: string })[] {
+  const flat: (PikeSymbol & { qualifiedName?: string })[] = [];
 
   for (const sym of symbols) {
-    // Add the symbol itself
-    flat.push(sym);
+    if (parentName) {
+      flat.push({ ...sym, qualifiedName: `${parentName}.${sym.name}` });
+    } else {
+      flat.push(sym);
+    }
 
-    // Recursively flatten children with qualified names
     if (sym.children && sym.children.length > 0) {
       const qualifiedPrefix = parentName ? `${parentName}.${sym.name}` : sym.name;
-
-      for (const child of sym.children) {
-        // Create a copy with qualified name for easier lookup
-        const childWithQualName = {
-          ...child,
-          // Store qualified name for namespaced lookup
-          qualifiedName: `${qualifiedPrefix}.${child.name}`,
-        };
-        flat.push(childWithQualName);
-
-        // Recursively handle nested children
-        if (child.children && child.children.length > 0) {
-          flat.push(...flattenSymbols(child.children, qualifiedPrefix));
-        }
-      }
+      flat.push(...flattenSymbols(sym.children, qualifiedPrefix));
     }
   }
 
