@@ -411,7 +411,7 @@ export function registerHoverHandler(
             selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
             children: [],
             modifiers: [],
-          } as unknown as PikeSymbol;
+          } as PikeSymbol;
           isStdlib = true;
         }
       } catch (err) {
