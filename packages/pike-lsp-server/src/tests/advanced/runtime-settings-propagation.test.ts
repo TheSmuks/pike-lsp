@@ -17,13 +17,14 @@ afterEach(() => {
 });
 
 describe('Runtime settings propagation', () => {
-  it('uses latest inlay hint settings from services', () => {
-    let inlayHandler: ((params: { textDocument: { uri: string } }) => unknown) | null = null;
+  it('uses latest inlay hint settings from services', async () => {
+    let inlayHandler: ((params: { textDocument: { uri: string } }) => Promise<unknown>) | null =
+      null;
 
     const connection = {
       languages: {
         inlayHint: {
-          on(handler: (params: { textDocument: { uri: string } }) => unknown) {
+          on(handler: (params: { textDocument: { uri: string } }) => Promise<unknown>) {
             inlayHandler = handler;
           },
           resolve: undefined,
@@ -55,7 +56,7 @@ describe('Runtime settings propagation', () => {
     registerInlayHintsHandler(connection as any, services as any, documents as any);
     expect(inlayHandler).not.toBeNull();
 
-    const disabledResult = inlayHandler!({ textDocument: { uri } });
+    const disabledResult = await inlayHandler!({ textDocument: { uri } });
     expect(disabledResult).toBeNull();
 
     services.globalSettings = {
@@ -63,7 +64,9 @@ describe('Runtime settings propagation', () => {
       inlayHints: { enabled: true, parameterNames: true, typeHints: false },
     };
 
-    const enabledResult = inlayHandler!({ textDocument: { uri } }) as Array<{ label: string }>;
+    const enabledResult = (await inlayHandler!({ textDocument: { uri } })) as Array<{
+      label: string;
+    }>;
     expect(enabledResult).toBeArray();
     expect(enabledResult.length).toBe(1);
     expect(enabledResult[0]?.label).toBe('value:');

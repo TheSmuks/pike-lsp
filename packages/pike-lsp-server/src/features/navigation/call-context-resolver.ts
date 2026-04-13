@@ -1,7 +1,12 @@
-interface OffsetRange {
-  start: number;
-  end: number;
-}
+/**
+ * Call context resolver — uses bridge.tokenize() for lexical awareness.
+ *
+ * Replaces hand-rolled character scanning (buildExclusionRanges, resolveTargetAtParen)
+ * with token-based analysis. Tokens provide correct handling of Pike string literals
+ * (#"..."#), nested comments, and other lexical edge cases.
+ */
+
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 
 export interface ResolvedCallTarget {
   name: string;
@@ -44,8 +49,37 @@ const CONTROL_KEYWORDS = new Set([
   'do',
 ]);
 
-function isIdentifierChar(char: string | undefined): boolean {
-  return !!char && /[a-zA-Z0-9_]/.test(char);
+/**
+ * Convert PikeToken (1-indexed line, 0-indexed column) to document offset.
+ */
+function tokenToOffset(lines: string[], token: PikeToken): number {
+  let offset = 0;
+  for (let i = 0; i < token.line - 1; i++) {
+    offset += (lines[i]?.length ?? 0) + 1;
+  }
+  return offset + token.character;
+}
+
+/**
+ * Build a set of document offsets that fall inside string or comment tokens.
+ */
+function buildExcludedOffsetSet(text: string, tokens: PikeToken[]): Set<number> {
+  const excluded = new Set<number>();
+  const lines = text.split('\n');
+  for (const token of tokens) {
+    const t = token.text.trimStart();
+    const isComment = t.startsWith('//') || t.startsWith('/*');
+    const isString = t.startsWith('#"') || t.startsWith('"') || t.startsWith("'");
+    if (!isComment && !isString) continue;
+
+    const leadingWs = token.text.length - t.length;
+    const start = tokenToOffset(lines, token) + leadingWs;
+    const end = start + t.length;
+    for (let i = start; i < end; i++) {
+      excluded.add(i);
+    }
+  }
+  return excluded;
 }
 
 function trimRange(text: string, start: number, end: number): CallArgumentRange | null {
@@ -60,110 +94,108 @@ function trimRange(text: string, start: number, end: number): CallArgumentRange 
   return left < right ? { start: left, end: right } : null;
 }
 
-function buildExclusionRanges(text: string): OffsetRange[] {
-  const ranges: OffsetRange[] = [];
-
-  let i = 0;
-  while (i < text.length) {
-    const char = text[i]!;
-    const next = i + 1 < text.length ? text[i + 1]! : '';
-
-    if (char === '/' && next === '/') {
-      const start = i;
-      i += 2;
-      while (i < text.length && text[i] !== '\n') {
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '/' && next === '*') {
-      const start = i;
-      i += 2;
-      while (i + 1 < text.length) {
-        if (text[i] === '*' && text[i + 1] === '/') {
-          i += 2;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '#' && next === '"') {
-      const start = i;
-      i += 2;
-      while (i + 1 < text.length) {
-        if (text[i] === '"' && text[i + 1] === '#') {
-          i += 2;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      const quote = char;
-      const start = i;
-      i += 1;
-      while (i < text.length) {
-        if (text[i] === '\\') {
-          i += 2;
-          continue;
-        }
-        if (text[i] === quote) {
-          i += 1;
-          break;
-        }
-        i += 1;
-      }
-      ranges.push({ start, end: i });
-      continue;
-    }
-
-    i += 1;
-  }
-
-  return ranges;
-}
-
-function isExcludedOffset(ranges: OffsetRange[], offset: number): boolean {
-  let lo = 0;
-  let hi = ranges.length - 1;
-  while (lo <= hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    const range = ranges[mid]!;
-    if (offset < range.start) {
-      hi = mid - 1;
-    } else if (offset >= range.end) {
-      lo = mid + 1;
-    } else {
-      return true;
+/**
+ * Walk backward through the token list to find the call target for an open paren.
+ * Looks for an identifier token immediately before `(`, optionally preceded by `->` or `.`.
+ */
+function resolveTargetAtParen(
+  tokens: PikeToken[],
+  text: string,
+  lines: string[],
+  openParenOffset: number,
+  excludedOffsets: Set<number>
+): ResolvedCallTarget | null {
+  // Find the token at or immediately before the open paren
+  let parenTokenIdx = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    if (tokenToOffset(lines, tok) === openParenOffset) {
+      parenTokenIdx = i;
+      break;
     }
   }
-  return false;
+  if (parenTokenIdx < 0) {
+    // The paren might not be its own token — fallback: scan chars but use exclusion set
+    return resolveTargetAtParenFallback(text, openParenOffset, excludedOffsets);
+  }
+
+  // Walk backward from paren token to find identifier
+  let nameIdx = -1;
+  let memberOperator: '->' | '.' | null = null;
+  let receiverEndIdx = -1;
+
+  for (let i = parenTokenIdx - 1; i >= 0; i--) {
+    const t = tokens[i]!.text.trim();
+    if (t === '' || /\s/.test(t)) continue;
+
+    if (t === '->' || t === '.') {
+      memberOperator = t as '->' | '.';
+      continue;
+    }
+
+    if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(t)) {
+      if (nameIdx < 0) {
+        nameIdx = i;
+      } else if (memberOperator) {
+        receiverEndIdx = i;
+        break;
+      }
+      continue;
+    }
+    break;
+  }
+
+  if (nameIdx < 0) {
+    return resolveTargetAtParenFallback(text, openParenOffset, excludedOffsets);
+  }
+
+  const name = tokens[nameIdx]!.text.trim();
+  if (!name || CONTROL_KEYWORDS.has(name)) {
+    return null;
+  }
+
+  let receiverStart = nameIdx;
+  if (memberOperator && receiverEndIdx >= 0) {
+    receiverStart = receiverEndIdx;
+  }
+
+  let expression: string;
+  if (memberOperator === null) {
+    expression = name;
+  } else {
+    // Reconstruct expression from receiver through member operator to name
+    let expr = '';
+    for (let i = receiverStart; i <= nameIdx; i++) {
+      expr += tokens[i]!.text.trim();
+      if (i < nameIdx) expr += '.';
+    }
+    expression = expr.replace(/\s+/g, '');
+  }
+
+  return {
+    name,
+    expression,
+    isMemberCall: memberOperator !== null,
+    memberOperator,
+  };
 }
 
-function skipWhitespaceLeft(text: string, index: number): number {
-  let i = index;
+/** Fallback char-based target resolution when tokens don't cleanly align. */
+function resolveTargetAtParenFallback(
+  text: string,
+  openParen: number,
+  _excludedOffsets: Set<number>
+): ResolvedCallTarget | null {
+  let i = openParen - 1;
   while (i >= 0 && /\s/.test(text[i] ?? '')) {
     i -= 1;
   }
-  return i;
-}
-
-function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarget | null {
-  const i = skipWhitespaceLeft(text, openParen - 1);
-  if (i < 0 || !isIdentifierChar(text[i])) {
+  if (i < 0 || !/[a-zA-Z_]/.test(text[i]!)) {
     return null;
   }
 
   let nameStart = i;
-  while (nameStart >= 0 && isIdentifierChar(text[nameStart])) {
+  while (nameStart >= 0 && /[a-zA-Z0-9_]/.test(text[nameStart]!)) {
     nameStart -= 1;
   }
   nameStart += 1;
@@ -188,7 +220,7 @@ function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarg
     memberOperator = '->';
     let j = skipWhitespaceLeft(text, beforeName - 2);
     while (j >= 0 && /[a-zA-Z0-9_.\-<>]/.test(text[j] ?? '')) {
-      if (text[j] === '>' && text[j - 1] === '-') {
+      if (text[j] === '>' && j > 0 && text[j - 1] === '-') {
         j -= 2;
         continue;
       }
@@ -208,11 +240,19 @@ function resolveTargetAtParen(text: string, openParen: number): ResolvedCallTarg
   };
 }
 
+function skipWhitespaceLeft(text: string, index: number): number {
+  let i = index;
+  while (i >= 0 && /\s/.test(text[i] ?? '')) {
+    i -= 1;
+  }
+  return i;
+}
+
 function computeActiveParameter(
   text: string,
   openParen: number,
   offset: number,
-  exclusionRanges: OffsetRange[]
+  excludedOffsets: Set<number>
 ): number {
   let parameterIndex = 0;
   let parenDepth = 0;
@@ -220,7 +260,7 @@ function computeActiveParameter(
   let braceDepth = 0;
 
   for (let i = openParen + 1; i < offset; i++) {
-    if (isExcludedOffset(exclusionRanges, i)) {
+    if (excludedOffsets.has(i)) {
       continue;
     }
 
@@ -247,16 +287,18 @@ function computeActiveParameter(
 
 export function resolveCallContextAtOffset(
   text: string,
-  offset: number
+  offset: number,
+  tokens: PikeToken[]
 ): ResolvedCallContext | null {
-  const exclusionRanges = buildExclusionRanges(text);
-  if (offset < 0 || offset > text.length || isExcludedOffset(exclusionRanges, offset)) {
+  const excludedOffsets = buildExcludedOffsetSet(text, tokens);
+  if (offset < 0 || offset > text.length || excludedOffsets.has(offset)) {
     return null;
   }
 
+  const lines = text.split('\n');
   let depth = 0;
   for (let i = offset - 1; i >= 0; i--) {
-    if (isExcludedOffset(exclusionRanges, i)) {
+    if (excludedOffsets.has(i)) {
       continue;
     }
 
@@ -269,7 +311,7 @@ export function resolveCallContextAtOffset(
         continue;
       }
 
-      const target = resolveTargetAtParen(text, i);
+      const target = resolveTargetAtParen(tokens, text, lines, i, excludedOffsets);
       if (!target) {
         continue;
       }
@@ -278,7 +320,7 @@ export function resolveCallContextAtOffset(
         target,
         openParen: i,
         closeParen: null,
-        activeParameter: computeActiveParameter(text, i, offset, exclusionRanges),
+        activeParameter: computeActiveParameter(text, i, offset, excludedOffsets),
         argumentRanges: [],
       };
     }
@@ -287,13 +329,15 @@ export function resolveCallContextAtOffset(
   return null;
 }
 
-export function collectCallContexts(text: string): ResolvedCallContext[] {
-  const exclusionRanges = buildExclusionRanges(text);
+export function collectCallContexts(text: string, tokens: PikeToken[]): ResolvedCallContext[] {
+  const excludedOffsets = buildExcludedOffsetSet(text, tokens);
   const openCalls: OpenCallState[] = [];
   const resolved: ResolvedCallContext[] = [];
 
+  const lines = text.split('\n');
+
   for (let i = 0; i < text.length; i++) {
-    if (isExcludedOffset(exclusionRanges, i)) {
+    if (excludedOffsets.has(i)) {
       continue;
     }
 
@@ -321,7 +365,7 @@ export function collectCallContexts(text: string): ResolvedCallContext[] {
     }
 
     if (char === '(') {
-      const target = resolveTargetAtParen(text, i);
+      const target = resolveTargetAtParen(tokens, text, lines, i, excludedOffsets);
       if (target) {
         openCalls.push({
           target,
