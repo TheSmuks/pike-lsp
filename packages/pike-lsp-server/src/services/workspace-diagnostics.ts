@@ -202,17 +202,20 @@ export class WorkspaceDiagnosticsManager {
         run: async () => {
           const fs = await import('node:fs/promises');
 
-          for (const item of batch) {
-            try {
-              // Read file content from disk (unopened files aren't in DocumentCache)
+          const results = await Promise.allSettled(
+            batch.map(async item => {
               const fsPath = uriToFsPath(item.uri);
               const text = await fs.readFile(fsPath, 'utf-8');
+              return bridge.analyze(text, ['parse', 'diagnostics'], item.uri);
+            })
+          );
 
-              await bridge.analyze(text, ['parse', 'diagnostics'], item.uri);
-            } catch (err) {
+          for (const [idx, result] of results.entries()) {
+            if (result.status === 'rejected') {
               log.debug('Background diagnostic failed', {
-                uri: item.uri,
-                error: err instanceof Error ? err.message : String(err),
+                uri: batch[idx]?.uri ?? 'unknown',
+                error:
+                  result.reason instanceof Error ? result.reason.message : String(result.reason),
               });
             }
           }
