@@ -182,6 +182,15 @@ export class IncludeResolver {
 
       const symbols = await this.bridge.parseFileSymbols(normalizedPath);
 
+      const resolved: ResolvedInclude = {
+        originalPath: result.originalPath,
+        resolvedPath: normalizedPath,
+        symbols,
+        lastModified: Date.now(),
+      };
+
+      this.includePathIndex.set(normalizedPath, resolved);
+
       return {
         symbols,
         resolvedPath: normalizedPath,
