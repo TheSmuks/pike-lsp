@@ -21,6 +21,7 @@ import {
   invalidateRXMLDefinitionCaches,
 } from '../features/rxml/definition-provider.js';
 import { clearFileContentCache } from '../features/rxml/file-content-cache.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 
 const createdDirs: string[] = [];
 
@@ -50,6 +51,54 @@ async function createWorkspace(files: Record<string, string>): Promise<string> {
   return root;
 }
 
+// Lightweight tokenizer producing PikeToken[] from simple Pike code.
+// Handles identifiers, string literals (single/double quoted), and punctuation.
+function mockTokenize(code: string): PikeToken[] {
+  const tokens: PikeToken[] = [];
+  const lines = code.split('\n');
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx]!;
+    let col = 0;
+    while (col < line.length) {
+      if (/\s/.test(line[col]!)) {
+        col++;
+        continue;
+      }
+      // String literal — produce separate open-quote, content, close-quote tokens
+      if (line[col] === '"' || line[col] === "'") {
+        const q = line[col]!;
+        tokens.push({ text: q, line: lineIdx + 1, character: col, file: 0 });
+        col++;
+        let end = col;
+        while (end < line.length && line[end] !== q) end++;
+        if (end > col) {
+          tokens.push({ text: line.slice(col, end), line: lineIdx + 1, character: col, file: 0 });
+          col = end;
+        }
+        if (col < line.length && line[col] === q) {
+          tokens.push({ text: q, line: lineIdx + 1, character: col, file: 0 });
+          col++;
+        }
+        continue;
+      }
+      // Identifier / number
+      if (/\w/.test(line[col]!)) {
+        let end = col;
+        while (end < line.length && /\w/.test(line[end]!)) end++;
+        tokens.push({ text: line.slice(col, end), line: lineIdx + 1, character: col, file: 0 });
+        col = end;
+        continue;
+      }
+      // Punctuation / operators
+      tokens.push({ text: line[col]!, line: lineIdx + 1, character: col, file: 0 });
+      col++;
+    }
+  }
+  return tokens;
+}
+
+const tokenizeFn = (text: string) => Promise.resolve(mockTokenize(text));
+
 // ---------------------------------------------------------------------------
 // Defvar extraction
 // ---------------------------------------------------------------------------
@@ -57,38 +106,38 @@ async function createWorkspace(files: Record<string, string>): Promise<string> {
 describe('definition-provider defvar extraction', () => {
   it('should extract a simple defvar with double-quoted name', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("site_name", TYPE_STRING, "", "Site name");\n',
+      'mod.pike': 'defvar("site_name", "Site Name", TYPE_STRING, "Site name", 0);\n',
     });
 
-    const result = await findDefvarDefinition('site_name', [root]);
+    const result = await findDefvarDefinition('site_name', [root], tokenizeFn);
     assert.ok(result, 'should find defvar "site_name"');
     assert.equal(result!.name, 'site_name');
     assert.ok(result!.location.uri.includes('mod.pike'));
     assert.equal(result!.location.range.start.line, 0);
-    assert.equal(result!.type, 'mixed');
+    assert.equal(result!.type, 'TYPE_STRING');
   });
 
   it('should extract a defvar with single-quoted name', async () => {
     const root = await createWorkspace({
-      'mod.pike': "defvar('cache_ttl', TYPE_INT, 300, 'Cache TTL');\n",
+      'mod.pike': "defvar('cache_ttl', 'Cache TTL', TYPE_INT, 'Cache TTL', 0);\n",
     });
 
-    const result = await findDefvarDefinition('cache_ttl', [root]);
+    const result = await findDefvarDefinition('cache_ttl', [root], tokenizeFn);
     assert.ok(result, 'should find defvar with single-quoted name');
     assert.equal(result!.name, 'cache_ttl');
   });
 
   it('should perform case-insensitive defvar lookup', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("MyVariable", TYPE_STRING, "", "desc");\n',
+      'mod.pike': 'defvar("MyVariable", "My Var", TYPE_STRING, "desc", 0);\n',
     });
 
     // Look up with different casing
-    const lower = await findDefvarDefinition('myvariable', [root]);
+    const lower = await findDefvarDefinition('myvariable', [root], tokenizeFn);
     assert.ok(lower, 'case-insensitive lookup should find "MyVariable"');
     assert.equal(lower!.name, 'MyVariable');
 
-    const upper = await findDefvarDefinition('MYVARIABLE', [root]);
+    const upper = await findDefvarDefinition('MYVARIABLE', [root], tokenizeFn);
     assert.ok(upper, 'uppercase lookup should also find it');
     assert.equal(upper!.name, 'MyVariable');
   });
@@ -96,22 +145,22 @@ describe('definition-provider defvar extraction', () => {
   it('should extract multiple defvars from the same file', async () => {
     const root = await createWorkspace({
       'mod.pike':
-        'defvar("alpha", TYPE_STRING, "", "First");\n' +
-        'defvar("beta", TYPE_INT, 0, "Second");\n' +
-        'defvar("gamma", TYPE_FLAG, 0, "Third");\n',
+        'defvar("alpha", "Alpha", TYPE_STRING, "First", 0);\n' +
+        'defvar("beta", "Beta", TYPE_INT, "Second", 0);\n' +
+        'defvar("gamma", "Gamma", TYPE_FLAG, "Third", 0);\n',
     });
 
-    const alpha = await findDefvarDefinition('alpha', [root]);
+    const alpha = await findDefvarDefinition('alpha', [root], tokenizeFn);
     assert.ok(alpha);
     assert.equal(alpha!.name, 'alpha');
     assert.equal(alpha!.location.range.start.line, 0);
 
-    const beta = await findDefvarDefinition('beta', [root]);
+    const beta = await findDefvarDefinition('beta', [root], tokenizeFn);
     assert.ok(beta);
     assert.equal(beta!.name, 'beta');
     assert.equal(beta!.location.range.start.line, 1);
 
-    const gamma = await findDefvarDefinition('gamma', [root]);
+    const gamma = await findDefvarDefinition('gamma', [root], tokenizeFn);
     assert.ok(gamma);
     assert.equal(gamma!.name, 'gamma');
     assert.equal(gamma!.location.range.start.line, 2);
@@ -125,59 +174,58 @@ describe('definition-provider defvar extraction', () => {
         '\n' +
         'constant MODULE_VERSION = "1.0";\n' +
         '\n' +
-        'defvar("late_var", TYPE_STRING, "", "Defined after other code");\n',
+        'defvar("late_var", "Late Var", TYPE_STRING, "Defined after other code", 0);\n',
     });
 
-    const result = await findDefvarDefinition('late_var', [root]);
+    const result = await findDefvarDefinition('late_var', [root], tokenizeFn);
     assert.ok(result);
     assert.equal(result!.location.range.start.line, 5);
   });
 
   it('should handle defvar with nested parens in arguments', async () => {
-    // The regex /defvar\s*\(\s*["']([^"']+)["']/g matches the defvar name
-    // immediately after the opening paren regardless of what follows.
     const root = await createWorkspace({
-      'mod.pike': 'defvar("complex_var", TYPE_STRING_LIST, ({ "a", "b" }), "List default");\n',
+      'mod.pike':
+        'defvar("complex_var", "Complex", TYPE_STRING_LIST, ({ "a", "b" }), "List default", 0);\n',
     });
 
-    const result = await findDefvarDefinition('complex_var', [root]);
+    const result = await findDefvarDefinition('complex_var', [root], tokenizeFn);
     assert.ok(result, 'should extract defvar name even with list default value');
     assert.equal(result!.name, 'complex_var');
   });
 
   it('should handle defvar with no whitespace after paren', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("tight", TYPE_INT, 0, "No space");\n',
+      'mod.pike': 'defvar("tight", "Tight", TYPE_INT, "No space", 0);\n',
     });
 
-    const result = await findDefvarDefinition('tight', [root]);
+    const result = await findDefvarDefinition('tight', [root], tokenizeFn);
     assert.ok(result);
     assert.equal(result!.name, 'tight');
   });
 
   it('should handle defvar with extra whitespace', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar(  "spaced"  , TYPE_INT, 0, "Spaces");\n',
+      'mod.pike': 'defvar(  "spaced"  ,  "Spaced"  , TYPE_INT,  "Spaces",  0);\n',
     });
 
-    const result = await findDefvarDefinition('spaced', [root]);
+    const result = await findDefvarDefinition('spaced', [root], tokenizeFn);
     assert.ok(result, 'should handle extra whitespace');
     assert.equal(result!.name, 'spaced');
   });
 
   it('should return null for defvar not found in workspace', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("existing", TYPE_INT, 0, "desc");\n',
+      'mod.pike': 'defvar("existing", "Existing", TYPE_INT, "desc", 0);\n',
     });
 
-    const result = await findDefvarDefinition('nonexistent', [root]);
+    const result = await findDefvarDefinition('nonexistent', [root], tokenizeFn);
     assert.equal(result, null);
   });
 
   it('should return null for empty workspace', async () => {
     const root = await createWorkspace({});
 
-    const result = await findDefvarDefinition('anything', [root]);
+    const result = await findDefvarDefinition('anything', [root], tokenizeFn);
     assert.equal(result, null);
   });
 
@@ -186,7 +234,7 @@ describe('definition-provider defvar extraction', () => {
       'readme.txt': 'Hello world\n',
     });
 
-    const result = await findDefvarDefinition('anything', [root]);
+    const result = await findDefvarDefinition('anything', [root], tokenizeFn);
     assert.equal(result, null);
   });
 
@@ -195,17 +243,17 @@ describe('definition-provider defvar extraction', () => {
       'mod.pike': 'int compute() { return 42; }\n',
     });
 
-    const result = await findDefvarDefinition('anything', [root]);
+    const result = await findDefvarDefinition('anything', [root], tokenizeFn);
     assert.equal(result, null);
   });
 
   it('should skip defvar call with empty string name', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("", TYPE_INT, 0, "Empty name");\n',
+      'mod.pike': 'defvar("", TYPE_INT, 0, "Empty name", 0);\n',
     });
 
-    // Empty string is falsy in the condition `if (name)` at line 112
-    const result = await findDefvarDefinition('', [root]);
+    // Empty name is skipped by the scanner's `if (!name)` check
+    const result = await findDefvarDefinition('', [root], tokenizeFn);
     assert.equal(result, null, 'empty-string defvar name should be skipped');
   });
 });
@@ -217,14 +265,12 @@ describe('definition-provider defvar extraction', () => {
 describe('definition-provider duplicate defvar handling', () => {
   it('should use first file for duplicate defvar name (glob order)', async () => {
     const root = await createWorkspace({
-      'module-a.pike': 'defvar("shared", TYPE_STRING, "a", "From A");\n',
-      'module-b.pike': 'defvar("shared", TYPE_INT, 0, "From B");\n',
+      'module-a.pike': 'defvar("shared", "Shared", TYPE_STRING, "a", 0);\n',
+      'module-b.pike': 'defvar("shared", "Shared", TYPE_INT, "b", 0);\n',
     });
 
-    const result = await findDefvarDefinition('shared', [root]);
+    const result = await findDefvarDefinition('shared', [root], tokenizeFn);
     assert.ok(result);
-    // First-wins: whichever file glob returns first wins. Both files have it,
-    // so the result should point to one of them and never the second.
     assert.ok(result!.name === 'shared');
     assert.ok(
       result!.location.uri.includes('module-a.pike') ||
@@ -236,10 +282,11 @@ describe('definition-provider duplicate defvar handling', () => {
   it('should use first occurrence in the same file', async () => {
     const root = await createWorkspace({
       'mod.pike':
-        'defvar("dup", TYPE_STRING, "", "First");\n' + 'defvar("dup", TYPE_INT, 0, "Second");\n',
+        'defvar("dup", "Dup", TYPE_STRING, "First", 0);\n' +
+        'defvar("dup", "Dup", TYPE_INT, "Second", 0);\n',
     });
 
-    const result = await findDefvarDefinition('dup', [root]);
+    const result = await findDefvarDefinition('dup', [root], tokenizeFn);
     assert.ok(result);
     assert.equal(result!.location.range.start.line, 0, 'first occurrence wins');
   });
@@ -338,15 +385,15 @@ describe('definition-provider tag extraction', () => {
 describe('definition-provider cache behavior', () => {
   it('should return cached result on second call within TTL', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("cached_var", TYPE_STRING, "", "Test");\n',
+      'mod.pike': 'defvar("cached_var", "Cached", TYPE_STRING, "Test", 0);\n',
     });
 
     // First call builds the index
-    const first = await findDefvarDefinition('cached_var', [root]);
+    const first = await findDefvarDefinition('cached_var', [root], tokenizeFn);
     assert.ok(first);
 
     // Second call should hit cache (same process, same workspace key)
-    const second = await findDefvarDefinition('cached_var', [root]);
+    const second = await findDefvarDefinition('cached_var', [root], tokenizeFn);
     assert.ok(second);
     assert.equal(second!.name, first!.name);
     assert.equal(second!.location.uri, first!.location.uri);
@@ -368,23 +415,27 @@ describe('definition-provider cache behavior', () => {
 
   it('should reflect file changes after invalidation', async () => {
     const root = await createWorkspace({
-      'mod.pike': 'defvar("old_var", TYPE_STRING, "", "Old");\n',
+      'mod.pike': 'defvar("old_var", "Old", TYPE_STRING, "Old", 0);\n',
     });
 
-    const before = await findDefvarDefinition('old_var', [root]);
+    const before = await findDefvarDefinition('old_var', [root], tokenizeFn);
     assert.ok(before);
 
     // Overwrite file
-    await writeFile(join(root, 'mod.pike'), 'defvar("new_var", TYPE_INT, 0, "New");\n', 'utf-8');
+    await writeFile(
+      join(root, 'mod.pike'),
+      'defvar("new_var", "New", TYPE_INT, "New", 0);\n',
+      'utf-8'
+    );
 
     // Without invalidation, the old cached result persists
-    const stale = await findDefvarDefinition('new_var', [root]);
+    const stale = await findDefvarDefinition('new_var', [root], tokenizeFn);
     assert.equal(stale, null, 'stale cache should not contain new_var');
 
     // Invalidate and clear file content cache so re-read picks up changes
     invalidateRXMLDefinitionCaches();
 
-    const after = await findDefvarDefinition('new_var', [root]);
+    const after = await findDefvarDefinition('new_var', [root], tokenizeFn);
     assert.ok(after, 'after invalidation, new_var should be found');
     assert.equal(after!.name, 'new_var');
   });
@@ -418,17 +469,17 @@ describe('definition-provider cache behavior', () => {
 describe('definition-provider multi-workspace', () => {
   it('should search across multiple workspace folders', async () => {
     const ws1 = await createWorkspace({
-      'mod.pike': 'defvar("ws1_var", TYPE_STRING, "", "From WS1");\n',
+      'mod.pike': 'defvar("ws1_var", "WS1 Var", TYPE_STRING, "From WS1", 0);\n',
     });
     const ws2 = await createWorkspace({
-      'mod.pike': 'defvar("ws2_var", TYPE_INT, 0, "From WS2");\n',
+      'mod.pike': 'defvar("ws2_var", "WS2 Var", TYPE_INT, "From WS2", 0);\n',
     });
 
-    const fromWs1 = await findDefvarDefinition('ws1_var', [ws1, ws2]);
+    const fromWs1 = await findDefvarDefinition('ws1_var', [ws1, ws2], tokenizeFn);
     assert.ok(fromWs1);
     assert.ok(fromWs1!.location.uri.includes(ws1));
 
-    const fromWs2 = await findDefvarDefinition('ws2_var', [ws1, ws2]);
+    const fromWs2 = await findDefvarDefinition('ws2_var', [ws1, ws2], tokenizeFn);
     assert.ok(fromWs2);
     assert.ok(fromWs2!.location.uri.includes(ws2));
   });
@@ -451,7 +502,7 @@ describe('definition-provider multi-workspace', () => {
   });
 
   it('should return null for empty workspace folders array', async () => {
-    const result = await findDefvarDefinition('anything', []);
+    const result = await findDefvarDefinition('anything', [], tokenizeFn);
     assert.equal(result, null);
 
     const tagResult = await findTagDefinition('anything', []);
@@ -469,11 +520,11 @@ describe('definition-provider position accuracy', () => {
       'mod.pike':
         'line zero\n' +
         'line one\n' +
-        'defvar("on_line_two", TYPE_STRING, "", "Position test");\n' +
+        'defvar("on_line_two", "On Line Two", TYPE_STRING, "Position test", 0);\n' +
         'line three\n',
     });
 
-    const result = await findDefvarDefinition('on_line_two', [root]);
+    const result = await findDefvarDefinition('on_line_two', [root], tokenizeFn);
     assert.ok(result);
     assert.equal(result!.location.range.start.line, 2, 'defvar should be on line 2');
   });

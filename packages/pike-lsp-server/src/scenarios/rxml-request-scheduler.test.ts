@@ -37,6 +37,51 @@ async function cleanup(): Promise<void> {
   }
 }
 
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
+function mockTokenize(code: string): PikeToken[] {
+  const tokens: PikeToken[] = [];
+  const lines = code.split('\n');
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx]!;
+    let col = 0;
+    while (col < line.length) {
+      if (/\s/.test(line[col]!)) {
+        col++;
+        continue;
+      }
+      if (line[col] === '"' || line[col] === "'") {
+        const q = line[col]!;
+        tokens.push({ text: q, line: lineIdx + 1, character: col, file: 0 });
+        col++;
+        let end = col;
+        while (end < line.length && line[end] !== q) end++;
+        if (end > col) {
+          tokens.push({ text: line.slice(col, end), line: lineIdx + 1, character: col, file: 0 });
+          col = end;
+        }
+        if (col < line.length && line[col] === q) {
+          tokens.push({ text: q, line: lineIdx + 1, character: col, file: 0 });
+          col++;
+        }
+        continue;
+      }
+      if (/\w/.test(line[col]!)) {
+        let end = col;
+        while (end < line.length && /\w/.test(line[end]!)) end++;
+        tokens.push({ text: line.slice(col, end), line: lineIdx + 1, character: col, file: 0 });
+        col = end;
+        continue;
+      }
+      tokens.push({ text: line[col]!, line: lineIdx + 1, character: col, file: 0 });
+      col++;
+    }
+  }
+  return tokens;
+}
+
+const tokenizeFn = (text: string) => Promise.resolve(mockTokenize(text));
+
 describe('RXML request scheduler resilience', () => {
   it('should handle rapid concurrent findTagDefinition calls without error', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pike-sched-def-'));
@@ -110,15 +155,15 @@ describe('RXML request scheduler resilience', () => {
 
     await writeFile(
       join(root, 'module.pike'),
-      'defvar("my_var", TYPE_STRING, "default", "desc");',
+      'defvar("my_var", "My Var", TYPE_STRING, "default", "desc");',
       'utf-8'
     );
 
     // Concurrent defvar lookups for same workspace
     const results = await Promise.allSettled([
-      findDefvarDefinition('my_var', [root]),
-      findDefvarDefinition('my_var', [root]),
-      findDefvarDefinition('my_var', [root]),
+      findDefvarDefinition('my_var', [root], tokenizeFn),
+      findDefvarDefinition('my_var', [root], tokenizeFn),
+      findDefvarDefinition('my_var', [root], tokenizeFn),
     ]);
 
     for (const result of results) {
