@@ -376,7 +376,11 @@ export function registerCompletionHandlers(
     }
 
     // Built-in keywords and types
-    const prefix = getWordAtPosition(text, offset);
+    const prefix = await getWordAtPosition(
+      text,
+      offset,
+      services.bridge?.tokenize ? (t: string) => services.bridge!.tokenize(t) : async () => []
+    );
     addBuiltinCompletions(completions, prefix);
 
     await addAutoImportCompletions(

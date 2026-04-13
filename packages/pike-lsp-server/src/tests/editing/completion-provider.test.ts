@@ -32,6 +32,7 @@ import {
   MarkupKind,
 } from 'vscode-languageserver/node.js';
 import type {
+  PikeToken,
   PikeSymbol,
   PikeMethod,
   CompletionContext as PikeCompletionContext,
@@ -190,6 +191,18 @@ function createMockBridge(
       operator: '',
       ...contextOverride,
     }),
+    tokenize: async (text: string): Promise<PikeToken[]> => {
+      const tokens: PikeToken[] = [];
+      const lines = text.split('\n');
+      for (let line = 0; line < lines.length; line++) {
+        const re = /\b\w+\b/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(lines[line]!)) !== null) {
+          tokens.push({ text: m[0], line: line + 1, character: m.index, file: 0 });
+        }
+      }
+      return tokens;
+    },
   };
 }
 

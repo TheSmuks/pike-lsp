@@ -44,7 +44,11 @@ export async function collectGeneralCompletions(
 ): Promise<CompletionItem[]> {
   const { logger, moduleContext } = connection;
   const completions: CompletionItem[] = [];
-  const prefix = getWordAtPosition(text, offset);
+  const prefix = await getWordAtPosition(
+    text,
+    offset,
+    services.bridge?.tokenize ? (t: string) => services.bridge!.tokenize(t) : async () => []
+  );
   const prefixLower = prefix.toLowerCase();
   const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
   const lineText = text.slice(lineStart, offset);
