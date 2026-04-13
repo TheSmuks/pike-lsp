@@ -58,6 +58,78 @@ interface LRUEntry {
 /**
  * Stdlib Index Manager - Manages lazy loading of Pike stdlib modules
  */
+const KNOWN_STDLIB_MODULES = [
+  'Parser',
+  'Parser.Pike',
+  'Stdio',
+  'Stdio.File',
+  'Stdio.stdin',
+  'Stdio.stdout',
+  'Stdio.stderr',
+  'String',
+  'Array',
+  'Math',
+  'Mapping',
+  'Multiset',
+  'System',
+  'Process',
+  'ADT',
+  'ADT.Struct',
+  'ADT.Heap',
+  'ADT.Queue',
+  'ADT.PriorityQueue',
+  'ADT.Set',
+  'ADT.Table',
+  'ADT.History',
+  'MIME',
+  'Calendar',
+  'Calendar.Day',
+  'Calendar.Time',
+  'Calendar.Timezone',
+  'Crypto',
+  'SSL',
+  'Image',
+  'Image.Color',
+  'Image.Font',
+  'Image.GIF',
+  'Image.JPEG',
+  'Image.PNG',
+  'Thread',
+  'Thread.Farm',
+  'Protocols',
+  'Protocols.HTTP',
+  'Protocols.HTTP.Query',
+  'Protocols.LDAP',
+  'Protocols.DNS',
+  'Protocols.SMTP',
+  'Web',
+  'Web.Robot',
+  'GTK',
+  'GTK2',
+  'Gz',
+  'Regexp',
+  'Sql',
+  'Sql.Sql',
+  'Sql.mysql',
+  'Sql.postgres',
+  'Sql.sqlite',
+  'MasterObject',
+  'Pike',
+  'Preprocessor',
+  'Debug',
+  'Locale',
+  'Val',
+  'Arg',
+  'Getopt',
+  'Filesystem',
+  'Tar',
+  'Zip',
+  'Stream',
+  'Simulate',
+  'Spider',
+  'Yp',
+] as const;
+
 export class StdlibIndexManager {
   /** Pike bridge for resolving modules */
   private bridge: PikeBridge;
@@ -146,6 +218,21 @@ export class StdlibIndexManager {
    */
   getCachedModulePaths(): string[] {
     return [...this.modules.keys()];
+  }
+
+  /**
+   * Return all module paths known to this manager.
+   * This includes modules already cached and a curated list of common
+   * Pike stdlib modules that may not yet be loaded.
+   */
+  getAvailableModules(): string[] {
+    const paths = new Set<string>(this.modules.keys());
+    for (const modulePath of KNOWN_STDLIB_MODULES) {
+      if (!this.negativeCache.has(modulePath)) {
+        paths.add(modulePath);
+      }
+    }
+    return [...paths];
   }
 
   /**
