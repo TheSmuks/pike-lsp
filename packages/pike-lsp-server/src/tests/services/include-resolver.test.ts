@@ -524,3 +524,103 @@ describe('IncludeResolver - Cache Management', () => {
     }
   });
 });
+
+// ============================================================================
+// 30.5 Workspace Import Cache
+// ============================================================================
+
+describe('IncludeResolver - 30.5 Workspace import cache', () => {
+  /** Mock bridge that resolves non-stdlib imports to a real path. */
+  function createWorkspaceMockBridge() {
+    return {
+      bridge: {
+        resolveInclude: async (includePath: string, _currentUri: string) => ({
+          exists: true,
+          path: '/mock/path/local_module.pike',
+          originalPath: includePath,
+        }),
+        resolveStdlib: async (modulePath: string) => ({
+          found: modulePath === 'Stdio' || modulePath === 'Array' ? 1 : 0,
+          symbols: [],
+          path: '/lib/path',
+        }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+  }
+
+  it('30.5.1 should populate includePathIndex when resolving workspace import', async () => {
+    const bridge = createWorkspaceMockBridge();
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    // Resolve a non-stdlib import, which triggers resolveWorkspaceImport
+    await resolver.resolveDependencies('file:///test.pike', [
+      { name: 'LocalModule', kind: 'import' as const } as PikeSymbol,
+    ]);
+
+    const stats = resolver.getStats();
+    assert.equal(stats.cachedIncludes, 1, 'workspace import should populate includePathIndex');
+  });
+
+  it('30.5.2 should cache originalPath from bridge result, not input modulePath', async () => {
+    let capturedOriginalPath: string | undefined;
+    const bridge = {
+      bridge: {
+        resolveInclude: async (includePath: string, _currentUri: string) => ({
+          exists: true,
+          path: '/mock/path/local_module.pike',
+          originalPath: 'transformed_local_module.pike',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [
+      { name: 'LocalModule', kind: 'import' as const } as PikeSymbol,
+    ]);
+
+    // Verify cache was populated
+    const stats = resolver.getStats();
+    assert.equal(stats.cachedIncludes, 1);
+  });
+
+  it('30.5.3 should return cached result on subsequent include resolution of same path', async () => {
+    let parseCallCount = 0;
+    const bridge = {
+      bridge: {
+        resolveInclude: async (includePath: string, _currentUri: string) => ({
+          exists: true,
+          path: '/mock/path/shared.h',
+          originalPath: includePath,
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        parseCallCount++;
+        return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    // First: resolve as workspace import (populates cache)
+    await resolver.resolveDependencies('file:///test.pike', [
+      { name: 'SharedModule', kind: 'import' as const } as PikeSymbol,
+    ]);
+    assert.equal(parseCallCount, 1, 'first resolution should call parseFileSymbols once');
+
+    // Second: resolve same path as include (should hit cache)
+    const deps = await resolver.resolveDependencies('file:///test2.pike', [
+      includeSymbol('shared.h'),
+    ]);
+    // parseFileSymbols should NOT be called again
+    assert.equal(parseCallCount, 1, 'cached resolution should not call parseFileSymbols again');
+    assert.equal(deps.includes.length, 1);
+    assert.equal(deps.includes[0]!.resolvedPath, '/mock/path/shared.h');
+  });
+});
