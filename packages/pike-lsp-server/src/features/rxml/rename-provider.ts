@@ -12,6 +12,7 @@
 
 import { WorkspaceEdit, Position, TextDocumentEdit, Range } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { findPositionForIndex } from '../../utils/pike-token-utils.js';
 import { OptionalVersionedTextDocumentIdentifier } from 'vscode-languageserver';
 import { findTagReferences } from './references-provider.js';
 import { buildTagPattern } from './module-scanner.js';
@@ -218,17 +219,4 @@ function fileToUri(filePath: string): string {
     return 'file:///unknown';
   }
   return filePath.startsWith('/') ? `file://${filePath}` : `file:///${filePath}`;
-}
-
-/**
- * Find line/column position for a byte index in content
- */
-function findPositionForIndex(content: string, index: number): Position {
-  const before = content.substring(0, index);
-  const lines = before.split('\n');
-
-  return {
-    line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length,
-  };
 }

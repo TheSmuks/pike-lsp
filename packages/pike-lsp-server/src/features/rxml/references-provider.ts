@@ -25,6 +25,7 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { findPositionForIndex } from '../../utils/pike-token-utils.js';
 import { isPikeKeyword } from '../navigation/keywords.js';
 import { findTagFunctionsInCode } from './module-scanner.js';
 
@@ -430,16 +431,6 @@ function fileToUri(filePath: string): string {
 
 export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function findPositionForIndex(content: string, index: number): Position {
-  const before = content.substring(0, index);
-  const lines = before.split('\n');
-
-  return {
-    line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length,
-  };
 }
 
 function findTagAtPosition(content: string, offset: number): { tagName: string } | null {

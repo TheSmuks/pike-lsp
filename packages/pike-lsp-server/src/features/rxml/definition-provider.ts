@@ -1,3 +1,4 @@
+import { findPositionForIndex } from '../../utils/pike-token-utils.js';
 /**
  * RXML Definition Provider
  *
@@ -386,17 +387,4 @@ async function findPikeFiles(workspaceFolders: string[]): Promise<string[]> {
 function fileToUri(filePath: string): string {
   // Simple implementation - use proper URI encoding in production
   return filePath.startsWith('/') ? `file://${filePath}` : `file:///${filePath}`;
-}
-
-/**
- * Find line/column position for a byte index in content
- */
-function findPositionForIndex(content: string, index: number): Position {
-  const before = content.substring(0, index);
-  const lines = before.split('\n');
-
-  return {
-    line: lines.length - 1,
-    character: (lines[lines.length - 1] || '').length,
-  };
 }
