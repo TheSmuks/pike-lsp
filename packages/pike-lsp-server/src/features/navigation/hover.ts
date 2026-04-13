@@ -76,7 +76,7 @@ export function registerHoverHandler(
   const log = new Logger('Navigation');
 
   // LRU cache for hover results (max 500 entries)
-  const hoverCache = new LRUCache<string, Hover>(500);
+  const hoverCache = new LRUCache<string, Hover | null>(500);
   let cacheHits = 0;
   let cacheMisses = 0;
 
@@ -198,7 +198,7 @@ export function registerHoverHandler(
     const contentHash = (cached as { contentHash?: string }).contentHash;
     const cacheKey = makeHoverCacheKey(uri, params.position, word, contentHash);
     const cachedHover = hoverCache.get(cacheKey);
-    if (cachedHover) {
+    if (cachedHover !== undefined) {
       cacheHits++;
       log.debug('Hover cache hit', {
         uri,
@@ -421,8 +421,7 @@ export function registerHoverHandler(
     }
 
     if (!hoverResult && !symbol) {
-      // Cache null results too to avoid repeated lookups of non-existent symbols
-      hoverCache.set(cacheKey, null as unknown as Hover);
+      hoverCache.set(cacheKey, null);
       return null;
     }
 
@@ -457,7 +456,7 @@ export function registerHoverHandler(
     if (!hoverResult && symbol) {
       const content = buildHoverContent(symbol, parentScope);
       if (!content) {
-        hoverCache.set(cacheKey, null as unknown as Hover);
+        hoverCache.set(cacheKey, null);
         return null;
       }
 
