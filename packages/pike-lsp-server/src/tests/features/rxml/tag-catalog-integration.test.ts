@@ -70,8 +70,7 @@ function detectTagFunctions(symbols: PikeSymbol[], code: string): DetectedTagFun
     const tagInfo = extractTagInfo(symbol.name);
     if (!tagInfo) continue;
 
-    const functionLine =
-      symbol.position?.line != null ? symbol.position.line - 1 : findLineByName(lines, symbol.name);
+    const functionLine = symbol.position?.line != null ? symbol.position.line - 1 : -1;
 
     if (functionLine < 0) continue;
 
@@ -100,15 +99,6 @@ function extractTagInfo(methodName: string): { type: 'simple' | 'container'; nam
     }
   }
   return null;
-}
-
-function findLineByName(lines: string[], name: string): number {
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i]?.includes(name)) {
-      return i;
-    }
-  }
-  return -1;
 }
 
 function extractDescription(lines: string[], functionLine: number): string | undefined {
