@@ -7,6 +7,7 @@ import type {
   TextDocuments,
 } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
+import { getWordAtOffsetGeneric } from '../utils/pike-identifier.js';
 
 type LinkedEditingCapableConnection = Connection & {
   onLinkedEditingRange?: (
@@ -35,21 +36,11 @@ export function registerLinkedEditingHandler(
 
       if (!cached || !document) return null;
 
-      // Find symbol at position by matching text content
+      // Extract word at cursor using shared utility
       const text = document.getText();
       const offset = document.offsetAt(params.position);
 
-      // Find word boundaries at cursor position
-      let start = offset;
-      let end = offset;
-      while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-        start--;
-      }
-      while (end < text.length && /\w/.test(text[end] ?? '')) {
-        end++;
-      }
-
-      const wordAtCursor = text.slice(start, end);
+      const wordAtCursor = getWordAtOffsetGeneric(text, offset)?.word;
       if (!wordAtCursor) return null;
 
       // Find all occurrences of this word that are symbols
