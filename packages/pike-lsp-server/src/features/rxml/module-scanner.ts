@@ -243,12 +243,8 @@ export function detectTagFunctions(symbols: PikeSymbol[], code: string): Detecte
     const tagInfo = extractTagInfo(symbol.name);
     if (!tagInfo) continue;
 
-    const functionLine =
-      symbol.position?.line != null
-        ? symbol.position.line - 1 // convert 1-based to 0-based
-        : findLineByName(lines, symbol.name);
-
-    if (functionLine < 0) continue;
+    if (symbol.position?.line == null) continue;
+    const functionLine = symbol.position.line - 1; // convert 1-based to 0-based
 
     const desc = extractDescription(lines, functionLine);
     tags.push({
@@ -286,18 +282,6 @@ function extractTagInfo(methodName: string): { type: 'simple' | 'container'; nam
   return null;
 }
 
-/**
- * Find the 0-based line index where a method name appears in source.
- * Fallback when symbol position is unavailable.
- */
-function findLineByName(lines: string[], name: string): number {
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i]?.includes(name)) {
-      return i;
-    }
-  }
-  return -1;
-}
 function computeNameOffset(lines: string[], symbol: PikeSymbol, tagName: string): number {
   // Prefer symbol position when available
   if (symbol.position?.line != null) {
