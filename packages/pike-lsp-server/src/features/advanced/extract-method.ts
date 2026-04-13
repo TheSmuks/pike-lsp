@@ -12,8 +12,6 @@ import { CodeAction, CodeActionKind, Range, TextEdit } from 'vscode-languageserv
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, PikeVariable, PikeType } from '@pike-lsp/pike-bridge';
 import {
-  stripCodeContent,
-  isIdentPresent,
   isIntegerLiteral,
   isFloatLiteral,
   getLeadingWhitespace,
@@ -173,13 +171,18 @@ function analyzeSelectedCode(
   // Collect variable names and types from the symbol table
   const varTypes = collectVariableTypes(cached.symbols);
 
-  // Strip comments and string literals to avoid false identifier matches
-  const strippedCode = stripCodeContent(selectedCode);
+  // Tokenize once — used for both identifier detection and return analysis.
+  // Tokens already separate code from comments/strings, so no stripping needed.
+  const tokens = tokenizeCode(selectedCode);
 
-  // Check which symbol-table variables are referenced in actual code
+  // Check which symbol-table variables appear as identifier tokens in code.
+  // Only 'identifier' kind tokens are real code — comments/strings are separate kinds.
+  const identifierTexts = new Set(
+    tokens.filter(t => t.kind === 'identifier').map(t => t.text)
+  );
   const usedVars = new Set<string>();
   for (const varName of varTypes.keys()) {
-    if (isIdentPresent(strippedCode, varName)) {
+    if (identifierTexts.has(varName)) {
       usedVars.add(varName);
     }
   }
@@ -187,8 +190,7 @@ function analyzeSelectedCode(
   // Add used variables as parameters
   parameters.push(...usedVars);
 
-  // Detect return statements using token-based AST walk.
-  const tokens = tokenizeCode(selectedCode);
+  // Detect return statements using token-based AST walk
   const returnInfo = detectReturnStatement(selectedCode, tokens);
   if (returnInfo) {
     returnValue = returnInfo.value;

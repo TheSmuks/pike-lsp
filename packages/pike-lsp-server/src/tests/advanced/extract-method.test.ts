@@ -1,10 +1,11 @@
 /**
  * Extract Method Refactoring Tests
  *
- * Tests for regex-replacement correctness: stripCodeContent, detectReturnStatement,
- * isIdentPresent, and end-to-end extract method actions. Covers the scenarios that
- * the old regex patterns mishandled: identifiers in comments/strings, multi-line
- * return expressions, and return statements in nested blocks.
+ * Tests for extract method actions: token-based return detection, identifier
+ * presence checking via token kinds, and end-to-end extract method actions.
+ * Covers the scenarios that old regex patterns mishandled: identifiers in
+ * comments/strings, multi-line return expressions, and return statements in
+ * nested blocks.
  */
 
 import { describe, it } from 'bun:test';
