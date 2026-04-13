@@ -285,11 +285,13 @@ class Child {
 
     const parent = symbols.find(s => s.name === 'Parent' && s.kind === 'class');
     const child = symbols.find(s => s.name === 'Child' && s.kind === 'class');
-    const inherit = symbols.find(s => s.kind === 'inherit');
+
+    // inherit symbols are nested inside their parent class's children array
+    const inherit = child?.children?.find(s => s.kind === 'inherit');
 
     assert.ok(parent, 'Should find parent class');
     assert.ok(child, 'Should find child class');
-    assert.ok(inherit, 'Should find inherit statement');
+    assert.ok(inherit, 'Should find inherit statement inside Child');
     console.log('✓ Classes and inheritance extracted for type hierarchy');
   });
 
