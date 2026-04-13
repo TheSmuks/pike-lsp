@@ -6,6 +6,7 @@
  */
 
 import { Logger } from '@pike-lsp/core';
+import type { CoreDiagnostic } from '../core/types.js';
 import type { RequestScheduler } from './request-scheduler.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { BridgeManager } from './bridge-manager.js';
@@ -19,6 +20,8 @@ interface WorkspaceDiagnosticsOptions {
   bridgeManager: BridgeManager | null;
   idleDelayMs?: number;
   batchSize?: number;
+  sendDiagnostics: (params: { uri: string; diagnostics: CoreDiagnostic[] }) => void;
+  clearDiagnostics: (uri: string) => void;
 }
 
 interface PendingDiagnostic {
@@ -39,11 +42,14 @@ export class WorkspaceDiagnosticsManager {
   private bridgeManager: BridgeManager | null;
   private idleDelayMs: number;
   private batchSize: number;
+  private sendDiagnostics: (params: { uri: string; diagnostics: CoreDiagnostic[] }) => void;
+  private clearDiagnostics: (uri: string) => void;
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private isRunning = false;
   private pendingQueue: PendingDiagnostic[] = [];
   private processedUris = new Set<string>();
+  private backgroundDiagnosticUris = new Set<string>();
   private lastActivityTime = Date.now();
 
   constructor(options: WorkspaceDiagnosticsOptions) {
@@ -52,11 +58,14 @@ export class WorkspaceDiagnosticsManager {
     this.bridgeManager = options.bridgeManager;
     this.idleDelayMs = options.idleDelayMs ?? 5000;
     this.batchSize = options.batchSize ?? 5;
+    this.sendDiagnostics = options.sendDiagnostics;
+    this.clearDiagnostics = options.clearDiagnostics;
   }
 
   /**
    * Notify that user activity occurred (typing, navigation, etc).
-   * Resets idle timer and cancels pending background work.
+   * Resets idle timer, cancels pending background work, and clears
+   * previously published background diagnostics.
    */
   onUserActivity(): void {
     this.lastActivityTime = Date.now();
@@ -70,6 +79,12 @@ export class WorkspaceDiagnosticsManager {
       log.debug('User activity detected, pausing workspace diagnostics');
       this.pause();
     }
+
+    // Clear previously published background diagnostics
+    for (const uri of this.backgroundDiagnosticUris) {
+      this.clearDiagnostics(uri);
+    }
+    this.backgroundDiagnosticUris.clear();
 
     // Schedule new idle check
     this.scheduleIdleCheck();
@@ -211,11 +226,37 @@ export class WorkspaceDiagnosticsManager {
           );
 
           for (const [idx, result] of results.entries()) {
+            const uri = batch[idx]?.uri;
+            if (!uri) continue;
+
             if (result.status === 'rejected') {
               log.debug('Background diagnostic failed', {
-                uri: batch[idx]?.uri ?? 'unknown',
+                uri,
                 error:
                   result.reason instanceof Error ? result.reason.message : String(result.reason),
+              });
+              continue;
+            }
+
+            const rawDiagnostics = result.value.result?.diagnostics?.diagnostics ?? [];
+
+            if (rawDiagnostics.length > 0) {
+              // Map UninitializedVariableDiagnostic → CoreDiagnostic
+              // Bridge returns position (point), CoreDiagnostic requires range (span).
+              const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
+                range: {
+                  start: { line: d.position.line, character: d.position.character },
+                  end: { line: d.position.line, character: d.position.character },
+                },
+                message: d.message,
+                severity: 2, // Warning
+                source: 'pike-background',
+              }));
+              this.sendDiagnostics({ uri, diagnostics });
+              this.backgroundDiagnosticUris.add(uri);
+              log.debug('Published background diagnostics', {
+                uri,
+                count: diagnostics.length,
               });
             }
           }
