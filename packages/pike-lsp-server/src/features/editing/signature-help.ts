@@ -246,7 +246,9 @@ export function registerSignatureHelpHandler(
     // KB-1248: Wrap call context resolution in try-catch for resilience
     let callContext: ReturnType<typeof resolveCallContextAtOffset> = null;
     try {
-      callContext = resolveCallContextAtOffset(text, offset);
+      const bridge = services.bridge;
+      const tokens = bridge?.isRunning?.() ? await bridge.tokenize(text) : [];
+      callContext = resolveCallContextAtOffset(text, offset, tokens);
     } catch (err) {
       logger.debug('Call context resolution failed (handled gracefully)', {
         uri,
