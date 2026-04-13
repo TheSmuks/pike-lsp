@@ -102,11 +102,8 @@ export class CompilationCache<TResult> {
     const visited = new Set<string>([uri]);
     const invalidated: string[] = [];
 
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) {
-        continue;
-      }
+    for (let i = 0; i < queue.length; i++) {
+      const current = queue[i]!;
 
       const dependents = this.dependentsByFile.get(current);
       if (dependents) {
