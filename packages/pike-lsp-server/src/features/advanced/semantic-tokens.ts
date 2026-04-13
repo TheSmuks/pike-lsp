@@ -8,7 +8,6 @@
 
 import {
   Connection,
-  SemanticTokensBuilder,
   SemanticTokens,
   SemanticTokensDelta,
   CancellationToken,
@@ -17,60 +16,9 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
-import { PIKE_KEYWORDS } from '../navigation/keywords.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
-
-/** Create a word-boundary regex for exact identifier matching. */
-function wholeWordPattern(identifier: string): RegExp {
-  const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`\\b${escaped}\\b`, 'g');
-}
-
-// Issue #1389: Pre-compiled keyword regex — avoids per-invocation RegExp construction
-const CONTROL_KEYWORD_NAMES = PIKE_KEYWORDS.filter(kw => kw.category === 'control').map(
-  kw => kw.name
-);
-const CONTROL_KEYWORDS_REGEX = new RegExp('\\b(' + CONTROL_KEYWORD_NAMES.join('|') + ')\\b', 'g');
-
-// Semantic tokens legend (shared with server.ts)
-const tokenTypes = [
-  'namespace',
-  'type',
-  'class',
-  'enum',
-  'interface',
-  'struct',
-  'typeParameter',
-  'parameter',
-  'variable',
-  'property',
-  'enumMember',
-  'event',
-  'function',
-  'method',
-  'macro',
-  'keyword',
-  'modifier',
-  'comment',
-  'string',
-  'number',
-  'regexp',
-  'operator',
-  'decorator',
-];
-const tokenModifiers = [
-  'declaration',
-  'definition',
-  'readonly',
-  'static',
-  'deprecated',
-  'abstract',
-  'async',
-  'modification',
-  'documentation',
-  'defaultLibrary',
-];
+import { buildTokens } from './semantic-tokens-builder.js';
 
 /**
  * Register semantic tokens handler.
@@ -80,7 +28,6 @@ export function registerSemanticTokensHandler(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { documentCache } = services;
   const log = new Logger('Advanced');
 
   // KB-1262: Request scheduler for resilient semantic tokens requests
@@ -165,7 +112,7 @@ export function registerSemanticTokensHandler(
     };
   };
 
-  const getOrBuildTokenState = (
+  const getOrBuildTokenState = async (
     uri: string,
     document: TextDocument,
     cancellationToken?: CancellationToken
@@ -178,7 +125,7 @@ export function registerSemanticTokensHandler(
     // KB-1262: Wrap buildTokens in try-catch for parse-under-edit resilience
     let tokens: SemanticTokens;
     try {
-      tokens = buildTokens(uri, document, cancellationToken);
+      tokens = await buildTokens(uri, document, services, log, cancellationToken);
     } catch (err) {
       // KB-1262: Gracefully handle parse-under-edit errors in token building
       log.debug('Token building failed (likely parse-under-edit)', {
@@ -194,307 +141,6 @@ export function registerSemanticTokensHandler(
     };
     tokenStateByUri.set(uri, state);
     return state;
-  };
-
-  /**
-   * Build semantic tokens for a document from cached symbols.
-   */
-  const buildTokens = (
-    uri: string,
-    document: TextDocument,
-    cancellationToken?: CancellationToken
-  ): SemanticTokens => {
-    const builder = new SemanticTokensBuilder();
-    const text = document.getText();
-    const lines = text.split('\n');
-
-    type IgnoredRange = { start: number; end: number };
-
-    const addIgnoredRange = (
-      ignoredRangesByLine: IgnoredRange[][],
-      lineNum: number,
-      start: number,
-      end: number
-    ): void => {
-      if (start >= end || lineNum < 0 || lineNum >= ignoredRangesByLine.length) {
-        return;
-      }
-      ignoredRangesByLine[lineNum]!.push({ start, end });
-    };
-
-    const buildIgnoredRangesByLine = (sourceLines: string[]): IgnoredRange[][] => {
-      const ignoredRangesByLine: IgnoredRange[][] = sourceLines.map(() => []);
-      let inBlockComment = false;
-      let inString = false;
-      let inMultilineString = false;
-
-      for (let lineNum = 0; lineNum < sourceLines.length; lineNum++) {
-        const line = sourceLines[lineNum] ?? '';
-        let i = 0;
-
-        while (i < line.length) {
-          if (inBlockComment) {
-            const closeIndex = line.indexOf('*/', i);
-            if (closeIndex < 0) {
-              addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
-              i = line.length;
-              continue;
-            }
-
-            const end = closeIndex + 2;
-            addIgnoredRange(ignoredRangesByLine, lineNum, i, end);
-            i = end;
-            inBlockComment = false;
-            continue;
-          }
-
-          if (inMultilineString) {
-            const closeIndex = line.indexOf('"#', i);
-            if (closeIndex < 0) {
-              addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
-              i = line.length;
-              continue;
-            }
-
-            const end = closeIndex + 2;
-            addIgnoredRange(ignoredRangesByLine, lineNum, i, end);
-            i = end;
-            inMultilineString = false;
-            continue;
-          }
-
-          if (inString) {
-            const start = i;
-            let escaped = false;
-            while (i < line.length) {
-              const char = line[i];
-              if (escaped) {
-                escaped = false;
-                i++;
-                continue;
-              }
-
-              if (char === '\\') {
-                escaped = true;
-                i++;
-                continue;
-              }
-
-              if (char === '"') {
-                i++;
-                inString = false;
-                break;
-              }
-
-              i++;
-            }
-
-            addIgnoredRange(ignoredRangesByLine, lineNum, start, i);
-
-            if (inString && i >= line.length) {
-              inString = false;
-            }
-
-            continue;
-          }
-
-          if (line.startsWith('//', i)) {
-            addIgnoredRange(ignoredRangesByLine, lineNum, i, line.length);
-            break;
-          }
-
-          if (line.startsWith('/*', i)) {
-            inBlockComment = true;
-            continue;
-          }
-
-          if (line.startsWith('#"', i)) {
-            inMultilineString = true;
-            continue;
-          }
-
-          if (line[i] === '"') {
-            inString = true;
-            continue;
-          }
-
-          i++;
-        }
-      }
-
-      return ignoredRangesByLine;
-    };
-
-    const ignoredRangesByLine = buildIgnoredRangesByLine(lines);
-
-    const isIgnoredPosition = (lineNum: number, charPos: number): boolean => {
-      const ranges = ignoredRangesByLine[lineNum];
-      if (!ranges || ranges.length === 0) {
-        return false;
-      }
-
-      for (const range of ranges) {
-        if (charPos >= range.start && charPos < range.end) {
-          return true;
-        }
-      }
-
-      return false;
-    };
-
-    const declarationBit = 1 << tokenModifiers.indexOf('declaration');
-    const readonlyBit = 1 << tokenModifiers.indexOf('readonly');
-    const staticBit = 1 << tokenModifiers.indexOf('static');
-    const deprecatedBit = 1 << tokenModifiers.indexOf('deprecated');
-
-    const cached = documentCache.get(uri);
-    if (!cached) {
-      return builder.build();
-    }
-
-    // KB-1262: Track symbol count for periodic cancellation checks
-    let symbolIndex = 0;
-    for (const symbol of cached.symbols) {
-      if (!symbol.name) continue;
-
-      // KB-1262: Check cancellation every 10 symbols
-      symbolIndex++;
-      if (
-        cancellationToken &&
-        symbolIndex % 10 === 0 &&
-        cancellationToken.isCancellationRequested
-      ) {
-        break;
-      }
-
-      let tokenType = tokenTypes.indexOf('variable');
-      let declModifiers = declarationBit;
-
-      const hasModifier = (mod: string) => symbol.modifiers && symbol.modifiers.includes(mod);
-
-      if (hasModifier('static')) {
-        declModifiers |= staticBit;
-      }
-
-      if (hasModifier('deprecated')) {
-        declModifiers |= deprecatedBit;
-      }
-
-      switch (symbol.kind) {
-        case 'class':
-          tokenType = tokenTypes.indexOf('class');
-          break;
-        case 'method':
-          tokenType = tokenTypes.indexOf('method');
-          break;
-        case 'variable':
-          tokenType = tokenTypes.indexOf('variable');
-          break;
-        case 'constant':
-          tokenType = tokenTypes.indexOf('property');
-          declModifiers |= readonlyBit;
-          break;
-        case 'enum':
-          tokenType = tokenTypes.indexOf('enum');
-          break;
-        case 'enum_constant':
-          tokenType = tokenTypes.indexOf('enumMember');
-          declModifiers |= readonlyBit;
-          break;
-        case 'typedef':
-          tokenType = tokenTypes.indexOf('type');
-          break;
-        case 'module':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        case 'import':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        case 'inherit':
-          tokenType = tokenTypes.indexOf('class');
-          break;
-        case 'include':
-          tokenType = tokenTypes.indexOf('namespace');
-          break;
-        default:
-          continue;
-      }
-
-      // KB-1262: Wrap regex construction and matching in try-catch per symbol
-      try {
-        const symbolRegex = wholeWordPattern(symbol.name);
-        const declLine = symbol.position ? symbol.position.line - 1 : -1;
-        const searchRadius = 50;
-
-        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-          const line = lines[lineNum];
-          if (!line) continue;
-
-          if (declLine >= 0 && Math.abs(lineNum - declLine) > searchRadius) {
-            continue;
-          }
-
-          let match = symbolRegex.exec(line);
-          while (match !== null) {
-            const matchIndex = match.index;
-
-            if (!isIgnoredPosition(lineNum, matchIndex)) {
-              const isDeclaration = symbol.position && symbol.position.line - 1 === lineNum;
-              const modifiers = isDeclaration ? declModifiers : 0;
-              builder.push(lineNum, matchIndex, symbol.name.length, tokenType, modifiers);
-            }
-
-            match = symbolRegex.exec(line);
-          }
-        }
-      } catch (err) {
-        // KB-1262: Skip symbols with malformed names during parse-under-edit
-        log.debug('Symbol regex failed (likely parse-under-edit)', {
-          uri,
-          symbolName: symbol.name,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    // KB-1262: Check cancellation before keyword processing
-    if (cancellationToken?.isCancellationRequested) {
-      return builder.build();
-    }
-
-    // Issue #1389: Control keywords matched via pre-compiled module-level regex
-    const keywordTokenType = tokenTypes.indexOf('keyword');
-
-    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-      // KB-1262: Check cancellation periodically during keyword processing
-      if (cancellationToken?.isCancellationRequested) {
-        break;
-      }
-
-      const line = lines[lineNum];
-      if (!line) continue;
-
-      // Issue #1389: Single regex scan instead of per-keyword RegExp construction
-      // Reset lastIndex for stateful 'g' flag when switching lines
-      CONTROL_KEYWORDS_REGEX.lastIndex = 0;
-      try {
-        let match = CONTROL_KEYWORDS_REGEX.exec(line);
-        while (match !== null) {
-          const matchIndex = match.index;
-          const matchedKeyword = match[0];
-
-          if (matchedKeyword && !isIgnoredPosition(lineNum, matchIndex)) {
-            builder.push(lineNum, matchIndex, matchedKeyword.length, keywordTokenType, 0);
-          }
-
-          match = CONTROL_KEYWORDS_REGEX.exec(line);
-        }
-      } catch (_) {
-        // Skip lines with regex matching failures during parse-under-edit
-      }
-    }
-
-    return builder.build();
   };
 
   const docsWithClose = documents as unknown as {
@@ -542,7 +188,7 @@ export function registerSemanticTokensHandler(
             return { resultId: '0', data: [] };
           }
 
-          const state = getOrBuildTokenState(uri, document, cancellationToken);
+          const state = await getOrBuildTokenState(uri, document, cancellationToken);
           return {
             resultId: state.resultId,
             data: state.data,
@@ -608,7 +254,7 @@ export function registerSemanticTokensHandler(
               return { resultId: '0', edits: [] };
             }
 
-            const nextState = getOrBuildTokenState(uri, document, cancellationToken);
+            const nextState = await getOrBuildTokenState(uri, document, cancellationToken);
 
             if (previousState && previousState.resultId === nextState.resultId) {
               if (params.previousResultId === nextState.resultId) {
