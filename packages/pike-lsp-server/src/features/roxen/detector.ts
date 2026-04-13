@@ -13,14 +13,11 @@ const log = new Logger('RoxenDetector');
  * Text-level marker check for synchronous Roxen detection.
  * Used only by isRoxenModule() when bridge is unavailable.
  */
+const INHERIT_RE = /inherit\s+["'](module|filesystem|roxen)["']/i;
+
 function hasMarkers(code: string): boolean {
   return (
-    code.includes('inherit "module"') ||
-    code.includes("inherit 'module'") ||
-    code.includes('inherit "filesystem"') ||
-    code.includes("inherit 'filesystem'") ||
-    code.includes('inherit "roxen"') ||
-    code.includes("inherit 'roxen'") ||
+    INHERIT_RE.test(code) ||
     code.includes('#include <module.h>') ||
     code.includes('#include "module.h"') ||
     code.includes('ID_DEFINED') ||

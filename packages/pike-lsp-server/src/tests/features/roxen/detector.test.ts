@@ -252,6 +252,23 @@ describe('Roxen Detector', () => {
       assert.strictEqual(isRoxenModule('inherit "filesystem";'), true);
     });
 
+    // --- Inherit with whitespace variants (issue #1604) ---
+    it('detects inherit  "module" with tab whitespace', () => {
+      assert.strictEqual(isRoxenModule('inherit\t"module";'), true);
+    });
+
+    it('detects inherit  "module" with multiple spaces', () => {
+      assert.strictEqual(isRoxenModule('inherit   "module";'), true);
+    });
+
+    it('detects inherit\t\t\t"roxen" with tabs', () => {
+      assert.strictEqual(isRoxenModule('inherit\t\t\t"roxen";'), true);
+    });
+
+    it("detects inherit  'filesystem' with mixed whitespace", () => {
+      assert.strictEqual(isRoxenModule("inherit \t 'filesystem';"), true);
+    });
+
     // --- Include markers ---
     it('detects #include <module.h>', () => {
       assert.strictEqual(isRoxenModule('#include <module.h>'), true);
