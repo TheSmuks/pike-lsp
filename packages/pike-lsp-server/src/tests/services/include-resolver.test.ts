@@ -375,16 +375,16 @@ describe('IncludeResolver - 30.4 Nested includes', () => {
 // ============================================================================
 
 describe('IncludeResolver - Cache Management', () => {
-  it('should report zero cached includes without DocumentCache', async () => {
+  it('should report cached includes from the include path index', async () => {
     const bridge = createMockBridge();
     const logger = createMockLogger();
     const resolver = new IncludeResolver(bridge, logger);
 
     await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"existing.h"')]);
 
-    // Without a DocumentCache, getStats reads nothing
+    // The index tracks resolved includes for O(1) lookup
     const stats = resolver.getStats();
-    assert.equal(stats.cachedIncludes, 0);
+    assert.equal(stats.cachedIncludes, 1);
   });
 
   it('should clear without error', async () => {

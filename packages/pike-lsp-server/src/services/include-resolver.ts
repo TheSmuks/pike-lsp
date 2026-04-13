@@ -9,7 +9,6 @@
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
-import type { DocumentCache } from './document-cache.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -18,13 +17,15 @@ import { Logger } from '@pike-lsp/core';
  *
  * Resolves #include paths to absolute file paths and extracts
  * symbols from included files for IntelliSense completion.
- * Leverages DocumentCache to reuse already-resolved dependencies.
+ * Maintains a reverse index for O(1) include path lookup.
  */
 export class IncludeResolver {
+  /** Reverse index: normalized resolvedPath -> ResolvedInclude for O(1) lookup. */
+  private includePathIndex = new Map<string, ResolvedInclude>();
+
   constructor(
     private readonly bridge: BridgeManager | null,
-    private readonly logger: Logger,
-    private readonly docCache?: DocumentCache
+    private readonly logger: Logger
   ) {}
 
   /**
@@ -101,8 +102,8 @@ export class IncludeResolver {
    * Resolve a single include path using bridge.resolveInclude()
    * and parse symbols via BridgeManager.parseFileSymbols().
    *
-   * Checks DocumentCache for already-resolved dependencies from
-   * prior document analysis before making bridge calls.
+   * Checks the include path index for already-resolved dependencies
+   * before making bridge calls.
    */
   private async resolveSingleInclude(
     includePath: string,
@@ -136,6 +137,8 @@ export class IncludeResolver {
         symbols,
         lastModified: Date.now(),
       };
+
+      this.includePathIndex.set(normalizedPath, resolved);
 
       return resolved;
     } catch (err) {
@@ -193,26 +196,13 @@ export class IncludeResolver {
   }
 
   /**
-   * Find a previously resolved include from the DocumentCache.
+   * Find a previously resolved include from the include path index.
    *
-   * Scans all cached document entries for an include matching
-   * the given resolved path, avoiding redundant bridge/parse calls.
+   * O(1) lookup via reverse index from normalized resolvedPath
+   * to ResolvedInclude entry.
    */
   private findCachedInclude(resolvedPath: string): ResolvedInclude | null {
-    if (!this.docCache) {
-      return null;
-    }
-
-    for (const [, entry] of this.docCache.entries()) {
-      const match = entry.dependencies?.includes.find(
-        inc => this.normalizeFilePath(inc.resolvedPath) === resolvedPath
-      );
-      if (match) {
-        return match;
-      }
-    }
-
-    return null;
+    return this.includePathIndex.get(resolvedPath) ?? null;
   }
 
   /**
@@ -255,39 +245,27 @@ export class IncludeResolver {
 
   /**
    * Invalidate cache for a specific file.
-   *
-   * With DocumentCache-based caching, this is a no-op —
-   * invalidation happens when the owning document's cache entry
-   * is updated or removed.
    */
-  invalidate(_filePath: string): void {
-    // Cache is managed by DocumentCache; nothing to invalidate here.
+  invalidate(filePath: string): void {
+    this.includePathIndex.delete(this.normalizeFilePath(filePath));
   }
 
   /**
    * Clear all cached includes.
-   *
-   * With DocumentCache-based caching, this is a no-op.
    */
   clear(): void {
-    // Cache is managed by DocumentCache; nothing to clear here.
+    this.includePathIndex.clear();
   }
 
   /**
-   * Get cache statistics from the DocumentCache.
+   * Get cache statistics from the include path index.
    */
   getStats(): { cachedIncludes: number; totalSymbols: number } {
-    let cachedIncludes = 0;
     let totalSymbols = 0;
 
-    if (this.docCache) {
-      for (const [, entry] of this.docCache.entries()) {
-        const includes = entry.dependencies?.includes ?? [];
-        cachedIncludes += includes.length;
-        for (const inc of includes) {
-          totalSymbols += inc.symbols.length;
-        }
-      }
+    const cachedIncludes = this.includePathIndex.size;
+    for (const inc of this.includePathIndex.values()) {
+      totalSymbols += inc.symbols.length;
     }
 
     return { cachedIncludes, totalSymbols };
