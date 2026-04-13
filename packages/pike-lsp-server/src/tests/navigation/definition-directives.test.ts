@@ -4,7 +4,7 @@
  * Tests for handleDirectiveNavigation - go-to-definition on directive lines.
  */
 
-import { describe, it, beforeEach } from 'bun:test';
+import { describe, it } from 'bun:test';
 import assert from 'node:assert';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
@@ -22,6 +22,70 @@ function createMockLog(): Logger {
   } as unknown as Logger;
 }
 
+/**
+ * Simple token-based directive parser for test mocks.
+ * Extracts #include, import, inherit, and #require directives
+ * without using regex, following the same principle as the production code.
+ */
+function parseDirectivesFromCode(code: string) {
+  const imports = [] as Array<{ type: string; path: string; line: number }>;
+  const lines = code.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trimStart();
+    const lineNum = i + 1;
+
+    if (trimmed.startsWith('#include')) {
+      const rest = trimmed.slice('#include'.length).trimStart();
+      const path = extractQuotedOrBracketedPath(rest);
+      if (path) imports.push({ type: 'include', path, line: lineNum });
+    } else if (trimmed.startsWith('import ')) {
+      const rest = trimmed.slice('import '.length).trim();
+      const semi = rest.indexOf(';');
+      const path = (semi >= 0 ? rest.slice(0, semi) : rest).trim();
+      if (path) imports.push({ type: 'import', path, line: lineNum });
+    } else if (trimmed.startsWith('inherit ')) {
+      const rest = trimmed.slice('inherit '.length).trim();
+      const path = extractQuotedOrBracketedPath(rest) ?? extractUntilTerminator(rest);
+      if (path) imports.push({ type: 'inherit', path, line: lineNum });
+    } else if (trimmed.startsWith('#require ')) {
+      const rest = trimmed.slice('#require '.length).trim();
+      const path = extractQuotedOrBracketedPath(rest) ?? extractUntilTerminator(rest);
+      if (path) imports.push({ type: 'require', path, line: lineNum });
+    }
+  }
+
+  return { imports };
+}
+
+/** Extract path from a quoted string ("path" or <path>). Returns undefined if no quotes. */
+function extractQuotedOrBracketedPath(text: string): string | undefined {
+  const first = text[0];
+  if (!first) return undefined;
+  if (first === '"' || first === "'") {
+    const end = text.indexOf(first, 1);
+    return end > 1 ? text.slice(1, end) : undefined;
+  }
+  if (first === '<') {
+    const end = text.indexOf('>', 1);
+    return end > 1 ? text.slice(1, end) : undefined;
+  }
+  return undefined;
+}
+
+/** Extract path until a terminator character (;, :, ", ', >). */
+function extractUntilTerminator(text: string): string | undefined {
+  let end = 0;
+  while (end < text.length) {
+    const ch = text[end]!;
+    if (ch === ';' || ch === ':' || ch === '"' || ch === "'" || ch === '>' || ch === '<') break;
+    end++;
+  }
+  const path = text.slice(0, end).trim();
+  return path || undefined;
+}
+
 // Mock services with configurable bridge responses
 function createMockServices(options: {
   includeResult?: { exists: boolean; path?: string };
@@ -31,44 +95,7 @@ function createMockServices(options: {
     roxenDetect: async () => ({ is_roxen_module: 0 }),
     resolveInclude: async () => options.includeResult ?? { exists: false },
     resolveImport: async () => options.importResult ?? { exists: false },
-    // Extract imports from source — handles all directive types
-    extractImports: async (code: string) => {
-      const imports: Array<{
-        type: 'include' | 'import' | 'inherit' | 'require';
-        path: string;
-        line: number;
-      }> = [];
-      const lines = code.split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line) continue;
-        // #include
-        const incMatch = line.match(/^#include\s+["<]([^">]+)[">]/);
-        if (incMatch) {
-          imports.push({ type: 'include', path: incMatch[1], line: i + 1 });
-          continue;
-        }
-        // import
-        const impMatch = line.match(/^import\s+([^;]+)/);
-        if (impMatch) {
-          imports.push({ type: 'import', path: impMatch[1].trim(), line: i + 1 });
-          continue;
-        }
-        // inherit
-        const inhMatch = line.match(/^inherit\s+["']?([^"';:]+)/);
-        if (inhMatch) {
-          imports.push({ type: 'inherit', path: inhMatch[1].trim(), line: i + 1 });
-          continue;
-        }
-        // #require
-        const reqMatch = line.match(/^#require\s+["<]?([^";>]+)/);
-        if (reqMatch) {
-          imports.push({ type: 'require', path: reqMatch[1].trim(), line: i + 1 });
-          continue;
-        }
-      }
-      return { imports };
-    },
+    extractImports: async (code: string) => parseDirectivesFromCode(code),
   } as unknown as RoxenDetectorBridge;
 
   return {
@@ -326,14 +353,7 @@ describe('handleDirectiveNavigation', () => {
               bridgeCalled = true;
               return { exists: true, path: '/fallback/Other.pike' };
             },
-            extractImports: async (code: string) => {
-              const lines = code.split('\n');
-              for (let i = 0; i < lines.length; i++) {
-                const m = lines[i]!.match(/^inherit\s+["']?([^"';:]+)/);
-                if (m) return { imports: [{ type: 'inherit', path: m[1].trim(), line: i + 1 }] };
-              }
-              return { imports: [] };
-            },
+            extractImports: async (code: string) => parseDirectivesFromCode(code),
           },
           isRunning: () => true,
         },
