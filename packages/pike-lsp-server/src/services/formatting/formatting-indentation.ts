@@ -135,33 +135,31 @@ export function computeIndentEdits(text: string, indent: string, startLine: numb
       trackingLevel++;
     }
 
-    const braceRegex = /[{}]/g;
-    let match: RegExpExecArray | null = braceRegex.exec(originalLine);
-    while (match !== null) {
-      if (match[0] === '{') {
-        trackingLevel++;
-        indentStack.push(trackingLevel);
-        if (switchBaseLevel === -1) {
-          switchBaseLevel = trackingLevel - 2;
-        }
-      } else if (match[0] === '}') {
-        indentStack.pop();
-        trackingLevel = indentStack[indentStack.length - 1] ?? 0;
+    // Scan for structural braces outside strings/comments/multiline literals.
+    // Uses a lightweight line scanner (same approach as ignored-ranges fallback)
+    // so this stays synchronous — no bridge dependency needed.
+    const braceCount = countStructuralBraces(originalLine);
+    trackingLevel += braceCount.opens;
+    for (let b = 0; b < braceCount.opens; b++) {
+      indentStack.push(trackingLevel);
+      if (switchBaseLevel === -1) {
+        switchBaseLevel = trackingLevel - 2;
       }
-      match = braceRegex.exec(originalLine);
+    }
+    for (let b = 0; b < braceCount.closes; b++) {
+      indentStack.pop();
+      trackingLevel = indentStack[indentStack.length - 1] ?? 0;
     }
 
-    const pikeLiteralRegex = /(\(\[|\(<|\]\)|>\))/g;
-    match = pikeLiteralRegex.exec(originalLine);
-    while (match !== null) {
-      if (match[0] === '([' || match[0] === '(<') {
-        trackingLevel++;
-        indentStack.push(trackingLevel);
-      } else {
-        indentStack.pop();
-        trackingLevel = indentStack[indentStack.length - 1] ?? 0;
-      }
-      match = pikeLiteralRegex.exec(originalLine);
+    // Pike multi-line literal delimiters ([( / ]), (< / >))
+    const literalCount = countStructuralPikeLiterals(originalLine);
+    trackingLevel += literalCount.opens;
+    for (let l = 0; l < literalCount.opens; l++) {
+      indentStack.push(trackingLevel);
+    }
+    for (let l = 0; l < literalCount.closes; l++) {
+      indentStack.pop();
+      trackingLevel = indentStack[indentStack.length - 1] ?? 0;
     }
 
     const isBracelessControl = controlKeywords.some(keyword => {
@@ -175,4 +173,106 @@ export function computeIndentEdits(text: string, indent: string, startLine: numb
   }
 
   return edits;
+}
+
+/**
+ * Build ignored character ranges on a single line for strings, comments,
+ * and Pike multi-line strings. Same lightweight approach as ignored-ranges.ts
+ * fallback, but for a single line (no state tracking across lines).
+ */
+function buildLineIgnoredRanges(line: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  let pos = 0;
+  while (pos < line.length) {
+    // // line comment
+    if (line[pos] === '/' && line[pos + 1] === '/') {
+      ranges.push({ start: pos, end: line.length });
+      break;
+    }
+    // /* block comment
+    if (line[pos] === '/' && line[pos + 1] === '*') {
+      const closeIdx = line.indexOf('*/', pos + 2);
+      if (closeIdx >= 0) {
+        ranges.push({ start: pos, end: closeIdx + 2 });
+        pos = closeIdx + 2;
+        continue;
+      }
+      ranges.push({ start: pos, end: line.length });
+      break;
+    }
+    // #" Pike multi-line string
+    if (line[pos] === '#' && line[pos + 1] === '"') {
+      const closeIdx = line.indexOf('"#', pos + 2);
+      if (closeIdx >= 0) {
+        ranges.push({ start: pos, end: closeIdx + 2 });
+        pos = closeIdx + 2;
+        continue;
+      }
+      ranges.push({ start: pos, end: line.length });
+      break;
+    }
+    // Regular string
+    if (line[pos] === '"') {
+      const closeIdx = line.indexOf('"', pos + 1);
+      if (closeIdx >= 0) {
+        ranges.push({ start: pos, end: closeIdx + 1 });
+        pos = closeIdx + 1;
+        continue;
+      }
+      ranges.push({ start: pos, end: line.length });
+      break;
+    }
+    // Single-quoted string
+    if (line[pos] === "'") {
+      const closeIdx = line.indexOf("'", pos + 1);
+      if (closeIdx >= 0) {
+        ranges.push({ start: pos, end: closeIdx + 1 });
+        pos = closeIdx + 1;
+        continue;
+      }
+      ranges.push({ start: pos, end: line.length });
+      break;
+    }
+    pos++;
+  }
+  return ranges;
+}
+
+/** Check if a position falls inside any ignored range. */
+function isIgnored(pos: number, ranges: Array<{ start: number; end: number }>): boolean {
+  return ranges.some(r => pos >= r.start && pos < r.end);
+}
+
+/** Count structural { and } outside strings/comments. */
+function countStructuralBraces(line: string): { opens: number; closes: number } {
+  const ranges = buildLineIgnoredRanges(line);
+  let opens = 0;
+  let closes = 0;
+  for (let i = 0; i < line.length; i++) {
+    if (isIgnored(i, ranges)) continue;
+    if (line[i] === '{') opens++;
+    else if (line[i] === '}') closes++;
+  }
+  return { opens, closes };
+}
+
+/** Count Pike multi-line literal delimiters ([( / ]), (< / >)) outside strings/comments. */
+function countStructuralPikeLiterals(line: string): { opens: number; closes: number } {
+  const ranges = buildLineIgnoredRanges(line);
+  let opens = 0;
+  let closes = 0;
+  for (let i = 0; i < line.length; i++) {
+    if (isIgnored(i, ranges)) continue;
+    if (line[i] === '(' && (line[i + 1] === '[' || line[i + 1] === '<')) {
+      opens++;
+      i++; // skip the [ or <
+    } else if (line[i] === ']' && line[i + 1] === ')') {
+      closes++;
+      i++;
+    } else if (line[i] === '>' && line[i + 1] === ')') {
+      closes++;
+      i++;
+    }
+  }
+  return { opens, closes };
 }
