@@ -79,12 +79,27 @@ function mockTokenize(text: string): PikeToken[] {
       }
     }
 
+    // Extract word tokens (identifiers, keywords, numbers)
     const wordRe = /\b\w+\b/g;
     let match;
+    const wordPositions = new Set<number>();
     while ((match = wordRe.exec(effectiveLine)) !== null) {
       const before = effectiveLine.slice(0, match.index);
       const quoteCount = (before.match(/"/g) ?? []).length;
       if (quoteCount % 2 === 1) continue;
+      tokens.push({
+        text: match[0],
+        line: lineIdx + 1,
+        character: match.index,
+        file: 'test.pike',
+      });
+      wordPositions.add(match.index);
+    }
+
+    // Extract operator tokens for write-occurrence detection
+    const opsRe = /(\+\+|--|<<=|>>=|[+\-*/%&|^]?=)/g;
+    while ((match = opsRe.exec(effectiveLine)) !== null) {
+      if (wordPositions.has(match.index)) continue;
       tokens.push({
         text: match[0],
         line: lineIdx + 1,
