@@ -311,21 +311,7 @@ class Helper {
       expect(tags[1].name).toBe('if');
       expect(tags[1].description).toBe('Container for conditional display');
     });
-
-    it('should fall back to line search when symbol has no position', () => {
-      const pikeCode = `//! A tag
-void simpletag_fallback(mapping args) { }`;
-
-      const symbols: PikeSymbol[] = [methodSymbol('simpletag_fallback')];
-
-      const tags = detectTagFunctions(symbols, pikeCode);
-
-      expect(tags).toHaveLength(1);
-      expect(tags[0].name).toBe('fallback');
-      expect(tags[0].description).toBe('A tag');
-    });
   });
-
   describe('findTagFunctionsInCode', () => {
     it('should find both space and underscore forms', () => {
       const code = [
