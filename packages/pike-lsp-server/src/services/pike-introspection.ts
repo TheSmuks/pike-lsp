@@ -36,6 +36,12 @@ export class PikeIntrospectionService {
   /** Cached symbol lists per stdlib module, populated on first search. */
   private stdlibSymbolCache = new LRUCache<string, Map<string, IntrospectedSymbol>>(100);
 
+  /** Inverted index: lowercase symbol name → entries keyed by modulePath. */
+  private stdlibSymbolIndex = new Map<
+    string,
+    Array<{ modulePath: string; name: string; kind: string }>
+  >();
+
   constructor(
     private readonly services: Services,
     private readonly workspaceIndex?: WorkspaceIndex,
@@ -332,6 +338,7 @@ export class PikeIntrospectionService {
    */
   invalidateStdlibCache(): void {
     this.stdlibSymbolCache.clear();
+    this.stdlibSymbolIndex.clear();
   }
 
   private async searchStdlibCandidates(query: string): Promise<ImportableSymbolCandidate[]> {
@@ -341,36 +348,75 @@ export class PikeIntrospectionService {
 
     const searchPaths = this.stdlibIndex.getAvailableModules();
 
-    // Populate cache for any modules not yet loaded
+    // Populate cache + index for any modules not yet loaded
     for (const modulePath of searchPaths) {
       if (this.stdlibSymbolCache.has(modulePath)) continue;
       const moduleInfo = await this.stdlibIndex.getModule(modulePath);
       if (moduleInfo?.symbols) {
         this.stdlibSymbolCache.set(modulePath, moduleInfo.symbols);
+        // Build inverted index entries for this module
+        for (const [name, sym] of moduleInfo.symbols) {
+          const key = name.toLowerCase();
+          let bucket = this.stdlibSymbolIndex.get(key);
+          if (!bucket) {
+            bucket = [];
+            this.stdlibSymbolIndex.set(key, bucket);
+          }
+          bucket.push({ modulePath, name, kind: sym.kind });
+        }
       }
     }
 
     const candidates: ImportableSymbolCandidate[] = [];
+    const qLower = query.toLowerCase();
 
-    for (const modulePath of searchPaths) {
-      const symbols = this.stdlibSymbolCache.get(modulePath);
-      if (!symbols) continue;
+    // Phase 1: exact + prefix lookup via inverted index
+    const visited = new Set<string>();
+    for (const [indexKey, entries] of this.stdlibSymbolIndex) {
+      if (indexKey === qLower || indexKey.startsWith(qLower)) {
+        for (const entry of entries) {
+          const cacheKey = `${entry.name}:${entry.modulePath}`;
+          if (visited.has(cacheKey)) continue;
+          visited.add(cacheKey);
 
-      for (const [name, symbolInfo] of symbols) {
-        const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
-        if (matchScore === 0) continue;
+          const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
+          const matchScore = indexKey === qLower ? 100 : 80 + qLower.length;
+          const exactBoost = indexKey === qLower ? 130 : 0;
+          const kindBoost = importKind === 'inherit' ? 15 : 10;
 
-        const importKind: 'import' | 'inherit' = symbolInfo.kind === 'class' ? 'inherit' : 'import';
-        const exactBoost = name.toLowerCase() === query.toLowerCase() ? 130 : 0;
-        const kindBoost = importKind === 'inherit' ? 15 : 10;
+          candidates.push({
+            symbol: entry.name,
+            modulePath: entry.modulePath,
+            importKind,
+            score: exactBoost + kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
+            source: 'stdlib-index',
+          });
+        }
+      }
+    }
 
-        candidates.push({
-          symbol: name,
-          modulePath,
-          importKind,
-          score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
-          source: 'stdlib-index',
-        });
+    // Phase 2: fallback — fuzzy score only if no index hits
+    if (candidates.length === 0) {
+      for (const modulePath of searchPaths) {
+        const symbols = this.stdlibSymbolCache.get(modulePath);
+        if (!symbols) continue;
+
+        for (const [name, symbolInfo] of symbols) {
+          const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
+          if (matchScore === 0) continue;
+
+          const importKind: 'import' | 'inherit' =
+            symbolInfo.kind === 'class' ? 'inherit' : 'import';
+          const kindBoost = importKind === 'inherit' ? 15 : 10;
+
+          candidates.push({
+            symbol: name,
+            modulePath,
+            importKind,
+            score: kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
+            source: 'stdlib-index',
+          });
+        }
       }
     }
 
