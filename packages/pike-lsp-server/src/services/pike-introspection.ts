@@ -30,6 +30,9 @@ interface CachedIntrospectionDocument {
 export class PikeIntrospectionService {
   private readonly cache = new Map<string, CachedIntrospectionDocument>();
 
+  /** Cached symbol lists per stdlib module, populated on first search. */
+  private stdlibSymbolCache = new Map<string, Map<string, IntrospectedSymbol>>();
+
   constructor(
     private readonly services: Services,
     private readonly workspaceIndex?: WorkspaceIndex,
@@ -303,36 +306,83 @@ export class PikeIntrospectionService {
 
   // === Auto-import private methods ===
 
+  /**
+   * Score how well `name` matches `query`.
+   * Returns 0 for no match, or a positive score where higher = better.
+   * Prefix match scores higher than substring; contiguous subsequence gets a bonus.
+   */
+  private static fuzzyScore(query: string, name: string): number {
+    const q = query.toLowerCase();
+    const n = name.toLowerCase();
+
+    // Exact match
+    if (n === q) return 100;
+    // Prefix match
+    if (n.startsWith(q)) return 80 + q.length;
+    // Substring match
+    const subIdx = n.indexOf(q);
+    if (subIdx >= 0) return 40 + q.length;
+
+    // Contiguous subsequence match (characters appear in order)
+    let qi = 0;
+    let contiguous = 0;
+    let bestContiguous = 0;
+    for (let ni = 0; ni < n.length && qi < q.length; ni++) {
+      if (n[ni] === q[qi]) {
+        qi++;
+        contiguous++;
+        if (contiguous > bestContiguous) bestContiguous = contiguous;
+      } else {
+        contiguous = 0;
+      }
+    }
+    if (qi < q.length) return 0; // not all query chars found
+    return 20 + bestContiguous + q.length;
+  }
+
+  /**
+   * Clear the cached stdlib symbol lists. Should be called when
+   * the workspace index changes.
+   */
+  invalidateStdlibCache(): void {
+    this.stdlibSymbolCache.clear();
+  }
+
   private async searchStdlibCandidates(query: string): Promise<ImportableSymbolCandidate[]> {
-    if (!this.stdlibIndex) {
+    if (!this.stdlibIndex || query.length === 0) {
       return [];
     }
 
-    const queryLower = query.toLowerCase();
-    const candidates: ImportableSymbolCandidate[] = [];
-
     const searchPaths = this.stdlibIndex.getAvailableModules();
 
+    // Populate cache for any modules not yet loaded
     for (const modulePath of searchPaths) {
+      if (this.stdlibSymbolCache.has(modulePath)) continue;
       const moduleInfo = await this.stdlibIndex.getModule(modulePath);
-      if (!moduleInfo?.symbols) {
-        continue;
+      if (moduleInfo?.symbols) {
+        this.stdlibSymbolCache.set(modulePath, moduleInfo.symbols);
       }
+    }
 
-      for (const [name, symbolInfo] of moduleInfo.symbols) {
-        if (!name.toLowerCase().startsWith(queryLower)) {
-          continue;
-        }
+    const candidates: ImportableSymbolCandidate[] = [];
+
+    for (const modulePath of searchPaths) {
+      const symbols = this.stdlibSymbolCache.get(modulePath);
+      if (!symbols) continue;
+
+      for (const [name, symbolInfo] of symbols) {
+        const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
+        if (matchScore === 0) continue;
 
         const importKind: 'import' | 'inherit' = symbolInfo.kind === 'class' ? 'inherit' : 'import';
-        const exactBoost = name.toLowerCase() === queryLower ? 130 : 0;
+        const exactBoost = name.toLowerCase() === query.toLowerCase() ? 130 : 0;
         const kindBoost = importKind === 'inherit' ? 15 : 10;
 
         candidates.push({
           symbol: name,
           modulePath,
           importKind,
-          score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length),
+          score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
           source: 'stdlib-index',
         });
       }
