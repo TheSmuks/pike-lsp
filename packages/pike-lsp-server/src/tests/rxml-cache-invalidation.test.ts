@@ -8,6 +8,8 @@ import {
   findTagDefinition,
   invalidateRXMLDefinitionCaches,
 } from '../features/rxml/definition-provider.js';
+import type { BridgeManager } from '../services/bridge-manager.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 import {
   findTagReferences,
   invalidateRXMLReferenceCaches,
@@ -15,6 +17,69 @@ import {
 import { registerRXMLHandlers } from '../features/rxml/index.js';
 import { FileChangeType, registerFileWatcher } from '../features/file-watcher.js';
 import { createMockDocuments, createMockServices } from './helpers/mock-services.js';
+
+/** Minimal mock bridge that tokenizes defvar declarations for tests. */
+function createMockDefvarBridge(): BridgeManager {
+  return {
+    async tokenize(text: string): Promise<PikeToken[]> {
+      const tokens: PikeToken[] = [];
+      const lines = text.split('\n');
+      for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+        const line = lines[lineIdx]!;
+        const col = line.indexOf('defvar');
+        if (col === -1) continue;
+        tokens.push({ text: 'defvar', line: lineIdx + 1, character: col, file: 0 });
+        tokens.push({ text: '(', line: lineIdx + 1, character: col + 6, file: 0 });
+        const rest = line.slice(col + 7);
+        let i = 0;
+        if (i < rest.length && rest[i] === '(') i++;
+        while (i < rest.length) {
+          const c = rest[i]!;
+          if (c === ')') {
+            tokens.push({ text: ')', line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            break;
+          }
+          if (c === '"' || c === "'") {
+            const quote = c;
+            tokens.push({ text: quote, line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            i++;
+            let end = i;
+            while (end < rest.length && rest[end] !== quote) end++;
+            if (end > i) {
+              tokens.push({
+                text: rest.slice(i, end),
+                line: lineIdx + 1,
+                character: col + 7 + i,
+                file: 0,
+              });
+            }
+            i = end;
+            if (i < rest.length && rest[i] === quote) {
+              tokens.push({ text: quote, line: lineIdx + 1, character: col + 7 + i, file: 0 });
+              i++;
+            }
+          } else if (/[\s;]/.test(c)) {
+            i++;
+          } else if (c === ',') {
+            tokens.push({ text: ',', line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            i++;
+          } else {
+            let end = i;
+            while (end < rest.length && !/[\s,();"']/.test(rest[end]!)) end++;
+            tokens.push({
+              text: rest.slice(i, end),
+              line: lineIdx + 1,
+              character: col + 7 + i,
+              file: 0,
+            });
+            i = end;
+          }
+        }
+      }
+      return tokens;
+    },
+  } as BridgeManager;
+}
 
 const createdDirs: string[] = [];
 
@@ -56,20 +121,21 @@ describe('RXML cache invalidation', () => {
     const root = await mkdtemp(join(tmpdir(), 'pike-rxml-defvar-'));
     createdDirs.push(root);
 
+    const bridge = createMockDefvarBridge();
     const modulePath = join(root, 'module-defvar.pike');
-    await writeFile(modulePath, 'defvar("foo_var", TYPE_STRING);', 'utf-8');
+    await writeFile(modulePath, 'defvar("foo_var", "Foo Var", TYPE_STRING, "desc", 0);', 'utf-8');
 
-    const first = await findDefvarDefinition('foo_var', [root]);
+    const first = await findDefvarDefinition('foo_var', [root], bridge);
     expect(first).not.toBeNull();
 
-    await writeFile(modulePath, 'defvar("bar_var", TYPE_STRING);', 'utf-8');
-    const stale = await findDefvarDefinition('foo_var', [root]);
+    await writeFile(modulePath, 'defvar("bar_var", "Bar Var", TYPE_STRING, "desc", 0);', 'utf-8');
+    const stale = await findDefvarDefinition('foo_var', [root], bridge);
     expect(stale).not.toBeNull();
 
     invalidateRXMLDefinitionCaches(`file://${modulePath}`);
 
-    const refreshedFoo = await findDefvarDefinition('foo_var', [root]);
-    const refreshedBar = await findDefvarDefinition('bar_var', [root]);
+    const refreshedFoo = await findDefvarDefinition('foo_var', [root], bridge);
+    const refreshedBar = await findDefvarDefinition('bar_var', [root], bridge);
     expect(refreshedFoo).toBeNull();
     expect(refreshedBar).not.toBeNull();
   });

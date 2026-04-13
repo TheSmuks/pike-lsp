@@ -23,6 +23,71 @@ import {
   findModulesUsingTag,
   invalidateRXMLReferenceCaches,
 } from '../features/rxml/references-provider.js';
+import type { BridgeManager } from '../services/bridge-manager.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
+/** Minimal mock bridge that tokenizes defvar declarations for tests. */
+function createMockDefvarBridge(): BridgeManager {
+  return {
+    async tokenize(text: string): Promise<PikeToken[]> {
+      const tokens: PikeToken[] = [];
+      const lines = text.split('\n');
+      for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+        const line = lines[lineIdx]!;
+        const col = line.indexOf('defvar');
+        if (col === -1) continue;
+        tokens.push({ text: 'defvar', line: lineIdx + 1, character: col, file: 0 });
+        tokens.push({ text: '(', line: lineIdx + 1, character: col + 6, file: 0 });
+        const rest = line.slice(col + 7);
+        let i = 0;
+        if (i < rest.length && rest[i] === '(') i++;
+        while (i < rest.length) {
+          const c = rest[i]!;
+          if (c === ')') {
+            tokens.push({ text: ')', line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            break;
+          }
+          if (c === '"' || c === "'") {
+            const quote = c;
+            tokens.push({ text: quote, line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            i++;
+            let end = i;
+            while (end < rest.length && rest[end] !== quote) end++;
+            if (end > i) {
+              tokens.push({
+                text: rest.slice(i, end),
+                line: lineIdx + 1,
+                character: col + 7 + i,
+                file: 0,
+              });
+            }
+            i = end;
+            if (i < rest.length && rest[i] === quote) {
+              tokens.push({ text: quote, line: lineIdx + 1, character: col + 7 + i, file: 0 });
+              i++;
+            }
+          } else if (/[\s;]/.test(c)) {
+            i++;
+          } else if (c === ',') {
+            tokens.push({ text: ',', line: lineIdx + 1, character: col + 7 + i, file: 0 });
+            i++;
+          } else {
+            let end = i;
+            while (end < rest.length && !/[\s,();"']/.test(rest[end]!)) end++;
+            tokens.push({
+              text: rest.slice(i, end),
+              line: lineIdx + 1,
+              character: col + 7 + i,
+              file: 0,
+            });
+            i = end;
+          }
+        }
+      }
+      return tokens;
+    },
+  } as BridgeManager;
+}
 
 const createdDirs: string[] = [];
 
@@ -110,17 +175,17 @@ describe('RXML request scheduler resilience', () => {
 
     await writeFile(
       join(root, 'module.pike'),
-      'defvar("my_var", TYPE_STRING, "default", "desc");',
+      'defvar("my_var", "My Var", TYPE_STRING, "default", 0);',
       'utf-8'
     );
 
     // Concurrent defvar lookups for same workspace
+    const bridge = createMockDefvarBridge();
     const results = await Promise.allSettled([
-      findDefvarDefinition('my_var', [root]),
-      findDefvarDefinition('my_var', [root]),
-      findDefvarDefinition('my_var', [root]),
+      findDefvarDefinition('my_var', [root], bridge),
+      findDefvarDefinition('my_var', [root], bridge),
+      findDefvarDefinition('my_var', [root], bridge),
     ]);
-
     for (const result of results) {
       assert.equal(result.status, 'fulfilled', `Expected fulfilled, got ${result.status}`);
     }

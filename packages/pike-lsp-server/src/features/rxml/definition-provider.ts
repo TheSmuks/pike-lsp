@@ -11,6 +11,7 @@
  * Uses RequestScheduler for resilient request handling — concurrent definition
  * requests for the same workspace are superseded so stale work is cancelled.
  */
+import type { BridgeManager } from '../../services/bridge-manager.js';
 
 import { Location, Range, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -25,6 +26,8 @@ import {
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { findTagFunctionsInCode } from './module-scanner.js';
+
+import { extractDefvarsFromTokens } from '../roxen/defvar-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
 const log = new Logger('RXMLDefinition');
@@ -90,7 +93,8 @@ async function getTagDefinitionIndex(
 }
 
 async function getDefvarDefinitionIndex(
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  bridge: BridgeManager | null
 ): Promise<Map<string, RoxenDefvarInfo>> {
   const key = makeWorkspaceKey(workspaceFolders);
   const now = Date.now();
@@ -102,30 +106,34 @@ async function getDefvarDefinitionIndex(
   const byName = new Map<string, RoxenDefvarInfo>();
   const pikeFiles = await findPikeFiles(workspaceFolders);
 
+  if (!bridge) {
+    defvarDefinitionIndexCache.set(key, { builtAt: now, byName });
+    return byName;
+  }
+
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const defvarPattern = /defvar\s*\(\s*["']([^"']+)["']/g;
+    let tokens: Awaited<ReturnType<BridgeManager['tokenize']>>;
+    try {
+      tokens = await bridge.tokenize(content);
+    } catch {
+      continue;
+    }
 
-    let match = defvarPattern.exec(content);
-    while (match !== null) {
-      const name = match[1];
-      if (name) {
-        const keyName = name.toLowerCase();
-        if (!byName.has(keyName)) {
-          const position = findPositionForIndex(content, match.index);
-          byName.set(keyName, {
-            name,
-            type: 'mixed',
-            documentation: `Defvar: ${name}`,
-            location: Location.create(fileToUri(file), {
-              start: position,
-              end: { line: position.line, character: position.character + name.length },
-            }),
-          });
-        }
+    const defvars = extractDefvarsFromTokens(tokens);
+    for (const dv of defvars) {
+      const keyName = dv.name.toLowerCase();
+      if (!byName.has(keyName)) {
+        byName.set(keyName, {
+          name: dv.name,
+          type: dv.type || 'mixed',
+          ...(dv.documentation ? { documentation: `Defvar: ${dv.name}` } : {}),
+          location: Location.create(fileToUri(file), {
+            start: { line: dv.line, character: dv.column },
+            end: { line: dv.line, character: dv.column + dv.name.length },
+          }),
+        });
       }
-
-      match = defvarPattern.exec(content);
     }
   }
 
@@ -247,11 +255,13 @@ export function invalidateRXMLDefinitionCaches(uri?: string): void {
  *
  * @param defvarName - Variable name to find
  * @param workspaceFolders - Workspace folders to search
+ * @param bridge - Pike bridge for tokenization
  * @returns Defvar info or null
  */
 export async function findDefvarDefinition(
   defvarName: string,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  bridge: BridgeManager | null
 ): Promise<RoxenDefvarInfo | null> {
   if (!workspaceFolders.length) {
     return null;
@@ -264,7 +274,7 @@ export async function findDefvarDefinition(
       key: `findDefvar:${wsKey}`,
       run: async checkpoint => {
         checkpoint();
-        const index = await getDefvarDefinitionIndex(workspaceFolders);
+        const index = await getDefvarDefinitionIndex(workspaceFolders, bridge);
         return index.get(defvarName.toLowerCase()) ?? null;
       },
     });
