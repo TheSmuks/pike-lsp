@@ -12,12 +12,12 @@ Four packages under `packages/`, managed as a pike-lsp monorepo.
 
 ## Packages
 
-| Package | Role |
-|---|---|
-| `@pike-lsp/core` | Shared utilities: Logger, PikeError/BridgeError/LSPError hierarchy, PathSanitizer, StackTraceSanitizer, IdentifierHasher, JsonRpcRedactor, AnonymizerPipeline |
-| `@pike-lsp/pike-bridge` | TypeScript-Pike IPC layer over JSON-RPC stdin/stdout. PikeProcess handles subprocess lifecycle; PikeBridge exposes typed business methods. Includes rate-limiter, response-validator, constants, types |
-| `@pike-lsp/pike-lsp-server` | LSP implementation using vscode-languageserver. Orchestrates PikeBridge with services and features |
-| `vscode-pike` | VS Code extension providing IntelliSense, go-to-definition, references, diagnostics, hover, signature help, completion, semantic tokens, call hierarchy, workspace symbols |
+| Package                     | Role                                                                                                                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@pike-lsp/core`            | Shared utilities: Logger, PikeError/BridgeError/LSPError hierarchy, PathSanitizer, StackTraceSanitizer, IdentifierHasher, JsonRpcRedactor, AnonymizerPipeline                                          |
+| `@pike-lsp/pike-bridge`     | TypeScript-Pike IPC layer over JSON-RPC stdin/stdout. PikeProcess handles subprocess lifecycle; PikeBridge exposes typed business methods. Includes rate-limiter, response-validator, constants, types |
+| `@pike-lsp/pike-lsp-server` | LSP implementation using vscode-languageserver. Orchestrates PikeBridge with services and features                                                                                                     |
+| `vscode-pike`               | VS Code extension providing IntelliSense, go-to-definition, references, diagnostics, hover, signature help, completion, semantic tokens, call hierarchy, workspace symbols                             |
 
 ## Dependency Graph
 
