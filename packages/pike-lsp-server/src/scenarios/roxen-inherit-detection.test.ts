@@ -138,3 +138,74 @@ describe('Roxen inherit detection: multi-line and commented-out inherits', () =>
     );
   });
 });
+
+/**
+ * KB-1561: hasMarkers() uses includes() — no regex.
+ * These tests exercise isRoxenModule (which delegates to hasMarkers)
+ * to ensure the fast pre-filter works without regex patterns.
+ */
+import { isRoxenModule } from '../features/roxen/detector.js';
+
+describe('hasMarkers pre-filter via isRoxenModule (KB-1561)', () => {
+  it('should detect MODULE_ marker via includes', () => {
+    assert.strictEqual(
+      isRoxenModule('constant module_type = MODULE_TAG;'),
+      true,
+      'MODULE_ prefix should be detected'
+    );
+  });
+
+  it('should detect register_module via includes', () => {
+    assert.strictEqual(
+      isRoxenModule('void register_module() { }'),
+      true,
+      'register_module should be detected'
+    );
+  });
+
+  it('should not false-positive on register_module without parenthesis (includes is exact)', () => {
+    // Old regex /register_module\s*\(/ would match 'register_module  (  )',
+    // but includes('register_module(') correctly requires the immediate '('.
+    // The bridge parser handles the real detection — hasMarkers is just a fast pre-filter.
+    assert.strictEqual(
+      isRoxenModule('void register_module  (  ) { }'),
+      false,
+      'register_module without immediate parenthesis should not match includes'
+    );
+  });
+
+  it('should return false for non-Roxen code', () => {
+    assert.strictEqual(
+      isRoxenModule('int main() { return 0; }'),
+      false,
+      'Plain Pike code should not be detected as Roxen'
+    );
+  });
+
+  it('should detect #include <module.h> via includes', () => {
+    assert.strictEqual(
+      isRoxenModule('#include <module.h>'),
+      true,
+      'module.h include should be detected'
+    );
+  });
+
+  it('should detect VERSION_ marker via includes', () => {
+    assert.strictEqual(isRoxenModule('constant cvs_version = "$Id$";'), false);
+    assert.strictEqual(
+      isRoxenModule('#define VERSION_1 1'),
+      true,
+      'VERSION_ prefix should be detected'
+    );
+  });
+
+  it('should detect ID_DEFINED and ID_RUNTIME markers', () => {
+    assert.strictEqual(isRoxenModule('#ifdef ID_DEFINED'), true);
+    assert.strictEqual(isRoxenModule('ID_RUNTIME'), true);
+  });
+
+  it('should detect inherit "filesystem" marker', () => {
+    assert.strictEqual(isRoxenModule('inherit "filesystem";'), true);
+    assert.strictEqual(isRoxenModule("inherit 'filesystem';"), true);
+  });
+});
