@@ -17,7 +17,36 @@ import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
 import { basename } from 'node:path';
 import { escapeRegExp, isAtWordBoundary } from '../utils/pike-identifier.js';
-import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
+/**
+ * Find all positions of a word in text using bridge.tokenize() for accurate token boundaries.
+ * Matches tokens by exact text and word-boundary validation, excluding matches embedded
+ * within larger identifiers. Returns empty array if bridge is unavailable or tokenization fails.
+ */
+async function findTokenPositions(
+  word: string,
+  uri: string,
+  bridge: { tokenize: (text: string) => Promise<PikeToken[]> } | null,
+  text: string
+): Promise<Location[]> {
+  if (!bridge) return [];
+  try {
+    const tokens = await bridge.tokenize(text);
+    const locations: Location[] = [];
+    for (const token of tokens) {
+      if (token.text !== word) continue;
+      const line = text.split('\n')[token.line - 1] ?? '';
+      if (!isAtWordBoundary(line, token.character, token.character + word.length)) continue;
+      const start = { line: token.line - 1, character: token.character };
+      const end = { line: token.line - 1, character: token.character + word.length };
+      locations.push({ uri, range: { start, end } });
+    }
+    return locations;
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Register references handlers.
@@ -144,38 +173,8 @@ export function registerReferencesHandlers(
       }
 
       if (references.length === 0) {
-        const lines = text.split('\n');
-        const exclusions = createLexicalExclusionMap(text);
-        for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-          const line = lines[lineNum];
-          if (!line) continue;
-          let searchStart = 0;
-          let matchIndex = line.indexOf(word, searchStart);
-
-          while (matchIndex !== -1) {
-            const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-            const afterChar =
-              matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-            if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-              if (exclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
-                searchStart = matchIndex + 1;
-                matchIndex = line.indexOf(word, searchStart);
-                continue;
-              }
-
-              references.push({
-                uri,
-                range: {
-                  start: { line: lineNum, character: matchIndex },
-                  end: { line: lineNum, character: matchIndex + word.length },
-                },
-              });
-            }
-            searchStart = matchIndex + 1;
-            matchIndex = line.indexOf(word, searchStart);
-          }
-        }
+        const tokenRefs = await findTokenPositions(word, uri, services.bridge, text);
+        references.push(...tokenRefs);
       }
 
       // Search in other open documents
@@ -200,38 +199,8 @@ export function registerReferencesHandlers(
           const otherDoc = documents.get(otherUri);
           if (otherDoc) {
             const otherText = otherDoc.getText();
-            const otherLines = otherText.split('\n');
-            const otherExclusions = createLexicalExclusionMap(otherText);
-            for (let lineNum = 0; lineNum < otherLines.length; lineNum++) {
-              const line = otherLines[lineNum];
-              if (!line) continue;
-              let searchStart = 0;
-              let matchIndex = line.indexOf(word, searchStart);
-
-              while (matchIndex !== -1) {
-                const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-                const afterChar =
-                  matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-                if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-                  if (otherExclusions.isCommentOrStringPosition(lineNum, matchIndex)) {
-                    searchStart = matchIndex + 1;
-                    matchIndex = line.indexOf(word, searchStart);
-                    continue;
-                  }
-
-                  references.push({
-                    uri: otherUri,
-                    range: {
-                      start: { line: lineNum, character: matchIndex },
-                      end: { line: lineNum, character: matchIndex + word.length },
-                    },
-                  });
-                }
-                searchStart = matchIndex + 1;
-                matchIndex = line.indexOf(word, searchStart);
-              }
-            }
+            const tokenRefs = await findTokenPositions(word, otherUri, services.bridge, otherText);
+            references.push(...tokenRefs);
           }
         }
       }
