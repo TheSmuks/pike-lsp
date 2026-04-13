@@ -43,24 +43,16 @@ export function findIdentifierOccurrences(tokens: PikeToken[], name: string): Po
  * not punctuation, not a literal).
  *
  * PikeToken has text/line/character but no kind field, so we
- * distinguish by exclusion: keywords are known, single-char tokens
- * are punctuation, and everything else is treated as an identifier.
+ * distinguish by exclusion: keywords are known, tokens whose first
+ * character is not alphabetic or underscore are punctuation/operators/
+ * numeric literals, and everything else is an identifier.
  */
 export function isIdentifierToken(token: PikeToken): boolean {
   if (isPikeKeyword(token.text)) return false;
-  // Single non-alphanumeric characters are punctuation/operators
-  if (token.text.length === 1 && !isAlphaNumeric(token.text)) return false;
-  // Numeric literals (heuristic: starts with digit, not a valid identifier start)
-  if (token.text.length > 0 && token.text.charCodeAt(0) >= 0x30 && token.text.charCodeAt(0) <= 0x39)
-    return false;
+  // First character must be alphabetic or underscore for a valid identifier
+  const c = token.text.charCodeAt(0);
+  if (!(c >= 0x41 && c <= 0x5a) && !(c >= 0x61 && c <= 0x7a) && c !== 0x5f) return false;
   return true;
-}
-
-function isAlphaNumeric(ch: string): boolean {
-  const c = ch.charCodeAt(0);
-  return (
-    (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f
-  );
 }
 
 // ─── Bridge fallback wrapper ───────────────────────────────────
