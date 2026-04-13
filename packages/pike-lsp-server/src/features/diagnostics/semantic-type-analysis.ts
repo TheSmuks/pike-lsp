@@ -9,6 +9,7 @@
 
 import type { Diagnostic } from 'vscode-languageserver/node.js';
 import type { PikeSymbol, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
+import { isPikeIdentifierStart } from '../utils/pike-identifier.js';
 
 const ROXEN_REQUIRED_CALLBACKS = ['start', 'stop'];
 
@@ -28,6 +29,9 @@ const TYPE_COMPATIBILITY: Record<string, string[]> = {
 
 /**
  * Detect type mismatches between declared variable types and assigned values.
+ *
+ * Uses bridge introspection variables for declared types and bridge tokens
+ * for assignment detection — no source-line regex.
  */
 export function analyzeTypeMismatches(
   introspection: IntrospectionResult,
@@ -37,28 +41,39 @@ export function analyzeTypeMismatches(
   const diagnostics: Diagnostic[] = [];
   const variableTypes = new Map<string, string>();
 
+  // Build declared-type map from bridge introspection
   for (const v of introspection.variables || []) {
     if (v.name && v.type) {
-      const typeStr = typeToString(v.type);
-      variableTypes.set(v.name, typeStr);
+      variableTypes.set(v.name, typeToString(v.type));
     }
   }
 
+  if (variableTypes.size === 0) return diagnostics;
+
+  // Scan tokens for assignment expressions
   for (let i = 0; i < tokens.length && diagnostics.length < maxDiagnostics; i++) {
     const token = tokens[i];
+    if (!token) continue;
+
+    // Only consider identifier-like tokens as potential LHS
+    const firstChar = token.text?.[0];
+    if (!firstChar || !isPikeIdentifierStart(firstChar)) continue;
+
     const next = tokens[i + 1];
-    if (!token || !next) continue;
+    if (!next || next.text !== '=') continue;
 
-    // Skip if next token is not a single '=' (not '==' or '!=')
-    if (next.text !== '=' || tokens[i + 2]?.text === '=') continue;
+    // Reject '==' by checking the token after '='
+    const afterEq = tokens[i + 2];
+    if (afterEq && afterEq.text === '=') continue;
 
-    const varName = token.text;
-    if (!varName) continue;
+    // Also reject '!=' — the '=' here is part of a comparison
+    if (i > 0 && tokens[i - 1]!.text === '!') continue;
 
+    const varName = token.text!;
     const declaredType = variableTypes.get(varName);
     if (!declaredType) continue;
 
-    // Collect rvalue tokens until ';' or end of tokens on same line
+    // Collect RHS tokens until ';' or a line break > 1 away
     const rvalueTokens: PikeToken[] = [];
     const valueLine = token.line;
     for (let j = i + 2; j < tokens.length; j++) {
@@ -71,11 +86,7 @@ export function analyzeTypeMismatches(
 
     if (rvalueTokens.length === 0) continue;
 
-    const valueStr = rvalueTokens
-      .map(t => t.text)
-      .join(' ')
-      .trim();
-    const inferredType = inferTypeFromLiteral(valueStr);
+    const inferredType = inferTypeFromTokens(rvalueTokens);
     if (inferredType && !isTypeCompatible(declaredType, inferredType)) {
       const firstRvalue = rvalueTokens[0]!;
       const lastRvalue = rvalueTokens[rvalueTokens.length - 1]!;
@@ -101,48 +112,83 @@ export function analyzeTypeMismatches(
 /**
  * Convert a Pike type representation to a string.
  */
+/**
+ * Convert a Pike type representation to a string.
+ */
 function typeToString(type: unknown): string {
-  if (!type || typeof type !== 'object') {
-    return 'mixed';
-  }
+  if (typeof type === 'string') return type;
+  if (!type || typeof type !== 'object') return 'mixed';
 
-  const t = type as { kind?: string; name?: string };
-  if (t.kind) {
-    if (t.kind === 'name' && t.name) {
-      return t.name;
+  const rec = type as Record<string, unknown>;
+  const kind = rec['kind'];
+  if (typeof kind === 'string') {
+    const name = rec['name'];
+    if (kind === 'name' && typeof name === 'string' && name.length > 0) {
+      return name;
     }
-    return t.kind;
+    return kind;
   }
   return 'mixed';
 }
 
 /**
- * Infer a Pike type from a literal value string.
+ * Infer a Pike type from the first RHS token.
+ * Uses token text characteristics directly — no regex on joined strings.
  */
-function inferTypeFromLiteral(value: string): string | null {
-  const trimmed = value.trim();
+function inferTypeFromTokens(rvalueTokens: PikeToken[]): string | null {
+  const first = rvalueTokens[0];
+  if (!first || !first.text) return null;
 
-  if (/^".*"$/.test(trimmed) || /^'.*'$/.test(trimmed)) {
-    return 'string';
+  const text = first.text;
+  const firstChar = text[0];
+
+  // String literals: "..." or '...'
+  if (firstChar === '"' || firstChar === "'") return 'string';
+
+  // Array literal: ({...})
+  if (firstChar === '(' && text.length > 1 && text[1] === '{') return 'array';
+  if (firstChar === '{') return 'array';
+
+  // Mapping literal: ([...])
+  if (firstChar === '(' && text.length > 1 && text[1] === '[') return 'mapping';
+  if (firstChar === '[') return 'mapping';
+
+  // Multiset literal: (< ... >)
+  if (firstChar === '(' && text.length > 1 && text[1] === '<') return 'multiset';
+
+  // Numeric: must be purely digits (possibly with leading minus/plus and decimal)
+  if (isNumericLiteral(text)) {
+    return text.includes('.') ? 'float' : 'int';
   }
 
-  if (/^-?\d+$/.test(trimmed)) {
-    return 'int';
-  }
-
-  if (/^-?\d+\.\d+$/.test(trimmed)) {
-    return 'float';
-  }
-
-  if (/^\{.*\}$/.test(trimmed)) {
-    return 'array';
-  }
-
-  if (/^\[.*\]$/.test(trimmed)) {
-    return 'mapping';
-  }
-
+  // Callable / object construction — not a literal we can classify
   return null;
+}
+
+/**
+ * Check if token text looks like a numeric literal (no regex).
+ */
+function isNumericLiteral(text: string): boolean {
+  if (text.length === 0) return false;
+  let i = 0;
+  if (text[i] === '-' || text[i] === '+') i++;
+  if (i >= text.length) return false;
+  let hasDot = false;
+  let hasDigit = false;
+  for (; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    if (ch === 46) {
+      // '.'
+      if (hasDot) return false;
+      hasDot = true;
+    } else if (ch >= 48 && ch <= 57) {
+      // '0'-'9'
+      hasDigit = true;
+    } else {
+      return false;
+    }
+  }
+  return hasDigit;
 }
 
 /**
