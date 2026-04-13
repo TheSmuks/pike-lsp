@@ -121,46 +121,28 @@ export function stripCodeContent(code: string): string {
 
 /**
  * Test whether `ident` appears as a standalone identifier in `code`.
- * The caller is responsible for stripping comments/strings first.
- * Uses indexOf + char-level word-boundary check instead of RegExp.
+ * Uses token boundaries from `tokenizeCode` for correctness.
  */
-export function isIdentPresent(code: string, ident: string): boolean {
+export function isIdentPresent(_code: string, ident: string, tokens: CodeToken[]): boolean {
   if (ident.length === 0) return false;
 
-  let pos = 0;
-  while (true) {
-    const idx = code.indexOf(ident, pos);
-    if (idx === -1) return false;
-
-    // Check character before — must not be a word char
-    if (idx > 0 && isWordChar(code.charAt(idx - 1))) {
-      pos = idx + 1;
-      continue;
-    }
-
-    // Check character after — must not be a word char
-    const after = idx + ident.length;
-    if (after < code.length && isWordChar(code.charAt(after))) {
-      pos = idx + 1;
-      continue;
-    }
-
-    return true;
+  for (const tok of tokens) {
+    if (tok.kind === 'identifier' && tok.text === ident) return true;
   }
+  return false;
 }
-
-function isWordChar(ch: string): boolean {
-  return (
-    (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_'
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Pike literal recognizers
 // ---------------------------------------------------------------------------
 
 function isHexDigit(ch: string): boolean {
   return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F');
+}
+
+function isWordChar(ch: string): boolean {
+  return (
+    (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch === '_'
+  );
 }
 
 /**
