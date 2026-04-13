@@ -180,8 +180,29 @@ export function parseRoxenConfig(_code: string, bridgeInput?: BridgeParseInput):
     result.moduleType = detectModuleType(bridgeInput?.symbols);
   }
 
-  // Extract defvars: token-based extraction only (bridge tokenize)
-  if (bridgeInput?.tokens && bridgeInput.tokens.length > 0) {
+  // Extract defvars: roxenInfo (bridge.roxenDetect()) preferred, tokens (bridge.tokenize()) fallback
+  if (bridgeInput?.roxenInfo && bridgeInput.roxenInfo.variables.length > 0) {
+    for (const v of bridgeInput.roxenInfo.variables) {
+      if (!TYPE_CONSTANTS[v.type as keyof typeof TYPE_CONSTANTS]) {
+        result.errors.push({
+          line: Math.max(0, v.position.line - 1),
+          column: v.position.column ?? 0,
+          message: `Unknown TYPE constant: ${v.type}. Valid values are: ${Object.keys(TYPE_CONSTANTS).join(', ')}`,
+          severity: 'error',
+        });
+      }
+
+      result.defvars.push({
+        name: v.name,
+        displayName: v.name_string || v.name,
+        type: v.type,
+        documentation: v.doc_str,
+        flags: 0,
+        line: Math.max(0, v.position.line - 1),
+        column: v.position.column ?? 0,
+      });
+    }
+  } else if (bridgeInput?.tokens && bridgeInput.tokens.length > 0) {
     const rawDefvars = extractDefvarsFromTokens(bridgeInput.tokens);
     for (const dv of rawDefvars) {
       if (!TYPE_CONSTANTS[dv.type as keyof typeof TYPE_CONSTANTS]) {
