@@ -437,31 +437,12 @@ export function registerReferencesHandlers(
       }
 
       const highlights: DocumentHighlight[] = [];
-      const lines = text.split('\n');
-
-      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
-        const line = lines[lineNum];
-        if (!line) continue;
-        let searchStart = 0;
-        let matchIndex = line.indexOf(word, searchStart);
-
-        while (matchIndex !== -1) {
-          const beforeChar = matchIndex > 0 ? line[matchIndex - 1] : ' ';
-          const afterChar =
-            matchIndex + word.length < line.length ? line[matchIndex + word.length] : ' ';
-
-          if (!/\w/.test(beforeChar ?? '') && !/\w/.test(afterChar ?? '')) {
-            highlights.push({
-              range: {
-                start: { line: lineNum, character: matchIndex },
-                end: { line: lineNum, character: matchIndex + word.length },
-              },
-              kind: DocumentHighlightKind.Text,
-            });
-          }
-          searchStart = matchIndex + 1;
-          matchIndex = line.indexOf(word, searchStart);
-        }
+      const tokenRefs = await findTokenPositions(word, uri, services.bridge, text);
+      for (const loc of tokenRefs) {
+        highlights.push({
+          range: loc.range,
+          kind: DocumentHighlightKind.Text,
+        });
       }
 
       return highlights.length > 0 ? highlights : null;
