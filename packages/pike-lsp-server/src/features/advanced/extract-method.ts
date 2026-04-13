@@ -12,7 +12,6 @@ import { CodeAction, CodeActionKind, Range, TextEdit } from 'vscode-languageserv
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeMethod, PikeVariable, PikeType } from '@pike-lsp/pike-bridge';
 import {
-  stripCodeContent,
   isIdentPresent,
   isIntegerLiteral,
   isFloatLiteral,
@@ -173,13 +172,13 @@ function analyzeSelectedCode(
   // Collect variable names and types from the symbol table
   const varTypes = collectVariableTypes(cached.symbols);
 
-  // Strip comments and string literals to avoid false identifier matches
-  const strippedCode = stripCodeContent(selectedCode);
+  // Tokenize once — used for identifier presence check and return detection.
+  const tokens = tokenizeCode(selectedCode);
 
   // Check which symbol-table variables are referenced in actual code
   const usedVars = new Set<string>();
   for (const varName of varTypes.keys()) {
-    if (isIdentPresent(strippedCode, varName)) {
+    if (isIdentPresent(selectedCode, varName, tokens)) {
       usedVars.add(varName);
     }
   }
@@ -188,7 +187,6 @@ function analyzeSelectedCode(
   parameters.push(...usedVars);
 
   // Detect return statements using token-based AST walk.
-  const tokens = tokenizeCode(selectedCode);
   const returnInfo = detectReturnStatement(selectedCode, tokens);
   if (returnInfo) {
     returnValue = returnInfo.value;
