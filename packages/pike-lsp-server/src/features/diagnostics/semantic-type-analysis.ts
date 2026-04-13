@@ -8,7 +8,7 @@
  */
 
 import type { Diagnostic } from 'vscode-languageserver/node.js';
-import type { PikeSymbol, IntrospectionResult } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
 
 const ROXEN_REQUIRED_CALLBACKS = ['start', 'stop'];
 
@@ -31,7 +31,7 @@ const TYPE_COMPATIBILITY: Record<string, string[]> = {
  */
 export function analyzeTypeMismatches(
   introspection: IntrospectionResult,
-  lines: string[],
+  tokens: PikeToken[],
   maxDiagnostics: number
 ): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
@@ -44,32 +44,54 @@ export function analyzeTypeMismatches(
     }
   }
 
-  for (let i = 0; i < lines.length && diagnostics.length < maxDiagnostics; i++) {
-    const lineText = lines[i];
-    if (!lineText) continue;
-    const assignmentMatch = lineText.match(/(\w+)\s*=\s*(.+?);?\s*$/);
-    if (assignmentMatch) {
-      const varName = assignmentMatch[1];
-      if (!varName) continue;
-      const value = assignmentMatch[2]?.trim();
-      if (!value) continue;
+  for (let i = 0; i < tokens.length && diagnostics.length < maxDiagnostics; i++) {
+    const token = tokens[i];
+    const next = tokens[i + 1];
+    if (!token || !next) continue;
 
-      const declaredType = variableTypes.get(varName);
-      if (declaredType) {
-        const inferredType = inferTypeFromLiteral(value);
-        if (inferredType && !isTypeCompatible(declaredType, inferredType)) {
-          diagnostics.push({
-            severity: 2,
-            range: {
-              start: { line: i, character: lineText.indexOf(value) },
-              end: { line: i, character: lineText.indexOf(value) + value.length },
-            },
-            message: `Type mismatch: '${varName}' is declared as ${declaredType} but assigned ${inferredType}`,
-            source: 'pike-semantic',
-            code: 'type-mismatch',
-          });
-        }
-      }
+    // Skip if next token is not a single '=' (not '==' or '!=')
+    if (next.text !== '=' || tokens[i + 2]?.text === '=') continue;
+
+    const varName = token.text;
+    if (!varName) continue;
+
+    const declaredType = variableTypes.get(varName);
+    if (!declaredType) continue;
+
+    // Collect rvalue tokens until ';' or end of tokens on same line
+    const rvalueTokens: PikeToken[] = [];
+    const valueLine = token.line;
+    for (let j = i + 2; j < tokens.length; j++) {
+      const rt = tokens[j];
+      if (!rt) break;
+      if (rt.text === ';') break;
+      if (rt.line !== valueLine && rt.line !== valueLine + 1) break;
+      rvalueTokens.push(rt);
+    }
+
+    if (rvalueTokens.length === 0) continue;
+
+    const valueStr = rvalueTokens
+      .map(t => t.text)
+      .join(' ')
+      .trim();
+    const inferredType = inferTypeFromLiteral(valueStr);
+    if (inferredType && !isTypeCompatible(declaredType, inferredType)) {
+      const firstRvalue = rvalueTokens[0]!;
+      const lastRvalue = rvalueTokens[rvalueTokens.length - 1]!;
+      diagnostics.push({
+        severity: 2,
+        range: {
+          start: { line: firstRvalue.line, character: firstRvalue.character },
+          end: {
+            line: lastRvalue.line,
+            character: lastRvalue.character + (lastRvalue.text?.length ?? 0),
+          },
+        },
+        message: `Type mismatch: '${varName}' is declared as ${declaredType} but assigned ${inferredType}`,
+        source: 'pike-semantic',
+        code: 'type-mismatch',
+      });
     }
   }
 
