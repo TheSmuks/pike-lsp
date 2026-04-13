@@ -142,6 +142,13 @@ export class StdlibIndexManager {
   }
 
   /**
+   * Return paths of all currently cached modules.
+   */
+  getCachedModulePaths(): string[] {
+    return [...this.modules.keys()];
+  }
+
+  /**
    * Get cache statistics
    */
   getStats(): {
