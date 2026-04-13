@@ -536,19 +536,32 @@ export class BridgeManager {
    * reach through to bridge internals.
    *
    * @param filePath - Absolute path to the file to parse
-   * @returns Array of symbols extracted from the file, or empty array on failure
+   * @returns Array of symbols extracted from the file, or empty array on parse failure
+   * @throws Re-throws I/O errors (e.g. ENOENT, EACCES) from readFile so callers
+   *         can distinguish I/O failures from empty-symbol results.
    */
   async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
     if (!this.bridge) {
       return [];
     }
 
+    let content: string;
     try {
-      const content = await readFile(filePath, 'utf-8');
-      const response = await this.analyze(content, ['parse'], filePath);
+      content = await readFile(filePath, 'utf-8');
+    } catch (err) {
+      this.logger.warn(`parseFileSymbols: failed to read ${filePath}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
 
+    try {
+      const response = await this.analyze(content, ['parse'], filePath);
       return response.result?.parse?.symbols ?? [];
-    } catch {
+    } catch (err) {
+      this.logger.warn(`parseFileSymbols: failed to analyze ${filePath}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
       return [];
     }
   }
