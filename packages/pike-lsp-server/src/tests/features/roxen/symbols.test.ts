@@ -176,3 +176,225 @@ describe('Roxen Symbols - enhanceRoxenSymbols', () => {
     validateRanges(result);
   });
 });
+
+describe('Roxen Symbols - enhanceRoxenSymbols edge cases', () => {
+  const baseSymbols = [
+    {
+      name: 'TestModule',
+      kind: 5,
+      range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+      selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 10 } },
+      children: [],
+    },
+  ];
+
+  const roxenModule: RoxenModuleInfo = {
+    is_roxen_module: 1,
+    module_type: ['module'],
+    module_name: 'TestModule',
+    inherits: [],
+    variables: [
+      {
+        name: 'v',
+        type: 'string',
+        name_string: 'v',
+        doc_str: '',
+        position: { file: 'test.pike', line: 5, column: 4 },
+      },
+    ],
+    tags: [
+      { name: 't', type: 'simple', position: { file: 'test.pike', line: 3, column: 2 }, args: [] },
+    ],
+    lifecycle: {
+      callbacks: [],
+      has_create: 0,
+      has_start: 0,
+      has_stop: 0,
+      has_status: 0,
+      missing_required: [],
+    },
+  };
+
+  test('empty base symbols with roxen moduleInfo still produces roxen container', () => {
+    const result = enhanceRoxenSymbols([], roxenModule);
+    assert.strictEqual(result.length, 1, 'Should have roxen container only');
+    assert.strictEqual(result[0].name, 'Roxen Module');
+  });
+
+  test('null moduleInfo with empty base symbols returns empty array', () => {
+    const result = enhanceRoxenSymbols([], null);
+    assert.deepStrictEqual(result, [], 'null moduleInfo returns base symbols unchanged');
+  });
+
+  test('undefined variables and tags fields are treated as absent (code guards)', () => {
+    // The type says variables/tags are required, but the code guards anyway.
+    // Cast to any to simulate runtime data that doesn't match the type.
+    const info = {
+      ...roxenModule,
+      variables: undefined,
+      tags: undefined,
+    } as unknown as RoxenModuleInfo;
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+
+    assert.strictEqual(result.length, 2, 'Should have roxen container + base symbol');
+    const roxen = result[0];
+    assert.strictEqual(roxen.name, 'Roxen Module');
+    assert.strictEqual(roxen.children!.length, 0, 'Should have no variable or tag groups');
+  });
+
+  test('empty variables array does not create Module Variables group', () => {
+    const info = { ...roxenModule, variables: [] };
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+
+    const roxen = result[0];
+    assert.strictEqual(roxen.name, 'Roxen Module');
+    assert.ok(!roxen.children?.some(c => c.name === 'Module Variables'));
+  });
+
+  test('empty tags array does not create RXML Tags group', () => {
+    const info = { ...roxenModule, tags: [] };
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+
+    const roxen = result[0];
+    assert.strictEqual(roxen.name, 'Roxen Module');
+    assert.ok(!roxen.children?.some(c => c.name === 'RXML Tags'));
+  });
+
+  test('variable with missing position falls back to line=0, column=0 via default 1-1=0', () => {
+    const info = {
+      ...roxenModule,
+      variables: [
+        {
+          name: 'no_pos',
+          type: 'string',
+          name_string: '',
+          doc_str: '',
+          position: undefined as any,
+        },
+      ],
+      tags: [],
+    } as unknown as RoxenModuleInfo;
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const varGroup = result[0].children?.find(c => c.name === 'Module Variables');
+    assert.ok(varGroup);
+    const v = varGroup.children![0];
+    // position?.line ?? 1 - 1 = 0
+    assert.strictEqual(v.range.start.line, 0, 'Should default to line 0');
+    assert.strictEqual(v.range.start.character, 0, 'Should default to column 0');
+  });
+
+  test('variable with position line=0 clamps to 0 via Math.max guard (not -1)', () => {
+    const info = {
+      ...roxenModule,
+      variables: [
+        {
+          name: 'zero_line',
+          type: 'int',
+          name_string: '',
+          doc_str: '',
+          position: { file: '', line: 0, column: 1 },
+        },
+      ],
+      tags: [],
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const v = result[0].children![0].children![0];
+    // Math.max(0, 0 - 1) = Math.max(0, -1) = 0
+    assert.strictEqual(
+      v.range.start.line,
+      0,
+      'line=0 input should clamp to 0, not underflow to -1'
+    );
+    assert.strictEqual(v.range.start.character, 0, 'column=1-1=0');
+  });
+
+  test('variable with position column=0 clamps to 0 via Math.max guard', () => {
+    const info = {
+      ...roxenModule,
+      variables: [
+        {
+          name: 'zero_col',
+          type: 'int',
+          name_string: '',
+          doc_str: '',
+          position: { file: '', line: 1, column: 0 },
+        },
+      ],
+      tags: [],
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const v = result[0].children![0].children![0];
+    // Math.max(0, 0 - 1) = 0
+    assert.strictEqual(v.range.start.character, 0, 'column=0 input should clamp to 0');
+    assert.strictEqual(v.range.start.line, 0, 'line=1-1=0');
+  });
+
+  test('tag with undefined column uses default fallback 1-1=0', () => {
+    const info = {
+      ...roxenModule,
+      variables: [],
+      tags: [{ name: 'no_col', type: 'simple', position: { file: '', line: 3 }, args: [] }],
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const t = result[0].children![0].children![0];
+    // position?.column ?? 1 - 1 = 0
+    assert.strictEqual(t.range.start.line, 2, 'line=3-1=2');
+    assert.strictEqual(t.range.start.character, 0, 'undefined column should default to 0');
+  });
+
+  test('large line and column values convert correctly', () => {
+    const info = {
+      ...roxenModule,
+      variables: [
+        {
+          name: 'big',
+          type: 'string',
+          name_string: '',
+          doc_str: '',
+          position: { file: '', line: 99999, column: 500 },
+        },
+      ],
+      tags: [],
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const v = result[0].children![0].children![0];
+    assert.strictEqual(v.range.start.line, 99998);
+    assert.strictEqual(v.range.start.character, 499);
+  });
+
+  test('both variables and tags present creates both groups', () => {
+    const result = enhanceRoxenSymbols(baseSymbols, roxenModule);
+
+    const roxen = result[0];
+    assert.strictEqual(roxen.children!.length, 2);
+    assert.ok(roxen.children!.some(c => c.name === 'Module Variables'));
+    assert.ok(roxen.children!.some(c => c.name === 'RXML Tags'));
+  });
+
+  test('variable with both line=0 and column=0 clamps both to 0', () => {
+    const info = {
+      ...roxenModule,
+      variables: [
+        {
+          name: 'origin',
+          type: 'string',
+          name_string: '',
+          doc_str: '',
+          position: { file: '', line: 0, column: 0 },
+        },
+      ],
+      tags: [],
+    };
+
+    const result = enhanceRoxenSymbols(baseSymbols, info);
+    const v = result[0].children![0].children![0];
+    // Math.max(0, 0 - 1) = 0 for both
+    assert.strictEqual(v.range.start.line, 0, 'line=0 should not underflow');
+    assert.strictEqual(v.range.start.character, 0, 'column=0 should not underflow');
+  });
+});
