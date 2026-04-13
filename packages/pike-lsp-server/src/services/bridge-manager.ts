@@ -66,6 +66,8 @@ export class BridgeManager {
   private startupMetrics: { [key: string]: number } | null = null;
   /** PERF-013: Promise tracking for async version fetch */
   private versionFetchPromise: Promise<void> | null = null;
+  /** Guard against stale writes after stop() */
+  private stopped = false;
 
   constructor(
     public readonly bridge: PikeBridge | null,
@@ -128,6 +130,7 @@ export class BridgeManager {
     try {
       const versionFetchStartTime = performance.now();
       const versionInfo = await this.bridge.getVersionInfo();
+      if (this.stopped) return;
       const versionFetchTime = performance.now();
 
       // PERF-013: Update startup metrics with version fetch timing
@@ -175,6 +178,7 @@ export class BridgeManager {
    * Stop the bridge subprocess.
    */
   async stop(): Promise<void> {
+    this.stopped = true;
     if (this.bridge) await this.bridge.stop();
     // Clear cached version on stop
     this.cachedVersion = null;

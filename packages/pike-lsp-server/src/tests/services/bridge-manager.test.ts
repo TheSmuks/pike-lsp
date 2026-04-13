@@ -226,3 +226,42 @@ describe('BridgeManager parseFileSymbols', () => {
     assert.deepEqual(result, []);
   });
 });
+
+describe('BridgeManager stop() guards against stale writes', () => {
+  it('does not overwrite cachedVersion after stop() clears it', async () => {
+    let resolveVersion: (v: unknown) => void;
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        start: async () => undefined,
+        stop: async () => undefined,
+        getVersionInfo: () =>
+          new Promise(r => {
+            resolveVersion = r;
+          }),
+        getDiagnostics: () => ({ options: { pikePath: '/usr/bin/pike' }, isRunning: true, pid: 1 }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    // start() fires fetchVersionInfoInternal as fire-and-forget
+    await manager.start();
+
+    // Resolve version AFTER stop() is called but BEFORE stop() returns
+    // We achieve this by calling stop() and resolving the promise in sequence.
+    // Since stop() is async but the flag is set synchronously, the in-flight
+    // await should see stopped=true.
+    await manager.stop();
+
+    // Now resolve the pending promise (if it hasn't already)
+    resolveVersion!({ major: 8, minor: 0, build: 1116, version: '8.0.1116', display: 8.01116 });
+
+    // Wait a tick for the promise microtask to run
+    await new Promise(r => setTimeout(r, 0));
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null, 'cachedVersion should remain null after stop()');
+    assert.equal(health.startupMetrics, null, 'startupMetrics should remain null after stop()');
+  });
+});
