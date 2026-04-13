@@ -10,57 +10,55 @@
 import type { Position, Range } from 'vscode-languageserver';
 
 /**
- * Convert a character offset to line and column position.
+ * Lazy line-index wrapper that builds newline offsets on first use.
  *
- * Similar to vscode-languageserver's Position utility but
- * works with our internal position calculations.
- *
- * @param text - Source text to calculate position in
- * @param offset - Character offset (0-indexed)
- * @returns Position with line and character (0-indexed)
+ * All position lookups (positionAt, offsetAt) run in O(log n) via binary search.
+ * Construct once per document, reuse for all position math.
  */
-export function positionAt(text: string, offset: number): Position {
-  let line = 0;
-  let character = 0;
+export class LineIndex {
+  private lineOffsets: number[] | undefined;
+  constructor(private readonly text: string) {}
 
-  for (let i = 0; i < offset && i < text.length; i++) {
-    if (text[i] === '\n') {
-      line++;
-      character = 0;
-    } else {
-      character++;
+  private ensureOffsets(): number[] {
+    if (!this.lineOffsets) {
+      this.lineOffsets = buildLineOffsets(this.text);
     }
+    return this.lineOffsets;
   }
 
-  return { line, character };
+  positionAt(offset: number): Position {
+    return offsetToPosition(offset, this.ensureOffsets());
+  }
+
+  offsetAt(position: Position): number {
+    return positionToOffset(position, this.ensureOffsets());
+  }
 }
 
 /**
- * Convert a line and column position to character offset.
- *
- * @param text - Source text to calculate offset in
- * @param position - Position with line and character (0-indexed)
- * @returns Character offset (0-indexed)
+ * Standalone one-shot helper for single offset-to-position conversions.
+ * For multiple lookups on the same text, use LineIndex instead.
+ */
+export function positionAt(text: string, offset: number): Position {
+  const lineOffsets = buildLineOffsets(text);
+  const pos = offsetToPosition(offset, lineOffsets);
+  // Clamp: binary search doesn't know text length, so cap character at the
+  // remaining text on that line
+  const lineStart = lineOffsets[pos.line] ?? 0;
+  const lineEnd = pos.line + 1 < lineOffsets.length ? lineOffsets[pos.line + 1]! - 1 : text.length;
+  return { line: pos.line, character: Math.min(pos.character, lineEnd - lineStart) };
+}
+/**
+ * Standalone one-shot helper for single position-to-offset conversions.
+ * For multiple lookups on the same text, use LineIndex instead.
  */
 export function offsetAt(text: string, position: Position): number {
-  let offset = 0;
-  let currentLine = 0;
-
-  for (let i = 0; i < text.length; i++) {
-    if (currentLine === position.line) {
-      return Math.min(offset + position.character, text.length);
-    }
-
-    if (text[i] === '\n') {
-      currentLine++;
-      offset = i + 1;
-    }
+  const lineOffsets = buildLineOffsets(text);
+  if (position.line >= lineOffsets.length) {
+    return text.length;
   }
-
-  // If we didn't find the line, return end of text
-  return text.length;
+  return positionToOffset(position, lineOffsets);
 }
-
 /**
  * Build an array of newline offsets for O(1) line/column lookup.
  *
@@ -85,8 +83,6 @@ export function buildLineOffsets(text: string): number[] {
 
 /**
  * Convert character offset to position using pre-computed line offsets.
- *
- * More efficient than positionAt() when doing multiple lookups.
  *
  * @param offset - Character offset (0-indexed)
  * @param lineOffsets - Array from buildLineOffsets()
@@ -114,8 +110,6 @@ export function offsetToPosition(offset: number, lineOffsets: number[]): Positio
 
 /**
  * Convert position to character offset using pre-computed line offsets.
- *
- * More efficient than offsetAt() when doing multiple lookups.
  *
  * @param position - Position with line and character (0-indexed)
  * @param lineOffsets - Array from buildLineOffsets()
@@ -214,8 +208,9 @@ export function findSubstringPosition(
  * @returns The substring within the range
  */
 export function extractRange(text: string, range: Range): string {
-  const startOffset = offsetAt(text, range.start);
-  const endOffset = offsetAt(text, range.end);
+  const lineOffsets = buildLineOffsets(text);
+  const startOffset = positionToOffset(range.start, lineOffsets);
+  const endOffset = positionToOffset(range.end, lineOffsets);
   return text.substring(startOffset, endOffset);
 }
 
