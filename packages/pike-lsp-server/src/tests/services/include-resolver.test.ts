@@ -375,16 +375,16 @@ describe('IncludeResolver - 30.4 Nested includes', () => {
 // ============================================================================
 
 describe('IncludeResolver - Cache Management', () => {
-  it('should report zero cached includes without DocumentCache', async () => {
+  it('should report cached includes from the include index', async () => {
     const bridge = createMockBridge();
     const logger = createMockLogger();
     const resolver = new IncludeResolver(bridge, logger);
 
     await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"existing.h"')]);
 
-    // Without a DocumentCache, getStats reads nothing
+    // Resolved includes are indexed in the include index
     const stats = resolver.getStats();
-    assert.equal(stats.cachedIncludes, 0);
+    assert.equal(stats.cachedIncludes, 1);
   });
 
   it('should clear without error', async () => {
@@ -433,6 +433,42 @@ describe('IncludeResolver - Cache Management', () => {
     resolver.invalidate('/mock/path/existing.h');
     const stats = resolver.getStats();
     assert.equal(stats.cachedIncludes, 0);
+  });
+
+  it('should use indexResolvedIncludes to seed the include index', async () => {
+    const bridge = createMockBridge();
+    const logger = createMockLogger();
+    const resolver = new IncludeResolver(bridge, logger);
+
+    const preResolved = {
+      originalPath: '"pre-cached.h"',
+      resolvedPath: '/pre/cached.h',
+      symbols: [{ name: 'pre_cached_symbol', kind: 'variable' as const }],
+      lastModified: Date.now(),
+    };
+    resolver.indexResolvedIncludes([preResolved]);
+
+    const stats = resolver.getStats();
+    assert.equal(stats.cachedIncludes, 1);
+    assert.equal(stats.totalSymbols, 1);
+
+    // Resolving the same path should return the pre-indexed entry
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"existing.h"'),
+    ]);
+    assert.equal(deps.includes.length, 1);
+  });
+
+  it('should remove entries from index on invalidate', async () => {
+    const bridge = createMockBridge();
+    const logger = createMockLogger();
+    const resolver = new IncludeResolver(bridge, logger);
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"existing.h"')]);
+    assert.equal(resolver.getStats().cachedIncludes, 1);
+
+    resolver.invalidate('/mock/path/existing.h');
+    assert.equal(resolver.getStats().cachedIncludes, 0);
   });
 
   it('should refresh include symbols after file change', async () => {

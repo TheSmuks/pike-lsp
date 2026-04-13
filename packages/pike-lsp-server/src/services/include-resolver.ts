@@ -9,7 +9,6 @@
 
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
-import type { DocumentCache } from './document-cache.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -21,10 +20,12 @@ import { Logger } from '@pike-lsp/core';
  * Leverages DocumentCache to reuse already-resolved dependencies.
  */
 export class IncludeResolver {
+  /** Index of resolved includes keyed by normalized resolved path for O(1) lookup. */
+  private includeIndex = new Map<string, ResolvedInclude>();
+
   constructor(
     private readonly bridge: BridgeManager | null,
-    private readonly logger: Logger,
-    private readonly docCache?: DocumentCache
+    private readonly logger: Logger
   ) {}
 
   /**
@@ -136,6 +137,8 @@ export class IncludeResolver {
         symbols,
         lastModified: Date.now(),
       };
+      // Index the resolved include for O(1) future lookups
+      this.includeIndex.set(normalizedPath, resolved);
 
       return resolved;
     } catch (err) {
@@ -193,26 +196,13 @@ export class IncludeResolver {
   }
 
   /**
-   * Find a previously resolved include from the DocumentCache.
+   * Find a previously resolved include by normalized path.
    *
-   * Scans all cached document entries for an include matching
-   * the given resolved path, avoiding redundant bridge/parse calls.
+   * Uses the include index for O(1) lookup instead of scanning
+   * all DocumentCache entries.
    */
   private findCachedInclude(resolvedPath: string): ResolvedInclude | null {
-    if (!this.docCache) {
-      return null;
-    }
-
-    for (const [, entry] of this.docCache.entries()) {
-      const match = entry.dependencies?.includes.find(
-        inc => this.normalizeFilePath(inc.resolvedPath) === resolvedPath
-      );
-      if (match) {
-        return match;
-      }
-    }
-
-    return null;
+    return this.includeIndex.get(resolvedPath) ?? null;
   }
 
   /**
@@ -254,43 +244,39 @@ export class IncludeResolver {
   }
 
   /**
-   * Invalidate cache for a specific file.
-   *
-   * With DocumentCache-based caching, this is a no-op —
-   * invalidation happens when the owning document's cache entry
-   * is updated or removed.
+   * Index resolved includes from a DocumentCache entry.
+   * Callers should invoke this when a document's dependencies are
+   * set or updated in the cache.
    */
-  invalidate(_filePath: string): void {
-    // Cache is managed by DocumentCache; nothing to invalidate here.
+  indexResolvedIncludes(includes: readonly ResolvedInclude[]): void {
+    for (const inc of includes) {
+      this.includeIndex.set(this.normalizeFilePath(inc.resolvedPath), inc);
+    }
   }
 
   /**
-   * Clear all cached includes.
-   *
-   * With DocumentCache-based caching, this is a no-op.
+   * Remove indexed entry for the given file path.
+   */
+  invalidate(filePath: string): void {
+    this.includeIndex.delete(this.normalizeFilePath(filePath));
+  }
+
+  /**
+   * Clear the include index.
    */
   clear(): void {
-    // Cache is managed by DocumentCache; nothing to clear here.
+    this.includeIndex.clear();
   }
 
   /**
-   * Get cache statistics from the DocumentCache.
+   * Get cache statistics from the include index.
    */
   getStats(): { cachedIncludes: number; totalSymbols: number } {
-    let cachedIncludes = 0;
     let totalSymbols = 0;
-
-    if (this.docCache) {
-      for (const [, entry] of this.docCache.entries()) {
-        const includes = entry.dependencies?.includes ?? [];
-        cachedIncludes += includes.length;
-        for (const inc of includes) {
-          totalSymbols += inc.symbols.length;
-        }
-      }
+    for (const inc of this.includeIndex.values()) {
+      totalSymbols += inc.symbols.length;
     }
-
-    return { cachedIncludes, totalSymbols };
+    return { cachedIncludes: this.includeIndex.size, totalSymbols };
   }
 
   private normalizeFilePath(filePath: string): string {

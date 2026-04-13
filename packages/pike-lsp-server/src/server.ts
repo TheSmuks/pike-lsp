@@ -347,7 +347,7 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
     log(`Initializing PikeBridge with options: ${JSON.stringify(bridgeOptions)}`);
     const bridge = new PikeBridge(bridgeOptions);
     bridgeManager = new BridgeManager(bridge, logger);
-    includeResolver = new IncludeResolver(bridgeManager, logger, documentCache);
+    includeResolver = new IncludeResolver(bridgeManager, logger);
 
     serviceRuntimeContext.update({
       bridge: bridgeManager,
