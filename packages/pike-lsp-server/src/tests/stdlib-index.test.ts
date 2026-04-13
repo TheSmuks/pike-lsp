@@ -654,3 +654,78 @@ describe('StdlibIndexManager - Integration with PikeBridge', { timeout: 30000 },
     assert.equal(stats.negativeCount, 1);
   });
 });
+
+// ============================================================================
+// Unit Tests - getAvailableModules
+// ============================================================================
+
+describe('StdlibIndexManager - getAvailableModules', () => {
+  it('should return known stdlib modules without any cache activity', () => {
+    // Arrange
+    const bridge = createMockBridge({});
+    const manager = new StdlibIndexManager(bridge);
+
+    // Act
+    const modules = manager.getAvailableModules();
+
+    // Assert - should contain curated known modules
+    assert.ok(modules.includes('Parser'), 'Should include Parser');
+    assert.ok(modules.includes('Stdio'), 'Should include Stdio');
+    assert.ok(modules.includes('String'), 'Should include String');
+    assert.ok(modules.includes('Array'), 'Should include Array');
+    assert.ok(modules.includes('Math'), 'Should include Math');
+    assert.ok(modules.includes('System'), 'Should include System');
+    assert.ok(modules.includes('ADT'), 'Should include ADT');
+    assert.ok(modules.includes('Crypto'), 'Should include Crypto');
+    assert.ok(modules.includes('Protocols.HTTP'), 'Should include Protocols.HTTP');
+  });
+
+  it('should include modules that were loaded into cache', async () => {
+    // Arrange
+    const bridge = createMockBridge({
+      Stdio: { found: true, symbols: [{ name: 'write', kind: 'function' }] },
+      CustomModule: { found: true, symbols: [] },
+    });
+    const manager = new StdlibIndexManager(bridge);
+    await manager.getModule('Stdio');
+    await manager.getModule('CustomModule');
+
+    // Act
+    const modules = manager.getAvailableModules();
+
+    // Assert
+    assert.ok(modules.includes('Stdio'), 'Should include cached Stdio');
+    assert.ok(modules.includes('CustomModule'), 'Should include cached CustomModule');
+    assert.ok(modules.includes('String'), 'Should still include known-but-uncached String');
+  });
+
+  it('should exclude negative-cache entries from known modules', async () => {
+    // Arrange
+    const bridge = createMockBridge({});
+    const manager = new StdlibIndexManager(bridge);
+    await manager.getModule('Parser'); // Parser goes to negative cache
+
+    // Act
+    const modules = manager.getAvailableModules();
+
+    // Assert
+    assert.ok(!modules.includes('Parser'), 'Should exclude negative-cached Parser');
+    assert.ok(modules.includes('Stdio'), 'Should still include Stdio (not negative-cached)');
+  });
+
+  it('should not have duplicates when known modules are also cached', async () => {
+    // Arrange
+    const bridge = createMockBridge({
+      Stdio: { found: true, symbols: [] },
+    });
+    const manager = new StdlibIndexManager(bridge);
+    await manager.getModule('Stdio');
+
+    // Act
+    const modules = manager.getAvailableModules();
+    const stdioCount = modules.filter(m => m === 'Stdio').length;
+
+    // Assert
+    assert.equal(stdioCount, 1, 'Stdio should appear exactly once (no duplicates)');
+  });
+});
