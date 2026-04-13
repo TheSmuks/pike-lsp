@@ -303,13 +303,8 @@ export class WorkspaceScanner {
         if (hasSymbol) {
           matchingFiles.push(uri);
         }
-      } else {
-        // No cached data - include the file for later parsing
-        // This is a simple heuristic that could be improved
-        matchingFiles.push(uri);
       }
     }
-
     return matchingFiles;
   }
 
