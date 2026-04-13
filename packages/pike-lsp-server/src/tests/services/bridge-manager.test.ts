@@ -117,11 +117,16 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager(createBridge(true, 1234) as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      createBridge(true, 1234) as unknown as PikeBridge,
+      mockLogger
+    );
 
     await assert.rejects(
       () => manager.parseFileSymbols('/nonexistent/path/file.pike'),
@@ -134,7 +139,10 @@ describe('BridgeManager parseFileSymbols', () => {
 
     assert.ok(warnCalls.length >= 1, 'warn should be called for readFile error');
     const warnArg = String(warnCalls[0][0]);
-    assert.ok(warnArg.includes('/nonexistent/path/file.pike'), `warn message should include filePath, got: ${warnArg}`);
+    assert.ok(
+      warnArg.includes('/nonexistent/path/file.pike'),
+      `warn message should include filePath, got: ${warnArg}`
+    );
   });
 
   it('throws on readFile EACCES and logs filePath', async () => {
@@ -142,11 +150,16 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager(createBridge(true, 1234) as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      createBridge(true, 1234) as unknown as PikeBridge,
+      mockLogger
+    );
 
     // Use /proc/kcore or another path that will trigger EACCES on Linux
     // If running as root, this won't trigger EACCES, so we skip
@@ -171,16 +184,23 @@ describe('BridgeManager parseFileSymbols', () => {
     const mockLogger = {
       debug: () => undefined,
       info: () => undefined,
-      warn: (...args: unknown[]) => { warnCalls.push(args); },
+      warn: (...args: unknown[]) => {
+        warnCalls.push(args);
+      },
       error: () => undefined,
     } as unknown as Logger;
 
-    const manager = new BridgeManager({
-      isRunning: () => true,
-      on: () => undefined,
-      getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
-      analyze: () => { throw new Error('analyze failed'); },
-    } as unknown as PikeBridge, mockLogger);
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
+        analyze: () => {
+          throw new Error('analyze failed');
+        },
+      } as unknown as PikeBridge,
+      mockLogger
+    );
 
     // Write a temporary file with valid content so readFile succeeds
     const { writeFile, mkdtemp, rm } = await import('node:fs/promises');
