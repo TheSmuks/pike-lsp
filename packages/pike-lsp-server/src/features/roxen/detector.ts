@@ -10,72 +10,29 @@ const cache = new Map<string, RoxenModuleInfo | null>();
 const log = new Logger('RoxenDetector');
 
 /**
- * Check if code contains a `register_module(` call.
- * Uses string scanning — no regex.
- */
-function hasRegisterModule(code: string): boolean {
-  let pos = code.indexOf('register_module');
-  while (pos !== -1) {
-    // Check char before is non-word
-    if (pos === 0 || !isWordChar(code.charCodeAt(pos - 1))) {
-      let j = pos + 15; // skip 'register_module'
-      while (j < code.length && (code[j] === ' ' || code[j] === '\t')) j++;
-      if (j < code.length && code[j] === '(') return true;
-    }
-    pos = code.indexOf('register_module', pos + 1);
-  }
-  return false;
-}
-
-function isWordChar(c: number): boolean {
-  return (
-    (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f
-  );
-}
-
-/**
- * Quick check for MODULE_* constant references.
- * Covers both `module_type = MODULE_*` declarations and standalone MODULE_* constants.
- */
-function hasModuleTypeDecl(code: string): boolean {
-  return code.includes('MODULE_');
-}
-
-/**
- * Fast text-level scan for Roxen module markers.
- * Used as the early-exit gate before invoking the bridge.
+ * Fast text-level pre-filter for Roxen module markers.
+ * Used as an early-exit gate before invoking the bridge.
  *
- * Covers all known Roxen markers:
- * - inherit "module" / "roxen" / "filesystem" (single/double quoted)
- * - #include <module.h> / "module.h"
- * - module_type = MODULE_* declaration
- * - register_module() call
- * - ID_DEFINED, ID_RUNTIME, VERSION_ constants (Roxen metadata macros)
- * - standalone MODULE_ constant references
+ * Covers all known Roxen markers via cheap string.includes() checks.
+ * No regex — register_module and MODULE_ patterns are checked via
+ * simple substring inclusion; bridge.roxenDetect() handles full validation.
  */
 function hasMarkers(code: string): boolean {
-  const hasRoxenInheritance =
+  return (
     code.includes('inherit "module"') ||
     code.includes("inherit 'module'") ||
     code.includes('inherit "filesystem"') ||
     code.includes("inherit 'filesystem'") ||
     code.includes('inherit "roxen"') ||
-    code.includes("inherit 'roxen'");
-
-  if (hasRoxenInheritance) return true;
-
-  if (code.includes('#include <module.h>') || code.includes('#include "module.h"')) return true;
-
-  if (hasModuleTypeDecl(code)) return true;
-
-  if (hasRegisterModule(code)) return true;
-
-  // Roxen metadata constant markers
-  if (code.includes('ID_DEFINED') || code.includes('ID_RUNTIME') || code.includes('VERSION_')) {
-    return true;
-  }
-
-  return false;
+    code.includes("inherit 'roxen'") ||
+    code.includes('#include <module.h>') ||
+    code.includes('#include "module.h"') ||
+    code.includes('ID_DEFINED') ||
+    code.includes('ID_RUNTIME') ||
+    code.includes('VERSION_') ||
+    code.includes('MODULE_') ||
+    code.includes('register_module(')
+  );
 }
 
 export async function detectRoxenModule(
