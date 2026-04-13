@@ -12,6 +12,7 @@
  * requests for the same workspace are superseded so stale work is cancelled.
  */
 
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 import { Location, ReferenceContext, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
@@ -24,6 +25,7 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { isPikeKeyword } from '../navigation/keywords.js';
 import { findTagFunctionsInCode } from './module-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
@@ -193,7 +195,8 @@ export function invalidateRXMLReferenceCaches(uri?: string): void {
  */
 export async function findDefvarReferences(
   defvarName: string,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  tokenizeFn: ((text: string) => Promise<PikeToken[]>) | null = null
 ): Promise<Location[]> {
   const locations: Location[] = [];
 
@@ -214,26 +217,37 @@ export async function findDefvarReferences(
         for (const file of pikeFiles) {
           const content = await readFileCached(file);
 
-          // Look for &var.name; style references in templates
-          // Or direct variable usage in Pike code
-          const patterns = [
-            new RegExp(`&${escapeRegExp(defvarName)}\\.`, 'g'), // RXML entity reference
-            new RegExp(`\\b${escapeRegExp(defvarName)}\\s*->`, 'g'), // Pike variable access
-            new RegExp(`\\b${escapeRegExp(defvarName)}\\[`, 'g'), // Array access
-          ];
+          // RXML entity reference (template syntax, not Pike code)
+          const entityPattern = new RegExp(`&${escapeRegExp(defvarName)}\\.`, 'g');
+          let entityMatch = entityPattern.exec(content);
+          while (entityMatch !== null) {
+            const position = findPositionForIndex(content, entityMatch.index);
+            locations.push({
+              uri: fileToUri(file),
+              range: {
+                start: position,
+                end: { line: position.line, character: position.character + defvarName.length },
+              },
+            });
+            entityMatch = entityPattern.exec(content);
+          }
 
-          for (const pattern of patterns) {
-            let match = pattern.exec(content);
-            while (match !== null) {
-              const position = findPositionForIndex(content, match.index);
+          // Pike variable references via tokenizer (skips comments/strings)
+          if (tokenizeFn) {
+            const tokens = await tokenizeFn(content);
+            for (const token of tokens) {
+              if (token.text !== defvarName || isPikeKeyword(token.text)) continue;
+              const pos: Position = {
+                line: token.line - 1,
+                character: token.character,
+              };
               locations.push({
                 uri: fileToUri(file),
                 range: {
-                  start: position,
-                  end: { line: position.line, character: position.character + defvarName.length },
+                  start: pos,
+                  end: { line: pos.line, character: pos.character + defvarName.length },
                 },
               });
-              match = pattern.exec(content);
             }
           }
         }
