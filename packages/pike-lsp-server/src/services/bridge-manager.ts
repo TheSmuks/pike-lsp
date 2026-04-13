@@ -12,8 +12,7 @@ import type {
   AnalysisOperation,
 } from '@pike-lsp/pike-bridge';
 import type { Logger } from '@pike-lsp/core';
-import { readFile } from 'node:fs/promises';
-import * as fs from 'fs';
+import { readFile, realpath } from 'node:fs/promises';
 /**
  * Bridge Manager - PikeBridge wrapper with health monitoring
  *
@@ -151,7 +150,7 @@ export class BridgeManager {
           resolvedPath = 'pike';
         } else {
           // Resolve absolute path for custom Pike paths
-          resolvedPath = fs.realpathSync(pikePath);
+          resolvedPath = await realpath(pikePath);
         }
 
         this.cachedVersion = {
