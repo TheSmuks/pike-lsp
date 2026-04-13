@@ -77,30 +77,46 @@ function createHarness(
           const line = lines[lineIdx]!;
           let i = 0;
           while (i < line.length) {
-            if (/\s/.test(line[i]!)) { i++; continue; }
+            if (/\s/.test(line[i]!)) {
+              i++;
+              continue;
+            }
             if (line[i] === '/' && line[i + 1] === '/') {
-              tokens.push({ text: line.slice(i), line: lineIdx + 1, character: i }); break;
+              tokens.push({ text: line.slice(i), line: lineIdx + 1, character: i });
+              break;
             }
             if (line[i] === '"' || line[i] === "'") {
-              const q = line[i]!; let j = i + 1;
-              while (j < line.length && line[j] !== q) { if (line[j] === '\\') j++; j++; }
+              const q = line[i]!;
+              let j = i + 1;
+              while (j < line.length && line[j] !== q) {
+                if (line[j] === '\\') j++;
+                j++;
+              }
               tokens.push({ text: line.slice(i, j + 1), line: lineIdx + 1, character: i });
-              i = j + 1; continue;
+              i = j + 1;
+              continue;
             }
             if (/[a-zA-Z_]/.test(line[i]!)) {
-              let j = i; while (j < line.length && /[a-zA-Z0-9_]/.test(line[j]!)) j++;
+              let j = i;
+              while (j < line.length && /[a-zA-Z0-9_]/.test(line[j]!)) j++;
               tokens.push({ text: line.slice(i, j), line: lineIdx + 1, character: i });
-              i = j; continue;
+              i = j;
+              continue;
             }
             if (/[0-9]/.test(line[i]!)) {
-              let j = i; while (j < line.length && /[0-9]/.test(line[j]!)) j++;
+              let j = i;
+              while (j < line.length && /[0-9]/.test(line[j]!)) j++;
               tokens.push({ text: line.slice(i, j), line: lineIdx + 1, character: i });
-              i = j; continue;
+              i = j;
+              continue;
             }
             if (line[i] === '-' && line[i + 1] === '>') {
-              tokens.push({ text: '->', line: lineIdx + 1, character: i }); i += 2; continue;
+              tokens.push({ text: '->', line: lineIdx + 1, character: i });
+              i += 2;
+              continue;
             }
-            tokens.push({ text: line[i]!, line: lineIdx + 1, character: i }); i++;
+            tokens.push({ text: line[i]!, line: lineIdx + 1, character: i });
+            i++;
           }
         }
         return tokens;

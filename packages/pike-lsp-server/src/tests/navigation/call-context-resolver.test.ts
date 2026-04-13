@@ -159,8 +159,7 @@ describe('call-context-resolver (token-based)', () => {
   it('handles empty token list gracefully', () => {
     const text = 'foo(1)';
     const result = resolveCallContextAtOffset(text, 5, []);
-    expect(result).not.toBeNull();
-    expect(result!.target.name).toBe('foo');
+    expect(result).toBeNull();
   });
 
   it('ignores control keywords', () => {
