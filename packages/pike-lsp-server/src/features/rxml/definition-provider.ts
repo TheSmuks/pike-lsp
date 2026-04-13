@@ -89,6 +89,49 @@ async function getTagDefinitionIndex(
   return byTag;
 }
 
+/**
+ * Extract defvar names from source content using character-based scanning.
+ * Finds 'defvar' keyword followed by '(' and a string literal (quoted name).
+ * No regex — handles nested parens and escaped quotes correctly.
+ */
+function extractDefvarNamesFromContent(content: string): Array<{ name: string; index: number }> {
+  const results: Array<{ name: string; index: number }> = [];
+  let i = 0;
+  while (i < content.length) {
+    if (content[i] === 'd' && content.substring(i, i + 6) === 'defvar') {
+      let j = i + 6;
+      while (
+        j < content.length &&
+        (content[j] === ' ' || content[j] === '\t' || content[j] === '\n')
+      )
+        j++;
+      if (j < content.length && content[j] === '(') {
+        j++;
+        while (
+          j < content.length &&
+          (content[j] === ' ' || content[j] === '\t' || content[j] === '\n')
+        )
+          j++;
+        if (j < content.length && (content[j] === '"' || content[j] === "'")) {
+          const quote = content[j];
+          j++;
+          const nameStart = j;
+          while (j < content.length && content[j] !== quote) {
+            if (content[j] === '\\') j++;
+            j++;
+          }
+          const name = content.substring(nameStart, j);
+          if (name.length > 0) {
+            results.push({ name, index: i });
+          }
+        }
+      }
+    }
+    i++;
+  }
+  return results;
+}
+
 async function getDefvarDefinitionIndex(
   workspaceFolders: string[]
 ): Promise<Map<string, RoxenDefvarInfo>> {
@@ -104,28 +147,22 @@ async function getDefvarDefinitionIndex(
 
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const defvarPattern = /defvar\s*\(\s*["']([^"']+)["']/g;
+    const defvars = extractDefvarNamesFromContent(content);
 
-    let match = defvarPattern.exec(content);
-    while (match !== null) {
-      const name = match[1];
-      if (name) {
-        const keyName = name.toLowerCase();
-        if (!byName.has(keyName)) {
-          const position = findPositionForIndex(content, match.index);
-          byName.set(keyName, {
-            name,
-            type: 'mixed',
-            documentation: `Defvar: ${name}`,
-            location: Location.create(fileToUri(file), {
-              start: position,
-              end: { line: position.line, character: position.character + name.length },
-            }),
-          });
-        }
+    for (const dv of defvars) {
+      const keyName = dv.name.toLowerCase();
+      if (!byName.has(keyName)) {
+        const position = findPositionForIndex(content, dv.index);
+        byName.set(keyName, {
+          name: dv.name,
+          type: 'mixed',
+          documentation: `Defvar: ${dv.name}`,
+          location: Location.create(fileToUri(file), {
+            start: position,
+            end: { line: position.line, character: position.character + dv.name.length },
+          }),
+        });
       }
-
-      match = defvarPattern.exec(content);
     }
   }
 
