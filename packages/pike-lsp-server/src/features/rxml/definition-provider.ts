@@ -24,6 +24,9 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { extractDefvarsFromTokens } from '../roxen/defvar-scanner.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
 import { findTagFunctionsInCode } from './module-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
@@ -89,51 +92,10 @@ async function getTagDefinitionIndex(
   return byTag;
 }
 
-/**
- * Extract defvar names from source content using character-based scanning.
- * Finds 'defvar' keyword followed by '(' and a string literal (quoted name).
- * No regex — handles nested parens and escaped quotes correctly.
- */
-function extractDefvarNamesFromContent(content: string): Array<{ name: string; index: number }> {
-  const results: Array<{ name: string; index: number }> = [];
-  let i = 0;
-  while (i < content.length) {
-    if (content[i] === 'd' && content.substring(i, i + 6) === 'defvar') {
-      let j = i + 6;
-      while (
-        j < content.length &&
-        (content[j] === ' ' || content[j] === '\t' || content[j] === '\n')
-      )
-        j++;
-      if (j < content.length && content[j] === '(') {
-        j++;
-        while (
-          j < content.length &&
-          (content[j] === ' ' || content[j] === '\t' || content[j] === '\n')
-        )
-          j++;
-        if (j < content.length && (content[j] === '"' || content[j] === "'")) {
-          const quote = content[j];
-          j++;
-          const nameStart = j;
-          while (j < content.length && content[j] !== quote) {
-            if (content[j] === '\\') j++;
-            j++;
-          }
-          const name = content.substring(nameStart, j);
-          if (name.length > 0) {
-            results.push({ name, index: i });
-          }
-        }
-      }
-    }
-    i++;
-  }
-  return results;
-}
 
 async function getDefvarDefinitionIndex(
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  tokenizeFn: ((text: string) => Promise<PikeToken[]>) | null
 ): Promise<Map<string, RoxenDefvarInfo>> {
   const key = makeWorkspaceKey(workspaceFolders);
   const now = Date.now();
@@ -143,23 +105,27 @@ async function getDefvarDefinitionIndex(
   }
 
   const byName = new Map<string, RoxenDefvarInfo>();
-  const pikeFiles = await findPikeFiles(workspaceFolders);
+  if (!tokenizeFn) {
+    defvarDefinitionIndexCache.set(key, { builtAt: now, byName });
+    return byName;
+  }
 
+  const pikeFiles = await findPikeFiles(workspaceFolders);
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const defvars = extractDefvarNamesFromContent(content);
-
+    const tokens = await tokenizeFn(content);
+    const defvars = extractDefvarsFromTokens(tokens);
     for (const dv of defvars) {
       const keyName = dv.name.toLowerCase();
       if (!byName.has(keyName)) {
-        const position = findPositionForIndex(content, dv.index);
+        const pos: Position = { line: dv.line, character: dv.column };
         byName.set(keyName, {
           name: dv.name,
-          type: 'mixed',
-          documentation: `Defvar: ${dv.name}`,
+          type: dv.type,
+          ...(dv.documentation ? { documentation: dv.documentation } : {}),
           location: Location.create(fileToUri(file), {
-            start: position,
-            end: { line: position.line, character: position.character + dv.name.length },
+            start: pos,
+            end: { line: pos.line, character: pos.character + dv.name.length },
           }),
         });
       }
@@ -284,11 +250,13 @@ export function invalidateRXMLDefinitionCaches(uri?: string): void {
  *
  * @param defvarName - Variable name to find
  * @param workspaceFolders - Workspace folders to search
+ * @param tokenizeFn - Optional bridge.tokenize() callback for token-based extraction
  * @returns Defvar info or null
  */
 export async function findDefvarDefinition(
   defvarName: string,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  tokenizeFn: ((text: string) => Promise<PikeToken[]>) | null = null
 ): Promise<RoxenDefvarInfo | null> {
   if (!workspaceFolders.length) {
     return null;
@@ -301,7 +269,7 @@ export async function findDefvarDefinition(
       key: `findDefvar:${wsKey}`,
       run: async checkpoint => {
         checkpoint();
-        const index = await getDefvarDefinitionIndex(workspaceFolders);
+        const index = await getDefvarDefinitionIndex(workspaceFolders, tokenizeFn);
         return index.get(defvarName.toLowerCase()) ?? null;
       },
     });
