@@ -70,10 +70,8 @@ function detectTagFunctions(symbols: PikeSymbol[], code: string): DetectedTagFun
     const tagInfo = extractTagInfo(symbol.name);
     if (!tagInfo) continue;
 
-    const functionLine = symbol.position?.line != null ? symbol.position.line - 1 : -1;
-
-    if (functionLine < 0) continue;
-
+    if (symbol.position?.line == null) continue;
+    const functionLine = symbol.position.line - 1;
     const desc = extractDescription(lines, functionLine);
     tags.push({
       name: tagInfo.name,
