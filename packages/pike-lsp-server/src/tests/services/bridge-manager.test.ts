@@ -16,7 +16,7 @@ function createBridge(running: boolean, pid: number | null) {
   return {
     isRunning: () => running,
     on: () => undefined,
-    process: pid === null ? undefined : { pid },
+    getDiagnostics: () => ({ options: {}, isRunning: running, pid }),
   };
 }
 
