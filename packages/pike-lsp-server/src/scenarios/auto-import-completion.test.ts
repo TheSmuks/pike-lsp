@@ -68,6 +68,18 @@ function setup(code: string, searchResults: ReturnType<typeof createSearchResult
         prefix: '',
         operator: '',
       }),
+      tokenize: async (text: string) => {
+        const tokens: import('@pike-lsp/pike-bridge').PikeToken[] = [];
+        const lines = text.split('\n');
+        for (let line = 0; line < lines.length; line++) {
+          const re = /\b\w+\b/g;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(lines[line]!)) !== null) {
+            tokens.push({ text: m[0], line: line + 1, character: m.index, file: 0 });
+          }
+        }
+        return tokens;
+      },
     },
     logger: { debug() {}, info() {}, warn() {}, error() {} },
     documentCache: {
