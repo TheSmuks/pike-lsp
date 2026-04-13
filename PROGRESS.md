@@ -19,7 +19,7 @@ or `utils/pike-token-utils.ts`. No regex, no indexOf/charAt scanning loops.
 | `features/rxml/rename-provider.ts` | rename position detection | regex for rename positions | `findIdentifierOccurrences()` | TODO |
 | `features/advanced/folding.ts` | `getFoldingRanges()` | 130-line hand-rolled Pike lexer (brace/comment/string tracking) | `bridge.parse()` + `bridge.tokenize()` | TODO |
 | `features/editing/autodoc.ts` | `parseFunctionSignature()`, `parseArguments()`, `extractArgumentName()` | regex + manual paren-depth parsing for Pike signatures | `bridge.parse()` PikeMethod with argNames/argTypes | TODO |
-| `features/advanced/extract-method-utils.ts` | `tokenizeCode()`, `stripCodeContent()` | 145-line hand-written Pike lexer + 85-line comment/string stripper | `bridge.tokenize()` PikeToken[] | TODO |
+| `features/advanced/extract-method-utils.ts` | `stripCodeContent()`, `isIdentPresent()` | 85-line comment/string stripper + indexOf word-boundary check | `tokenizeCode()` tokens with `kind === 'identifier'` | DONE |
 
 ## MEDIUM Severity (identifier/token scanning)
 
@@ -42,5 +42,5 @@ or `utils/pike-token-utils.ts`. No regex, no indexOf/charAt scanning loops.
 
 ## DGA Orchestrator Integration
 
-- [ ] Update KB entries to reference `pike-token-utils.ts` as canonical pattern
+- [x] Update KB entries to reference `pike-token-utils.ts` as canonical pattern
 - [ ] Add issue-filing rule: file against shared module, not individual features
