@@ -182,7 +182,6 @@ export function analyzeSemantics(
   };
 
   const text = document.getText();
-  const lines = text.split('\n');
 
   const definedSymbols = buildDefinedSymbolSet(symbols, introspection);
   const isRoxenMod = isRoxenModule(text, symbols);
@@ -198,10 +197,10 @@ export function analyzeSemantics(
     stats.undefinedSymbols = undefinedDiags.length;
   }
 
-  if (opts.enableTypeMismatch && introspection && introspection.variables) {
+  if (opts.enableTypeMismatch && introspection && introspection.variables && tokens) {
     const typeDiags = analyzeTypeMismatches(
       introspection,
-      lines,
+      tokens,
       opts.maxProblems - diagnostics.length
     );
     diagnostics.push(...typeDiags);

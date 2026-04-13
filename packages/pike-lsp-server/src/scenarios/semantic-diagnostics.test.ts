@@ -250,8 +250,14 @@ describe('Semantic Diagnostics: Type Mismatch Detection', () => {
       inherits: [],
       diagnostics: [],
     };
+    const tokens: PikeToken[] = [
+      { text: 'x', line: 0, character: 0, file: 0 },
+      { text: '=', line: 0, character: 2, file: 0 },
+      { text: '"hello"', line: 0, character: 4, file: 0 },
+      { text: ';', line: 0, character: 12, file: 0 },
+    ];
 
-    const result = analyzeSemantics(doc, [], introspection, [], {
+    const result = analyzeSemantics(doc, [], introspection, tokens, {
       maxProblems: 100,
       enableUndefinedDetection: false,
       enableTypeMismatch: true,
@@ -262,7 +268,6 @@ describe('Semantic Diagnostics: Type Mismatch Detection', () => {
     const mismatchDiag = result.diagnostics.find(d => d.message.includes('Type mismatch'));
     assert.ok(mismatchDiag, 'Should have type mismatch diagnostic');
   });
-
   it('should allow int to float assignment (compatible types)', () => {
     const doc = createPikeDocument('file:///test9.pike', 'x = 42;');
 
@@ -275,8 +280,14 @@ describe('Semantic Diagnostics: Type Mismatch Detection', () => {
       inherits: [],
       diagnostics: [],
     };
+    const tokens: PikeToken[] = [
+      { text: 'x', line: 0, character: 0, file: 0 },
+      { text: '=', line: 0, character: 2, file: 0 },
+      { text: '42', line: 0, character: 4, file: 0 },
+      { text: ';', line: 0, character: 6, file: 0 },
+    ];
 
-    const result = analyzeSemantics(doc, [], introspection, [], {
+    const result = analyzeSemantics(doc, [], introspection, tokens, {
       maxProblems: 100,
       enableUndefinedDetection: false,
       enableTypeMismatch: true,
