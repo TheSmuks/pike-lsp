@@ -6,14 +6,18 @@
  */
 
 import { Logger } from '@pike-lsp/core';
+import type { Connection } from 'vscode-languageserver/node.js';
+import type { CoreDiagnostic } from '../core/types.js';
 import type { RequestScheduler } from './request-scheduler.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { BridgeManager } from './bridge-manager.js';
 import { uriToFsPath } from '../utils/uri-path.js';
+import { toProtocolDiagnostics } from './protocol-mappers.js';
 
 const log = new Logger('WorkspaceDiagnostics');
 
 interface WorkspaceDiagnosticsOptions {
+  connection: Connection;
   scheduler: RequestScheduler;
   workspaceIndex: WorkspaceIndex;
   bridgeManager: BridgeManager | null;
@@ -34,6 +38,7 @@ interface PendingDiagnostic {
  * open. Yields to user activity by cancelling background work when typing starts.
  */
 export class WorkspaceDiagnosticsManager {
+  private readonly connection: Connection;
   private scheduler: RequestScheduler;
   private workspaceIndex: WorkspaceIndex;
   private bridgeManager: BridgeManager | null;
@@ -45,8 +50,10 @@ export class WorkspaceDiagnosticsManager {
   private pendingQueue: PendingDiagnostic[] = [];
   private processedUris = new Set<string>();
   private lastActivityTime = Date.now();
+  private publishedDiagnosticUris = new Set<string>();
 
   constructor(options: WorkspaceDiagnosticsOptions) {
+    this.connection = options.connection;
     this.scheduler = options.scheduler;
     this.workspaceIndex = options.workspaceIndex;
     this.bridgeManager = options.bridgeManager;
@@ -56,7 +63,7 @@ export class WorkspaceDiagnosticsManager {
 
   /**
    * Notify that user activity occurred (typing, navigation, etc).
-   * Resets idle timer and cancels pending background work.
+   * Resets idle timer, cancels pending background work, and clears stale diagnostics.
    */
   onUserActivity(): void {
     this.lastActivityTime = Date.now();
@@ -70,6 +77,8 @@ export class WorkspaceDiagnosticsManager {
       log.debug('User activity detected, pausing workspace diagnostics');
       this.pause();
     }
+
+    this.clearPublishedDiagnostics();
 
     // Schedule new idle check
     this.scheduleIdleCheck();
@@ -93,6 +102,7 @@ export class WorkspaceDiagnosticsManager {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+    this.clearPublishedDiagnostics();
     this.isRunning = false;
     this.pendingQueue = [];
   }
@@ -103,11 +113,13 @@ export class WorkspaceDiagnosticsManager {
   getStats(): {
     queueDepth: number;
     processedCount: number;
+    publishedDiagnosticCount: number;
     isRunning: boolean;
   } {
     return {
       queueDepth: this.pendingQueue.length,
       processedCount: this.processedUris.size,
+      publishedDiagnosticCount: this.publishedDiagnosticUris.size,
       isRunning: this.isRunning,
     };
   }
@@ -211,7 +223,13 @@ export class WorkspaceDiagnosticsManager {
           );
 
           for (const [idx, result] of results.entries()) {
-            if (result.status === 'rejected') {
+            if (result.status === 'fulfilled') {
+              const diagnostics = result.value.result?.diagnostics?.diagnostics;
+              const uri = batch[idx]?.uri;
+              if (uri) {
+                this.publishDiagnostics(uri, diagnostics);
+              }
+            } else {
               log.debug('Background diagnostic failed', {
                 uri: batch[idx]?.uri ?? 'unknown',
                 error:
@@ -233,5 +251,18 @@ export class WorkspaceDiagnosticsManager {
     // Re-queue unprocessed items
     const unprocessed = this.pendingQueue.filter(item => !this.processedUris.has(item.uri));
     this.pendingQueue = unprocessed;
+  }
+
+  private clearPublishedDiagnostics(): void {
+    for (const uri of this.publishedDiagnosticUris) {
+      this.connection.sendDiagnostics({ uri, diagnostics: [] });
+    }
+    this.publishedDiagnosticUris.clear();
+  }
+
+  private publishDiagnostics(uri: string, diagnostics: unknown[] | undefined): void {
+    const proto = diagnostics ? toProtocolDiagnostics(diagnostics as CoreDiagnostic[]) : [];
+    this.connection.sendDiagnostics({ uri, diagnostics: proto });
+    this.publishedDiagnosticUris.add(uri);
   }
 }
