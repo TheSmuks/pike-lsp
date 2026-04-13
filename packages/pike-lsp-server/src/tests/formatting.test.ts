@@ -471,4 +471,74 @@ StringIntMap map = ([]);
       assert.equal(format(input), expected);
     });
   });
+
+  it('ignores braces inside double-quoted strings', () => {
+    const input = `
+void test() {
+string s = "{hello}";
+do_it();
+}
+}`.trim();
+
+    const expected = `
+void test() {
+    string s = "{hello}";
+    do_it();
+}
+}`.trim();
+
+    assert.equal(format(input), expected);
+  });
+
+  it('ignores braces inside single-quoted strings', () => {
+    const input = `
+void test() {
+mapping m = (["key":"{value}"]);
+}
+}`.trim();
+
+    const expected = `
+void test() {
+    mapping m = (["key":"{value}"]);
+}
+}`.trim();
+
+    assert.equal(format(input), expected);
+  });
+
+  it('ignores braces inside line comments', () => {
+    const input = `
+void test() {
+// This comment has { braces } in it
+do_it();
+}
+}`.trim();
+
+    const expected = `
+void test() {
+    // This comment has { braces } in it
+    do_it();
+}
+}`.trim();
+
+    assert.equal(format(input), expected);
+  });
+
+  it('ignores braces inside block comments', () => {
+    const input = `
+void test() {
+/* {unbalanced braces} */
+do_it();
+}
+}`.trim();
+
+    const expected = `
+void test() {
+    /* {unbalanced braces} */
+    do_it();
+}
+}`.trim();
+
+    assert.equal(format(input), expected);
+  });
 });
