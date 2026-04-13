@@ -16,7 +16,7 @@ import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { queryNavigationLocations } from './query-engine.js';
 import { basename } from 'node:path';
-import { escapeRegExp, isAtWordBoundary } from '../utils/pike-identifier.js';
+import { isAtWordBoundary } from '../utils/pike-identifier.js';
 import type { PikeToken } from '@pike-lsp/pike-bridge';
 
 /**
@@ -56,7 +56,7 @@ export function registerReferencesHandlers(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { documentCache } = services;
+  const { documentCache, bridge } = services;
   const log = new Logger('Navigation');
 
   /**
@@ -384,24 +384,78 @@ export function registerReferencesHandlers(
             }
           }
 
-          const escapedWord = escapeRegExp(word);
-          const typeKeywords =
-            '(?:int|string|float|mapping|array|object|mixed|multiset|program|function|void)';
-          const declarationPattern = new RegExp(`${typeKeywords}\\s+${escapedWord}`);
+          // Tokenize once, then inspect surrounding tokens to classify write occurrences
+          let tokens: PikeToken[] = [];
+          try {
+            if (bridge) tokens = await bridge.tokenize(text);
+          } catch {
+            /* degrade gracefully */
+          }
 
-          const isWriteOccurrence = (line: string, character: number): boolean => {
-            const before = line.slice(0, character);
-            const after = line.slice(character + word.length);
-            const match = declarationPattern.exec(line);
-            if (match && isAtWordBoundary(line, match.index, match.index + match[0].length)) {
-              return true;
+          // Build index from (line, character) -> token index for quick lookup
+          const tokenByPosition = new Map<number, number>();
+          for (let i = 0; i < tokens.length; i++) {
+            const t = tokens[i];
+            if (t && t.text === word) {
+              tokenByPosition.set((t.line - 1) * 10000 + t.character, i);
             }
-            if (/^\s*(\+\+|--|[+\-*/%&|^]?=)/.test(after)) {
-              return true;
+          }
+
+          // Pike type keywords that indicate a declaration
+          const PIKE_TYPE_KEYWORDS = new Set([
+            'int',
+            'string',
+            'float',
+            'mapping',
+            'array',
+            'object',
+            'mixed',
+            'multiset',
+            'program',
+            'function',
+            'void',
+          ]);
+          const ASSIGNMENT_OPS = new Set([
+            '=',
+            '+=',
+            '-=',
+            '*=',
+            '/=',
+            '%=',
+            '&=',
+            '|=',
+            '^=',
+            '<<=',
+            '>>=',
+          ]);
+
+          const isWriteOccurrence = (_line: string, character: number, line: number): boolean => {
+            const tokenIdx = tokenByPosition.get(line * 10000 + character);
+            if (tokenIdx === undefined) return false;
+            const token = tokens[tokenIdx];
+            if (!token) return false;
+
+            // Check preceding non-whitespace token for type keyword (declaration)
+            for (let p = tokenIdx - 1; p >= 0; p--) {
+              const prev = tokens[p];
+              if (!prev || prev.line !== token.line) break;
+              const trimmed = prev.text.trim();
+              if (trimmed === '') continue;
+              if (PIKE_TYPE_KEYWORDS.has(trimmed)) return true;
+              break;
             }
-            if (/(\+\+|--)\s*$/.test(before)) {
-              return true;
+
+            // Check following non-whitespace token for ++, --, or assignment operator
+            for (let n = tokenIdx + 1; n < tokens.length; n++) {
+              const next = tokens[n];
+              if (!next || next.line !== token.line) break;
+              const trimmed = next.text.trim();
+              if (trimmed === '') continue;
+              if (trimmed === '++' || trimmed === '--') return true;
+              if (ASSIGNMENT_OPS.has(trimmed)) return true;
+              break;
             }
+
             return false;
           };
 
@@ -417,7 +471,7 @@ export function registerReferencesHandlers(
             }
 
             const line = lines[pos.line] ?? '';
-            const kind = isWriteOccurrence(line, pos.character)
+            const kind = isWriteOccurrence(line, pos.character, pos.line)
               ? DocumentHighlightKind.Write
               : DocumentHighlightKind.Read;
 
