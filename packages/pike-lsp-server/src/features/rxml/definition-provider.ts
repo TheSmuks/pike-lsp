@@ -24,6 +24,9 @@ import {
   clearFileContentCache,
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
+import { extractDefvarsFromTokens } from '../roxen/defvar-scanner.js';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+
 import { findTagFunctionsInCode } from './module-scanner.js';
 
 import { LRUCache } from '../../utils/lru-cache.js';
@@ -90,7 +93,8 @@ async function getTagDefinitionIndex(
 }
 
 async function getDefvarDefinitionIndex(
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  tokenizeFn: ((text: string) => Promise<PikeToken[]>) | null
 ): Promise<Map<string, RoxenDefvarInfo>> {
   const key = makeWorkspaceKey(workspaceFolders);
   const now = Date.now();
@@ -100,32 +104,30 @@ async function getDefvarDefinitionIndex(
   }
 
   const byName = new Map<string, RoxenDefvarInfo>();
-  const pikeFiles = await findPikeFiles(workspaceFolders);
+  if (!tokenizeFn) {
+    defvarDefinitionIndexCache.set(key, { builtAt: now, byName });
+    return byName;
+  }
 
+  const pikeFiles = await findPikeFiles(workspaceFolders);
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const defvarPattern = /defvar\s*\(\s*["']([^"']+)["']/g;
-
-    let match = defvarPattern.exec(content);
-    while (match !== null) {
-      const name = match[1];
-      if (name) {
-        const keyName = name.toLowerCase();
-        if (!byName.has(keyName)) {
-          const position = findPositionForIndex(content, match.index);
-          byName.set(keyName, {
-            name,
-            type: 'mixed',
-            documentation: `Defvar: ${name}`,
-            location: Location.create(fileToUri(file), {
-              start: position,
-              end: { line: position.line, character: position.character + name.length },
-            }),
-          });
-        }
+    const tokens = await tokenizeFn(content);
+    const defvars = extractDefvarsFromTokens(tokens);
+    for (const dv of defvars) {
+      const keyName = dv.name.toLowerCase();
+      if (!byName.has(keyName)) {
+        const pos: Position = { line: dv.line, character: dv.column };
+        byName.set(keyName, {
+          name: dv.name,
+          type: dv.type,
+          ...(dv.documentation ? { documentation: dv.documentation } : {}),
+          location: Location.create(fileToUri(file), {
+            start: pos,
+            end: { line: pos.line, character: pos.character + dv.name.length },
+          }),
+        });
       }
-
-      match = defvarPattern.exec(content);
     }
   }
 
@@ -251,7 +253,8 @@ export function invalidateRXMLDefinitionCaches(uri?: string): void {
  */
 export async function findDefvarDefinition(
   defvarName: string,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  tokenizeFn: ((text: string) => Promise<PikeToken[]>) | null = null
 ): Promise<RoxenDefvarInfo | null> {
   if (!workspaceFolders.length) {
     return null;
@@ -264,7 +267,7 @@ export async function findDefvarDefinition(
       key: `findDefvar:${wsKey}`,
       run: async checkpoint => {
         checkpoint();
-        const index = await getDefvarDefinitionIndex(workspaceFolders);
+        const index = await getDefvarDefinitionIndex(workspaceFolders, tokenizeFn);
         return index.get(defvarName.toLowerCase()) ?? null;
       },
     });
