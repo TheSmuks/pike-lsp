@@ -2,6 +2,7 @@ import type { InheritanceInfo, IntrospectedSymbol, PikeSymbol } from '@pike-lsp/
 import type { Services } from './index.js';
 import type { StdlibIndexManager } from '../stdlib-index.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
+import { LRUCache } from '../utils/lru-cache.js';
 import { uriToFsPath } from '../utils/uri-path.js';
 
 export interface InheritRelation {
@@ -28,10 +29,10 @@ interface CachedIntrospectionDocument {
 }
 
 export class PikeIntrospectionService {
-  private readonly cache = new Map<string, CachedIntrospectionDocument>();
+  private readonly cache = new LRUCache<string, CachedIntrospectionDocument>(200);
 
   /** Cached symbol lists per stdlib module, populated on first search. */
-  private stdlibSymbolCache = new Map<string, Map<string, IntrospectedSymbol>>();
+  private stdlibSymbolCache = new LRUCache<string, Map<string, IntrospectedSymbol>>(100);
 
   constructor(
     private readonly services: Services,
