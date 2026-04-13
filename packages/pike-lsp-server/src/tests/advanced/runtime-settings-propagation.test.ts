@@ -109,6 +109,10 @@ describe('Runtime settings propagation', () => {
               kind: 'variable',
               range: {
                 start: { line: 1, character: 0 },
+                end: { line: 1, character: 11 },
+              },
+              selectionRange: {
+                start: { line: 1, character: 4 },
                 end: { line: 1, character: 5 },
               },
               modifiers: [],
