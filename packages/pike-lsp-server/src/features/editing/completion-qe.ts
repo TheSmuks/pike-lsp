@@ -5,6 +5,7 @@
  * and enriching query engine results with cached symbols.
  */
 
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 import {
   CompletionItem,
   CompletionItemKind,
@@ -64,16 +65,29 @@ function toCompletionItemArray(value: unknown): CompletionItem[] | null {
   return items;
 }
 
-export function getWordAtPosition(text: string, offset: number): string {
-  let start = offset;
-  while (start > 0 && /\w/.test(text[start - 1] ?? '')) {
-    start--;
+export async function getWordAtPosition(
+  text: string,
+  offset: number,
+  tokenize: (text: string) => Promise<PikeToken[]>
+): Promise<string> {
+  const tokens = await tokenize(text);
+  const lineStarts = buildLineStarts(text);
+  for (const token of tokens) {
+    const tokenOffset = lineStarts[token.line - 1]! + token.character;
+    const tokenEnd = tokenOffset + token.text.length;
+    if (offset >= tokenOffset && offset <= tokenEnd) {
+      return token.text;
+    }
   }
-  let end = offset;
-  while (end < text.length && /\w/.test(text[end] ?? '')) {
-    end++;
+  return '';
+}
+
+function buildLineStarts(text: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\n') starts.push(i + 1);
   }
-  return text.slice(start, end);
+  return starts;
 }
 
 export function getCompletionContext(lineText: string): 'type' | 'expression' {
@@ -309,7 +323,7 @@ export async function handleQueryEngineCompletion(
       const completions = [...scheduledItems];
       const text = document.getText();
       const offset = document.offsetAt(params.position);
-      const prefix = getWordAtPosition(text, offset);
+      const prefix = await getWordAtPosition(text, offset, t => bridge.tokenize(t));
       const prefixLower = prefix.toLowerCase();
       const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
       const lineText = text.slice(lineStart, offset);

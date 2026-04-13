@@ -188,8 +188,19 @@ function createHarness(opts: HarnessOptions): CompletionHarness {
           prefix: opts.bridgeContext?.prefix ?? '',
           operator: opts.bridgeContext?.operator ?? '',
         }),
+        tokenize: async (text: string) => {
+          const tokens: import('@pike-lsp/pike-bridge').PikeToken[] = [];
+          const lines = text.split('\n');
+          for (let line = 0; line < lines.length; line++) {
+            const re = /\b\w+\b/g;
+            let m: RegExpExecArray | null;
+            while ((m = re.exec(lines[line]!)) !== null) {
+              tokens.push({ text: m[0], line: line + 1, character: m.index, file: 0 });
+            }
+          }
+          return tokens;
+        },
       };
-
   const servicesLike = {
     bridge: bridgeLike,
     bridgeBridge: bridgeLike,
