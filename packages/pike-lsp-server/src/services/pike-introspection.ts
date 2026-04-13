@@ -208,8 +208,6 @@ export class PikeIntrospectionService {
       )
       .sort((a, b) => (a.position.line ?? 0) - (b.position.line ?? 0));
 
-    const introspectedNames = this.collectInheritanceNames(introspectedInherits);
-    const hasCompleteIntrospection = introspectedInherits.length > 0 && introspectedNames.size > 0;
     const relations: InheritRelation[] = [];
 
     for (const symbol of symbols) {
@@ -219,10 +217,6 @@ export class PikeIntrospectionService {
 
       const inheritedName = this.normalizeIdentifier(symbol.classname || symbol.name);
       if (!inheritedName) {
-        continue;
-      }
-
-      if (hasCompleteIntrospection && !introspectedNames.has(inheritedName)) {
         continue;
       }
 
@@ -252,23 +246,6 @@ export class PikeIntrospectionService {
 
     return relations;
   }
-
-  private collectInheritanceNames(inherits: InheritanceInfo[]): Set<string> {
-    const result = new Set<string>();
-    for (const inherit of inherits) {
-      const sourceName = this.normalizeIdentifier(inherit.source_name ?? '');
-      if (sourceName) {
-        result.add(sourceName);
-      }
-
-      const pathName = this.normalizeIdentifier(inherit.path ?? '');
-      if (pathName) {
-        result.add(pathName);
-      }
-    }
-    return result;
-  }
-
   private findOwnerClass(
     classes: Array<PikeSymbol & { position: NonNullable<PikeSymbol['position']> }>,
     inheritLineOneBased: number
