@@ -136,7 +136,14 @@ export async function deleteResolutionCache(): Promise<void> {
   const cacheFile = getCacheFilePath();
   try {
     await fs.promises.unlink(cacheFile);
-  } catch {
-    return;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      log.debug('Resolution cache file not found (already deleted or first run)');
+    } else {
+      log.warn('Failed to delete resolution cache', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
