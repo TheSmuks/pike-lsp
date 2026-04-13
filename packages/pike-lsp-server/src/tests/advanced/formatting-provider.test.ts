@@ -505,6 +505,28 @@ describe('Formatting Provider', () => {
       const edits = formatPikeCode(code, '    ', startLine);
       assert.strictEqual(edits.length, 0);
     });
+
+    it('should include edits that start before startLine but overlap into the requested range', () => {
+      const service = new FormattingService();
+      service.setProfile('standard');
+      // Line 0: "void foo() {" — the brace-style edit (if using new-line profile)
+      // starts at line 0 but extends into line 1.
+      // Line 1: "x = 1;" — requested range starts here.
+      // Line 2: "}"
+      const code = 'void foo() {\nx = 1;\n}';
+      const edits = service.formatRange(code, 1, 2, { tabSize: 2 });
+      // With the old filter (start.line >= startLine), edits starting at line 0
+      // (e.g. brace transformations) would be excluded even though they overlap.
+      // With the fix, any edit whose range overlaps [1,2] is included.
+      assert.ok(edits.length > 0);
+      // Verify every returned edit overlaps the requested range
+      for (const edit of edits) {
+        assert.ok(
+          edit.range.start.line <= 2 && edit.range.end.line >= 1,
+          `Edit at lines ${edit.range.start.line}-${edit.range.end.line} should overlap [1,2]`
+        );
+      }
+    });
   });
 
   /**
