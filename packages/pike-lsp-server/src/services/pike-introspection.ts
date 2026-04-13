@@ -31,11 +31,73 @@ const DEFAULT_STDLIB_MODULES = [
   'Parser',
   'Parser.Pike',
   'Stdio',
+  'Stdio.File',
+  'Stdio.stdin',
+  'Stdio.stdout',
+  'Stdio.stderr',
   'String',
   'Array',
   'Math',
+  'Mapping',
+  'Multiset',
+  'System',
+  'Process',
+  'ADT',
+  'ADT.Struct',
+  'ADT.Heap',
+  'ADT.Queue',
+  'ADT.PriorityQueue',
+  'ADT.Set',
+  'ADT.Table',
+  'ADT.History',
+  'MIME',
+  'Calendar',
+  'Calendar.Day',
+  'Calendar.Time',
+  'Calendar.Timezone',
+  'Crypto',
+  'SSL',
+  'Image',
+  'Image.Color',
+  'Image.Font',
+  'Image.GIF',
+  'Image.JPEG',
+  'Image.PNG',
+  'Thread',
+  'Thread.Farm',
+  'Protocols',
+  'Protocols.HTTP',
+  'Protocols.HTTP.Query',
+  'Protocols.LDAP',
+  'Protocols.DNS',
+  'Protocols.SMTP',
+  'Web',
+  'Web.Robot',
+  'GTK',
+  'GTK2',
+  'Gz',
+  'Regexp',
+  'Sql',
+  'Sql.Sql',
+  'Sql.mysql',
+  'Sql.postgres',
+  'Sql.sqlite',
+  'MasterObject',
+  'Pike',
+  'Preprocessor',
+  'Debug',
+  'Locale',
+  'Val',
+  'Arg',
+  'Getopt',
+  'Filesystem',
+  'Tar',
+  'Zip',
+  'Stream',
+  'Simulate',
+  'Spider',
+  'Yp',
 ] as const;
-
 export class PikeIntrospectionService {
   private readonly cache = new Map<string, CachedIntrospectionDocument>();
 
@@ -320,7 +382,11 @@ export class PikeIntrospectionService {
     const queryLower = query.toLowerCase();
     const candidates: ImportableSymbolCandidate[] = [];
 
-    for (const modulePath of DEFAULT_STDLIB_MODULES) {
+    // Merge default list with any modules already cached (e.g. loaded by prior lookups)
+    const cachedPaths = this.stdlibIndex.getCachedModulePaths();
+    const searchPaths = new Set<string>([...DEFAULT_STDLIB_MODULES, ...cachedPaths]);
+
+    for (const modulePath of searchPaths) {
       const moduleInfo = await this.stdlibIndex.getModule(modulePath);
       if (!moduleInfo?.symbols) {
         continue;
