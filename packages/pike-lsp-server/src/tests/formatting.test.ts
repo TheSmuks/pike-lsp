@@ -1,5 +1,6 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
+import { FormattingService } from '../services/formatting-service.js';
 import { formatPikeCode } from '../features/advanced/formatting.js';
 import { TextEdit } from 'vscode-languageserver/node.js';
 
@@ -540,5 +541,48 @@ void test() {
 }`.trim();
 
     assert.equal(format(input), expected);
+  });
+
+  describe('formatRange containment', () => {
+    it('excludes edits that start before or end after the requested range', () => {
+      // 20-line document: lines 0-4 need no indent, lines 5-19 are inside a class
+      const text = [
+        'class Foo {', // 0
+        '  int a;', // 1
+        '  int b;', // 2
+        '  int c;', // 3
+        '  int d;', // 4
+        'void bar() {', // 5
+        'int x;', // 6
+        '}', // 7
+        '}', // 8
+        '// padding', // 9
+        '// padding', // 10
+        '// padding', // 11
+        '// padding', // 12
+        '// padding', // 13
+        '// padding', // 14
+        '// padding', // 15
+        '// padding', // 16
+        '// padding', // 17
+        '// padding', // 18
+        '// padding', // 19
+      ].join('\n');
+
+      const svc = new FormattingService();
+      const edits = svc.formatRange(text, 5, 8, { tabSize: 4, insertSpaces: true });
+
+      // Every edit must be fully within [5, 8]
+      for (const edit of edits) {
+        assert.ok(
+          edit.range.start.line >= 5,
+          `Edit starts at line ${edit.range.start.line}, expected >= 5`
+        );
+        assert.ok(
+          edit.range.end.line <= 8,
+          `Edit ends at line ${edit.range.end.line}, expected <= 8`
+        );
+      }
+    });
   });
 });
