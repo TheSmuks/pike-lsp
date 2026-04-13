@@ -267,31 +267,6 @@ export function registerCompletionHandlers(
       }
     }
 
-    // Arrow workaround: obj->
-    const arrowResult = await resolveArrowWorkaround(
-      lineText,
-      params.position.character,
-      cached,
-      services,
-      documentCache,
-      completionContext,
-      logger
-    );
-    if (arrowResult && arrowResult.length > 0) {
-      return toCompletionList(arrowResult);
-    }
-
-    // Module. dot workaround
-    const moduleDotResult = await resolveModuleDotWorkaround(
-      lineText,
-      services,
-      completionContext,
-      logger
-    );
-    if (moduleDotResult) {
-      return toCompletionList(moduleDotResult);
-    }
-
     // Pike tokenizer member/scope access
     if (pikeContext?.context === 'member_access' || pikeContext?.context === 'scope_access') {
       const memberResult = await resolvePikeContextMemberAccess(
@@ -308,6 +283,30 @@ export function registerCompletionHandlers(
       return toCompletionList([]);
     }
 
+    // Arrow fallback: obj-> (when bridge did not detect member_access)
+    const arrowResult = await resolveArrowWorkaround(
+      lineText,
+      params.position.character,
+      cached,
+      services,
+      documentCache,
+      completionContext,
+      logger
+    );
+    if (arrowResult && arrowResult.length > 0) {
+      return toCompletionList(arrowResult);
+    }
+
+    // Module. dot fallback (when bridge did not detect scope_access)
+    const moduleDotResult = await resolveModuleDotWorkaround(
+      lineText,
+      services,
+      completionContext,
+      logger
+    );
+    if (moduleDotResult) {
+      return toCompletionList(moduleDotResult);
+    }
     // General completion
     const generalCompletions = await collectGeneralCompletions(
       text,

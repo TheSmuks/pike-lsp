@@ -6,7 +6,6 @@
  * - Module.sub (dot access)
  * - Pike tokenizer-detected member_access / scope_access
  */
-
 import { CompletionItem } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
@@ -17,6 +16,7 @@ import { getSymbolClassname } from './completion-scope.js';
 /**
  * Try to resolve obj-> completions using a local symbol's type.
  * Returns completions if resolved, or null if the pattern doesn't match.
+ * Used as a fallback when the Pike tokenizer does not detect member_access.
  */
 export async function resolveArrowWorkaround(
   lineText: string,
@@ -35,7 +35,7 @@ export async function resolveArrowWorkaround(
 
   const objectRef = arrowMatch[1];
   const prefixAfterCursor = lineText.substring(cursorChar).match(/^(\w*)/)?.[1] || '';
-  logger.debug('Detected obj-> pattern (workaround)', {
+  logger.debug('Detected obj-> pattern (workaround fallback)', {
     objectRef,
     prefixAfterCursor,
     beforeCursor: beforeCursor.slice(-10),
@@ -67,10 +67,8 @@ export async function resolveArrowWorkaround(
   const workspaceResult = resolveMembersFromWorkspace(
     typeName,
     prefixAfterCursor,
-    cached,
     documentCache,
-    completionContext,
-    logger
+    completionContext
   );
   if (workspaceResult) return workspaceResult;
 
@@ -80,6 +78,7 @@ export async function resolveArrowWorkaround(
 /**
  * Try to resolve Module. completions (dot access workaround).
  * Returns completions if resolved, or null if not applicable.
+ * Used as a fallback when the Pike tokenizer does not detect scope_access.
  */
 export async function resolveModuleDotWorkaround(
   lineText: string,
@@ -93,7 +92,7 @@ export async function resolveModuleDotWorkaround(
   }
 
   const moduleName = moduleDotMatch[1];
-  logger.debug('Detected Module. pattern (workaround)', { moduleName, lineText });
+  logger.debug('Detected Module. pattern (workaround fallback)', { moduleName, lineText });
 
   try {
     const testModule = await services.stdlibIndex.getModule(moduleName);
@@ -120,10 +119,6 @@ export async function resolveModuleDotWorkaround(
   return null;
 }
 
-/**
- * Resolve Pike tokenizer-detected member_access or scope_access completions.
- * Uses a multi-strategy approach: fully qualified name, stdlib module, local symbol type.
- */
 export async function resolvePikeContextMemberAccess(
   pikeContext: import('@pike-lsp/pike-bridge').CompletionContext,
   cached: DocumentCacheEntry | undefined,
@@ -251,10 +246,8 @@ async function resolveMembersFromStdlib(
 function resolveMembersFromWorkspace(
   typeName: string,
   prefix: string,
-  _cached: DocumentCacheEntry | undefined,
   documentCache: Services['documentCache'],
-  completionContext: 'type' | 'expression',
-  _logger: Services['logger']
+  completionContext: 'type' | 'expression'
 ): CompletionItem[] | null {
   for (const [, doc] of documentCache.entries()) {
     const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
@@ -282,7 +275,6 @@ function resolveMembersFromWorkspace(
 
   return null;
 }
-
 function resolveWorkspaceClassMembers(
   typeName: string,
   classSymbol: PikeSymbol,
