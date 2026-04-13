@@ -294,6 +294,10 @@ export class PikeBridge extends PikeBridgeBase {
 
   // --- Diagnostics ---
 
+  getInflightRequestCount(): number {
+    return this.pendingRequests.size;
+  }
+
   getDiagnostics(): { options: InternalBridgeOptions; isRunning: boolean; pid: number | null } {
     return {
       options: { ...this.options },
