@@ -34,7 +34,11 @@ import {
 } from '../rxml/mixed-content.js';
 import { toSchedulerMetricsLogPayload } from '../utils/scheduler-metrics.js';
 import { resolveScopeCompletions } from './completion-scope.js';
-import { resolvePikeContextMemberAccess } from './completion-member-access.js';
+import {
+  resolveArrowWorkaround,
+  resolveModuleDotWorkaround,
+  resolvePikeContextMemberAccess,
+} from './completion-member-access.js';
 import { registerCompletionResolveHandler } from './completion-resolve.js';
 import {
   handleQueryEngineCompletion,
@@ -279,6 +283,30 @@ export function registerCompletionHandlers(
       return toCompletionList([]);
     }
 
+    // Arrow fallback: obj-> (when bridge did not detect member_access)
+    const arrowResult = await resolveArrowWorkaround(
+      lineText,
+      params.position.character,
+      cached,
+      services,
+      documentCache,
+      completionContext,
+      logger
+    );
+    if (arrowResult && arrowResult.length > 0) {
+      return toCompletionList(arrowResult);
+    }
+
+    // Module. dot fallback (when bridge did not detect scope_access)
+    const moduleDotResult = await resolveModuleDotWorkaround(
+      lineText,
+      services,
+      completionContext,
+      logger
+    );
+    if (moduleDotResult) {
+      return toCompletionList(moduleDotResult);
+    }
     // General completion
     const generalCompletions = await collectGeneralCompletions(
       text,
