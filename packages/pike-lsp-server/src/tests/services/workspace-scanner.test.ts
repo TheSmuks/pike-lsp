@@ -308,6 +308,51 @@ describe('WorkspaceScanner - 26.3 Multi-folder workspace', () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+
+  it('26.3.7 should remove folder when path contains URL-encoded characters', async () => {
+    const logger = createMockLogger();
+    const scanner = new WorkspaceScanner(logger, () => ({}));
+    const os = await import('node:os');
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const rootA = path.join(os.tmpdir(), `ws-encoded-${Date.now()}`);
+    const rootB = path.join(os.tmpdir(), `ws-encoded-b-${Date.now()}`);
+
+    await fs.mkdir(rootA, { recursive: true });
+    await fs.mkdir(rootB, { recursive: true });
+    await fs.writeFile(path.join(rootA, 'a.pike'), 'int a;');
+    await fs.writeFile(path.join(rootB, 'c.pike'), 'int c;');
+
+    try {
+      await scanner.initialize([rootA, rootB]);
+
+      const beforeRemove = scanner.getAllFiles();
+      assert.ok(beforeRemove.some(f => f.normalizedPath.startsWith(rootA)));
+      assert.ok(beforeRemove.some(f => f.normalizedPath.startsWith(rootB)));
+
+      // Pass rootA with spaces encoded as %20
+      const encodedPath = `file://${rootA.replace(/ /g, '%20')}`;
+      scanner.removeFolder(encodedPath);
+
+      const afterRemove = scanner.getAllFiles();
+      assert.ok(
+        !afterRemove.some(f => f.normalizedPath.startsWith(rootA)),
+        'Files from rootA should be removed'
+      );
+      assert.ok(
+        afterRemove.some(f => f.normalizedPath.startsWith(rootB)),
+        'Files from rootB should remain'
+      );
+
+      const stats = scanner.getStats();
+      assert.equal(stats.rootCount, 1, 'Only rootB should remain');
+      assert.equal(stats.fileCount, 1, 'Only rootB files should remain');
+    } finally {
+      await fs.rm(rootA, { recursive: true, force: true });
+      await fs.rm(rootB, { recursive: true, force: true });
+    }
+  });
 });
 
 // ============================================================================

@@ -5,6 +5,17 @@
  * for workspace-wide operations like Find References.
  */
 
+/** Convert a file:// URI or raw path to a normalized filesystem path. */
+function toNormalizedPath(raw: string): string {
+  const stripped = raw.replace(/^file:\/\//, '');
+  return stripTrailingSlash(decodeURIComponent(stripped));
+}
+
+/** Strip trailing slashes (preserve root '/'). */
+function stripTrailingSlash(value: string): string {
+  return value.length > 1 ? value.replace(/\/+$/, '') : value;
+}
+
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import type { PikeSettings } from '../core/types.js';
@@ -19,6 +30,8 @@ export interface WorkspaceFileInfo {
   uri: string;
   /** File path (file://) */
   path: string;
+  /** Normalized filesystem path (decoded, no file:// prefix) */
+  normalizedPath: string;
   /** Last modified time */
   lastModified: number;
   /** Cached symbols (lazy-loaded) */
@@ -71,7 +84,7 @@ export class WorkspaceScanner {
     this.logger.debug('WorkspaceScanner: initializing', { folderCount: folders.length });
 
     for (const folder of folders) {
-      this.workspaceRoots.add(folder);
+      this.workspaceRoots.add(toNormalizedPath(folder));
     }
 
     await this.scanAll();
@@ -82,8 +95,7 @@ export class WorkspaceScanner {
    * Add a workspace folder and scan it.
    */
   async addFolder(folder: string): Promise<void> {
-    this.logger.debug('WorkspaceScanner: adding folder', { folder });
-    this.workspaceRoots.add(folder);
+    this.workspaceRoots.add(toNormalizedPath(folder));
     const files = await this.scanFolder(folder);
     for (const file of files) {
       this.files.set(file.uri, file);
@@ -95,26 +107,16 @@ export class WorkspaceScanner {
    */
   removeFolder(folder: string): void {
     this.logger.debug('WorkspaceScanner: removing folder', { folder });
-    const stripTrailingSlash = (value: string): string => {
-      if (value.length > 1) {
-        return value.replace(/\/+$/, '');
-      }
-      return value;
-    };
+    const normalizedFolder = toNormalizedPath(folder);
 
-    const normalizedFolder = stripTrailingSlash(folder);
-    const normalizedPath = normalizedFolder.startsWith('file://')
-      ? stripTrailingSlash(decodeURIComponent(normalizedFolder.replace(/^file:\/\//, '')))
-      : normalizedFolder;
-    const folderUri = `file://${normalizedPath}`;
-    const folderUriWithSlash = `${folderUri}/`;
-
-    this.workspaceRoots.delete(normalizedPath);
-    this.workspaceRoots.delete(folderUri);
+    this.workspaceRoots.delete(normalizedFolder);
 
     // Remove all files from this folder
     for (const [uri, info] of this.files) {
-      if (info.path === folderUri || info.path.startsWith(folderUriWithSlash)) {
+      if (
+        info.normalizedPath === normalizedFolder ||
+        info.normalizedPath.startsWith(`${normalizedFolder}/`)
+      ) {
         this.files.delete(uri);
       }
     }
@@ -187,12 +189,14 @@ export class WorkspaceScanner {
           const ext = entry.name.substring(entry.name.lastIndexOf('.'));
           if (opts.extensions.includes(ext)) {
             const uri = fullPath.startsWith('file://') ? fullPath : `file://${fullPath}`;
+            const normalizedPath = toNormalizedPath(fullPath);
 
             try {
               const stat = await fs.stat(fullPath);
               results.push({
                 uri,
                 path: uri,
+                normalizedPath,
                 lastModified: stat.mtimeMs,
               });
             } catch (err) {
@@ -259,15 +263,18 @@ export class WorkspaceScanner {
 
   upsertFile(uri: string, lastModified: number): void {
     const existing = this.files.get(uri);
+    const normalizedPath = toNormalizedPath(uri);
     if (existing) {
       existing.lastModified = lastModified;
       existing.path = uri;
+      existing.normalizedPath = normalizedPath;
       return;
     }
 
     this.files.set(uri, {
       uri,
       path: uri,
+      normalizedPath,
       lastModified,
     });
   }
