@@ -217,10 +217,10 @@ function extractValueExpr(
   nameEnd: { line: number; character: number },
   declEnd: { line: number; character: number }
 ): string | null {
-  // Convert Pike 1-indexed lines to 0-indexed for TextDocument offset
+  // LSP Range positions are already 0-indexed — use directly.
   const lines = text.split('\n');
-  const startLine = nameEnd.line - 1;
-  const endLine = declEnd.line - 1;
+  const startLine = nameEnd.line;
+  const endLine = declEnd.line;
   if (startLine < 0 || endLine >= lines.length || startLine > endLine) return null;
 
   let raw = '';
