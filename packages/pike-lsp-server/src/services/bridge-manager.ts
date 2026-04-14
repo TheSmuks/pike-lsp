@@ -156,6 +156,8 @@ export class BridgeManager {
           resolvedPath = await realpath(pikePath);
         }
 
+        if (this.stopped) return;
+
         this.cachedVersion = {
           ...versionInfo,
           pikePath: resolvedPath,
