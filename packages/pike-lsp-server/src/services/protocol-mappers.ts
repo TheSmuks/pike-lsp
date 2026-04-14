@@ -4,7 +4,6 @@ import type {
   CoreDiagnosticTag,
   CorePosition,
   CoreRange,
-  CoreSymbol,
   CoreTextDocumentIdentifier,
   CoreTextDocumentItem,
   CoreVersionedTextDocumentIdentifier,
@@ -18,7 +17,6 @@ import type {
   TextDocumentItem,
   VersionedTextDocumentIdentifier,
 } from 'vscode-languageserver/node.js';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 export function toCorePosition(position: Position): CorePosition {
   return { line: position.line, character: position.character };
@@ -166,12 +164,4 @@ export function toProtocolTextDocumentItem(item: CoreTextDocumentItem): TextDocu
     version: item.version,
     text: item.text,
   };
-}
-
-export function toCoreSymbol(symbol: PikeSymbol): CoreSymbol {
-  return symbol;
-}
-
-export function toProtocolSymbol(symbol: CoreSymbol): PikeSymbol {
-  return symbol;
 }
