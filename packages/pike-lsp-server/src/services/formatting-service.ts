@@ -98,15 +98,8 @@ export class FormattingService {
       }
     }
   }
-
-  formatDocument(text: string, options: FormattingOptions): TextEdit[] {
-    this.validateFormattingOptions(options);
-
-    const tabSize = options.tabSize ?? 4;
-    const insertSpaces = options.insertSpaces ?? true;
-    const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
-
-    const profile: FormattingProfile = {
+  private resolveProfile(options: FormattingOptions): FormattingProfile {
+    return {
       ...this.currentProfile,
       maxLineLength: options.maxLineLength ?? this.currentProfile.maxLineLength,
       braceStyle: options.braceStyle ?? this.currentProfile.braceStyle,
@@ -115,6 +108,16 @@ export class FormattingService {
       blankLinesBetweenFunctions:
         options.blankLinesBetweenFunctions ?? this.currentProfile.blankLinesBetweenFunctions,
     };
+  }
+
+  formatDocument(text: string, options: FormattingOptions): TextEdit[] {
+    this.validateFormattingOptions(options);
+
+    const tabSize = options.tabSize ?? 4;
+    const insertSpaces = options.insertSpaces ?? true;
+    const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
+
+    const profile = this.resolveProfile(options);
 
     return formatPikeCodeWithProfile(text, indent, 0, profile);
   }
@@ -131,15 +134,7 @@ export class FormattingService {
     const insertSpaces = options.insertSpaces ?? true;
     const indent = insertSpaces ? ' '.repeat(tabSize) : '\t';
 
-    const profile: FormattingProfile = {
-      ...this.currentProfile,
-      maxLineLength: options.maxLineLength ?? this.currentProfile.maxLineLength,
-      braceStyle: options.braceStyle ?? this.currentProfile.braceStyle,
-      spaceAroundOperators:
-        options.spaceAroundOperators ?? this.currentProfile.spaceAroundOperators,
-      blankLinesBetweenFunctions:
-        options.blankLinesBetweenFunctions ?? this.currentProfile.blankLinesBetweenFunctions,
-    };
+    const profile = this.resolveProfile(options);
 
     const edits = formatPikeCodeWithProfile(text, indent, 0, profile);
     return edits.filter(
