@@ -309,7 +309,7 @@ async function findPikeFilesWithStats(
   dirPath: string,
   recursive: boolean
 ): Promise<FileInfo[]> {
-  const files: FileInfo[] = [];
+  const pikePaths: string[] = [];
 
   const walk = async (dir: string): Promise<void> => {
     let entries: Dirent[];
@@ -332,23 +332,37 @@ async function findPikeFilesWithStats(
         }
       } else if (entry.isFile()) {
         if (entry.name.endsWith('.pike') || entry.name.endsWith('.pmod')) {
-          try {
-            const stats = await stat(fullPath);
-            files.push({
-              path: fullPath,
-              lastModified: stats.mtimeMs,
-            });
-          } catch (error) {
-            storage.log.debug('Skipping file with unreadable metadata', {
-              path: fullPath,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          pikePaths.push(fullPath);
         }
       }
     }
   };
 
   await walk(dirPath);
+
+  // PERF-008: Batch stat() calls with concurrency limit of 50
+  const BATCH_SIZE = 50;
+  const files: FileInfo[] = [];
+  for (let i = 0; i < pikePaths.length; i += BATCH_SIZE) {
+    const batch = pikePaths.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      batch.map(async filePath => {
+        try {
+          const stats = await stat(filePath);
+          return { path: filePath, lastModified: stats.mtimeMs } as FileInfo;
+        } catch (error) {
+          storage.log.debug('Skipping file with unreadable metadata', {
+            path: filePath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return null;
+        }
+      })
+    );
+    for (const result of results) {
+      if (result !== null) files.push(result);
+    }
+  }
+
   return files;
 }
