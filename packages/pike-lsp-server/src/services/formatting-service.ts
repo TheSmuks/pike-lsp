@@ -1,4 +1,4 @@
-import { ErrorCodes, ResponseError, TextEdit } from 'vscode-languageserver/node.js';
+import { ErrorCodes, Position, ResponseError, TextEdit } from 'vscode-languageserver/node.js';
 
 // Re-export types and profiles
 export {
@@ -138,10 +138,49 @@ export class FormattingService {
     const profile = this.resolveProfile(options);
 
     const edits = formatPikeCodeWithProfile(text, indent, 0, profile);
-    return edits.filter(
-      edit => edit.range.start.line >= startLine && edit.range.end.line <= endLine
-    );
+    return edits
+      .filter(e => e.range.start.line <= endLine && e.range.end.line >= startLine)
+      .map(e => clipEditToRange(e, text, startLine, endLine));
   }
+}
+
+function clipEditToRange(
+  edit: TextEdit,
+  text: string,
+  startLine: number,
+  endLine: number
+): TextEdit {
+  // Fully contained — no clipping needed
+  if (edit.range.start.line >= startLine && edit.range.end.line <= endLine) {
+    return edit;
+  }
+
+  const lines = text.split('\n');
+  const startPos =
+    edit.range.start.line < startLine ? Position.create(startLine, 0) : edit.range.start;
+  const endLineLen = lines[endLine]?.length ?? 0;
+  const endPos =
+    edit.range.end.line > endLine ? Position.create(endLine, endLineLen) : edit.range.end;
+
+  // Compute the portion of newText that falls within the clipped range
+  const clippedStartCol = edit.range.start.line < startLine ? 0 : edit.range.start.character;
+  const clippedEndCol = edit.range.end.line > endLine ? endLineLen : edit.range.end.character;
+  const newTextLines = edit.newText.split('\n');
+  let clippedNewText: string;
+
+  if (edit.range.start.line === edit.range.end.line) {
+    // Single-line edit
+    clippedNewText = newTextLines[0]!.slice(clippedStartCol, clippedEndCol);
+  } else {
+    // Multi-line edit: take from the adjusted start column on the first line
+    // to the adjusted end column on the last line
+    const firstLine = newTextLines[0]!.slice(clippedStartCol);
+    const lastLine = newTextLines[newTextLines.length - 1]!.slice(0, clippedEndCol);
+    const middleLines = newTextLines.slice(1, -1);
+    clippedNewText = [firstLine, ...middleLines, lastLine].join('\n');
+  }
+
+  return TextEdit.replace({ start: startPos, end: endPos }, clippedNewText);
 }
 
 export function formatPikeCode(text: string, indent: string, startLine = 0): TextEdit[] {

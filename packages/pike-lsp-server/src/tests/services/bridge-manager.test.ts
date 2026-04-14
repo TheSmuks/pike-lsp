@@ -281,7 +281,11 @@ describe('BridgeManager stop() guards against stale writes', () => {
         start: async () => undefined,
         stop: async () => undefined,
         getVersionInfo: async () => ({
-          major: 8, minor: 0, build: 1116, version: '8.0.1116', display: 8.01116,
+          major: 8,
+          minor: 0,
+          build: 1116,
+          version: '8.0.1116',
+          display: 8.01116,
         }),
         getDiagnostics: () => ({ options: { pikePath: '/usr/bin/pike' }, isRunning: true, pid: 1 }),
       } as unknown as PikeBridge,
@@ -302,9 +306,12 @@ describe('BridgeManager stop() guards against stale writes', () => {
     await new Promise(r => setTimeout(r, 0));
 
     const health = await manager.getHealth();
-    assert.equal(health.pikeVersion, null, 'cachedVersion should remain null after stop() during realpath delay');
+    assert.equal(
+      health.pikeVersion,
+      null,
+      'cachedVersion should remain null after stop() during realpath delay'
+    );
 
     realpathSpy.mockRestore();
   });
-
 });
