@@ -98,7 +98,7 @@ const logger = new Logger('PikeLSPServer');
 const documentCache = new DocumentCache();
 const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
-const workspaceScanner = new WorkspaceScanner(logger, () => globalSettings);
+const workspaceScanner = new WorkspaceScanner(logger);
 const moduleContext = new ModuleContext();
 const formattingService = new FormattingService();
 let pikeIntrospection: PikeIntrospectionService | null = null;
