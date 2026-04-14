@@ -86,6 +86,7 @@ describe('Cross-File Type Hierarchy', () => {
           if (uri === derivedUri) return derivedSymbols;
           return [];
         },
+        getAllDocumentUris: () => [baseUri, derivedUri],
       };
 
       const services = createMockServices({
@@ -194,6 +195,7 @@ describe('Cross-File Type Hierarchy', () => {
           if (uri === derivedUri) return derivedSymbols;
           return [];
         },
+        getAllDocumentUris: () => [baseUri, derivedUri],
       };
 
       const services = createMockServices({
@@ -327,6 +329,7 @@ describe('Cross-File Type Hierarchy', () => {
           if (uri === childUri) return childSymbols;
           return [];
         },
+        getAllDocumentUris: () => [grandParentUri, parentUri, childUri],
       };
 
       const services = createMockServices({
@@ -450,6 +453,7 @@ describe('Cross-File Type Hierarchy', () => {
           if (uri === file2Uri) return file2Symbols;
           return [];
         },
+        getAllDocumentUris: () => [file1Uri, file2Uri],
       };
 
       const services = createMockServices({
