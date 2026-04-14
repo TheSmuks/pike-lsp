@@ -168,31 +168,38 @@ export class CompilationCache<TResult> {
   ): CompilationCache<TResult> {
     const cache = new CompilationCache<TResult>(options);
 
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(serialized) as unknown;
-      if (!isSerializedPayload<TResult>(parsed)) {
+      parsed = JSON.parse(serialized);
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        log.warn('Failed to parse compilation cache payload as JSON', {
+          error: error.message,
+        });
         return cache;
       }
+      throw error;
+    }
 
-      for (const record of parsed.entries) {
-        if (!isSerializedCacheEntry<TResult>(record)) {
-          continue;
-        }
-
-        cache.store(
-          record.uri,
-          record.entry.code,
-          record.entry.result,
-          record.entry.dependencies,
-          record.entry.timestamp
-        );
-      }
-    } catch (error) {
-      log.warn('Failed to deserialize compilation cache payload', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+    if (!isSerializedPayload<TResult>(parsed)) {
       return cache;
     }
+
+    for (const record of parsed.entries) {
+      if (!isSerializedCacheEntry<TResult>(record)) {
+        continue;
+      }
+
+      cache.store(
+        record.uri,
+        record.entry.code,
+        record.entry.result,
+        record.entry.dependencies,
+        record.entry.timestamp
+      );
+    }
+
+    return cache;
 
     return cache;
   }
