@@ -543,8 +543,8 @@ void test() {
     assert.equal(format(input), expected);
   });
 
-  describe('formatRange containment', () => {
-    it('excludes edits that start before or end after the requested range', () => {
+  describe('formatRange clipping', () => {
+    it('clips edits that extend beyond the requested range instead of discarding', () => {
       // 20-line document: lines 0-4 need no indent, lines 5-19 are inside a class
       const text = [
         'class Foo {', // 0
@@ -572,7 +572,7 @@ void test() {
       const svc = new FormattingService();
       const edits = svc.formatRange(text, 5, 8, { tabSize: 4, insertSpaces: true });
 
-      // Every edit must be fully within [5, 8]
+      // Every edit must be clipped to [5, 8]
       for (const edit of edits) {
         assert.ok(
           edit.range.start.line >= 5,
@@ -583,6 +583,30 @@ void test() {
           `Edit ends at line ${edit.range.end.line}, expected <= 8`
         );
       }
+    });
+
+    it('includes edits that overlap the range start or end', () => {
+      // A 3-line class where formatRange(1, 2) covers only line 1.
+      // Indentation edit on line 1 (the class body) must not be dropped.
+      const text = ['class X {', 'int y;', '}'].join('\n');
+
+      const svc = new FormattingService();
+      const edits = svc.formatRange(text, 1, 2, { tabSize: 2, insertSpaces: true });
+
+      const bodyEdit = edits.find(e => e.range.start.line === 1 && e.range.end.line === 1);
+      assert.ok(bodyEdit, 'Should include indent edit for line 1 (class body)');
+      assert.strictEqual(bodyEdit!.newText, '  ', '2-space indent for class body');
+    });
+
+    it('excludes edits fully outside the range', () => {
+      const text = ['class X {', 'int a;', 'int b;', '}'].join('\n');
+
+      const svc = new FormattingService();
+      const edits = svc.formatRange(text, 2, 2, { tabSize: 2, insertSpaces: true });
+
+      // Line 0 (class header) is outside [2, 2] — no edit for it
+      const line0Edit = edits.find(e => e.range.start.line === 0);
+      assert.ok(!line0Edit, 'Should exclude edits for line 0 which is outside range [2,2]');
     });
   });
 });
