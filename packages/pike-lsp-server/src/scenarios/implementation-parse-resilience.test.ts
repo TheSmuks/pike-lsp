@@ -101,6 +101,7 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
         return [];
       },
     },
+    includeResolver: null,
     stdlibIndex: null,
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5 },
     documentSnapshots: new Map<string, string>(),
