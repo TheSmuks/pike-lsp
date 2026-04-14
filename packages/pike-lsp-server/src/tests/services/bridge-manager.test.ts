@@ -1,4 +1,4 @@
-import { describe, it } from 'bun:test';
+import { describe, it, spyOn } from 'bun:test';
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
 import * as assert from 'node:assert/strict';
 import type { Logger } from '@pike-lsp/core';
@@ -264,4 +264,47 @@ describe('BridgeManager stop() guards against stale writes', () => {
     assert.equal(health.pikeVersion, null, 'cachedVersion should remain null after stop()');
     assert.equal(health.startupMetrics, null, 'startupMetrics should remain null after stop()');
   });
+
+  it('does not overwrite cachedVersion when stop() is called during realpath() delay', async () => {
+    let resolveRealpath: (v: string) => void;
+    const fsp = await import('node:fs/promises');
+    const realpathSpy = spyOn(fsp, 'realpath').mockImplementation(() => {
+      return new Promise(r => {
+        resolveRealpath = r;
+      });
+    });
+
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        start: async () => undefined,
+        stop: async () => undefined,
+        getVersionInfo: async () => ({
+          major: 8, minor: 0, build: 1116, version: '8.0.1116', display: 8.01116,
+        }),
+        getDiagnostics: () => ({ options: { pikePath: '/usr/bin/pike' }, isRunning: true, pid: 1 }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    // start() fires fetchVersionInfoInternal as fire-and-forget.
+    // getVersionInfo resolves immediately, but realpath() is delayed.
+    await manager.start();
+
+    // Call stop() while realpath() is still pending
+    await manager.stop();
+
+    // Now resolve the delayed realpath
+    resolveRealpath!('/usr/bin/pike');
+
+    // Wait for the promise microtask to run
+    await new Promise(r => setTimeout(r, 0));
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null, 'cachedVersion should remain null after stop() during realpath delay');
+
+    realpathSpy.mockRestore();
+  });
+
 });
