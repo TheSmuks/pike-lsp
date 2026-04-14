@@ -225,4 +225,22 @@ describe('CompilationCache', () => {
     assert.equal(restored.getStats().hits, 0);
     assert.equal(restored.getStats().misses, 0);
   });
+
+  it('re-throws non-SyntaxError from JSON.parse during deserialization', () => {
+    // JSON.parse only throws SyntaxError for parse failures.
+    // Any other error type indicates a programming bug and must propagate.
+    const originalParse = JSON.parse;
+    const spyError = new TypeError('unexpected type');
+    JSON.parse = () => {
+      throw spyError;
+    };
+    try {
+      assert.throws(
+        () => CompilationCache.deserialize<AnalysisResult>('{}', { maxSize: 100 }),
+        err => err === spyError
+      );
+    } finally {
+      JSON.parse = originalParse;
+    }
+  });
 });
