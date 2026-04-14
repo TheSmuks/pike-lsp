@@ -503,7 +503,11 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     stdlibIndex: overrides?.stdlibIndex ?? null,
     includeResolver: null,
     typeDatabase: {},
-    workspaceIndex: overrides?.workspaceIndex ?? { searchSymbols: () => [] },
+    workspaceIndex: overrides?.workspaceIndex ?? {
+      searchSymbols: () => [],
+      getDocumentSymbols: () => [],
+      getAllDocumentUris: () => [],
+    },
     workspaceScanner: overrides?.workspaceScanner ?? createMockWorkspaceScanner([]),
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],

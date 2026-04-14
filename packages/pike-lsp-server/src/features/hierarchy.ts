@@ -93,14 +93,9 @@ export function registerHierarchyHandlers(
       return cached.symbols;
     }
 
-    const workspaceIndex = services.workspaceIndex as unknown as {
-      getDocumentSymbols?: (documentUri: string) => PikeSymbol[];
-    };
-    if (workspaceIndex?.getDocumentSymbols) {
-      const indexedSymbols = workspaceIndex.getDocumentSymbols(uri);
-      if (indexedSymbols && indexedSymbols.length > 0) {
-        return indexedSymbols;
-      }
+    const indexedSymbols = services.workspaceIndex.getDocumentSymbols(uri);
+    if (indexedSymbols && indexedSymbols.length > 0) {
+      return indexedSymbols;
     }
 
     return [];
@@ -112,13 +107,8 @@ export function registerHierarchyHandlers(
       uris.add(uri);
     }
 
-    const workspaceIndex = services.workspaceIndex as unknown as {
-      getAllDocumentUris?: () => string[];
-    };
-    if (workspaceIndex?.getAllDocumentUris) {
-      for (const uri of workspaceIndex.getAllDocumentUris()) {
-        uris.add(uri);
-      }
+    for (const uri of services.workspaceIndex.getAllDocumentUris()) {
+      uris.add(uri);
     }
 
     // Include uncached files from workspace scanner
