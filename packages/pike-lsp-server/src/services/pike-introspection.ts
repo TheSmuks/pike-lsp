@@ -410,14 +410,13 @@ export class PikeIntrospectionService {
 
           const importKind: 'import' | 'inherit' =
             symbolInfo.kind === 'class' ? 'inherit' : 'import';
-          const exactBoost = name.toLowerCase() === qLower ? 130 : 0;
           const kindBoost = importKind === 'inherit' ? 15 : 10;
 
           candidates.push({
             symbol: name,
             modulePath,
             importKind,
-            score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
+            score: kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
             source: 'stdlib-index',
           });
         }
