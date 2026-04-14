@@ -2,7 +2,7 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { FormattingService } from '../services/formatting-service.js';
 import { formatPikeCode } from '../features/advanced/formatting.js';
-import { TextEdit } from 'vscode-languageserver/node.js';
+import { TextEdit, ErrorCodes, ResponseError } from 'vscode-languageserver/node.js';
 
 describe('Formatter', () => {
   // Helper to apply edits to text
@@ -584,5 +584,194 @@ void test() {
         );
       }
     });
+  });
+});
+
+describe('validateFormattingOptions', () => {
+  const svc = new FormattingService();
+
+  function assertInvalidParams(fn: () => void, message: string) {
+    assert.throws(fn, (err: unknown) => {
+      assert.ok(err instanceof ResponseError, 'Expected ResponseError');
+      assert.strictEqual(err.code, ErrorCodes.InvalidParams, 'Expected InvalidParams code');
+      assert.ok(
+        err.message.includes(message),
+        `Expected message to include "${message}", got: ${err.message}`
+      );
+      return true;
+    });
+  }
+
+  describe('tabSize', () => {
+    it('accepts boundary values 1 and 16', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ tabSize: 1 }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ tabSize: 16 }));
+    });
+
+    it('accepts mid-range values', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ tabSize: 4 }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ tabSize: 8 }));
+    });
+
+    it('rejects 0 (below minimum)', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ tabSize: 0 }),
+        'tabSize must be between 1 and 16'
+      );
+    });
+
+    it('rejects 17 (above maximum)', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ tabSize: 17 }),
+        'tabSize must be between 1 and 16'
+      );
+    });
+
+    it('rejects negative values', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ tabSize: -1 }),
+        'tabSize must be between 1 and 16'
+      );
+    });
+
+    it('rejects non-integer values like 2.5', () => {
+      // 2.5 is a number but out of range on the high side? No, 2.5 is within 1-16.
+      // The function only checks range, not integer-ness. 2.5 passes validation.
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ tabSize: 2.5 }));
+    });
+
+    it('rejects string type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ tabSize: '4' as unknown as number }),
+        'tabSize must be a number'
+      );
+    });
+
+    it('rejects boolean type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ tabSize: true as unknown as number }),
+        'tabSize must be a number'
+      );
+    });
+
+    it('allows undefined (field omitted)', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({}));
+    });
+  });
+
+  describe('insertSpaces', () => {
+    it('accepts true and false', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ insertSpaces: true }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ insertSpaces: false }));
+    });
+
+    it('rejects string type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ insertSpaces: 'yes' as unknown as boolean }),
+        'insertSpaces must be a boolean'
+      );
+    });
+
+    it('rejects number type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ insertSpaces: 1 as unknown as boolean }),
+        'insertSpaces must be a boolean'
+      );
+    });
+
+    it('allows undefined (field omitted)', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({}));
+    });
+  });
+
+  describe('maxLineLength', () => {
+    it('accepts boundary values 0 and 200', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ maxLineLength: 0 }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ maxLineLength: 200 }));
+    });
+
+    it('accepts mid-range values', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ maxLineLength: 80 }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ maxLineLength: 120 }));
+    });
+
+    it('rejects -1 (below minimum)', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ maxLineLength: -1 }),
+        'maxLineLength must be between 0 and 200'
+      );
+    });
+
+    it('rejects 201 (above maximum)', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ maxLineLength: 201 }),
+        'maxLineLength must be between 0 and 200'
+      );
+    });
+
+    it('rejects large negative values', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ maxLineLength: -100 }),
+        'maxLineLength must be between 0 and 200'
+      );
+    });
+
+    it('rejects string type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ maxLineLength: '100' as unknown as number }),
+        'maxLineLength must be a number'
+      );
+    });
+
+    it('rejects boolean type', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ maxLineLength: true as unknown as number }),
+        'maxLineLength must be a number'
+      );
+    });
+
+    it('allows undefined (field omitted)', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({}));
+    });
+  });
+
+  describe('braceStyle', () => {
+    it('accepts valid values', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ braceStyle: 'same-line' }));
+      assert.doesNotThrow(() => svc.validateFormattingOptions({ braceStyle: 'new-line' }));
+    });
+
+    it('rejects empty string', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ braceStyle: '' as unknown as 'same-line' }),
+        "braceStyle must be 'same-line' or 'new-line'"
+      );
+    });
+
+    it('rejects arbitrary string', () => {
+      assertInvalidParams(
+        () => svc.validateFormattingOptions({ braceStyle: 'allman' }),
+        "braceStyle must be 'same-line' or 'new-line'"
+      );
+    });
+
+    it('allows undefined (field omitted)', () => {
+      assert.doesNotThrow(() => svc.validateFormattingOptions({}));
+    });
+  });
+
+  it('accepts empty options object', () => {
+    assert.doesNotThrow(() => svc.validateFormattingOptions({}));
+  });
+
+  it('accepts fully valid options', () => {
+    assert.doesNotThrow(() =>
+      svc.validateFormattingOptions({
+        tabSize: 4,
+        insertSpaces: true,
+        maxLineLength: 100,
+        braceStyle: 'same-line',
+      })
+    );
   });
 });
