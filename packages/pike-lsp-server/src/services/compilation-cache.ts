@@ -201,7 +201,6 @@ export class CompilationCache<TResult> {
 
     return cache;
 
-    return cache;
   }
 
   private invalidateSingle(uri: string): boolean {
