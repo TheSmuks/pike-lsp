@@ -6,6 +6,7 @@
  * getWaterfallSymbols methods for comprehensive module tracking.
  */
 
+import { computeContentHash } from './document-cache.js';
 import type {
   ExtractedImport,
   ResolveImportResult,
@@ -125,7 +126,7 @@ export class ModuleContext {
     maxDepth: number = 5
   ): Promise<WaterfallSymbolsResult> {
     // Create content hash for cache key (simple hash for change detection)
-    const contentHash = this.hashContent(content);
+    const contentHash = computeContentHash(content);
     const cacheKey = `${uri}:${maxDepth}`;
 
     // Check cache first
@@ -164,19 +165,6 @@ export class ModuleContext {
     } finally {
       this.waterfallPending.delete(cacheKey);
     }
-  }
-
-  /**
-   * Simple hash function for content change detection.
-   */
-  private hashContent(content: string): string {
-    // Simple DJB2 hash for fast content fingerprinting
-    let hash = 5381;
-    for (let i = 0; i < content.length; i++) {
-      hash = (hash << 5) + hash + content.charCodeAt(i);
-      hash |= 0; // Convert to 32-bit integer
-    }
-    return hash.toString(36);
   }
 
   /**
