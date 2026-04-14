@@ -111,6 +111,8 @@ describe('Implementation Provider', () => {
         bridge: null,
         logger: { debug: () => {}, error: () => {} },
         stdlibIndex: null,
+        workspaceIndex: { getAllDocumentUris: () => [] },
+        workspaceScanner: { getAllFiles: () => [] },
       };
 
       registerImplementationHandler(mockConnection, mockServices, mockDocuments);
@@ -147,6 +149,8 @@ describe('Implementation Provider', () => {
         bridge: null,
         logger: { debug: () => {}, error: () => {} },
         stdlibIndex: null,
+        workspaceIndex: { getAllDocumentUris: () => [] },
+        workspaceScanner: { getAllFiles: () => [] },
       };
 
       registerImplementationHandler(mockConnection, mockServices, mockDocuments);
@@ -188,6 +192,8 @@ describe('Implementation Provider', () => {
         bridge: null,
         logger: { debug: () => {}, error: () => {} },
         stdlibIndex: null,
+        workspaceIndex: { getAllDocumentUris: () => [] },
+        workspaceScanner: { getAllFiles: () => [] },
       };
 
       registerImplementationHandler(mockConnection, mockServices, mockDocuments);
@@ -217,6 +223,8 @@ describe('Implementation Provider', () => {
         bridge: null,
         logger: { debug: () => {}, error: () => {} },
         stdlibIndex: null,
+        workspaceIndex: { getAllDocumentUris: () => [] },
+        workspaceScanner: { getAllFiles: () => [] },
       };
 
       registerImplementationHandler(mockConnection, mockServices, mockDocuments);
@@ -238,6 +246,8 @@ describe('Implementation Provider', () => {
         bridge: null,
         logger: { debug: () => {}, error: () => {} },
         stdlibIndex: null,
+        workspaceIndex: { getAllDocumentUris: () => [] },
+        workspaceScanner: { getAllFiles: () => [] },
       };
 
       registerImplementationHandler(mockConnection, mockServices, mockDocuments);
