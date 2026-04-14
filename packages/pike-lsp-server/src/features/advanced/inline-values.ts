@@ -234,9 +234,9 @@ function extractValueExpr(
     raw += '\n' + lines[endLine]!.slice(0, declEnd.character);
   }
 
-  // Strip leading = and trailing ; whitespace
+  // Strip leading whitespace, =, and trailing ; whitespace
   const trimmed = raw
-    .replace(/^=\s*/, '')
+    .replace(/^\s*=\s*/, '')
     .replace(/\s*;\s*$/, '')
     .trim();
   return trimmed.length > 0 ? trimmed : null;

@@ -172,10 +172,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 9 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 selectionRange: {
-                  start: { line: 0, character: 8 },
-                  end: { line: 0, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -209,8 +209,8 @@ describe('Inline Values Provider', () => {
                     name: 'localVar',
                     range: { start: { line: 1, character: 6 }, end: { line: 1, character: 21 } },
                     selectionRange: {
-                      start: { line: 1, character: 14 },
-                      end: { line: 1, character: 21 },
+                      start: { line: 1, character: 6 },
+                      end: { line: 1, character: 14 },
                     },
                   },
                 ],
@@ -236,9 +236,8 @@ describe('Inline Values Provider', () => {
       const { registerInlineValuesHandler } =
         await import('../../features/advanced/inline-values.js');
 
-      // int x = 42;  → selectionRange end at '42' start, range end at ';'
+      // int x = 42;  → selectionRange covers 'x' (chars 4-5), range end at ';'
       const code = 'int x = 42;';
-
       const services: MockServices = {
         globalSettings: { inlineValues: { enabled: true } },
         documentCache: {
@@ -248,10 +247,10 @@ describe('Inline Values Provider', () => {
                 kind: 'variable',
                 name: 'x',
                 // LSP Range positions are 0-indexed: line 0 = first line
-                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 selectionRange: {
-                  start: { line: 0, character: 8 },
-                  end: { line: 0, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -261,6 +260,7 @@ describe('Inline Values Provider', () => {
         bridge: {
           bridge: {
             async evaluateConstant(expr: string) {
+              assert.strictEqual(expr, '42', `Expected expression "42", got "${expr}"`);
               return { success: true, value: 42, type: 'int' };
             },
           },
@@ -358,8 +358,8 @@ describe('Inline Values Provider', () => {
                 // LSP 0-indexed: lines 0-2 for the 3-line code
                 range: { start: { line: 0, character: 4 }, end: { line: 2, character: 3 } },
                 selectionRange: {
-                  start: { line: 0, character: 8 },
-                  end: { line: 0, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -410,7 +410,7 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 // No selectionRange
               },
             ],
@@ -456,10 +456,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: '_x',
-                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 13 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
                 selectionRange: {
-                  start: { line: 0, character: 8 },
-                  end: { line: 0, character: 10 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 6 },
                 },
                 modifiers: ['private'],
               },
@@ -506,10 +506,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 5, character: 4 }, end: { line: 5, character: 12 } },
+                range: { start: { line: 5, character: 4 }, end: { line: 5, character: 11 } },
                 selectionRange: {
-                  start: { line: 5, character: 8 },
-                  end: { line: 5, character: 9 },
+                  start: { line: 5, character: 4 },
+                  end: { line: 5, character: 5 },
                 },
               },
             ],
@@ -558,10 +558,10 @@ describe('Inline Values Provider', () => {
             {
               kind: 'variable',
               name: 'x',
-              range: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
+              range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
               selectionRange: {
-                start: { line: 0, character: 8 },
-                end: { line: 0, character: 9 },
+                start: { line: 0, character: 4 },
+                end: { line: 0, character: 5 },
               },
             },
           ],
@@ -571,6 +571,7 @@ describe('Inline Values Provider', () => {
       bridge: {
         bridge: {
           async evaluateConstant(expr: string) {
+            assert.strictEqual(expr, '42', `Expected expression "42", got "${expr}"`);
             return { success: true, value: 42, type: 'int' };
           },
         },
