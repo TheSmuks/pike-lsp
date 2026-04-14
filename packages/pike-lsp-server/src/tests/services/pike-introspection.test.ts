@@ -189,3 +189,93 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
     }
   });
 });
+
+describe('PikeIntrospectionService - Phase 2 supplement', () => {
+  it('finds contiguous subsequence matches via Phase 2 even when Phase 1 finds prefix hits', async () => {
+    const modules = [
+      {
+        path: 'Mod1',
+        symbols: new Map<string, IntrospectedSymbol>([
+          ['prefix_func', makeSymbol('prefix_func', 'function')],
+        ]),
+      },
+      {
+        path: 'Mod2',
+        symbols: new Map<string, IntrospectedSymbol>([
+          ['fxMatch', makeSymbol('fxMatch', 'function')],
+        ]),
+      },
+    ];
+    const stdlibIndex = createMockStdlibIndex(modules);
+    const services = createMockServices();
+    const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
+
+    // 'fx' matches 'prefix_func' via subsequence in Phase 2,
+    // but NOT via prefix in Phase 1 (since 'prefix_func' does not start with 'fx').
+    // It also does NOT match 'fxMatch' via prefix ('fxMatch' starts with 'fx', so Phase 1 picks it up).
+    const results = await svc.searchImportableSymbols('fx');
+    const symbols = results.map(r => r.symbol);
+    expect(symbols).toContain('prefix_func');
+    expect(symbols).toContain('fxMatch');
+  });
+
+  it('Phase 2 deduplicates against Phase 1 results', async () => {
+    const modules = [
+      {
+        path: 'Mod1',
+        symbols: new Map<string, IntrospectedSymbol>([
+          ['read', makeSymbol('read', 'function')],
+        ]),
+      },
+    ];
+    const stdlibIndex = createMockStdlibIndex(modules);
+    const services = createMockServices();
+    const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
+
+    // 'read' matches via Phase 1 (exact index hit) AND Phase 2 (fuzzy exact).
+    // Should appear exactly once.
+    const results = await svc.searchImportableSymbols('read');
+    const readCount = results.filter(r => r.symbol === 'read').length;
+    expect(readCount).toBe(1);
+  });
+});
+
+describe('PikeIntrospectionService - index deduplication', () => {
+  it('does not duplicate index entries when a module is re-fetched after cache eviction', async () => {
+    const symbols = new Map<string, IntrospectedSymbol>([
+      ['alpha', makeSymbol('alpha', 'function')],
+      ['beta', makeSymbol('beta', 'function')],
+    ]);
+    let callCount = 0;
+    const stdlibIndex = {
+      getAvailableModules: () => ['TestModule'],
+      getModule: async (_path: string) => {
+        callCount++;
+        return { symbols: new Map(symbols), path: 'TestModule' };
+      },
+    };
+    const services = createMockServices();
+    const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
+
+    // First search populates cache and index
+    await svc.searchImportableSymbols('alpha');
+    expect(callCount).toBe(1);
+
+    // Invalidate cache (but NOT the index — simulates selective eviction)
+    // We can't access stdlibSymbolIndex directly, but we can invalidate stdlibSymbolCache
+    // by clearing it via the public method, then search again
+    svc.invalidateStdlibCache();
+    await svc.searchImportableSymbols('alpha');
+    expect(callCount).toBe(2);
+
+    // Third search after another invalidation — would duplicate without dedup guard
+    svc.invalidateStdlibCache();
+    await svc.searchImportableSymbols('alpha');
+    expect(callCount).toBe(3);
+
+    // Verify results are not duplicated
+    const results = await svc.searchImportableSymbols('alpha');
+    const alphaCount = results.filter(r => r.symbol === 'alpha').length;
+    expect(alphaCount).toBe(1);
+  });
+});

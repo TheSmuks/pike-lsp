@@ -362,7 +362,10 @@ export class PikeIntrospectionService {
             bucket = [];
             this.stdlibSymbolIndex.set(key, bucket);
           }
-          bucket.push({ modulePath, name, kind: sym.kind });
+          // Avoid duplicates when a module is re-fetched after cache eviction
+          if (!bucket.some(e => e.modulePath === modulePath && e.name === name)) {
+            bucket.push({ modulePath, name, kind: sym.kind });
+          }
         }
       }
     }
@@ -395,16 +398,20 @@ export class PikeIntrospectionService {
       }
     }
 
-    // Phase 2: fallback — fuzzy score only if no index hits
-    if (candidates.length === 0) {
+    // Phase 2: supplement with fuzzy scoring for non-prefix/substring matches
+    {
       for (const modulePath of searchPaths) {
         const symbols = this.stdlibSymbolCache.get(modulePath);
         if (!symbols) continue;
 
         for (const [name, symbolInfo] of symbols) {
+          const cacheKey = `${name}:${modulePath}`;
+          if (visited.has(cacheKey)) continue;
+
           const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
           if (matchScore === 0) continue;
 
+          visited.add(cacheKey);
           const importKind: 'import' | 'inherit' =
             symbolInfo.kind === 'class' ? 'inherit' : 'import';
           const kindBoost = importKind === 'inherit' ? 15 : 10;
