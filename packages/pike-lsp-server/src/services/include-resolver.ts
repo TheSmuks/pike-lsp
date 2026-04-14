@@ -99,22 +99,24 @@ export class IncludeResolver {
   }
 
   /**
-   * Resolve a single include path using bridge.resolveInclude()
-   * and parse symbols via BridgeManager.parseFileSymbols().
+   * Shared resolve-then-parse-then-cache flow.
    *
-   * Checks the include path index for already-resolved dependencies
-   * before making bridge calls.
+   * Resolves a path via bridge.resolveInclude(), checks the include
+   * path index for a previous result, parses symbols on miss, and
+   * caches the entry. Returns null if the bridge is unavailable or
+   * the path does not exist.
    */
-  private async resolveSingleInclude(
-    includePath: string,
-    currentUri: string
+  private async resolveAndParse(
+    path: string,
+    currentUri: string,
+    logLabel: string
   ): Promise<ResolvedInclude | null> {
     if (!this.bridge?.bridge) {
       return null;
     }
 
     try {
-      const result = await this.bridge.bridge.resolveInclude(includePath, currentUri);
+      const result = await this.bridge.bridge.resolveInclude(path, currentUri);
 
       if (!result.exists || !result.path) {
         return null;
@@ -122,13 +124,11 @@ export class IncludeResolver {
 
       const normalizedPath = this.normalizeFilePath(result.path);
 
-      // Check if another document already resolved this include
       const cached = this.findCachedInclude(normalizedPath);
       if (cached) {
         return cached;
       }
 
-      // Parse the included file via bridge API
       const symbols = await this.bridge.parseFileSymbols(normalizedPath);
 
       const resolved: ResolvedInclude = {
@@ -142,8 +142,8 @@ export class IncludeResolver {
 
       return resolved;
     } catch (err) {
-      this.logger.debug('Include resolution failed', {
-        includePath,
+      this.logger.debug(`${logLabel} failed`, {
+        path,
         error: err instanceof Error ? err.message : String(err),
       });
       return null;
@@ -151,57 +151,34 @@ export class IncludeResolver {
   }
 
   /**
-   * Resolve a workspace import path using bridge.resolveInclude()
-   * and parse symbols via BridgeManager.parseFileSymbols().
+   * Resolve a single include path and return a ResolvedInclude.
+   */
+  private async resolveSingleInclude(
+    includePath: string,
+    currentUri: string
+  ): Promise<ResolvedInclude | null> {
+    return this.resolveAndParse(includePath, currentUri, 'Include resolution');
+  }
+
+  /**
+   * Resolve a workspace import path and return symbols + resolved path.
    */
   private async resolveWorkspaceImport(
     modulePath: string,
     currentUri: string
   ): Promise<{ symbols: PikeSymbol[]; resolvedPath: string } | null> {
-    if (!this.bridge?.bridge) {
+    const resolved = await this.resolveAndParse(
+      modulePath,
+      currentUri,
+      'Workspace import resolution'
+    );
+    if (!resolved) {
       return null;
     }
-
-    try {
-      const result = await this.bridge.bridge.resolveInclude(modulePath, currentUri);
-
-      if (!result.exists || !result.path) {
-        return null;
-      }
-
-      const normalizedPath = this.normalizeFilePath(result.path);
-
-      // Check if another document already resolved this include
-      const cached = this.findCachedInclude(normalizedPath);
-      if (cached) {
-        return {
-          symbols: cached.symbols,
-          resolvedPath: normalizedPath,
-        };
-      }
-
-      const symbols = await this.bridge.parseFileSymbols(normalizedPath);
-
-      const resolved: ResolvedInclude = {
-        originalPath: result.originalPath,
-        resolvedPath: normalizedPath,
-        symbols,
-        lastModified: Date.now(),
-      };
-
-      this.includePathIndex.set(normalizedPath, resolved);
-
-      return {
-        symbols,
-        resolvedPath: normalizedPath,
-      };
-    } catch (err) {
-      this.logger.debug('Workspace import resolution failed', {
-        modulePath,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    }
+    return {
+      symbols: resolved.symbols,
+      resolvedPath: resolved.resolvedPath,
+    };
   }
 
   /**
