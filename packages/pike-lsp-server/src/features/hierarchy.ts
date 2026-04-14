@@ -156,10 +156,10 @@ export function registerHierarchyHandlers(
 
     // Include uncached files from workspace scanner
     const scanner = services.workspaceScanner as unknown as {
-      getUncachedFiles?: () => Array<{ uri: string }>;
+      getUncachedFiles?: (cachedUris: Set<string>) => Array<{ uri: string }>;
     };
     if (scanner?.getUncachedFiles) {
-      for (const file of scanner.getUncachedFiles()) {
+      for (const file of scanner.getUncachedFiles(uris)) {
         uris.add(file.uri);
       }
     }
