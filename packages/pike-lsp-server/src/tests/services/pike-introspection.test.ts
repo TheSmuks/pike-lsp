@@ -188,4 +188,35 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
       expect(r.source).toBe('stdlib-index');
     }
   });
+
+  describe('name index optimization', () => {
+    it('still finds subsequence-only matches via fuzzy fallback', async () => {
+      const { svc } = createService();
+      // 'rBy' is a subsequence of 'readBytes' but not a prefix
+      const results = await svc.searchImportableSymbols('rBy');
+      const symbols = results.map(r => r.symbol);
+      expect(symbols).toContain('readBytes');
+    });
+
+    it('exact and prefix matches produce correct scores after index build', async () => {
+      const { svc } = createService();
+      // Warm the index
+      await svc.searchImportableSymbols('read');
+      // Now query again — should use index
+      const results = await svc.searchImportableSymbols('read');
+      const readResult = results.find(r => r.symbol === 'read');
+      const readBytesResult = results.find(r => r.symbol === 'readBytes');
+      expect(readResult).toBeDefined();
+      expect(readBytesResult).toBeDefined();
+      expect(readResult!.score).toBeGreaterThan(readBytesResult!.score);
+    });
+
+    it('finds same symbols after cache invalidation and rebuild', async () => {
+      const { svc } = createService();
+      const before = await svc.searchImportableSymbols('sort');
+      svc.invalidateStdlibCache();
+      const after = await svc.searchImportableSymbols('sort');
+      expect(before.map(r => r.symbol)).toEqual(after.map(r => r.symbol));
+    });
+  });
 });

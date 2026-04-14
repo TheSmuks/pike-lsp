@@ -36,7 +36,11 @@ export class PikeIntrospectionService {
   /** Cached symbol lists per stdlib module, populated on first search. */
   private stdlibSymbolCache = new LRUCache<string, Map<string, IntrospectedSymbol>>(100);
 
-  /** Inverted index: lowercase symbol name → entries keyed by modulePath. */
+  /**
+   * Inverted index: lowercase symbol name → entries keyed by modulePath.
+   * Built alongside stdlibSymbolCache to avoid O(modules × symbols) scans.
+   * Cleared by invalidateStdlibCache().
+   */
   private stdlibSymbolIndex = new Map<
     string,
     Array<{ modulePath: string; name: string; kind: string }>
@@ -348,7 +352,7 @@ export class PikeIntrospectionService {
 
     const searchPaths = this.stdlibIndex.getAvailableModules();
 
-    // Populate cache + index for any modules not yet loaded
+    // Populate cache and name index for any modules not yet loaded
     for (const modulePath of searchPaths) {
       if (this.stdlibSymbolCache.has(modulePath)) continue;
       const moduleInfo = await this.stdlibIndex.getModule(modulePath);
@@ -367,9 +371,8 @@ export class PikeIntrospectionService {
       }
     }
 
-    const candidates: ImportableSymbolCandidate[] = [];
     const qLower = query.toLowerCase();
-
+    const candidates: ImportableSymbolCandidate[] = [];
     // Phase 1: exact + prefix lookup via inverted index
     const visited = new Set<string>();
     for (const [indexKey, entries] of this.stdlibSymbolIndex) {
@@ -395,7 +398,7 @@ export class PikeIntrospectionService {
       }
     }
 
-    // Phase 2: fallback — fuzzy score only if no index hits
+    // Phase 2: Fuzzy scan only if index found nothing (e.g. subsequence match)
     if (candidates.length === 0) {
       for (const modulePath of searchPaths) {
         const symbols = this.stdlibSymbolCache.get(modulePath);
@@ -407,13 +410,14 @@ export class PikeIntrospectionService {
 
           const importKind: 'import' | 'inherit' =
             symbolInfo.kind === 'class' ? 'inherit' : 'import';
+          const exactBoost = name.toLowerCase() === qLower ? 130 : 0;
           const kindBoost = importKind === 'inherit' ? 15 : 10;
 
           candidates.push({
             symbol: name,
             modulePath,
             importKind,
-            score: kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
+            score: exactBoost + kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
             source: 'stdlib-index',
           });
         }
@@ -422,6 +426,7 @@ export class PikeIntrospectionService {
 
     return candidates;
   }
+
 
   private mergeCandidates(
     workspaceCandidates: Array<{
