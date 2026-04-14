@@ -11,6 +11,7 @@ import type { RequestScheduler } from './request-scheduler.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { BridgeManager } from './bridge-manager.js';
 import { uriToFsPath } from '../utils/uri-path.js';
+import { convertSeverity } from '../features/diagnostics/utils.js';
 
 const log = new Logger('WorkspaceDiagnostics');
 
@@ -241,7 +242,7 @@ export class WorkspaceDiagnosticsManager {
             const rawDiagnostics = result.value.result?.diagnostics?.diagnostics ?? [];
 
             if (rawDiagnostics.length > 0) {
-              // Map UninitializedVariableDiagnostic → CoreDiagnostic
+              // Map bridge diagnostics → CoreDiagnostic, preserving severity.
               // Bridge returns position (point), CoreDiagnostic requires range (span).
               const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
                 range: {
@@ -249,7 +250,7 @@ export class WorkspaceDiagnosticsManager {
                   end: { line: d.position.line, character: d.position.character },
                 },
                 message: d.message,
-                severity: 2, // Warning
+                severity: d.severity ? convertSeverity(d.severity) : 2,
                 source: 'pike-background',
               }));
               this.sendDiagnostics({ uri, diagnostics });
