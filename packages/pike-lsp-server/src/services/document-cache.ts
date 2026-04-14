@@ -12,6 +12,18 @@ import { Logger } from '@pike-lsp/core';
 const log = new Logger('DocumentCache');
 
 /**
+ * FNV-1a 32-bit hash — single canonical implementation.
+ */
+function fnv1a(str: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+/**
  * PERF-1229: Compute FNV-1a hash of document content.
  * Non-cryptographic but sufficient for change detection and ~5× faster than SHA-256.
  *
@@ -19,12 +31,7 @@ const log = new Logger('DocumentCache');
  * @returns Hex-encoded FNV-1a hash
  */
 export function computeContentHash(content: string): string {
-  let hash = 2166136261; // FNV offset basis (32-bit)
-  for (let i = 0; i < content.length; i++) {
-    hash ^= content.charCodeAt(i);
-    hash = Math.imul(hash, 16777619); // FNV prime
-  }
-  return (hash >>> 0).toString(16).padStart(8, '0');
+  return fnv1a(content).toString(16).padStart(8, '0');
 }
 
 /**
@@ -59,20 +66,7 @@ export function stripLineComments(line: string): string {
 
 export function computeSemanticLineHash(line: string): number {
   const semantic = stripLineComments(line.trim());
-  return simpleHash(semantic);
-}
-
-/**
- * INC-002: Simple string hash for quick line comparison.
- * Uses FNV-1a algorithm for fast hashing.
- */
-function simpleHash(str: string): number {
-  let hash = 2166136261; // FNV offset basis
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 16777619); // FNV prime
-  }
-  return hash >>> 0; // Convert to unsigned 32-bit
+  return fnv1a(semantic);
 }
 
 /**
