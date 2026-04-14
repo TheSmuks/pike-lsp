@@ -18,7 +18,6 @@ function stripTrailingSlash(value: string): string {
 
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import type { PikeSettings } from '../core/types.js';
 import type { IntrospectedSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 
@@ -72,10 +71,7 @@ export class WorkspaceScanner {
   private scanPending: boolean = false;
   private initialized: boolean = false;
 
-  constructor(
-    private readonly logger: Logger,
-    _getSettings: () => PikeSettings
-  ) {}
+  constructor(private readonly logger: Logger) {}
 
   /**
    * Initialize the workspace scanner with workspace folders.
