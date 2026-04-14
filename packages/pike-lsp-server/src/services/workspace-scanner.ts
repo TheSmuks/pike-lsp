@@ -18,7 +18,7 @@ function stripTrailingSlash(value: string): string {
 
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import type { IntrospectedSymbol, PikeToken } from '@pike-lsp/pike-bridge';
+import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 
 /**
@@ -288,49 +288,6 @@ export class WorkspaceScanner {
 
   removeFile(uri: string): void {
     this.files.delete(uri);
-  }
-
-  /**
-   * Search for symbol references across workspace files.
-   * Returns URIs of files that contain the symbol name.
-   *
-   * For files with cached symbols, checks those directly.
-   * For uncached files, reads content and uses the provided tokenize
-   * function to find identifier tokens matching the symbol name.
-   */
-  async searchSymbol(
-    symbolName: string,
-    options: {
-      tokenize?: (content: string, filePath: string) => Promise<PikeToken[]>;
-    } = {}
-  ): Promise<string[]> {
-    const matchingFiles: string[] = [];
-
-    for (const [uri, file] of this.files) {
-      // Check cached symbols first (fast path)
-      if (file.symbols) {
-        if (file.symbols.some((s: IntrospectedSymbol) => s.name === symbolName)) {
-          matchingFiles.push(uri);
-        }
-        continue;
-      }
-
-      // For uncached files, tokenize and check identifier tokens
-      if (options.tokenize) {
-        try {
-          const filePath = file.normalizedPath;
-          const content = await fs.readFile(filePath, 'utf-8');
-          const tokens = await options.tokenize(content, filePath);
-          const hasMatch = tokens.some(t => t.text === symbolName);
-          if (hasMatch) {
-            matchingFiles.push(uri);
-          }
-        } catch {
-          // File may have been deleted or unreadable; skip
-        }
-      }
-    }
-    return matchingFiles;
   }
 
   /**
