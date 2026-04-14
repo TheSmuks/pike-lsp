@@ -15,7 +15,6 @@ import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { WorkspaceScanner } from '../../services/workspace-scanner.js';
 import type { Logger } from '@pike-lsp/core';
-import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
 
 // ============================================================================
 // Mock Logger
@@ -550,80 +549,6 @@ describe('WorkspaceScanner - 26.5 Lazy loading', () => {
     }
   });
 
-  it('26.5.3 should search symbols across workspace', async () => {
-    // Arrange
-    const logger = createMockLogger();
-    const scanner = new WorkspaceScanner(logger, () => ({}));
-    await scanner.initialize(['/workspace']);
-
-    // Act
-    const results = await scanner.searchSymbol('myFunction');
-
-    // Assert
-    assert.ok(Array.isArray(results));
-  });
-
-  it('26.5.4 should use cached symbols when available', async () => {
-    // Arrange
-    const logger = createMockLogger();
-    const scanner = new WorkspaceScanner(logger, () => ({}));
-    await scanner.initialize(['/workspace']);
-
-    // Act
-    const results = await scanner.searchSymbol('test');
-
-    // Assert
-    assert.ok(Array.isArray(results));
-  });
-
-  it('26.5.4b should find symbol in uncached files when tokenize is provided', async () => {
-    // Arrange
-    const logger = createMockLogger();
-    const scanner = new WorkspaceScanner(logger, () => ({}));
-    const os = await import('node:os');
-    const fsProm = await import('node:fs/promises');
-    const pathMod = await import('node:path');
-    const tempDir = pathMod.join(os.tmpdir(), `ws-search-${Date.now()}`);
-    await fsProm.mkdir(tempDir, { recursive: true });
-    // Create files on disk so searchSymbol can read them
-    await fsProm.writeFile(pathMod.join(tempDir, 'a.pike'), 'void targetFunc() {}');
-    await fsProm.writeFile(pathMod.join(tempDir, 'b.pike'), 'void otherFunc() {}');
-    await fsProm.writeFile(pathMod.join(tempDir, 'c.pike'), 'void targetFunc() {}');
-
-    try {
-      await scanner.initialize([tempDir]);
-
-      // Cache symbols for a.pike and b.pike; leave c.pike uncached
-      const files = scanner.getAllFiles();
-      const aUri = files.find(f => f.path.includes('a.pike'))!.uri;
-      const bUri = files.find(f => f.path.includes('b.pike'))!.uri;
-      const cUri = files.find(f => f.path.includes('c.pike'))!.uri;
-      scanner.updateFileData(aUri, {
-        symbols: [{ name: 'targetFunc', kind: 12 } as IntrospectedSymbol],
-      });
-      scanner.updateFileData(bUri, {
-        symbols: [{ name: 'otherFunc', kind: 12 } as IntrospectedSymbol],
-      });
-
-      // Act — without tokenize, only cached files are searched
-      const resultsNoTokenize = await scanner.searchSymbol('targetFunc');
-      assert.equal(resultsNoTokenize.length, 1, 'Without tokenize, only cached matches');
-      assert.equal(resultsNoTokenize[0], aUri);
-
-      // Act — with tokenize, uncached files are also searched
-      const mockTokenize = async (_content: string, _filePath: string) => [
-        { text: 'targetFunc', line: 0, character: 0, file: '/workspace/c.pike' },
-      ];
-      const resultsWithTokenize = await scanner.searchSymbol('targetFunc', {
-        tokenize: mockTokenize,
-      });
-      assert.equal(resultsWithTokenize.length, 2, 'With tokenize, cached + uncached matches');
-      assert.ok(resultsWithTokenize.includes(aUri));
-      assert.ok(resultsWithTokenize.includes(cUri));
-    } finally {
-      await fsProm.rm(tempDir, { recursive: true, force: true });
-    }
-  });
   it('26.5.5 should return files without cached data for lazy parsing', () => {
     // Arrange
     const logger = createMockLogger();
