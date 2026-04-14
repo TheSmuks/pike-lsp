@@ -9,7 +9,7 @@
 import { describe, it, expect, test, beforeEach } from 'bun:test';
 import { SymbolKind, DocumentSymbol } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
 import { invalidateCache } from '../../features/roxen/index.js';
 import { registerDocumentSymbolHandler } from '../../features/navigation/document-symbol.js';
@@ -125,51 +125,57 @@ describe('Document Symbol Provider', () => {
 
   describe('Symbol detail', () => {
     it('should format returnType with argTypes', () => {
-      const symbol = {
+      const symbol: PikeMethod = {
         name: 'add',
-        kind: 'method' as const,
+        kind: 'method',
         modifiers: [],
-        returnType: { name: 'int' },
-        argTypes: [{ name: 'int' }, { name: 'string' }],
-      } as unknown as PikeSymbol;
+        argNames: ['a', 'b'],
+        returnType: { kind: 'name', name: 'int' },
+        argTypes: [
+          { kind: 'name', name: 'int' },
+          { kind: 'name', name: 'string' },
+        ],
+      };
 
       const detail = getSymbolDetail(symbol);
       expect(detail).toBe('int(int, string)');
     });
 
-    it('should use mixed as default for missing returnType name', () => {
-      const symbol = {
+    it('should use kind as fallback for returnType without name', () => {
+      const symbol: PikeMethod = {
         name: 'func',
-        kind: 'method' as const,
+        kind: 'method',
         modifiers: [],
-        returnType: {},
-        argTypes: [{ name: 'int' }],
-      } as unknown as PikeSymbol;
+        argNames: ['a'],
+        returnType: { kind: 'int' },
+        argTypes: [{ kind: 'name', name: 'int' }],
+      };
 
       const detail = getSymbolDetail(symbol);
-      expect(detail).toBe('mixed(int)');
+      expect(detail).toBe('int(int)');
     });
 
-    it('should use mixed as default for missing argType names', () => {
-      const symbol = {
+    it('should use mixed for null argType entries', () => {
+      const symbol: PikeMethod = {
         name: 'func',
-        kind: 'method' as const,
+        kind: 'method',
         modifiers: [],
-        returnType: { name: 'void' },
-        argTypes: [null, { name: 'string' }],
-      } as unknown as PikeSymbol;
+        argNames: ['a', 'b'],
+        returnType: { kind: 'name', name: 'void' },
+        argTypes: [null, { kind: 'name', name: 'string' }],
+      };
 
       const detail = getSymbolDetail(symbol);
       expect(detail).toBe('void(mixed, string)');
     });
 
     it('should format type name for non-method symbols', () => {
-      const symbol = {
+      const symbol: PikeSymbol = {
         name: 'myVar',
-        kind: 'variable' as const,
+        kind: 'variable',
         modifiers: [],
-        type: { name: 'int' },
-      } as unknown as PikeSymbol;
+        type: { kind: 'name', name: 'int' },
+      };
 
       const detail = getSymbolDetail(symbol);
       expect(detail).toBe('int');
@@ -182,29 +188,31 @@ describe('Document Symbol Provider', () => {
     });
 
     it('should add inheritance info with from', () => {
-      const symbol = {
+      const symbol: PikeMethod = {
         name: 'method',
-        kind: 'method' as const,
+        kind: 'method',
         modifiers: [],
+        argNames: [],
+        returnType: { kind: 'name', name: 'void' },
+        argTypes: [],
         inherited: true,
         inheritedFrom: 'BaseClass',
-        returnType: { name: 'void' },
-        argTypes: [],
-      } as unknown as PikeSymbol;
+      };
 
       const detail = getSymbolDetail(symbol);
       expect(detail).toBe('void() (from BaseClass)');
     });
 
     it('should add generic inherited marker without from', () => {
-      const symbol = {
+      const symbol: PikeMethod = {
         name: 'method',
-        kind: 'method' as const,
+        kind: 'method',
         modifiers: [],
-        inherited: true,
-        returnType: { name: 'void' },
+        argNames: [],
+        returnType: { kind: 'name', name: 'void' },
         argTypes: [],
-      } as unknown as PikeSymbol;
+        inherited: true,
+      };
 
       const detail = getSymbolDetail(symbol);
       expect(detail).toBe('void() (inherited)');

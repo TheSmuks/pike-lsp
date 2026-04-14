@@ -6,6 +6,7 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
+import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 import { SymbolKind } from 'vscode-languageserver/node.js';
 import { convertSymbolKind, getSymbolDetail } from '../../features/symbols.js';
 
@@ -59,101 +60,141 @@ describe('symbols', () => {
 
   describe('getSymbolDetail', () => {
     it('should format function signature with returnType and argTypes', () => {
-      const symbol = {
-        returnType: { name: 'int' },
-        argTypes: [{ name: 'string' }, { name: 'mixed' }],
+      const symbol: PikeMethod = {
+        name: 'foo',
+        kind: 'method',
+        modifiers: [],
+        argNames: ['a', 'b'],
+        returnType: { kind: 'name', name: 'int' },
+        argTypes: [
+          { kind: 'name', name: 'string' },
+          { kind: 'name', name: 'mixed' },
+        ],
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'int(string, mixed)');
     });
 
     it('should format function signature with empty argTypes', () => {
-      const symbol = {
-        returnType: { name: 'void' },
+      const symbol: PikeMethod = {
+        name: 'bar',
+        kind: 'method',
+        modifiers: [],
+        argNames: [],
+        returnType: { kind: 'name', name: 'void' },
         argTypes: [],
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'void()');
     });
 
-    it('should use mixed for missing argType names', () => {
-      const symbol = {
-        returnType: { name: 'int' },
-        argTypes: [{ name: 'string' }, {}],
+    it('should use mixed for null argType entries', () => {
+      const symbol: PikeMethod = {
+        name: 'baz',
+        kind: 'method',
+        modifiers: [],
+        argNames: ['a', 'b'],
+        returnType: { kind: 'name', name: 'int' },
+        argTypes: [{ kind: 'name', name: 'string' }, null],
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'int(string, mixed)');
     });
 
-    it('should use mixed for missing returnType name', () => {
-      const symbol = {
-        returnType: {},
-        argTypes: [{ name: 'string' }],
+    it('should use kind for returnType without name', () => {
+      const symbol: PikeMethod = {
+        name: 'qux',
+        kind: 'method',
+        modifiers: [],
+        argNames: ['a'],
+        returnType: { kind: 'int' },
+        argTypes: [{ kind: 'name', name: 'string' }],
       };
-      const result = getSymbolDetail(symbol as any);
-      assert.strictEqual(result, 'mixed(string)');
+      const result = getSymbolDetail(symbol);
+      assert.strictEqual(result, 'int(string)');
     });
 
-    it('should return type.name for symbol with type field', () => {
-      const symbol = {
-        type: { name: 'string' },
+    it('should return type name for symbol with PikeNameType', () => {
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
+        type: { kind: 'name', name: 'string' },
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'string');
     });
 
     it('should return undefined when no type info available', () => {
-      const symbol = {
+      const symbol: PikeSymbol = {
         name: 'myVar',
+        kind: 'variable',
+        modifiers: [],
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, undefined);
     });
 
     it('should add inherited info with from clause', () => {
-      const symbol = {
-        type: { name: 'int' },
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
+        type: { kind: 'name', name: 'int' },
         inherited: true,
         inheritedFrom: 'ParentClass',
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'int (from ParentClass)');
     });
 
     it('should add inherited info without from clause', () => {
-      const symbol = {
-        type: { name: 'int' },
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
+        type: { kind: 'name', name: 'int' },
         inherited: true,
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'int (inherited)');
     });
 
     it('should add conditional info with #if', () => {
-      const symbol = {
-        type: { name: 'int' },
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
+        type: { kind: 'name', name: 'int' },
         conditional: true,
         branch: 0,
         condition: 'CONFIG_DEBUG',
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'int  [#if CONFIG_DEBUG]');
     });
 
     it('should add conditional info with #elif', () => {
-      const symbol = {
-        type: { name: 'string' },
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
+        type: { kind: 'name', name: 'string' },
         conditional: true,
         branch: 1,
         condition: 'CONFIG_PROD',
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'string  [#elif CONFIG_PROD]');
     });
 
-    it('should combine inherited and conditional info', () => {
-      const symbol = {
-        returnType: { name: 'void' },
+    it('should combine inherited and conditional info on method', () => {
+      const symbol: PikeMethod = {
+        name: 'run',
+        kind: 'method',
+        modifiers: [],
+        argNames: [],
+        returnType: { kind: 'name', name: 'void' },
         argTypes: [],
         inherited: true,
         inheritedFrom: 'BaseClass',
@@ -161,17 +202,20 @@ describe('symbols', () => {
         branch: 0,
         condition: 'FEATURE_ENABLED',
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, 'void() (from BaseClass)  [#if FEATURE_ENABLED]');
     });
 
     it('should handle conditional only without type info', () => {
-      const symbol = {
+      const symbol: PikeSymbol = {
+        name: 'x',
+        kind: 'variable',
+        modifiers: [],
         conditional: true,
         branch: 0,
         condition: 'DEBUG',
       };
-      const result = getSymbolDetail(symbol as any);
+      const result = getSymbolDetail(symbol);
       assert.strictEqual(result, '[#if DEBUG]');
     });
   });
