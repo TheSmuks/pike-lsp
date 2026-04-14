@@ -576,12 +576,12 @@ describe('IncludeResolver - 30.5 Workspace import cache', () => {
         resolveStdlib: async () => ({ found: 0 }),
       },
       async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
-        return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
       },
     };
     const resolver = new IncludeResolver(bridge as never, createMockLogger());
 
-    await resolver.resolveDependencies('file:///test.pike', [
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
       { name: 'LocalModule', kind: 'import' as const } as PikeSymbol,
     ]);
 
@@ -603,7 +603,7 @@ describe('IncludeResolver - 30.5 Workspace import cache', () => {
       },
       async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
         parseCallCount++;
-        return [{ name: `symbol_from_${filePath}`, kind: 'variable' as const }];
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
       },
     };
     const resolver = new IncludeResolver(bridge as never, createMockLogger());
@@ -622,5 +622,525 @@ describe('IncludeResolver - 30.5 Workspace import cache', () => {
     assert.equal(parseCallCount, 1, 'cached resolution should not call parseFileSymbols again');
     assert.equal(deps.includes.length, 1);
     assert.equal(deps.includes[0]!.resolvedPath, '/mock/path/shared.h');
+  });
+});
+
+// ============================================================================
+// normalizeFilePath edge cases
+// ============================================================================
+
+describe('IncludeResolver - normalizeFilePath', () => {
+  it('should strip file:// prefix', async () => {
+    let resolvePath: string | null = null;
+    const bridge = {
+      bridge: {
+        resolveInclude: async (_includePath: string, _currentUri: string) => {
+          resolvePath = 'file:///tmp/my%20file.h';
+          return {
+            exists: true,
+            path: 'file:///tmp/my%20file.h',
+            originalPath: '"my file.h"',
+          };
+        },
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"my file.h"'),
+    ]);
+
+    assert.equal(deps.includes.length, 1);
+    // file:// prefix should be stripped, percent-encoded spaces decoded
+    assert.equal(deps.includes[0]!.resolvedPath, '/tmp/my file.h');
+  });
+
+  it('should decode percent-encoded paths', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/tmp/path%20with%20spaces%2Fslash%26amp.h',
+          originalPath: '"encoded.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"encoded.h"'),
+    ]);
+
+    assert.equal(deps.includes.length, 1);
+    assert.equal(deps.includes[0]!.resolvedPath, '/tmp/path with spaces/slash&amp.h');
+  });
+
+  it('should handle paths without file:// prefix', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/usr/local/include/stddef.h',
+          originalPath: '<stddef.h>',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('<stddef.h>'),
+    ]);
+
+    assert.equal(deps.includes.length, 1);
+    assert.equal(deps.includes[0]!.resolvedPath, '/usr/local/include/stddef.h');
+  });
+});
+
+// ============================================================================
+// Cache hit behavior
+// ============================================================================
+
+describe('IncludeResolver - Cache hit behavior', () => {
+  it('should return cached entry on second resolution without re-parsing', async () => {
+    let parseCallCount = 0;
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/cached/header.h',
+          originalPath: '"header.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        parseCallCount++;
+        return [{ name: 'cached_symbol', kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(parseCallCount, 1);
+
+    // Second resolution should hit cache and not call parseFileSymbols again
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(parseCallCount, 1);
+  });
+
+  it('should return same lastModified timestamp from cache', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/ts/header.h',
+          originalPath: '"header.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [{ name: 'x', kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps1 = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"header.h"'),
+    ]);
+    await new Promise(r => setTimeout(r, 10)); // small delay so Date.now() differs
+    const deps2 = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"header.h"'),
+    ]);
+
+    assert.equal(deps1.includes[0]!.lastModified, deps2.includes[0]!.lastModified);
+  });
+
+  it('should re-resolve after clear()', async () => {
+    let parseCallCount = 0;
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/re/header.h',
+          originalPath: '"header.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        parseCallCount++;
+        return [{ name: 're_symbol', kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(parseCallCount, 1);
+
+    resolver.clear();
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(parseCallCount, 2);
+  });
+});
+
+// ============================================================================
+// invalidate() with normalized paths
+// ============================================================================
+
+describe('IncludeResolver - invalidate normalization', () => {
+  it('should invalidate by file:// prefixed path', async () => {
+    const bridge = createMockBridge();
+    const resolver = new IncludeResolver(bridge, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"existing.h"')]);
+    assert.equal(resolver.getStats().cachedIncludes, 1);
+
+    resolver.invalidate('file:///mock/path/existing.h');
+    assert.equal(resolver.getStats().cachedIncludes, 0);
+  });
+
+  it('should invalidate by percent-encoded path', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/tmp/my%20file.h',
+          originalPath: '"my file.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        return [{ name: `sym_${filePath}`, kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"my file.h"')]);
+    assert.equal(resolver.getStats().cachedIncludes, 1);
+
+    // invalidate using the decoded form
+    resolver.invalidate('/tmp/my file.h');
+    assert.equal(resolver.getStats().cachedIncludes, 0);
+  });
+
+  it('should be a no-op when invalidating unknown path', async () => {
+    const bridge = createMockBridge();
+    const resolver = new IncludeResolver(bridge, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"existing.h"')]);
+    assert.equal(resolver.getStats().cachedIncludes, 1);
+
+    resolver.invalidate('/nonexistent/path.h');
+    assert.equal(resolver.getStats().cachedIncludes, 1);
+  });
+});
+
+// ============================================================================
+// getStats() accuracy
+// ============================================================================
+
+describe('IncludeResolver - getStats accuracy', () => {
+  it('should count totalSymbols across all cached includes', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async (includePath: string) => {
+          if (includePath.includes('three.h')) {
+            return { exists: true, path: '/a/three.h', originalPath: '"three.h"' };
+          }
+          return { exists: true, path: '/a/two.h', originalPath: '"two.h"' };
+        },
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
+        // three.h returns 3 symbols, two.h returns 2 symbols
+        const count = filePath.includes('three') ? 3 : 2;
+        return Array.from({ length: count }, (_, i) => ({
+          name: `sym${i}`,
+          kind: 'variable' as const,
+        }));
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"two.h"'),
+      includeSymbol('"three.h"'),
+    ]);
+
+    const stats = resolver.getStats();
+    assert.equal(stats.cachedIncludes, 2);
+    assert.equal(stats.totalSymbols, 5);
+  });
+
+  it('should update totalSymbols after clear and re-resolve', async () => {
+    let symbolCount = 3;
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/s/header.h',
+          originalPath: '"header.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return Array.from({ length: symbolCount }, (_, i) => ({
+          name: `sym${i}`,
+          kind: 'variable' as const,
+        }));
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(resolver.getStats().totalSymbols, 3);
+
+    symbolCount = 7;
+    resolver.clear();
+    await resolver.resolveDependencies('file:///test.pike', [includeSymbol('"header.h"')]);
+    assert.equal(resolver.getStats().totalSymbols, 7);
+  });
+});
+
+// ============================================================================
+// Bridge error handling
+// ============================================================================
+
+describe('IncludeResolver - Bridge error handling', () => {
+  it('should handle resolveInclude throwing an error', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => {
+          throw new Error('bridge process crashed');
+        },
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"crash.h"'),
+    ]);
+
+    assert.equal(deps.includes.length, 0);
+  });
+
+  it('should handle parseFileSymbols throwing an error', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/err/broken.h',
+          originalPath: '"broken.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        throw new Error('parse failed');
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"broken.h"'),
+    ]);
+
+    // parseFileSymbols error is caught inside resolveSingleInclude, returns null
+    assert.equal(deps.includes.length, 0);
+    assert.equal(resolver.getStats().cachedIncludes, 0);
+  });
+
+  it('should handle resolveStdlib throwing an error', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: false,
+          path: null,
+          originalPath: '"local.h"',
+        }),
+        resolveStdlib: async () => {
+          throw new Error('stdlib lookup failed');
+        },
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+    const symbols = [{ name: 'SomeModule', kind: 'import' as const }] as PikeSymbol[];
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', symbols);
+
+    // stdlib error should be caught; import treated as non-stdlib
+    assert.equal(deps.imports.length, 1);
+    assert.equal(deps.imports[0]!.isStdlib, false);
+  });
+
+  it('should continue resolving remaining includes after one throws', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async (includePath: string) => {
+          if (includePath.includes('fail.h')) {
+            throw new Error('boom');
+          }
+          return { exists: true, path: '/ok/good.h', originalPath: '"good.h"' };
+        },
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [{ name: 'good_sym', kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"fail.h"'),
+      includeSymbol('"good.h"'),
+    ]);
+
+    assert.equal(deps.includes.length, 1);
+    assert.equal(deps.includes[0]!.resolvedPath, '/ok/good.h');
+  });
+});
+
+// ============================================================================
+// Workspace import resolution
+// ============================================================================
+
+describe('IncludeResolver - Workspace import resolution', () => {
+  it('should resolve non-stdlib imports via bridge and parse symbols', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/workspace/LocalModule.pike',
+          originalPath: 'LocalModule',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [
+          { name: 'local_func', kind: 'function' as const },
+          { name: 'local_var', kind: 'variable' as const },
+        ];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+    const symbols = [{ name: 'LocalModule', kind: 'import' as const }] as PikeSymbol[];
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', symbols);
+
+    assert.equal(deps.imports.length, 1);
+    assert.equal(deps.imports[0]!.isStdlib, false);
+    assert.equal(deps.imports[0]!.resolvedPath, '/workspace/LocalModule.pike');
+    assert.equal(deps.imports[0]!.symbols!.length, 2);
+  });
+
+  it('should not resolve symbols for stdlib imports', async () => {
+    let parseCalled = false;
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/lib/Stdio.pike',
+          originalPath: 'Stdio',
+        }),
+        resolveStdlib: async () => ({ found: 1, symbols: [], path: '/lib/Stdio.pike' }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        parseCalled = true;
+        return [];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+    const symbols = [{ name: 'Stdio', kind: 'import' as const }] as PikeSymbol[];
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', symbols);
+
+    assert.equal(deps.imports.length, 1);
+    assert.equal(deps.imports[0]!.isStdlib, true);
+    assert.equal(deps.imports[0]!.symbols, undefined);
+    assert.equal(parseCalled, false);
+  });
+
+  it('should handle non-stdlib import that does not resolve', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: false,
+          path: null,
+          originalPath: 'MissingModule',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+    const symbols = [{ name: 'MissingModule', kind: 'import' as const }] as PikeSymbol[];
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', symbols);
+
+    assert.equal(deps.imports.length, 1);
+    assert.equal(deps.imports[0]!.isStdlib, false);
+    assert.equal(deps.imports[0]!.symbols, undefined);
+    assert.equal(deps.imports[0]!.resolvedPath, undefined);
+  });
+});
+
+// ============================================================================
+// getDependencySymbols
+// ============================================================================
+
+describe('IncludeResolver - getDependencySymbols', () => {
+  it('should return all symbols from resolved includes', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async (includePath: string) => ({
+          exists: true,
+          path: `/deps/${includePath}`,
+          originalPath: includePath,
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [
+          { name: 'a', kind: 'variable' as const },
+          { name: 'b', kind: 'function' as const },
+        ];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"first.h"'),
+      includeSymbol('"second.h"'),
+    ]);
+
+    const allSymbols = await resolver.getDependencySymbols(deps);
+    // 2 includes x 2 symbols each = 4 symbols
+    assert.equal(allSymbols.length, 4);
+  });
+
+  it('should return empty array for empty dependencies', async () => {
+    const resolver = new IncludeResolver(null, createMockLogger());
+
+    const symbols = await resolver.getDependencySymbols({ includes: [], imports: [] });
+    assert.equal(symbols.length, 0);
   });
 });
