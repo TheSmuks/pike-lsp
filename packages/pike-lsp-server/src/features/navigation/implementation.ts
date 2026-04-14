@@ -266,26 +266,12 @@ function getKnownUris(services: Services): string[] {
     uris.add(uri);
   }
 
-  const workspaceIndex = (
-    services as unknown as { workspaceIndex?: { getAllDocumentUris?: () => string[] } }
-  ).workspaceIndex as
-    | {
-        getAllDocumentUris?: () => string[];
-      }
-    | undefined;
-  const indexedUris = workspaceIndex?.getAllDocumentUris?.() ?? [];
+  const indexedUris = services.workspaceIndex.getAllDocumentUris();
   for (const uri of indexedUris) {
     uris.add(uri);
   }
 
-  const workspaceScanner = (
-    services as unknown as { workspaceScanner?: { getAllFiles?: () => Array<{ uri: string }> } }
-  ).workspaceScanner as
-    | {
-        getAllFiles?: () => Array<{ uri: string }>;
-      }
-    | undefined;
-  const files = workspaceScanner?.getAllFiles?.() ?? [];
+  const files = services.workspaceScanner.getAllFiles();
   for (const file of files) {
     if (file.uri) {
       uris.add(file.uri);

@@ -96,6 +96,11 @@ function createImplementationHarness(bridge: FaultInjectableMockBridge) {
         return [...cache.keys()];
       },
     },
+    workspaceScanner: {
+      getAllFiles() {
+        return [];
+      },
+    },
     includeResolver: null,
     stdlibIndex: null,
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 5 },
