@@ -16,7 +16,7 @@ function createBridge(running: boolean, pid: number | null) {
   return {
     isRunning: () => running,
     on: () => undefined,
-    process: pid === null ? undefined : { pid },
+    getDiagnostics: () => ({ pid, options: { pikePath: 'pike' } }),
   };
 }
 
@@ -62,7 +62,7 @@ describe('BridgeManager getHealth branch coverage', () => {
   });
 
   it('returns version-pending state while async version fetch is inflight', async () => {
-    const manager = new BridgeManager(createBridge(true, 43210) as any, createMockLogger());
+    const manager = new BridgeManager(createBridge(true, 43210), createMockLogger());
     (manager as any).versionFetchPromise = new Promise<void>(() => undefined);
 
     const health = await manager.getHealth();
@@ -75,7 +75,7 @@ describe('BridgeManager getHealth branch coverage', () => {
   });
 
   it('returns running state when bridge is connected and version is cached', async () => {
-    const manager = new BridgeManager(createBridge(true, 87654) as any, createMockLogger());
+    const manager = new BridgeManager(createBridge(true, 87654), createMockLogger());
     (manager as any).cachedVersion = {
       major: 8,
       minor: 0,
@@ -97,7 +97,7 @@ describe('BridgeManager getHealth branch coverage', () => {
   });
 
   it('returns crashed state when bridge is disconnected but PID still exists', async () => {
-    const manager = new BridgeManager(createBridge(false, 99999) as any, createMockLogger());
+    const manager = new BridgeManager(createBridge(false, 99999), createMockLogger());
     (manager as any).errorLog = ['Bridge crashed'];
 
     const health = await manager.getHealth();

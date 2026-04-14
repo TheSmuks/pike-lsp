@@ -68,19 +68,6 @@ export class BridgeManager {
   /** PERF-013: Promise tracking for async version fetch */
   private versionFetchPromise: Promise<void> | null = null;
 
-  private getBridgeInternals(): {
-    process?: { pid?: number };
-    inflightRequests?: Map<unknown, unknown>;
-  } | null {
-    if (!this.bridge) {
-      return null;
-    }
-    return this.bridge as unknown as {
-      process?: { pid?: number };
-      inflightRequests?: Map<unknown, unknown>;
-    };
-  }
-
   constructor(
     public readonly bridge: PikeBridge | null,
     private logger: Logger
@@ -214,11 +201,10 @@ export class BridgeManager {
    * @returns Health status information
    */
   async getHealth(): Promise<HealthStatus> {
-    const internals = this.getBridgeInternals();
     return {
       serverUptime: Date.now() - this.startTime,
       bridgeConnected: this.bridge?.isRunning() ?? false,
-      pikePid: internals?.process?.pid ?? null,
+      pikePid: this.bridge?.getDiagnostics().pid ?? null,
       pikeVersion: this.cachedVersion,
       recentErrors: [...this.errorLog],
       startupMetrics: this.startupMetrics,
@@ -256,7 +242,7 @@ export class BridgeManager {
 
     // LOG-14-01: Track analyze call entry with full parameters
     const startTime = performance.now();
-    const inflightBefore = this.getBridgeInternals()?.inflightRequests?.size ?? 0;
+    const inflightBefore = this.bridge.getInflightCount();
     this.logger.debug('[ANALYZE_START]', {
       uri: filename ?? 'unknown',
       version: documentVersion ?? 'none',
@@ -268,9 +254,8 @@ export class BridgeManager {
     try {
       const result = await this.bridge.analyze(code, include, filename, documentVersion);
 
-      // LOG-14-01: Track analyze call completion with timing
+      const inflightAfter = this.bridge.getInflightCount();
       const duration = performance.now() - startTime;
-      const inflightAfter = this.getBridgeInternals()?.inflightRequests?.size ?? 0;
       const cacheHit = result._perf?.cache_hit ?? false;
 
       this.logger.debug('[ANALYZE_DONE]', {

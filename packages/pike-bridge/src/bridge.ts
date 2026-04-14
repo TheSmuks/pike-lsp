@@ -337,6 +337,12 @@ export class PikeBridge extends PikeBridgeBase {
     this.debugLog(`Token cache invalidated for ${documentUri}`);
   }
 
+  // --- Introspection ---
+
+  getInflightCount(): number {
+    return this.pendingRequests.size;
+  }
+
   clearTokenCache(): void {
     const size = this.tokenCache.size;
     this.tokenCache.clear();
