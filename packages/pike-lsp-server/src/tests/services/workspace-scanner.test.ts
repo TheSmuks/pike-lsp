@@ -576,30 +576,53 @@ describe('WorkspaceScanner - 26.5 Lazy loading', () => {
     assert.ok(Array.isArray(results));
   });
 
-  it('26.5.4b should exclude files without cached symbols from searchSymbol results', async () => {
+  it('26.5.4b should find symbol in uncached files when tokenize is provided', async () => {
     // Arrange
     const logger = createMockLogger();
     const scanner = new WorkspaceScanner(logger, () => ({}));
-    await scanner.initialize(['/workspace']);
+    const os = await import('node:os');
+    const fsProm = await import('node:fs/promises');
+    const pathMod = await import('node:path');
+    const tempDir = pathMod.join(os.tmpdir(), `ws-search-${Date.now()}`);
+    await fsProm.mkdir(tempDir, { recursive: true });
+    // Create files on disk so searchSymbol can read them
+    await fsProm.writeFile(pathMod.join(tempDir, 'a.pike'), 'void targetFunc() {}');
+    await fsProm.writeFile(pathMod.join(tempDir, 'b.pike'), 'void otherFunc() {}');
+    await fsProm.writeFile(pathMod.join(tempDir, 'c.pike'), 'void targetFunc() {}');
 
-    // Add three files: one with matching symbol, one with non-matching, one uncached
-    scanner.upsertFile('file:///a.pike', 1);
-    scanner.upsertFile('file:///b.pike', 1);
-    scanner.upsertFile('file:///c.pike', 1);
-    scanner.updateFileData('file:///a.pike', {
-      symbols: [{ name: 'targetFunc', kind: 12 } as IntrospectedSymbol],
-    });
-    scanner.updateFileData('file:///b.pike', {
-      symbols: [{ name: 'otherFunc', kind: 12 } as IntrospectedSymbol],
-    });
-    // c.pike remains uncached (no symbols set)
+    try {
+      await scanner.initialize([tempDir]);
 
-    // Act
-    const results = await scanner.searchSymbol('targetFunc');
+      // Cache symbols for a.pike and b.pike; leave c.pike uncached
+      const files = scanner.getAllFiles();
+      const aUri = files.find(f => f.path.includes('a.pike'))!.uri;
+      const bUri = files.find(f => f.path.includes('b.pike'))!.uri;
+      const cUri = files.find(f => f.path.includes('c.pike'))!.uri;
+      scanner.updateFileData(aUri, {
+        symbols: [{ name: 'targetFunc', kind: 12 } as IntrospectedSymbol],
+      });
+      scanner.updateFileData(bUri, {
+        symbols: [{ name: 'otherFunc', kind: 12 } as IntrospectedSymbol],
+      });
 
-    // Assert
-    assert.equal(results.length, 1, 'Should only return files with matching cached symbols');
-    assert.equal(results[0], 'file:///a.pike');
+      // Act — without tokenize, only cached files are searched
+      const resultsNoTokenize = await scanner.searchSymbol('targetFunc');
+      assert.equal(resultsNoTokenize.length, 1, 'Without tokenize, only cached matches');
+      assert.equal(resultsNoTokenize[0], aUri);
+
+      // Act — with tokenize, uncached files are also searched
+      const mockTokenize = async (_content: string, _filePath: string) => [
+        { text: 'targetFunc', line: 0, character: 0, file: '/workspace/c.pike' },
+      ];
+      const resultsWithTokenize = await scanner.searchSymbol('targetFunc', {
+        tokenize: mockTokenize,
+      });
+      assert.equal(resultsWithTokenize.length, 2, 'With tokenize, cached + uncached matches');
+      assert.ok(resultsWithTokenize.includes(aUri));
+      assert.ok(resultsWithTokenize.includes(cUri));
+    } finally {
+      await fsProm.rm(tempDir, { recursive: true, force: true });
+    }
   });
   it('26.5.5 should return files without cached data for lazy parsing', () => {
     // Arrange
