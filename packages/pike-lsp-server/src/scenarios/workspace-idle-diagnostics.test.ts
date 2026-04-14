@@ -356,4 +356,43 @@ describe('Scenario: workspace idle diagnostics', () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  it('should not re-query getAllDocumentUris on repeated idle ticks (Issue #1794)', async () => {
+    let getAllDocumentUrisCallCount = 0;
+    const uris = ['file:///a.pike', 'file:///b.pike'];
+    const workspaceIndex = {
+      getAllDocumentUris: () => {
+        getAllDocumentUrisCallCount++;
+        return uris;
+      },
+    } as unknown as WorkspaceIndex;
+
+    const scheduler = new RequestScheduler();
+    const sent: SentDiagnostics[] = [];
+
+    const manager = new WorkspaceDiagnosticsManager({
+      scheduler,
+      workspaceIndex,
+      bridgeManager: null,
+      idleDelayMs: 10,
+      sendDiagnostics: p => sent.push(p),
+      clearDiagnostics: () => {},
+    });
+
+    // Trigger indexing complete — this is where getAllDocumentUris should be called
+    manager.onIndexingComplete();
+
+    // Let multiple idle ticks fire
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // getAllDocumentUris should have been called exactly once (in onIndexingComplete),
+    // not once per idle tick
+    assert.strictEqual(
+      getAllDocumentUrisCallCount,
+      1,
+      'getAllDocumentUris should be called once in onIndexingComplete, not per idle tick'
+    );
+
+    manager.dispose();
+  });
 });

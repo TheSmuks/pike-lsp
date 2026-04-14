@@ -51,6 +51,7 @@ export class WorkspaceDiagnosticsManager {
   private pendingQueue: PendingDiagnostic[] = [];
   private processedUris = new Set<string>();
   private backgroundDiagnosticUris = new Set<string>();
+  private remainingUris: string[] = [];
   private lastActivityTime = Date.now();
 
   constructor(options: WorkspaceDiagnosticsOptions) {
@@ -98,6 +99,8 @@ export class WorkspaceDiagnosticsManager {
   onIndexingComplete(): void {
     log.debug('Workspace indexing complete, scheduling idle diagnostics');
     this.processedUris.clear();
+    const allUris = this.workspaceIndex.getAllDocumentUris();
+    this.remainingUris = allUris.filter(uri => !this.processedUris.has(uri));
     this.scheduleIdleCheck();
   }
 
@@ -151,24 +154,21 @@ export class WorkspaceDiagnosticsManager {
       return;
     }
 
-    const allUris = this.workspaceIndex.getAllDocumentUris();
-    const unprocessedUris = allUris.filter(uri => !this.processedUris.has(uri));
-
-    if (unprocessedUris.length === 0) {
+    if (this.remainingUris.length === 0) {
       log.debug('All workspace files processed');
       return;
     }
 
     log.debug('Starting workspace idle diagnostics', {
-      totalFiles: allUris.length,
-      remaining: unprocessedUris.length,
+      remaining: this.remainingUris.length,
     });
 
     this.isRunning = true;
-    this.pendingQueue = unprocessedUris.map(uri => ({
+    this.pendingQueue = this.remainingUris.map(uri => ({
       uri,
       scheduledAt: Date.now(),
     }));
+    this.remainingUris = [];
 
     await this.processQueue();
   }
@@ -272,8 +272,9 @@ export class WorkspaceDiagnosticsManager {
 
   private pause(): void {
     this.isRunning = false;
-    // Re-queue unprocessed items
+    // Re-queue unprocessed items back into remainingUris
     const unprocessed = this.pendingQueue.filter(item => !this.processedUris.has(item.uri));
-    this.pendingQueue = unprocessed;
+    this.remainingUris = unprocessed.map(item => item.uri).concat(this.remainingUris);
+    this.pendingQueue = [];
   }
 }
