@@ -21,43 +21,10 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import { promises as fs } from 'node:fs';
 
 import type { Services } from '../services/index.js';
-import type { PikeSymbol, PikeSymbolKind, PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
 import { buildCallPositionIndex } from './diagnostics/symbol-index.js';
-
-/**
- * Validation set for PikeSymbolKind values
- * Using type assertions ensures TypeScript validates against the union type
- */
-const VALID_KINDS: Set<PikeSymbolKind> = new Set<PikeSymbolKind>([
-  'class' as PikeSymbolKind,
-  'method' as PikeSymbolKind,
-  'function' as PikeSymbolKind,
-  'variable' as PikeSymbolKind,
-  'constant' as PikeSymbolKind,
-  'typedef' as PikeSymbolKind,
-  'enum' as PikeSymbolKind,
-  'enum_constant' as PikeSymbolKind,
-  'inherit' as PikeSymbolKind,
-  'import' as PikeSymbolKind,
-  'include' as PikeSymbolKind,
-  'module' as PikeSymbolKind,
-]);
-
-/**
- * Validate symbol kind and log warnings for unknown values
- */
-function validateSymbolKind(symbol: PikeSymbol, context: string): void {
-  if (!VALID_KINDS.has(symbol.kind)) {
-    const log = new Logger('Hierarchy');
-    log.warn(`Unknown symbol kind: ${symbol.kind}`, {
-      symbol: symbol.name,
-      kind: symbol.kind,
-      context,
-    });
-  }
-}
 
 /**
  * Check if a symbol kind represents a callable entity (function or method)
@@ -675,9 +642,6 @@ export function registerHierarchyHandlers(
       }
 
       const line = Math.max(0, (classSymbol.position.line ?? 1) - 1);
-
-      // Validate kind
-      validateSymbolKind(classSymbol, 'type hierarchy prepare');
 
       return [
         {
