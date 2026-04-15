@@ -40,6 +40,32 @@ export interface IndexStorage {
  * PERF-007: Adds performance instrumentation
  * PERF-008: Incremental indexing with progress callbacks and chunked processing
  */
+/**
+ * Store a parsed document into the index, replacing any existing entry.
+ */
+function storeParsedDocument(
+  storage: IndexStorage,
+  uri: string,
+  symbols: FlattenedSymbolEntry[],
+  lastModified: number,
+  lineCount: number
+): void {
+  const existing = storage.documents.get(uri);
+  if (existing) {
+    storage.removeFromLookup(uri);
+  }
+
+  storage.documents.set(uri, {
+    uri,
+    symbols,
+    version: 1,
+    lastModified,
+    lineCount,
+  });
+
+  storage.addToLookup(uri, symbols, lineCount);
+}
+
 export async function indexDirectory(
   storage: IndexStorage,
   dirPath: string,
@@ -195,27 +221,10 @@ export async function indexDirectory(
 
         // Skip if either result or file info is undefined
         if (!result || !fileInfo) continue;
-
         const uri = `file://${result.filename}`;
-
-        // Remove old entries from lookup
-        const existing = storage.documents.get(uri);
-        if (existing) {
-          storage.removeFromLookup(uri);
-        }
-
-        // Store indexed document with filesystem mtime
         const symbols = storage.flattenSymbols(result.symbols);
-        storage.documents.set(uri, {
-          uri,
-          symbols,
-          version: 1,
-          lastModified: fileInfo.lastModified,
-          lineCount: fileInfo.lineCount,
-        });
 
-        // Add to lookup
-        storage.addToLookup(uri, symbols, fileInfo.lineCount);
+        storeParsedDocument(storage, uri, symbols, fileInfo.lastModified, fileInfo.lineCount);
         indexed++;
       }
 
@@ -243,26 +252,11 @@ export async function indexDirectory(
             fileData.filename
           );
           const parsedSymbols = analyzeResult.result?.parse?.symbols ?? [];
+
           const uri = `file://${fileData.filename}`;
-
-          // Remove old entries from lookup
-          const existing = storage.documents.get(uri);
-          if (existing) {
-            storage.removeFromLookup(uri);
-          }
-
-          // Store indexed document with filesystem mtime
           const symbols = storage.flattenSymbols(parsedSymbols);
-          storage.documents.set(uri, {
-            uri,
-            symbols,
-            version: 1,
-            lastModified: fileData.lastModified,
-            lineCount: fileData.lineCount,
-          });
 
-          // Add to lookup
-          storage.addToLookup(uri, symbols, fileData.lineCount);
+          storeParsedDocument(storage, uri, symbols, fileData.lastModified, fileData.lineCount);
           indexed++;
         } catch (error) {
           storage.log.debug('Sequential parse fallback failed for file', {
