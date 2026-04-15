@@ -120,12 +120,12 @@ describe('Runtime settings propagation', () => {
               name: 'x',
               kind: 'variable',
               range: {
-                start: { line: 1, character: 0 },
-                end: { line: 1, character: 11 },
+                start: { line: 0, character: 0 },
+                end: { line: 0, character: 11 },
               },
               selectionRange: {
-                start: { line: 1, character: 4 },
-                end: { line: 1, character: 5 },
+                start: { line: 0, character: 4 },
+                end: { line: 0, character: 5 },
               },
               modifiers: [],
             },

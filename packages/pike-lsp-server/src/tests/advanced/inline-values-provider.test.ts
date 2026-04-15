@@ -172,10 +172,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 1, character: 4 }, end: { line: 1, character: 9 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 selectionRange: {
-                  start: { line: 1, character: 8 },
-                  end: { line: 1, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -202,15 +202,15 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'method',
                 name: 'test',
-                range: { start: { line: 1, character: 0 }, end: { line: 3, character: 1 } },
+                range: { start: { line: 0, character: 0 }, end: { line: 2, character: 1 } },
                 children: [
                   {
                     kind: 'variable',
                     name: 'localVar',
-                    range: { start: { line: 2, character: 6 }, end: { line: 2, character: 19 } },
+                    range: { start: { line: 1, character: 6 }, end: { line: 1, character: 21 } },
                     selectionRange: {
-                      start: { line: 2, character: 14 },
-                      end: { line: 2, character: 19 },
+                      start: { line: 1, character: 6 },
+                      end: { line: 1, character: 14 },
                     },
                   },
                 ],
@@ -236,9 +236,8 @@ describe('Inline Values Provider', () => {
       const { registerInlineValuesHandler } =
         await import('../../features/advanced/inline-values.js');
 
-      // int x = 42;  → selectionRange end at '42' start, range end at ';'
+      // int x = 42;  → selectionRange covers 'x' (chars 4-5), range end at ';'
       const code = 'int x = 42;';
-
       const services: MockServices = {
         globalSettings: { inlineValues: { enabled: true } },
         documentCache: {
@@ -247,11 +246,11 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                // Pike lines are 1-indexed: line 1 = code line 0
-                range: { start: { line: 1, character: 4 }, end: { line: 1, character: 12 } },
+                // LSP Range positions are 0-indexed: line 0 = first line
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 selectionRange: {
-                  start: { line: 1, character: 8 },
-                  end: { line: 1, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -261,6 +260,7 @@ describe('Inline Values Provider', () => {
         bridge: {
           bridge: {
             async evaluateConstant(expr: string) {
+              assert.strictEqual(expr, '42', `Expected expression "42", got "${expr}"`);
               return { success: true, value: 42, type: 'int' };
             },
           },
@@ -301,10 +301,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'msg',
-                range: { start: { line: 1, character: 0 }, end: { line: 1, character: 27 } },
+                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 27 } },
                 selectionRange: {
-                  start: { line: 1, character: 7 },
-                  end: { line: 1, character: 10 },
+                  start: { line: 0, character: 7 },
+                  end: { line: 0, character: 10 },
                 },
               },
             ],
@@ -355,11 +355,11 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                // Pike 1-indexed: line 1 char 4 to line 4 char 3
-                range: { start: { line: 1, character: 4 }, end: { line: 4, character: 3 } },
+                // LSP 0-indexed: lines 0-2 for the 3-line code
+                range: { start: { line: 0, character: 4 }, end: { line: 2, character: 3 } },
                 selectionRange: {
-                  start: { line: 1, character: 8 },
-                  end: { line: 1, character: 9 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
                 },
               },
             ],
@@ -410,7 +410,7 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 1, character: 4 }, end: { line: 1, character: 12 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
                 // No selectionRange
               },
             ],
@@ -456,10 +456,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: '_x',
-                range: { start: { line: 1, character: 4 }, end: { line: 1, character: 13 } },
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 12 } },
                 selectionRange: {
-                  start: { line: 1, character: 8 },
-                  end: { line: 1, character: 10 },
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 6 },
                 },
                 modifiers: ['private'],
               },
@@ -506,10 +506,10 @@ describe('Inline Values Provider', () => {
               {
                 kind: 'variable',
                 name: 'x',
-                range: { start: { line: 5, character: 4 }, end: { line: 5, character: 12 } },
+                range: { start: { line: 5, character: 4 }, end: { line: 5, character: 11 } },
                 selectionRange: {
-                  start: { line: 5, character: 8 },
-                  end: { line: 5, character: 9 },
+                  start: { line: 5, character: 4 },
+                  end: { line: 5, character: 5 },
                 },
               },
             ],
@@ -528,7 +528,7 @@ describe('Inline Values Provider', () => {
       const { connection, documents, getHandler } = setupMock(services, code);
       registerInlineValuesHandler(connection, services, documents);
 
-      // Request only lines 0-2, but variable is on Pike line 5 (index 4)
+      // Request only lines 0-2, but variable is on line 5
       const params: InlineValueParams = {
         textDocument: { uri: 'file:///test.pike' },
         range: { start: { line: 0, character: 0 }, end: { line: 2, character: 0 } },
@@ -541,5 +541,58 @@ describe('Inline Values Provider', () => {
       const result = await getHandler()!(params);
       assert.strictEqual(result, null, 'Should filter out variables outside visible range');
     });
+  });
+
+  it('should extract value for variable on line 0', async () => {
+    const { registerInlineValuesHandler } =
+      await import('../../features/advanced/inline-values.js');
+
+    // Regression: line 0 previously became -1 after the erroneous -1 offset.
+    const code = 'int x = 42;';
+
+    const services: MockServices = {
+      globalSettings: { inlineValues: { enabled: true } },
+      documentCache: {
+        get: () => ({
+          symbols: [
+            {
+              kind: 'variable',
+              name: 'x',
+              range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+              selectionRange: {
+                start: { line: 0, character: 4 },
+                end: { line: 0, character: 5 },
+              },
+            },
+          ],
+          diagnostics: [],
+        }),
+      },
+      bridge: {
+        bridge: {
+          async evaluateConstant(expr: string) {
+            assert.strictEqual(expr, '42', `Expected expression "42", got "${expr}"`);
+            return { success: true, value: 42, type: 'int' };
+          },
+        },
+      },
+    };
+
+    const { connection, documents, getHandler } = setupMock(services, code);
+    registerInlineValuesHandler(connection, services, documents);
+
+    const params: InlineValueParams = {
+      textDocument: { uri: 'file:///test.pike' },
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 20 } },
+      context: {
+        frameId: 0,
+        stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 0, character: 20 } },
+      },
+    };
+
+    const result = await getHandler()!(params);
+    assert.ok(result, 'Should return inline values for variable on line 0');
+    assert.strictEqual(result.length, 1);
+    assert.ok(result[0]!.text.includes('42'), `Expected "42" in "${result[0]!.text}"`);
   });
 });
