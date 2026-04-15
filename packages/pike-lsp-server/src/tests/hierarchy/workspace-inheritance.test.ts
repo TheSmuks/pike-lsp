@@ -44,20 +44,13 @@ describe('Workspace Inheritance (Phase 6)', () => {
       ],
     ]);
 
-    const mockWorkspaceScanner = {
-      isReady: () => true,
-      getUncachedFiles: () => [
-        {
-          uri: 'file:///base.pike',
-          path: 'file:///base.pike',
-          lastModified: Date.now(),
-        },
-      ],
-    };
-
     const services = createMockServices({
       cacheEntries,
-      workspaceScanner: mockWorkspaceScanner,
+      workspaceIndex: {
+        getAllDocumentUris: () => ['file:///base.pike'],
+        searchSymbols: () => [],
+        getDocumentSymbols: () => [],
+      },
     });
     const documents = createMockDocuments(docsMap);
     const conn = createMockConnection();
@@ -104,14 +97,8 @@ describe('Workspace Inheritance (Phase 6)', () => {
       ],
     ]);
 
-    const mockWorkspaceScanner = {
-      isReady: () => false,
-      getUncachedFiles: () => [],
-    };
-
     const services = createMockServices({
       cacheEntries,
-      workspaceScanner: mockWorkspaceScanner,
     });
     const documents = createMockDocuments(docsMap);
     const conn = createMockConnection();
@@ -150,18 +137,11 @@ describe('Workspace Inheritance (Phase 6)', () => {
           }),
         ],
       ]),
-      workspaceScanner: {
-        isReady: () => true,
-        getUncachedFiles: () => [
-          { uri: uncachedUri, path: uncachedPath, lastModified: Date.now() },
-        ],
-        getFile: (uri: string) => {
-          if (uri === uncachedUri) {
-            return { uri: uncachedUri, path: uncachedPath, lastModified: Date.now() };
-          }
-          return undefined;
-        },
-      } as any,
+      workspaceIndex: {
+        getAllDocumentUris: () => [uncachedUri],
+        searchSymbols: () => [],
+        getDocumentSymbols: () => [],
+      },
       bridge: {
         bridge: {
           analyze: async () => ({
@@ -230,12 +210,11 @@ describe('Workspace Inheritance (Phase 6)', () => {
           }),
         ],
       ]),
-      workspaceScanner: {
-        isReady: () => true,
-        getUncachedFiles: () => [
-          { uri: uncachedUri, path: uncachedPath, lastModified: Date.now() },
-        ],
-      } as any,
+      workspaceIndex: {
+        getAllDocumentUris: () => [uncachedUri],
+        searchSymbols: () => [],
+        getDocumentSymbols: () => [],
+      },
       bridge: {
         bridge: {
           analyze: async () => ({

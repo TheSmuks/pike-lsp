@@ -250,32 +250,4 @@ describe('Slow Integration: Cross-Platform File Operations', { timeout: 30_000 }
       expect(cache.size).toBe(3);
     });
   });
-
-  describe('Workspace scanning with nested directories', () => {
-    it('discovers files at multiple nesting levels', async () => {
-      const { WorkspaceScanner } = await import('../../services/workspace-scanner.js');
-      const { Logger } = await import('@pike-lsp/core');
-      const scanner = new WorkspaceScanner(new Logger('slow-test'), () => ({}) as any);
-
-      const wsDir = join(fixtureBase, 'nested-ws');
-      await mkdir(join(wsDir, 'a', 'b', 'c'), { recursive: true });
-      await mkdir(join(wsDir, 'x'), { recursive: true });
-
-      await writeFile(join(wsDir, 'root.pike'), 'class Root {}');
-      await writeFile(join(wsDir, 'a', 'mid.pike'), 'class Mid {}');
-      await writeFile(join(wsDir, 'a', 'b', 'deep.pike'), 'class Deep {}');
-      await writeFile(join(wsDir, 'a', 'b', 'c', 'deepest.pike'), 'class Deepest {}');
-      await writeFile(join(wsDir, 'x', 'side.pike'), 'class Side {}');
-
-      const files = await scanner.scanFolder(wsDir, {
-        extensions: ['.pike'],
-        excludePatterns: ['node_modules'],
-      });
-
-      expect(files.length).toBe(5);
-
-      // Cleanup
-      await rm(wsDir, { recursive: true, force: true });
-    });
-  });
 });

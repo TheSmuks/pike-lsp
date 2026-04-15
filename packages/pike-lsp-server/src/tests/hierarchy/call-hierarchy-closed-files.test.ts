@@ -9,7 +9,6 @@ import {
   createMockServices,
   makeCacheEntry,
   sym,
-  createMockWorkspaceScanner,
 } from '../helpers/mock-services.js';
 
 const { describe, it } = require('bun:test');
@@ -40,9 +39,6 @@ describe('call hierarchy across closed workspace files', () => {
       ],
     ]);
 
-    const workspaceScanner = createMockWorkspaceScanner([
-      { uri: file2Uri, content: 'void helper() {}\n' },
-    ]);
     const bridge = {
       bridge: {
         analyze: async (_code: string, _features: string[], filePath: string) => {
@@ -68,7 +64,15 @@ describe('call hierarchy across closed workspace files', () => {
       },
     };
 
-    const services = createMockServices({ cacheEntries, workspaceScanner, bridge });
+    const services = createMockServices({
+      cacheEntries,
+      bridge,
+      workspaceIndex: {
+        getAllDocumentUris: () => [file2Uri],
+        searchSymbols: () => [],
+        getDocumentSymbols: () => [],
+      },
+    });
 
     let prepareHandler: any = null;
     let outgoingHandler: any = null;
@@ -139,10 +143,6 @@ describe('call hierarchy across closed workspace files', () => {
       ],
     ]);
 
-    const workspaceScanner = createMockWorkspaceScanner([
-      { uri: closedCallerUri, content: 'void caller() {\n helper();\n}\n' },
-    ]);
-
     const bridge = {
       bridge: {
         analyze: async (_code: string, _features: string[], filePath: string) => {
@@ -182,7 +182,15 @@ describe('call hierarchy across closed workspace files', () => {
       },
     };
 
-    const services = createMockServices({ cacheEntries, workspaceScanner, bridge });
+    const services = createMockServices({
+      cacheEntries,
+      bridge,
+      workspaceIndex: {
+        getAllDocumentUris: () => [closedCallerUri],
+        searchSymbols: () => [],
+        getDocumentSymbols: () => [],
+      },
+    });
 
     let prepareHandler: any = null;
     let incomingHandler: any = null;

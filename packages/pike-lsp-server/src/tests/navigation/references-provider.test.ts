@@ -23,7 +23,6 @@ import {
   createMockDocuments,
   createMockServices,
   makeCacheEntry,
-  createMockWorkspaceScanner,
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import type { PikeToken } from '@pike-lsp/pike-bridge';
@@ -120,8 +119,8 @@ interface SetupOptions {
   noDocument?: boolean;
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
-  workspaceScanner?: any;
   bridge?: any;
+  workspaceIndex?: { getAllDocumentUris: () => string[] };
 }
 
 function setup(opts: SetupOptions) {
@@ -155,8 +154,8 @@ function setup(opts: SetupOptions) {
   };
   const services = createMockServices({
     cacheEntries,
-    workspaceScanner: opts.workspaceScanner,
     bridge: opts.bridge ? { ...defaultBridge, ...opts.bridge } : defaultBridge,
+    workspaceIndex: opts.workspaceIndex,
   });
   const documents = createMockDocuments(docsMap);
   const conn = createMockConnection();
@@ -358,11 +357,6 @@ describe('References Provider', () => {
 
       const firstUri = `file://${firstPath}`;
       const secondUri = `file://${secondPath}`;
-      const scanner = createMockWorkspaceScanner([
-        { uri: firstUri, content: '' },
-        { uri: secondUri, content: '' },
-      ]);
-
       const { references } = setup({
         uri: 'file:///module.pmod',
         code: 'int shared = 0;\nshared++;\n',
@@ -374,7 +368,7 @@ describe('References Provider', () => {
             position: { file: 'module.pmod', line: 1 },
           },
         ],
-        workspaceScanner: scanner,
+        workspaceIndex: { getAllDocumentUris: () => [firstUri, secondUri] },
       });
 
       const result = await references(0, 5);
@@ -846,10 +840,8 @@ int x = myVar;`;
       // Workspace file (not in cache)
       const workspaceCode = `int x = target;`;
 
-      // Create mock workspace scanner that returns uncached file
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///workspace/lib.pike', content: workspaceCode },
-      ]);
+      // Create mock workspace index that returns uncached file URIs
+      const workspaceUri = 'file:///workspace/lib.pike';
 
       const { references } = setup({
         code: mainCode,
@@ -863,7 +855,7 @@ int x = myVar;`;
           },
         ],
         symbolPositions: new Map([['target', [{ line: 0, character: 4 }]]]),
-        workspaceScanner,
+        workspaceIndex: { getAllDocumentUris: () => [workspaceUri] },
       });
 
       const result = await references(0, 5);
@@ -876,9 +868,7 @@ int x = myVar;`;
       const mainCode = `int shared = 1;`;
       const workspaceCode = `int x = shared;`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///project/util.pmod', content: workspaceCode },
-      ]);
+      const workspaceUri = 'file:///project/util.pmod';
 
       const { references } = setup({
         code: mainCode,
@@ -891,7 +881,7 @@ int x = myVar;`;
             position: { file: 'main.pmod', line: 1 },
           },
         ],
-        workspaceScanner,
+        workspaceIndex: { getAllDocumentUris: () => [workspaceUri] },
       });
 
       const result = await references(0, 5);
@@ -903,10 +893,8 @@ int x = myVar;`;
       const mainCode = `void foo() {}`;
       const uncachedCode = `foo();`;
 
-      // Workspace scanner returns files not in cache
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///lib/helper.pike', content: uncachedCode },
-      ]);
+      // Workspace index returns files not in cache
+      const workspaceUri = 'file:///lib/helper.pike';
 
       const { references } = setup({
         code: mainCode,
@@ -919,7 +907,7 @@ int x = myVar;`;
             position: { file: 'main.pike', line: 1 },
           },
         ],
-        workspaceScanner,
+        workspaceIndex: { getAllDocumentUris: () => [workspaceUri] },
       });
 
       const result = await references(0, 2);
@@ -931,10 +919,6 @@ int x = myVar;`;
       const mainCode = `int shared = 1;
 int x = shared;
 int y = shared;`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///project/other.pike', content: `int z = shared;` },
-      ]);
 
       const { references } = setup({
         code: mainCode,
@@ -948,7 +932,7 @@ int y = shared;`;
           },
         ],
         symbolPositions: new Map([['shared', [{ line: 0, character: 4 }]]]),
-        workspaceScanner,
+        workspaceIndex: { getAllDocumentUris: () => ['file:///project/other.pike'] },
       });
 
       // Request with includeDeclaration: false — handler receives it via context
@@ -1177,16 +1161,12 @@ void func() {
 int x = HELPER_FUNC();`;
       const includeCode = `int HELPER_FUNC() { return 42; }`;
 
-      // Mock workspace to return include file
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///lib/lib.pike', content: includeCode },
-      ]);
-
+      // Mock workspace index to return include file URI
       const { references } = setup({
         code: mainCode,
         uri: 'file:///main.pike',
         symbols: [],
-        workspaceScanner,
+        workspaceIndex: { getAllDocumentUris: () => ['file:///lib/lib.pike'] },
       });
 
       // Without cached include file, should return empty or local only

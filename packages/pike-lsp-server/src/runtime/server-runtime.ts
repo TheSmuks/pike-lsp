@@ -4,7 +4,6 @@ import { StdlibIndexManager } from '../stdlib-index.js';
 import type { BridgeManager } from '../services/bridge-manager.js';
 import type { PikeSettings } from '../core/types.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
-import type { WorkspaceScanner } from '../services/workspace-scanner.js';
 import {
   formatProtocolVersion,
   isProtocolCompatible,
@@ -23,7 +22,6 @@ interface RuntimeServicePatch {
 interface RegisterServerRuntimeHandlersArgs {
   connection: Connection;
   workspaceIndex: WorkspaceIndex;
-  workspaceScanner: WorkspaceScanner;
   getBridgeManager: () => BridgeManager | null;
   getGlobalSettings: () => PikeSettings;
   getIncludePaths: () => string[];
@@ -37,7 +35,6 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
   const {
     connection,
     workspaceIndex,
-    workspaceScanner,
     getBridgeManager,
     getGlobalSettings,
     getIncludePaths,
@@ -113,20 +110,7 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
       connection.console.log(
         `Workspace indexing complete: ${stats.documents} files, ${stats.symbols} symbols`
       );
-
-      try {
-        reporter.report(96, 'Building workspace scanner index');
-
-        await workspaceScanner.initialize(folderPaths);
-        const scannerStats = workspaceScanner.getStats();
-        connection.console.log(
-          `Workspace scanner initialized: ${scannerStats.fileCount} Pike files found`
-        );
-      } catch (err) {
-        connection.console.warn(`Failed to initialize workspace scanner: ${err}`);
-      } finally {
-        reporter.end('Indexing complete');
-      }
+      reporter.end('Indexing complete');
     });
   };
 
@@ -187,20 +171,6 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
         }
 
         connection.console.log(`Workspace folders changed (+${added.length}, -${removed.length})`);
-
-        for (const folder of removed) {
-          const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-          workspaceScanner.removeFolder(folderPath);
-        }
-
-        for (const folder of added) {
-          const folderPath = decodeURIComponent(folder.uri.replace(/^file:\/\//, ''));
-          try {
-            await workspaceScanner.addFolder(folderPath);
-          } catch (err) {
-            connection.console.warn(`Failed to scan added folder ${folder.name}: ${err}`);
-          }
-        }
 
         workspaceIndex.clear();
         const currentFolders = await connection.workspace.getWorkspaceFolders();

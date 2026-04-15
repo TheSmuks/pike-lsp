@@ -28,9 +28,6 @@ describe('pull diagnostics handlers', () => {
       },
       stdlibIndex: null,
       includeResolver: null,
-      workspaceScanner: {
-        isReady: () => false,
-      },
       globalSettings: {
         pikePath: 'pike',
         maxNumberOfProblems: 100,

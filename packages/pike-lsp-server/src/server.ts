@@ -28,7 +28,6 @@ import { BridgeManager } from './services/bridge-manager.js';
 import { DocumentCache } from './services/document-cache.js';
 import { IncludeResolver } from './services/include-resolver.js';
 import { ModuleContext } from './services/module-context.js';
-import { WorkspaceScanner } from './services/workspace-scanner.js';
 import { FormattingService } from './services/formatting-service.js';
 import { PikeIntrospectionService } from './services/pike-introspection.js';
 import {
@@ -98,7 +97,6 @@ const logger = new Logger('PikeLSPServer');
 const documentCache = new DocumentCache();
 const typeDatabase = new TypeDatabase();
 const workspaceIndex = new WorkspaceIndex();
-const workspaceScanner = new WorkspaceScanner(logger);
 const moduleContext = new ModuleContext();
 const formattingService = new FormattingService();
 let pikeIntrospection: PikeIntrospectionService | null = null;
@@ -160,7 +158,6 @@ function createServices(): features.Services {
     workspaceIndex,
     stdlibIndex,
     includeResolver, // Will be null initially, updated after onInitialize
-    workspaceScanner,
     globalSettings,
     includePaths,
     formattingService,
@@ -487,7 +484,6 @@ features.registerFileWatcher(connection, services, documents);
 registerServerRuntimeHandlers({
   connection,
   workspaceIndex,
-  workspaceScanner,
   getBridgeManager: () => bridgeManager,
   getGlobalSettings: () => globalSettings,
   getIncludePaths: () => includePaths,
