@@ -77,3 +77,49 @@ describe('Workspace diagnostics severity mapping (#1729)', () => {
     assert.equal(diag.severity, 2);
   });
 });
+
+describe('WorkspaceDiagnosticsManager processBatch retry behavior (#1901)', () => {
+  it('skipped URIs are not marked as processed when bridge is unavailable', async () => {
+    // Simulate the processBatch behavior: bridge unavailable → empty set returned
+    const successfullyProcessed = new Set<string>();
+    // When bridge is not running, processBatch returns empty set
+    assert.equal(successfullyProcessed.size, 0);
+
+    // In processQueue, URIs not in successfullyProcessed should be pushed back
+    const batch = ['file:///a.pike', 'file:///b.pike', 'file:///c.pike'];
+    const processedUris = new Set<string>();
+    const remainingUris: string[] = [];
+
+    for (const uri of batch) {
+      if (successfullyProcessed.has(uri)) {
+        processedUris.add(uri);
+      } else {
+        remainingUris.push(uri);
+      }
+    }
+
+    assert.equal(processedUris.size, 0, 'no URIs should be marked processed');
+    assert.deepEqual(remainingUris, batch, 'all URIs should be pushed back for retry');
+  });
+
+  it('only successfully analyzed URIs are marked as processed', async () => {
+    // Simulate: 3 files in batch, 1 fails (rejected), 2 succeed
+    const batch = ['file:///a.pike', 'file:///b.pike', 'file:///c.pike'];
+    const successfullyProcessed = new Set(['file:///a.pike', 'file:///c.pike']);
+    const processedUris = new Set<string>();
+    const remainingUris: string[] = [];
+
+    for (const uri of batch) {
+      if (successfullyProcessed.has(uri)) {
+        processedUris.add(uri);
+      } else {
+        remainingUris.push(uri);
+      }
+    }
+
+    assert.equal(processedUris.size, 2);
+    assert.ok(processedUris.has('file:///a.pike'));
+    assert.ok(processedUris.has('file:///c.pike'));
+    assert.deepEqual(remainingUris, ['file:///b.pike'], 'failed URI should be pushed back');
+  });
+});

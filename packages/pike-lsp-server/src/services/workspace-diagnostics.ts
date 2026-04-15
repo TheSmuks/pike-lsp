@@ -189,11 +189,11 @@ export class WorkspaceDiagnosticsManager {
 
       // Take next batch
       const batch = this.pendingQueue.splice(0, this.batchSize);
+      const successfullyProcessed = await this.processBatch(batch);
 
-      const successfulUris = await this.processBatch(batch);
-
+      // Mark only successfully processed URIs; push failures back for retry
       for (const item of batch) {
-        if (successfulUris.has(item.uri)) {
+        if (successfullyProcessed.has(item.uri)) {
           this.processedUris.add(item.uri);
           this.failedUriAttempts.delete(item.uri);
         } else {
@@ -223,11 +223,11 @@ export class WorkspaceDiagnosticsManager {
   }
 
   private async processBatch(batch: PendingDiagnostic[]): Promise<Set<string>> {
-    const processed = new Set<string>();
+    const successfullyProcessed = new Set<string>();
     const bridge = this.bridgeManager?.bridge;
     if (!bridge?.isRunning()) {
       log.debug('Bridge not available, skipping batch');
-      return processed;
+      return successfullyProcessed;
     }
 
     try {
@@ -260,8 +260,7 @@ export class WorkspaceDiagnosticsManager {
               });
               continue;
             }
-
-            processed.add(uri);
+            successfullyProcessed.add(uri);
 
             const rawDiagnostics = result.value.result?.diagnostics?.diagnostics ?? [];
 
@@ -287,14 +286,15 @@ export class WorkspaceDiagnosticsManager {
           }
         },
       });
+      return successfullyProcessed;
     } catch (err) {
       log.debug('Batch scheduling failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+      return successfullyProcessed;
     }
 
-    return processed;
-  }
+    }
 
   private pause(): void {
     this.isRunning = false;
