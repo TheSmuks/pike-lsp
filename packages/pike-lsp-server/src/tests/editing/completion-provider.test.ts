@@ -157,7 +157,6 @@ function createMockStdlibIndex(modules: Record<string, Map<string, IntrospectedS
   };
 }
 
-
 /** Mock bridge that returns predefined completion context */
 function createMockBridge(
   contextOverride?: Partial<PikeCompletionContext>,

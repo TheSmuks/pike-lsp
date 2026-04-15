@@ -102,14 +102,9 @@ export function getSymbolsForUri(uri: string, services: Services): PikeSymbol[] 
     return cached.symbols;
   }
 
-  const workspaceIndex = services.workspaceIndex as unknown as {
-    getDocumentSymbols?: (documentUri: string) => PikeSymbol[];
-  };
-  if (workspaceIndex?.getDocumentSymbols) {
-    const indexedSymbols = workspaceIndex.getDocumentSymbols(uri);
-    if (indexedSymbols && indexedSymbols.length > 0) {
-      return indexedSymbols;
-    }
+  const indexedSymbols = services.workspaceIndex.getDocumentSymbols(uri);
+  if (indexedSymbols.length > 0) {
+    return indexedSymbols;
   }
 
   return [];

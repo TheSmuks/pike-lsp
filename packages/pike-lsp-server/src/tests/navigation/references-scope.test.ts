@@ -604,8 +604,6 @@ counter++;`;
         content: `int counter = ${i};`,
       }));
 
-      
-
       const { references } = setupScopeTest({
         code: mainCode,
         uri: 'file:///main.pike',
@@ -651,8 +649,6 @@ Manager m;`;
         uri: `file:///modules/Manager${i}.pmod`,
         content: `class Manager { }`,
       }));
-
-      
 
       const { references } = setupScopeTest({
         code: moduleCode,
