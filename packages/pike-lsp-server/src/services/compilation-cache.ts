@@ -126,15 +126,23 @@ export class CompilationCache<TResult> {
   }
 
   evictOlderThan(maxAgeMs: number, now = this.clock()): string[] {
-    const evicted: string[] = [];
+    const expired: string[] = [];
     for (const [uri, entry] of this.cache.entries()) {
       if (now - entry.timestamp > maxAgeMs) {
-        if (this.invalidateSingle(uri)) {
-          evicted.push(uri);
-        }
+        expired.push(uri);
       }
     }
-    return evicted;
+
+    if (expired.length === 0) {
+      return expired;
+    }
+
+    for (const uri of expired) {
+      this.cache.delete(uri);
+    }
+
+    this.batchRemoveDependencyEdges(expired);
+    return expired;
   }
 
   clear(): void {
@@ -231,6 +239,26 @@ export class CompilationCache<TResult> {
       const dependents = this.dependentsByFile.get(dependency) ?? new Set<string>();
       dependents.add(uri);
       this.dependentsByFile.set(dependency, dependents);
+    }
+  }
+
+  private batchRemoveDependencyEdges(uris: string[]): void {
+    for (const uri of uris) {
+      const dependencies = this.dependenciesByFile.get(uri);
+      if (dependencies) {
+        this.dependenciesByFile.delete(uri);
+        for (const dependency of dependencies) {
+          const dependents = this.dependentsByFile.get(dependency);
+          if (!dependents) {
+            continue;
+          }
+          dependents.delete(uri);
+          if (dependents.size === 0) {
+            this.dependentsByFile.delete(dependency);
+          }
+        }
+      }
+      this.dependentsByFile.delete(uri);
     }
   }
 
