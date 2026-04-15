@@ -4,7 +4,7 @@
  * Shared functions for building markdown hover content across multiple features.
  */
 
-import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod, AutodocDocumentation } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from './pike-type-formatter.js';
 
 /**
@@ -425,7 +425,18 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     return null;
   }
 
-  const sym = symbol as unknown as Record<string, unknown>;
+  // Extended AutodocDocumentation with fields present at runtime but not in the bridge type
+  type ExtendedAutodocDocumentation = AutodocDocumentation & {
+    paramOrder?: string[];
+    obsolete?: string;
+    copyright?: string[];
+    thanks?: string[];
+    fixme?: string[];
+    constants?: Record<string, string>;
+    indexes?: Array<{ label: string; text: string }>;
+    types?: string[];
+  };
+
   const parts: string[] = [];
 
   // Link to official documentation if likely a stdlib symbol
@@ -452,7 +463,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     parts.push(buildMethodSignature(symbol));
     parts.push('```');
 
-    const variants = sym['variants'] as PikeSymbol[] | undefined;
+    const variants = (symbol as PikeSymbol & { variants?: PikeSymbol[] }).variants;
     if (variants && variants.length > 0) {
       parts.push('');
       parts.push('### Variants');
@@ -465,9 +476,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     }
   } else if (symbol.kind === 'variable' || symbol.kind === 'constant') {
     // Try introspected type first
-    const type = symbol.type
-      ? formatPikeType(symbol.type)
-      : ((sym['type'] as { name?: string })?.name ?? 'mixed');
+    const type = symbol.type ? formatPikeType(symbol.type) : 'mixed';
 
     parts.push('```pike');
     const modifier = symbol.kind === 'constant' ? 'constant ' : '';
@@ -475,13 +484,12 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     parts.push('```');
   } else if (symbol.kind === 'typedef') {
     // Handle typedef - show the typedef definition
-    const type = symbol.type
-      ? formatPikeType(symbol.type)
-      : ((sym['type'] as { name?: string })?.name ?? 'mixed');
+    const type = symbol.type ? formatPikeType(symbol.type) : 'mixed';
 
     // Check for resolved type from type_to_json (contains nameAlias and resolvedType)
-    const resolvedType = sym['resolvedType'] as string | undefined;
-    const nameAlias = sym['nameAlias'] as string | undefined;
+    const td = symbol as PikeSymbol & { resolvedType?: string; nameAlias?: string };
+    const resolvedType = td.resolvedType;
+    const nameAlias = td.nameAlias;
 
     parts.push('```pike');
     if (nameAlias && resolvedType) {
@@ -503,8 +511,8 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
   }
 
   // Add inheritance info
-  if (sym['inherited']) {
-    const from = sym['inheritedFrom'] as string | undefined;
+  if (symbol.inherited) {
+    const from = symbol.inheritedFrom;
     if (from) {
       parts.push(`\n*Inherited from*: \`${from}\``);
     } else {
@@ -514,9 +522,9 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
 
   // Add conditional compilation info if present
   // Pike returns: conditional: true | 1, condition: string, branch: number
-  if (sym['conditional']) {
-    const branch = sym['branch'] as number | undefined;
-    const condition = sym['condition'] as string | undefined;
+  if (symbol.conditional) {
+    const branch = symbol.branch;
+    const condition = symbol.condition;
     const conditionPrefix = branch === 0 ? '#if' : '#elif';
     parts.push(`\n*Condition*: ${conditionPrefix} ${condition || ''}`);
   }
@@ -527,30 +535,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
   }
 
   // Add documentation if present
-  const doc = sym['documentation'] as
-    | {
-        text?: string;
-        params?: Record<string, string>;
-        paramOrder?: string[]; // Preserves original param order from autodoc
-        returns?: string;
-        throws?: string;
-        notes?: string[];
-        bugs?: string[];
-        deprecated?: string;
-        obsolete?: string;
-        examples?: string[];
-        seealso?: string[];
-        copyright?: string[];
-        thanks?: string[];
-        fixme?: string[];
-        members?: Record<string, string>;
-        constants?: Record<string, string>;
-        items?: Array<{ label: string; text: string }>;
-        indexes?: Array<{ label: string; text: string }>;
-        types?: string[];
-      }
-    | undefined
-    | string;
+  const doc = symbol.documentation as ExtendedAutodocDocumentation | string | undefined;
 
   if (doc) {
     // Handle string documentation (simple format or AutoDoc with //! prefix)
