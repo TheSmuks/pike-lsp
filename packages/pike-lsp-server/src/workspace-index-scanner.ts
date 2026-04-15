@@ -35,12 +35,6 @@ export interface IndexStorage {
 }
 
 /**
- * Index all Pike files in a directory.
- * PERF-002: Uses batch parsing for better performance
- * PERF-007: Adds performance instrumentation
- * PERF-008: Incremental indexing with progress callbacks and chunked processing
- */
-/**
  * Store a parsed document into the index, replacing any existing entry.
  */
 function storeParsedDocument(
@@ -66,6 +60,12 @@ function storeParsedDocument(
   storage.addToLookup(uri, symbols, lineCount);
 }
 
+/**
+ * Index all Pike files in a directory.
+ * PERF-002: Uses batch parsing for better performance
+ * PERF-007: Adds performance instrumentation
+ * PERF-008: Incremental indexing with progress callbacks and chunked processing
+ */
 export async function indexDirectory(
   storage: IndexStorage,
   dirPath: string,
@@ -252,7 +252,6 @@ export async function indexDirectory(
             fileData.filename
           );
           const parsedSymbols = analyzeResult.result?.parse?.symbols ?? [];
-
           const uri = `file://${fileData.filename}`;
           const symbols = storage.flattenSymbols(parsedSymbols);
 
