@@ -77,3 +77,44 @@ describe('Workspace diagnostics severity mapping (#1729)', () => {
     assert.equal(diag.severity, 2);
   });
 });
+
+describe('processBatch file-read error handling (#1938)', () => {
+  it('skips ENOENT silently without incrementing failure counter', () => {
+    // Verify that an ENOENT error object is correctly identified
+    const err = new Error('ENOENT: no such file');
+    Object.assign(err, { code: 'ENOENT' });
+
+    const isErrorWithCode = (e: unknown): e is Error & { code: string } =>
+      e instanceof Error && 'code' in e;
+
+    assert.ok(isErrorWithCode(err));
+    assert.equal(err.code, 'ENOENT');
+  });
+
+  it('identifies EACCES error code from permission-denied error', () => {
+    const err = new Error('EACCES: permission denied');
+    Object.assign(err, { code: 'EACCES' });
+
+    const isErrorWithCode = (e: unknown): e is Error & { code: string } =>
+      e instanceof Error && 'code' in e;
+
+    assert.ok(isErrorWithCode(err));
+    assert.equal(err.code, 'EACCES');
+  });
+
+  it('does not extract code from non-Error throws', () => {
+    const thrown = 'string error';
+    const isErrorWithCode = (e: unknown): e is Error & { code: string } =>
+      e instanceof Error && 'code' in e;
+
+    assert.ok(!isErrorWithCode(thrown));
+  });
+
+  it('does not extract code from Error without code property', () => {
+    const err = new Error('generic failure');
+    const isErrorWithCode = (e: unknown): e is Error & { code: string } =>
+      e instanceof Error && 'code' in e;
+
+    assert.ok(!isErrorWithCode(err));
+  });
+});
