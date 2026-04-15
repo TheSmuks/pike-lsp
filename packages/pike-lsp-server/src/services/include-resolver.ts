@@ -47,40 +47,50 @@ export class IncludeResolver {
     const includeSymbols = symbols.filter(s => s.kind === 'include');
     const importSymbols = symbols.filter(s => s.kind === 'import');
 
-    for (const symbol of includeSymbols) {
-      const includePath = this.getSymbolClassname(symbol) ?? symbol.name;
-      if (!includePath) continue;
+    // Resolve #include statements in parallel
+    const includeResults = await Promise.allSettled(
+      includeSymbols
+        .map(s => this.getSymbolClassname(s) ?? s.name)
+        .filter((p): p is string => p !== '')
+        .map(p => this.resolveSingleInclude(p, uri))
+    );
 
-      try {
-        const resolved = await this.resolveSingleInclude(includePath, uri);
-        if (resolved) {
-          dependencies.includes.push(resolved);
-        }
-      } catch (err) {
+    for (const result of includeResults) {
+      if (result.status === 'fulfilled' && result.value) {
+        dependencies.includes.push(result.value);
+      } else if (result.status === 'rejected') {
         this.logger.debug('Failed to resolve include', {
-          error: err instanceof Error ? err.message : String(err),
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
         });
       }
     }
 
-    for (const symbol of importSymbols) {
-      const modulePath = this.getSymbolClassname(symbol) ?? symbol.name;
-      if (!modulePath) continue;
+    // Resolve import statements in parallel
+    const importEntries = importSymbols
+      .map(s => this.getSymbolClassname(s) ?? s.name)
+      .filter((p): p is string => p !== '');
 
-      const isStdlib = await this.isStdlibModule(modulePath);
-      const importData: ResolvedImport = { modulePath, isStdlib };
+    // Check stdlib status in parallel
+    const stdlibResults = await Promise.all(importEntries.map(p => this.isStdlibModule(p)));
+
+    // Resolve workspace imports (non-stdlib only) in parallel
+    const workspaceIndices = stdlibResults
+      .map((isStdlib, i) => (!isStdlib ? i : -1))
+      .filter((i): i is number => i >= 0);
+    const workspaceResults = await Promise.all(
+      workspaceIndices.map(i => this.resolveWorkspaceImport(importEntries[i]!, uri))
+    );
+
+    for (let i = 0; i < importEntries.length; i++) {
+      const isStdlib = stdlibResults[i]!;
+      const importData: ResolvedImport = { modulePath: importEntries[i]!, isStdlib };
 
       if (!isStdlib) {
-        try {
-          const resolved = await this.resolveWorkspaceImport(modulePath, uri);
-          if (resolved) {
-            importData.symbols = resolved.symbols;
-            importData.resolvedPath = resolved.resolvedPath;
-          }
-        } catch (err) {
-          this.logger.debug('Failed to resolve workspace import', {
-            error: err instanceof Error ? err.message : String(err),
-          });
+        const wi = workspaceIndices.indexOf(i);
+        const resolved = workspaceResults[wi];
+        if (resolved) {
+          importData.symbols = resolved.symbols;
+          importData.resolvedPath = resolved.resolvedPath;
         }
       }
 
