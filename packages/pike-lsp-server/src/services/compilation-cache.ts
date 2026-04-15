@@ -39,8 +39,12 @@ export class CompilationCache<TResult> {
   private readonly dependentsByFile = new Map<string, Set<string>>();
   private readonly clock: () => number;
 
-  constructor(options: CompilationCacheOptions<TResult>) {
+  constructor(
+    options: CompilationCacheOptions<TResult>,
+    private readonly validateResult?: (result: unknown) => boolean
+  ) {
     this.clock = options.clock ?? Date.now;
+    this.validateResult = options.validateResult;
     this.cache = new LRUCache<string, CompilationCacheEntry<TResult>>({
       maxSize: options.maxSize,
       sizeEstimator: (entry, uri) => {

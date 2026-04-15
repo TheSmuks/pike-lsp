@@ -287,4 +287,55 @@ describe('CompilationCache.deserialize', () => {
     assert.ok(entry);
     assert.strictEqual(entry.result, 'good');
   });
+
+  it('skips entries whose result fails validateResult callback', () => {
+    const cache = CompilationCache.deserialize<TestResult>(
+      JSON.stringify({
+        entries: [
+          {
+            uri: 'file:///a.pike',
+            entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          },
+        ],
+      }),
+      {
+        maxSize: 100,
+        validateResult: (r: unknown) => typeof r === 'object' && r !== null && 'warnings' in r,
+      }
+    );
+    assert.strictEqual(cache.size, 0);
+  });
+
+  it('keeps entries whose result passes validateResult callback', () => {
+    const cache = CompilationCache.deserialize<TestResult>(
+      JSON.stringify({
+        entries: [
+          {
+            uri: 'file:///a.pike',
+            entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          },
+        ],
+      }),
+      {
+        maxSize: 100,
+        validateResult: (r: unknown) => typeof r === 'object' && r !== null && 'errors' in r,
+      }
+    );
+    assert.strictEqual(cache.size, 1);
+  });
+
+  it('keeps all entries when validateResult is not provided', () => {
+    const cache = CompilationCache.deserialize<TestResult>(
+      JSON.stringify({
+        entries: [
+          {
+            uri: 'file:///a.pike',
+            entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          },
+        ],
+      }),
+      { maxSize: 100 }
+    );
+    assert.strictEqual(cache.size, 1);
+  });
 });
