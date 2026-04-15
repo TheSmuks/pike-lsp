@@ -408,26 +408,21 @@ export class PikeIntrospectionService {
       }
     }
 
-    // Phase 2: fallback — re-scan uncached modules for fuzzy match
+    // Phase 2: fallback — fuzzy match against inverted index entries
     if (candidates.length === 0) {
-      for (const modulePath of searchPaths) {
-        if (!this.populatedModules.has(modulePath)) continue;
-        const moduleInfo = await stdlibIndex.getModule(modulePath);
-        if (!moduleInfo?.symbols) continue;
-
-        for (const [name, symbolInfo] of moduleInfo.symbols) {
-          const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
+      for (const entries of this.stdlibSymbolIndex.values()) {
+        for (const entry of entries) {
+          const matchScore = PikeIntrospectionService.fuzzyScore(query, entry.name);
           if (matchScore === 0) continue;
 
-          const importKind: 'import' | 'inherit' =
-            symbolInfo.kind === 'class' ? 'inherit' : 'import';
+          const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
           const kindBoost = importKind === 'inherit' ? 15 : 10;
 
           candidates.push({
-            symbol: name,
-            modulePath,
+            symbol: entry.name,
+            modulePath: entry.modulePath,
             importKind,
-            score: kindBoost + Math.max(0, 60 - modulePath.length) + matchScore,
+            score: kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
             source: 'stdlib-index',
           });
         }
