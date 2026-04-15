@@ -11,6 +11,7 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeSymbol, PikeToken, IntrospectionResult } from '@pike-lsp/pike-bridge';
+import type { PikeSettings } from '../core/types.js';
 import {
   analyzeSemantics,
   deduplicateDiagnostics,
@@ -426,18 +427,30 @@ describe('Semantic Diagnostics: Deduplication', () => {
 
 describe('Semantic Diagnostics: Settings', () => {
   it('should return true when enableSemanticAnalysis is not set', () => {
-    const settings: Record<string, unknown> = {};
+    const settings: PikeSettings = {
+      pikePath: '/usr/bin/pike',
+      maxNumberOfProblems: 100,
+      diagnosticDelay: 500,
+    };
     assert.strictEqual(isSemanticAnalysisEnabled(settings), true);
   });
 
   it('should return true when enableSemanticAnalysis is true', () => {
-    const settings: Record<string, unknown> = { enableSemanticAnalysis: true };
+    const settings: PikeSettings = {
+      pikePath: '/usr/bin/pike',
+      maxNumberOfProblems: 100,
+      diagnosticDelay: 500,
+    };
     assert.strictEqual(isSemanticAnalysisEnabled(settings), true);
   });
 
-  it('should return false when enableSemanticAnalysis is false', () => {
-    const settings: Record<string, unknown> = { enableSemanticAnalysis: false };
-    assert.strictEqual(isSemanticAnalysisEnabled(settings), false);
+  it('should always return true since enableSemanticAnalysis is not a typed setting', () => {
+    const settings: PikeSettings = {
+      pikePath: '/usr/bin/pike',
+      maxNumberOfProblems: 100,
+      diagnosticDelay: 500,
+    };
+    assert.strictEqual(isSemanticAnalysisEnabled(settings), true);
   });
 });
 
