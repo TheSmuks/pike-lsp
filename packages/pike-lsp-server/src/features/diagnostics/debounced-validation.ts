@@ -2,9 +2,8 @@
  * Debounced Validation
  *
  * Handles debounced document validation triggered by content changes.
- * Implements version tracking to prevent stale validations, incremental
- * change classification to skip unnecessary re-parses, and diagnostic
- * filtering for skipped validations.
+ * Implements version tracking to prevent stale validations and incremental
+ * change classification to skip unnecessary re-parses.
  *
  * Extracted from index.ts for maintainability (Issue #1289).
  */
@@ -114,34 +113,11 @@ export function createDebouncedValidation(deps: DebouncedValidationDeps): {
         // Clear the pending change range
         pendingChangeStates.delete(uri);
 
-        // When skipping, filter out error diagnostics that overlap with the change range.
-        // This prevents stale error diagnostics from persisting after the user fixes code.
-        // We only clear errors on lines that actually changed - other errors are kept.
-        let diagnosticsToSend = cachedEntry?.diagnostics ?? [];
-        if (changeState?.range && cachedEntry?.diagnostics?.length) {
-          const changeStartLine = changeState.range.start.line;
-          const changeEndLine = changeState.range.end.line;
-
-          // Filter out errors (severity 1) that overlap the change range
-          diagnosticsToSend = cachedEntry.diagnostics.filter(d => {
-            if (d.severity !== 1) return true; // Keep warnings/hints
-            const errorLine = d.range.start.line;
-            // Clear errors that overlap or are adjacent to the change
-            return errorLine < changeStartLine - 1 || errorLine > changeEndLine + 1;
-          });
-        }
-
-        // #1066: Persist filtered diagnostics to cache so subsequent skip-path
-        // validations don't re-send stale errors that were already filtered.
-        if (cachedEntry) {
-          const hadErrorDiagnostics = cachedEntry.diagnostics.some(d => d.severity === 1);
-          cachedEntry.diagnostics = diagnosticsToSend;
-          cachedEntry.analysisState = {
-            ...(cachedEntry.analysisState ?? { isStale: false, parseFailed: false }),
-            hasErrorDiagnostics:
-              hadErrorDiagnostics || diagnosticsToSend.some(d => d.severity === 1),
-          };
-        }
+        // Republish existing diagnostics without filtering.
+        // With mode:'latest' always used for diagnostics queries (PR #1942),
+        // the skip-path only fires when change-detection confirms no semantic
+        // change — filtering by line proximity is unnecessary.
+        const diagnosticsToSend = cachedEntry?.diagnostics ?? [];
 
         connection.sendDiagnostics({
           uri,
