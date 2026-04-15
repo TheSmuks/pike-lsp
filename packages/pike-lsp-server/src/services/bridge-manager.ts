@@ -209,7 +209,7 @@ export class BridgeManager {
     return {
       serverUptime: Date.now() - this.startTime,
       bridgeConnected: this.bridge?.isRunning() ?? false,
-      pikePid: this.bridge?.getDiagnostics().pid ?? null,
+      pikePid: this.bridge?.getDiagnostics()?.pid ?? null,
       pikeVersion: this.cachedVersion,
       recentErrors: [...this.errorLog],
       startupMetrics: this.startupMetrics,
