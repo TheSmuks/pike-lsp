@@ -53,7 +53,15 @@ export class ModuleContext {
 
   constructor(maxCacheSize = 200) {
     this.cache = new LRUCache({ maxSize: maxCacheSize });
-    this.waterfallCache = new LRUCache({ maxSize: maxCacheSize });
+    this.waterfallCache = new LRUCache({
+      maxSize: maxCacheSize,
+      onEvict: key => {
+        // Clean up the secondary index when LRU evicts a waterfall entry.
+        for (const keys of this.uriToWaterfallKeys.values()) {
+          keys.delete(key);
+        }
+      },
+    });
   }
 
   /**
