@@ -58,7 +58,7 @@ Current request count"
     const hover = buildHoverContent(symbol);
     expect(normalizeSnapshotValue(hover)).toMatchInlineSnapshot(`
 "\`\`\`pike
-int sum(int left, int right)
+int sum()
 \`\`\`
 
 ---

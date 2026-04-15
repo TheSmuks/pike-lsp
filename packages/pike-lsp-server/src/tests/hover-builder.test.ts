@@ -782,13 +782,12 @@ describe('buildHoverContent', () => {
         type: {
           kind: 'function',
           returnType: 'string',
+          arguments: [
+            { name: 'count', type: 'int' },
+            { name: 'name', type: 'string' },
+          ],
         },
-        parameters: [
-          { name: 'count', type: 'int' },
-          { name: 'name', type: 'string' },
-        ],
       };
-
       const content = buildHoverContent(symbol);
       assert.ok(content);
       assert.ok(content.includes('my_func'));
