@@ -463,7 +463,7 @@ export function buildHoverContent(symbol: PikeSymbol, parentScope?: string): str
     parts.push(buildMethodSignature(symbol));
     parts.push('```');
 
-    const variants = (symbol as PikeSymbol & { variants?: PikeSymbol[] }).variants;
+    const variants = (symbol as PikeMethod & { variants?: PikeSymbol[] }).variants;
     if (variants && variants.length > 0) {
       parts.push('');
       parts.push('### Variants');
