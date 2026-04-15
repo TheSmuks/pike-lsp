@@ -174,9 +174,11 @@ function clipEditToRange(
   } else {
     // Multi-line edit: take from the adjusted start column on the first line
     // to the adjusted end column on the last line
-    const firstLine = newTextLines[0]!.slice(clippedStartCol);
-    const lastLine = newTextLines[newTextLines.length - 1]!.slice(0, clippedEndCol);
-    const middleLines = newTextLines.slice(1, -1);
+    const skipCount = edit.range.start.line < startLine ? startLine - edit.range.start.line : 0;
+    const visibleLines = newTextLines.slice(skipCount);
+    const firstLine = visibleLines[0]!.slice(clippedStartCol);
+    const lastLine = visibleLines[visibleLines.length - 1]!.slice(0, clippedEndCol);
+    const middleLines = visibleLines.slice(1, -1);
     clippedNewText = [firstLine, ...middleLines, lastLine].join('\n');
   }
 
