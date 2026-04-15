@@ -10,7 +10,7 @@
 import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
-import type { CoreDiagnostic, DocumentCacheEntry } from '../../core/types.js';
+import type { CoreDiagnostic } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import type { RequestScheduler } from '../../services/request-scheduler.js';
 import { detectRoxenModule, provideRoxenDiagnostics } from '../roxen/index.js';
@@ -287,7 +287,7 @@ export async function processAnalysisResults(
       const introspectionForSemantic = introspectData.success
         ? introspectData
         : analysisMode === 'typing'
-          ? (services.documentCache.get(uri) as DocumentCacheEntry | undefined)?.introspection
+          ? services.documentCache.get(uri)?.introspection
           : undefined;
 
       // Skip undefined-symbol detection in typing mode without introspection.
