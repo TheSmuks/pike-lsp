@@ -44,7 +44,6 @@ export class PikeIntrospectionService {
     string,
     Array<{ modulePath: string; name: string; kind: string }>
   >();
-
   constructor(
     private readonly services: Services,
     private readonly workspaceIndex?: WorkspaceIndex,
