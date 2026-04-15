@@ -472,7 +472,7 @@ describe('Scenario: document edit → diagnostics update', () => {
     );
   });
 
-  it('should produce error diagnostics when introducing a syntax error', async () => {
+  it('should suppress transient syntax errors in typing mode but show them in full mode', async () => {
     const harness = createPipelineHarness();
     harness.configure({ diagnosticDelay: 0 });
 
@@ -484,7 +484,7 @@ describe('Scenario: document edit → diagnostics update', () => {
     harness.openDocument(v1);
     await harness.waitForSettle(200);
 
-    // Step 2: Introduce error
+    // Step 2: Introduce error via typing (changeDocument)
     const brokenCode = 'int x = ;\n';
     const v2 = TextDocument.create(uri, 'pike', 2, brokenCode);
     harness.notifyChange(uri, 2, [
@@ -496,11 +496,26 @@ describe('Scenario: document edit → diagnostics update', () => {
     harness.changeDocument(v2);
     await harness.waitForSettle(200);
 
+    // Typing mode should suppress syntax errors (transient artifacts)
     const afterBreakDiags = harness.publishedDiagnostics.filter(d => d.uri === uri);
     const lastDiag = afterBreakDiags[afterBreakDiags.length - 1]!;
+    // Syntax errors from incomplete code during typing are suppressed.
+    // They'll appear on next full validation (save/open).
+    const hasSyntaxError = lastDiag.diagnostics.some(
+      d =>
+        d.message?.toLowerCase().includes('syntax') ||
+        d.message?.toLowerCase().includes('unexpected')
+    );
+    assert.ok(!hasSyntaxError, 'Typing mode should suppress transient syntax errors');
+
+    // Step 3: Full validation (simulating save) should show the error
+    harness.openDocument(v2); // re-open triggers full validation
+    await harness.waitForSettle(200);
+    const afterFullDiags = harness.publishedDiagnostics.filter(d => d.uri === uri);
+    const fullDiag = afterFullDiags[afterFullDiags.length - 1]!;
     assert.ok(
-      lastDiag.diagnostics.length > 0,
-      'Should have error diagnostics after introducing error'
+      fullDiag.diagnostics.length > 0,
+      'Full mode should show error diagnostics for broken code'
     );
   });
 

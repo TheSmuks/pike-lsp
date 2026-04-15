@@ -242,7 +242,15 @@ export async function processAnalysisResults(
   }
 
   // --- Analyze diagnostics processing ---
-  processAnalyzeDiagnostics(diagnosticsData, diagnostics, services, uri, log, pushDiagnostic);
+  processAnalyzeDiagnostics(
+    diagnosticsData,
+    diagnostics,
+    services,
+    uri,
+    log,
+    pushDiagnostic,
+    analysisMode
+  );
 
   if (degradedFailureMessage) {
     pushDiagnostic({
@@ -274,16 +282,28 @@ export async function processAnalysisResults(
   // --- Semantic analysis integration (Issue #1196) ---
   try {
     if (isSemanticAnalysisEnabled(services.globalSettings)) {
+      // In typing mode, introspection wasn't run — use cached introspection
+      // from the document cache so inherited/imported symbols are known.
+      const introspectionForSemantic = introspectData.success
+        ? introspectData
+        : analysisMode === 'typing'
+          ? services.documentCache.get(uri)?.introspection
+          : undefined;
+
+      // Skip undefined-symbol detection in typing mode without introspection.
+      // Transient parse errors make token streams unreliable.
+      const enableUndefined = analysisMode === 'full' || !!introspectionForSemantic;
+
       const semanticResult = analyzeSemantics(
         document,
         parseData.symbols,
-        introspectData.success ? introspectData : undefined,
+        introspectionForSemantic,
         tokenizeData,
         {
           maxProblems: services.globalSettings.maxNumberOfProblems - diagnostics.length,
-          enableUndefinedDetection: true,
-          enableTypeMismatch: true,
-          enableMissingCallbacks: true,
+          enableUndefinedDetection: enableUndefined,
+          enableTypeMismatch: analysisMode === 'full',
+          enableMissingCallbacks: analysisMode === 'full',
         }
       );
 
@@ -349,6 +369,8 @@ export async function processAnalysisResults(
 /**
  * Process analyze diagnostics (syntax errors, uninitialized warnings).
  * Suppresses cascade diagnostics when syntax errors are present.
+ * In typing mode, suppresses syntax errors entirely — they're transient
+ * artifacts of incomplete code during active editing.
  */
 function processAnalyzeDiagnostics(
   diagnosticsData: AnalysisResults['diagnosticsData'],
@@ -356,7 +378,8 @@ function processAnalyzeDiagnostics(
   services: Services,
   uri: string,
   log: Logger,
-  pushDiagnostic: (d: CoreDiagnostic) => void
+  pushDiagnostic: (d: CoreDiagnostic) => void,
+  analysisMode: 'typing' | 'full' = 'full'
 ): void {
   const rawDiagData = diagnosticsData;
   const hasSyntaxErrors =
@@ -364,6 +387,17 @@ function processAnalyzeDiagnostics(
       const msg = d.message?.toLowerCase() ?? '';
       return msg.includes('syntax error') || msg.includes('unexpected tok_');
     }) ?? false;
+
+  // In typing mode, suppress syntax errors — they're transient artifacts
+  // of incomplete code. Full mode (on save/open) will catch real ones.
+  if (analysisMode === 'typing' && hasSyntaxErrors) {
+    log.debug('Suppressing transient syntax errors in typing mode', {
+      uri,
+      count: rawDiagData.diagnostics?.length ?? 0,
+    });
+    return;
+  }
+
   const diagnosticsToProcess = hasSyntaxErrors
     ? {
         diagnostics:
