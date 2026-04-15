@@ -100,7 +100,7 @@ export class WorkspaceDiagnosticsManager {
     log.debug('Workspace indexing complete, scheduling idle diagnostics');
     this.processedUris.clear();
     const allUris = this.workspaceIndex.getAllDocumentUris();
-    this.remainingUris = allUris.filter(uri => !this.processedUris.has(uri));
+    this.remainingUris = [...allUris];
     this.scheduleIdleCheck();
   }
 
