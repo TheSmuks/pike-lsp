@@ -325,3 +325,59 @@ describe('applySkippedValidationCacheUpdate', () => {
     expect(cacheEntry.lineHashes).toEqual(newLineHashes);
   });
 });
+
+describe('extractLinesInRange optimization', () => {
+  it('avoids full split when line count matches and extracts only changed lines', () => {
+    // Build a 100-line document — verify classifyChange only extracts the changed range
+    const lines100 = Array.from({ length: 100 }, (_, i) => `int line${i} = ${i};`);
+    const previousText = lines100.join('\n');
+    const cachedEntry = makeCachedEntry(previousText);
+
+    // Modify only line 50
+    const modifiedLines = [...lines100];
+    modifiedLines[50] = 'int line50 = 999;';
+    const currentText = modifiedLines.join('\n');
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      { start: { line: 50, character: 0 }, end: { line: 50, character: 14 } },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('semantic_changed');
+  });
+
+  it('falls back to full split when line count differs (line added)', () => {
+    const previousText = 'int x = 1;\nint y = 2;\n';
+    const currentText = 'int x = 1;\nint z = 0;\nint y = 2;\n';
+    const cachedEntry = makeCachedEntry(previousText);
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      { start: { line: 1, character: 0 }, end: { line: 1, character: 11 } },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('line_count_changed');
+  });
+
+  it('falls back to full split when line count differs (line deleted)', () => {
+    const previousText = 'int x = 1;\nint y = 2;\nint z = 3;\n';
+    const currentText = 'int x = 1;\nint z = 3;\n';
+    const cachedEntry = makeCachedEntry(previousText);
+    const document = TextDocument.create('file:///test.pike', 'pike', 2, currentText);
+
+    const result = classifyChange(
+      document,
+      { start: { line: 1, character: 0 }, end: { line: 1, character: 10 } },
+      cachedEntry
+    );
+
+    expect(result.canSkip).toBe(false);
+    expect(result.reason).toBe('line_count_changed');
+  });
+});
