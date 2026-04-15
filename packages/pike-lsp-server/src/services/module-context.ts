@@ -37,6 +37,7 @@ interface ModuleImportData {
  * for Pike documents.
  */
 export class ModuleContext {
+  private static readonly CACHE_TTL_MS = 5000;
   private readonly cache: LRUCache<string, ModuleImportData>;
   private pending = new Map<string, Promise<ModuleImportData>>();
   private readonly waterfallCache: LRUCache<
@@ -71,9 +72,8 @@ export class ModuleContext {
     // Check cache first
     const cached = this.cache.get(uri);
     const cacheAge = Date.now() - (cached?.timestamp ?? 0);
-    const CACHE_TTL = 5000; // 5 seconds
 
-    if (cached && cacheAge < CACHE_TTL) {
+    if (cached && cacheAge < ModuleContext.CACHE_TTL_MS) {
       return cached.imports;
     }
 
@@ -138,9 +138,8 @@ export class ModuleContext {
     // Check cache first
     const cached = this.waterfallCache.get(cacheKey);
     const cacheAge = Date.now() - (cached?.timestamp ?? 0);
-    const CACHE_TTL = 5000; // 5 seconds
 
-    if (cached && cached.contentHash === contentHash && cacheAge < CACHE_TTL) {
+    if (cached && cached.contentHash === contentHash && cacheAge < ModuleContext.CACHE_TTL_MS) {
       return cached.symbols;
     }
 
