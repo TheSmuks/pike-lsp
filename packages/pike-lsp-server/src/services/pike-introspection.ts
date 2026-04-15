@@ -184,11 +184,7 @@ export class PikeIntrospectionService {
     try {
       return await readFile(uriToFsPath(uri), 'utf-8');
     } catch (error) {
-      const code =
-        error instanceof Error && 'code' in error
-          ? (error as NodeJS.ErrnoException).code
-          : undefined;
-      if (code === 'ENOENT') return null;
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
       this.services.logger.debug('readDocumentText failed', {
         uri,
         error: error instanceof Error ? error.message : String(error),
