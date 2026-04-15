@@ -229,7 +229,11 @@ export function registerFileWatcher(
       // Also clear any cached diagnostics for this file
       cache.delete(uri);
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
         // File was deleted between change event and now
         handleFileDeleted(uri, index, cache, scanner);
         return;
