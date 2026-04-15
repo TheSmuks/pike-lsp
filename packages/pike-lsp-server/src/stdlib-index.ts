@@ -363,7 +363,7 @@ export class StdlibIndexManager {
 
       return moduleInfo;
     } catch (error) {
-      log.error(`Failed to load stdlib module ${modulePath}:`, error as Error);
+      log.error(`Failed to load stdlib module ${modulePath}:`, error instanceof Error ? error : undefined);
       // Add to negative cache on error too
       this.negativeCache.add(modulePath);
       return null;
