@@ -154,6 +154,126 @@ describe('loadResolutionCache', () => {
     const result = await loadResolutionCache();
     assert.strictEqual(result, 'mismatch-ok-without-current');
   });
+
+  it('returns null when data field is an object', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: { key: 'value' },
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when data field is null', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: null,
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when data field is boolean', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: true,
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when data field is an array', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: [1, 2, 3],
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when timestamp is negative', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: -86400000,
+        data: 'negative-ts-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when timestamp is a string', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: 'not-a-number',
+        data: 'string-ts-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, 'string-ts-data');
+  });
+
+  it('returns data when timestamp is far-future but within age limit', async () => {
+    const futureTimestamp = Date.now() + 6 * 24 * 60 * 60 * 1000; // 6 days ahead
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: futureTimestamp,
+        data: 'future-ts-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, 'future-ts-data');
+  });
+
+  it('ignores stored pikeVersion when currentPikeVersion is undefined', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '0.1.0',
+        timestamp: Date.now(),
+        data: 'mismatch-no-current',
+      })
+    );
+    const result = await loadResolutionCache();
+    assert.strictEqual(result, 'mismatch-no-current');
+  });
+
+  it('returns data when payload has extra unknown fields', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: 'extra-fields-data',
+        extraField: 'ignored',
+        anotherUnknown: 42,
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, 'extra-fields-data');
+  });
 });
 
 describe('saveResolutionCache and loadResolutionCache round-trip', () => {
