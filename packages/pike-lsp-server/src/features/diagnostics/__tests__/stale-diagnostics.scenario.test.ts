@@ -99,7 +99,14 @@ describe('Stale Diagnostics Scenario', () => {
   });
 
   it('should handle empty diagnostics gracefully', () => {
-    const cachedDiagnostics: Array<{ severity: number; range: { start: { line: number; character: number }; end: { line: number; character: number } }; message: string }> = [];
+    const cachedDiagnostics: Array<{
+      severity: number;
+      range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+      };
+      message: string;
+    }> = [];
 
     const diagnosticsToSend = cachedDiagnostics;
 
