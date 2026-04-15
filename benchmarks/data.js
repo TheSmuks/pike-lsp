@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776280840654,
+  "lastUpdate": 1776282742955,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -113946,6 +113946,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.60199225409836,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4d28b6be5d69f4aa3c3e84c67aefd4c3e7da0831",
+          "message": "fix: background stdlib population instead of blocking completion (#1969)\n\n* fix: background stdlib population instead of blocking completion\n\nThe previous approach loaded stdlib modules inside searchStdlibCandidates,\nwhich meant the first completion request would synchronously introspect\nevery known module via the Pike bridge. With dynamic module discovery\nadding hundreds of system modules, this caused 30s+ timeouts.\n\nArchitecture:\n- StdlibIndexManager.startBackgroundPopulation(): fire-and-forget async\n  that loads all modules sequentially, calling back for each success.\n- PikeIntrospectionService.addModuleToIndex(): synchronous callback that\n  builds the inverted search index from a loaded module.\n- searchStdlibCandidates(): now purely read-only against the index.\n  Returns whatever has been populated so far. No bridge calls.\n- server-runtime.ts kicks off background population after module discovery.\n\nThis ensures completion responds instantly using whatever index data is\navailable, while the background task fills in the rest incrementally.\n\nRe-enabled fail-fast: true on E2E matrix — the root cause (completion\nblocking on module introspection) is now fixed, so fail-fast is correct.\n\nUpdated tests to call addModuleToIndex to simulate background population.\n\n* fix: replace background stdlib population with query-driven lazy loading\n\nBackground population floods the single-threaded bridge subprocess with\n200+ sequential module introspection requests, starving LSP operations\n(completion, find references) and causing performance test failures.\n\nReplace with query-driven lazy loading:\n- searchStdlibCandidates() attempts index search first (no bridge work)\n- If empty, identifies at most 3 candidate modules matching the query\n- Loads only those modules via bridge (1-3 calls, not 200+)\n- Indexes them via addModuleToIndex(), then retries\n- Subsequent queries hit cache (zero bridge calls)\n\nRemoves startBackgroundPopulation(), populating flag, and server-runtime wiring.\n\nRefs: #1958\n\n---------\n\nCo-authored-by: smuks <smuks@homelab.lan>",
+          "timestamp": "2026-04-15T19:50:42Z",
+          "tree_id": "75b67c38df99507c2c72a93bd49015f05da1a9d7",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/4d28b6be5d69f4aa3c3e84c67aefd4c3e7da0831"
+        },
+        "date": 1776282742644,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.26569558333335,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 252.13720375,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 252.3653525,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 260.74141291666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.471707737739872,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.115486335820895,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 64.43239041666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 6.324514336448598,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.118656315789473,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.2039734153750775,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.20334420914426937,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.5647205263591433,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.159221284371909,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.18239377790663963,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.0003042176015199637,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0006301258759450451,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0006491224243018449,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0006444693820821819,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0006510739645936765,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0006401136561990547,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3135343853383459,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.76828208333333,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.88668091666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.31822392979127134,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00027470948064775986,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0007794081108660588,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.58419718852459,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.597553721311475,
             "unit": "ms"
           }
         ]
