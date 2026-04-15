@@ -434,8 +434,11 @@ export class PikeIntrospectionService {
 
     // Phase 2: fallback — fuzzy match against inverted index entries
     if (candidates.length === 0) {
+      let scanned = 0;
+      const maxPhase2Scan = 200;
       for (const entries of this.stdlibSymbolIndex.values()) {
         for (const entry of entries) {
+          if (++scanned > maxPhase2Scan) break;
           const matchScore = PikeIntrospectionService.fuzzyScore(query, entry.name);
           if (matchScore === 0) continue;
 
@@ -450,6 +453,7 @@ export class PikeIntrospectionService {
             source: 'stdlib-index',
           });
         }
+        if (scanned > maxPhase2Scan) break;
       }
     }
 
