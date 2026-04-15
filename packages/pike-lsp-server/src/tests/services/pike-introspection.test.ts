@@ -201,3 +201,29 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
     }
   });
 });
+
+describe('PikeIntrospectionService - addModuleToIndex sorted keys', () => {
+  it('finds all symbols when module is populated in reverse-alphabetical order', async () => {
+    const symbols = new Map<string, IntrospectedSymbol>([
+      ['zebra', makeSymbol('zebra')],
+      ['mango', makeSymbol('mango')],
+      ['alpha', makeSymbol('alpha')],
+      ['banana', makeSymbol('banana')],
+    ]);
+    const services = createMockServices();
+    const stdlibIndex = createMockStdlibIndex([{ path: 'TestModule', symbols }]);
+    const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
+
+    populateIndex(svc, [{ path: 'TestModule', symbols }]);
+
+    // Every symbol must be findable via binary search
+    for (const [name] of symbols) {
+      const results = await svc.searchImportableSymbols(name);
+      expect(results.some(r => r.symbol === name)).toBe(true);
+    }
+
+    // Prefix search for 'a' should find 'alpha'
+    const aResults = await svc.searchImportableSymbols('a');
+    expect(aResults.some(r => r.symbol === 'alpha')).toBe(true);
+  });
+});
