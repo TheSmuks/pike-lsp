@@ -261,7 +261,9 @@ export class WorkspaceDiagnosticsManager {
             onSlot = null;
           };
 
-          type ItemResult = { uri: string; text: string } | { uri: string; error: string };
+          type ItemResult =
+            | { uri: string; text: string }
+            | { uri: string; error: string; code?: string };
           const itemResults: ItemResult[] = [];
 
           await Promise.all(
@@ -272,10 +274,19 @@ export class WorkspaceDiagnosticsManager {
                 const text = await fs.readFile(fsPath, 'utf-8');
                 itemResults.push({ uri: item.uri, text });
               } catch (err) {
-                itemResults.push({
-                  uri: item.uri,
-                  error: err instanceof Error ? err.message : String(err),
-                });
+                const code =
+                  err instanceof Error && 'code' in err
+                    ? (err as Error & { code: string }).code
+                    : undefined;
+                const entry: ItemResult =
+                  code !== undefined
+                    ? {
+                        uri: item.uri,
+                        error: err instanceof Error ? err.message : String(err),
+                        code,
+                      }
+                    : { uri: item.uri, error: err instanceof Error ? err.message : String(err) };
+                itemResults.push(entry);
               } finally {
                 release();
               }
@@ -285,7 +296,15 @@ export class WorkspaceDiagnosticsManager {
           // Analyze each successfully-read file individually
           for (const res of itemResults) {
             if ('error' in res) {
-              log.debug('Background diagnostic failed', { uri: res.uri, error: res.error });
+              if (res.code === 'ENOENT') {
+                // File deleted between indexing and diagnostics — skip silently
+                processed.add(res.uri);
+              } else if (res.code === 'EACCES') {
+                log.warn('Permission denied, permanently skipping', { uri: res.uri });
+                this.failedUriAttempts.set(res.uri, WorkspaceDiagnosticsManager.MAX_FAILURES);
+              } else {
+                log.debug('Background diagnostic failed', { uri: res.uri, error: res.error });
+              }
               continue;
             }
 
