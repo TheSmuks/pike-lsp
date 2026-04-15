@@ -220,10 +220,16 @@ describe('BridgeManager parseFileSymbols', () => {
     }
   });
 
-  it('returns [] when bridge is null', async () => {
+  it('throws when bridge is null', async () => {
     const manager = new BridgeManager(null, createMockLogger());
-    const result = await manager.parseFileSymbols('/any/path.pike');
-    assert.deepEqual(result, []);
+    await assert.rejects(
+      () => manager.parseFileSymbols('/any/path.pike'),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Bridge not available/);
+        return true;
+      }
+    );
   });
 });
 

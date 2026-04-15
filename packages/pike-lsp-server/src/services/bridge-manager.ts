@@ -490,9 +490,7 @@ export class BridgeManager {
    *         can distinguish I/O failures from empty-symbol results.
    */
   async parseFileSymbols(filePath: string): Promise<PikeSymbol[]> {
-    if (!this.bridge) {
-      return [];
-    }
+    this.requireBridge();
 
     let content: string;
     try {
