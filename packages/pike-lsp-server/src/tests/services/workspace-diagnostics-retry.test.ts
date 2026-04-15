@@ -74,7 +74,7 @@ describe('WorkspaceDiagnostics processBatch retry (#1851)', () => {
     manager.dispose();
   });
 
-  it('marks only successfully analyzed files as processed, retries failed ones', async () => {
+  it('skips URIs after MAX_FAILURES (3) within a single index cycle', async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pike-test-'));
     const files = ['a.pike', 'b.pike', 'c.pike'];
     for (const f of files) {
@@ -93,38 +93,93 @@ describe('WorkspaceDiagnostics processBatch retry (#1851)', () => {
           isRunning: () => true,
           analyze: async (_text: string, _modes: string[], uri: string) => {
             analyzeCount++;
-            // B fails on first attempt only (transient failure)
-            if (uri === bUri && analyzeCount <= 3) {
-              throw new Error('simulated analysis failure');
+            if (uri === bUri) {
+              throw new Error('simulated permanent failure');
             }
             return { result: { diagnostics: { diagnostics: [] } } };
           },
         },
       } as unknown as BridgeManager,
       idleDelayMs: 0,
-      batchSize: 10,
+      batchSize: 1,
       sendDiagnostics: () => {},
       clearDiagnostics: () => {},
     });
 
+    // First pass: process all 3 URIs (batchSize=1 → 3 batches in one queue run)
+    // A succeeds, B fails (1st), C succeeds
     manager.onIndexingComplete();
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 30));
 
-    // A and C succeeded, B failed → processedCount should be 2
-    let stats = manager.getStats();
+    // B pushed to remainingUris, will retry on next idle
+    // Second idle pass: B fails (2nd)
+    await new Promise(r => setTimeout(r, 30));
+
+    // Third idle pass: B fails (3rd) → permanently skipped
+    await new Promise(r => setTimeout(r, 30));
+
+    // Fourth idle pass: B should NOT be retried
+    await new Promise(r => setTimeout(r, 30));
+
+    const stats = manager.getStats();
     assert.equal(
       stats.processedCount,
       2,
-      'Only A and C should be marked processed after first pass; B should be retried'
+      'A and C processed; B permanently skipped after 3 failures'
     );
+    // B attempted 3 times (once per idle pass), A and C attempted once each
+    assert.equal(analyzeCount, 5, 'B attempted exactly 3 times, A and C once each');
 
-    // onIndexingComplete resets processedUris and re-populates remainingUris
-    // so the retry cycle can pick up B (which now succeeds because analyzeCount > 3)
+    manager.dispose();
+  });
+
+  it('onIndexingComplete resets failure counts so skipped URIs are retried', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pike-test-'));
+    const files = ['a.pike', 'b.pike'];
+    for (const f of files) {
+      await fs.writeFile(path.join(tmpDir, f), 'int main() {}\n');
+    }
+    const testUris = files.map(f => `file://${path.join(tmpDir, f)}`);
+
+    let analyzeCount = 0;
+    const bUri = testUris[1];
+    let bShouldFail = true;
+
+    const manager = new WorkspaceDiagnosticsManager({
+      scheduler: createMockScheduler(),
+      workspaceIndex: createMockWorkspaceIndex(testUris),
+      bridgeManager: {
+        bridge: {
+          isRunning: () => true,
+          analyze: async (_text: string, _modes: string[], uri: string) => {
+            analyzeCount++;
+            if (uri === bUri && bShouldFail) {
+              throw new Error('simulated failure');
+            }
+            return { result: { diagnostics: { diagnostics: [] } } };
+          },
+        },
+      } as unknown as BridgeManager,
+      idleDelayMs: 0,
+      batchSize: 1,
+      sendDiagnostics: () => {},
+      clearDiagnostics: () => {},
+    });
+
+    // B fails 3 times → permanently skipped
+    manager.onIndexingComplete();
+    await new Promise(r => setTimeout(r, 120));
+
+    let stats = manager.getStats();
+    assert.equal(stats.processedCount, 1, 'Only A processed; B skipped');
+
+    // Re-index: B's failure count resets, now it succeeds
+    bShouldFail = false;
     manager.onIndexingComplete();
     await new Promise(r => setTimeout(r, 50));
 
     stats = manager.getStats();
-    assert.equal(stats.processedCount, 3, 'All URIs should be processed after retry cycle');
+    assert.equal(stats.processedCount, 2, 'Both A and B processed after re-index');
 
     manager.dispose();
   });
