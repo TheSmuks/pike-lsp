@@ -11,7 +11,6 @@
 
 import { Connection, InlayHint, InlayHintKind, TextDocument } from 'vscode-languageserver/node.js';
 
-
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { InlayHintsSettings } from '../../core/types.js';
