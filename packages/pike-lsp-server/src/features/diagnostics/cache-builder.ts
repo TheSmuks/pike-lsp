@@ -311,7 +311,11 @@ export async function buildCacheParseOnly(
     contentHash,
     lineHashes,
     ...(analysisMode === 'typing' && previousEntry
-      ? { dependencies: previousEntry.dependencies, inherits: previousEntry.inherits, introspection: previousEntry.introspection }
+      ? {
+          dependencies: previousEntry.dependencies,
+          inherits: previousEntry.inherits,
+          introspection: previousEntry.introspection,
+        }
       : {}),
     analysisState: {
       isStale: false,
