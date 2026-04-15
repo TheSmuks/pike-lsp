@@ -296,7 +296,7 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
       }
     }
 
-    connection.console.log('Stdlib preloading skipped - modules will load on-demand');
+    connection.console.log('Stdlib modules will load on-demand during queries');
 
     const workspaceFolders = await connection.workspace.getWorkspaceFolders();
     const bridgeForWorkspace = getBridgeManager();
