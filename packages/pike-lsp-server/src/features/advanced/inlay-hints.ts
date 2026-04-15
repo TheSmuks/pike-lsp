@@ -16,6 +16,7 @@ import type { Services } from '../../services/index.js';
 import type { InlayHintsSettings } from '../../core/types.js';
 import { Logger } from '@pike-lsp/core';
 import { collectCallContexts } from '../navigation/call-context-resolver.js';
+import type { PikeMethod } from '@pike-lsp/pike-bridge';
 
 /**
  * Register inlay hints handler.
@@ -49,7 +50,7 @@ export function registerInlayHintsHandler(
   /**
    * Get parameter name from argNames array, handling undefined elements.
    */
-  function getParamName(argNames: string[] | undefined, index: number): string {
+  function getParamName(argNames: (string | null)[] | undefined, index: number): string {
     if (!argNames || index >= argNames.length) return `arg${index}`;
     const name = argNames[index];
     return name || `arg${index}`;
@@ -71,7 +72,7 @@ export function registerInlayHintsHandler(
   }
 
   function resolveParameterForArgument(
-    argNames: string[] | undefined,
+    argNames: (string | null)[] | undefined,
     argTypes: unknown[] | undefined,
     argumentIndex: number
   ): { paramName: string; paramType: string | undefined } | null {
@@ -160,9 +161,11 @@ export function registerInlayHintsHandler(
           continue;
         }
 
-        const methodRec = method as unknown as Record<string, unknown>;
-        const argNames = methodRec['argNames'] as string[] | undefined;
-        const argTypes = methodRec['argTypes'] as unknown[] | undefined;
+        if (method.kind !== 'method') {
+          continue;
+        }
+        const argNames = (method as PikeMethod).argNames;
+        const argTypes = (method as PikeMethod).argTypes;
 
         for (let index = 0; index < call.argumentRanges.length; index++) {
           const argumentRange = call.argumentRanges[index]!;
