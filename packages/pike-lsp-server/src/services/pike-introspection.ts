@@ -349,7 +349,7 @@ export class PikeIntrospectionService {
     // Limit batch size to avoid blocking completion on large module sets
     // (e.g. when dynamic discovery adds hundreds of system modules).
     // Unpopulated modules will be loaded incrementally on subsequent requests.
-    const POPULATE_BATCH = 50;
+    const POPULATE_BATCH = 20;
     let populated = 0;
     for (const modulePath of searchPaths) {
       if (this.populatedModules.has(modulePath)) continue;
