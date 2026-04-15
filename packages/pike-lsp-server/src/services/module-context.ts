@@ -19,7 +19,7 @@ import type {
 /**
  * Cached import data for a document.
  */
-export interface ModuleImportData {
+interface ModuleImportData {
   /** Document URI */
   uri: string;
   /** Extracted imports */
