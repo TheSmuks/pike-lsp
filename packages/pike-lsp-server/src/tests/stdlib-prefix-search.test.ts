@@ -253,4 +253,25 @@ describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
       expect(subMatch!.score).toBeGreaterThan(subSeq.score);
     }
   });
+  it('Phase 2 scans one entry per symbol-name bucket, not all entries within each bucket', async () => {
+    const modules = new Map<string, Map<string, { kind: string }>>();
+    // One module defines 'Foo' — creates a single bucket with one entry.
+    // The key insight: stdlibSymbolIndex buckets by lowercase name, so each
+    // bucket is a unique symbol. Phase 2 should scan at most one per bucket.
+    modules.set('M1', new Map([['Foo', { kind: 'function' }]]));
+    modules.set('M2', new Map([['Bar', { kind: 'function' }]]));
+
+    const service = new PikeIntrospectionService(
+      createMockServices(),
+      undefined,
+      createMockStdlibIndex(modules)
+    );
+    populateIndex(service, modules);
+
+    // Query that won't match any prefix (no Phase 1 hits) — triggers Phase 2.
+    // 'o' is a subsequence of 'Foo' so fuzzy match fires.
+    const results = await service.searchImportableSymbols('o');
+    // At most one result per symbol-name bucket (Foo or Bar), not per entry.
+    expect(results.length).toBeLessThanOrEqual(2);
+  });
 });

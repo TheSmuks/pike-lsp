@@ -432,28 +432,32 @@ export class PikeIntrospectionService {
       }
     }
 
-    // Phase 2: fallback — fuzzy match against inverted index entries
+    // Phase 2: fallback — fuzzy match against symbol-name-keyed entries
+    // Scan one representative entry per unique lowercase symbol name (bucket).
+    // This bounds total work by the number of distinct symbols, not entries,
+    // and avoids the inner-loop accounting issue with large buckets.
     if (candidates.length === 0) {
       let scanned = 0;
       const maxPhase2Scan = 200;
       for (const entries of this.stdlibSymbolIndex.values()) {
-        for (const entry of entries) {
-          if (++scanned > maxPhase2Scan) break;
-          const matchScore = PikeIntrospectionService.fuzzyScore(query, entry.name);
-          if (matchScore === 0) continue;
+        if (scanned >= maxPhase2Scan) break;
+        const entry = entries[0];
+        if (!entry) continue;
+        scanned++;
 
-          const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
-          const kindBoost = importKind === 'inherit' ? 15 : 10;
+        const matchScore = PikeIntrospectionService.fuzzyScore(query, entry.name);
+        if (matchScore === 0) continue;
 
-          candidates.push({
-            symbol: entry.name,
-            modulePath: entry.modulePath,
-            importKind,
-            score: kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
-            source: 'stdlib-index',
-          });
-        }
-        if (scanned > maxPhase2Scan) break;
+        const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
+        const kindBoost = importKind === 'inherit' ? 15 : 10;
+
+        candidates.push({
+          symbol: entry.name,
+          modulePath: entry.modulePath,
+          importKind,
+          score: kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
+          source: 'stdlib-index',
+        });
       }
     }
 
