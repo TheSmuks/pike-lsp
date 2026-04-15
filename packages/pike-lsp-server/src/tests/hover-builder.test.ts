@@ -307,6 +307,21 @@ describe('buildHoverContent', () => {
       assert.ok(content.includes('my_method'));
     });
 
+    it('handles method without type property using PikeMethod fallback', () => {
+      const symbol: any = {
+        name: 'do_something',
+        kind: 'method',
+        argNames: ['count', 'label'],
+        argTypes: [{ name: 'int' }, { name: 'string' }],
+        returnType: { name: 'void' },
+      };
+
+      const content = buildHoverContent(symbol);
+      assert.ok(content);
+      assert.ok(content.includes('```pike'));
+      assert.ok(content.includes('void do_something(int count, string label)'));
+    });
+
     it('handles method with variants', () => {
       const symbol: any = {
         name: 'process',

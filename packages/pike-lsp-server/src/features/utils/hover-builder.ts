@@ -4,7 +4,7 @@
  * Shared functions for building markdown hover content across multiple features.
  */
 
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from './pike-type-formatter.js';
 
 /**
@@ -393,6 +393,23 @@ function buildMethodSignature(symbol: PikeSymbol): string {
         .join(', ');
     }
 
+    return `${returnType} ${symbol.name}(${argList})`;
+  }
+
+  if (symbol.kind === 'method') {
+    const method = symbol as PikeMethod;
+    const returnType = method.returnType ? formatPikeType(method.returnType) : 'void';
+    let argList = '';
+    if (method.argTypes) {
+      argList = method.argTypes
+        .map((t, i) => {
+          if (t == null) return `mixed arg${i}`;
+          const type = formatPikeType(t);
+          const name = method.argNames?.[i] ?? `arg${i}`;
+          return `${type} ${name}`;
+        })
+        .join(', ');
+    }
     return `${returnType} ${symbol.name}(${argList})`;
   }
 
