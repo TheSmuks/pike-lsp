@@ -369,7 +369,7 @@ jobs:
     timeout-minutes: 25
     continue-on-error: ${{ matrix.optional }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - category: core-lsp
