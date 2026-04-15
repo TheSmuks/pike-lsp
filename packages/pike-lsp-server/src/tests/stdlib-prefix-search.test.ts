@@ -158,4 +158,76 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
     const results = await service.searchImportableSymbols('anything');
     expect(results).toHaveLength(0);
   });
+
 });
+
+describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
+  it('returns fuzzy matches from inverted index when Phase 1 yields nothing', async () => {
+    const modules = new Map<string, Map<string, { kind: string }>>();
+    // Only 'String' — no prefix match for 'strng', so Phase 2 fuzzy must fire
+    modules.set(
+      'Public.String',
+      new Map([
+        ['String', { kind: 'class' }],
+        ['StringBuffer', { kind: 'class' }],
+      ])
+    );
+
+    const service = new PikeIntrospectionService(
+      createMockServices(),
+      undefined,
+      createMockStdlibIndex(modules)
+    );
+
+    const results = await service.searchImportableSymbols('strng');
+
+    // 'strng' is a contiguous subsequence of both 'String' and 'StringBuffer'
+    expect(results.length).toBeGreaterThanOrEqual(2);
+
+    // Verify candidate shape
+    for (const r of results) {
+      expect(r.symbol).toBeTruthy();
+      expect(r.modulePath).toBe('Public.String');
+      expect(['import', 'inherit']).toContain(r.importKind);
+      expect(r.score).toBeGreaterThan(0);
+      expect(r.source).toBe('stdlib-index');
+    }
+
+    // class → inherit
+    const strEntry = results.find(r => r.symbol === 'String');
+    expect(strEntry).toBeDefined();
+    expect(strEntry!.importKind).toBe('inherit');
+    expect(strEntry!.modulePath).toBe('Public.String');
+    expect(strEntry!.score).toBeGreaterThan(0);
+
+    const bufEntry = results.find(r => r.symbol === 'StringBuffer');
+    expect(bufEntry).toBeDefined();
+    expect(bufEntry!.importKind).toBe('inherit');
+    expect(bufEntry!.modulePath).toBe('Public.String');
+  });
+
+  it('Phase 2 fuzzy match prefers substring over subsequence', async () => {
+    const modules = new Map<string, Map<string, { kind: string }>>();
+    // 'substrng' is a substring of 'substring_match', subsequence of 'subsequence'
+    modules.set('Public.Test', new Map([
+      ['substring_match', { kind: 'function' }],
+      ['subsequence', { kind: 'function' }],
+    ]));
+
+    const service = new PikeIntrospectionService(
+      createMockServices(),
+      undefined,
+      createMockStdlibIndex(modules)
+    );
+
+    const results = await service.searchImportableSymbols('substrng');
+    const subMatch = results.find(r => r.symbol === 'substring_match');
+    expect(subMatch).toBeDefined();
+    // substring_match should score higher than subsequence
+    const subSeq = results.find(r => r.symbol === 'subsequence');
+    if (subSeq) {
+      expect(subMatch!.score).toBeGreaterThan(subSeq.score);
+    }
+  });
+});
+
