@@ -190,6 +190,32 @@ describe('FormattingService', () => {
       }
     });
 
+    it('does not duplicate text when multi-line edit clips to a single line', () => {
+      const service = new FormattingService();
+      const text = [
+        'class Foo {', // line 0
+        '  int a;', // line 1
+        '  int b;', // line 2
+        '  int c;', // line 3
+        '  int d;', // line 4
+        '  int e;', // line 5
+        '}', // line 6
+      ].join('\n');
+
+      // Request a single-line range deep in the document.
+      // If the formatter produces a multi-line edit that gets clipped,
+      // the clipped newText must not contain duplicated lines.
+      const edits = service.formatRange(text, 5, 5, {});
+      for (const edit of edits) {
+        assert.strictEqual(edit.range.start.line, 5, 'Edit start must be on line 5');
+        assert.strictEqual(edit.range.end.line, 5, 'Edit end must be on line 5');
+        assert.ok(
+          !edit.newText.includes('\n'),
+          `Single-line clipped edit should not contain newlines, got: "${edit.newText}"`
+        );
+      }
+    });
+
     it('skips correct number of initial newText lines when edit starts before range', () => {
       // Directly test the line-skipping behavior by constructing a scenario
       // where formatRange clips a multi-line indent edit that starts before the range.
