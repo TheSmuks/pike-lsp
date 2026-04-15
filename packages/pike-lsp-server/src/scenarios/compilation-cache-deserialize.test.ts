@@ -1,169 +1,202 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { CompilationCache } from '../services/compilation-cache.js';
+import type { CompilationCacheOptions } from '../services/compilation-cache.js';
 
-type TestResult = { errors: number };
-
-function makeOptions(overrides?: { clock?: () => number }) {
-  return { maxSize: 100, ...overrides };
-}
+const defaultOptions: CompilationCacheOptions<string> = { maxSize: 100 };
 
 describe('CompilationCache.deserialize', () => {
-  it('round-trips valid serialize/deserialize preserving entries', () => {
-    const cache = new CompilationCache<TestResult>(makeOptions());
-    cache.store('file:///a.pike', 'int x;', { errors: 0 }, ['file:///b.pike'], 500);
-    cache.store('file:///b.pike', 'int y;', { errors: 1 }, [], 1000);
+  it('round-trips through serialize and deserialize', () => {
+    const original = new CompilationCache<string>(defaultOptions);
+    original.store('file:///a.pike', 'code-a', 'result-a', ['file:///b.pike'], 1000);
+    original.store('file:///b.pike', 'code-b', 'result-b', [], 2000);
 
-    const serialized = cache.serialize();
-    const restored = CompilationCache.deserialize<TestResult>(serialized, makeOptions());
+    const serialized = original.serialize();
+    const restored = CompilationCache.deserialize<string>(serialized, defaultOptions);
 
     assert.strictEqual(restored.size, 2);
+    assert.strictEqual(restored.get('file:///a.pike', 'code-a')?.result, 'result-a');
+    assert.strictEqual(restored.get('file:///b.pike', 'code-b')?.result, 'result-b');
+  });
 
-    const entryA = restored.get('file:///a.pike', 'int x;');
-    assert.ok(entryA);
-    assert.deepStrictEqual(entryA.result, { errors: 0 });
-    assert.deepStrictEqual(entryA.dependencies, ['file:///b.pike']);
-    assert.strictEqual(entryA.timestamp, 500);
+  it('restores dependency edges visible in getStats after deserialize', () => {
+    const original = new CompilationCache<string>(defaultOptions);
+    original.store(
+      'file:///a.pike',
+      'code-a',
+      'result-a',
+      ['file:///b.pike', 'file:///c.pike'],
+      1000
+    );
+    original.store('file:///b.pike', 'code-b', 'result-b', ['file:///c.pike'], 2000);
 
-    const entryB = restored.get('file:///b.pike', 'int y;');
-    assert.ok(entryB);
-    assert.deepStrictEqual(entryB.result, { errors: 1 });
+    const serialized = original.serialize();
+    const restored = CompilationCache.deserialize<string>(serialized, defaultOptions);
+
+    const stats = restored.getStats();
+    assert.strictEqual(stats.trackedFiles, 2);
+    assert.strictEqual(stats.trackedDependencyEdges, 3);
   });
 
   it('returns empty cache for malformed JSON', () => {
-    const cache = CompilationCache.deserialize<TestResult>('{ not valid json }}}', makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>('not json{{', defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
   it('returns empty cache for non-JSON string', () => {
-    const cache = CompilationCache.deserialize<TestResult>('just some random text', makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>('just some random text', defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('returns empty cache for JSON primitive (string)', () => {
+    const result = CompilationCache.deserialize<string>('"just a string"', defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('returns empty cache for JSON null', () => {
+    const result = CompilationCache.deserialize<string>('null', defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('returns empty cache for JSON array', () => {
+    const result = CompilationCache.deserialize<string>('[1,2,3]', defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('returns empty cache for empty entries array', () => {
+    const payload = JSON.stringify({ entries: [] });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
   it('returns empty cache when entries is an object instead of array', () => {
-    const payload = JSON.stringify({ entries: { 'file:///a.pike': 'data' } });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const payload = JSON.stringify({
+      entries: { 'file:///a.pike': { uri: 'file:///a.pike', entry: {} } },
+    });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
   it('returns empty cache when entries is a string instead of array', () => {
     const payload = JSON.stringify({ entries: 'not-array' });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
   it('returns empty cache when entries is a number', () => {
     const payload = JSON.stringify({ entries: 42 });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with missing code field', () => {
+  it('returns empty cache when entries is missing', () => {
+    const payload = JSON.stringify({ foo: 'bar' });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips entry with missing code field', () => {
+    const payload = JSON.stringify({
+      entries: [{ uri: 'file:///a.pike', entry: { result: 'r', dependencies: [], timestamp: 1 } }],
+    });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips entry with missing result field', () => {
+    const payload = JSON.stringify({
+      entries: [{ uri: 'file:///a.pike', entry: { code: 'c', dependencies: [], timestamp: 1 } }],
+    });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips entry with non-string dependencies', () => {
     const payload = JSON.stringify({
       entries: [
         {
           uri: 'file:///a.pike',
-          entry: { result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          entry: { code: 'c', result: 'r', dependencies: [42], timestamp: 1 },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with missing result field', () => {
+  it('skips entry with non-number timestamp', () => {
     const payload = JSON.stringify({
       entries: [
         {
           uri: 'file:///a.pike',
-          entry: { code: 'int x;', dependencies: [], timestamp: 100 },
+          entry: { code: 'c', result: 'r', dependencies: [], timestamp: 'not-a-number' },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with non-string code field', () => {
+  it('skips entry with non-string code field', () => {
     const payload = JSON.stringify({
       entries: [
         {
           uri: 'file:///a.pike',
-          entry: { code: 123, result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          entry: { code: 123, result: 'r', dependencies: [], timestamp: 1 },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with non-array dependencies', () => {
+  it('skips entry with non-array dependencies', () => {
     const payload = JSON.stringify({
       entries: [
         {
           uri: 'file:///a.pike',
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: 'bad', timestamp: 100 },
+          entry: { code: 'c', result: 'r', dependencies: 'bad', timestamp: 1 },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with non-string items in dependencies', () => {
+  it('skips entry with missing uri field', () => {
     const payload = JSON.stringify({
-      entries: [
-        {
-          uri: 'file:///a.pike',
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [42], timestamp: 100 },
-        },
-      ],
+      entries: [{ entry: { code: 'c', result: 'r', dependencies: [], timestamp: 1 } }],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
   });
 
-  it('skips entries with non-number timestamp', () => {
-    const payload = JSON.stringify({
-      entries: [
-        {
-          uri: 'file:///a.pike',
-          entry: {
-            code: 'int x;',
-            result: { errors: 0 },
-            dependencies: [],
-            timestamp: 'not-a-number',
-          },
-        },
-      ],
-    });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
-  });
-
-  it('skips entries with missing uri field', () => {
-    const payload = JSON.stringify({
-      entries: [
-        {
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
-        },
-      ],
-    });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
-  });
-
-  it('skips entries with non-string uri field', () => {
+  it('skips entry with non-string uri field', () => {
     const payload = JSON.stringify({
       entries: [
         {
           uri: 12345,
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          entry: { code: 'c', result: 'r', dependencies: [], timestamp: 1 },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips non-record entry and keeps valid entries', () => {
+    const payload = JSON.stringify({
+      entries: [
+        'invalid-entry',
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'c', result: 'r', dependencies: [], timestamp: 1 },
+        },
+      ],
+    });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 1);
+    assert.strictEqual(result.get('file:///a.pike', 'c')?.result, 'r');
   });
 
   it('keeps valid entries and skips invalid ones in mixed payload', () => {
@@ -171,114 +204,33 @@ describe('CompilationCache.deserialize', () => {
       entries: [
         {
           uri: 'file:///valid.pike',
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          entry: { code: 'int x;', result: 'result-valid', dependencies: [], timestamp: 100 },
         },
         {
           uri: 'file:///missing-code.pike',
-          entry: { result: { errors: 0 }, dependencies: [], timestamp: 100 },
+          entry: { result: 'r', dependencies: [], timestamp: 100 },
         },
         {
           uri: 'file:///also-valid.pike',
           entry: {
             code: 'int y;',
-            result: { errors: 2 },
+            result: 'result-also',
             dependencies: ['file:///valid.pike'],
             timestamp: 200,
           },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 2);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 2);
 
-    const valid = cache.get('file:///valid.pike', 'int x;');
+    const valid = result.get('file:///valid.pike', 'int x;');
     assert.ok(valid);
-    assert.deepStrictEqual(valid.result, { errors: 0 });
+    assert.strictEqual(valid.result, 'result-valid');
 
-    const alsoValid = cache.get('file:///also-valid.pike', 'int y;');
+    const alsoValid = result.get('file:///also-valid.pike', 'int y;');
     assert.ok(alsoValid);
-    assert.deepStrictEqual(alsoValid.result, { errors: 2 });
-  });
-
-  it('restores dependency edges visible in getStats after deserialization', () => {
-    const cache = new CompilationCache<TestResult>(makeOptions());
-    cache.store(
-      'file:///a.pike',
-      'int a;',
-      { errors: 0 },
-      ['file:///b.pike', 'file:///c.pike'],
-      100
-    );
-    cache.store('file:///b.pike', 'int b;', { errors: 0 }, ['file:///c.pike'], 200);
-    cache.store('file:///c.pike', 'int c;', { errors: 0 }, [], 300);
-
-    const originalStats = cache.getStats();
-
-    const serialized = cache.serialize();
-    const restored = CompilationCache.deserialize<TestResult>(serialized, makeOptions());
-    const restoredStats = restored.getStats();
-
-    assert.strictEqual(restoredStats.trackedFiles, originalStats.trackedFiles);
-    assert.strictEqual(restoredStats.trackedDependencyEdges, originalStats.trackedDependencyEdges);
-    assert.strictEqual(restoredStats.trackedFiles, 2); // a and b have dependencies
-    assert.strictEqual(restoredStats.trackedDependencyEdges, 3); // a->b, a->c, b->c
-  });
-
-  it('returns empty cache for empty entries array', () => {
-    const payload = JSON.stringify({ entries: [] });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
-  });
-
-  it('returns empty cache for null top-level value', () => {
-    const payload = 'null';
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 0);
-  });
-
-  it('skips entries when validateResult returns true for valid result', () => {
-    const payload = JSON.stringify({
-      entries: [
-        {
-          uri: 'file:///a.pike',
-          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
-        },
-      ],
-    });
-    const cache = CompilationCache.deserialize<TestResult>(payload, {
-      maxSize: 100,
-      validateResult: (r: unknown) =>
-        typeof r === 'object' &&
-        r !== null &&
-        typeof (r as Record<string, unknown>)['errors'] === 'number',
-    });
-    assert.strictEqual(cache.size, 1);
-    const entry = cache.get('file:///a.pike', 'int x;');
-    assert.ok(entry);
-    assert.deepStrictEqual(entry.result, { errors: 0 });
-  });
-
-  it('skips entries with corrupted result shape when validateResult rejects them', () => {
-    const payload = JSON.stringify({
-      entries: [
-        {
-          uri: 'file:///a.pike',
-          entry: { code: 'int x;', result: 'not-an-object', dependencies: [], timestamp: 100 },
-        },
-        {
-          uri: 'file:///b.pike',
-          entry: { code: 'int y;', result: { errors: 0 }, dependencies: [], timestamp: 200 },
-        },
-      ],
-    });
-    const cache = CompilationCache.deserialize<TestResult>(payload, {
-      maxSize: 100,
-      validateResult: (r: unknown) => typeof r === 'object' && r !== null && 'errors' in r,
-    });
-    assert.strictEqual(cache.size, 1);
-    const entry = cache.get('file:///b.pike', 'int y;');
-    assert.ok(entry);
-    assert.deepStrictEqual(entry.result, { errors: 0 });
+    assert.strictEqual(alsoValid.result, 'result-also');
   });
 
   it('accepts all entries when validateResult is not provided', () => {
@@ -286,11 +238,53 @@ describe('CompilationCache.deserialize', () => {
       entries: [
         {
           uri: 'file:///a.pike',
-          entry: { code: 'int x;', result: { corrupt: true }, dependencies: [], timestamp: 100 },
+          entry: { code: 'c', result: 'corrupt', dependencies: [], timestamp: 1 },
         },
       ],
     });
-    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
-    assert.strictEqual(cache.size, 1);
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 1);
+  });
+
+  it('keeps entries when validateResult accepts them', () => {
+    const payload = JSON.stringify({
+      entries: [
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'c', result: 'valid', dependencies: [], timestamp: 1 },
+        },
+      ],
+    });
+    const result = CompilationCache.deserialize<string>(payload, {
+      maxSize: 100,
+      validateResult: (r: unknown) => typeof r === 'string' && r.length > 0,
+    });
+    assert.strictEqual(result.size, 1);
+    const entry = result.get('file:///a.pike', 'c');
+    assert.ok(entry);
+    assert.strictEqual(entry.result, 'valid');
+  });
+
+  it('skips entries when validateResult rejects them', () => {
+    const payload = JSON.stringify({
+      entries: [
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'c', result: 'bad', dependencies: [], timestamp: 1 },
+        },
+        {
+          uri: 'file:///b.pike',
+          entry: { code: 'c', result: 'good', dependencies: [], timestamp: 2 },
+        },
+      ],
+    });
+    const result = CompilationCache.deserialize<string>(payload, {
+      maxSize: 100,
+      validateResult: (r: unknown) => typeof r === 'string' && r !== 'bad',
+    });
+    assert.strictEqual(result.size, 1);
+    const entry = result.get('file:///b.pike', 'c');
+    assert.ok(entry);
+    assert.strictEqual(entry.result, 'good');
   });
 });
