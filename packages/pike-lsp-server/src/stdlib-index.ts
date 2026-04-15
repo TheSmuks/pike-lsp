@@ -12,6 +12,8 @@ import type { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { IntrospectedSymbol, InheritanceInfo } from '@pike-lsp/pike-bridge';
 import { Logger } from '@pike-lsp/core';
 import { MAX_STDLIB_MODULES } from './constants/index.js';
+import { readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 const log = new Logger('StdlibIndex');
 
@@ -150,6 +152,9 @@ export class StdlibIndexManager {
   /** Memory tracking */
   private currentMemoryBytes = 0;
 
+  /** Discovered module paths from filesystem scanning */
+  private discoveredModules = new Set<string>();
+
   /** Statistics */
   private stats = {
     hits: 0,
@@ -227,6 +232,13 @@ export class StdlibIndexManager {
    */
   getAvailableModules(): string[] {
     const paths = new Set<string>(this.modules.keys());
+    // Discovered modules take priority — they're confirmed to exist on disk
+    for (const modulePath of this.discoveredModules) {
+      if (!this.negativeCache.has(modulePath)) {
+        paths.add(modulePath);
+      }
+    }
+    // Hardcoded list is fallback for modules not yet scanned
     for (const modulePath of KNOWN_STDLIB_MODULES) {
       if (!this.negativeCache.has(modulePath)) {
         paths.add(modulePath);
@@ -234,6 +246,87 @@ export class StdlibIndexManager {
     }
     return [...paths];
   }
+
+  /**
+   * Scan filesystem module paths to discover available Pike modules.
+   * Called once at startup with module_paths from bridge.getPikePaths().
+   * Finds .pmod directories, .pike files, and .so files, converting
+   * directory structure to module paths (e.g. Parser/Pike.pmod → Parser.Pike).
+   */
+  scanModulePaths(modulePaths: string[]): void {
+    for (const basePath of modulePaths) {
+      if (!existsSync(basePath)) continue;
+      try {
+        this.walkModuleDir(basePath, '');
+      } catch (err) {
+        log.debug('Module path scan failed', {
+          basePath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    log.debug('Module discovery complete', {
+      discoveredCount: this.discoveredModules.size,
+    });
+  }
+
+  /**
+   * Recursively walk a module directory, collecting .pmod/.pike/.so entries.
+   * Converts directory structure to Pike module paths using '.' separators.
+   */
+  private walkModuleDir(dirPath: string, prefix: string): void {
+    let entries;
+    try {
+      entries = readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      // Skip hidden files, test files, object files
+      if (entry.name.startsWith('.') || entry.name.endsWith('.o') || entry.name.includes('.test')) {
+        continue;
+      }
+
+      if (entry.isDirectory()) {
+        if (entry.name.endsWith('.pmod')) {
+          // Foo.pmod directory → Foo module
+          const modName = entry.name.slice(0, -'.pmod'.length);
+          const modPath = prefix ? `${prefix}.${modName}` : modName;
+          this.discoveredModules.add(modPath);
+          // Recurse into the .pmod directory for sub-modules
+          this.walkModuleDir(join(dirPath, entry.name), modPath);
+        } else {
+          // Regular directory — recurse (might contain .pmod/.pike files)
+          this.walkModuleDir(join(dirPath, entry.name), prefix);
+        }
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith('.pike')) {
+          const modName = entry.name.slice(0, -'.pike'.length);
+          if (modName === 'module') {
+            // module.pike inside a directory = parent module implementation
+            if (prefix) this.discoveredModules.add(prefix);
+          } else {
+            const modPath = prefix ? `${prefix}.${modName}` : modName;
+            this.discoveredModules.add(modPath);
+          }
+        } else if (entry.name.endsWith('.so')) {
+          // Skip underscore-prefixed .so files (internal C modules)
+          if (entry.name.startsWith('_')) continue;
+          const modName = entry.name.slice(0, -'.so'.length);
+          const modPath = prefix ? `${prefix}.${modName}` : modName;
+          this.discoveredModules.add(modPath);
+        } else if (entry.name.endsWith('.pmod') && !entry.isDirectory()) {
+          // Single-file .pmod (rare but valid)
+          const modName = entry.name.slice(0, -'.pmod'.length);
+          const modPath = prefix ? `${prefix}.${modName}` : modName;
+          this.discoveredModules.add(modPath);
+        }
+      }
+    }
+  }
+
+  /**
 
   /**
    * Get cache statistics
