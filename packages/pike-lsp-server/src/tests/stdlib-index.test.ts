@@ -15,6 +15,9 @@ import { describe, it, beforeAll, afterAll } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { StdlibIndexManager } from '../stdlib-index.js';
 import type { PikeBridge } from '@pike-lsp/pike-bridge';
+import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 // ============================================================================
 // Mock PikeBridge
@@ -727,5 +730,123 @@ describe('StdlibIndexManager - getAvailableModules', () => {
 
     // Assert
     assert.equal(stdioCount, 1, 'Stdio should appear exactly once (no duplicates)');
+  });
+});
+
+// ============================================================================
+// Module Discovery Tests
+// ============================================================================
+
+describe('StdlibIndexManager - Module Discovery', () => {
+  let tempDir: string;
+
+  // Helper to create a mock bridge for discovery tests
+  const noopBridge = {
+    introspectModule: async () => ({ success: false }),
+  } as unknown as PikeBridge;
+
+  beforeAll(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'pike-test-mods-'));
+  });
+
+  afterAll(() => {
+    try {
+      rmSync(tempDir, { recursive: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('discovers .pmod directory as module', () => {
+    mkdirSync(join(tempDir, 'MyMod.pmod'), { recursive: true });
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('MyMod'), `Expected MyMod in ${modules}`);
+  });
+
+  it('discovers .pike file as module', () => {
+    writeFileSync(join(tempDir, 'Helper.pike'), '// test');
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('Helper'), `Expected Helper in ${modules}`);
+  });
+
+  it('discovers .so file as module (not underscore-prefixed)', () => {
+    writeFileSync(join(tempDir, 'NativeMod.so'), 'binary');
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('NativeMod'), `Expected NativeMod in ${modules}`);
+  });
+
+  it('skips underscore-prefixed .so files', () => {
+    writeFileSync(join(tempDir, '_Internal.so'), 'binary');
+    writeFileSync(join(tempDir, '_CustomInternal.so'), 'binary');
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(!modules.includes('_Internal'), `Should not include _Internal`);
+    assert.ok(!modules.includes('_CustomInternal'), `Should not include _CustomInternal`);
+  });
+
+  it('discovers nested modules inside .pmod directories', () => {
+    mkdirSync(join(tempDir, 'TopLevel.pmod', 'SubMod.pmod'), { recursive: true });
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('TopLevel'), `Expected TopLevel in ${modules}`);
+    assert.ok(modules.includes('TopLevel.SubMod'), `Expected TopLevel.SubMod in ${modules}`);
+  });
+
+  it('discovers module.pike inside directory as parent module', () => {
+    const modDir = join(tempDir, 'FooBar.pmod');
+    mkdirSync(modDir, { recursive: true });
+    writeFileSync(join(modDir, 'module.pike'), '// parent impl');
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('FooBar'), `Expected FooBar from module.pike`);
+  });
+
+  it('merges discovered modules with hardcoded list', () => {
+    mkdirSync(join(tempDir, 'CustomLib.pmod'), { recursive: true });
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    // Custom discovered module
+    assert.ok(modules.includes('CustomLib'), `Expected CustomLib`);
+    // Hardcoded module from KNOWN_STDLIB_MODULES
+    assert.ok(modules.includes('Stdio'), `Expected Stdio from hardcoded list`);
+  });
+
+  it('handles non-existent module path gracefully', () => {
+    const manager = new StdlibIndexManager(noopBridge);
+    // Should not throw
+    manager.scanModulePaths(['/nonexistent/path/that/does/not/exist']);
+    const modules = manager.getAvailableModules();
+    // Should still have hardcoded modules
+    assert.ok(modules.includes('Stdio'));
+  });
+
+  it('skips .o files and test files', () => {
+    mkdirSync(join(tempDir, 'Real.pmod'), { recursive: true });
+    writeFileSync(join(tempDir, 'Real.pike'), '// ok');
+    writeFileSync(join(tempDir, 'Junk.o'), 'object');
+    mkdirSync(join(tempDir, 'Skip.test.pmod'), { recursive: true });
+    const manager = new StdlibIndexManager(noopBridge);
+    manager.scanModulePaths([tempDir]);
+
+    const modules = manager.getAvailableModules();
+    assert.ok(modules.includes('Real'), `Expected Real`);
+    assert.ok(!modules.some(m => m.includes('Junk')), `Should not include .o files`);
   });
 });
