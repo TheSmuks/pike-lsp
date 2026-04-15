@@ -273,8 +273,7 @@ export async function processAnalysisResults(
 
   // --- Semantic analysis integration (Issue #1196) ---
   try {
-    const settings = services.globalSettings as unknown as Record<string, unknown>;
-    if (isSemanticAnalysisEnabled(settings)) {
+    if (isSemanticAnalysisEnabled(services.globalSettings)) {
       const semanticResult = analyzeSemantics(
         document,
         parseData.symbols,

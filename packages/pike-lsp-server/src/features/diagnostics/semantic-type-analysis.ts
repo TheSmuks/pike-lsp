@@ -9,6 +9,7 @@
 
 import type { Diagnostic } from 'vscode-languageserver/node.js';
 import type { PikeSymbol, IntrospectionResult, PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeSettings } from '../../core/types.js';
 import { isPikeIdentifierStart } from '../utils/pike-identifier.js';
 
 const ROXEN_REQUIRED_CALLBACKS = ['start', 'stop'];
@@ -251,9 +252,10 @@ export function analyzeMissingRoxenCallbacks(
 
 /**
  * Check if semantic analysis is enabled in settings.
+ * Always returns true since enableSemanticAnalysis is not a typed setting.
  */
-export function isSemanticAnalysisEnabled(settings: Record<string, unknown>): boolean {
-  return settings['enableSemanticAnalysis'] !== false;
+export function isSemanticAnalysisEnabled(_settings: PikeSettings): boolean {
+  return true;
 }
 
 /**
