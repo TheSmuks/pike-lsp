@@ -4,7 +4,7 @@
  * Shared functions for building markdown hover content across multiple features.
  */
 
-import type { PikeSymbol, PikeFunctionType } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { formatPikeType } from './pike-type-formatter.js';
 
 /**
@@ -376,62 +376,17 @@ function generatePikeDocsUrl(path: string): string {
 }
 
 function buildMethodSignature(symbol: PikeSymbol): string {
-  const symRecord = symbol as unknown as Record<string, unknown>;
-
-  if (symRecord['type'] && typeof symRecord['type'] === 'object') {
-    const typeRecord = symRecord['type'] as Record<string, unknown>;
-    if (typeRecord['kind'] === 'function' || typeRecord['kind'] === 'method') {
-      const returnType = typeRecord['returnType']
-        ? formatPikeType(typeRecord['returnType'])
-        : (typeRecord['returnType'] ?? 'void');
-
-      let argList = '';
-
-      if (symRecord['parameters'] && Array.isArray(symRecord['parameters'])) {
-        const params = symRecord['parameters'] as Array<{ name?: string; type?: string }>;
-        argList = params
-          .map(p => {
-            const type = p.type ?? 'mixed';
-            const name = p.name ?? 'arg';
-            return `${type} ${name}`;
-          })
-          .join(', ');
-      } else {
-        const args = (typeRecord['argTypes'] ?? typeRecord['arguments']) as unknown[] | undefined;
-        if (args && args.length > 0) {
-          argList = args
-            .map((arg, i) => {
-              if (typeof arg === 'object' && arg !== null) {
-                const argObj = arg as Record<string, unknown>;
-                const type = formatPikeType(argObj['type'] ?? arg);
-                const name = (argObj['name'] as string) ?? `arg${i}`;
-                return `${type} ${name}`;
-              }
-              return `${formatPikeType(arg)} arg${i}`;
-            })
-            .join(', ');
-        }
-      }
-
-      return `${returnType} ${symbol.name}(${argList})`;
-    }
-  }
-
-  if (symbol.type && symbol.type.kind === 'function') {
-    const funcType = symbol.type as PikeFunctionType;
+  if (symbol.type?.kind === 'function') {
+    const funcType = symbol.type;
     const returnType = funcType.returnType ? formatPikeType(funcType.returnType) : 'void';
 
     let argList = '';
-    const funcTypeRaw = symbol.type as unknown as Record<string, unknown>;
-    const args = (funcType.argTypes ?? funcTypeRaw['arguments']) as unknown[] | undefined;
+    const args = funcType.argTypes ?? funcType.arguments;
     if (args && args.length > 0) {
       argList = args
         .map((arg, i) => {
-          if (typeof arg === 'object' && arg !== null) {
-            const argObj = arg as Record<string, unknown>;
-            const type = formatPikeType(argObj['type'] ?? arg);
-            const name = (argObj['name'] as string) ?? `arg${i}`;
-            return `${type} ${name}`;
+          if ('name' in arg && 'type' in arg) {
+            return `${formatPikeType(arg.type)} ${arg.name}`;
           }
           return `${formatPikeType(arg)} arg${i}`;
         })
@@ -441,22 +396,7 @@ function buildMethodSignature(symbol: PikeSymbol): string {
     return `${returnType} ${symbol.name}(${argList})`;
   }
 
-  const returnType = formatPikeType(symRecord['returnType']);
-  const argNames = symRecord['argNames'] as string[] | undefined;
-  const argTypes = symRecord['argTypes'] as unknown[] | undefined;
-
-  let argList = '';
-  if (argTypes && argNames) {
-    argList = argTypes
-      .map((t, i) => {
-        const type = formatPikeType(t);
-        const name = argNames[i] ?? `arg${i}`;
-        return `${type} ${name}`;
-      })
-      .join(', ');
-  }
-
-  return `${returnType} ${symbol.name}(${argList})`;
+  return symbol.name;
 }
 
 /**
