@@ -79,9 +79,10 @@ export function classifyChange(
 
     // Strategy 2: Check if change overlaps with any symbol positions
     if (cachedEntry.lineHashes) {
-      const lines = text.split('\n');
+      const lines = extractLinesInRange(text, startLine, endLine, cachedEntry.lineHashes.length);
 
-      if (cachedEntry.lineHashes.length !== lines.length) {
+      if (lines.fullSplit) {
+        // Line count changed — must re-parse
         return {
           canSkip: false,
           reason: 'line_count_changed',
@@ -90,9 +91,10 @@ export function classifyChange(
 
       // Check if any line in the change range has different semantic content
       let hasSemanticChange = false;
-      for (let i = startLine; i <= endLine && i < lines.length; i++) {
-        const cachedHash = cachedEntry.lineHashes[i];
-        const newHash = computeSemanticLineHash(lines[i] ?? '');
+      for (let j = 0; j < lines.partial.length; j++) {
+        const lineIndex = startLine + j;
+        const cachedHash = cachedEntry.lineHashes[lineIndex];
+        const newHash = computeSemanticLineHash(lines.partial[j] ?? '');
 
         if (cachedHash !== newHash) {
           hasSemanticChange = true;
@@ -122,4 +124,44 @@ export function classifyChange(
   }
 
   return { canSkip: false, reason: 'full_replacement', newHash };
+}
+
+/**
+ * Extract lines from text efficiently.
+ * If the cached line count matches the actual line count (verified by cheap newline counting),
+ * extracts only [startLine..endLine] using indexOf-based splitting — avoiding a full
+ * document split. Falls back to full split when line counts differ.
+ */
+function extractLinesInRange(
+  text: string,
+  startLine: number,
+  endLine: number,
+  cachedLineCount: number
+): { fullSplit: true; lines: string[] } | { fullSplit: false; partial: string[] } {
+  // Cheap newline count — O(n) scan, no allocation
+  let newlineCount = 1; // a document with 0 newlines has 1 line
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10 /* \n */) newlineCount++;
+  }
+
+  if (newlineCount !== cachedLineCount) {
+    return { fullSplit: true, lines: text.split('\n') };
+  }
+
+  // Line count matches — extract only the range we need
+  const partial: string[] = [];
+  let searchFrom = 0;
+  // Advance to startLine
+  for (let i = 0; i < startLine; i++) {
+    const idx = text.indexOf('\n', searchFrom);
+    searchFrom = idx === -1 ? text.length : idx + 1;
+  }
+  // Extract lines [startLine..endLine]
+  for (let i = startLine; i <= endLine; i++) {
+    const idx = text.indexOf('\n', searchFrom);
+    partial.push(text.substring(searchFrom, idx === -1 ? text.length : idx));
+    searchFrom = idx === -1 ? text.length : idx + 1;
+  }
+
+  return { fullSplit: false, partial };
 }
