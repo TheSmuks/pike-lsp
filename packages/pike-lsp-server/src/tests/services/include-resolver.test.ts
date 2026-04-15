@@ -739,6 +739,32 @@ describe('IncludeResolver - Cache hit behavior', () => {
     assert.equal(parseCallCount, 1);
   });
 
+  it('should return same data from cache on repeated resolution', async () => {
+    const bridge = {
+      bridge: {
+        resolveInclude: async () => ({
+          exists: true,
+          path: '/ts/header.h',
+          originalPath: '"header.h"',
+        }),
+        resolveStdlib: async () => ({ found: 0 }),
+      },
+      async parseFileSymbols(): Promise<PikeSymbol[]> {
+        return [{ name: 'x', kind: 'variable' as const }];
+      },
+    };
+    const resolver = new IncludeResolver(bridge as never, createMockLogger());
+
+    const deps1 = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"header.h"'),
+    ]);
+    const deps2 = await resolver.resolveDependencies('file:///test.pike', [
+      includeSymbol('"header.h"'),
+    ]);
+
+    assert.equal(deps1.includes[0]!.resolvedPath, deps2.includes[0]!.resolvedPath);
+  });
+
   it('should re-resolve after clear()', async () => {
     let parseCallCount = 0;
     const bridge = {
