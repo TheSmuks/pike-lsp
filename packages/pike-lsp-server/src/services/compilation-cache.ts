@@ -240,20 +240,22 @@ export class CompilationCache<TResult> {
     }
   }
 
-  private batchRemoveDependencyEdges(uris: string[]): void {
     for (const uri of uris) {
-      const dependencies = this.dependenciesByFile.get(uri);
-      if (dependencies) {
-        this.dependenciesByFile.delete(uri);
-        for (const dependency of dependencies) {
-          const dependents = this.dependentsByFile.get(dependency);
-          if (!dependents) {
-            continue;
-          }
-          dependents.delete(uri);
-          if (dependents.size === 0) {
-            this.dependentsByFile.delete(dependency);
-          }
+      this.removeDependencyEdges(uri);
+    }
+  }
+
+  private removeDependencyEdges(uri: string): void {
+    const dependencies = this.dependenciesByFile.get(uri);
+    if (dependencies) {
+      for (const dependency of dependencies) {
+        const dependents = this.dependentsByFile.get(dependency);
+        if (!dependents) {
+          continue;
+        }
+        dependents.delete(uri);
+        if (dependents.size === 0) {
+          this.dependentsByFile.delete(dependency);
         }
       }
       this.dependenciesByFile.delete(uri);
