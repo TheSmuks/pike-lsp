@@ -17,6 +17,10 @@ interface PersistedCache {
   data: string;
 }
 
+function isEnoentError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
 function getCacheDir(): string {
   const xdgCache = process.env['XDG_CACHE_HOME'];
   const baseDir = xdgCache || path.join(os.homedir(), '.cache');
@@ -120,8 +124,7 @@ export async function loadResolutionCache(currentPikeVersion?: string): Promise<
 
     return cache['data'];
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
+    if (isEnoentError(error)) {
       log.debug('No resolution cache file found (first run)');
     } else {
       log.warn('Failed to load resolution cache', {
@@ -137,8 +140,7 @@ export async function deleteResolutionCache(): Promise<void> {
   try {
     await fs.promises.unlink(cacheFile);
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
+    if (isEnoentError(error)) {
       log.debug('Resolution cache file not found (already deleted or first run)');
     } else {
       log.warn('Failed to delete resolution cache', {
