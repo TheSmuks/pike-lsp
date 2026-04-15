@@ -74,7 +74,7 @@ export class CompilationCache<TResult> {
 
     const stored = this.cache.set(uri, entry);
     if (!stored) {
-      this.removeDependencyEdges(uri);
+      this.batchRemoveDependencyEdges([uri]);
       return false;
     }
 
@@ -221,13 +221,13 @@ export class CompilationCache<TResult> {
 
   private invalidateSingle(uri: string): boolean {
     const removed = this.cache.delete(uri);
-    this.removeDependencyEdges(uri);
+    this.batchRemoveDependencyEdges([uri]);
     this.dependentsByFile.delete(uri);
     return removed;
   }
 
   private updateDependencyEdges(uri: string, dependencies: string[]): void {
-    this.removeDependencyEdges(uri);
+    this.batchRemoveDependencyEdges([uri]);
 
     if (dependencies.length === 0) {
       return;
@@ -256,23 +256,6 @@ export class CompilationCache<TResult> {
           if (dependents.size === 0) {
             this.dependentsByFile.delete(dependency);
           }
-        }
-      }
-      this.dependentsByFile.delete(uri);
-    }
-  }
-
-  private removeDependencyEdges(uri: string): void {
-    const dependencies = this.dependenciesByFile.get(uri);
-    if (dependencies) {
-      for (const dependency of dependencies) {
-        const dependents = this.dependentsByFile.get(dependency);
-        if (!dependents) {
-          continue;
-        }
-        dependents.delete(uri);
-        if (dependents.size === 0) {
-          this.dependentsByFile.delete(dependency);
         }
       }
       this.dependenciesByFile.delete(uri);
