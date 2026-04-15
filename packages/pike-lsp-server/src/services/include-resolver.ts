@@ -110,16 +110,21 @@ export class IncludeResolver {
   /**
    * Shared resolve-then-parse-then-cache flow.
    *
-   * Resolves a path via bridge.resolveInclude(), checks the include
-   * path index for a previous result, parses symbols on miss, and
-   * caches the entry. Returns null if the bridge is unavailable or
-   * the path does not exist.
+   * Calls bridge.resolveInclude(), normalizes the path, checks the cache,
+   * parses symbols on miss, and stores the result.
+   *
+   * @returns null when bridge is unavailable or the path does not exist.
    */
-  private async resolveAndParse(
+  private async resolveAndCache(
     path: string,
     currentUri: string,
     logLabel: string
-  ): Promise<ResolvedInclude | null> {
+  ): Promise<{
+    normalizedPath: string;
+    originalPath: string;
+    symbols: PikeSymbol[];
+    lastModified: number;
+  } | null> {
     if (!this.bridge?.bridge) {
       return null;
     }
@@ -135,21 +140,32 @@ export class IncludeResolver {
 
       const cached = this.findCachedInclude(normalizedPath);
       if (cached) {
-        return cached;
+        return {
+          normalizedPath,
+          originalPath: cached.originalPath,
+          symbols: cached.symbols,
+          lastModified: cached.lastModified,
+        };
       }
 
       const symbols = await this.bridge.parseFileSymbols(normalizedPath);
+      const now = Date.now();
 
       const resolved: ResolvedInclude = {
         originalPath: result.originalPath,
         resolvedPath: normalizedPath,
         symbols,
-        lastModified: Date.now(),
+        lastModified: now,
       };
 
       this.includePathIndex.set(normalizedPath, resolved);
 
-      return resolved;
+      return {
+        normalizedPath,
+        originalPath: result.originalPath,
+        symbols,
+        lastModified: now,
+      };
     } catch (err) {
       this.logger.debug(`${logLabel} failed`, {
         path,
@@ -166,7 +182,15 @@ export class IncludeResolver {
     includePath: string,
     currentUri: string
   ): Promise<ResolvedInclude | null> {
-    return this.resolveAndParse(includePath, currentUri, 'Include resolution');
+    const result = await this.resolveAndCache(includePath, currentUri, 'Include resolution');
+    if (!result) return null;
+
+    return {
+      originalPath: result.originalPath,
+      resolvedPath: result.normalizedPath,
+      symbols: result.symbols,
+      lastModified: result.lastModified,
+    };
   }
 
   /**
@@ -176,17 +200,16 @@ export class IncludeResolver {
     modulePath: string,
     currentUri: string
   ): Promise<{ symbols: PikeSymbol[]; resolvedPath: string } | null> {
-    const resolved = await this.resolveAndParse(
+    const result = await this.resolveAndCache(
       modulePath,
       currentUri,
       'Workspace import resolution'
     );
-    if (!resolved) {
-      return null;
-    }
+    if (!result) return null;
+
     return {
-      symbols: resolved.symbols,
-      resolvedPath: resolved.resolvedPath,
+      symbols: result.symbols,
+      resolvedPath: result.normalizedPath,
     };
   }
 
