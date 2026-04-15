@@ -150,8 +150,6 @@ export interface ResolvedInclude {
   resolvedPath: string;
   /** Symbols from the included file (cached for completion) */
   symbols: PikeSymbol[];
-  /** Last modified time for cache invalidation */
-  lastModified: number;
 }
 
 /**

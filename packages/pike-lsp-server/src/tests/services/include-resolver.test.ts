@@ -739,33 +739,6 @@ describe('IncludeResolver - Cache hit behavior', () => {
     assert.equal(parseCallCount, 1);
   });
 
-  it('should return same lastModified timestamp from cache', async () => {
-    const bridge = {
-      bridge: {
-        resolveInclude: async () => ({
-          exists: true,
-          path: '/ts/header.h',
-          originalPath: '"header.h"',
-        }),
-        resolveStdlib: async () => ({ found: 0 }),
-      },
-      async parseFileSymbols(): Promise<PikeSymbol[]> {
-        return [{ name: 'x', kind: 'variable' as const }];
-      },
-    };
-    const resolver = new IncludeResolver(bridge as never, createMockLogger());
-
-    const deps1 = await resolver.resolveDependencies('file:///test.pike', [
-      includeSymbol('"header.h"'),
-    ]);
-    await new Promise(r => setTimeout(r, 10)); // small delay so Date.now() differs
-    const deps2 = await resolver.resolveDependencies('file:///test.pike', [
-      includeSymbol('"header.h"'),
-    ]);
-
-    assert.equal(deps1.includes[0]!.lastModified, deps2.includes[0]!.lastModified);
-  });
-
   it('should re-resolve after clear()', async () => {
     let parseCallCount = 0;
     const bridge = {

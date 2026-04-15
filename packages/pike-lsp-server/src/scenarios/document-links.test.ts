@@ -216,7 +216,6 @@ describe('Document Links', () => {
         originalPath: '"utils.pike"',
         resolvedPath: includePath,
         symbols: [],
-        lastModified: Date.now(),
       },
     ]);
 
@@ -242,13 +241,11 @@ describe('Document Links', () => {
         originalPath: '"a.pike"',
         resolvedPath: '/project/a.pike',
         symbols: [],
-        lastModified: Date.now(),
       },
       {
         originalPath: '"b.pike"',
         resolvedPath: '/project/b.pike',
         symbols: [],
-        lastModified: Date.now(),
       },
     ]);
 
@@ -270,7 +267,6 @@ describe('Document Links', () => {
         originalPath: '"missing.pike"',
         resolvedPath: '',
         symbols: [],
-        lastModified: Date.now(),
       },
     ]);
 
