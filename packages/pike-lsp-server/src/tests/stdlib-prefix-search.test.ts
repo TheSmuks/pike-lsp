@@ -34,6 +34,18 @@ function createMockStdlibIndex(
   } as unknown as StdlibIndexManager;
 }
 
+function populateIndex(svc: PikeIntrospectionService, modules: Map<string, Map<string, { kind: string }>>) {
+  for (const [path, symbols] of modules) {
+    svc.addModuleToIndex({
+      modulePath: path,
+      symbols,
+      lastAccessed: Date.now(),
+      accessCount: 0,
+      sizeBytes: 0,
+    });
+  }
+}
+
 describe('searchStdlibCandidates binary search prefix lookup', () => {
   it('finds exact match via sorted key binary search', async () => {
     const modules = new Map<string, Map<string, { kind: string }>>();
@@ -51,6 +63,7 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('String');
     const names = results.map(r => r.symbol);
@@ -70,6 +83,7 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('sort');
     const names = results.map(r => r.symbol);
@@ -89,6 +103,7 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('zzzz_nonexistent');
     expect(results).toHaveLength(0);
@@ -110,6 +125,7 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('common');
     const names = results.map(r => r.symbol);
@@ -140,6 +156,7 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     // First call loads all modules
     const r1 = await service.searchImportableSymbols('alpha');
@@ -178,6 +195,7 @@ describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('strng');
 
@@ -219,6 +237,7 @@ describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
       undefined,
       createMockStdlibIndex(modules)
     );
+    populateIndex(service, modules);
 
     const results = await service.searchImportableSymbols('substrng');
     const subMatch = results.find(r => r.symbol === 'substring_match');

@@ -1,6 +1,6 @@
 import type { InheritanceInfo, IntrospectedSymbol, PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from './index.js';
-import type { StdlibIndexManager } from '../stdlib-index.js';
+import type { StdlibIndexManager, StdlibModuleInfo } from '../stdlib-index.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import { readFile } from 'node:fs/promises';
 
@@ -50,6 +50,32 @@ export class PikeIntrospectionService {
     private readonly workspaceIndex?: WorkspaceIndex,
     private readonly stdlibIndex?: StdlibIndexManager | null
   ) {}
+
+  /**
+   * Add a loaded module's symbols to the search index.
+   * Called by background population after each module loads.
+   * Idempotent — safe to call multiple times for the same module.
+   */
+  addModuleToIndex(info: StdlibModuleInfo): void {
+    if (this.populatedModules.has(info.modulePath)) return;
+    if (!info.symbols) return;
+
+    this.populatedModules.add(info.modulePath);
+    const newKeys: string[] = [];
+    for (const [name, sym] of info.symbols) {
+      const key = name.toLowerCase();
+      let bucket = this.stdlibSymbolIndex.get(key);
+      if (!bucket) {
+        bucket = [];
+        this.stdlibSymbolIndex.set(key, bucket);
+        newKeys.push(key);
+      }
+      bucket.push({ modulePath: info.modulePath, name, kind: sym.kind });
+    }
+    if (newKeys.length > 0) {
+      this.stdlibSortedKeys = mergeIntoSorted(this.stdlibSortedKeys, newKeys);
+    }
+  }
 
   // === P0 Methods for hierarchy/implementation ===
 
@@ -343,43 +369,10 @@ export class PikeIntrospectionService {
       return [];
     }
 
-    const searchPaths = stdlibIndex.getAvailableModules();
-
-    // Populate index for any modules not yet loaded.
-    // Limit batch size to avoid blocking completion on large module sets
-    // (e.g. when dynamic discovery adds hundreds of system modules).
-    // Unpopulated modules will be loaded incrementally on subsequent requests.
-    const POPULATE_BATCH = 20;
-    let populated = 0;
-    for (const modulePath of searchPaths) {
-      if (this.populatedModules.has(modulePath)) continue;
-      if (populated >= POPULATE_BATCH) break;
-      const moduleInfo = await stdlibIndex.getModule(modulePath);
-      populated++;
-      if (moduleInfo?.symbols) {
-        this.populatedModules.add(modulePath);
-        // Build inverted index entries for this module
-        const newKeys: string[] = [];
-        for (const [name, sym] of moduleInfo.symbols) {
-          const key = name.toLowerCase();
-          let bucket = this.stdlibSymbolIndex.get(key);
-          if (!bucket) {
-            bucket = [];
-            this.stdlibSymbolIndex.set(key, bucket);
-            newKeys.push(key);
-          }
-          bucket.push({ modulePath, name, kind: sym.kind });
-        }
-        if (newKeys.length > 0) {
-          this.stdlibSortedKeys = mergeIntoSorted(this.stdlibSortedKeys, newKeys);
-        }
-      }
-    }
-
     const candidates: ImportableSymbolCandidate[] = [];
     const qLower = query.toLowerCase();
-
-    // Phase 1: exact + prefix lookup via binary search on sorted keys
+    // Phase 1: exact + prefix lookup via binary search on sorted keys.
+    // The index is populated by background population — this method never loads modules.
     const visited = new Set<string>();
     const startIdx = lowerBound(this.stdlibSortedKeys, qLower);
     const qEnd = qLower + '\uffff';

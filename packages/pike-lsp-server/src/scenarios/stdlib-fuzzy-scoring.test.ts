@@ -49,6 +49,19 @@ function makeStdlibIndex(modules: Map<string, Map<string, { kind: string }>>) {
   };
 }
 
+/** Pre-populate the search index from mock stdlib modules (simulates background population). */
+async function populateIndex(svc: PikeIntrospectionService, modules: Map<string, Map<string, { kind: string }>>) {
+  for (const [path, symbols] of modules) {
+    svc.addModuleToIndex({
+      modulePath: path,
+      symbols: symbols as unknown as Map<string, import('@pike-lsp/pike-bridge').IntrospectedSymbol>,
+      lastAccessed: Date.now(),
+      accessCount: 0,
+      sizeBytes: 0,
+    });
+  }
+}
+
 function makeWorkspaceIndex(
   results: Array<{
     symbol: string;
@@ -109,6 +122,8 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeStdlibIndex(stdlibModules) as never
       );
 
+      await populateIndex(svc, stdlibModules);
+
       const results = await svc.searchImportableSymbols('matchA', { limit: 3 });
       assert.equal(results.length, 3);
       for (const r of results) {
@@ -125,6 +140,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('foobar', { limit: 0 });
       assert.ok(results.length >= 1, 'should return at least 1 result even with limit: 0');
@@ -149,6 +165,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('Array');
       assert.ok(results.length >= 2);
@@ -176,6 +193,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(prefixSvc, stdlibModules);
       const prefixResults = await prefixSvc.searchImportableSymbols('Str');
       assert.equal(prefixResults.length, 1);
       const prefixScore = prefixResults[0]!.score;
@@ -187,6 +205,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(fuzzySvc, stdlibModules);
       const fuzzyResults = await fuzzySvc.searchImportableSymbols('rng');
       assert.equal(fuzzyResults.length, 1);
       const fuzzyScore = fuzzyResults[0]!.score;
@@ -206,6 +225,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('nrs');
       assert.equal(results.length, 1, 'should find "internals" via fuzzy subsequence');
@@ -222,6 +242,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('zzz_no_match');
       assert.deepStrictEqual(results, []);
@@ -244,6 +265,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex(workspaceResults) as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('Array');
 
@@ -290,6 +312,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex(workspaceResults) as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('Helper');
 
@@ -345,6 +368,7 @@ describe('PikeIntrospectionService - stdlib fuzzy scoring and deduplication', ()
         makeWorkspaceIndex() as never,
         makeStdlibIndex(stdlibModules) as never
       );
+      await populateIndex(svc, stdlibModules);
 
       const results = await svc.searchImportableSymbols('My');
 

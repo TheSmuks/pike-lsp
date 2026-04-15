@@ -493,6 +493,7 @@ registerServerRuntimeHandlers({
     pikeIntrospection = new PikeIntrospectionService(services, workspaceIndex, stdlibIndex);
     serviceRuntimeContext.update({ stdlibIndex, pikeIntrospection });
   },
+  getPikeIntrospection: () => pikeIntrospection ?? undefined,
   updateServices: patch => {
     serviceRuntimeContext.update(patch);
   },
