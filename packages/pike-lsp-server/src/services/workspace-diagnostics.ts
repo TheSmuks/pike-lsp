@@ -187,11 +187,15 @@ export class WorkspaceDiagnosticsManager {
       // Take next batch
       const batch = this.pendingQueue.splice(0, this.batchSize);
 
-      await this.processBatch(batch);
+      const successfulUris = await this.processBatch(batch);
 
-      // Mark as processed
+      // Only mark successfully processed URIs; push the rest back for retry
       for (const item of batch) {
-        this.processedUris.add(item.uri);
+        if (successfulUris.has(item.uri)) {
+          this.processedUris.add(item.uri);
+        } else {
+          this.remainingUris.push(item.uri);
+        }
       }
     }
 
@@ -201,11 +205,12 @@ export class WorkspaceDiagnosticsManager {
     }
   }
 
-  private async processBatch(batch: PendingDiagnostic[]): Promise<void> {
+  private async processBatch(batch: PendingDiagnostic[]): Promise<Set<string>> {
+    const processed = new Set<string>();
     const bridge = this.bridgeManager?.bridge;
     if (!bridge?.isRunning()) {
       log.debug('Bridge not available, skipping batch');
-      return;
+      return processed;
     }
 
     try {
@@ -239,6 +244,8 @@ export class WorkspaceDiagnosticsManager {
               continue;
             }
 
+            processed.add(uri);
+
             const rawDiagnostics = result.value.result?.diagnostics?.diagnostics ?? [];
 
             if (rawDiagnostics.length > 0) {
@@ -268,6 +275,8 @@ export class WorkspaceDiagnosticsManager {
         error: err instanceof Error ? err.message : String(err),
       });
     }
+
+    return processed;
   }
 
   private pause(): void {
