@@ -163,54 +163,11 @@ export class StdlibIndexManager {
     negativeHits: 0,
   };
 
-  /** Whether background population is active */
-  private populating = false;
-
   constructor(bridge: PikeBridge, options?: { maxCacheSize?: number; maxMemoryMB?: number }) {
     this.bridge = bridge;
     this.maxCacheSize = options?.maxCacheSize ?? MAX_STDLIB_MODULES;
     this.maxMemoryMB = options?.maxMemoryMB ?? 20;
   }
-
-  /**
-   * Start background population of all known modules.
-   * Loads each module via the bridge sequentially (no concurrency).
-   * Calls onModuleLoaded for each successfully loaded module.
-   * Fire-and-forget — returns immediately, work continues async.
-   */
-  startBackgroundPopulation(onModuleLoaded: (info: StdlibModuleInfo) => void): void {
-    if (this.populating) return;
-    this.populating = true;
-
-    const modules = this.getAvailableModules();
-    log.debug('Starting background population', { moduleCount: modules.length });
-
-    // Sequential async load — yields between each module to keep the
-    // event loop responsive for incoming LSP requests.
-    (async () => {
-      let loaded = 0;
-      for (const modulePath of modules) {
-        try {
-          const info = await this.getModule(modulePath);
-          if (info) {
-            onModuleLoaded(info);
-            loaded++;
-          }
-          // Yield to the event loop between modules so LSP requests
-          // are not starved by continuous bridge calls.
-          // A small delay ensures the bridge subprocess can process
-          // pending LSP requests between population requests.
-          await new Promise(resolve => setTimeout(resolve, 50));
-        } catch {
-          // Individual module failures are already negative-cached by getModule.
-          // Continue populating the rest.
-        }
-      }
-      this.populating = false;
-      log.debug('Background population complete', { loaded, total: modules.length });
-    })();
-  }
-
   /**
    * Get module information, loading on-demand if needed
    */

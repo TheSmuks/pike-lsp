@@ -53,7 +53,7 @@ export class PikeIntrospectionService {
 
   /**
    * Add a loaded module's symbols to the search index.
-   * Called by background population after each module loads.
+   * Called after lazy-loading a module during query resolution.
    * Idempotent — safe to call multiple times for the same module.
    */
   addModuleToIndex(info: StdlibModuleInfo): void {
@@ -369,10 +369,41 @@ export class PikeIntrospectionService {
       return [];
     }
 
+    const candidates = this.searchStdlibIndex(query);
+
+    // If the index has results, return them — no bridge work needed.
+    if (candidates.length > 0) {
+      return candidates;
+    }
+
+    // No results — the relevant modules may not be indexed yet.
+    // Load only the modules whose path matches the query, then retry.
+    const modulePaths = this.candidateModulesForQuery(query, stdlibIndex);
+    if (modulePaths.length === 0) {
+      return [];
+    }
+
+    // Load and index each candidate module (at most a few bridge calls).
+    for (const modPath of modulePaths) {
+      if (this.populatedModules.has(modPath)) continue;
+      const info = await stdlibIndex.getModule(modPath);
+      if (info) {
+        this.addModuleToIndex(info);
+      }
+    }
+
+    // Retry the search against the now-populated index.
+    return this.searchStdlibIndex(query);
+  }
+
+  /**
+   * Pure index search — no bridge calls. Used by searchStdlibCandidates
+   * both before and after lazy loading.
+   */
+  private searchStdlibIndex(query: string): ImportableSymbolCandidate[] {
     const candidates: ImportableSymbolCandidate[] = [];
     const qLower = query.toLowerCase();
     // Phase 1: exact + prefix lookup via binary search on sorted keys.
-    // The index is populated by background population — this method never loads modules.
     const visited = new Set<string>();
     const startIdx = lowerBound(this.stdlibSortedKeys, qLower);
     const qEnd = qLower + '\uffff';
@@ -423,6 +454,32 @@ export class PikeIntrospectionService {
     }
 
     return candidates;
+  }
+
+  /**
+   * Identify module paths that could contain symbols matching the query.
+   * Returns at most 3 modules to keep bridge calls bounded.
+   */
+  private candidateModulesForQuery(query: string, stdlibIndex: StdlibIndexManager): string[] {
+    const available = stdlibIndex.getAvailableModules();
+    const qLower = query.toLowerCase();
+    const matches: string[] = [];
+
+    for (const modPath of available) {
+      // Skip already-populated modules — if they didn't produce results,
+      // re-loading won't help.
+      if (this.populatedModules.has(modPath)) continue;
+
+      const modLower = modPath.toLowerCase();
+      // Direct match: query is a module name or prefix of it.
+      // E.g. query="array" matches "Array", "Array" matches "Array"
+      if (modLower === qLower || modLower.startsWith(qLower) || qLower.startsWith(modLower + '.')) {
+        matches.push(modPath);
+        if (matches.length >= 3) break;
+      }
+    }
+
+    return matches;
   }
 
   private mergeCandidates(

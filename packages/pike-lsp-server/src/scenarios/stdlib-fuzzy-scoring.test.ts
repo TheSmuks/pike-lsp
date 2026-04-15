@@ -50,11 +50,17 @@ function makeStdlibIndex(modules: Map<string, Map<string, { kind: string }>>) {
 }
 
 /** Pre-populate the search index from mock stdlib modules (simulates background population). */
-async function populateIndex(svc: PikeIntrospectionService, modules: Map<string, Map<string, { kind: string }>>) {
+async function populateIndex(
+  svc: PikeIntrospectionService,
+  modules: Map<string, Map<string, { kind: string }>>
+) {
   for (const [path, symbols] of modules) {
     svc.addModuleToIndex({
       modulePath: path,
-      symbols: symbols as unknown as Map<string, import('@pike-lsp/pike-bridge').IntrospectedSymbol>,
+      symbols: symbols as unknown as Map<
+        string,
+        import('@pike-lsp/pike-bridge').IntrospectedSymbol
+      >,
       lastAccessed: Date.now(),
       accessCount: 0,
       sizeBytes: 0,

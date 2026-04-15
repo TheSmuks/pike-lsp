@@ -401,15 +401,20 @@ function_with_error() {
     // Allow up to 10x the baseline or 5 seconds absolute — whichever is larger.
     // CI runners have high scheduling jitter, so pure multiplier is fragile.
     const sortedFirst = times.slice(0, 3).sort((a, b) => a - b);
-    const baseline = sortedFirst[1] ?? times[0]!;  // median of first 3
+    const baseline = sortedFirst[1] ?? times[0]!; // median of first 3
     const lastTime = times[times.length - 1]!;
     const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
     const allowedMax = Math.max(5000, baseline * 10);
 
     console.log(`Symbol retrieval times: ${times.join(', ')}ms`);
-    console.log(`Average: ${avgTime.toFixed(2)}ms, Baseline: ${baseline}ms, Last: ${lastTime}ms, Allowed: ${allowedMax}ms`);
+    console.log(
+      `Average: ${avgTime.toFixed(2)}ms, Baseline: ${baseline}ms, Last: ${lastTime}ms, Allowed: ${allowedMax}ms`
+    );
 
-    assert.ok(lastTime <= allowedMax, `Performance should not degrade significantly (last: ${lastTime}ms, allowed: ${allowedMax}ms)`);
+    assert.ok(
+      lastTime <= allowedMax,
+      `Performance should not degrade significantly (last: ${lastTime}ms, allowed: ${allowedMax}ms)`
+    );
   });
 
   /**
@@ -481,16 +486,17 @@ function_with_error() {
           largeFileUri,
           position
         ),
-        new Promise<null>(resolve =>
-          setTimeout(() => resolve(null), 15000)
-        ),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 15000)),
       ]);
 
       const elapsed = Date.now() - startTime;
 
       // null means the race timed out — likely LSP still indexing on slow CI.
       // Fail with a clear message instead of hanging for 30s.
-      assert.ok(completions !== null, `Completion timed out after 15s in ${largeDoc.lineCount} line file`);
+      assert.ok(
+        completions !== null,
+        `Completion timed out after 15s in ${largeDoc.lineCount} line file`
+      );
       assert.ok(completions !== undefined, 'Should return completions in large file');
       assert.ok(
         elapsed < 5000,

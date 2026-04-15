@@ -1,4 +1,3 @@
-import type { PikeIntrospectionService } from '../services/pike-introspection.js';
 import type { Connection } from 'vscode-languageserver/node.js';
 import { DidChangeConfigurationNotification } from 'vscode-languageserver/node.js';
 import { StdlibIndexManager } from '../stdlib-index.js';
@@ -28,7 +27,6 @@ interface RegisterServerRuntimeHandlersArgs {
   getIncludePaths: () => string[];
   getClientSupportsWorkDoneProgress: () => boolean;
   setStdlibIndex: (stdlibIndex: StdlibIndexManager | null) => void;
-  getPikeIntrospection: () => PikeIntrospectionService | undefined;
   updateServices: (patch: RuntimeServicePatch) => void;
   log: (message: string) => void;
 }
@@ -42,7 +40,6 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
     getIncludePaths,
     getClientSupportsWorkDoneProgress,
     setStdlibIndex,
-    getPikeIntrospection,
     updateServices,
     log,
   } = args;
@@ -233,15 +230,6 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
             log(`Module discovery skipped: ${err instanceof Error ? err.message : String(err)}`);
           }
 
-          // Kick off background population of stdlib modules.
-          // Loads all known modules via the bridge, feeding results
-          // into the introspection index. Completion and other features
-          // use whatever has been indexed so far — no blocking.
-          const introspection = getPikeIntrospection();
-          if (introspection) {
-            stdlibIndex.startBackgroundPopulation(info => introspection.addModuleToIndex(info));
-          }
-
           bridgeManager.on('stderr', (msg: unknown) => {
             log(`[Pike STDERR] ${String(msg)}`);
           });
@@ -308,7 +296,7 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
       }
     }
 
-    connection.console.log('Stdlib preloading skipped - modules will load on-demand');
+    connection.console.log('Stdlib modules will load on-demand during queries');
 
     const workspaceFolders = await connection.workspace.getWorkspaceFolders();
     const bridgeForWorkspace = getBridgeManager();

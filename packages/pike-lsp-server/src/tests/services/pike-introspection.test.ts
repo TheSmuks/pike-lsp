@@ -22,7 +22,10 @@ function createMockStdlibIndex(
   };
 }
 
-function populateIndex(svc: PikeIntrospectionService, modules: { path: string; symbols: Map<string, IntrospectedSymbol> }[]) {
+function populateIndex(
+  svc: PikeIntrospectionService,
+  modules: { path: string; symbols: Map<string, IntrospectedSymbol> }[]
+) {
   for (const mod of modules) {
     svc.addModuleToIndex({
       modulePath: mod.path,
