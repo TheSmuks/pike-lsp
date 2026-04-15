@@ -73,6 +73,7 @@ export class PikeIntrospectionService {
       bucket.push({ modulePath: info.modulePath, name, kind: sym.kind });
     }
     if (newKeys.length > 0) {
+      newKeys.sort();
       this.stdlibSortedKeys = mergeIntoSorted(this.stdlibSortedKeys, newKeys);
     }
   }
