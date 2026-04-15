@@ -33,8 +33,8 @@ interface CachedIntrospectionDocument {
 export class PikeIntrospectionService {
   private readonly cache = new LRUCache<string, CachedIntrospectionDocument>(200);
 
-  /** Cached symbol lists per stdlib module, populated on first search. */
-  private stdlibSymbolCache = new LRUCache<string, Map<string, IntrospectedSymbol>>(100);
+  /** Track which stdlib modules have been populated into stdlibSymbolIndex. */
+  private populatedModules = new Set<string>();
 
   /** Inverted index: lowercase symbol name → entries keyed by modulePath. */
   private stdlibSymbolIndex = new Map<
@@ -337,23 +337,24 @@ export class PikeIntrospectionService {
    * the workspace index changes.
    */
   invalidateStdlibCache(): void {
-    this.stdlibSymbolCache.clear();
+    this.populatedModules.clear();
     this.stdlibSymbolIndex.clear();
   }
 
   private async searchStdlibCandidates(query: string): Promise<ImportableSymbolCandidate[]> {
-    if (!this.stdlibIndex || query.length === 0) {
+    const stdlibIndex = this.stdlibIndex;
+    if (!stdlibIndex || query.length === 0) {
       return [];
     }
 
-    const searchPaths = this.stdlibIndex.getAvailableModules();
+    const searchPaths = stdlibIndex.getAvailableModules();
 
-    // Populate cache + index for any modules not yet loaded
+    // Populate index for any modules not yet loaded
     for (const modulePath of searchPaths) {
-      if (this.stdlibSymbolCache.has(modulePath)) continue;
-      const moduleInfo = await this.stdlibIndex.getModule(modulePath);
+      if (this.populatedModules.has(modulePath)) continue;
+      const moduleInfo = await stdlibIndex.getModule(modulePath);
       if (moduleInfo?.symbols) {
-        this.stdlibSymbolCache.set(modulePath, moduleInfo.symbols);
+        this.populatedModules.add(modulePath);
         // Build inverted index entries for this module
         for (const [name, sym] of moduleInfo.symbols) {
           const key = name.toLowerCase();
@@ -395,13 +396,14 @@ export class PikeIntrospectionService {
       }
     }
 
-    // Phase 2: fallback — fuzzy score only if no index hits
+    // Phase 2: fallback — re-scan uncached modules for fuzzy match
     if (candidates.length === 0) {
       for (const modulePath of searchPaths) {
-        const symbols = this.stdlibSymbolCache.get(modulePath);
-        if (!symbols) continue;
+        if (!this.populatedModules.has(modulePath)) continue;
+        const moduleInfo = await stdlibIndex.getModule(modulePath);
+        if (!moduleInfo?.symbols) continue;
 
-        for (const [name, symbolInfo] of symbols) {
+        for (const [name, symbolInfo] of moduleInfo.symbols) {
           const matchScore = PikeIntrospectionService.fuzzyScore(query, name);
           if (matchScore === 0) continue;
 
