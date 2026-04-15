@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776172439600,
+  "lastUpdate": 1776224374355,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -112962,6 +112962,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.813848145299145,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "01eb02404c865c37493e914a60590ec04bacc121",
+          "message": "refactor(#1844): Extract shared resolve-and-cache logic from duplicate privat (#1847)\n\n* refactor: Extract shared resolve-and-cache logic from duplicate private methods\n\nCloses #1844\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #1847\n\nLet me read the target file to understand the current state.I see the issues clearly. Now I'll make both code fixes in parallel:Now let me run the typecheck:Typecheck passes. Now run tests:Tests pass. Now write the KB entry:Both code fixes applied to `include-resolver.ts`:\n\n1. **P1**: Reverted `resolveDependencies()` from parallel `Promise.allSettled`/`Promise.all` back to sequential `for`-loops, matching the main branch and eliminating the race condition on cache misses.\n\n2. **P2**: Fixed doubl\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: Revert resolveDependencies() to parallel resolution (Promise.allSettled/Promise.all)\n\nReverts the sequential for-loop regression in resolveDependencies() back to the\nmain branch version (f9f2b32) which uses Promise.allSettled for includes and\nPromise.all for imports/stdlib checks. The resolveAndCache rename to resolveAndParse\nis also reverted to match main branch naming and return type.\n\n* fix: address review feedback for PR #1847\n\nI need to fix PR #1847 based on reviewer feedback. Let me start by reading the target file and checking the main branch version.Now I can see the difference. The main branch (f9f2b32) uses parallel `Promise.allSettled`/`Promise.all` in `resolveDependencies()` and names the shared method `resolveAndParse` (returning `ResolvedInclude | null`). The current branch has sequential for-loops and renamed it to `resolveAndCache` (returning a different shape). I need to:\n\n1. Revert `resolveDependencies()`\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-15T05:37:40+02:00",
+          "tree_id": "97663e6b2cc2c56decd99579e2e6a27e627a94b3",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/01eb02404c865c37493e914a60590ec04bacc121"
+        },
+        "date": 1776224373994,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.74904716666666,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 243.1323465,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 242.42019425,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 247.69616091666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1654020252951096,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.066861816568047,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 50.5737879,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.868268921985815,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.003910837209302,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.18480162131837308,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.1692054998718934,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.4503261821170283,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.12941675783762058,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.12215941639470147,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00023303774623422373,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0005029224522788036,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0005016459564599386,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005018585670643552,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.00050341414270555,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0005196532685007681,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.26574878191276513,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.46804616666665,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 254.121709,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.27720924586776857,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00022030954254748775,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0006284835977344371,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 4.378214012738853,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 4.346947113924051,
             "unit": "ms"
           }
         ]
