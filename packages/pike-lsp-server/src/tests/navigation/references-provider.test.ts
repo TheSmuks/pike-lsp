@@ -119,7 +119,6 @@ interface SetupOptions {
   noDocument?: boolean;
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
-  workspaceScanner?: any;
   bridge?: any;
 }
 
@@ -154,7 +153,6 @@ function setup(opts: SetupOptions) {
   };
   const services = createMockServices({
     cacheEntries,
-    workspaceScanner: opts.workspaceScanner,
     bridge: opts.bridge ? { ...defaultBridge, ...opts.bridge } : defaultBridge,
   });
   const documents = createMockDocuments(docsMap);

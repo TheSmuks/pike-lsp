@@ -35,7 +35,6 @@ interface ScopeTestOptions {
   symbolPositions?: Map<string, { line: number; character: number }[]>;
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
-  workspaceScanner?: any;
 }
 
 function setupScopeTest(opts: ScopeTestOptions) {
@@ -60,7 +59,6 @@ function setupScopeTest(opts: ScopeTestOptions) {
 
   const services = createMockServices({
     cacheEntries,
-    workspaceScanner: opts.workspaceScanner,
   });
   const documents = createMockDocuments(docsMap);
   const conn = createMockConnection();

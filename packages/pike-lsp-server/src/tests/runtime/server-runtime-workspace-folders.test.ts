@@ -63,7 +63,6 @@ describe('server runtime workspace folder sync', () => {
     registerServerRuntimeHandlers({
       connection: connection as any,
       workspaceIndex: workspaceIndex as any,
-      workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
       getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],

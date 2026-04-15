@@ -112,8 +112,6 @@ export class PikeIntrospectionService {
       return `doc:${cacheEntry.version}`;
     }
     return 'unknown';
-
-    return 'unknown';
   }
 
   private async buildDocument(

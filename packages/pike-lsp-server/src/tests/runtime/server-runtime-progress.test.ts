@@ -69,12 +69,6 @@ describe('server runtime indexing progress', () => {
       getStats: () => ({ documents: 2, symbols: 4, uniqueNames: 4 }),
     };
 
-    const workspaceScanner = {
-      removeFolder: () => undefined,
-      addFolder: async () => undefined,
-      initialize: async () => undefined,
-      getStats: () => ({ fileCount: 2 }),
-    };
 
     const bridgeManager = {
       bridge: { isRunning: () => true },
@@ -86,7 +80,6 @@ describe('server runtime indexing progress', () => {
     registerServerRuntimeHandlers({
       connection: connection as any,
       workspaceIndex: workspaceIndex as any,
-      workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
       getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],
@@ -160,7 +153,6 @@ describe('server runtime indexing progress', () => {
     registerServerRuntimeHandlers({
       connection: connection as any,
       workspaceIndex: workspaceIndex as any,
-      workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
       getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],

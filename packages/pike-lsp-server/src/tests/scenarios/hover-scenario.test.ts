@@ -113,11 +113,6 @@ function createHoverHarness(config: { enableStdlib?: boolean } = {}): HoverHarne
     workspaceIndex: { indexDocument() {}, removeDocument() {} },
     includeResolver: null,
     moduleContext: null,
-    workspaceScanner: {
-      scan() {
-        return [];
-      },
-    },
     globalSettings: {
       pikePath: 'pike',
       maxNumberOfProblems: 100,
