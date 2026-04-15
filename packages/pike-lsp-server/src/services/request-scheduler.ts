@@ -196,11 +196,7 @@ export class RequestScheduler {
         interactive: this.activeByClass.interactive,
         background: this.activeByClass.background,
       },
-      queueWaitMs: {
-        typing: [...this.metrics.queueWaitMs.typing],
-        interactive: [...this.metrics.queueWaitMs.interactive],
-        background: [...this.metrics.queueWaitMs.background],
-      },
+      queueWaitMs: this.metrics.queueWaitMs,
     };
   }
 
