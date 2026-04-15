@@ -219,8 +219,11 @@ export function registerServerRuntimeHandlers(args: RegisterServerRuntimeHandler
           // This finds user-added custom modules via -M or PIKE_MODULE_PATH
           // that the hardcoded KNOWN_STDLIB_MODULES list doesn't cover.
           try {
-            const paths = await bridgeManager.bridge.getPikePaths();
-            if (paths.module_paths?.length) {
+            const paths = await Promise.race([
+              bridgeManager.bridge.getPikePaths(),
+              new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
+            ]);
+            if (paths?.module_paths?.length) {
               stdlibIndex.scanModulePaths(paths.module_paths);
             }
           } catch (err) {
