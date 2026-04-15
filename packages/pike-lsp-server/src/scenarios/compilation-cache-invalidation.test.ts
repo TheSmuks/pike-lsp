@@ -33,6 +33,17 @@ describe('CompilationCache.invalidate', () => {
     assert.strictEqual(cache.size, 0);
   });
 
+  it('non-transitive invalidation of B removes B but not A even though A depends on B', () => {
+    const cache = new CompilationCache<TestResult>(makeOptions());
+    cache.store('file:///a.pike', 'int a;', { errors: 0 }, ['file:///b.pike']);
+    cache.store('file:///b.pike', 'int b;', { errors: 0 }, []);
+
+    const invalidated = cache.invalidate('file:///b.pike', false);
+    assert.deepStrictEqual(invalidated, ['file:///b.pike']);
+    assert.strictEqual(cache.size, 1);
+    assert.ok(cache.get('file:///a.pike', 'int a;'), 'a.pike should remain');
+  });
+
   it('transitive invalidation follows full dependent chain', () => {
     // A depends on B, B depends on C.
     // Invalidating C transitively should remove B and A (dependents of C).
@@ -118,6 +129,22 @@ describe('CompilationCache.invalidate', () => {
     assert.strictEqual(cache.size, 1);
     assert.ok(cache.get('file:///a.pike', 'code-a'));
   });
+
+  it('returns only actually-removed entries when some queue items were already absent', () => {
+    const cache = new CompilationCache<TestResult>(makeOptions());
+    // A depends on B. B is not in the cache (never stored).
+    cache.store('file:///a.pike', 'int a;', { errors: 0 }, ['file:///b.pike']);
+
+    // Invalidating B transitively should visit A (dependent of B) but
+    // since B was never stored, only A is actually removed.
+    const invalidated = cache.invalidate('file:///b.pike', true);
+    assert.deepStrictEqual(
+      invalidated,
+      ['file:///a.pike'],
+      'Only A should be in the returned list (B was never stored)'
+    );
+    assert.strictEqual(cache.size, 0);
+  });
 });
 
 describe('CompilationCache.invalidate dependency edge cleanup', () => {
@@ -157,6 +184,25 @@ describe('CompilationCache.invalidate dependency edge cleanup', () => {
     // B's dependentsByFile entry was cleaned up.
     assert.strictEqual(stats.trackedFiles, 1); // A still has dependencies tracked
     assert.strictEqual(stats.trackedDependencyEdges, 1); // A->B edge
+  });
+
+  it('handles node with both dependencies and dependents: both maps stay consistent', () => {
+    const cache = new CompilationCache<TestResult>(makeOptions());
+    // B depends on A, and C depends on B.
+    // Invalidating B transitively should remove B and C,
+    // and clean up B's dependency edge to A and B's dependent edge from A.
+    cache.store('file:///a.pike', 'int a;', { errors: 0 }, []);
+    cache.store('file:///b.pike', 'int b;', { errors: 0 }, ['file:///a.pike']);
+    cache.store('file:///c.pike', 'int c;', { errors: 0 }, ['file:///b.pike']);
+
+    cache.invalidate('file:///b.pike', true);
+
+    assert.strictEqual(cache.size, 1);
+    assert.ok(cache.get('file:///a.pike', 'int a;'), 'A should remain');
+
+    const stats = cache.getStats();
+    assert.strictEqual(stats.trackedFiles, 0, 'A has no dependencies, so no tracked files');
+    assert.strictEqual(stats.trackedDependencyEdges, 0, 'No edges should remain');
   });
 
   it('re-storing after invalidation rebuilds dependency edges correctly', () => {
