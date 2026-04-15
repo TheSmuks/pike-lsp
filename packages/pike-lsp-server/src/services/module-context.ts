@@ -48,6 +48,8 @@ export class ModuleContext {
     string,
     Promise<{ contentHash: string; symbols: WaterfallSymbolsResult }>
   >();
+  /** Maps base URI to its set of waterfall cache keys for O(k) invalidation. */
+  private uriToWaterfallKeys = new Map<string, Set<string>>();
 
   constructor(maxCacheSize = 200) {
     this.cache = new LRUCache({ maxSize: maxCacheSize });
@@ -166,6 +168,13 @@ export class ModuleContext {
         symbols: result.symbols,
         timestamp: Date.now(),
       });
+      // Register key in secondary index for O(k) invalidation
+      let keys = this.uriToWaterfallKeys.get(uri);
+      if (!keys) {
+        keys = new Set();
+        this.uriToWaterfallKeys.set(uri, keys);
+      }
+      keys.add(cacheKey);
       return result.symbols;
     } finally {
       this.waterfallPending.delete(cacheKey);
@@ -197,16 +206,14 @@ export class ModuleContext {
   invalidate(uri: string): void {
     this.cache.delete(uri);
     this.pending.delete(uri);
-    // Invalidate waterfall cache entries for this URI
-    for (const key of this.waterfallCache.keys()) {
-      if (key.startsWith(uri + ':')) {
+    // Invalidate waterfall cache entries for this URI using secondary index
+    const keys = this.uriToWaterfallKeys.get(uri);
+    if (keys) {
+      for (const key of keys) {
         this.waterfallCache.delete(key);
-      }
-    }
-    for (const key of this.waterfallPending.keys()) {
-      if (key.startsWith(uri + ':')) {
         this.waterfallPending.delete(key);
       }
+      this.uriToWaterfallKeys.delete(uri);
     }
   }
 
@@ -218,11 +225,9 @@ export class ModuleContext {
     this.pending.clear();
     this.waterfallCache.clear();
     this.waterfallPending.clear();
+    this.uriToWaterfallKeys.clear();
   }
 
-  /**
-   * Get the number of cached documents.
-   */
   get size(): number {
     return this.cache.entryCount + this.waterfallCache.entryCount;
   }
