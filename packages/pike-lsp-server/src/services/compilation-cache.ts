@@ -16,6 +16,7 @@ export interface CompilationCacheOptions<TResult> extends Omit<
 > {
   sizeEstimator?: (entry: CompilationCacheEntry<TResult>, uri: string) => number;
   clock?: () => number;
+  validateResult?: (result: unknown) => boolean;
 }
 
 export interface CompilationCacheStats extends LRUCacheStats {
@@ -185,8 +186,16 @@ export class CompilationCache<TResult> {
       return cache;
     }
 
+    const validate = options.validateResult;
     for (const record of parsed.entries) {
       if (!isSerializedCacheEntry<TResult>(record)) {
+        continue;
+      }
+
+      if (validate && !validate(record.entry.result)) {
+        log.warn('Skipping deserialized entry with invalid result', {
+          uri: record.uri,
+        });
         continue;
       }
 

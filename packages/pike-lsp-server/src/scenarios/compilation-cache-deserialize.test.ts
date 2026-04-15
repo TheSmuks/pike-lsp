@@ -235,4 +235,62 @@ describe('CompilationCache.deserialize', () => {
     const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
     assert.strictEqual(cache.size, 0);
   });
+
+  it('skips entries when validateResult returns true for valid result', () => {
+    const payload = JSON.stringify({
+      entries: [
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'int x;', result: { errors: 0 }, dependencies: [], timestamp: 100 },
+        },
+      ],
+    });
+    const cache = CompilationCache.deserialize<TestResult>(payload, {
+      maxSize: 100,
+      validateResult: (r: unknown) =>
+        typeof r === 'object' &&
+        r !== null &&
+        typeof (r as Record<string, unknown>)['errors'] === 'number',
+    });
+    assert.strictEqual(cache.size, 1);
+    const entry = cache.get('file:///a.pike', 'int x;');
+    assert.ok(entry);
+    assert.deepStrictEqual(entry.result, { errors: 0 });
+  });
+
+  it('skips entries with corrupted result shape when validateResult rejects them', () => {
+    const payload = JSON.stringify({
+      entries: [
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'int x;', result: 'not-an-object', dependencies: [], timestamp: 100 },
+        },
+        {
+          uri: 'file:///b.pike',
+          entry: { code: 'int y;', result: { errors: 0 }, dependencies: [], timestamp: 200 },
+        },
+      ],
+    });
+    const cache = CompilationCache.deserialize<TestResult>(payload, {
+      maxSize: 100,
+      validateResult: (r: unknown) => typeof r === 'object' && r !== null && 'errors' in r,
+    });
+    assert.strictEqual(cache.size, 1);
+    const entry = cache.get('file:///b.pike', 'int y;');
+    assert.ok(entry);
+    assert.deepStrictEqual(entry.result, { errors: 0 });
+  });
+
+  it('accepts all entries when validateResult is not provided', () => {
+    const payload = JSON.stringify({
+      entries: [
+        {
+          uri: 'file:///a.pike',
+          entry: { code: 'int x;', result: { corrupt: true }, dependencies: [], timestamp: 100 },
+        },
+      ],
+    });
+    const cache = CompilationCache.deserialize<TestResult>(payload, makeOptions());
+    assert.strictEqual(cache.size, 1);
+  });
 });
