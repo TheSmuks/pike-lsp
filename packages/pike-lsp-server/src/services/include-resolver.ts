@@ -123,7 +123,6 @@ export class IncludeResolver {
     normalizedPath: string;
     originalPath: string;
     symbols: PikeSymbol[];
-    lastModified: number;
   } | null> {
     if (!this.bridge?.bridge) {
       return null;
@@ -144,18 +143,15 @@ export class IncludeResolver {
           normalizedPath,
           originalPath: cached.originalPath,
           symbols: cached.symbols,
-          lastModified: cached.lastModified,
         };
       }
 
       const symbols = await this.bridge.parseFileSymbols(normalizedPath);
-      const now = Date.now();
 
       const resolved: ResolvedInclude = {
         originalPath: result.originalPath,
         resolvedPath: normalizedPath,
         symbols,
-        lastModified: now,
       };
 
       this.includePathIndex.set(normalizedPath, resolved);
@@ -164,7 +160,6 @@ export class IncludeResolver {
         normalizedPath,
         originalPath: result.originalPath,
         symbols,
-        lastModified: now,
       };
     } catch (err) {
       this.logger.debug(`${logLabel} failed`, {
@@ -189,7 +184,6 @@ export class IncludeResolver {
       originalPath: result.originalPath,
       resolvedPath: result.normalizedPath,
       symbols: result.symbols,
-      lastModified: result.lastModified,
     };
   }
 
