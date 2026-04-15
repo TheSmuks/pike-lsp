@@ -46,11 +46,14 @@ Current request count"
     const symbol = createSymbol({
       name: 'sum',
       kind: 'method',
-      type: { kind: 'function', returnType: 'int' },
-      parameters: [
-        { name: 'left', type: 'int' },
-        { name: 'right', type: 'int' },
-      ],
+      type: {
+        kind: 'function',
+        returnType: 'int',
+        arguments: [
+          { name: 'left', type: 'int' },
+          { name: 'right', type: 'int' },
+        ],
+      },
       documentation:
         'Adds two values\n@param left left operand\n@param right right operand\n@returns sum',
     });
@@ -58,7 +61,7 @@ Current request count"
     const hover = buildHoverContent(symbol);
     expect(normalizeSnapshotValue(hover)).toMatchInlineSnapshot(`
 "\`\`\`pike
-int sum()
+int sum(int left, int right)
 \`\`\`
 
 ---
