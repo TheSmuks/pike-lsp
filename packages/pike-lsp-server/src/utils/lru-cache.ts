@@ -17,6 +17,8 @@ export interface LRUCacheStats {
 export interface LRUCacheOptions<TKey, TValue> {
   maxSize: number;
   sizeEstimator?: (value: TValue, key: TKey) => number;
+  /** Called with each evicted key when LRU eviction removes entries. */
+  onEvict?: (key: TKey) => void;
 }
 
 interface CacheEntry<TValue> {
@@ -41,6 +43,7 @@ const DEFAULT_ENTRY_SIZE = 1;
 export class LRUCache<TKey, TValue> {
   private readonly maxSize: number;
   private readonly sizeEstimator: (value: TValue, key: TKey) => number;
+  private readonly onEvict?: (key: TKey) => void;
   private readonly cache = new Map<TKey, CacheEntry<TValue>>();
   private currentSize = 0;
   private hits = 0;
@@ -54,12 +57,15 @@ export class LRUCache<TKey, TValue> {
       this.maxSize = optionsOrMaxSize ?? 500;
       this.sizeEstimator = () => DEFAULT_ENTRY_SIZE;
     } else {
-      const { maxSize, sizeEstimator } = optionsOrMaxSize;
+      const { maxSize, sizeEstimator, onEvict } = optionsOrMaxSize;
       if (!Number.isFinite(maxSize) || maxSize < 0) {
         throw new Error(`maxSize must be a non-negative finite number, got ${String(maxSize)}`);
       }
       this.maxSize = Math.floor(maxSize);
       this.sizeEstimator = sizeEstimator ?? (() => DEFAULT_ENTRY_SIZE);
+      if (onEvict !== undefined) {
+        this.onEvict = onEvict;
+      }
     }
   }
 
@@ -229,6 +235,7 @@ export class LRUCache<TKey, TValue> {
     this.cache.delete(key);
     this.currentSize -= entry.size;
     this.evictions += 1;
+    this.onEvict?.(key);
     return key;
   }
 
