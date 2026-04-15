@@ -826,7 +826,7 @@ describe('Scenario: realistic Pike file outline', () => {
     assert.ok(result);
     assert.strictEqual(result.length, 2);
     assert.strictEqual(result[0]!.detail, 'array(string)');
-    assert.strictEqual(result[1]!.detail, 'string(mapping)');
+    assert.strictEqual(result[1]!.detail, 'string(mapping(mixed:mixed))');
   });
 
   it('should handle symbols with special characters in names', async () => {
