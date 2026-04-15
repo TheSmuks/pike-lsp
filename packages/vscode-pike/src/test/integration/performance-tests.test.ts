@@ -402,6 +402,7 @@ function_with_error() {
     // CI runners have high scheduling jitter, so pure multiplier is fragile.
     const sortedFirst = times.slice(0, 3).sort((a, b) => a - b);
     const baseline = sortedFirst[1] ?? times[0]!;  // median of first 3
+    const lastTime = times[times.length - 1]!;
     const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
     const allowedMax = Math.max(5000, baseline * 10);
 
@@ -474,9 +475,16 @@ function_with_error() {
 
       // Race the completion against a 15s timeout to avoid test hanging.
       // On slow CI runners the LSP may still be indexing.
+      const completions = await Promise.race([
+        vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          largeFileUri,
+          position
+        ),
         new Promise<null>(resolve =>
           setTimeout(() => resolve(null), 15000)
         ),
+      ]);
 
       const elapsed = Date.now() - startTime;
 

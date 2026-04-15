@@ -159,6 +159,8 @@ describe('searchStdlibCandidates binary search prefix lookup', () => {
     expect(results).toHaveLength(0);
   });
 
+});
+
 describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
   it('returns fuzzy matches from inverted index when Phase 1 yields nothing', async () => {
     const modules = new Map<string, Map<string, { kind: string }>>();
@@ -229,4 +231,3 @@ describe('searchStdlibCandidates Phase 2 fuzzy fallback', () => {
   });
 });
 
-});
