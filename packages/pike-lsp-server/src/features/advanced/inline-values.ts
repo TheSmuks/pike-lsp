@@ -217,7 +217,7 @@ function extractValueExpr(
   nameEnd: { line: number; character: number },
   declEnd: { line: number; character: number }
 ): string | null {
-  // LSP Range positions are already 0-indexed — use directly.
+  // nameEnd and declEnd are 0-indexed LSP positions
   const lines = text.split('\n');
   const startLine = nameEnd.line;
   const endLine = declEnd.line;
