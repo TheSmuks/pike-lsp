@@ -116,7 +116,7 @@ export function getSymbolsForUri(uri: string, services: Services): PikeSymbol[] 
 }
 
 /**
- * Collect all known URIs from documentCache, workspaceIndex, and workspaceScanner.
+ * Collect all known URIs from documentCache and workspaceIndex.
  */
 export function getKnownUris(services: Services): string[] {
   const { documentCache } = services;
@@ -133,17 +133,6 @@ export function getKnownUris(services: Services): string[] {
       uris.add(uri);
     }
   }
-
-  // Include uncached files from workspace scanner
-  const scanner = services.workspaceScanner as unknown as {
-    getUncachedFiles?: (cachedUris: Set<string>) => Array<{ uri: string }>;
-  };
-  if (scanner?.getUncachedFiles) {
-    for (const file of scanner.getUncachedFiles(uris)) {
-      uris.add(file.uri);
-    }
-  }
-
   return Array.from(uris);
 }
 
@@ -206,11 +195,6 @@ export async function loadClosedWorkspaceFile(
         .filter((name): name is string => !!name)
     );
     const callPositions = buildCallPositionIndex(tokens, callableNames);
-
-    services.workspaceScanner.updateFileData(fileInfo.uri, {
-      symbolPositions,
-    });
-
     return {
       uri: fileInfo.uri,
       text,

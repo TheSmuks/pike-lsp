@@ -23,7 +23,6 @@ import {
   createMockDocuments,
   createMockServices,
   makeCacheEntry,
-  createMockWorkspaceScanner,
 } from '../helpers/mock-services.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import type { PikeToken } from '@pike-lsp/pike-bridge';

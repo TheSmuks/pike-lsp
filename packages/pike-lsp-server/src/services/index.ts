@@ -9,7 +9,6 @@ import type { Logger } from '@pike-lsp/core';
 import type { DocumentCache } from './document-cache.js';
 import type { BridgeManager } from './bridge-manager.js';
 import type { IncludeResolver } from './include-resolver.js';
-import type { WorkspaceScanner } from './workspace-scanner.js';
 import type { ModuleContext } from './module-context.js';
 import type { TypeDatabase } from '../type-database.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
@@ -41,8 +40,6 @@ export interface Services {
   stdlibIndex: StdlibIndexManager | null;
   /** Include resolver for #include dependency tracking (null until initialized) */
   includeResolver: IncludeResolver | null;
-  /** Workspace scanner for finding all Pike files in the workspace */
-  workspaceScanner: WorkspaceScanner;
   /** Global LSP settings (mutable, updated by configuration changes) */
   globalSettings: PikeSettings;
   /** Include paths for module resolution (mutable, updated by configuration changes) */
@@ -55,7 +52,6 @@ export interface Services {
 // Re-export for convenience
 export { DocumentCache } from './document-cache.js';
 export { BridgeManager, type HealthStatus } from './bridge-manager.js';
-export { WorkspaceScanner } from './workspace-scanner.js';
 export { ModuleContext } from './module-context.js';
 export { FormattingService } from './formatting-service.js';
 export { PikeIntrospectionService } from './pike-introspection.js';

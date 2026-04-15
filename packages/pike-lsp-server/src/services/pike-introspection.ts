@@ -111,11 +111,7 @@ export class PikeIntrospectionService {
     if (cacheEntry) {
       return `doc:${cacheEntry.version}`;
     }
-
-    const scannerInfo = this.services.workspaceScanner.getFile(uri);
-    if (scannerInfo) {
-      return `fs:${scannerInfo.lastModified}`;
-    }
+    return 'unknown';
 
     return 'unknown';
   }
