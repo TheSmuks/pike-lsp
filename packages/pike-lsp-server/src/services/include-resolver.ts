@@ -81,13 +81,17 @@ export class IncludeResolver {
       workspaceIndices.map(i => this.resolveWorkspaceImport(importEntries[i]!, uri))
     );
 
+    const indexMap = new Map(
+      workspaceIndices.map((importIdx, resultIdx) => [importIdx, resultIdx])
+    );
+
     for (let i = 0; i < importEntries.length; i++) {
       const isStdlib = stdlibResults[i]!;
       const importData: ResolvedImport = { modulePath: importEntries[i]!, isStdlib };
 
       if (!isStdlib) {
-        const wi = workspaceIndices.indexOf(i);
-        const resolved = workspaceResults[wi];
+        const wi = indexMap.get(i);
+        const resolved = wi !== undefined ? workspaceResults[wi] : undefined;
         if (resolved) {
           importData.symbols = resolved.symbols;
           importData.resolvedPath = resolved.resolvedPath;
