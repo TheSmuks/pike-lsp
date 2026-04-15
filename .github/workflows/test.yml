@@ -383,7 +383,7 @@ jobs:
             optional: true
           - category: performance
             grep: 'Performance Benchmark Tests'
-            optional: true
+            optional: false
 
     steps:
       - name: Checkout code
