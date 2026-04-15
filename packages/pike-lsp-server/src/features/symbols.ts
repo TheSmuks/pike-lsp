@@ -69,8 +69,10 @@ export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
 
   if (symbol.kind === 'method') {
     const m = symbol as PikeMethod;
-    const args = m.argTypes.map(t => formatPikeType(t)).join(', ');
-    detail = `${formatPikeType(m.returnType)}(${args})`;
+    if (m.argTypes) {
+      const args = m.argTypes.map(t => formatPikeType(t)).join(', ');
+      detail = `${formatPikeType(m.returnType)}(${args})`;
+    }
   } else if (symbol.type) {
     detail = formatPikeType(symbol.type);
   }
