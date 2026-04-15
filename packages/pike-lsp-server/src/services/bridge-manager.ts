@@ -91,6 +91,19 @@ export class BridgeManager {
       }
     });
   }
+  /**
+   * Require the bridge to be available, throwing if it is null.
+   * @returns The non-null PikeBridge instance
+   * @throws Error if the bridge has not been initialized
+   */
+  private requireBridge(): PikeBridge {
+    if (!this.bridge) {
+      throw new Error(
+        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
+      );
+    }
+    return this.bridge;
+  }
 
   /**
    * Start the bridge subprocess and cache version information.
@@ -291,10 +304,7 @@ export class BridgeManager {
    * Delegates to analyze() with ['parse'] operation.
    */
   async parse(code: string, filename: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
+    this.requireBridge();
     const response = await this.analyze(code, ['parse'], filename);
     return response.result?.parse ?? { symbols: [], diagnostics: [] };
   }
@@ -303,22 +313,14 @@ export class BridgeManager {
    * Find all identifier occurrences using Pike tokenization.
    */
   async findOccurrences(text: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.findOccurrences(text);
+    return this.requireBridge().findOccurrences(text);
   }
 
   /**
    * Tokenize Pike source code into identifier tokens.
    */
   async tokenize(text: string): Promise<PikeToken[]> {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.tokenize(text);
+    return this.requireBridge().tokenize(text);
   }
 
   /**
@@ -331,22 +333,14 @@ export class BridgeManager {
     character?: number,
     filename?: string
   ) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.findRenamePositions(code, symbolName, line, character, filename);
+    return this.requireBridge().findRenamePositions(code, symbolName, line, character, filename);
   }
 
   /**
    * Prepare rename - get symbol range at position.
    */
   async prepareRename(code: string, line: number, character: number, filename?: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.prepareRename(code, line, character, filename);
+    return this.requireBridge().prepareRename(code, line, character, filename);
   }
 
   /**
@@ -365,22 +359,20 @@ export class BridgeManager {
     documentUri?: string,
     documentVersion?: number
   ) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.getCompletionContext(code, line, character, documentUri, documentVersion);
+    return this.requireBridge().getCompletionContext(
+      code,
+      line,
+      character,
+      documentUri,
+      documentVersion
+    );
   }
 
   /**
    * Resolve a module path to a file location.
    */
   async resolveModule(modulePath: string, fromFile: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.resolveModule(modulePath, fromFile);
+    return this.requireBridge().resolveModule(modulePath, fromFile);
   }
 
   /**
@@ -402,10 +394,7 @@ export class BridgeManager {
     snapshot: QueryEngineSnapshotSelector;
     queryParams: Record<string, unknown>;
   }): Promise<QueryEngineQueryResponse> {
-    if (!this.bridge) {
-      throw new Error('Bridge not available: engineQuery() called before bridge was initialized.');
-    }
-    return this.bridge.engineQuery(params);
+    return this.requireBridge().engineQuery(params);
   }
 
   async engineOpenDocument(params: {
@@ -414,12 +403,7 @@ export class BridgeManager {
     version: number;
     text: string;
   }): Promise<QueryEngineMutationAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineOpenDocument() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineOpenDocument(params);
+    return this.requireBridge().engineOpenDocument(params);
   }
 
   async engineChangeDocument(params: {
@@ -427,32 +411,17 @@ export class BridgeManager {
     version: number;
     changes: Array<Record<string, unknown>>;
   }): Promise<QueryEngineMutationAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineChangeDocument() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineChangeDocument(params);
+    return this.requireBridge().engineChangeDocument(params);
   }
 
   async engineCloseDocument(params: { uri: string }): Promise<QueryEngineMutationAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineCloseDocument() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineCloseDocument(params);
+    return this.requireBridge().engineCloseDocument(params);
   }
 
   async engineUpdateConfig(params: {
     settings: Record<string, unknown>;
   }): Promise<QueryEngineMutationAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineUpdateConfig() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineUpdateConfig(params);
+    return this.requireBridge().engineUpdateConfig(params);
   }
 
   async engineUpdateWorkspace(params: {
@@ -460,32 +429,18 @@ export class BridgeManager {
     added: string[];
     removed: string[];
   }): Promise<QueryEngineMutationAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineUpdateWorkspace() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineUpdateWorkspace(params);
+    return this.requireBridge().engineUpdateWorkspace(params);
   }
 
   async engineCancelRequest(params: { requestId: string }): Promise<QueryEngineCancelAck> {
-    if (!this.bridge) {
-      throw new Error(
-        'Bridge not available: engineCancelRequest() called before bridge was initialized.'
-      );
-    }
-    return this.bridge.engineCancelRequest(params);
+    return this.requireBridge().engineCancelRequest(params);
   }
 
   /**
    * Analyze uninitialized variable usage.
    */
   async analyzeUninitialized(text: string, filename: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.analyzeUninitialized(text, filename);
+    return this.requireBridge().analyzeUninitialized(text, filename);
   }
 
   /**
@@ -502,13 +457,7 @@ export class BridgeManager {
     code: string,
     filename?: string
   ): Promise<import('../features/roxen/types.js').RoxenModuleInfo> {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-
-    // Call the roxen_detect RPC handler
-    return this.bridge.roxenDetect(code, filename);
+    return this.requireBridge().roxenDetect(code, filename);
   }
 
   /**
@@ -526,12 +475,7 @@ export class BridgeManager {
    * @returns Validation diagnostics
    */
   async roxenValidate(code: string, filename: string, moduleInfo?: Record<string, unknown>) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-
-    return this.bridge.roxenValidate(code, filename, moduleInfo);
+    return this.requireBridge().roxenValidate(code, filename, moduleInfo);
   }
 
   /**
@@ -582,10 +526,6 @@ export class BridgeManager {
    * Evaluate a constant Pike expression.
    */
   async evaluateConstant(expression: string, filename?: string) {
-    if (!this.bridge)
-      throw new Error(
-        'Bridge not available: Pike bridge is not initialized. This usually happens when the LSP server is still starting up or the bridge failed to start. Check the LSP logs for more details.'
-      );
-    return this.bridge.evaluateConstant(expression, filename);
+    return this.requireBridge().evaluateConstant(expression, filename);
   }
 }

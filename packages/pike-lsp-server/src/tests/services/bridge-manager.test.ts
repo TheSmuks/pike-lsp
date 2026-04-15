@@ -315,3 +315,47 @@ describe('BridgeManager stop() guards against stale writes', () => {
     realpathSpy.mockRestore();
   });
 });
+
+describe('BridgeManager requireBridge guard', () => {
+  it('throws when bridge is null', async () => {
+    const manager = new BridgeManager(null, createMockLogger());
+    await assert.rejects(
+      () => manager.findOccurrences('int x;'),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Bridge not available/);
+        return true;
+      }
+    );
+  });
+
+  it('throws when bridge is null for engine methods', async () => {
+    const manager = new BridgeManager(null, createMockLogger());
+    await assert.rejects(
+      () => manager.engineQuery({ feature: 'test', requestId: '1', snapshot: {}, queryParams: {} }),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /Bridge not available/);
+        return true;
+      }
+    );
+  });
+
+  it('delegates to bridge when available', async () => {
+    let called = false;
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
+        findOccurrences: () => {
+          called = true;
+          return Promise.resolve([]);
+        },
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+    await manager.findOccurrences('int x;');
+    assert.ok(called, 'should delegate to bridge.findOccurrences');
+  });
+});
