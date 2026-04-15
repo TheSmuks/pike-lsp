@@ -36,6 +36,9 @@ export class PikeIntrospectionService {
   /** Track which stdlib modules have been populated into stdlibSymbolIndex. */
   private populatedModules = new Set<string>();
 
+  /** Sorted lowercase keys for binary-search prefix lookup. */
+  private stdlibSortedKeys: string[] = [];
+
   /** Inverted index: lowercase symbol name → entries keyed by modulePath. */
   private stdlibSymbolIndex = new Map<
     string,
@@ -330,6 +333,7 @@ export class PikeIntrospectionService {
    */
   invalidateStdlibCache(): void {
     this.populatedModules.clear();
+    this.stdlibSortedKeys = [];
     this.stdlibSymbolIndex.clear();
   }
 
@@ -348,14 +352,19 @@ export class PikeIntrospectionService {
       if (moduleInfo?.symbols) {
         this.populatedModules.add(modulePath);
         // Build inverted index entries for this module
+        const newKeys: string[] = [];
         for (const [name, sym] of moduleInfo.symbols) {
           const key = name.toLowerCase();
           let bucket = this.stdlibSymbolIndex.get(key);
           if (!bucket) {
             bucket = [];
             this.stdlibSymbolIndex.set(key, bucket);
+            newKeys.push(key);
           }
           bucket.push({ modulePath, name, kind: sym.kind });
+        }
+        if (newKeys.length > 0) {
+          this.stdlibSortedKeys = mergeIntoSorted(this.stdlibSortedKeys, newKeys);
         }
       }
     }
@@ -363,28 +372,32 @@ export class PikeIntrospectionService {
     const candidates: ImportableSymbolCandidate[] = [];
     const qLower = query.toLowerCase();
 
-    // Phase 1: exact + prefix lookup via inverted index
+    // Phase 1: exact + prefix lookup via binary search on sorted keys
     const visited = new Set<string>();
-    for (const [indexKey, entries] of this.stdlibSymbolIndex) {
-      if (indexKey === qLower || indexKey.startsWith(qLower)) {
-        for (const entry of entries) {
-          const cacheKey = `${entry.name}:${entry.modulePath}`;
-          if (visited.has(cacheKey)) continue;
-          visited.add(cacheKey);
+    const startIdx = lowerBound(this.stdlibSortedKeys, qLower);
+    const qEnd = qLower + '\uffff';
+    const endIdx = lowerBound(this.stdlibSortedKeys, qEnd);
+    for (let i = startIdx; i < endIdx; i++) {
+      const indexKey = this.stdlibSortedKeys[i]!;
+      const entries = this.stdlibSymbolIndex.get(indexKey);
+      if (!entries) continue;
+      for (const entry of entries) {
+        const cacheKey = `${entry.name}:${entry.modulePath}`;
+        if (visited.has(cacheKey)) continue;
+        visited.add(cacheKey);
 
-          const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
-          const matchScore = indexKey === qLower ? 100 : 80 + qLower.length;
-          const exactBoost = indexKey === qLower ? 130 : 0;
-          const kindBoost = importKind === 'inherit' ? 15 : 10;
+        const importKind: 'import' | 'inherit' = entry.kind === 'class' ? 'inherit' : 'import';
+        const matchScore = indexKey === qLower ? 100 : 80 + qLower.length;
+        const exactBoost = indexKey === qLower ? 130 : 0;
+        const kindBoost = importKind === 'inherit' ? 15 : 10;
 
-          candidates.push({
-            symbol: entry.name,
-            modulePath: entry.modulePath,
-            importKind,
-            score: exactBoost + kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
-            source: 'stdlib-index',
-          });
-        }
+        candidates.push({
+          symbol: entry.name,
+          modulePath: entry.modulePath,
+          importKind,
+          score: exactBoost + kindBoost + Math.max(0, 60 - entry.modulePath.length) + matchScore,
+          source: 'stdlib-index',
+        });
       }
     }
 
@@ -454,4 +467,42 @@ export class PikeIntrospectionService {
       return a.importKind.localeCompare(b.importKind);
     });
   }
+}
+
+/** Binary search: first index in sorted array where arr[i] >= target. */
+function lowerBound(arr: readonly string[], target: string): number {
+  let lo = 0,
+    hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid]! < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Merge new unique keys into a sorted array (both already sorted). */
+function mergeIntoSorted(sorted: string[], newKeys: string[]): string[] {
+  if (sorted.length === 0) return newKeys;
+  const result: string[] = [];
+  let i = 0,
+    j = 0;
+  while (i < sorted.length && j < newKeys.length) {
+    const a = sorted[i]!,
+      b = newKeys[j]!;
+    if (a < b) {
+      result.push(a);
+      i++;
+    } else if (a > b) {
+      result.push(b);
+      j++;
+    } else {
+      result.push(a);
+      i++;
+      j++;
+    }
+  }
+  while (i < sorted.length) result.push(sorted[i++]!);
+  while (j < newKeys.length) result.push(newKeys[j++]!);
+  return result;
 }
