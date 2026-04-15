@@ -47,50 +47,40 @@ export class IncludeResolver {
     const includeSymbols = symbols.filter(s => s.kind === 'include');
     const importSymbols = symbols.filter(s => s.kind === 'import');
 
-    // Resolve #include statements in parallel
-    const includeResults = await Promise.allSettled(
-      includeSymbols
-        .map(s => this.getSymbolClassname(s) ?? s.name)
-        .filter((p): p is string => p !== '')
-        .map(p => this.resolveSingleInclude(p, uri))
-    );
+    for (const symbol of includeSymbols) {
+      const includePath = this.getSymbolClassname(symbol) ?? symbol.name;
+      if (!includePath) continue;
 
-    for (const result of includeResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        dependencies.includes.push(result.value);
-      } else if (result.status === 'rejected') {
+      try {
+        const resolved = await this.resolveSingleInclude(includePath, uri);
+        if (resolved) {
+          dependencies.includes.push(resolved);
+        }
+      } catch (err) {
         this.logger.debug('Failed to resolve include', {
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
-    // Resolve import statements in parallel
-    const importEntries = importSymbols
-      .map(s => this.getSymbolClassname(s) ?? s.name)
-      .filter((p): p is string => p !== '');
+    for (const symbol of importSymbols) {
+      const modulePath = this.getSymbolClassname(symbol) ?? symbol.name;
+      if (!modulePath) continue;
 
-    // Check stdlib status in parallel
-    const stdlibResults = await Promise.all(importEntries.map(p => this.isStdlibModule(p)));
-
-    // Resolve workspace imports (non-stdlib only) in parallel
-    const workspaceIndices = stdlibResults
-      .map((isStdlib, i) => (!isStdlib ? i : -1))
-      .filter((i): i is number => i >= 0);
-    const workspaceResults = await Promise.all(
-      workspaceIndices.map(i => this.resolveWorkspaceImport(importEntries[i]!, uri))
-    );
-
-    for (let i = 0; i < importEntries.length; i++) {
-      const isStdlib = stdlibResults[i]!;
-      const importData: ResolvedImport = { modulePath: importEntries[i]!, isStdlib };
+      const isStdlib = await this.isStdlibModule(modulePath);
+      const importData: ResolvedImport = { modulePath, isStdlib };
 
       if (!isStdlib) {
-        const wi = workspaceIndices.indexOf(i);
-        const resolved = workspaceResults[wi];
-        if (resolved) {
-          importData.symbols = resolved.symbols;
-          importData.resolvedPath = resolved.resolvedPath;
+        try {
+          const resolved = await this.resolveWorkspaceImport(modulePath, uri);
+          if (resolved) {
+            importData.symbols = resolved.symbols;
+            importData.resolvedPath = resolved.resolvedPath;
+          }
+        } catch (err) {
+          this.logger.debug('Failed to resolve workspace import', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
@@ -149,12 +139,13 @@ export class IncludeResolver {
       }
 
       const symbols = await this.bridge.parseFileSymbols(normalizedPath);
+      const now = Date.now();
 
       const resolved: ResolvedInclude = {
         originalPath: result.originalPath,
         resolvedPath: normalizedPath,
         symbols,
-        lastModified: Date.now(),
+        lastModified: now,
       };
 
       this.includePathIndex.set(normalizedPath, resolved);
@@ -163,7 +154,7 @@ export class IncludeResolver {
         normalizedPath,
         originalPath: result.originalPath,
         symbols,
-        lastModified: Date.now(),
+        lastModified: now,
       };
     } catch (err) {
       this.logger.debug(`${logLabel} failed`, {
