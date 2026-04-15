@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { CompilationCache } from '../services/compilation-cache.js';
 import type { CompilationCacheOptions } from '../services/compilation-cache.js';
 
+interface TestResult {
+  errors: number;
+  warnings?: number;
+}
+
 const defaultOptions: CompilationCacheOptions<string> = { maxSize: 100 };
 
 describe('CompilationCache.deserialize', () => {
