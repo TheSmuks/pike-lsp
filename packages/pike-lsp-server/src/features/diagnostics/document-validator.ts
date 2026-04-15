@@ -179,14 +179,17 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
 
         inFlightDiagnosticRequests.set(uri, requestId);
 
-        const snapshotId = documentSnapshots.get(uri);
+        // Always use 'latest' snapshot for diagnostics — the fixed-snapshot
+        // optimization is for features like hover/definition where stable results
+        // matter. For diagnostics, correctness requires querying against the actual
+        // current document content. A stale snapshot from a failed or pending
+        // engineChangeDocument produces diagnostics for the wrong content.
         const qeResponse = await bridge.engineQuery({
           feature: 'diagnostics',
           requestId,
-          snapshot: snapshotId ? { mode: 'fixed', snapshotId } : { mode: 'latest' },
+          snapshot: { mode: 'latest' },
           queryParams: { uri, filename, version, text },
         });
-
         const responseRevision =
           typeof qeResponse.result['revision'] === 'number'
             ? qeResponse.result['revision']
