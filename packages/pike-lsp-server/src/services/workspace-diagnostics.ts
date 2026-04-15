@@ -46,6 +46,8 @@ export class WorkspaceDiagnosticsManager {
   private sendDiagnostics: (params: { uri: string; diagnostics: CoreDiagnostic[] }) => void;
   private clearDiagnostics: (uri: string) => void;
 
+  private static readonly MAX_FAILURES = 3;
+  private failedUriAttempts = new Map<string, number>();
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private isRunning = false;
   private pendingQueue: PendingDiagnostic[] = [];
@@ -99,6 +101,7 @@ export class WorkspaceDiagnosticsManager {
   onIndexingComplete(): void {
     log.debug('Workspace indexing complete, scheduling idle diagnostics');
     this.processedUris.clear();
+    this.failedUriAttempts.clear();
     const allUris = this.workspaceIndex.getAllDocumentUris();
     this.remainingUris = [...allUris];
     this.scheduleIdleCheck();
@@ -189,19 +192,33 @@ export class WorkspaceDiagnosticsManager {
 
       const successfulUris = await this.processBatch(batch);
 
-      // Only mark successfully processed URIs; push the rest back for retry
       for (const item of batch) {
         if (successfulUris.has(item.uri)) {
           this.processedUris.add(item.uri);
+          this.failedUriAttempts.delete(item.uri);
         } else {
-          this.remainingUris.push(item.uri);
+          const attempts = (this.failedUriAttempts.get(item.uri) ?? 0) + 1;
+          this.failedUriAttempts.set(item.uri, attempts);
+          if (attempts >= WorkspaceDiagnosticsManager.MAX_FAILURES) {
+            log.warn('URI permanently skipped after repeated failures', {
+              uri: item.uri,
+              attempts,
+            });
+          } else {
+            this.remainingUris.push(item.uri);
+          }
         }
       }
     }
 
     if (this.pendingQueue.length === 0) {
-      log.debug('Workspace diagnostics queue empty');
       this.isRunning = false;
+      if (this.remainingUris.length > 0) {
+        log.debug('Queue empty but URIs remain, scheduling next idle check');
+        this.scheduleIdleCheck();
+      } else {
+        log.debug('Workspace diagnostics queue empty');
+      }
     }
   }
 
