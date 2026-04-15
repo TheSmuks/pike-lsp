@@ -69,7 +69,6 @@ describe('server runtime indexing progress', () => {
       getStats: () => ({ documents: 2, symbols: 4, uniqueNames: 4 }),
     };
 
-
     const bridgeManager = {
       bridge: { isRunning: () => true },
       checkPike: async () => false,
