@@ -35,8 +35,8 @@ interface ScopeTestOptions {
   symbolPositions?: Map<string, { line: number; character: number }[]>;
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
+  workspaceIndex?: { getAllDocumentUris: () => string[] };
 }
-
 function setupScopeTest(opts: ScopeTestOptions) {
   const doc = TextDocument.create(opts.uri, 'pike', 1, opts.code);
 
@@ -59,6 +59,7 @@ function setupScopeTest(opts: ScopeTestOptions) {
 
   const services = createMockServices({
     cacheEntries,
+    workspaceIndex: opts.workspaceIndex,
   });
   const documents = createMockDocuments(docsMap);
   const conn = createMockConnection();
@@ -74,26 +75,6 @@ function setupScopeTest(opts: ScopeTestOptions) {
       }),
     uri: opts.uri,
     conn,
-  };
-}
-
-// =============================================================================
-// Mock Workspace Scanner for Scope Tests
-// =============================================================================
-
-function createMockWorkspaceScanner(files: { uri: string; content: string }[]) {
-  const fileMap = new Map<string, { uri: string; content: string }>();
-  for (const f of files) {
-    fileMap.set(f.uri, f);
-  }
-
-  return {
-    isReady: () => true,
-    getUncachedFiles: (cachedUris: Set<string>) => {
-      return files
-        .filter(f => !cachedUris.has(f.uri))
-        .map(f => ({ uri: f.uri, path: f.uri.replace('file://', '') }));
-    },
   };
 }
 
@@ -116,10 +97,6 @@ int x = sharedName;`;
       // Another .pike file in workspace with same symbol name
       const otherPikeCode = `int sharedName = 100;
 write(sharedName);`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///workspace/other.pike', content: otherPikeCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: mainCode,
@@ -171,7 +148,6 @@ write(sharedName);`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 8);
@@ -191,10 +167,6 @@ int result = helper();`;
 
       const pmodCode = `int helper() { return 2; }
 int value = helper();`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///workspace/Helper.pmod', content: pmodCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: pikeCode,
@@ -237,7 +209,6 @@ int value = helper();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 6);
@@ -259,10 +230,6 @@ processData();`;
 
       const otherCode = `void processData() { }
 processData();`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///lib/utils.pike', content: otherCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: mainCode,
@@ -306,7 +273,6 @@ processData();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 8);
@@ -335,10 +301,6 @@ int result = calculate();`;
 
       // Another file using the module
       const consumerCode = `int result = calculate();`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///project/Consumer.pike', content: consumerCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: moduleCode,
@@ -375,7 +337,6 @@ int result = calculate();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 8);
@@ -395,10 +356,6 @@ int result = calculate();`;
     void process() { }
 }
 Handler h = Handler();`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///modules/ModuleB.pmod', content: moduleBCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: moduleACode,
@@ -433,7 +390,6 @@ Handler h = Handler();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 8);
@@ -454,10 +410,6 @@ Handler h = Handler();`;
       const moduleCode = `string format(string s) { return s; }`;
 
       const consumerCode = `string formatted = format("hello");`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///app/main.pike', content: consumerCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: moduleCode,
@@ -485,7 +437,6 @@ Handler h = Handler();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(0, 10);
@@ -513,10 +464,6 @@ int x = helper();`;
 
       const utilsPikeCode = `int helper() { return 1; }`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///lib/utils.pike', content: utilsPikeCode },
-      ]);
-
       const { references } = setupScopeTest({
         code: mainCode,
         uri: 'file:///script.pike',
@@ -529,7 +476,6 @@ int x = helper();`;
             containerName: 'Utils',
           },
         ],
-        workspaceScanner,
       });
 
       const result = await references(1, 8);
@@ -550,10 +496,6 @@ int x = helper();`;
 int x = pi;`;
 
       const pmodCode = `constant float pi = 3.14159;`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///modules/Math.pmod', content: pmodCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: pikeCode,
@@ -588,7 +530,6 @@ int x = pi;`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(1, 8);
@@ -604,10 +545,6 @@ int x = pi;`;
 int result = process();`;
 
       const pikeCode = `int process() { return 42; }`;
-
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///tools/util.pike', content: pikeCode },
-      ]);
 
       const { references } = setupScopeTest({
         code: pmodCode,
@@ -642,7 +579,6 @@ int result = process();`;
             }),
           ],
         ]),
-        workspaceScanner,
       });
 
       const result = await references(1, 11);
@@ -668,7 +604,7 @@ counter++;`;
         content: `int counter = ${i};`,
       }));
 
-      const workspaceScanner = createMockWorkspaceScanner(manyFiles);
+      
 
       const { references } = setupScopeTest({
         code: mainCode,
@@ -691,7 +627,6 @@ counter++;`;
             ],
           ],
         ]),
-        workspaceScanner,
       });
 
       const start = performance.now();
@@ -717,7 +652,7 @@ Manager m;`;
         content: `class Manager { }`,
       }));
 
-      const workspaceScanner = createMockWorkspaceScanner(manyFiles);
+      
 
       const { references } = setupScopeTest({
         code: moduleCode,
@@ -739,7 +674,6 @@ Manager m;`;
             ],
           ],
         ]),
-        workspaceScanner,
       });
 
       const start = performance.now();
@@ -772,10 +706,6 @@ describe('Scope Behavior Verification', () => {
       const mainCode = `int target = 42;`;
       const workspaceCode = `int x = target;`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///workspace/other.pike', content: workspaceCode },
-      ]);
-
       const { references } = setupScopeTest({
         code: mainCode,
         uri: 'file:///test.pike',
@@ -788,7 +718,6 @@ describe('Scope Behavior Verification', () => {
           },
         ],
         symbolPositions: new Map([['target', [{ line: 0, character: 4 }]]]),
-        workspaceScanner,
       });
 
       const result = await references(0, 5);
@@ -803,10 +732,6 @@ describe('Scope Behavior Verification', () => {
       const moduleCode = `int calculate() { return 42; }`;
       const consumerCode = `int result = calculate();`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///project/consumer.pike', content: consumerCode },
-      ]);
-
       const { references } = setupScopeTest({
         code: moduleCode,
         uri: 'file:///modules/Calculator.pmod',
@@ -819,7 +744,6 @@ describe('Scope Behavior Verification', () => {
           },
         ],
         symbolPositions: new Map([['calculate', [{ line: 0, character: 4 }]]]),
-        workspaceScanner,
       });
 
       const result = await references(0, 8);
@@ -834,10 +758,6 @@ float pi = Math.PI;`;
 
       const pmodCode = `constant float PI = 3.14159;`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///modules/Math.pmod', content: pmodCode },
-      ]);
-
       const { references } = setupScopeTest({
         code: pikeCode,
         uri: 'file:///script.pike',
@@ -850,7 +770,6 @@ float pi = Math.PI;`;
             containerName: 'Math',
           },
         ],
-        workspaceScanner,
       });
 
       const result = await references(1, 15);
@@ -865,10 +784,6 @@ int result = Util.process();`;
 
       const pikeCode = `int process() { return 42; }`;
 
-      const workspaceScanner = createMockWorkspaceScanner([
-        { uri: 'file:///tools/util.pike', content: pikeCode },
-      ]);
-
       const { references } = setupScopeTest({
         code: pmodCode,
         uri: 'file:///modules/Processor.pmod',
@@ -881,7 +796,6 @@ int result = Util.process();`;
             containerName: 'Util',
           },
         ],
-        workspaceScanner,
       });
 
       const result = await references(1, 18);

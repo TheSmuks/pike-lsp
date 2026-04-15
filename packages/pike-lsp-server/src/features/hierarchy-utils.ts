@@ -125,11 +125,8 @@ export function getKnownUris(services: Services): string[] {
     uris.add(uri);
   }
 
-  const workspaceIndex = services.workspaceIndex as unknown as {
-    getAllDocumentUris?: () => string[];
-  };
-  if (workspaceIndex?.getAllDocumentUris) {
-    for (const uri of workspaceIndex.getAllDocumentUris()) {
+  if (services.workspaceIndex?.getAllDocumentUris) {
+    for (const uri of services.workspaceIndex.getAllDocumentUris()) {
       uris.add(uri);
     }
   }

@@ -136,13 +136,6 @@ describe('server runtime indexing progress', () => {
       getStats: () => ({ documents: 1, symbols: 2, uniqueNames: 2 }),
     };
 
-    const workspaceScanner = {
-      removeFolder: () => undefined,
-      addFolder: async () => undefined,
-      initialize: async () => undefined,
-      getStats: () => ({ fileCount: 1 }),
-    };
-
     const bridgeManager = {
       bridge: { isRunning: () => true },
       checkPike: async () => false,
