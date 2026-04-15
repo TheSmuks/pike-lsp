@@ -345,10 +345,17 @@ export class PikeIntrospectionService {
 
     const searchPaths = stdlibIndex.getAvailableModules();
 
-    // Populate index for any modules not yet loaded
+    // Populate index for any modules not yet loaded.
+    // Limit batch size to avoid blocking completion on large module sets
+    // (e.g. when dynamic discovery adds hundreds of system modules).
+    // Unpopulated modules will be loaded incrementally on subsequent requests.
+    const POPULATE_BATCH = 20;
+    let populated = 0;
     for (const modulePath of searchPaths) {
       if (this.populatedModules.has(modulePath)) continue;
+      if (populated >= POPULATE_BATCH) break;
       const moduleInfo = await stdlibIndex.getModule(modulePath);
+      populated++;
       if (moduleInfo?.symbols) {
         this.populatedModules.add(modulePath);
         // Build inverted index entries for this module
