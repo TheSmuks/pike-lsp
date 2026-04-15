@@ -50,7 +50,7 @@ function toProtocolDiagnostic(diagnostic: CoreDiagnostic): Diagnostic {
     protocolDiagnostic.data = diagnostic.data;
   }
   if (diagnostic.tags) {
-    protocolDiagnostic.tags = diagnostic.tags as Exclude<Diagnostic['tags'], undefined>;
+    protocolDiagnostic.tags = diagnostic.tags;
   }
   if (diagnostic.relatedInformation) {
     protocolDiagnostic.relatedInformation = diagnostic.relatedInformation.map(
