@@ -9,8 +9,9 @@
  * - Configurable via inlayHints settings
  */
 
-import { Connection, InlayHint, InlayHintKind } from 'vscode-languageserver/node.js';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { Connection, InlayHint, InlayHintKind, TextDocument } from 'vscode-languageserver/node.js';
+
+
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { InlayHintsSettings } from '../../core/types.js';
@@ -164,8 +165,9 @@ export function registerInlayHintsHandler(
         if (method.kind !== 'method') {
           continue;
         }
-        const argNames = (method as PikeMethod).argNames;
-        const argTypes = (method as PikeMethod).argTypes;
+        const methodDef = method as PikeMethod;
+        const argNames = methodDef.argNames;
+        const argTypes = methodDef.argTypes;
 
         for (let index = 0; index < call.argumentRanges.length; index++) {
           const argumentRange = call.argumentRanges[index]!;
