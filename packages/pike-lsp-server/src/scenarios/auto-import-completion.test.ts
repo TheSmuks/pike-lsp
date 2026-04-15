@@ -109,17 +109,6 @@ function setup(code: string, searchResults: ReturnType<typeof createSearchResult
     moduleContext: null,
     typeDatabase: {},
     workspaceIndex: {},
-    workspaceScanner: {
-      isReady: () => true,
-      getAllFiles: () => [],
-      getUncachedFiles: () => [],
-      getFile: () => undefined,
-      updateFileData() {},
-      invalidateFile() {},
-      upsertFile() {},
-      removeFile() {},
-      getStats: () => ({ fileCount: 0, rootCount: 0, cachedFiles: 0 }),
-    },
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 0 },
     includePaths: [],
     pikeIntrospection: {

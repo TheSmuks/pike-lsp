@@ -81,7 +81,7 @@ export function registerFileWatcher(
   services: Services,
   documents: TextDocuments<TextDocument>
 ): void {
-  const { workspaceIndex, documentCache, workspaceScanner, includeResolver } = services;
+  const { workspaceIndex, documentCache, includeResolver } = services;
   const log = new Logger('FileWatcher');
 
   connection.onDidChangeWatchedFiles(async (params: DidChangeWatchedFilesParams) => {
@@ -117,7 +117,7 @@ export function registerFileWatcher(
         switch (type) {
           case LSPFileChangeType.Created: {
             connection.console.log(`[FILE_WATCHER] Created: ${uri}`);
-            await handleFileCreated(uri, filePath, documents, workspaceIndex, workspaceScanner);
+            await handleFileCreated(uri, filePath, documents, workspaceIndex);
             created++;
             processed++;
             break;
@@ -125,14 +125,7 @@ export function registerFileWatcher(
 
           case LSPFileChangeType.Changed: {
             connection.console.log(`[FILE_WATCHER] Changed: ${uri}`);
-            await handleFileChanged(
-              uri,
-              filePath,
-              documents,
-              workspaceIndex,
-              documentCache,
-              workspaceScanner
-            );
+            await handleFileChanged(uri, filePath, documents, workspaceIndex, documentCache);
             updated++;
             processed++;
             break;
@@ -140,7 +133,7 @@ export function registerFileWatcher(
 
           case LSPFileChangeType.Deleted: {
             connection.console.log(`[FILE_WATCHER] Deleted: ${uri}`);
-            handleFileDeleted(uri, workspaceIndex, documentCache, workspaceScanner);
+            handleFileDeleted(uri, workspaceIndex, documentCache);
             deleted++;
             processed++;
             break;
@@ -171,15 +164,13 @@ export function registerFileWatcher(
     uri: string,
     path: string,
     docs: TextDocuments<TextDocument>,
-    index: typeof workspaceIndex,
-    scanner: typeof workspaceScanner
+    index: typeof workspaceIndex
   ): Promise<void> {
     // Check if file is already open in editor
     const doc = docs.get(uri);
     if (doc) {
       // File is open, index from document content
       await index.indexDocument(uri, doc.getText(), doc.version);
-      scanner?.upsertFile?.(uri, Date.now());
       return;
     }
 
@@ -187,8 +178,6 @@ export function registerFileWatcher(
     try {
       const content = await fs.promises.readFile(path, 'utf-8');
       await index.indexDocument(uri, content, 0);
-      const stat = await fs.promises.stat(path);
-      scanner?.upsertFile?.(uri, stat.mtimeMs);
     } catch (err) {
       throw new Error(
         `Failed to read newly created file '${path}': ${err instanceof Error ? err.message : String(err)}. Check file permissions and ensure the path is accessible.`
@@ -204,8 +193,7 @@ export function registerFileWatcher(
     path: string,
     docs: TextDocuments<TextDocument>,
     index: typeof workspaceIndex,
-    cache: typeof documentCache,
-    scanner: typeof workspaceScanner
+    cache: typeof documentCache
   ): Promise<void> {
     // Check if file is open in editor
     const doc = docs.get(uri);
@@ -213,8 +201,6 @@ export function registerFileWatcher(
       // File is open in editor - didChange will handle indexing
       // No need to re-index here, it would create duplicate work
       connection.console.log(`[FILE_WATCHER] Skipping open file (didChange will handle): ${uri}`);
-      scanner?.upsertFile?.(uri, Date.now());
-      scanner?.invalidateFile?.(uri);
       return;
     }
 
@@ -222,9 +208,6 @@ export function registerFileWatcher(
     try {
       const content = await fs.promises.readFile(path, 'utf-8');
       await index.indexDocument(uri, content, 0);
-      const stat = await fs.promises.stat(path);
-      scanner?.upsertFile?.(uri, stat.mtimeMs);
-      scanner?.invalidateFile?.(uri);
 
       // Also clear any cached diagnostics for this file
       cache.delete(uri);
@@ -235,7 +218,7 @@ export function registerFileWatcher(
         (err as NodeJS.ErrnoException).code === 'ENOENT'
       ) {
         // File was deleted between change event and now
-        handleFileDeleted(uri, index, cache, scanner);
+        handleFileDeleted(uri, index, cache);
         return;
       }
       throw new Error(
@@ -250,16 +233,13 @@ export function registerFileWatcher(
   function handleFileDeleted(
     uri: string,
     index: typeof workspaceIndex,
-    cache: typeof documentCache,
-    scanner: typeof workspaceScanner
+    cache: typeof documentCache
   ): void {
     // Remove from workspace index
     index.removeDocument(uri);
 
     // Remove from document cache
     cache.delete(uri);
-
-    scanner?.removeFile?.(uri);
   }
 }
 

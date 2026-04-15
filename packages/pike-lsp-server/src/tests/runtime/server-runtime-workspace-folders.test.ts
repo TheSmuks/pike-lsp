@@ -53,17 +53,9 @@ describe('server runtime workspace folder sync', () => {
       getStats: () => ({ documents: 0, symbols: 0, uniqueNames: 0 }),
     };
 
-    const workspaceScanner = {
-      removeFolder: () => undefined,
-      addFolder: async () => undefined,
-      initialize: async () => undefined,
-      getStats: () => ({ fileCount: 0 }),
-    };
-
     registerServerRuntimeHandlers({
       connection: connection as any,
       workspaceIndex: workspaceIndex as any,
-      workspaceScanner: workspaceScanner as any,
       getBridgeManager: () => bridgeManager as any,
       getGlobalSettings: () => ({ diagnosticDelay: 250 }) as any,
       getIncludePaths: () => [],

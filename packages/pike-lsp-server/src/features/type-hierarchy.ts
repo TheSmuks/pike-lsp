@@ -119,7 +119,7 @@ export function registerTypeHierarchyHandlers(
    * - All type hierarchy diagnostics include code: 'type-hierarchy'
    *
    * Phase 6: Workspace file search for cross-file inheritance
-   * - Uses workspaceScanner to find uncached files
+   * - Uses workspaceIndex to find uncached files
    * - Reads and searches uncached files for class/inherit patterns
    */
   connection.languages.typeHierarchy.onSupertypes(async params => {
@@ -210,7 +210,7 @@ export function registerTypeHierarchyHandlers(
    * - All type hierarchy diagnostics include code: 'type-hierarchy'
    *
    * Phase 6: Workspace file search for cross-file inheritance
-   * - Uses workspaceScanner to find uncached files
+   * - Uses workspaceIndex to find uncached files
    * - Reads and searches uncached files for inherit patterns
    */
   connection.languages.typeHierarchy.onSubtypes(async params => {

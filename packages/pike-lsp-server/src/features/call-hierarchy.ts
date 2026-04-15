@@ -203,26 +203,25 @@ export function registerCallHierarchyHandlers(
         searchCachedDocument(docUri, cached, doc.getText());
       }
 
-      if (services.workspaceScanner?.isReady()) {
-        const cachedUris = new Set(documentCache.keys());
-        const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+      const allUris = services.workspaceIndex.getAllDocumentUris();
+      const cachedUris = new Set(documentCache.keys());
+      const uncachedUris = allUris.filter(uri => !cachedUris.has(uri));
 
-        for (const fileInfo of uncachedFiles) {
-          const loaded = await loadClosedWorkspaceFile(fileInfo, services);
-          if (!loaded) {
-            continue;
-          }
-
-          searchCachedDocument(
-            loaded.uri,
-            {
-              symbols: loaded.symbols,
-              symbolPositions: loaded.symbolPositions,
-              callPositions: loaded.callPositions,
-            },
-            loaded.text
-          );
+      for (const uncachedUri of uncachedUris) {
+        const loaded = await loadClosedWorkspaceFile({ uri: uncachedUri }, services);
+        if (!loaded) {
+          continue;
         }
+
+        searchCachedDocument(
+          loaded.uri,
+          {
+            symbols: loaded.symbols,
+            symbolPositions: loaded.symbolPositions,
+            callPositions: loaded.callPositions,
+          },
+          loaded.text
+        );
       }
 
       return results;
@@ -333,12 +332,13 @@ export function registerCallHierarchyHandlers(
             }
           }
 
-          if (targetLine === null && services.workspaceScanner?.isReady()) {
+          if (targetLine === null) {
+            const allUris = services.workspaceIndex.getAllDocumentUris();
             const cachedUris = new Set(documentCache.keys());
-            const uncachedFiles = services.workspaceScanner.getUncachedFiles(cachedUris);
+            const uncachedUris = allUris.filter(uri => !cachedUris.has(uri));
 
-            for (const fileInfo of uncachedFiles) {
-              const loaded = await loadClosedWorkspaceFile(fileInfo, services);
+            for (const uncachedUri of uncachedUris) {
+              const loaded = await loadClosedWorkspaceFile({ uri: uncachedUri }, services);
               if (!loaded) {
                 continue;
               }

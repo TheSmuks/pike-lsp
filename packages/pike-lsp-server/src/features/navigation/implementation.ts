@@ -271,13 +271,6 @@ function getKnownUris(services: Services): string[] {
     uris.add(uri);
   }
 
-  const files = services.workspaceScanner.getAllFiles();
-  for (const file of files) {
-    if (file.uri) {
-      uris.add(file.uri);
-    }
-  }
-
   return Array.from(uris);
 }
 
