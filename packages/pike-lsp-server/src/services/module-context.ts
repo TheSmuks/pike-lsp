@@ -53,7 +53,15 @@ export class ModuleContext {
 
   constructor(maxCacheSize = 200) {
     this.cache = new LRUCache({ maxSize: maxCacheSize });
-    this.waterfallCache = new LRUCache({ maxSize: maxCacheSize });
+    this.waterfallCache = new LRUCache({
+      maxSize: maxCacheSize,
+      onEvict: key => {
+        // Clean up the secondary index when LRU evicts a waterfall entry.
+        for (const keys of this.uriToWaterfallKeys.values()) {
+          keys.delete(key);
+        }
+      },
+    });
   }
 
   /**
@@ -161,6 +169,16 @@ export class ModuleContext {
 
     this.waterfallPending.set(cacheKey, promise);
 
+    // Register key in secondary index for O(k) invalidation.
+    // Must happen before the await so invalidate() can clean up
+    // pending entries during in-flight fetches.
+    let keys = this.uriToWaterfallKeys.get(uri);
+    if (!keys) {
+      keys = new Set();
+      this.uriToWaterfallKeys.set(uri, keys);
+    }
+    keys.add(cacheKey);
+
     try {
       const result = await promise;
       this.waterfallCache.set(cacheKey, {
@@ -168,13 +186,6 @@ export class ModuleContext {
         symbols: result.symbols,
         timestamp: Date.now(),
       });
-      // Register key in secondary index for O(k) invalidation
-      let keys = this.uriToWaterfallKeys.get(uri);
-      if (!keys) {
-        keys = new Set();
-        this.uriToWaterfallKeys.set(uri, keys);
-      }
-      keys.add(cacheKey);
       return result.symbols;
     } finally {
       this.waterfallPending.delete(cacheKey);
@@ -228,6 +239,7 @@ export class ModuleContext {
     this.uriToWaterfallKeys.clear();
   }
 
+  /** Returns the total number of cached entries across both caches. */
   get size(): number {
     return this.cache.entryCount + this.waterfallCache.entryCount;
   }
