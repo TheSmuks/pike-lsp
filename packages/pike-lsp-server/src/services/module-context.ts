@@ -181,11 +181,17 @@ export class ModuleContext {
 
     try {
       const result = await promise;
-      this.waterfallCache.set(cacheKey, {
-        contentHash: result.contentHash,
-        symbols: result.symbols,
-        timestamp: Date.now(),
-      });
+      // Only cache if invalidate() was not called during the in-flight fetch.
+      // invalidate() removes the key from uriToWaterfallKeys, so its absence
+      // means the caller no longer wants this result.
+      const currentKeys = this.uriToWaterfallKeys.get(uri);
+      if (currentKeys?.has(cacheKey)) {
+        this.waterfallCache.set(cacheKey, {
+          contentHash: result.contentHash,
+          symbols: result.symbols,
+          timestamp: Date.now(),
+        });
+      }
       return result.symbols;
     } finally {
       this.waterfallPending.delete(cacheKey);
