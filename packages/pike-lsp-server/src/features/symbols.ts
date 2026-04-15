@@ -16,10 +16,12 @@ import {
 } from 'vscode-languageserver/node.js';
 import type { TextDocuments } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeSymbol, PikeMethod } from '@pike-lsp/pike-bridge';
 import type { Services } from '../services/index.js';
 import { Logger } from '@pike-lsp/core';
 import { LSP } from '../constants/index.js';
+
+import { formatPikeType } from './utils/pike-type-formatter.js';
 
 /**
  * Convert Pike symbol kind to LSP SymbolKind.
@@ -63,34 +65,29 @@ export function convertSymbolKind(kind: string): SymbolKind {
  * Exported for direct unit testing and for use by document-symbol.ts.
  */
 export function getSymbolDetail(symbol: PikeSymbol): string | undefined {
-  // Type info is in various fields depending on symbol kind
-  const sym = symbol as unknown as Record<string, unknown>;
   let detail: string | undefined;
 
-  if (sym['returnType']) {
-    const returnType = sym['returnType'] as { name?: string };
-    const argTypes = sym['argTypes'] as Array<{ name?: string }> | undefined;
-    const args = argTypes?.map(t => t?.name ?? 'mixed').join(', ') ?? '';
-    detail = `${returnType.name ?? 'mixed'}(${args})`;
-  } else if (sym['type']) {
-    const type = sym['type'] as { name?: string };
-    detail = type.name;
+  if (symbol.kind === 'method') {
+    const m = symbol as PikeMethod;
+    if (m.argTypes) {
+      const args = m.argTypes.map(t => formatPikeType(t)).join(', ');
+      detail = `${formatPikeType(m.returnType)}(${args})`;
+    }
+  } else if (symbol.type) {
+    detail = formatPikeType(symbol.type);
   }
 
   // Add inheritance info
-  if (sym['inherited']) {
-    const from = sym['inheritedFrom'] as string | undefined;
-    const inheritInfo = from ? `(from ${from})` : '(inherited)';
+  if (symbol.inherited) {
+    const inheritInfo = symbol.inheritedFrom ? `(from ${symbol.inheritedFrom})` : '(inherited)';
     detail = detail ? `${detail} ${inheritInfo}` : inheritInfo;
   }
 
   // Add conditional compilation info
   // Pike returns: conditional: 1 (flag), condition: string, branch: number
-  if (sym['conditional']) {
-    const branch = sym['branch'] as number | undefined;
-    const condition = sym['condition'] as string | undefined;
-    const conditionPrefix = branch === 0 ? '#if' : '#elif';
-    const conditionalInfo = `[${conditionPrefix} ${condition || ''}]`;
+  if (symbol.conditional) {
+    const conditionPrefix = symbol.branch === 0 ? '#if' : '#elif';
+    const conditionalInfo = `[${conditionPrefix} ${symbol.condition || ''}]`;
     detail = detail ? `${detail}  ${conditionalInfo}` : conditionalInfo;
   }
 
