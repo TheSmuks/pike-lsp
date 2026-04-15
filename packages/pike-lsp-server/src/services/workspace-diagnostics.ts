@@ -11,6 +11,7 @@ import type { RequestScheduler } from './request-scheduler.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { BridgeManager } from './bridge-manager.js';
 import { uriToFsPath } from '../utils/uri-path.js';
+import { computeContentHash } from './document-cache.js';
 import { convertSeverity } from '../features/diagnostics/utils.js';
 
 const log = new Logger('WorkspaceDiagnostics');
@@ -233,55 +234,90 @@ export class WorkspaceDiagnosticsManager {
     try {
       // Use batch analysis for efficiency
       const uriList = batch.map(item => item.uri);
+      const batchKey = `workspace-diagnostics:${computeContentHash(uriList.join('\0'))}`;
 
       await this.scheduler.schedule({
         requestClass: 'background',
-        key: `workspace-diagnostics:${uriList.join(',')}`,
+        key: batchKey,
         run: async () => {
           const fs = await import('node:fs/promises');
 
-          const results = await Promise.allSettled(
+          // Concurrency-limited file reads to avoid I/O stampede
+          const MAX_CONCURRENT = 10;
+          let active = 0;
+          let onSlot: (() => void) | null = null;
+          const acquire = () => {
+            if (active < MAX_CONCURRENT) {
+              active++;
+              return Promise.resolve();
+            }
+            return new Promise<void>(r => {
+              onSlot = r;
+            });
+          };
+          const release = () => {
+            active--;
+            onSlot?.();
+            onSlot = null;
+          };
+
+          type ItemResult = { uri: string; text: string } | { uri: string; error: string };
+          const itemResults: ItemResult[] = [];
+
+          await Promise.all(
             batch.map(async item => {
-              const fsPath = uriToFsPath(item.uri);
-              const text = await fs.readFile(fsPath, 'utf-8');
-              return bridge.analyze(text, ['parse', 'diagnostics'], item.uri);
+              await acquire();
+              try {
+                const fsPath = uriToFsPath(item.uri);
+                const text = await fs.readFile(fsPath, 'utf-8');
+                itemResults.push({ uri: item.uri, text });
+              } catch (err) {
+                itemResults.push({
+                  uri: item.uri,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              } finally {
+                release();
+              }
             })
           );
 
-          for (const [idx, result] of results.entries()) {
-            const uri = batch[idx]?.uri;
-            if (!uri) continue;
-
-            if (result.status === 'rejected') {
-              log.debug('Background diagnostic failed', {
-                uri,
-                error:
-                  result.reason instanceof Error ? result.reason.message : String(result.reason),
-              });
+          // Analyze each successfully-read file individually
+          for (const res of itemResults) {
+            if ('error' in res) {
+              log.debug('Background diagnostic failed', { uri: res.uri, error: res.error });
               continue;
             }
 
-            processed.add(uri);
+            try {
+              const analysis = await bridge.analyze(res.text, ['parse', 'diagnostics'], res.uri);
+              processed.add(res.uri);
 
-            const rawDiagnostics = result.value.result?.diagnostics?.diagnostics ?? [];
+              const rawDiagnostics = analysis.result?.diagnostics?.diagnostics ?? [];
 
-            if (rawDiagnostics.length > 0) {
-              // Map bridge diagnostics → CoreDiagnostic, preserving severity.
-              // Bridge returns position (point), CoreDiagnostic requires range (span).
-              const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
-                range: {
-                  start: { line: d.position.line, character: d.position.character },
-                  end: { line: d.position.line, character: d.position.character },
-                },
-                message: d.message,
-                severity: d.severity ? convertSeverity(d.severity) : 2,
-                source: 'pike-background',
-              }));
-              this.sendDiagnostics({ uri, diagnostics });
-              this.backgroundDiagnosticUris.add(uri);
-              log.debug('Published background diagnostics', {
-                uri,
-                count: diagnostics.length,
+              if (rawDiagnostics.length > 0) {
+                // Map bridge diagnostics → CoreDiagnostic, preserving severity.
+                // Bridge returns position (point), CoreDiagnostic requires range (span).
+                const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
+                  range: {
+                    start: { line: d.position.line, character: d.position.character },
+                    end: { line: d.position.line, character: d.position.character },
+                  },
+                  message: d.message,
+                  severity: d.severity ? convertSeverity(d.severity) : 2,
+                  source: 'pike-background',
+                }));
+                this.sendDiagnostics({ uri: res.uri, diagnostics });
+                this.backgroundDiagnosticUris.add(res.uri);
+                log.debug('Published background diagnostics', {
+                  uri: res.uri,
+                  count: diagnostics.length,
+                });
+              }
+            } catch (err) {
+              log.debug('Background analysis failed', {
+                uri: res.uri,
+                error: err instanceof Error ? err.message : String(err),
               });
             }
           }
