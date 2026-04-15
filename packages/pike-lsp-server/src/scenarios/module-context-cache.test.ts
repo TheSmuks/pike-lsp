@@ -322,6 +322,32 @@ describe('ModuleContext cache TTL, invalidation, and dedup', () => {
     });
   });
 
+    it('should cancel pending waterfall fetch on invalidate() and allow fresh fetch with new content', async () => {
+      const { bridge, counts } = createModuleContextBridge({ delayMs: 100 });
+      const uri = 'file:///test.pike';
+      const content1 = 'import my_module;';
+      const content2 = 'import other_module;';
+
+      // Start a delayed waterfall fetch
+      const fetchPromise = ctx.getWaterfallSymbolsForDocument(uri, content1, bridge);
+      assert.equal(counts.getWaterfallSymbols, 1, 'bridge call started');
+
+      // Invalidate while fetch is still pending — should clean up the pending entry
+      ctx.invalidate(uri);
+
+      // Wait for the first fetch to complete (it resolves but result is discarded)
+      await fetchPromise;
+
+      // Call again with different content — should trigger a fresh fetch,
+      // not reuse the stale pending promise
+      await ctx.getWaterfallSymbolsForDocument(uri, content2, bridge);
+      assert.equal(
+        counts.getWaterfallSymbols,
+        2,
+        'should start fresh fetch after invalidate during pending fetch'
+      );
+    });
+
   // -------------------------------------------------------------------------
   // clear()
   // -------------------------------------------------------------------------
