@@ -5,6 +5,7 @@
  * Uses PikeBridge's extractImports, resolveImport, checkCircular, and
  * getWaterfallSymbols methods for comprehensive module tracking.
  */
+import { LRUCache } from './lru-cache.js';
 
 import { computeContentHash } from './document-cache.js';
 import type {
@@ -36,16 +37,21 @@ export interface ModuleImportData {
  * for Pike documents.
  */
 export class ModuleContext {
-  private cache = new Map<string, ModuleImportData>();
+  private readonly cache: LRUCache<string, ModuleImportData>;
   private pending = new Map<string, Promise<ModuleImportData>>();
-  private waterfallCache = new Map<
+  private readonly waterfallCache: LRUCache<
     string,
     { contentHash: string; symbols: WaterfallSymbolsResult; timestamp: number }
-  >();
+  >;
   private waterfallPending = new Map<
     string,
     Promise<{ contentHash: string; symbols: WaterfallSymbolsResult }>
   >();
+
+  constructor(maxCacheSize = 200) {
+    this.cache = new LRUCache({ maxSize: maxCacheSize });
+    this.waterfallCache = new LRUCache({ maxSize: maxCacheSize });
+  }
 
   /**
    * Get imports for a document.
@@ -219,7 +225,7 @@ export class ModuleContext {
    * Get the number of cached documents.
    */
   get size(): number {
-    return this.cache.size + this.waterfallCache.size;
+    return this.cache.entryCount + this.waterfallCache.entryCount;
   }
 
   /**
