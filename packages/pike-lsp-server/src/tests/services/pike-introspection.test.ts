@@ -22,13 +22,27 @@ function createMockStdlibIndex(
   };
 }
 
+function populateIndex(
+  svc: PikeIntrospectionService,
+  modules: { path: string; symbols: Map<string, IntrospectedSymbol> }[]
+) {
+  for (const mod of modules) {
+    svc.addModuleToIndex({
+      modulePath: mod.path,
+      symbols: mod.symbols,
+      lastAccessed: Date.now(),
+      accessCount: 0,
+      sizeBytes: 0,
+    });
+  }
+}
+
 function makeSymbol(
   name: string,
   kind: IntrospectedSymbol['kind'] = 'function'
 ): IntrospectedSymbol {
   return { name, kind };
 }
-
 describe('PikeIntrospectionService - searchImportableSymbols', () => {
   const modules = [
     {
@@ -60,6 +74,7 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
     const stdlibIndex = createMockStdlibIndex(modules);
     const services = createMockServices();
     const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
+    populateIndex(svc, modules);
     return { svc, stdlibIndex };
   }
 
@@ -145,33 +160,30 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
     expect(match!.importKind).toBe('import');
   });
 
-  it('caches module symbols and does not re-fetch on second call', async () => {
+  it('uses pre-populated index and does not call getModule', async () => {
     const { svc, stdlibIndex } = createService();
-    // First call populates cache
-    await svc.searchImportableSymbols('read');
-    const countAfterFirst = stdlibIndex._getModuleCallCount();
-
-    // Second call should use cache, not re-fetch
-    await svc.searchImportableSymbols('write');
-    const countAfterSecond = stdlibIndex._getModuleCallCount();
-
-    expect(countAfterSecond).toBe(countAfterFirst);
+    // Index is already populated — Phase 1 handles it via inverted index.
+    // getModule should never be called.
+    const results = await svc.searchImportableSymbols('read');
+    expect(results.length).toBeGreaterThan(0);
+    expect(stdlibIndex._getModuleCallCount()).toBe(0);
   });
 
-  it('invalidateStdlibCache clears cache and forces re-fetch', async () => {
+  it('invalidateStdlibCache clears index and repopulating restores results', async () => {
     const { svc, stdlibIndex } = createService();
-    // First call populates cache
-    await svc.searchImportableSymbols('read');
-    const countAfterFirst = stdlibIndex._getModuleCallCount();
+    // Search works before invalidation
+    let results = await svc.searchImportableSymbols('read');
+    expect(results.length).toBeGreaterThan(0);
 
-    // Invalidate cache
+    // Invalidate clears the index
     svc.invalidateStdlibCache();
+    results = await svc.searchImportableSymbols('read');
+    expect(results).toEqual([]);
 
-    // Second call must re-fetch from stdlibIndex
-    await svc.searchImportableSymbols('write');
-    const countAfterSecond = stdlibIndex._getModuleCallCount();
-
-    expect(countAfterSecond).toBeGreaterThan(countAfterFirst);
+    // Re-populate restores results
+    populateIndex(svc, modules);
+    results = await svc.searchImportableSymbols('read');
+    expect(results.length).toBeGreaterThan(0);
   });
 
   it('is case-insensitive', async () => {

@@ -168,7 +168,6 @@ export class StdlibIndexManager {
     this.maxCacheSize = options?.maxCacheSize ?? MAX_STDLIB_MODULES;
     this.maxMemoryMB = options?.maxMemoryMB ?? 20;
   }
-
   /**
    * Get module information, loading on-demand if needed
    */
