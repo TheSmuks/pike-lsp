@@ -16,7 +16,12 @@ import type {
   AnalyzeResponse,
 } from './types.js';
 import type { ResponseValidator } from './response-validator.js';
-import { assertString, assertNumber, assertStringArray } from './response-validator.js';
+import {
+  assertString,
+  assertNumber,
+  assertBoolean,
+  assertStringArray,
+} from './response-validator.js';
 
 /**
  * Minimal interface for delegating JSON-RPC requests.
@@ -133,6 +138,8 @@ export async function resolveInclude(
     (raw, method) => {
       const r = raw as Record<string, unknown>;
       assertString(r['path'], 'path', method);
+      assertBoolean(r['exists'], 'exists', method);
+      assertString(r['originalPath'], 'originalPath', method);
       return r as unknown as import('./types.js').IncludeResolveResult;
     }
   );
