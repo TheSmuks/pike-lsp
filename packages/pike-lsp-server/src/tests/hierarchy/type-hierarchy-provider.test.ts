@@ -1482,4 +1482,190 @@ d->inh|  // should suggest inheritedMethod`;
       assert.ok(symbolsIntegration.indicatesParent, 'Symbols indicate parent class');
     });
   });
+
+  describe('Integration tests', () => {
+    const testUri = 'file:///test.pike';
+    const testCode = `class Base {
+    void baseMethod() { }
+}
+class Derived {
+    inherit Base;
+    void derivedMethod() { }
+}
+class GrandChild {
+    inherit Derived;
+    void gcMethod() { }
+}`;
+
+    function setupHierarchy(overrides?: {
+      inheritRelations?: Array<{
+        uri: string;
+        ownerClass: string;
+        ownerLine: number;
+        inheritedName: string;
+      }>;
+    }) {
+      const conn = createMockConnection();
+      const doc = TextDocument.create(testUri, 'pike', 1, testCode);
+      const docs = createMockDocuments(new Map([[testUri, doc]]));
+
+      const cacheEntries = new Map<string, DocumentCacheEntry>([
+        [
+          testUri,
+          makeCacheEntry({
+            symbols: [
+              sym('Base', 'class', { position: { line: 1, character: 6 } }),
+              sym('Derived', 'class', { position: { line: 4, character: 6 } }),
+              sym('Base', 'inherit', { position: { line: 5, character: 4 }, classname: 'Base' }),
+              sym('GrandChild', 'class', { position: { line: 8, character: 6 } }),
+              sym('Derived', 'inherit', {
+                position: { line: 9, character: 4 },
+                classname: 'Derived',
+              }),
+            ],
+          }),
+        ],
+      ]);
+
+      const inheritRelations = overrides?.inheritRelations ?? [
+        { uri: testUri, ownerClass: 'Derived', ownerLine: 3, inheritedName: 'Base' },
+        { uri: testUri, ownerClass: 'GrandChild', ownerLine: 7, inheritedName: 'Derived' },
+      ];
+
+      const services = createMockServices({
+        cacheEntries,
+        pikeIntrospection: {
+          getInherits: async (_uri: string) => inheritRelations,
+        },
+      });
+
+      registerHierarchyHandlers(conn as any, services, docs as any);
+      return { conn, services };
+    }
+
+    it('onPrepare returns class item at class position', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchyPrepareHandler({
+        textDocument: { uri: testUri },
+        position: { line: 3, character: 8 }, // cursor on 'Derived'
+      });
+
+      assert.ok(result, 'Should return a result');
+      assert.strictEqual(result.length, 1);
+      assert.strictEqual(result[0]!.name, 'Derived');
+      assert.strictEqual(result[0]!.kind, 5); // SymbolKind.Class
+      assert.ok(result[0]!.detail?.includes('Derived'), 'Detail should include class name');
+    });
+
+    it('onPrepare returns null for non-class position', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchyPrepareHandler({
+        textDocument: { uri: testUri },
+        position: { line: 1, character: 8 }, // cursor on 'baseMethod' - not a class
+      });
+
+      assert.strictEqual(result, null);
+    });
+
+    it('onPrepare returns null for unknown document', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchyPrepareHandler({
+        textDocument: { uri: 'file:///unknown.pike' },
+        position: { line: 0, character: 0 },
+      });
+
+      assert.strictEqual(result, null);
+    });
+
+    it('onSupertypes returns parent classes', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchySupertypesHandler({
+        item: {
+          name: 'Derived',
+          kind: 5,
+          uri: testUri,
+          range: { start: { line: 3, character: 0 }, end: { line: 3, character: 7 } },
+          selectionRange: { start: { line: 3, character: 0 }, end: { line: 3, character: 7 } },
+        },
+        direction: 'parents',
+      });
+
+      assert.ok(Array.isArray(result));
+      assert.strictEqual(result!.length, 1);
+      assert.strictEqual(result![0]!.name, 'Base');
+    });
+
+    it('onSupertypes traverses chain (GrandChild -> Derived -> Base)', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchySupertypesHandler({
+        item: {
+          name: 'GrandChild',
+          kind: 5,
+          uri: testUri,
+          range: { start: { line: 7, character: 0 }, end: { line: 7, character: 10 } },
+          selectionRange: { start: { line: 7, character: 0 }, end: { line: 7, character: 10 } },
+        },
+        direction: 'parents',
+      });
+
+      assert.ok(Array.isArray(result));
+      const names = result!.map(i => i.name);
+      assert.ok(names.includes('Derived'), 'Should include Derived');
+      assert.ok(names.includes('Base'), 'Should include Base');
+    });
+
+    it('onSupertypes returns empty for class with no parents', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchySupertypesHandler({
+        item: {
+          name: 'Base',
+          kind: 5,
+          uri: testUri,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+          selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+        },
+        direction: 'parents',
+      });
+
+      assert.ok(Array.isArray(result));
+      assert.strictEqual(result!.length, 0);
+    });
+
+    it('onSubtypes returns child classes', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchySubtypesHandler({
+        item: {
+          name: 'Base',
+          kind: 5,
+          uri: testUri,
+          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+          selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+        },
+        direction: 'children',
+      });
+
+      assert.ok(Array.isArray(result));
+      assert.strictEqual(result!.length, 2, 'Base should have 2 subtypes (Derived, GrandChild)');
+      const names = result!.map(i => i.name);
+      assert.ok(names.includes('Derived'), 'Should include Derived');
+      assert.ok(names.includes('GrandChild'), 'Should include GrandChild');
+    });
+
+    it('onSubtypes returns empty for leaf class', async () => {
+      const { conn } = setupHierarchy();
+      const result = await conn.typeHierarchySubtypesHandler({
+        item: {
+          name: 'GrandChild',
+          kind: 5,
+          uri: testUri,
+          range: { start: { line: 7, character: 0 }, end: { line: 7, character: 10 } },
+          selectionRange: { start: { line: 7, character: 0 }, end: { line: 7, character: 10 } },
+        },
+        direction: 'children',
+      });
+
+      assert.ok(Array.isArray(result));
+      assert.strictEqual(result!.length, 0, 'GrandChild has no subtypes');
+    });
+  });
 });
