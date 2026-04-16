@@ -296,11 +296,10 @@ export class WorkspaceDiagnosticsManager {
             })
           );
 
-          // Analyze each successfully-read file individually
+          // Handle file-read errors synchronously, then analyze successes in parallel
           for (const res of itemResults) {
             if ('error' in res) {
               if (res.code === 'ENOENT') {
-                // File deleted between indexing and diagnostics — skip silently
                 processed.add(res.uri);
               } else if (res.code === 'EACCES') {
                 log.warn('Permission denied, permanently skipping', { uri: res.uri });
@@ -308,41 +307,46 @@ export class WorkspaceDiagnosticsManager {
               } else {
                 log.debug('Background diagnostic failed', { uri: res.uri, error: res.error });
               }
-              continue;
-            }
-
-            try {
-              const analysis = await bridge.analyze(res.text, ['parse', 'diagnostics'], res.uri);
-              processed.add(res.uri);
-
-              const rawDiagnostics = analysis.result?.diagnostics?.diagnostics ?? [];
-
-              if (rawDiagnostics.length > 0) {
-                // Map bridge diagnostics → CoreDiagnostic, preserving severity.
-                // Bridge returns position (point), CoreDiagnostic requires range (span).
-                const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
-                  range: {
-                    start: { line: d.position.line, character: d.position.character },
-                    end: { line: d.position.line, character: d.position.character },
-                  },
-                  message: d.message,
-                  severity: d.severity ? convertSeverity(d.severity) : 2,
-                  source: 'pike-background',
-                }));
-                this.sendDiagnostics({ uri: res.uri, diagnostics });
-                this.backgroundDiagnosticUris.add(res.uri);
-                log.debug('Published background diagnostics', {
-                  uri: res.uri,
-                  count: diagnostics.length,
-                });
-              }
-            } catch (err) {
-              log.debug('Background analysis failed', {
-                uri: res.uri,
-                error: err instanceof Error ? err.message : String(err),
-              });
             }
           }
+
+          // Analyze all successfully-read files concurrently
+          const successResults = itemResults.filter(
+            (r): r is { uri: string; text: string } => !('error' in r)
+          );
+          await Promise.all(
+            successResults.map(async res => {
+              try {
+                const analysis = await bridge.analyze(res.text, ['parse', 'diagnostics'], res.uri);
+                processed.add(res.uri);
+
+                const rawDiagnostics = analysis.result?.diagnostics?.diagnostics ?? [];
+
+                if (rawDiagnostics.length > 0) {
+                  const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
+                    range: {
+                      start: { line: d.position.line, character: d.position.character },
+                      end: { line: d.position.line, character: d.position.character },
+                    },
+                    message: d.message,
+                    severity: d.severity ? convertSeverity(d.severity) : 2,
+                    source: 'pike-background',
+                  }));
+                  this.sendDiagnostics({ uri: res.uri, diagnostics });
+                  this.backgroundDiagnosticUris.add(res.uri);
+                  log.debug('Published background diagnostics', {
+                    uri: res.uri,
+                    count: diagnostics.length,
+                  });
+                }
+              } catch (err) {
+                log.debug('Background analysis failed', {
+                  uri: res.uri,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            })
+          );
         },
       });
     } catch (err) {
