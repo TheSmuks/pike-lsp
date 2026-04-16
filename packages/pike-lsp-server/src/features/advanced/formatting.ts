@@ -4,7 +4,6 @@ import { TextDocuments } from 'vscode-languageserver/node.js';
 import { Logger } from '@pike-lsp/core';
 import {
   FormattingService,
-  formatPikeCode,
   PREDEFINED_PROFILES,
   type FormattingProfile,
 } from '../../services/formatting-service.js';
@@ -100,4 +99,4 @@ export function registerFormattingHandlers(
   });
 }
 
-export { formatPikeCode, PREDEFINED_PROFILES, type FormattingProfile };
+export { PREDEFINED_PROFILES, type FormattingProfile };

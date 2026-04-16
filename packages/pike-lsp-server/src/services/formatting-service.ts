@@ -192,10 +192,6 @@ function clipEditToRange(
   return TextEdit.replace({ start: startPos, end: endPos }, clippedNewText);
 }
 
-export function formatPikeCode(text: string, indent: string, startLine = 0): TextEdit[] {
-  return computeIndentEdits(text, indent, startLine);
-}
-
 export function formatPikeCodeWithProfile(
   text: string,
   indent: string,
