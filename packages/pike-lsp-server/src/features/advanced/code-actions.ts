@@ -34,6 +34,21 @@ interface ImportCandidate {
   score: number;
 }
 
+function parseImportCandidate(value: unknown): ImportCandidate | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  const rec = value as Record<string, unknown>;
+  if (typeof rec['modulePath'] !== 'string') {
+    return null;
+  }
+  return {
+    modulePath: rec['modulePath'],
+    importKind: rec['importKind'] === 'inherit' ? 'inherit' : 'import',
+    score: typeof rec['score'] === 'number' ? rec['score'] : 0,
+  };
+}
+
 export interface ImportSymbol {
   kind: string;
   name: string;
@@ -57,22 +72,16 @@ function toUnresolvedDiagnosticData(value: unknown): UnresolvedDiagnosticData | 
   const symbol = typeof record['symbol'] === 'string' ? record['symbol'] : undefined;
   const kind = typeof record['kind'] === 'string' ? record['kind'] : undefined;
   const importCandidatesRaw = Array.isArray(record['importCandidates'])
-    ? (record['importCandidates'] as unknown[])
+    ? record['importCandidates']
     : [];
 
   const importCandidates: ImportCandidate[] = [];
   for (const entry of importCandidatesRaw) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    const candidate = parseImportCandidate(entry);
+    if (!candidate) {
       continue;
     }
-    const candidate = entry as Record<string, unknown>;
-    const modulePath = typeof candidate['modulePath'] === 'string' ? candidate['modulePath'] : null;
-    const importKind = candidate['importKind'] === 'inherit' ? 'inherit' : 'import';
-    const score = typeof candidate['score'] === 'number' ? candidate['score'] : 0;
-    if (!modulePath) {
-      continue;
-    }
-    importCandidates.push({ modulePath, importKind, score });
+    importCandidates.push(candidate);
   }
 
   const result: UnresolvedDiagnosticData = { importCandidates };
