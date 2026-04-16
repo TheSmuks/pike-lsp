@@ -16,11 +16,7 @@ import type {
   AnalyzeResponse,
 } from './types.js';
 import type { ResponseValidator } from './response-validator.js';
-import {
-  assertString,
-  assertNumber,
-  assertStringArray,
-} from './response-validator.js';
+import { assertString, assertNumber, assertStringArray } from './response-validator.js';
 
 /**
  * Minimal interface for delegating JSON-RPC requests.
