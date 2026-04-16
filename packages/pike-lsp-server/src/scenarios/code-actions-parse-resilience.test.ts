@@ -6,6 +6,7 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
+import { ResponseError } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
 import type { Services } from '../services/index.js';
@@ -387,7 +388,7 @@ describe('Code Actions: parse-under-edit resilience', () => {
     assert.ok(Array.isArray(result), 'Quick fix should complete gracefully');
   });
 
-  it('survives introspection failures when searching importable symbols', async () => {
+  it('propagates introspection failures when searching importable symbols', async () => {
     const bridge = new FaultInjectableMockBridge();
 
     const harness = createCodeActionsHarness(bridge);
@@ -403,24 +404,29 @@ describe('Code Actions: parse-under-edit resilience', () => {
       },
     };
 
-    // Trigger with unresolved symbol - introspection will fail but should be handled
-    const result = await triggerCodeActions(
-      uri,
-      0,
-      0,
-      [
-        {
-          code: 'undefined-symbol.unresolved-import',
-          message: 'Unresolved symbol: MissingSymbol',
-          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
-          data: { symbol: 'MissingSymbol' },
-        },
-      ],
-      ['quickfix']
+    // Trigger with unresolved symbol - introspection failure should propagate as ResponseError
+    await assert.rejects(
+      () =>
+        triggerCodeActions(
+          uri,
+          0,
+          0,
+          [
+            {
+              code: 'undefined-symbol.unresolved-import',
+              message: 'Unresolved symbol: MissingSymbol',
+              range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
+              data: { symbol: 'MissingSymbol' },
+            },
+          ],
+          ['quickfix']
+        ),
+      (err: unknown) => {
+        assert.ok(err instanceof ResponseError, 'Should throw ResponseError');
+        assert.ok(err.message.includes('Introspection service unavailable'));
+        return true;
+      }
     );
-
-    // Should return empty array without throwing
-    assert.ok(Array.isArray(result), 'Should handle introspection failure gracefully');
   });
 
   it('handles getter/setter generation failures gracefully', async () => {
