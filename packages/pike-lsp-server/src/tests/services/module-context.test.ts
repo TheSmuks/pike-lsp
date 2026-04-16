@@ -103,4 +103,116 @@ describe('ModuleContext', () => {
       assert.strictEqual(ctx.size, 0);
     });
   });
+
+  describe('invalidate batch correctness', () => {
+    it('invalidates all maxDepth variants for a URI without affecting others', async () => {
+      const ctx = new ModuleContext(200);
+      const bridge = makeMockBridge();
+
+      // Populate many maxDepth variants for URI A and one for URI B
+      const depths = [1, 2, 3, 5, 10];
+      for (const d of depths) {
+        await ctx.getWaterfallSymbolsForDocument('file:///a.pike', `content-a-${d}`, bridge, d);
+      }
+      await ctx.getWaterfallSymbolsForDocument('file:///b.pike', 'content-b', bridge, 5);
+
+      // 5 for a.pike + 1 for b.pike = 6 total waterfall entries
+      assert.strictEqual(ctx.size, 6);
+
+      // Invalidate a.pike — should remove all 5 entries
+      ctx.invalidate('file:///a.pike');
+      assert.strictEqual(ctx.size, 1, 'only b.pike should remain');
+
+      // b.pike should still be accessible from cache
+      const result = await ctx.getWaterfallSymbolsForDocument(
+        'file:///b.pike',
+        'content-b',
+        bridge,
+        5
+      );
+      assert.ok(result);
+    });
+  });
+
+  describe('resolveImportTarget', () => {
+    it('delegates to bridge.resolveImport', async () => {
+      const ctx = new ModuleContext();
+      const expected = {
+        type: 'import' as const,
+        resolvedPath: '/resolved/path.pike',
+        found: true,
+      };
+      const bridge = {
+        resolveImport: async () => expected,
+      };
+
+      const result = await ctx.resolveImportTarget(
+        'import',
+        'MyModule',
+        'file:///test.pike',
+        bridge
+      );
+      assert.deepStrictEqual(result, expected);
+    });
+  });
+
+  describe('checkCircularDependencies', () => {
+    it('delegates to bridge.checkCircular', async () => {
+      const ctx = new ModuleContext();
+      const expected = { hasCircular: true, chain: ['a.pike', 'b.pike', 'a.pike'] };
+      const bridge = {
+        extractImports: async () => ({ imports: [] }),
+        checkCircular: async () => expected,
+      };
+
+      const result = await ctx.checkCircularDependencies('file:///test.pike', 'content', bridge);
+      assert.deepStrictEqual(result, expected);
+    });
+  });
+
+  describe('getImportsForDocument error paths', () => {
+    it('re-throws when bridge.extractImports throws', async () => {
+      const ctx = new ModuleContext();
+      const bridge = {
+        extractImports: async () => {
+          throw new Error('parse error');
+        },
+      };
+
+      await assert.rejects(
+        () => ctx.getImportsForDocument('file:///test.pike', 'content', bridge),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /parse error/);
+          return true;
+        }
+      );
+    });
+
+    it('removes pending entry even when extractImports throws', async () => {
+      const ctx = new ModuleContext();
+      let callCount = 0;
+      const bridge = {
+        extractImports: async () => {
+          callCount++;
+          throw new Error('fail');
+        },
+      };
+
+      try {
+        await ctx.getImportsForDocument('file:///test.pike', 'content', bridge);
+      } catch {
+        /* expected */
+      }
+
+      // The pending entry should be cleaned up, so a second call should attempt again
+      try {
+        await ctx.getImportsForDocument('file:///test.pike', 'content', bridge);
+      } catch {
+        /* expected */
+      }
+
+      assert.strictEqual(callCount, 2, 'should retry after failed first call');
+    });
+  });
 });
