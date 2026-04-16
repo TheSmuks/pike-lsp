@@ -249,6 +249,75 @@ describe('FormattingService', () => {
         `Multi-line edit spans ${editLineSpan} lines but newText has ${fullNewTextLines.length} lines`
       );
     });
+
+    it('does not truncate last visible newText line when edit extends beyond endLine', () => {
+      const service = new FormattingService();
+      const text = [
+        'class Foo {', // line 0
+        '  int a=1+2;', // line 1 — operator spacing will widen this
+        '  int b=3+4;', // line 2
+        '}', // line 3
+      ].join('\n');
+
+      // Request range [0, 1]. Operator spacing edits span the full document.
+      // The edit replacing lines 0-3 has newText where line 1 content is wider
+      // than the original (e.g., '  int a = 1 + 2;' vs '  int a=1+2;').
+      // The clipped edit's newText must not be truncated.
+      const rangeEdits = service.formatRange(text, 0, 1, {});
+      const fullEdits = service.formatDocument(text, {});
+
+      // Simulate applying edits: the result for lines 0-1 must match what
+      // full-document formatting produces for those same lines.
+      const lines = text.split('\n');
+      let rangeResult = lines.slice(0, 2).join('\n');
+      // Apply range edits in reverse to preserve positions
+      const sortedRangeEdits = [...rangeEdits].sort(
+        (a, b) =>
+          b.range.start.line - a.range.start.line ||
+          b.range.start.character - a.range.start.character
+      );
+      for (const edit of sortedRangeEdits) {
+        const resultLines = rangeResult.split('\n');
+        if (edit.range.start.line === edit.range.end.line) {
+          const line = resultLines[edit.range.start.line] ?? '';
+          resultLines[edit.range.start.line] =
+            line.slice(0, edit.range.start.character) +
+            edit.newText +
+            line.slice(edit.range.end.character);
+          rangeResult = resultLines.join('\n');
+        }
+      }
+
+      // Full-format the first two lines independently for comparison
+      let fullResult = lines.slice(0, 2).join('\n');
+      const fullEditsInRange = fullEdits.filter(
+        e => e.range.start.line <= 1 && e.range.end.line >= 0
+      );
+      const sortedFullEdits = [...fullEditsInRange].sort(
+        (a, b) =>
+          b.range.start.line - a.range.start.line ||
+          b.range.start.character - a.range.start.character
+      );
+      for (const edit of sortedFullEdits) {
+        const resultLines = fullResult.split('\n');
+        if (edit.range.start.line <= 1 && edit.range.end.line <= 1) {
+          const line = resultLines[edit.range.start.line] ?? '';
+          const endChar =
+            edit.range.end.line === edit.range.start.line
+              ? Math.min(edit.range.end.character, line.length)
+              : line.length;
+          resultLines[edit.range.start.line] =
+            line.slice(0, edit.range.start.character) + edit.newText + line.slice(endChar);
+          fullResult = resultLines.join('\n');
+        }
+      }
+
+      assert.strictEqual(
+        rangeResult.split('\n')[1],
+        fullResult.split('\n')[1],
+        'Range-formatted line 1 must match fully-formatted line 1 (not truncated)'
+      );
+    });
   });
 
   describe('formatDocument', () => {

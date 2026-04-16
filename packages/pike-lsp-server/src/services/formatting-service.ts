@@ -164,8 +164,11 @@ function clipEditToRange(
 
   // Compute the portion of newText that falls within the clipped range
   const clippedStartCol = edit.range.start.line < startLine ? 0 : edit.range.start.character;
-  const clippedEndCol = edit.range.end.line > endLine ? endLineLen : edit.range.end.character;
   const newTextLines = edit.newText.split('\n');
+  const clippedEndCol =
+    edit.range.end.line > endLine
+      ? (newTextLines[newTextLines.length - 1]?.length ?? 0)
+      : edit.range.end.character;
   let clippedNewText: string;
 
   if (edit.range.start.line === edit.range.end.line) {
