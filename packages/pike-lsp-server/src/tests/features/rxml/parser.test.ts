@@ -243,15 +243,13 @@ describe('RXML Parser', () => {
     it('should use Logger instead of console.warn on parse failure', () => {
       let warnCalled = false;
       const origWarn = console.warn;
-      console.warn = (...args: unknown[]) => {
-        warnCalled = true;
-        origWarn.apply(console, args);
-      };
+      console.warn = () => { warnCalled = true; };
       try {
-        const code = '<set variable="unclosed"';
-        const uri = 'test://test.html';
-        const result = parseRXMLTemplate(code, uri);
-
+        const result = parseRXMLTemplate(
+          '<any/>',
+          'test://test.html',
+          () => { throw new Error('parse failure'); },
+        );
         expect(Array.isArray(result)).toBe(true);
         expect(warnCalled).toBe(false);
       } finally {

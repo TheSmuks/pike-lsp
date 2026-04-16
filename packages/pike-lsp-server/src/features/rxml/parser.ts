@@ -53,6 +53,7 @@ const CONTAINER_TAGS = new Set([
 ]);
 
 const log = new Logger('RXMLParser');
+
 /**
  * RXML tag information extracted from template
  */
@@ -100,7 +101,7 @@ interface DOMNodeLike {
  * @param uri - Document URI for error reporting
  * @returns Array of RXML tags found in the document
  */
-export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
+export function parseRXMLTemplate(code: string, uri: string, parseFn: typeof parseDocument = parseDocument): RXMLTag[] {
   try {
     // Check if this is a .rjs file (JavaScript with embedded RXML)
     const isRJS = uri.endsWith('.rjs');
@@ -113,7 +114,7 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
       contentToParse = extractRXMLFromJavaScript(code);
     }
 
-    const document = parseDocument(contentToParse, {
+    const document = parseFn(contentToParse, {
       withStartIndices: true,
       withEndIndices: true,
       xmlMode: true, // RXML is XML-like with proper self-closing tags
