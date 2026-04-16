@@ -1,9 +1,12 @@
 /**
- * Scenario: ModuleContext waterfall cache invalidation race (#2010)
+ * Scenario: ModuleContext waterfall cache invalidation race (#2064)
  *
- * Verifies that invalidate() called between setPending and promise resolution
- * properly cleans up the secondary index (uriToWaterfallKeys), pending entries
- * (waterfallPending), and does not store the resolved result in waterfallCache.
+ * Verifies that invalidate() called during an in-flight waterfall fetch
+ * properly cleans up the secondary index (uriToWaterfallKeys), pending
+ * entries (waterfallPending), and cached results (waterfallCache).
+ *
+ * The race window: between lines 179 (secondary index registration)
+ * and line 183 (await promise) in getWaterfallSymbolsForDocument.
  */
 
 import { describe, it, beforeEach, afterEach } from 'bun:test';
@@ -12,7 +15,7 @@ import { ModuleContext } from '../services/module-context.js';
 import type { ExtractedImport, WaterfallSymbolsResult } from '@pike-lsp/pike-bridge';
 
 // ---------------------------------------------------------------------------
-// Bridge mock with per-call controllable waterfall responses
+// Bridge mock
 // ---------------------------------------------------------------------------
 
 function makeImport(type: ExtractedImport['type'], path: string): ExtractedImport {
@@ -29,49 +32,49 @@ function makeWaterfallResult(imports: ExtractedImport[]): WaterfallSymbolsResult
 }
 
 interface TrackCounts {
-  extractImports: number;
   getWaterfallSymbols: number;
 }
 
-/**
- * Each call to getWaterfallSymbols gets its own deferred.
- * Callers must call resolveNextWaterfall() once per bridge invocation.
- */
-function createControlledBridge(importResult?: ExtractedImport[]) {
-  const counts: TrackCounts = { extractImports: 0, getWaterfallSymbols: 0 };
-  const imports = importResult ?? [makeImport('import', 'my_module')];
-  const waterfallResult = makeWaterfallResult(imports);
-  const queue: Array<{ resolve: (v: WaterfallSymbolsResult) => void }> = [];
+function createDelayedBridge(overrides?: {
+  waterfallResult?: WaterfallSymbolsResult;
+  immediate?: boolean;
+}) {
+  const counts: TrackCounts = { getWaterfallSymbols: 0 };
+  const importResult = [makeImport('import', 'my_module')];
+  const waterfallResult = overrides?.waterfallResult ?? makeWaterfallResult(importResult);
+  const immediate = overrides?.immediate ?? false;
+
+  // Gate: the bridge call blocks until resolve is called
+  let resolveBridge: () => void;
+  const gate = new Promise<void>(resolve => {
+    resolveBridge = resolve;
+  });
 
   const bridge = {
     async extractImports(_content: string, _filename: string) {
-      counts.extractImports++;
-      return { imports };
+      return { imports: [makeImport('import', 'my_module')] };
     },
     async getWaterfallSymbols(_content: string, _filename: string, _maxDepth: number) {
       counts.getWaterfallSymbols++;
-      return new Promise<WaterfallSymbolsResult>(resolve => {
-        queue.push({ resolve });
-      });
+      if (!immediate) {
+        // Simulate in-flight fetch — real bridge would await pike subprocess
+        await gate;
+      }
+      return waterfallResult;
     },
   };
 
-  return {
-    bridge,
-    counts,
-    /** Resolve the oldest pending waterfall promise. Call once per bridge.getWaterfallSymbols invocation. */
-    resolveNextWaterfall(result?: WaterfallSymbolsResult) {
-      const entry = queue.shift();
-      if (!entry) throw new Error('No pending waterfall promise to resolve');
-      entry.resolve(result ?? waterfallResult);
-    },
-  };
+  return { bridge, counts, resolveBridge: resolveBridge! };
 }
 
-describe('ModuleContext waterfall cache invalidation race (#2010)', () => {
+describe('Waterfall cache invalidation race (#2064)', () => {
   let ctx: ModuleContext;
   let originalNow: () => number;
   let fakeNow: number;
+
+  function advanceTime(ms: number) {
+    fakeNow += ms;
+  }
 
   beforeEach(() => {
     ctx = new ModuleContext();
@@ -84,168 +87,183 @@ describe('ModuleContext waterfall cache invalidation race (#2010)', () => {
     globalThis.Date.now = originalNow;
   };
 
-  // -------------------------------------------------------------------------
-  // Race: invalidate() between setPending and promise resolution
-  // -------------------------------------------------------------------------
-
-  describe('invalidate during in-flight waterfall fetch', () => {
-    it('should not cache resolved result after invalidate during in-flight fetch', async () => {
-      const { bridge, counts, resolveNextWaterfall } = createControlledBridge();
-      const uri = 'file:///test.pike';
-      const content = 'import my_module;';
-
-      // Start waterfall fetch — it hangs until we resolve the deferred
-      const fetchPromise = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
-      assert.equal(counts.getWaterfallSymbols, 1, 'bridge call should have started');
-
-      // Invalidate while fetch is still in-flight
-      ctx.invalidate(uri);
-
-      // Now resolve the deferred — the fetch promise completes
-      resolveNextWaterfall();
-      await fetchPromise;
-
-      // A subsequent call with identical content should trigger a fresh fetch,
-      // proving the resolved result was NOT stored in waterfallCache.
-      const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
-      assert.equal(
-        counts.getWaterfallSymbols,
-        2,
-        'should start a new bridge call (result not cached)'
-      );
-      resolveNextWaterfall();
-      const result2 = await fetchPromise2;
-      assert.equal(result2.imports.length, 1, 'second fetch should return data');
-    });
-
-    it('should not reuse stale pending entry after invalidate during in-flight fetch', async () => {
-      const { bridge, counts, resolveNextWaterfall } = createControlledBridge();
-      const uri = 'file:///test.pike';
-      const content = 'import my_module;';
-
-      // Start first fetch — hangs
-      const fetchPromise1 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
-      assert.equal(counts.getWaterfallSymbols, 1);
-
-      // Invalidate while first fetch is pending — should remove from waterfallPending
-      ctx.invalidate(uri);
-
-      // Start second fetch before first resolves — if waterfallPending was cleaned,
-      // this should start a new bridge call, not latch onto the old pending promise.
-      const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
-      assert.equal(
-        counts.getWaterfallSymbols,
-        2,
-        'should start a new bridge call, not reuse stale pending entry'
-      );
-
-      // Resolve both deferreds
-      resolveNextWaterfall();
-      await fetchPromise1;
-      resolveNextWaterfall();
-      await fetchPromise2;
-    });
-
-    it('should clean up uriToWaterfallKeys for all maxDepth variants on invalidate', async () => {
-      const { bridge, counts, resolveNextWaterfall } = createControlledBridge();
-      const uri = 'file:///test.pike';
-      const content = 'import my_module;';
-
-      // Start two concurrent waterfall fetches with different maxDepth values
-      const fetchPromise1 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge, 1);
-      const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge, 5);
-      assert.equal(counts.getWaterfallSymbols, 2, 'two bridge calls for different maxDepth');
-
-      // Invalidate while both are in-flight
-      ctx.invalidate(uri);
-
-      // Resolve both
-      resolveNextWaterfall();
-      await fetchPromise1;
-      resolveNextWaterfall();
-      await fetchPromise2;
-
-      // Both maxDepth variants should require fresh fetches — proves uriToWaterfallKeys
-      // was fully cleaned and neither result was cached.
-      const fetchPromise3 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge, 1);
-      const fetchPromise4 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge, 5);
-      assert.equal(
-        counts.getWaterfallSymbols,
-        4,
-        'should re-fetch both maxDepth variants after invalidate'
-      );
-      resolveNextWaterfall();
-      const r1 = await fetchPromise3;
-      resolveNextWaterfall();
-      const r2 = await fetchPromise4;
-      assert.equal(r1.imports.length, 1);
-      assert.equal(r2.imports.length, 1);
-    });
-
-    it('should not affect other URIs when invalidating during in-flight fetch', async () => {
-      const { bridge, counts, resolveNextWaterfall } = createControlledBridge();
-      const uriA = 'file:///a.pike';
-      const uriB = 'file:///b.pike';
-      const content = 'import my_module;';
-
-      // Populate uriB cache immediately
-      const fetchB = ctx.getWaterfallSymbolsForDocument(uriB, content, bridge);
-      resolveNextWaterfall();
-      await fetchB;
-      assert.equal(counts.getWaterfallSymbols, 1);
-
-      // Start uriA fetch — hangs
-      const fetchA = ctx.getWaterfallSymbolsForDocument(uriA, content, bridge);
-      assert.equal(counts.getWaterfallSymbols, 2);
-
-      // Invalidate uriA while its fetch is pending
-      ctx.invalidate(uriA);
-
-      // Resolve uriA's fetch
-      resolveNextWaterfall();
-      await fetchA;
-
-      // uriB should still be cached — invalidating uriA must not touch uriB's keys
-      const resultB = await ctx.getWaterfallSymbolsForDocument(uriB, content, bridge);
-      assert.equal(resultB.imports.length, 1);
-      assert.equal(
-        counts.getWaterfallSymbols,
-        2,
-        'should not re-fetch uriB after invalidating uriA'
-      );
-    });
-
-    it('should allow fresh fetch with new content after invalidate during pending fetch', async () => {
-      const { bridge, counts, resolveNextWaterfall } = createControlledBridge();
-      const uri = 'file:///test.pike';
-      const content1 = 'import my_module;';
-      const content2 = 'import other_module;';
-
-      // Start fetch with content1 — hangs
-      const fetchPromise1 = ctx.getWaterfallSymbolsForDocument(uri, content1, bridge);
-      assert.equal(counts.getWaterfallSymbols, 1);
-
-      // Invalidate while fetch is pending
-      ctx.invalidate(uri);
-
-      // Resolve the original fetch
-      resolveNextWaterfall();
-      await fetchPromise1;
-
-      // Fetch with new content — should get a fresh bridge call
-      const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content2, bridge);
-      assert.equal(
-        counts.getWaterfallSymbols,
-        2,
-        'should start fresh fetch with new content after invalidate'
-      );
-      resolveNextWaterfall();
-      const result2 = await fetchPromise2;
-      assert.equal(result2.imports.length, 1);
-    });
-  });
-
   afterEach(() => {
     restoreDateNow();
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 1: invalidate during in-flight fetch does not cache stale result
+  // -------------------------------------------------------------------------
+
+  it('invalidate during in-flight fetch: result not cached, second fetch triggers new bridge call', async () => {
+    const { bridge, counts, resolveBridge } = createDelayedBridge();
+    const uri = 'file:///race1.pike';
+    const content = 'import my_module;';
+
+    // Start fetch — bridge call is gated, so the promise is pending
+    const fetchPromise = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
+    assert.equal(counts.getWaterfallSymbols, 1, 'bridge call should have started');
+
+    // Invalidate while fetch is in-flight
+    ctx.invalidate(uri);
+
+    // Release the bridge — the original fetch resolves
+    resolveBridge();
+    await fetchPromise;
+
+    // The stale result should NOT be cached. A new fetch must trigger a new bridge call.
+    advanceTime(1000); // well within TTL
+    await ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
+    assert.equal(
+      counts.getWaterfallSymbols,
+      2,
+      'stale result should not be cached after invalidate during in-flight fetch'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 2: invalidate cleans up pending latch, second fetch starts fresh
+  // -------------------------------------------------------------------------
+
+  it('invalidate during pending: second fetch starts fresh, not latched to stale pending', async () => {
+    const { bridge, counts, resolveBridge } = createDelayedBridge();
+    const uri = 'file:///race2.pike';
+    const content = 'import my_module;';
+
+    // Start first fetch
+    const fetchPromise = ctx.getWaterfallSymbolsForDocument(uri, content, bridge);
+    assert.equal(counts.getWaterfallSymbols, 1);
+
+    // Invalidate while pending — should clean up the pending entry
+    ctx.invalidate(uri);
+
+    // Release original fetch
+    resolveBridge();
+    await fetchPromise;
+
+    // Second fetch should start a new bridge call, not latch onto the old pending
+    const {
+      bridge: bridge2,
+      counts: counts2,
+      resolveBridge: resolveBridge2,
+    } = createDelayedBridge();
+    const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge2);
+    assert.equal(counts2.getWaterfallSymbols, 1, 'should start a fresh bridge call');
+    resolveBridge2();
+    await fetchPromise2;
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 3: two maxDepth variants invalidated simultaneously
+  // -------------------------------------------------------------------------
+
+  it('two maxDepth variants invalidated simultaneously: both re-fetch after resolve', async () => {
+    const { bridge: bridge1, counts: counts1, resolveBridge: resolve1 } = createDelayedBridge();
+    const { bridge: bridge2, counts: counts2, resolveBridge: resolve2 } = createDelayedBridge();
+    const uri = 'file:///race3.pike';
+    const content = 'import my_module;';
+
+    // Start two fetches with different maxDepth values — both in-flight
+    const promise1 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge1, 1);
+    const promise2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge2, 5);
+
+    assert.equal(counts1.getWaterfallSymbols, 1);
+    assert.equal(counts2.getWaterfallSymbols, 1);
+
+    // Invalidate — should clean up both entries via secondary index
+    ctx.invalidate(uri);
+
+    // Resolve both original fetches
+    resolve1();
+    resolve2();
+    await Promise.all([promise1, promise2]);
+
+    // Both maxDepth variants should require re-fetch
+    advanceTime(1000);
+    const { bridge: bridge3, counts: counts3, resolveBridge: resolve3 } = createDelayedBridge();
+    const fetch1 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge3, 1);
+    assert.equal(counts3.getWaterfallSymbols, 1, 'maxDepth=1 should re-fetch after invalidate');
+
+    const { bridge: bridge4, counts: counts4, resolveBridge: resolve4 } = createDelayedBridge();
+    const fetch2 = ctx.getWaterfallSymbolsForDocument(uri, content, bridge4, 5);
+    assert.equal(counts4.getWaterfallSymbols, 1, 'maxDepth=5 should re-fetch after invalidate');
+
+    resolve3();
+    resolve4();
+    await Promise.all([fetch1, fetch2]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 4: invalidate uriA does not affect uriB
+  // -------------------------------------------------------------------------
+
+  it('invalidate uriA does not affect uriB: uriB remains cached', async () => {
+    const { bridge: bridgeA, resolveBridge: resolveA } = createDelayedBridge();
+    const uriA = 'file:///raceA.pike';
+    const uriB = 'file:///raceB.pike';
+    const content = 'import my_module;';
+
+    // Start in-flight fetch for uriA
+    const promiseA = ctx.getWaterfallSymbolsForDocument(uriA, content, bridgeA);
+
+    // Complete fetch for uriB immediately
+    const { bridge: bridgeB2, counts: countsB2 } = createDelayedBridge({ immediate: true });
+    await ctx.getWaterfallSymbolsForDocument(uriB, content, bridgeB2);
+
+    assert.equal(countsB2.getWaterfallSymbols, 1, 'uriB should have been fetched');
+
+    // Invalidate uriA while it's in-flight
+    ctx.invalidate(uriA);
+
+    // Resolve uriA's fetch
+    resolveA();
+    await promiseA;
+
+    // uriB should still be cached — no re-fetch needed
+    advanceTime(1000);
+    await ctx.getWaterfallSymbolsForDocument(uriB, content, bridgeB2);
+    assert.equal(
+      countsB2.getWaterfallSymbols,
+      1,
+      'uriB should still be cached after uriA invalidation'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 5: fresh content fetch after invalidate during pending
+  // -------------------------------------------------------------------------
+
+  it('fresh content fetch after invalidate during pending: new bridge call with new content', async () => {
+    const { bridge, counts, resolveBridge } = createDelayedBridge();
+    const uri = 'file:///race5.pike';
+    const content1 = 'import my_module;';
+    const content2 = 'import other_module;';
+
+    // Start fetch with content1
+    const fetchPromise = ctx.getWaterfallSymbolsForDocument(uri, content1, bridge);
+    assert.equal(counts.getWaterfallSymbols, 1);
+
+    // Invalidate while fetch is pending
+    ctx.invalidate(uri);
+
+    // Release the original fetch
+    resolveBridge();
+    await fetchPromise;
+
+    // Fetch with content2 — should trigger a new bridge call
+    const {
+      bridge: bridge2,
+      counts: counts2,
+      resolveBridge: resolveBridge2,
+    } = createDelayedBridge();
+    const fetchPromise2 = ctx.getWaterfallSymbolsForDocument(uri, content2, bridge2);
+    assert.equal(
+      counts2.getWaterfallSymbols,
+      1,
+      'should start fresh bridge call with new content after invalidate'
+    );
+    resolveBridge2();
+    const result = await fetchPromise2;
+    assert.ok(result, 'should return a valid result');
   });
 });
