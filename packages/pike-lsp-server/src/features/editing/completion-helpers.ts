@@ -116,7 +116,7 @@ export function buildMethodSnippet(
     return { snippet: name, isSnippet: false };
   }
 
-  const args = t['arguments'] as unknown[] | undefined;
+  const args = Array.isArray(t['arguments']) ? (t['arguments'] as unknown[]) : undefined;
   if (args && args.length > 0) {
     const placeholders: string[] = [];
     for (let i = 0; i < args.length; i++) {

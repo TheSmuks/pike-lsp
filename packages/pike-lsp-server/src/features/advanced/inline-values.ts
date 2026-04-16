@@ -44,7 +44,7 @@ export function registerInlineValuesHandler(
       return String(value);
     }
     if (type === 'array' && Array.isArray(value)) {
-      const arr = value as unknown[];
+      const arr = value;
       if (arr.length > 5) {
         return `[${arr
           .slice(0, 4)
@@ -66,7 +66,7 @@ export function registerInlineValuesHandler(
       return `(${entries.map(([k, v]) => `${k}: ${formatSimpleValue(v)}`).join(', ')})`;
     }
     if (type === 'multiset' && Array.isArray(value)) {
-      const ms = value as unknown[];
+      const ms = value;
       return `(${ms.join(', ')})`;
     }
     if (value === null) {
