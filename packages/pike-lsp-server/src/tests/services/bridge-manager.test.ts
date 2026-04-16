@@ -372,3 +372,142 @@ describe('BridgeManager requireBridge guard', () => {
     assert.ok(called, 'should delegate to bridge.findOccurrences');
   });
 });
+
+describe('BridgeManager start() failure recovery', () => {
+  it('propagates error when bridge.start() throws', async () => {
+    const manager = new BridgeManager(
+      {
+        isRunning: () => false,
+        on: () => undefined,
+        start: async () => {
+          throw new Error('subprocess spawn failed');
+        },
+        stop: async () => undefined,
+        getDiagnostics: () => ({ options: {}, isRunning: false, pid: null }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    await assert.rejects(
+      () => manager.start(),
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /subprocess spawn failed/);
+        return true;
+      }
+    );
+  });
+
+  it('returns null metrics and version after start() failure', async () => {
+    const manager = new BridgeManager(
+      {
+        isRunning: () => false,
+        on: () => undefined,
+        start: async () => {
+          throw new Error('crash');
+        },
+        stop: async () => undefined,
+        getDiagnostics: () => ({ options: {}, isRunning: false, pid: null }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    try {
+      await manager.start();
+    } catch {
+      /* expected */
+    }
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null);
+    assert.equal(health.bridgeConnected, false);
+    assert.equal(health.pikePid, null);
+  });
+
+  it('does nothing when start() is called with null bridge', async () => {
+    const manager = new BridgeManager(null, createMockLogger());
+    await manager.start();
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null);
+    assert.equal(health.bridgeConnected, false);
+    assert.equal(health.startupMetrics, null);
+  });
+
+  it('logs warning when getVersionInfo() throws after successful start', async () => {
+    const warnLogs: Array<{ msg: string; fields: Record<string, unknown> }> = [];
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (msg: string, fields?: Record<string, unknown>) => {
+        warnLogs.push({ msg, fields: fields ?? {} });
+      },
+      error: () => undefined,
+    } as unknown as Logger;
+
+    const manager = new BridgeManager(
+      {
+        isRunning: () => true,
+        on: () => undefined,
+        start: async () => undefined,
+        stop: async () => undefined,
+        getVersionInfo: async () => {
+          throw new Error('RPC timeout');
+        },
+        getDiagnostics: () => ({ options: { pikePath: '/usr/bin/pike' }, isRunning: true, pid: 1 }),
+      } as unknown as PikeBridge,
+      logger
+    );
+
+    await manager.start();
+    // Allow the async version fetch to complete
+    await new Promise(r => setTimeout(r, 10));
+
+    const health = await manager.getHealth();
+    assert.equal(health.pikeVersion, null, 'version should remain null when getVersionInfo throws');
+
+    const versionWarn = warnLogs.find(l => l.msg.includes('version info'));
+    assert.ok(versionWarn, 'should log warning about failed version fetch');
+  });
+
+  it('allows stop and restart after start() failure', async () => {
+    let startCallCount = 0;
+    const manager = new BridgeManager(
+      {
+        isRunning: () => startCallCount > 0,
+        on: () => undefined,
+        start: async () => {
+          startCallCount++;
+          if (startCallCount === 1) throw new Error('first start fails');
+        },
+        stop: async () => {
+          startCallCount = 0;
+        },
+        getVersionInfo: async () => ({
+          major: 8,
+          minor: 0,
+          build: 1116,
+          version: '8.0.1116',
+          display: 8.01116,
+        }),
+        getDiagnostics: () => ({
+          options: { pikePath: 'pike' },
+          isRunning: startCallCount > 0,
+          pid: startCallCount > 0 ? 1234 : null,
+        }),
+      } as unknown as PikeBridge,
+      createMockLogger()
+    );
+
+    // First start fails
+    await assert.rejects(() => manager.start());
+
+    // Second start succeeds
+    await manager.start();
+    await new Promise(r => setTimeout(r, 10));
+
+    const health = await manager.getHealth();
+    assert.equal(health.bridgeConnected, true);
+    assert.ok(health.pikeVersion);
+  });
+});

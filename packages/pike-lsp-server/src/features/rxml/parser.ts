@@ -101,11 +101,7 @@ interface DOMNodeLike {
  * @param uri - Document URI for error reporting
  * @returns Array of RXML tags found in the document
  */
-export function parseRXMLTemplate(
-  code: string,
-  uri: string,
-  parseFn: typeof parseDocument = parseDocument
-): RXMLTag[] {
+export function parseRXMLTemplate(code: string, uri: string, parseFn: typeof parseDocument = parseDocument): RXMLTag[] {
   try {
     // Check if this is a .rjs file (JavaScript with embedded RXML)
     const isRJS = uri.endsWith('.rjs');
