@@ -165,8 +165,6 @@ export class LRUCache<TKey, TValue> {
 
   /**
    * Remove multiple keys in a single pass.
-   * More efficient than calling delete() in a loop:
-   * only one Map mutation sequence instead of N separate ones.
    * @returns Number of keys actually removed
    */
   deleteBatch(keys: readonly TKey[]): number {

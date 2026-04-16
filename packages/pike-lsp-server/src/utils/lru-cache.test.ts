@@ -374,3 +374,49 @@ describe('LRUCache (weighted-size)', () => {
     });
   });
 });
+
+describe('LRUCache.deleteBatch', () => {
+  it('removes all specified keys and returns count', () => {
+    const cache = new LRUCache<string, number>(5);
+    cache.set('a', 1);
+    cache.set('b', 2);
+    cache.set('c', 3);
+
+    const removed = cache.deleteBatch(['a', 'c']);
+    assert.strictEqual(removed, 2);
+    assert.strictEqual(cache.entryCount, 1);
+    assert.strictEqual(cache.get('b'), 2);
+  });
+
+  it('skips missing keys and only counts actual removals', () => {
+    const cache = new LRUCache<string, number>(5);
+    cache.set('a', 1);
+
+    const removed = cache.deleteBatch(['a', 'missing']);
+    assert.strictEqual(removed, 1);
+    assert.strictEqual(cache.entryCount, 0);
+  });
+
+  it('returns 0 for empty key array', () => {
+    const cache = new LRUCache<string, number>(5);
+    cache.set('a', 1);
+
+    const removed = cache.deleteBatch([]);
+    assert.strictEqual(removed, 0);
+    assert.strictEqual(cache.entryCount, 1);
+  });
+
+  it('updates tracked size correctly', () => {
+    const cache = new LRUCache<string, string>({
+      maxSize: 10,
+      sizeEstimator: v => v.length,
+    });
+    cache.set('a', 'abc'); // size 3
+    cache.set('b', 'de'); // size 2
+    cache.set('c', 'f'); // size 1
+
+    cache.deleteBatch(['a', 'c']);
+    assert.strictEqual(cache.size, 2);
+    assert.strictEqual(cache.entryCount, 1);
+  });
+});
