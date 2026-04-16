@@ -533,7 +533,7 @@ export interface IncludeResolveResult {
   /** Resolved absolute path */
   path: string;
   /** Whether the file exists */
-  exists: boolean;
+  exists: 0 | 1;
   /** Original include path from source */
   originalPath: string;
 }
