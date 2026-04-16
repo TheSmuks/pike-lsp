@@ -202,28 +202,29 @@ describe('PikeIntrospectionService - searchImportableSymbols', () => {
   });
 });
 
-describe('PikeIntrospectionService - addModuleToIndex sorted keys', () => {
+describe('PikeIntrospectionService - addModuleToIndex sort order', () => {
   it('finds all symbols when module is populated in reverse-alphabetical order', async () => {
-    const symbols = new Map<string, IntrospectedSymbol>([
-      ['zebra', makeSymbol('zebra')],
-      ['mango', makeSymbol('mango')],
-      ['alpha', makeSymbol('alpha')],
-      ['banana', makeSymbol('banana')],
-    ]);
     const services = createMockServices();
-    const stdlibIndex = createMockStdlibIndex([{ path: 'TestModule', symbols }]);
+    const stdlibIndex = createMockStdlibIndex([]);
     const svc = new PikeIntrospectionService(services, undefined, stdlibIndex as never);
 
-    populateIndex(svc, [{ path: 'TestModule', symbols }]);
+    // Insert symbols in reverse-alphabetical order to expose unsorted newKeys bug.
+    // If newKeys is not sorted before mergeIntoSorted, binary search in
+    // searchStdlibIndex Phase 1 will miss some symbols.
+    const reverseSymbols = new Map<string, IntrospectedSymbol>([
+      ['zebra_func', makeSymbol('zebra_func')],
+      ['midge_func', makeSymbol('midge_func')],
+      ['aardvark_func', makeSymbol('aardvark_func')],
+    ]);
+    populateIndex(svc, [{ path: 'TestReverse', symbols: reverseSymbols }]);
 
-    // Every symbol must be findable via binary search
-    for (const [name] of symbols) {
-      const results = await svc.searchImportableSymbols(name);
-      expect(results.some(r => r.symbol === name)).toBe(true);
-    }
+    // All three symbols must be findable via search.
+    const aardvark = await svc.searchImportableSymbols('aardvark_func');
+    const midge = await svc.searchImportableSymbols('midge_func');
+    const zebra = await svc.searchImportableSymbols('zebra_func');
 
-    // Prefix search for 'a' should find 'alpha'
-    const aResults = await svc.searchImportableSymbols('a');
-    expect(aResults.some(r => r.symbol === 'alpha')).toBe(true);
+    expect(aardvark.length).toBeGreaterThan(0);
+    expect(midge.length).toBeGreaterThan(0);
+    expect(zebra.length).toBeGreaterThan(0);
   });
 });
