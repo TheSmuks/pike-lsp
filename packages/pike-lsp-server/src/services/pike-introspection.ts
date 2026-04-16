@@ -236,6 +236,14 @@ export class PikeIntrospectionService {
       )
       .sort((a, b) => (a.position.line ?? 0) - (b.position.line ?? 0));
 
+    const inheritByName = new Map<string, InheritanceInfo>();
+    for (const inherit of introspectedInherits) {
+      const key = this.normalizeIdentifier(inherit.source_name ?? '');
+      if (key && !inheritByName.has(key)) inheritByName.set(key, inherit);
+      const pathKey = this.normalizeIdentifier(inherit.path ?? '');
+      if (pathKey && !inheritByName.has(pathKey)) inheritByName.set(pathKey, inherit);
+    }
+
     const relations: InheritRelation[] = [];
 
     for (const symbol of symbols) {
@@ -260,11 +268,14 @@ export class PikeIntrospectionService {
         inheritedName,
       };
 
-      const source = introspectedInherits.find(inherit => {
-        const sourceName = this.normalizeIdentifier(inherit.source_name ?? '');
-        const sourcePath = this.normalizeIdentifier(inherit.path ?? '');
-        return sourceName === inheritedName || sourcePath === inheritedName;
-      });
+      let source = inheritByName.get(inheritedName);
+      if (!source) {
+        source = introspectedInherits.find(inherit => {
+          const sourceName = this.normalizeIdentifier(inherit.source_name ?? '');
+          const sourcePath = this.normalizeIdentifier(inherit.path ?? '');
+          return sourceName === inheritedName || sourcePath === inheritedName;
+        });
+      }
       if (source?.path) {
         relation.inheritedPath = source.path;
       }
