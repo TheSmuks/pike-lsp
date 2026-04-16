@@ -245,22 +245,22 @@ export class WorkspaceDiagnosticsManager {
           // Concurrency-limited file reads to avoid I/O stampede
           const MAX_CONCURRENT = 10;
           let active = 0;
-          const queue: Array<() => void> = [];
+          const waitQueue: Array<() => void> = [];
           const acquire = () => {
             if (active < MAX_CONCURRENT) {
               active++;
               return Promise.resolve();
             }
             return new Promise<void>(r => {
-              queue.push(r);
+              waitQueue.push(r);
             });
           };
           const release = () => {
-            const next = queue.shift();
+            active--;
+            const next = waitQueue.shift();
             if (next) {
+              active++;
               next();
-            } else {
-              active--;
             }
           };
 
