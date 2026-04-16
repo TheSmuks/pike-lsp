@@ -24,16 +24,22 @@ export const PREFIX_INDEX_EVICT_BATCH = 10_000;
 export const SEARCH_CACHE_MAX_SIZE = 100;
 export const SEARCH_CACHE_TTL_MS = 60000; // 60 seconds
 
+// Trigram substring index for O(k) substring lookup
+export const SUBSTRING_INDEX_MIN_LENGTH = 3;
+export const SUBSTRING_INDEX_MAX_SIZE = 200_000;
+export const SUBSTRING_INDEX_EVICT_BATCH = 20_000;
+
 /**
  * Search for importable symbols matching a query.
- * Uses prefix index for O(1) lookup, falls back to full scan.
+ * Uses prefix + trigram indexes for O(1) lookup, falls back to full scan.
  */
 export function searchImportableSymbols(
   query: string,
   symbolLookup: Map<string, Map<string, SymbolEntry>>,
   prefixIndex: Map<string, Set<string>>,
   options: { excludeUri?: string; limit?: number },
-  uriToModulePath: (uri: string) => string | null
+  uriToModulePath: (uri: string) => string | null,
+  substringIndex?: Map<string, Set<string>>
 ): ImportableSymbolSearchResult[] {
   const queryLower = query.trim().toLowerCase();
   if (!queryLower) {
@@ -45,7 +51,7 @@ export function searchImportableSymbols(
   const limit = Math.max(1, options.limit ?? 20);
 
   // PERF-1285: Use prefix index for O(1) lookup instead of O(n) scan
-  const matchingNames = collectMatchingNames(queryLower, symbolLookup, prefixIndex);
+  const matchingNames = collectMatchingNames(queryLower, symbolLookup, prefixIndex, substringIndex);
 
   for (const nameLower of matchingNames) {
     const entriesByUri = symbolLookup.get(nameLower);
@@ -97,12 +103,13 @@ export function searchImportableSymbols(
 }
 
 /**
- * Collect symbol names matching a query via prefix index with full-scan fallback.
+ * Collect symbol names matching a query via prefix + trigram indexes with fallback.
  */
 export function collectMatchingNames(
   queryLower: string,
   symbolLookup: Map<string, Map<string, SymbolEntry>>,
-  prefixIndex: Map<string, Set<string>>
+  prefixIndex: Map<string, Set<string>>,
+  substringIndex?: Map<string, Set<string>>
 ): Set<string> {
   const matchingNames = new Set<string>();
 
@@ -121,10 +128,27 @@ export function collectMatchingNames(
     }
   }
 
-  // Fall back to scanning when prefix index misses
+  // Use trigram index for substring queries when prefix index misses
+  if (
+    matchingNames.size === 0 &&
+    substringIndex &&
+    queryLower.length >= SUBSTRING_INDEX_MIN_LENGTH
+  ) {
+    const trigram = queryLower.slice(0, SUBSTRING_INDEX_MIN_LENGTH);
+    const trigramSet = substringIndex.get(trigram);
+    if (trigramSet) {
+      for (const nameLower of trigramSet) {
+        if (nameLower.includes(queryLower)) {
+          matchingNames.add(nameLower);
+        }
+      }
+    }
+  }
+
+  // Fall back to full scan only when both indexes miss
   if (matchingNames.size === 0) {
     for (const nameLower of symbolLookup.keys()) {
-      if (nameLower.startsWith(queryLower)) {
+      if (nameLower.startsWith(queryLower) || nameLower.includes(queryLower)) {
         matchingNames.add(nameLower);
       }
     }
@@ -240,6 +264,7 @@ export interface LookupState {
   symbolLookup: Map<string, Map<string, SymbolEntry>>;
   uriToSymbols: Map<string, Set<string>>;
   prefixIndex: Map<string, Set<string>>;
+  substringIndex: Map<string, Set<string>>;
   searchCache: Map<string, { results: SymbolInformation[]; timestamp: number }>;
   searchCacheHits: number;
   searchCacheMisses: number;
@@ -309,6 +334,28 @@ export function addToLookup(
           }
         }
       }
+
+      // PERF-2085: Populate trigram substring index
+      if (nameLower.length >= SUBSTRING_INDEX_MIN_LENGTH) {
+        for (let i = 0; i <= nameLower.length - SUBSTRING_INDEX_MIN_LENGTH; i++) {
+          const trigram = nameLower.slice(i, i + SUBSTRING_INDEX_MIN_LENGTH);
+          let trigramSet = state.substringIndex.get(trigram);
+          if (!trigramSet) {
+            trigramSet = new Set<string>();
+            state.substringIndex.set(trigram, trigramSet);
+          }
+          trigramSet.add(nameLower);
+        }
+
+        if (state.substringIndex.size > SUBSTRING_INDEX_MAX_SIZE) {
+          let evicted = 0;
+          for (const key of state.substringIndex.keys()) {
+            if (evicted >= SUBSTRING_INDEX_EVICT_BATCH) break;
+            state.substringIndex.delete(key);
+            evicted++;
+          }
+        }
+      }
     }
   }
 }
@@ -322,24 +369,40 @@ export function removeFromLookup(state: LookupState, uri: string): void {
 
   for (const nameLower of symbolNames) {
     const entriesByUri = state.symbolLookup.get(nameLower);
-    let removeNameFromPrefixIndex = !entriesByUri;
+    let removeNameFromIndexes = !entriesByUri;
 
     if (entriesByUri) {
       entriesByUri.delete(uri);
       if (entriesByUri.size === 0) {
         state.symbolLookup.delete(nameLower);
-        removeNameFromPrefixIndex = true;
+        removeNameFromIndexes = true;
       }
     }
 
-    if (removeNameFromPrefixIndex && nameLower.length >= 1) {
-      for (let i = 1; i <= Math.min(nameLower.length, PREFIX_INDEX_MAX_DEPTH); i++) {
-        const prefix = nameLower.slice(0, i);
-        const prefixSet = state.prefixIndex.get(prefix);
-        if (prefixSet) {
-          prefixSet.delete(nameLower);
-          if (prefixSet.size === 0) {
-            state.prefixIndex.delete(prefix);
+    if (removeNameFromIndexes) {
+      if (nameLower.length >= 1) {
+        for (let i = 1; i <= Math.min(nameLower.length, PREFIX_INDEX_MAX_DEPTH); i++) {
+          const prefix = nameLower.slice(0, i);
+          const prefixSet = state.prefixIndex.get(prefix);
+          if (prefixSet) {
+            prefixSet.delete(nameLower);
+            if (prefixSet.size === 0) {
+              state.prefixIndex.delete(prefix);
+            }
+          }
+        }
+      }
+
+      // PERF-2085: Remove from trigram substring index
+      if (nameLower.length >= SUBSTRING_INDEX_MIN_LENGTH) {
+        for (let i = 0; i <= nameLower.length - SUBSTRING_INDEX_MIN_LENGTH; i++) {
+          const trigram = nameLower.slice(i, i + SUBSTRING_INDEX_MIN_LENGTH);
+          const trigramSet = state.substringIndex.get(trigram);
+          if (trigramSet) {
+            trigramSet.delete(nameLower);
+            if (trigramSet.size === 0) {
+              state.substringIndex.delete(trigram);
+            }
           }
         }
       }
