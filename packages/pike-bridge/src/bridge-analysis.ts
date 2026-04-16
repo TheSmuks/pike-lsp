@@ -135,7 +135,11 @@ export async function resolveInclude(
       assertString(r['path'], 'path', method);
       assertNumber(r['exists'], 'exists', method);
       assertString(r['originalPath'], 'originalPath', method);
-      return r as unknown as import('./types.js').IncludeResolveResult;
+      return {
+        path: r['path'] as string,
+        exists: r['exists'] as 0 | 1,
+        originalPath: r['originalPath'] as string,
+      } as import('./types.js').IncludeResolveResult;
     }
   );
 }
@@ -191,7 +195,10 @@ export async function getPikePaths(
       const r = raw as Record<string, unknown>;
       assertStringArray(r['include_paths'], 'include_paths', method);
       assertStringArray(r['module_paths'], 'module_paths', method);
-      return r as unknown as import('./types.js').PikePathsResult;
+      return {
+        include_paths: r['include_paths'] as string[],
+        module_paths: r['module_paths'] as string[],
+      } as import('./types.js').PikePathsResult;
     }
   );
 }
@@ -232,7 +239,18 @@ export async function resolveImport(
       const r = raw as Record<string, unknown>;
       assertString(r['path'], 'path', method);
       assertNumber(r['exists'], 'exists', method);
-      return r as unknown as import('./types.js').ResolveImportResult;
+      if (r['original_path'] !== undefined)
+        assertString(r['original_path'], 'original_path', method);
+      assertNumber(r['mtime'], 'mtime', method);
+      if (r['error'] !== undefined) assertString(r['error'], 'error', method);
+      assertString(r['type'], 'type', method);
+      return {
+        original_path: r['original_path'] as string | undefined,
+        exists: r['exists'] as 0 | 1,
+        type: r['type'] as import('./types.js').ImportType,
+        mtime: r['mtime'] as number,
+        error: r['error'] as string | undefined,
+      } as import('./types.js').ResolveImportResult;
     }
   );
 }
