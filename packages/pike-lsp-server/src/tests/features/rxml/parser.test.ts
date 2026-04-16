@@ -232,12 +232,29 @@ describe('RXML Parser', () => {
     });
 
     it('should handle parse errors gracefully', () => {
-      const code = '<set variable="unclosed';
+      const code = '<set variable="unclosed"';
       const uri = 'test://test.html';
       const result = parseRXMLTemplate(code, uri);
 
       // Should return empty array on parse error instead of throwing
       expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('should use Logger instead of console.warn on parse failure', () => {
+      let warnCalled = false;
+      const origWarn = console.warn;
+      console.warn = () => { warnCalled = true; };
+      try {
+        const result = parseRXMLTemplate(
+          '<any/>',
+          'test://test.html',
+          () => { throw new Error('parse failure'); },
+        );
+        expect(Array.isArray(result)).toBe(true);
+        expect(warnCalled).toBe(false);
+      } finally {
+        console.warn = origWarn;
+      }
     });
   });
 
