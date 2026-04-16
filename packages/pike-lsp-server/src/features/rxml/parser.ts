@@ -9,6 +9,7 @@
 
 import { parseDocument } from 'htmlparser2';
 import type { Range } from 'vscode-languageserver';
+import { Logger } from '@pike-lsp/core';
 
 /**
  * Known RXML simple tags (self-closing, no content)
@@ -50,6 +51,8 @@ const CONTAINER_TAGS = new Set([
   'switch',
   'default',
 ]);
+
+const log = new Logger('RXMLParser');
 
 /**
  * RXML tag information extracted from template
@@ -98,7 +101,7 @@ interface DOMNodeLike {
  * @param uri - Document URI for error reporting
  * @returns Array of RXML tags found in the document
  */
-export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
+export function parseRXMLTemplate(code: string, uri: string, parseFn: typeof parseDocument = parseDocument): RXMLTag[] {
   try {
     // Check if this is a .rjs file (JavaScript with embedded RXML)
     const isRJS = uri.endsWith('.rjs');
@@ -111,7 +114,7 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
       contentToParse = extractRXMLFromJavaScript(code);
     }
 
-    const document = parseDocument(contentToParse, {
+    const document = parseFn(contentToParse, {
       withStartIndices: true,
       withEndIndices: true,
       xmlMode: true, // RXML is XML-like with proper self-closing tags
@@ -122,7 +125,9 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
     return walkDOM(document.children, contentToParse);
   } catch (error) {
     // Log parsing errors but don't fail - return empty array
-    console.warn(`[RXML Parser] Warning: failed to parse template in ${uri}:`, error);
+    log.warn(`Failed to parse template in ${uri}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }
