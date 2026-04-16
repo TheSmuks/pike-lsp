@@ -208,9 +208,11 @@ export function registerCodeLensHandlers(
           // Cache the lenses for this document version
           codeLensCache.set(uri, { version: cache.version, lenses });
 
-          connection.console.log(
-            `[CODE_LENS] Generated ${lenses.length} lenses (cached for v${cache.version})`
-          );
+          log.debug('Generated code lenses', {
+            uri,
+            count: lenses.length,
+            version: cache.version,
+          });
           return lenses;
         },
       });
@@ -340,9 +342,11 @@ export function registerCodeLensHandlers(
 
           lens.command = buildCodeLensCommand(refCount, data.uri, data.position, data.symbolName);
 
-          connection.console.log(
-            `[CODE_LENS] Resolved lens for "${data.symbolName}": ${refCount} refs`
-          );
+          log.debug('Resolved code lens', {
+            uri: data.uri,
+            symbolName: data.symbolName,
+            refCount,
+          });
           maybeLogLensSchedulerMetrics(data.uri, 'resolved');
           return lens;
         },
