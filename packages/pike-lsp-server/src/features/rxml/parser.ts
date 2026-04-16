@@ -9,6 +9,7 @@
 
 import { parseDocument } from 'htmlparser2';
 import type { Range } from 'vscode-languageserver';
+import { Logger } from '@pike-lsp/core';
 
 /**
  * Known RXML simple tags (self-closing, no content)
@@ -51,6 +52,7 @@ const CONTAINER_TAGS = new Set([
   'default',
 ]);
 
+const log = new Logger('RXMLParser');
 /**
  * RXML tag information extracted from template
  */
@@ -122,7 +124,9 @@ export function parseRXMLTemplate(code: string, uri: string): RXMLTag[] {
     return walkDOM(document.children, contentToParse);
   } catch (error) {
     // Log parsing errors but don't fail - return empty array
-    console.warn(`[RXML Parser] Warning: failed to parse template in ${uri}:`, error);
+    log.warn(`Failed to parse template in ${uri}`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return [];
   }
 }
