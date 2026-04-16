@@ -23,6 +23,11 @@ export default defineConfig([
     files: 'dist/test/integration/*.test.js',
     version: 'stable',
     workspaceFolder: './test-workspace',
+    // Increase VSCode download idle timeout from default 15s — CI runners
+    // can be slow during 'Resolving version' (update.code.visualstudio.com API).
+    download: {
+      timeout: 60_000,
+    },
     mocha: {
       ui: 'tdd',
       timeout: 120000, // 120s timeout for LSP initialization with module path loading
