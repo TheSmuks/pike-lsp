@@ -6,7 +6,26 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import { formatPikeCode } from '../../features/advanced/formatting.js';
+import {
+  formatPikeCodeWithProfile,
+  type FormattingProfile,
+} from '../../services/formatting-service.js';
+
+/**
+ * Helper: indentation-only formatting.
+ * Uses a profile with all transformations disabled so tests measure pure indentation.
+ */
+const INDENT_ONLY_PROFILE: FormattingProfile = {
+  name: 'indent-only-test',
+  maxLineLength: 0,
+  braceStyle: 'same-line',
+  spaceAroundOperators: false,
+  blankLinesBetweenFunctions: 1,
+};
+
+function formatPikeCode(text: string, indent: string, startLine = 0) {
+  return formatPikeCodeWithProfile(text, indent, startLine, INDENT_ONLY_PROFILE);
+}
 
 function applyEdits(code: string, edits: ReturnType<typeof formatPikeCode>): string {
   const lines = code.split('\n');
