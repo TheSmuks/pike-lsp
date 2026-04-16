@@ -16,10 +16,26 @@ import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import {
   FormattingService,
-  formatPikeCode,
+  formatPikeCodeWithProfile,
   PREDEFINED_PROFILES,
   type FormattingProfile,
 } from '../../services/formatting-service.js';
+
+/**
+ * Helper: indentation-only formatting.
+ * Uses a profile with all transformations disabled so tests measure pure indentation.
+ */
+const INDENT_ONLY_PROFILE: FormattingProfile = {
+  name: 'indent-only-test',
+  maxLineLength: 0,
+  braceStyle: 'same-line',
+  spaceAroundOperators: false,
+  blankLinesBetweenFunctions: 1,
+};
+
+function formatPikeCode(text: string, indent: string, startLine = 0) {
+  return formatPikeCodeWithProfile(text, indent, startLine, INDENT_ONLY_PROFILE);
+}
 import { ResponseError, ErrorCodes } from 'vscode-languageserver/node.js';
 
 /**

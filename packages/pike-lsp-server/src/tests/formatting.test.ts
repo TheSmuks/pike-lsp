@@ -1,7 +1,10 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { FormattingService } from '../services/formatting-service.js';
-import { formatPikeCode } from '../features/advanced/formatting.js';
+import {
+  formatPikeCodeWithProfile,
+  type FormattingProfile,
+} from '../services/formatting-service.js';
 import { TextEdit, ErrorCodes, ResponseError } from 'vscode-languageserver/node.js';
 
 describe('Formatter', () => {
@@ -35,8 +38,17 @@ describe('Formatter', () => {
     return result;
   }
 
+  // Uses indent-only profile to test pure indentation, matching original formatPikeCode behavior
+  const INDENT_ONLY: FormattingProfile = {
+    name: 'indent-only-test',
+    maxLineLength: 0,
+    braceStyle: 'same-line',
+    spaceAroundOperators: false,
+    blankLinesBetweenFunctions: 1,
+  };
+
   function format(code: string): string {
-    const edits = formatPikeCode(code, '    '); // 4 spaces
+    const edits = formatPikeCodeWithProfile(code, '    ', 0, INDENT_ONLY);
     return applyEdits(code, edits);
   }
 
