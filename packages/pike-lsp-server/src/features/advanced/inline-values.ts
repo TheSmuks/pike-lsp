@@ -43,7 +43,7 @@ export function registerInlineValuesHandler(
     if (type === 'int' || type === 'float') {
       return String(value);
     }
-    if (type === 'array') {
+    if (type === 'array' && Array.isArray(value)) {
       const arr = value as unknown[];
       if (arr.length > 5) {
         return `[${arr
@@ -53,7 +53,7 @@ export function registerInlineValuesHandler(
       }
       return `[${arr.map(v => formatSimpleValue(v)).join(', ')}]`;
     }
-    if (type === 'mapping') {
+    if (type === 'mapping' && typeof value === 'object' && value !== null) {
       const mapping = value as Record<string, unknown>;
       const entries = Object.entries(mapping);
       if (entries.length > 3) {
@@ -65,7 +65,7 @@ export function registerInlineValuesHandler(
       }
       return `(${entries.map(([k, v]) => `${k}: ${formatSimpleValue(v)}`).join(', ')})`;
     }
-    if (type === 'multiset') {
+    if (type === 'multiset' && Array.isArray(value)) {
       const ms = value as unknown[];
       return `(${ms.join(', ')})`;
     }
