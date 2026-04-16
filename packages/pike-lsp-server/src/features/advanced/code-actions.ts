@@ -16,6 +16,8 @@ import {
   CodeAction,
   CodeActionKind,
   CodeActionParams,
+  ErrorCodes,
+  ResponseError,
   TextEdit,
   CancellationToken,
 } from 'vscode-languageserver/node.js';
@@ -204,12 +206,8 @@ export function registerCodeActionsHandler(
 
       return result;
     } catch (err) {
-      // KB-1248: Gracefully handle introspection failures during parse-under-edit
-      log.debug('Importable symbol search failed (handled gracefully)', {
-        symbol,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return [];
+      // Propagate introspection failures instead of swallowing
+      throw err;
     }
   }
 
@@ -509,44 +507,25 @@ export function registerCodeActionsHandler(
             }
 
             // CA-011: Getter/Setter Generation - pass filter for consistency
-            // KB-1248: Wrap in try-catch for resilience
-            try {
-              const getterSetterActions = getGenerateGetterSetterActions(
-                document,
-                uri,
-                params.range,
-                cached.symbols,
-                onlyKinds // Pass filter to getter/setter generator
-              );
-              result.push(...getterSetterActions);
-            } catch (err) {
-              // KB-1248: Gracefully handle getter/setter generation failures
-              log.debug('Getter/setter generation failed (handled gracefully)', {
-                uri,
-                error: err instanceof Error ? err.message : String(err),
-              });
-            }
-
+            const getterSetterActions = getGenerateGetterSetterActions(
+              document,
+              uri,
+              params.range,
+              cached.symbols,
+              onlyKinds // Pass filter to getter/setter generator
+            );
+            result.push(...getterSetterActions);
             // Extract Method Refactoring
-            // KB-1248: Wrap in try-catch for resilience
-            try {
-              const extractMethodAction = getExtractMethodAction(
-                document,
-                uri,
-                params.range,
-                text,
-                onlyKinds,
-                cached
-              );
-              if (extractMethodAction) {
-                result.push(extractMethodAction);
-              }
-            } catch (err) {
-              // KB-1248: Gracefully handle extract method failures
-              log.debug('Extract method generation failed (handled gracefully)', {
-                uri,
-                error: err instanceof Error ? err.message : String(err),
-              });
+            const extractMethodAction = getExtractMethodAction(
+              document,
+              uri,
+              params.range,
+              text,
+              onlyKinds,
+              cached
+            );
+            if (extractMethodAction) {
+              result.push(extractMethodAction);
             }
 
             return result;
@@ -562,7 +541,6 @@ export function registerCodeActionsHandler(
           return [];
         }
 
-        // KB-1248: Log at debug level for parse-under-edit scenarios, error only for unexpected
         const errorMessage = err instanceof Error ? err.message : String(err);
         const isParseError = errorMessage.includes('parse') || errorMessage.includes('syntax');
 
@@ -572,14 +550,15 @@ export function registerCodeActionsHandler(
             line: params.range.start.line + 1,
             error: errorMessage,
           });
-        } else {
-          log.error(
-            `Code action failed for ${params.textDocument.uri} at line ${params.range.start.line + 1}: ${errorMessage}`
-          );
+          maybeLogCodeActionsSchedulerMetrics(params.textDocument.uri, 'error');
+          return [];
         }
 
+        log.error(
+          `Code action failed for ${params.textDocument.uri} at line ${params.range.start.line + 1}: ${errorMessage}`
+        );
         maybeLogCodeActionsSchedulerMetrics(params.textDocument.uri, 'error');
-        return [];
+        throw new ResponseError(ErrorCodes.InternalError, errorMessage);
       }
     }
   );
