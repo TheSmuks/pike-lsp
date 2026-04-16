@@ -138,6 +138,7 @@ export class CompilationCache<TResult> {
     }
 
     this.cache.deleteBatch(expired);
+
     this.batchRemoveDependencyEdges(expired);
     return expired;
   }
