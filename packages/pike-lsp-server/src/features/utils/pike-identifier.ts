@@ -4,7 +4,7 @@
  * Common utilities for parsing and handling Pike identifiers.
  */
 
-import type { TextDocument } from 'vscode-languageserver-textdocument';
+import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Range, Position } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
@@ -175,11 +175,7 @@ export function getWordAtOffset(
     return null;
   }
 
-  const mockDocument = {
-    getText: () => text,
-    offsetAt: (pos: { line: number; character: number }) => pos.character,
-    positionAt: (o: number) => ({ line: 0, character: o }),
-  } as unknown as TextDocument;
+  const mockDocument = TextDocument.create('file:///untitled.pike', 'pike', 0, text);
 
   const result = getWordRangeAtPosition(mockDocument, { line: 0, character: offset });
   if (!result) {
