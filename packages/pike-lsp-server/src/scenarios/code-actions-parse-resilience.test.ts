@@ -520,3 +520,196 @@ describe('Code Actions: parse-under-edit resilience', () => {
     }
   });
 });
+
+describe('ImportCandidate type guard validation', () => {
+  it('accepts valid candidate with all fields', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-full.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved: Parser.Pike',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: {
+          symbol: 'Parser',
+          importCandidates: [{ modulePath: 'Parser.Pike', importKind: 'import', score: 100 }],
+        },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should return an array');
+  });
+
+  it('accepts valid candidate with only required field', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-minimal.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved: Some.Module',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: {
+          symbol: 'SomeModule',
+          importCandidates: [{ modulePath: 'Some.Module' }],
+        },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should return an array');
+  });
+
+  it('rejects null entries in importCandidates', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-null.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: [null] },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on null entries');
+  });
+
+  it('rejects non-object primitives in importCandidates', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-primitives.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: [42, 'string', true] },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on primitive entries');
+  });
+
+  it('rejects arrays in importCandidates', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-array.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: [['Parser.Pike']] },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on array entries');
+  });
+
+  it('rejects object missing modulePath', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-no-path.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: [{ importKind: 'import', score: 50 }] },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on missing modulePath');
+  });
+
+  it('rejects object with non-string modulePath', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-bad-path.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: [{ modulePath: 123, importKind: 'import' }] },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on non-string modulePath');
+  });
+
+  it('filters mixed valid and invalid candidates', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-mixed.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: {
+          symbol: 'Foo',
+          importCandidates: [
+            null,
+            { modulePath: 'Valid.Module' },
+            42,
+            { importKind: 'inherit' },
+            { modulePath: 'Another', importKind: 'inherit', score: 90 },
+          ],
+        },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should return an array for mixed candidates');
+  });
+
+  it('handles non-array importCandidates field', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-nonarray.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: { symbol: 'Foo', importCandidates: 'Parser.Pike' },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should not crash on non-array importCandidates');
+  });
+
+  it('existing auto-import code actions still work end-to-end', async () => {
+    const bridge = new FaultInjectableMockBridge();
+    const { setDocumentWithSymbol, triggerCodeActions } = createCodeActionsHarness(bridge);
+    const uri = 'file:///import-candidate-e2e.pike';
+    setDocumentWithSymbol(uri, 'int x = 1;\n', 'x');
+
+    const result = await triggerCodeActions(uri, 0, 0, [
+      {
+        code: 'undefined-symbol.unresolved-import',
+        message: 'Unresolved symbol: Parser',
+        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
+        data: {
+          symbol: 'Parser',
+          importCandidates: [
+            { modulePath: 'Parser.Pike', importKind: 'import', score: 100 },
+            { modulePath: 'Parser.Pike', importKind: 'inherit', score: 50 },
+          ],
+        },
+      },
+    ]);
+    assert.ok(Array.isArray(result), 'Should return code actions');
+  });
+});
