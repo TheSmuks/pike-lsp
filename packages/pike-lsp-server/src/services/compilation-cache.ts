@@ -137,9 +137,7 @@ export class CompilationCache<TResult> {
       return expired;
     }
 
-    for (const uri of expired) {
-      this.cache.delete(uri);
-    }
+    this.cache.deleteBatch(expired);
 
     this.batchRemoveDependencyEdges(expired);
     return expired;

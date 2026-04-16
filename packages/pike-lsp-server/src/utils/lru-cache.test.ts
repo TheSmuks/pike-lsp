@@ -303,4 +303,74 @@ describe('LRUCache (weighted-size)', () => {
     assert.throws(() => new LRUCache<string, string>({ maxSize: Infinity }), /maxSize/);
     assert.throws(() => new LRUCache<string, string>({ maxSize: NaN }), /maxSize/);
   });
+
+  describe('deleteBatch', () => {
+    it('removes multiple keys and returns count of removed entries', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('a', 1);
+      cache.set('b', 2);
+      cache.set('c', 3);
+
+      const removed = cache.deleteBatch(['a', 'c']);
+      assert.equal(removed, 2);
+      assert.equal(cache.has('a'), false);
+      assert.equal(cache.has('b'), true);
+      assert.equal(cache.has('c'), false);
+      assert.equal(cache.entryCount, 1);
+    });
+
+    it('returns 0 when no keys match', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('a', 1);
+
+      const removed = cache.deleteBatch(['x', 'y']);
+      assert.equal(removed, 0);
+      assert.equal(cache.entryCount, 1);
+    });
+
+    it('handles mix of present and absent keys', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('a', 1);
+      cache.set('b', 2);
+
+      const removed = cache.deleteBatch(['a', 'missing', 'b']);
+      assert.equal(removed, 2);
+      assert.equal(cache.entryCount, 0);
+    });
+
+    it('handles empty array', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('a', 1);
+
+      const removed = cache.deleteBatch([]);
+      assert.equal(removed, 0);
+      assert.equal(cache.entryCount, 1);
+    });
+
+    it('updates weighted size correctly', () => {
+      const cache = new LRUCache<string, string>({
+        maxSize: 100,
+        sizeEstimator: v => v.length,
+      });
+      cache.set('a', 'hello'); // size 5
+      cache.set('b', 'world'); // size 5
+      cache.set('c', '!'); // size 1
+
+      cache.deleteBatch(['a', 'c']);
+      assert.equal(cache.size, 5);
+      assert.equal(cache.entryCount, 1);
+      assert.equal(cache.get('b'), 'world');
+    });
+
+    it('handles duplicates in the input array', () => {
+      const cache = new LRUCache<string, number>({ maxSize: 10 });
+      cache.set('a', 1);
+      cache.set('b', 2);
+
+      const removed = cache.deleteBatch(['a', 'a', 'b', 'b']);
+      // First occurrence removes, second is a no-op
+      assert.equal(removed, 2);
+      assert.equal(cache.entryCount, 0);
+    });
+  });
 });
