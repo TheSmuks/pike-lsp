@@ -233,6 +233,41 @@ describe('CompilationCache.deserialize', () => {
     assert.strictEqual(alsoValid.result, 'result-also');
   });
 
+  it('skips entry when entries contains null', () => {
+    const payload = JSON.stringify({ entries: [null] });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips entry when entries contains a number', () => {
+    const payload = JSON.stringify({ entries: [42] });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips entry when entries contains a string', () => {
+    const payload = JSON.stringify({ entries: ['not-an-object'] });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 0);
+  });
+
+  it('skips non-record entries and keeps valid entries in mixed array', () => {
+    const payload = JSON.stringify({
+      entries: [
+        null,
+        42,
+        'string',
+        {
+          uri: 'file:///valid.pike',
+          entry: { code: 'c', result: 'r', dependencies: [], timestamp: 1 },
+        },
+      ],
+    });
+    const result = CompilationCache.deserialize<string>(payload, defaultOptions);
+    assert.strictEqual(result.size, 1);
+    assert.strictEqual(result.get('file:///valid.pike', 'c')?.result, 'r');
+  });
+
   it('accepts all entries when validateResult is not provided', () => {
     const payload = JSON.stringify({
       entries: [
