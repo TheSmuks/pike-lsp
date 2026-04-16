@@ -647,4 +647,352 @@ describe('Inline Values Provider', () => {
     assert.strictEqual(result.length, 1);
     assert.ok(result[0]!.text.includes('42'), `Expected "42" in "${result[0]!.text}"`);
   });
+
+  describe('formatValue type mismatch handling', () => {
+    it('should fall through to String() when array type has null value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: null, type: 'array' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('NULL'), `Expected "NULL" in "${result[0]!.text}"`);
+    });
+
+    it('should fall through to String() when array type has string value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: 'not-an-array', type: 'array' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('not-an-array'), `Expected value in "${result[0]!.text}"`);
+    });
+
+    it('should fall through to String() when mapping type has null value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: null, type: 'mapping' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('NULL'), `Expected "NULL" in "${result[0]!.text}"`);
+    });
+
+    it('should fall through to String() when mapping type has number value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: 42, type: 'mapping' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('42'), `Expected "42" in "${result[0]!.text}"`);
+    });
+
+    it('should fall through to String() when multiset type has null value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: null, type: 'multiset' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('NULL'), `Expected "NULL" in "${result[0]!.text}"`);
+    });
+
+    it('should fall through to String() when multiset type has string value', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: 'oops', type: 'multiset' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(result[0]!.text.includes('oops'), `Expected "oops" in "${result[0]!.text}"`);
+    });
+
+    it('should format valid array correctly (regression)', async () => {
+      const { registerInlineValuesHandler } =
+        await import('../../features/advanced/inline-values.js');
+
+      const code = 'int x = 0;';
+      const services: MockServices = {
+        globalSettings: { inlineValues: { enabled: true } },
+        documentCache: {
+          get: () => ({
+            symbols: [
+              {
+                kind: 'variable',
+                name: 'x',
+                range: { start: { line: 0, character: 4 }, end: { line: 0, character: 11 } },
+                selectionRange: {
+                  start: { line: 0, character: 4 },
+                  end: { line: 0, character: 5 },
+                },
+              },
+            ],
+            diagnostics: [],
+          }),
+        },
+        bridge: {
+          bridge: {
+            async evaluateConstant() {
+              return { success: true, value: [1, 2, 3], type: 'array' };
+            },
+          },
+        },
+      };
+
+      const { connection, documents, getHandler } = setupMock(services, code);
+      registerInlineValuesHandler(connection, services, documents);
+
+      const params: InlineValueParams = {
+        textDocument: { uri: 'file:///test.pike' },
+        range: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        context: {
+          frameId: 0,
+          stoppedLocation: { start: { line: 0, character: 0 }, end: { line: 10, character: 0 } },
+        },
+      };
+
+      const result = await getHandler()!(params);
+      assert.ok(result, 'Should return inline values');
+      assert.ok(
+        result[0]!.text.includes('[1, 2, 3]'),
+        `Expected "[1, 2, 3]" in "${result[0]!.text}"`
+      );
+    });
+  });
 });
