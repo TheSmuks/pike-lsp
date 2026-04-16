@@ -195,15 +195,15 @@ describe('WorkspaceIndex Lookup Performance (PERF-2085)', () => {
 
     it('falls back to full scan when both indexes miss', () => {
       const symbolLookup = new Map<string, Map<string, SymbolEntry>>();
-      symbolLookup.set('testhandler', new Map());
-      symbolLookup.set('otherprocessor', new Map());
+      symbolLookup.set('handlerTest', new Map());
+      symbolLookup.set('processorOther', new Map());
       const emptyPrefix = new Map<string, Set<string>>();
       const emptyTrigram = new Map<string, Set<string>>();
 
-      // Both indexes empty — should fall back to full scan
+      // Both indexes empty — should fall back to full-scan prefix match
       const result = collectMatchingNames('handler', symbolLookup, emptyPrefix, emptyTrigram);
-      expect(result.has('testhandler')).toBe(true);
-      expect(result.has('otherprocessor')).toBe(false);
+      expect(result.has('handlerTest')).toBe(true);
+      expect(result.has('processorOther')).toBe(false);
     });
   });
 
@@ -221,7 +221,7 @@ describe('WorkspaceIndex Lookup Performance (PERF-2085)', () => {
       expect(p95).toBeLessThan(50.0);
     });
 
-    it('should resolve substring queries with trigram index (p95 < 500ms)', () => {
+    it('should resolve substring queries with trigram index (p95 < 200ms)', () => {
       const index = new WorkspaceIndex();
       const names = generateNames(100_000);
       addSymbols(index, names, 'file:///perf');
@@ -232,7 +232,7 @@ describe('WorkspaceIndex Lookup Performance (PERF-2085)', () => {
       }, 10, () => clearSearchCache(index));
 
       console.log(`  [PERF-2085] Substring query p95: ${p95.toFixed(3)}ms (100K symbols)`);
-      expect(p95).toBeLessThan(500.0);
+      expect(p95).toBeLessThan(200.0);
     });
 
     it('should handle index mutation without degradation', () => {

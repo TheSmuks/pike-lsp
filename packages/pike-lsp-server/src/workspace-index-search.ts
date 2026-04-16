@@ -148,7 +148,7 @@ export function collectMatchingNames(
   // Fall back to full scan only when both indexes miss
   if (matchingNames.size === 0) {
     for (const nameLower of symbolLookup.keys()) {
-      if (nameLower.startsWith(queryLower) || nameLower.includes(queryLower)) {
+      if (nameLower.startsWith(queryLower)) {
         matchingNames.add(nameLower);
       }
     }
