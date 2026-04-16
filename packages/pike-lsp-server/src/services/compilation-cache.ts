@@ -270,7 +270,7 @@ export class CompilationCache<TResult> {
       this.dependentsByFile.set(dependency, dependents);
     }
   }
-
+  private batchRemoveDependencyEdges(uris: string[]): void {
     for (const uri of uris) {
       this.removeDependencyEdges(uri);
     }
