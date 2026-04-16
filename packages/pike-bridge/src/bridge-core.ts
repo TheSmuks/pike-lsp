@@ -31,16 +31,10 @@ import {
   getResolutionCacheStats as getCacheStatsInner,
 } from './bridge-resolution-cache.js';
 
-interface PendingRequestLocal {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
-  timeout: ReturnType<typeof setTimeout>;
-}
-
 export class PikeBridgeBase extends EventEmitter {
   protected process: PikeProcess | null = null;
   protected requestId = 0;
-  protected pendingRequests = new Map<number, PendingRequestLocal>();
+  protected pendingRequests = new Map<number, PendingRequest>();
   protected requestCache = new Map<string, Promise<unknown>>();
   protected tokenCache = new Map<
     string,
@@ -481,7 +475,7 @@ export class PikeBridgeBase extends EventEmitter {
 
     try {
       if (response.error) {
-        rejectPendingRequest(pending as unknown as PendingRequest, response.error.message);
+        rejectPendingRequest(pending, response.error.message);
         return;
       }
       const result = this.buildResponseResult(response);
@@ -493,10 +487,7 @@ export class PikeBridgeBase extends EventEmitter {
         raw: line,
         error: message,
       });
-      rejectPendingRequest(
-        pending as unknown as PendingRequest,
-        `Failed to process Pike response: ${message}`
-      );
+      rejectPendingRequest(pending, `Failed to process Pike response: ${message}`);
     }
   }
 }
