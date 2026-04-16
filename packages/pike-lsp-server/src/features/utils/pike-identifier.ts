@@ -175,11 +175,15 @@ export function getWordAtOffset(
     return null;
   }
 
-  const mockDocument = {
+  const mockDocument: TextDocument = {
+    uri: '',
+    languageId: 'pike',
+    version: 0,
+    lineCount: text.split('\n').length,
     getText: () => text,
-    offsetAt: (pos: { line: number; character: number }) => pos.character,
-    positionAt: (o: number) => ({ line: 0, character: o }),
-  } as unknown as TextDocument;
+    offsetAt: pos => pos.character,
+    positionAt: o => ({ line: 0, character: o }),
+  };
 
   const result = getWordRangeAtPosition(mockDocument, { line: 0, character: offset });
   if (!result) {

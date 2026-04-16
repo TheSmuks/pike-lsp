@@ -143,9 +143,10 @@ export function registerSemanticTokensHandler(
     return state;
   };
 
-  const docsWithClose = documents as unknown as {
+  interface DocumentsWithClose {
     onDidClose?: (listener: (event: { document: TextDocument }) => void) => void;
-  };
+  }
+  const docsWithClose = documents as DocumentsWithClose;
   if (typeof docsWithClose.onDidClose === 'function') {
     docsWithClose.onDidClose(event => {
       tokenStateByUri.delete(event.document.uri);

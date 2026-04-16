@@ -28,7 +28,7 @@ export function formatPikeType(typeObj: unknown): string {
   // Handle function types: name="function", returnType, argTypes
   if (name === 'function') {
     const returnType = t['returnType'] ? formatPikeType(t['returnType']) : 'mixed';
-    const argTypes = t['argTypes'] as unknown[] | undefined;
+    const argTypes = Array.isArray(t['argTypes']) ? (t['argTypes'] as unknown[]) : undefined;
 
     if (argTypes && argTypes.length > 0) {
       const params = argTypes

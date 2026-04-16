@@ -392,6 +392,13 @@ export interface MockServicesOverrides {
   bridge?: any;
   stdlibIndex?: any;
   workspaceIndex?: any;
+  pikeIntrospection?: {
+    getInherits(
+      uri: string
+    ): Promise<
+      Array<{ uri: string; ownerClass: string; ownerLine: number; inheritedName: string }>
+    >;
+  };
 }
 
 /**
@@ -457,5 +464,6 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],
     moduleContext: null,
+    pikeIntrospection: overrides?.pikeIntrospection ?? undefined,
   };
 }
