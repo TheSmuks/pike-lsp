@@ -179,7 +179,7 @@ describe('BridgeManager parseFileSymbols', () => {
     }
   });
 
-  it('returns [] when analyze() throws and logs filePath', async () => {
+  it('throws when analyze() fails and logs filePath', async () => {
     const warnCalls: Array<Array<unknown>> = [];
     const mockLogger = {
       debug: () => undefined,
@@ -195,6 +195,7 @@ describe('BridgeManager parseFileSymbols', () => {
         isRunning: () => true,
         on: () => undefined,
         getDiagnostics: () => ({ options: {}, isRunning: true, pid: 1 }),
+        getInflightRequestCount: () => 0,
         analyze: () => {
           throw new Error('analyze failed');
         },
@@ -208,8 +209,14 @@ describe('BridgeManager parseFileSymbols', () => {
     const tmpFile = `${tmpDir}/test.pike`;
     await writeFile(tmpFile, 'int x;');
     try {
-      const result = await manager.parseFileSymbols(tmpFile);
-      assert.deepEqual(result, []);
+      await assert.rejects(
+        () => manager.parseFileSymbols(tmpFile),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.match(err.message, /analyze failed/);
+          return true;
+        }
+      );
 
       // Verify warn was called with filePath
       assert.ok(warnCalls.length >= 1, 'warn should be called for analyze error');
