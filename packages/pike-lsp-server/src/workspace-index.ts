@@ -39,9 +39,6 @@ import {
   PREFIX_INDEX_EVICT_BATCH,
   SEARCH_CACHE_MAX_SIZE,
   SEARCH_CACHE_TTL_MS,
-  SUBSTRING_INDEX_MIN_LENGTH,
-  SUBSTRING_INDEX_MAX_SIZE,
-  SUBSTRING_INDEX_EVICT_BATCH,
 } from './workspace-index-search.js';
 import { indexDirectory } from './workspace-index-scanner.js';
 
@@ -71,10 +68,6 @@ export class WorkspaceIndex {
   static readonly PREFIX_INDEX_EVICT_BATCH = PREFIX_INDEX_EVICT_BATCH;
   static readonly SEARCH_CACHE_MAX_SIZE = SEARCH_CACHE_MAX_SIZE;
   static readonly SEARCH_CACHE_TTL_MS = SEARCH_CACHE_TTL_MS;
-  // PERF-2085: Expose substring index constants for test access.
-  static readonly SUBSTRING_INDEX_MIN_LENGTH = SUBSTRING_INDEX_MIN_LENGTH;
-  static readonly SUBSTRING_INDEX_MAX_SIZE = SUBSTRING_INDEX_MAX_SIZE;
-  static readonly SUBSTRING_INDEX_EVICT_BATCH = SUBSTRING_INDEX_EVICT_BATCH;
   private bridge: PikeBridge | null = null;
   private onError: IndexErrorCallback | null = null;
   private metrics: IndexMetrics = {
