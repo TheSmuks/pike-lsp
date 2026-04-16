@@ -274,6 +274,101 @@ describe('loadResolutionCache', () => {
     const result = await loadResolutionCache('1.0.0');
     assert.strictEqual(result, 'extra-fields-data');
   });
+
+  it('returns data when data field is empty string', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: '',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, '');
+  });
+
+  it('returns null when data field is deeply nested object', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: { nested: { deep: { corrupted: true } } },
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when version is string instead of number', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: '1',
+        pikeVersion: '1.0.0',
+        timestamp: Date.now(),
+        data: 'version-string-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('ignores pikeVersion when it is a number', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: 12345,
+        timestamp: Date.now(),
+        data: 'numeric-pikever-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    // typeof cache['pikeVersion'] !== 'string' skips the mismatch check
+    assert.strictEqual(result, 'numeric-pikever-data');
+  });
+
+  it('ignores pikeVersion when it is an object', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: { major: 1, minor: 0 },
+        timestamp: Date.now(),
+        data: 'object-pikever-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, 'object-pikever-data');
+  });
+
+  it('returns data when timestamp is NaN (serialized as null)', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: NaN,
+        data: 'nan-ts-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    // JSON.stringify(NaN) produces null, so timestamp becomes null in file
+    // typeof null !== 'number' skips the age check, data is valid string
+    assert.strictEqual(result, 'nan-ts-data');
+  });
+
+  it('returns null when timestamp is zero (epoch)', async () => {
+    writeCacheFile(
+      JSON.stringify({
+        version: 1,
+        pikeVersion: '1.0.0',
+        timestamp: 0,
+        data: 'zero-ts-data',
+      })
+    );
+    const result = await loadResolutionCache('1.0.0');
+    // Date.now() - 0 > MAX_CACHE_AGE_MS → expired
+    assert.strictEqual(result, null);
+  });
 });
 
 describe('saveResolutionCache and loadResolutionCache round-trip', () => {
