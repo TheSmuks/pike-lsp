@@ -143,37 +143,6 @@ export class CompilationCache<TResult> {
     return expired;
   }
 
-  /**
-   * Evict expired entries and serialize survivors in a single pass.
-   * Avoids the double iteration of calling evictOlderThen() then serialize().
-   * @returns JSON string of surviving entries, or the expired URIs array
-   */
-  evictAndSerialize(
-    maxAgeMs: number,
-    now = this.clock()
-  ): { serialized: string; evicted: string[] } {
-    const surviving: SerializedCacheEntry<TResult>[] = [];
-    const expired: string[] = [];
-
-    for (const [uri, entry] of this.cache.entries()) {
-      if (now - entry.timestamp > maxAgeMs) {
-        expired.push(uri);
-      } else {
-        surviving.push({ uri, entry });
-      }
-    }
-
-    if (expired.length > 0) {
-      this.cache.deleteBatch(expired);
-      this.batchRemoveDependencyEdges(expired);
-    }
-
-    return {
-      serialized: JSON.stringify({ entries: surviving }),
-      evicted: expired,
-    };
-  }
-
   clear(): void {
     this.cache.clear();
     this.dependenciesByFile.clear();
