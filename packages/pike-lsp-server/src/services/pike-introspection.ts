@@ -1,4 +1,6 @@
 import type { InheritanceInfo, IntrospectedSymbol, PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { CancellationToken } from 'vscode-languageserver/node.js';
+import { ResponseError, LSPErrorCodes } from 'vscode-languageserver/node.js';
 import type { Services } from './index.js';
 import type { StdlibIndexManager, StdlibModuleInfo } from '../stdlib-index.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
@@ -45,11 +47,21 @@ export class PikeIntrospectionService {
     Array<{ modulePath: string; name: string; kind: string }>
   >();
 
+  /** Maximum time (ms) to wait for bridge.analyze() before timing out. */
+  private static readonly ANALYZE_TIMEOUT_MS = 10_000;
+
   constructor(
     private readonly services: Services,
     private readonly workspaceIndex?: WorkspaceIndex,
     private readonly stdlibIndex?: StdlibIndexManager | null
   ) {}
+
+  /** Throw if cancellation has been requested. */
+  private throwIfCancelled(token: CancellationToken | undefined): void {
+    if (token?.isCancellationRequested) {
+      throw new ResponseError<void>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
+    }
+  }
 
   /**
    * Add a loaded module's symbols to the search index.
@@ -80,18 +92,25 @@ export class PikeIntrospectionService {
 
   // === P0 Methods for hierarchy/implementation ===
 
-  async getSymbols(uri: string): Promise<PikeSymbol[]> {
-    const doc = await this.getDocument(uri);
+  async getSymbols(uri: string, token?: CancellationToken): Promise<PikeSymbol[]> {
+    this.throwIfCancelled(token);
+    const doc = await this.getDocument(uri, token);
     return doc.symbols;
   }
 
-  async getInherits(uri: string): Promise<InheritRelation[]> {
-    const doc = await this.getDocument(uri);
+  async getInherits(uri: string, token?: CancellationToken): Promise<InheritRelation[]> {
+    this.throwIfCancelled(token);
+    const doc = await this.getDocument(uri, token);
     return doc.relations;
   }
 
-  async getMethodSignature(symbolName: string, uri: string): Promise<string | null> {
-    const doc = await this.getDocument(uri);
+  async getMethodSignature(
+    symbolName: string,
+    uri: string,
+    token?: CancellationToken
+  ): Promise<string | null> {
+    this.throwIfCancelled(token);
+    const doc = await this.getDocument(uri, token);
     const match = doc.introspectedSymbols.find(
       symbol => symbol.kind === 'function' && symbol.name === symbolName
     );
@@ -107,16 +126,19 @@ export class PikeIntrospectionService {
 
   async searchImportableSymbols(
     symbol: string,
-    options: { excludeUri?: string; limit?: number } = {}
+    options: { excludeUri?: string; limit?: number } = {},
+    token?: CancellationToken
   ): Promise<ImportableSymbolCandidate[]> {
+    this.throwIfCancelled(token);
     const query = symbol.trim();
     if (!query) {
       return [];
     }
 
     const workspaceCandidates = this.workspaceIndex?.searchImportableSymbols(query, options) ?? [];
-    const stdlibCandidates = await this.searchStdlibCandidates(query);
+    const stdlibCandidates = await this.searchStdlibCandidates(query, token);
     const merged = this.mergeCandidates(workspaceCandidates, stdlibCandidates);
+    this.throwIfCancelled(token);
 
     const limit = Math.max(1, options.limit ?? 20);
     return merged.slice(0, limit);
@@ -124,14 +146,18 @@ export class PikeIntrospectionService {
 
   // === Private helper methods ===
 
-  private async getDocument(uri: string): Promise<CachedIntrospectionDocument> {
+  private async getDocument(
+    uri: string,
+    token?: CancellationToken
+  ): Promise<CachedIntrospectionDocument> {
     const cached = this.cache.get(uri);
     const currentVersionKey = this.computeVersionKey(uri);
     if (cached && cached.versionKey === currentVersionKey) {
       return cached;
     }
 
-    const built = await this.buildDocument(uri, currentVersionKey);
+    this.throwIfCancelled(token);
+    const built = await this.buildDocument(uri, currentVersionKey, token);
     this.cache.set(uri, built);
     return built;
   }
@@ -146,7 +172,8 @@ export class PikeIntrospectionService {
 
   private async buildDocument(
     uri: string,
-    versionKey: string
+    versionKey: string,
+    token?: CancellationToken
   ): Promise<CachedIntrospectionDocument> {
     const cacheEntry = this.services.documentCache.get(uri);
     if (cacheEntry) {
@@ -160,7 +187,8 @@ export class PikeIntrospectionService {
       };
     }
 
-    const analyzed = await this.safeAnalyze(uri);
+    this.throwIfCancelled(token);
+    const analyzed = await this.safeAnalyze(uri, token);
     const symbols = analyzed?.result?.parse?.symbols ?? this.getIndexedSymbols(uri);
     const inherits = analyzed?.result?.introspect?.inherits ?? [];
     const introspectedSymbols = analyzed?.result?.introspect?.symbols ?? [];
@@ -181,7 +209,7 @@ export class PikeIntrospectionService {
     return [];
   }
 
-  private async safeAnalyze(uri: string) {
+  private async safeAnalyze(uri: string, token?: CancellationToken) {
     try {
       const bridgeManager = this.services.bridge;
       const bridge = bridgeManager?.bridge;
@@ -189,14 +217,38 @@ export class PikeIntrospectionService {
         return null;
       }
 
+      this.throwIfCancelled(token);
+
       const fsPath = uriToFsPath(uri);
       const text = await this.readDocumentText(uri);
       if (text === null) {
         return null;
       }
 
-      return await bridge.analyze(text, ['parse', 'introspect'], fsPath);
+      this.throwIfCancelled(token);
+
+      const analyzePromise = bridge.analyze(text, ['parse', 'introspect'], fsPath);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const id = setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Introspection analyze timed out after ${PikeIntrospectionService.ANALYZE_TIMEOUT_MS}ms`
+              )
+            ),
+          PikeIntrospectionService.ANALYZE_TIMEOUT_MS
+        );
+        token?.onCancellationRequested(() => {
+          clearTimeout(id);
+          reject(new ResponseError<void>(LSPErrorCodes.RequestCancelled, 'Request cancelled'));
+        });
+      });
+      return await Promise.race([analyzePromise, timeoutPromise]);
     } catch (error) {
+      // Let cancellation propagate so callers can react to it.
+      if (error instanceof ResponseError && error.code === LSPErrorCodes.RequestCancelled) {
+        throw error;
+      }
       this.services.logger.debug('Pike introspection analyze failed', {
         uri,
         error: error instanceof Error ? error.message : String(error),
@@ -375,7 +427,10 @@ export class PikeIntrospectionService {
     this.stdlibSymbolIndex.clear();
   }
 
-  private async searchStdlibCandidates(query: string): Promise<ImportableSymbolCandidate[]> {
+  private async searchStdlibCandidates(
+    query: string,
+    token?: CancellationToken
+  ): Promise<ImportableSymbolCandidate[]> {
     const stdlibIndex = this.stdlibIndex;
     if (!stdlibIndex || query.length === 0) {
       return [];
@@ -395,8 +450,11 @@ export class PikeIntrospectionService {
       return [];
     }
 
+    this.throwIfCancelled(token);
     // Load and index each candidate module (at most a few bridge calls).
     for (const modPath of modulePaths) {
+      if (this.populatedModules.has(modPath)) continue;
+      this.throwIfCancelled(token);
       if (this.populatedModules.has(modPath)) continue;
       const info = await stdlibIndex.getModule(modPath);
       if (info) {

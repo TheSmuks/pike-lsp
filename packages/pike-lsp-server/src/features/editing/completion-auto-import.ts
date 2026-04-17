@@ -6,6 +6,7 @@
  */
 
 import { CompletionItem, CompletionItemKind } from 'vscode-languageserver/node.js';
+import type { CancellationToken } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { AutoImportCompletionData, buildAutoImportStatement } from './completion-resolve.js';
@@ -20,7 +21,8 @@ export async function addAutoImportCompletions(
     lineText: string;
     localSymbols: PikeSymbol[];
   },
-  services: Services
+  services: Services,
+  token?: CancellationToken
 ): Promise<void> {
   if (!services.pikeIntrospection) return;
 
@@ -35,10 +37,14 @@ export async function addAutoImportCompletions(
 
   const lines = params.text.split('\n');
   const insertionLine = getImportInsertionLine(lines);
-  const candidates = await services.pikeIntrospection.searchImportableSymbols(prefix, {
-    excludeUri: params.uri,
-    limit: 12,
-  });
+  const candidates = await services.pikeIntrospection.searchImportableSymbols(
+    prefix,
+    {
+      excludeUri: params.uri,
+      limit: 12,
+    },
+    token
+  );
 
   const sortedCandidates = [...candidates].sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;

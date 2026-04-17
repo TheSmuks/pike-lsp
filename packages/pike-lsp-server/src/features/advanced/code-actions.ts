@@ -205,7 +205,11 @@ export function registerCodeActionsHandler(
     }
 
     try {
-      const result = await services.pikeIntrospection.searchImportableSymbols(symbol, options);
+      const result = await services.pikeIntrospection.searchImportableSymbols(
+        symbol,
+        options,
+        cancellationToken
+      );
 
       if (cancellationToken?.isCancellationRequested) {
         return [];
