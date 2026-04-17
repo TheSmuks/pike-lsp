@@ -380,7 +380,7 @@ jobs:
             optional: false
           - category: reliability-workflows
             grep: 'Error Handling Tests|Responsiveness E2E Tests|E2E Workflow Tests|Waterfall Loading E2E Tests'
-            optional: true
+            optional: false
           - category: performance
             grep: 'Performance Benchmark Tests'
             optional: false
