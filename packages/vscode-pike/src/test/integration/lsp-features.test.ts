@@ -1813,21 +1813,21 @@ suite('Waterfall Loading E2E Tests', () => {
 	  15000
 	);
 
-	// Wait for completion QE to have indexed this file's symbols.
+	// Wait for completion QE to have indexed the entire file.
 	// The QE has its own indexing path independent of document symbols.
-	// We probe until a known local symbol (WATERFALL_TEST_CONSTANT) appears
-	// in completions — word-based fallback completions never include this
-	// identifier, so this ensures real symbol indexing has completed.
-	const probePosition = positionForRegex(doc, /int x = waterfall_test_value;/m);
+	// We probe at the WaterfallTestClass usage position until the class appears
+	// in completions — this ensures the QE has indexed past line 34 where
+	// the class is defined. Word-based fallback never includes this identifier.
+	const classProbePosition = positionForRegex(doc, /WaterfallTestClass obj =/m);
 	await waitFor(
-	  'completion QE readiness',
+	  'completion QE readiness (WaterfallTestClass)',
 	  () => vscode.commands.executeCommand<vscode.CompletionList>(
 	    'vscode.executeCompletionItemProvider',
 	    testDocumentUri,
-	    probePosition
+	    classProbePosition
 	  ),
-	  (completions) => !!completions && completions.items.some(item => labelOf(item) === 'WATERFALL_TEST_CONSTANT'),
-	  30000
+	  (completions) => !!completions && completions.items.some(item => labelOf(item) === 'WaterfallTestClass'),
+	  45000
 	);
   });
 
