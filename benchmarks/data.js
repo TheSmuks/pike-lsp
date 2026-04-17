@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776417417038,
+  "lastUpdate": 1776433810211,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -116406,6 +116406,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.617132404958677,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "098eead22e4b238fe232c5364f4275a075e15bae",
+          "message": "fix(#2106): Replace bridge.parse with bridge/parser API (#2115)\n\n* fix: Replace bridge.parse with bridge/parser API\n\nCloses #2106\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: Define missing parseFn mock in RXML cache/registration tests\n\nThe PR made symbols required in findTagFunctionsInCode but the tests\nreference parseFn without defining it. Added a mock parseFn that extracts\nsimpletag_/container_ method symbols from Pike source, and changed test\nfixture code to use canonical underscore form (simpletag_foo) so\ncomputeNameOffset can locate tag names correctly.\n\n* docs: Add KB-2106 for parseFn mock fix in RXML tests\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-17T15:48:07+02:00",
+          "tree_id": "31ba9912d8d004b433c4f07f49eee667987e2ef6",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/098eead22e4b238fe232c5364f4275a075e15bae"
+        },
+        "date": 1776433809591,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.39179175,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 240.645656,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 244.26463216666664,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 245.91757475,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.113133229903537,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 3.9827352427745666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 49.34617345454545,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.829848767605633,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 3.936308508571429,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.15253652492464642,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.15345747855477856,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.48423447826086957,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.14616910324616772,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.13345512272919308,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00024183349504141972,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0005135021844537603,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0005275818970987638,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005340988403776694,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0005283291746763249,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0005274626261344165,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.2669014990051731,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.99499775,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.98302625,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.2547908873292868,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00022436500781250002,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0006299861506765693,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 4.320559169811321,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 4.311239459119497,
             "unit": "ms"
           }
         ]
