@@ -1,4 +1,5 @@
 import { DocumentCache } from '../../../services/document-cache.js';
+import type { WorkspaceDocumentDiagnosticReport } from 'vscode-languageserver/node.js';
 import { registerDiagnosticsHandlers } from '../../../features/diagnostics/index.js';
 
 const { describe, expect, it } = require('bun:test');
@@ -127,7 +128,7 @@ describe('pull diagnostics handlers', () => {
     expect(handler).toBeDefined();
 
     const result = (await handler!({ previousResultIds: [] })) as any;
-    const items = result.items as any[];
+    const items = result.items as WorkspaceDocumentDiagnosticReport[];
 
     const openItem = items.find(item => item.uri === openUri);
     const closedItem = items.find(item => item.uri === 'file:///workspace/closed-file.pike');

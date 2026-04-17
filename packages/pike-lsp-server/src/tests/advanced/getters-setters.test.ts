@@ -4,6 +4,8 @@
  * Tests for getter and setter code action generation feature.
  */
 
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { TextEdit } from 'vscode-languageserver/node.js';
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
 import { CodeActionKind } from 'vscode-languageserver/node.js';
@@ -19,7 +21,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -38,7 +40,7 @@ describe('Getter/Setter Generation', () => {
       assert.equal(getterAction.kind, CodeActionKind.RefactorRewrite);
       assert.ok(getterAction.edit, 'Getter action should have edit');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('get_value()'), 'Getter should have correct function name');
       assert.ok(edit.newText.includes('int'), 'Getter should return int type');
@@ -51,7 +53,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 14 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_name',
           kind: 'variable',
@@ -65,7 +67,7 @@ describe('Getter/Setter Generation', () => {
       const getterAction = result.find(a => a.title.includes('Getter'));
       assert.ok(getterAction, 'Should have getter action');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('string'), 'Getter should return string type');
       assert.ok(edit.newText.includes('get_name()'), 'Getter should have correct name');
@@ -78,7 +80,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 20 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_items',
           kind: 'variable',
@@ -92,7 +94,7 @@ describe('Getter/Setter Generation', () => {
       const getterAction = result.find(a => a.title.includes('Getter'));
       assert.ok(getterAction, 'Should have getter action');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('array(int)'), 'Getter should return array type');
     });
@@ -104,7 +106,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 9 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: 'count',
           kind: 'variable',
@@ -118,7 +120,7 @@ describe('Getter/Setter Generation', () => {
       const getterAction = result.find(a => a.title.includes('Getter'));
       assert.ok(getterAction, 'Should have getter action');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('get_count()'), 'Getter should have get_ prefix');
     });
@@ -130,7 +132,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 10 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: 'value_',
           kind: 'variable',
@@ -144,7 +146,7 @@ describe('Getter/Setter Generation', () => {
       const getterAction = result.find(a => a.title.includes('Getter'));
       assert.ok(getterAction, 'Should have getter action');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('get_value()'), 'Getter should strip trailing underscore');
     });
@@ -158,7 +160,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -173,7 +175,7 @@ describe('Getter/Setter Generation', () => {
       assert.ok(setterAction, 'Should have setter action');
       assert.ok(setterAction.edit, 'Setter action should have edit');
 
-      const changes = setterAction.edit!.changes as Record<string, any[]>;
+      const changes = setterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('set_value('), 'Setter should have correct function name');
       assert.ok(edit.newText.includes('int value'), 'Setter should have value parameter');
@@ -187,7 +189,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 14 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_name',
           kind: 'variable',
@@ -201,7 +203,7 @@ describe('Getter/Setter Generation', () => {
       const setterAction = result.find(a => a.title.includes('Setter'));
       assert.ok(setterAction, 'Should have setter action');
 
-      const changes = setterAction.edit!.changes as Record<string, any[]>;
+      const changes = setterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('string value'), 'Setter should have string parameter');
     });
@@ -218,7 +220,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 26 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_data',
           kind: 'variable',
@@ -232,7 +234,7 @@ describe('Getter/Setter Generation', () => {
       const setterAction = result.find(a => a.title.includes('Setter'));
       assert.ok(setterAction, 'Should have setter action');
 
-      const changes = setterAction.edit!.changes as Record<string, any[]>;
+      const changes = setterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(
         edit.newText.includes('mapping(string:int) value'),
@@ -249,7 +251,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -263,7 +265,7 @@ describe('Getter/Setter Generation', () => {
       const bothAction = result.find(a => a.title.includes('Getter and Setter'));
       assert.ok(bothAction, 'Should have combined getter/setter action');
 
-      const changes = bothAction.edit!.changes as Record<string, any[]>;
+      const changes = bothAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.includes('get_value()'), 'Should include getter');
       assert.ok(edit.newText.includes('set_value('), 'Should include setter');
@@ -283,7 +285,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 20 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: 'main',
           kind: 'function',
@@ -304,7 +306,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_other',
           kind: 'variable',
@@ -340,7 +342,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -363,7 +365,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 11 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -388,7 +390,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 0, character: 0 },
         end: { line: 0, character: 15 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_value',
           kind: 'variable',
@@ -402,7 +404,7 @@ describe('Getter/Setter Generation', () => {
       const getterAction = result.find(a => a.title.includes('Getter'));
       assert.ok(getterAction, 'Should have getter action');
 
-      const changes = getterAction.edit!.changes as Record<string, any[]>;
+      const changes = getterAction.edit!.changes as Record<string, TextEdit[]>;
       const edit = changes[uri]![0];
       assert.ok(edit.newText.startsWith('\n    '), 'Should preserve 4-space indentation');
     });
@@ -421,7 +423,7 @@ describe('Getter/Setter Generation', () => {
         start: { line: 1, character: 4 },
         end: { line: 1, character: 15 },
       };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: 'SomeClass',
           kind: 'class',
