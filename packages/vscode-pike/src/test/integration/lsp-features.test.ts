@@ -1813,9 +1813,11 @@ suite('Waterfall Loading E2E Tests', () => {
 	  15000
 	);
 
-	// Also wait for completion QE to be ready — the query engine has its own
-	// indexing path independent of document symbols. Probe until completions
-	// return non-empty results at a known completion position.
+	// Wait for completion QE to have indexed this file's symbols.
+	// The QE has its own indexing path independent of document symbols.
+	// We probe until a known local symbol (WATERFALL_TEST_CONSTANT) appears
+	// in completions — word-based fallback completions never include this
+	// identifier, so this ensures real symbol indexing has completed.
 	const probePosition = positionForRegex(doc, /int x = waterfall_test_value;/m);
 	await waitFor(
 	  'completion QE readiness',
@@ -1824,7 +1826,7 @@ suite('Waterfall Loading E2E Tests', () => {
 	    testDocumentUri,
 	    probePosition
 	  ),
-	  (completions) => !!completions && completions.items.length > 0,
+	  (completions) => !!completions && completions.items.some(item => labelOf(item) === 'WATERFALL_TEST_CONSTANT'),
 	  30000
 	);
   });
