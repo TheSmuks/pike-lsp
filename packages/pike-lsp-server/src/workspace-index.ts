@@ -33,6 +33,7 @@ import {
   addToLookup,
   removeFromLookup,
   invalidateSearchCacheForUri,
+  collectMatchingNames,
   PREFIX_INDEX_MAX_DEPTH,
   PREFIX_INDEX_MAX_SIZE,
   PREFIX_INDEX_EVICT_BATCH,
@@ -56,6 +57,7 @@ export class WorkspaceIndex {
   private symbolLookup = new Map<string, Map<string, SymbolEntry>>();
   private uriToSymbols = new Map<string, Set<string>>();
   private prefixIndex = new Map<string, Set<string>>();
+  private substringIndex = new Map<string, Set<string>>();
   private searchCache = new Map<string, { results: SymbolInformation[]; timestamp: number }>();
   private searchCacheHits = 0;
   private searchCacheMisses = 0;
@@ -89,6 +91,7 @@ export class WorkspaceIndex {
       symbolLookup: this.symbolLookup,
       uriToSymbols: this.uriToSymbols,
       prefixIndex: this.prefixIndex,
+      substringIndex: this.substringIndex,
       searchCache: this.searchCache,
       searchCacheHits: this.searchCacheHits,
       searchCacheMisses: this.searchCacheMisses,
@@ -180,8 +183,13 @@ export class WorkspaceIndex {
     query: string,
     options: { excludeUri?: string; limit?: number } = {}
   ): ImportableSymbolSearchResult[] {
-    return searchImportableSymbols(query, this.symbolLookup, this.prefixIndex, options, uri =>
-      this.uriToModulePath(uri)
+    return searchImportableSymbols(
+      query,
+      this.symbolLookup,
+      this.prefixIndex,
+      options,
+      uri => this.uriToModulePath(uri),
+      this.substringIndex
     );
   }
 
@@ -236,26 +244,12 @@ export class WorkspaceIndex {
     queryLower: string
   ): Array<{ result: SymbolInformation; score: number }> {
     const matched: Array<{ result: SymbolInformation; score: number }> = [];
-    const matchingNames = new Set<string>();
-
-    if (queryLower.length >= 1) {
-      const lookupKey =
-        queryLower.length <= WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH
-          ? queryLower
-          : queryLower.slice(0, WorkspaceIndex.PREFIX_INDEX_MAX_DEPTH);
-      const prefixSet = this.prefixIndex.get(lookupKey);
-      if (prefixSet) {
-        for (const name of prefixSet) {
-          if (name.startsWith(queryLower)) matchingNames.add(name);
-        }
-      }
-    }
-
-    if (matchingNames.size === 0) {
-      for (const name of this.symbolLookup.keys()) {
-        if (name.startsWith(queryLower) || name.includes(queryLower)) matchingNames.add(name);
-      }
-    }
+    const matchingNames = collectMatchingNames(
+      queryLower,
+      this.symbolLookup,
+      this.prefixIndex,
+      this.substringIndex
+    );
 
     for (const name of matchingNames) {
       const entriesByUri = this.symbolLookup.get(name);
@@ -328,6 +322,7 @@ export class WorkspaceIndex {
     this.symbolLookup.clear();
     this.uriToSymbols.clear();
     this.prefixIndex.clear();
+    this.substringIndex.clear();
     this.searchCache.clear();
     this.searchCacheHits = 0;
     this.searchCacheMisses = 0;
