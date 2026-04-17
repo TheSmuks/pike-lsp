@@ -15,12 +15,12 @@ import { invalidateRXMLReferenceCaches } from './references-provider.js';
  *
  * @param _connection - LSP connection (unused, follows Roxen pattern)
  * @param _services - Server services bundle
- * @param _documents - Text document manager (unused, follows Roxen pattern)
+ * @param documents - Text document manager
  */
 export function registerRXMLHandlers(
   _connection: Connection,
   _services: Services,
-  _documents: TextDocuments<TextDocument>
+  documents: TextDocuments<TextDocument>
 ): void {
   // RXML feature integration follows the same pattern as Roxen feature
   // Instead of registering separate LSP handlers, we provide helper functions
@@ -34,31 +34,19 @@ export function registerRXMLHandlers(
   // These providers detect RXML files by checking document.languageId === 'rxml'
   // and then apply RXML-specific logic.
 
-  const docs = _documents as unknown as {
-    onDidChangeContent?: (listener: (change: { document: TextDocument }) => void) => void;
-    onDidClose?: (listener: (change: { document: TextDocument }) => void) => void;
-  };
+  documents.onDidChangeContent(change => {
+    if (change.document.languageId === 'rxml') {
+      invalidateRXMLDefinitionCaches(change.document.uri);
+      invalidateRXMLReferenceCaches(change.document.uri);
+    }
+  });
 
-  const invalidateForUri = (uri: string): void => {
-    invalidateRXMLDefinitionCaches(uri);
-    invalidateRXMLReferenceCaches(uri);
-  };
-
-  if (typeof docs.onDidChangeContent === 'function') {
-    docs.onDidChangeContent(change => {
-      if (change.document.languageId === 'rxml') {
-        invalidateForUri(change.document.uri);
-      }
-    });
-  }
-
-  if (typeof docs.onDidClose === 'function') {
-    docs.onDidClose(change => {
-      if (change.document.languageId === 'rxml') {
-        invalidateForUri(change.document.uri);
-      }
-    });
-  }
+  documents.onDidClose(change => {
+    if (change.document.languageId === 'rxml') {
+      invalidateRXMLDefinitionCaches(change.document.uri);
+      invalidateRXMLReferenceCaches(change.document.uri);
+    }
+  });
 }
 
 export {
