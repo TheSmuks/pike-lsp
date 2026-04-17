@@ -23,47 +23,11 @@ import {
   ResponseError,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
+import { isPikeKeyword } from '../navigation/keywords.js';
+import { findIdentifierOccurrences } from '../../utils/pike-token-utils.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
-
-// Pike reserved keywords that cannot be used as identifiers
-const PIKE_KEYWORDS = new Set([
-  'int',
-  'string',
-  'void',
-  'float',
-  'mapping',
-  'array',
-  'object',
-  'program',
-  'function',
-  'if',
-  'else',
-  'for',
-  'while',
-  'return',
-  'class',
-  'inherit',
-  'import',
-  'typeof',
-  'switch',
-  'case',
-  'break',
-  'continue',
-  'do',
-  'default',
-  'enum',
-  'final',
-  'inline',
-  'local',
-  'nomask',
-  'private',
-  'protected',
-  'public',
-  'static',
-  'extern',
-]);
-
 /**
  * Validate that a new name is a valid Pike identifier
  */
@@ -76,7 +40,7 @@ function validateNewName(name: string): { valid: boolean; error?: string } {
     return { valid: false, error: 'Invalid identifier name' };
   }
 
-  if (PIKE_KEYWORDS.has(name)) {
+  if (isPikeKeyword(name)) {
     return { valid: false, error: `Cannot rename to reserved keyword '${name}'` };
   }
 
@@ -306,6 +270,20 @@ export function registerRenameHandlers(
       }
     };
 
+    const addEditsFromTokens = (targetUri: string, tokens: PikeToken[]): void => {
+      const positions = findIdentifierOccurrences(tokens, oldName);
+      if (positions.length === 0) return;
+      const edits: TextEdit[] = positions.map(pos => ({
+        range: { start: pos, end: { line: pos.line, character: pos.character + oldName.length } },
+        newText: newName,
+      }));
+      if (changes[targetUri]) {
+        changes[targetUri] = [...changes[targetUri], ...edits];
+      } else {
+        changes[targetUri] = edits;
+      }
+    };
+
     const addEditsFromTextSearch = (targetUri: string, searchText: string): void => {
       const edits: TextEdit[] = [];
       const lines = searchText.split('\n');
@@ -351,6 +329,13 @@ export function registerRenameHandlers(
         count: positions?.length ?? 0,
       });
       addEditsFromPositions(uri, positions);
+    } else if (bridge?.isRunning?.()) {
+      try {
+        const tokens = await bridge.tokenize(text);
+        addEditsFromTokens(uri, tokens);
+      } catch {
+        addEditsFromTextSearch(uri, text);
+      }
     } else {
       addEditsFromTextSearch(uri, text);
     }
@@ -362,6 +347,16 @@ export function registerRenameHandlers(
         const positions = otherCached.symbolPositions.get(oldName);
         if (positions && positions.length > 0) {
           addEditsFromPositions(otherUri, positions);
+        }
+      } else if (bridge?.isRunning?.()) {
+        const otherDoc = documents.get(otherUri);
+        if (otherDoc) {
+          try {
+            const tokens = await bridge.tokenize(otherDoc.getText());
+            addEditsFromTokens(otherUri, tokens);
+          } catch {
+            addEditsFromTextSearch(otherUri, otherDoc.getText());
+          }
         }
       } else {
         const otherDoc = documents.get(otherUri);

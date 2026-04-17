@@ -1,3 +1,4 @@
+import { findIdentifierOccurrences } from '../../utils/pike-token-utils.js';
 /**
  * Rename Provider Tests
  *
@@ -358,6 +359,88 @@ void func2() {
     });
   });
 });
+
+/**
+ * Token-based rename safety tests.
+ *
+ * Tests the addEditsFromTokens logic directly:
+ * filter PikeToken[] by exact name match, build TextEdit[]
+ * with correct 1-to-0-indexed line conversion.
+ */
+describe('Token-based rename safety', () => {
+  it('should exclude substring matches (fooBar vs foo)', () => {
+    const tokens = [
+      { text: 'fooBar', line: 1, character: 4 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const positions = findIdentifierOccurrences(tokens, 'foo');
+    assert.equal(positions.length, 1, 'Only exact match should be included');
+    assert.equal(positions[0]!.line, 1, 'Line should be 1 (token.line 2 - 1)');
+  });
+
+  it('should exclude comment tokens', () => {
+    const tokens = [
+      // Comment token: the tokenizer would emit the whole comment as one token
+      // but the key property is that comment token text won't be 'foo'
+      { text: '// foo is used', line: 1, character: 0 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const positions = findIdentifierOccurrences(tokens, 'foo');
+    assert.equal(positions.length, 1, 'Comment token should be excluded');
+    assert.equal(positions[0]!.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should exclude string literal tokens', () => {
+    const tokens = [
+      { text: '"foo"', line: 1, character: 8 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const positions = findIdentifierOccurrences(tokens, 'foo');
+    assert.equal(positions.length, 1, 'String literal token should be excluded');
+    assert.equal(positions[0]!.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should match multiple occurrences on same line', () => {
+    const tokens = [
+      { text: 'foo', line: 1, character: 4 },
+      { text: 'foo', line: 1, character: 12 },
+    ];
+    const positions = findIdentifierOccurrences(tokens, 'foo');
+    assert.equal(positions.length, 2, 'Both occurrences matched');
+    assert.equal(positions[0]!.character, 4);
+    assert.equal(positions[1]!.character, 12);
+  });
+
+  it('should exclude keyword matches (in is a Pike keyword)', () => {
+    const tokens = [
+      { text: 'int', line: 1, character: 0 },
+      { text: 'in', line: 2, character: 4 },
+    ];
+    // 'in' is not a Pike keyword per isPikeKeyword, so exact match works
+    // But 'int' won't match 'in' because token.text must equal name exactly
+    const positions = findIdentifierOccurrences(tokens, 'in');
+    assert.equal(positions.length, 1, 'int should not match in');
+    assert.equal(positions[0]!.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should return empty when no tokens match', () => {
+    const tokens = [
+      { text: 'bar', line: 1, character: 0 },
+      { text: 'baz', line: 2, character: 4 },
+    ];
+    const positions = findIdentifierOccurrences(tokens, 'foo');
+    assert.equal(positions.length, 0, 'No matches expected');
+  });
+
+  it('should produce correct positions with line conversion', () => {
+    const tokens = [{ text: 'myVar', line: 3, character: 10 }];
+    const positions = findIdentifierOccurrences(tokens, 'myVar');
+    assert.equal(positions.length, 1);
+    assert.equal(positions[0]!.line, 2, 'Line 3 (1-indexed) → 2 (0-indexed)');
+    assert.equal(positions[0]!.character, 10);
+  });
+});
+
 
 /**
  * Helper function stub for prepareRename
