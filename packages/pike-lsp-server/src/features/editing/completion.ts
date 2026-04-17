@@ -168,7 +168,7 @@ export function registerCompletionHandlers(
         completionScheduler,
         toCompletionList,
         dedupeCompletionItems,
-        (completions, p) => addAutoImportCompletions(completions, p, services),
+        (completions, p, token) => addAutoImportCompletions(completions, p, services, token),
         addMacrosToCompletions,
         maybeLogCompletionSchedulerMetrics
       );
@@ -391,7 +391,8 @@ export function registerCompletionHandlers(
         lineText,
         localSymbols: cached.symbols,
       },
-      services
+      services,
+      cancellationToken
     );
 
     const existingNames = new Set(completions.map(c => c.label));
