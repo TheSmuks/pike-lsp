@@ -365,7 +365,9 @@ export async function handleQueryEngineCompletion(
     cancellationDisposable?.dispose();
     if (err instanceof RequestSupersededError) {
       maybeLogCompletionSchedulerMetrics(uri, 'superseded');
-      return toCompletionList([]);
+      // Fall through to undefined so the legacy completion path can run.
+      // Returning toCompletionList([]) here blocks the legacy path,
+      // causing starvation when rapid retries cancel every QE request.
     }
     maybeLogCompletionSchedulerMetrics(uri, 'qe_fallback');
     services.logger.debug('Completion query fallback', {
