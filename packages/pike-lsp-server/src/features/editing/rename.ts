@@ -24,47 +24,10 @@ import {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { PikeToken } from '@pike-lsp/pike-bridge';
+import { isPikeKeyword } from '../navigation/keywords.js';
+import { findIdentifierOccurrences } from '../../utils/pike-token-utils.js';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
-
-// Pike reserved keywords that cannot be used as identifiers
-const PIKE_KEYWORDS = new Set([
-  'int',
-  'string',
-  'void',
-  'float',
-  'mapping',
-  'array',
-  'object',
-  'program',
-  'function',
-  'if',
-  'else',
-  'for',
-  'while',
-  'return',
-  'class',
-  'inherit',
-  'import',
-  'typeof',
-  'switch',
-  'case',
-  'break',
-  'continue',
-  'do',
-  'default',
-  'enum',
-  'final',
-  'inline',
-  'local',
-  'nomask',
-  'private',
-  'protected',
-  'public',
-  'static',
-  'extern',
-]);
-
 /**
  * Validate that a new name is a valid Pike identifier
  */
@@ -77,7 +40,7 @@ function validateNewName(name: string): { valid: boolean; error?: string } {
     return { valid: false, error: 'Invalid identifier name' };
   }
 
-  if (PIKE_KEYWORDS.has(name)) {
+  if (isPikeKeyword(name)) {
     return { valid: false, error: `Cannot rename to reserved keyword '${name}'` };
   }
 
@@ -308,23 +271,16 @@ export function registerRenameHandlers(
     };
 
     const addEditsFromTokens = (targetUri: string, tokens: PikeToken[]): void => {
-      const edits: TextEdit[] = [];
-      for (const token of tokens) {
-        if (token.text !== oldName) continue;
-        edits.push({
-          range: {
-            start: { line: token.line - 1, character: token.character },
-            end: { line: token.line - 1, character: token.character + oldName.length },
-          },
-          newText: newName,
-        });
-      }
-      if (edits.length > 0) {
-        if (changes[targetUri]) {
-          changes[targetUri] = [...changes[targetUri], ...edits];
-        } else {
-          changes[targetUri] = edits;
-        }
+      const positions = findIdentifierOccurrences(tokens, oldName);
+      if (positions.length === 0) return;
+      const edits: TextEdit[] = positions.map(pos => ({
+        range: { start: pos, end: { line: pos.line, character: pos.character + oldName.length } },
+        newText: newName,
+      }));
+      if (changes[targetUri]) {
+        changes[targetUri] = [...changes[targetUri], ...edits];
+      } else {
+        changes[targetUri] = edits;
       }
     };
 
