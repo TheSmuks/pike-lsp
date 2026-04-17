@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkspaceDiagnosticsManager } from '../services/workspace-diagnostics.js';
 import { RequestScheduler, RequestSupersededError } from '../services/request-scheduler.js';
+import type { PikeBridge } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from '../services/bridge-manager.js';
 import type { WorkspaceIndex } from '../workspace-index.js';
 import type { CoreDiagnostic } from '../core/types.js';
@@ -33,7 +34,13 @@ interface MockBridge {
 }
 
 function createMockBridgeManager(bridge: MockBridge): BridgeManager {
-  return { bridge } as unknown as BridgeManager;
+  // BridgeManager is a class with private fields, so plain objects can't satisfy it.
+  // We narrow the cast to just the bridge property (PikeBridge | null), which is the
+  // only field accessed by WorkspaceDiagnosticsManager.processBatch.
+  const mock = {
+    bridge: bridge as unknown as PikeBridge,
+  } satisfies { bridge: PikeBridge | null };
+  return mock as BridgeManager;
 }
 
 function createMockWorkspaceIndex(uris: string[]): WorkspaceIndex {
