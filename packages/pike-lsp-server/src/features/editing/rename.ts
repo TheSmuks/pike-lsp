@@ -23,6 +23,7 @@ import {
   ResponseError,
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { PikeToken } from '@pike-lsp/pike-bridge';
 import type { Services } from '../../services/index.js';
 import { Logger } from '@pike-lsp/core';
 
@@ -306,6 +307,27 @@ export function registerRenameHandlers(
       }
     };
 
+    const addEditsFromTokens = (targetUri: string, tokens: PikeToken[]): void => {
+      const edits: TextEdit[] = [];
+      for (const token of tokens) {
+        if (token.text !== oldName) continue;
+        edits.push({
+          range: {
+            start: { line: token.line - 1, character: token.character },
+            end: { line: token.line - 1, character: token.character + oldName.length },
+          },
+          newText: newName,
+        });
+      }
+      if (edits.length > 0) {
+        if (changes[targetUri]) {
+          changes[targetUri] = [...changes[targetUri], ...edits];
+        } else {
+          changes[targetUri] = edits;
+        }
+      }
+    };
+
     const addEditsFromTextSearch = (targetUri: string, searchText: string): void => {
       const edits: TextEdit[] = [];
       const lines = searchText.split('\n');
@@ -351,6 +373,13 @@ export function registerRenameHandlers(
         count: positions?.length ?? 0,
       });
       addEditsFromPositions(uri, positions);
+    } else if (bridge?.isRunning?.()) {
+      try {
+        const tokens = await bridge.tokenize(text);
+        addEditsFromTokens(uri, tokens);
+      } catch {
+        addEditsFromTextSearch(uri, text);
+      }
     } else {
       addEditsFromTextSearch(uri, text);
     }
@@ -362,6 +391,16 @@ export function registerRenameHandlers(
         const positions = otherCached.symbolPositions.get(oldName);
         if (positions && positions.length > 0) {
           addEditsFromPositions(otherUri, positions);
+        }
+      } else if (bridge?.isRunning?.()) {
+        const otherDoc = documents.get(otherUri);
+        if (otherDoc) {
+          try {
+            const tokens = await bridge.tokenize(otherDoc.getText());
+            addEditsFromTokens(otherUri, tokens);
+          } catch {
+            addEditsFromTextSearch(otherUri, otherDoc.getText());
+          }
         }
       } else {
         const otherDoc = documents.get(otherUri);

@@ -360,6 +360,115 @@ void func2() {
 });
 
 /**
+ * Token-based rename safety tests.
+ *
+ * Tests the addEditsFromTokens logic directly:
+ * filter PikeToken[] by exact name match, build TextEdit[]
+ * with correct 1-to-0-indexed line conversion.
+ */
+describe('Token-based rename safety', () => {
+  // Reproduces the addEditsFromTokens logic from rename.ts
+  function filterTokenEdits(
+    tokens: Array<{ text: string; line: number; character: number }>,
+    oldName: string,
+    newName: string
+  ): Array<{
+    range: { start: { line: number; character: number }; end: { line: number; character: number } };
+    newText: string;
+  }> {
+    const edits: Array<{
+      range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+      };
+      newText: string;
+    }> = [];
+    for (const token of tokens) {
+      if (token.text !== oldName) continue;
+      edits.push({
+        range: {
+          start: { line: token.line - 1, character: token.character },
+          end: { line: token.line - 1, character: token.character + oldName.length },
+        },
+        newText: newName,
+      });
+    }
+    return edits;
+  }
+
+  it('should exclude substring matches (fooBar vs foo)', () => {
+    const tokens = [
+      { text: 'fooBar', line: 1, character: 4 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const edits = filterTokenEdits(tokens, 'foo', 'bar');
+    assert.equal(edits.length, 1, 'Only exact match should be included');
+    assert.equal(edits[0]!.range.start.line, 1, 'Line should be 1 (token.line 2 - 1)');
+  });
+
+  it('should exclude comment tokens', () => {
+    const tokens = [
+      // Comment token: the tokenizer would emit the whole comment as one token
+      // but the key property is that comment token text won't be 'foo'
+      { text: '// foo is used', line: 1, character: 0 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const edits = filterTokenEdits(tokens, 'foo', 'bar');
+    assert.equal(edits.length, 1, 'Comment token should be excluded');
+    assert.equal(edits[0]!.range.start.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should exclude string literal tokens', () => {
+    const tokens = [
+      { text: '"foo"', line: 1, character: 8 },
+      { text: 'foo', line: 2, character: 4 },
+    ];
+    const edits = filterTokenEdits(tokens, 'foo', 'bar');
+    assert.equal(edits.length, 1, 'String literal token should be excluded');
+    assert.equal(edits[0]!.range.start.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should match multiple occurrences on same line', () => {
+    const tokens = [
+      { text: 'foo', line: 1, character: 4 },
+      { text: 'foo', line: 1, character: 12 },
+    ];
+    const edits = filterTokenEdits(tokens, 'foo', 'bar');
+    assert.equal(edits.length, 2, 'Both occurrences matched');
+    assert.equal(edits[0]!.range.start.character, 4);
+    assert.equal(edits[1]!.range.start.character, 12);
+  });
+
+  it('should exclude keyword prefix (int vs in)', () => {
+    const tokens = [
+      { text: 'int', line: 1, character: 0 },
+      { text: 'in', line: 2, character: 4 },
+    ];
+    const edits = filterTokenEdits(tokens, 'in', 'out');
+    assert.equal(edits.length, 1, 'int should not match in');
+    assert.equal(edits[0]!.range.start.line, 1, 'Only line 2 (LSP 0-indexed) matched');
+  });
+
+  it('should return empty when no tokens match', () => {
+    const tokens = [
+      { text: 'bar', line: 1, character: 0 },
+      { text: 'baz', line: 2, character: 4 },
+    ];
+    const edits = filterTokenEdits(tokens, 'foo', 'qux');
+    assert.equal(edits.length, 0, 'No matches expected');
+  });
+
+  it('should produce correct range end positions', () => {
+    const tokens = [{ text: 'myVar', line: 3, character: 10 }];
+    const edits = filterTokenEdits(tokens, 'myVar', 'newVar');
+    assert.equal(edits.length, 1);
+    assert.equal(edits[0]!.range.start.line, 2, 'Line 3 (1-indexed) → 2 (0-indexed)');
+    assert.equal(edits[0]!.range.start.character, 10);
+    assert.equal(edits[0]!.range.end.character, 15, '10 + 5 chars');
+  });
+});
+
+/**
  * Helper function stub for prepareRename
  */
 async function prepareRename(params: any) {
