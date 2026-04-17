@@ -7,6 +7,26 @@ import { invalidateRXMLDefinitionCaches } from '../features/rxml/definition-prov
 import { invalidateRXMLReferenceCaches } from '../features/rxml/references-provider.js';
 import { registerRXMLHandlers } from '../features/rxml/index.js';
 import { createMockDocuments, createMockServices } from './helpers/mock-services.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+
+/** Mock parseFn that extracts simpletag_/container_ method symbols from Pike source. */
+function mockParseFn(text: string): Promise<PikeSymbol[]> {
+  const symbols: PikeSymbol[] = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i]!.match(/void\s+(simpletag|container)[\s_](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1 },
+      });
+    }
+  }
+  return Promise.resolve(symbols);
+}
+const parseFn = mockParseFn;
 
 const createdDirs: string[] = [];
 
@@ -32,7 +52,7 @@ describe('RXML handler registration', () => {
 
     // Populate cache with initial scan
     const { findTagReferences } = await import('../features/rxml/references-provider.js');
-    const initial = await findTagReferences('emit', [root], false);
+    const initial = await findTagReferences('emit', [root], false, parseFn);
     expect(initial.length).toBeGreaterThan(0);
 
     const doc = TextDocument.create(templateUri, 'rxml', 2, '<set />');
@@ -44,10 +64,10 @@ describe('RXML handler registration', () => {
     (docs as ReturnType<typeof createMockDocuments>).triggerDidChangeContent(templateUri);
 
     // Cache should be invalidated — stale 'emit' results gone, new 'set' results present
-    const refreshedEmit = await findTagReferences('emit', [root], false);
+    const refreshedEmit = await findTagReferences('emit', [root], false, parseFn);
     expect(refreshedEmit.length).toBe(0);
 
-    const refreshedSet = await findTagReferences('set', [root], false);
+    const refreshedSet = await findTagReferences('set', [root], false, parseFn);
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
 
@@ -60,7 +80,7 @@ describe('RXML handler registration', () => {
     await writeFile(templatePath, '<emit />', 'utf-8');
 
     const { findTagReferences } = await import('../features/rxml/references-provider.js');
-    const initial = await findTagReferences('emit', [root], false);
+    const initial = await findTagReferences('emit', [root], false, parseFn);
     expect(initial.length).toBeGreaterThan(0);
 
     const doc = TextDocument.create(templateUri, 'rxml', 2, '<set />');
@@ -70,10 +90,10 @@ describe('RXML handler registration', () => {
     await writeFile(templatePath, '<set />', 'utf-8');
     (docs as ReturnType<typeof createMockDocuments>).triggerDidClose(templateUri);
 
-    const refreshedEmit = await findTagReferences('emit', [root], false);
+    const refreshedEmit = await findTagReferences('emit', [root], false, parseFn);
     expect(refreshedEmit.length).toBe(0);
 
-    const refreshedSet = await findTagReferences('set', [root], false);
+    const refreshedSet = await findTagReferences('set', [root], false, parseFn);
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
 
@@ -87,7 +107,7 @@ describe('RXML handler registration', () => {
 
     // Populate cache for the RXML file
     const { findTagReferences } = await import('../features/rxml/references-provider.js');
-    const initial = await findTagReferences('emit', [root], false);
+    const initial = await findTagReferences('emit', [root], false, parseFn);
     expect(initial.length).toBeGreaterThan(0);
 
     // Change file on disk — without cache invalidation, stale results persist
@@ -103,7 +123,7 @@ describe('RXML handler registration', () => {
     (docs as ReturnType<typeof createMockDocuments>).triggerDidChangeContent(pikeUri);
 
     // Stale 'emit' results should still be cached (file now has '<set />')
-    const staleEmit = await findTagReferences('emit', [root], false);
+    const staleEmit = await findTagReferences('emit', [root], false, parseFn);
     expect(staleEmit.length).toBeGreaterThan(0);
   });
 });

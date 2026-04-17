@@ -12,7 +12,7 @@
  * requests for the same workspace are superseded so stale work is cancelled.
  */
 
-import type { PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeToken, PikeSymbol } from '@pike-lsp/pike-bridge';
 import { Location, ReferenceContext, Position } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { glob } from 'glob';
@@ -85,7 +85,8 @@ async function getTagReferenceIndex(workspaceFolders: string[]): Promise<Map<str
 }
 
 async function getTagDeclarationIndex(
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null
 ): Promise<Map<string, Location[]>> {
   const key = makeWorkspaceKey(workspaceFolders);
   const now = Date.now();
@@ -95,11 +96,17 @@ async function getTagDeclarationIndex(
   }
 
   const byTag = new Map<string, Location[]>();
+  if (!parseFn) {
+    tagDeclarationIndexCache.set(key, { builtAt: now, byTag });
+    return byTag;
+  }
+
   const pikeFiles = await findPikeFiles(workspaceFolders);
 
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-    const matches = findTagFunctionsInCode(content);
+    const symbols = await parseFn(content);
+    const matches = findTagFunctionsInCode(content, symbols);
 
     for (const m of matches) {
       const keyName = m.name.toLowerCase();
@@ -135,7 +142,8 @@ async function getTagDeclarationIndex(
 export async function findTagReferences(
   tagName: string,
   workspaceFolders: string[],
-  includeDeclaration: boolean = false
+  includeDeclaration: boolean = false,
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null = null
 ): Promise<Location[]> {
   const locations: Location[] = [];
 
@@ -156,7 +164,7 @@ export async function findTagReferences(
 
         // Also search in .pike files for tag function references
         if (includeDeclaration) {
-          const declarationIndex = await getTagDeclarationIndex(workspaceFolders);
+          const declarationIndex = await getTagDeclarationIndex(workspaceFolders, parseFn);
           const declarationLocations = declarationIndex.get(tagName.toLowerCase()) ?? [];
           locations.push(...declarationLocations);
         }
@@ -325,7 +333,8 @@ export async function provideRXMLReferences(
   document: TextDocument,
   position: Position,
   context: ReferenceContext,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null = null
 ): Promise<Location[]> {
   const content = document.getText();
   const offset = document.offsetAt(position);
@@ -333,7 +342,12 @@ export async function provideRXMLReferences(
   // Check if we're on a tag name
   const tagMatch = findTagAtPosition(content, offset);
   if (tagMatch) {
-    return findTagReferences(tagMatch.tagName, workspaceFolders, context.includeDeclaration);
+    return findTagReferences(
+      tagMatch.tagName,
+      workspaceFolders,
+      context.includeDeclaration,
+      parseFn
+    );
   }
 
   // Check if we're on an attribute/variable

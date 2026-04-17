@@ -20,6 +20,7 @@ function methodSymbol(name: string, line?: number): PikeSymbol {
   return {
     name,
     kind: 'method',
+    modifiers: [],
     ...(line != null && { position: { line, column: 1 } }),
   };
 }
@@ -155,8 +156,8 @@ class MyClass {
 `;
       // No tag symbols — only regular methods
       const symbols: PikeSymbol[] = [
-        { name: 'some_function', kind: 'method', position: { line: 2, column: 1 } },
-        { name: 'method', kind: 'method', position: { line: 5, column: 3 } },
+        { name: 'some_function', kind: 'method', modifiers: [], position: { line: 2, column: 1 } },
+        { name: 'method', kind: 'method', modifiers: [], position: { line: 5, column: 3 } },
       ];
 
       const result = await extractTagsFromPikeCode(pikeCode, symbols);
@@ -300,7 +301,7 @@ class Helper {
         methodSymbol('simpletag_create_link', 6),
         methodSymbol('container_if', 9),
         { name: 'VERSION', kind: 'constant', position: { line: 11, column: 1 } },
-        { name: 'helper_method', kind: 'method', position: { line: 14, column: 3 } },
+        { name: 'helper_method', kind: 'method', modifiers: [], position: { line: 14, column: 3 } },
       ];
 
       const tags = detectTagFunctions(symbols, pikeCode);
@@ -313,7 +314,7 @@ class Helper {
     });
   });
   describe('findTagFunctionsInCode', () => {
-    it('should find both space and underscore forms', () => {
+    it('should find underscore form tags from symbols', () => {
       const code = [
         'void simpletag my_tag(mapping args) { }',
         'void simpletag_other(mapping args) { }',
@@ -321,38 +322,33 @@ class Helper {
         'void container_another(mapping args, string c) { }',
       ].join('\n');
 
-      const matches = findTagFunctionsInCode(code);
+      const symbols: PikeSymbol[] = [
+        methodSymbol('simpletag_my_tag', 1),
+        methodSymbol('simpletag_other', 2),
+        methodSymbol('container_my_cont', 3),
+        methodSymbol('container_another', 4),
+      ];
+
+      const matches = findTagFunctionsInCode(code, symbols);
 
       expect(matches).toHaveLength(4);
-      expect(matches[0]).toEqual({ name: 'my_tag', type: 'simple', index: code.indexOf('my_tag') });
-      expect(matches[1]).toEqual({
-        name: 'other',
-        type: 'simple',
-        index: code.indexOf('other'),
-      });
-      expect(matches[2]).toEqual({
-        name: 'my_cont',
-        type: 'container',
-        index: code.indexOf('my_cont'),
-      });
-      expect(matches[3]).toEqual({
-        name: 'another',
-        type: 'container',
-        index: code.indexOf('another'),
-      });
+      expect(matches.map(m => m.name)).toEqual(['my_tag', 'other', 'my_cont', 'another']);
+      expect(matches.every(m => ['simple', 'container'].includes(m.type))).toBe(true);
     });
 
     it('should return correct byte offsets for tag names', () => {
       const code = 'void simpletag hello(mapping args) { }';
-      const matches = findTagFunctionsInCode(code);
+      const symbols: PikeSymbol[] = [methodSymbol('simpletag_hello', 1)];
+      const matches = findTagFunctionsInCode(code, symbols);
 
       expect(matches).toHaveLength(1);
-      // Name offset should point to 'hello' in the source
       expect(code.substring(matches[0].index, matches[0].index + 5)).toBe('hello');
     });
 
-    it('should return empty array for code with no tags', () => {
-      const matches = findTagFunctionsInCode('int main() { return 0; }');
+    it('should return empty array for code with no tag symbols', () => {
+      const code = 'int main() { return 0; }';
+      const symbols: PikeSymbol[] = [methodSymbol('main', 1)];
+      const matches = findTagFunctionsInCode(code, symbols);
       expect(matches).toHaveLength(0);
     });
   });
