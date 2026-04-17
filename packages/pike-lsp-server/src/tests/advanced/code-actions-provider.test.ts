@@ -13,8 +13,13 @@
 
 import { describe, it, beforeAll, afterAll } from 'bun:test';
 import assert from 'node:assert/strict';
-import { CodeAction, CodeActionKind, CodeActionParams } from 'vscode-languageserver/node.js';
-import { PikeBridge } from '@pike-lsp/pike-bridge';
+import {
+  CodeAction,
+  CodeActionKind,
+  CodeActionParams,
+  type TextEdit,
+} from 'vscode-languageserver/node.js';
+import { PikeBridge, type PikeSymbol } from '@pike-lsp/pike-bridge';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { getGenerateGetterSetterActions } from '../../features/advanced/getters-setters.js';
 
@@ -378,7 +383,7 @@ int main() {
       // Should return an action with parameters
       assert.ok(result, 'Should return extract method action');
       if (result && result.edit) {
-        const changes = result.edit.changes as Record<string, any[]>;
+        const changes = result.edit.changes as Record<string, TextEdit[]>;
         const edits = changes[uri];
         // Should have 2 edits: replace selection and add new function
         assert.ok(edits && edits.length >= 2, 'Should have replace and insert edits');
@@ -894,7 +899,7 @@ int main() {
       const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
       const uri = 'file:///test.pike';
       const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_foo',
           kind: 'variable',
@@ -919,7 +924,7 @@ int main() {
       const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
       const uri = 'file:///test.pike';
       const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_foo',
           kind: 'variable',
@@ -940,7 +945,7 @@ int main() {
       const document = TextDocument.create('file:///test.pike', 'pike', 1, 'int _foo;\n');
       const uri = 'file:///test.pike';
       const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 8 } };
-      const symbols: any[] = [
+      const symbols: PikeSymbol[] = [
         {
           name: '_foo',
           kind: 'variable',

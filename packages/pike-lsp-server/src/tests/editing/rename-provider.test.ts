@@ -441,7 +441,6 @@ describe('Token-based rename safety', () => {
   });
 });
 
-
 /**
  * Helper function stub for prepareRename
  */

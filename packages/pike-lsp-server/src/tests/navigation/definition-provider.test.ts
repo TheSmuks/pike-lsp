@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, test } from 'bun:test';
 import { Location } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { InheritanceInfo } from '@pike-lsp/pike-bridge';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { registerDefinitionHandlers } from '../../features/navigation/definition.js';
 import {
@@ -30,7 +31,7 @@ interface SetupOptions {
   symbolPositions?: Map<string, { line: number; character: number }[]>;
   noCache?: boolean;
   noDocument?: boolean;
-  inherits?: any[];
+  inherits?: InheritanceInfo[];
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
   bridge?: any;

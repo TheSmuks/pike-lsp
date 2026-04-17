@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { enhanceRoxenSymbols } from '../../../features/roxen/symbols';
+import type { DocumentSymbol } from 'vscode-languageserver/node.js';
 import type { RoxenModuleInfo } from '@pike-lsp/pike-bridge/dist/src/types.js';
 
 describe('Roxen Symbols - enhanceRoxenSymbols', () => {
@@ -93,7 +94,7 @@ describe('Roxen Symbols - enhanceRoxenSymbols', () => {
     const result = enhanceRoxenSymbols(baseSymbols, moduleInfo);
 
     // Check all symbols have selectionRange
-    const checkSelectionRange = (symbols: any[]) => {
+    const checkSelectionRange = (symbols: DocumentSymbol[]) => {
       for (const symbol of symbols) {
         assert.ok(symbol.selectionRange, `Symbol ${symbol.name} missing selectionRange`);
         if (symbol.children) {
