@@ -301,10 +301,9 @@ describe('Roxen Detector', () => {
     });
 
     it('does not false-positive on inherit in comments (KB-1641)', () => {
-      // The regex used to match inherit in comments; now hasMarkers only checks includes()
-      // which still matches raw text, but callers pass symbols which are parse-aware
+      // KB-1641: hasMarkers checks includes() on raw text; callers pass parse-aware symbols
       assert.strictEqual(isRoxenModule('// TODO: consider inherit "module"'), true);
-      // With parse-aware symbols, the comment-inherit is NOT a symbol:
+      // With empty symbols, the comment-inherit is not a parsed symbol:
       const symbols: PikeSymbol[] = [];
       assert.strictEqual(isRoxenModule('// TODO: consider inherit "module"', symbols), true);
     });

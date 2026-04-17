@@ -14,7 +14,7 @@
 import { describe, it } from 'bun:test';
 import * as assert from 'node:assert/strict';
 import { DocumentCache } from '../services/document-cache.js';
-import type { DocumentCacheEntry } from '../core/types.js';
+import type { DocumentCacheEntry, CoreSymbol, CoreDiagnostic } from '../core/types.js';
 import { DiagnosticSeverity, type Position } from 'vscode-languageserver/node.js';
 
 // ============================================================================
@@ -28,8 +28,8 @@ import { DiagnosticSeverity, type Position } from 'vscode-languageserver/node.js
 function createMockEntry(
   overrides: {
     version?: number;
-    symbols?: any[];
-    diagnostics?: any[];
+    symbols?: CoreSymbol[];
+    diagnostics?: CoreDiagnostic[];
     symbolPositions?: Map<string, Position[]>;
   } = {}
 ): DocumentCacheEntry {
