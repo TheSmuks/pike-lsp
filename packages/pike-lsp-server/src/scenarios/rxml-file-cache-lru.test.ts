@@ -19,9 +19,30 @@ import {
   findTagReferences,
   invalidateRXMLReferenceCaches,
 } from '../features/rxml/references-provider.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import { getFileContentCacheSize } from '../features/rxml/file-content-cache.js';
 
 const createdDirs: string[] = [];
+
+// Lightweight parser for tag function symbols
+function mockParse(code: string): PikeSymbol[] {
+  const symbols: PikeSymbol[] = [];
+  const lines = code.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line?.match(/\b(simpletag|container)[_\s](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1, file: '' },
+      });
+    }
+  }
+  return symbols;
+}
+const parseFn = (text: string) => Promise.resolve(mockParse(text));
 
 async function cleanup() {
   invalidateRXMLDefinitionCaches();
@@ -47,7 +68,7 @@ describe('RXML file content cache LRU eviction', () => {
     }
 
     // Querying definitions causes readFileCached to populate the shared cache
-    await findTagDefinition(`tag_0`, [root]);
+    await findTagDefinition(`tag_0`, [root], parseFn);
     assert.equal(
       getFileContentCacheSize() > 0,
       true,
@@ -55,7 +76,7 @@ describe('RXML file content cache LRU eviction', () => {
     );
 
     // Query the last file — this should trigger eviction of earlier entries
-    await findTagDefinition(`tag_${FILE_COUNT - 1}`, [root]);
+    await findTagDefinition(`tag_${FILE_COUNT - 1}`, [root], parseFn);
 
     // The cache should not exceed the max size of 200
     const size = getFileContentCacheSize();
@@ -80,12 +101,12 @@ describe('RXML file content cache LRU eviction', () => {
 
     // Populate the cache past capacity to trigger eviction
     for (let i = 0; i < FILE_COUNT; i++) {
-      await findTagDefinition(`tag_${i}`, [root]);
+      await findTagDefinition(`tag_${i}`, [root], parseFn);
     }
 
     // The first file's entry should have been evicted; but findTagDefinition
     // must still return the correct result by re-reading from disk.
-    const result = await findTagDefinition(`tag_0`, [root]);
+    const result = await findTagDefinition(`tag_0`, [root], parseFn);
     assert.notEqual(result, null, 'evicted entry should be re-readable from disk');
     assert.equal(result?.tagName, 'tag_0');
     assert.equal(result?.functionName, 'simpletag_tag_0');
@@ -104,11 +125,11 @@ describe('RXML file content cache LRU eviction', () => {
     }
 
     // Populate via definition provider
-    await findTagDefinition('tag_0', [root]);
+    await findTagDefinition('tag_0', [root], parseFn);
     const sizeAfterDef = getFileContentCacheSize();
 
     // Populate via references provider — should reuse same cache entries
-    await findTagReferences('tag_0', [root], true);
+    await findTagReferences('tag_0', [root], true, parseFn);
     const sizeAfterRef = getFileContentCacheSize();
 
     // Size should not double because providers share the cache
@@ -128,7 +149,7 @@ describe('RXML file content cache LRU eviction', () => {
     const filePath = join(root, 'module.pike');
     await writeFile(filePath, 'simpletag foo() { return 1; }', 'utf-8');
 
-    await findTagDefinition('foo', [root]);
+    await findTagDefinition('foo', [root], parseFn);
     assert.equal(getFileContentCacheSize() > 0, true, 'cache should have entries');
 
     // Clear via definition provider (no URI)
@@ -136,7 +157,7 @@ describe('RXML file content cache LRU eviction', () => {
     assert.equal(getFileContentCacheSize(), 0, 'cache should be empty after full clear');
 
     // Re-populate and clear via references provider (no URI)
-    await findTagReferences('foo', [root], true);
+    await findTagReferences('foo', [root], true, parseFn);
     assert.equal(
       getFileContentCacheSize() > 0,
       true,
@@ -158,8 +179,8 @@ describe('RXML file content cache LRU eviction', () => {
     await writeFile(fileA, 'simpletag alpha() { return 1; }', 'utf-8');
     await writeFile(fileB, 'simpletag beta() { return 1; }', 'utf-8');
 
-    await findTagDefinition('alpha', [root]);
-    await findTagDefinition('beta', [root]);
+    await findTagDefinition('alpha', [root], parseFn);
+    await findTagDefinition('beta', [root], parseFn);
     assert.equal(getFileContentCacheSize(), 2, 'both files should be cached');
 
     // Invalidate only fileA
@@ -195,7 +216,7 @@ describe('RXML index cache LRU eviction', () => {
         );
 
         // Force the definition provider to build a per-workspace index
-        const result = await findTagDefinition(`tag_w${w}`, [root]);
+        const result = await findTagDefinition(`tag_w${w}`, [root], parseFn);
         assert.notEqual(result, null, `tag_w${w} should be found in workspace ${w}`);
         assert.equal(result?.tagName, `tag_w${w}`);
       }
@@ -204,7 +225,7 @@ describe('RXML index cache LRU eviction', () => {
       // Re-querying the earliest workspace should still work (rebuilds index).
       const earliestRoot = dirs[0];
       if (earliestRoot) {
-        const reRead = await findTagDefinition('tag_w0', [earliestRoot]);
+        const reRead = await findTagDefinition('tag_w0', [earliestRoot], parseFn);
         assert.notEqual(reRead, null, 'evicted index should rebuild on demand');
         assert.equal(reRead?.tagName, 'tag_w0');
       }
@@ -231,14 +252,14 @@ describe('RXML index cache LRU eviction', () => {
 
         // Build the per-workspace reference + declaration index (includeDeclaration
         // scans .pike files for simpletag/container declarations, no RXML parser needed)
-        const refs = await findTagReferences(`tag_w${w}`, [root], true);
+        const refs = await findTagReferences(`tag_w${w}`, [root], true, parseFn);
         assert.ok(refs.length > 0, `tag_w${w} should have references in workspace ${w}`);
       }
 
       // Re-query earliest workspace — its index was evicted but rebuilds
       const earliestRoot = dirs[0];
       if (earliestRoot) {
-        const reRefs = await findTagReferences('tag_w0', [earliestRoot], true);
+        const reRefs = await findTagReferences('tag_w0', [earliestRoot], true, parseFn);
         assert.ok(reRefs.length > 0, 'evicted reference index should rebuild on demand');
       }
     } finally {

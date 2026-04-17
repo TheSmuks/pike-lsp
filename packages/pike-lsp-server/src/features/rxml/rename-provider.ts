@@ -86,7 +86,7 @@ async function prepareTagRename(
   };
 
   // Find all references to the tag
-  const locations = await findTagReferences(oldTagName, workspaceFolders, true);
+  const locations = await findTagReferences(oldTagName, workspaceFolders, true, null);
 
   // Group changes by file
   const changesByFile = new Map<string, Array<{ range: Range; newText: string }>>();

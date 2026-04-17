@@ -43,19 +43,14 @@ export interface TagFunctionMatch {
  * Returns one {@link TagFunctionMatch} per tag method found, including the byte
  * offset of the tag name so callers can compute positions for LSP operations.
  *
- * When `symbols` are provided, uses them directly (ADR-001 compliant).
- * When omitted, performs a simple string scan for backward compatibility
- * with callers that have not yet been migrated to pass symbols.
+ * Requires symbols from bridge.parse() (ADR-001 compliant).
  *
  * @param code    - Full Pike module source code (for byte offset computation)
- * @param symbols - Parsed PikeSymbol[] from bridge.parse() (recommended)
+ * @param symbols - Parsed PikeSymbol[] from bridge.parse() (required)
  * @returns All tag function matches found
  */
-export function findTagFunctionsInCode(code: string, symbols?: PikeSymbol[]): TagFunctionMatch[] {
-  if (symbols) {
-    return findTagMatchesFromSymbols(code, symbols);
-  }
-  return findTagMatchesByStringScan(code);
+export function findTagFunctionsInCode(code: string, symbols: PikeSymbol[]): TagFunctionMatch[] {
+  return findTagMatchesFromSymbols(code, symbols);
 }
 
 /**
@@ -81,67 +76,6 @@ function findTagMatchesFromSymbols(code: string, symbols: PikeSymbol[]): TagFunc
   }
 
   return results;
-}
-
-/**
- * Find tag matches by scanning source code for function name patterns.
- *
- * Backward-compatible fallback for callers without bridge.parse() symbols.
- * Scans each line for simpletag_/container_ prefixed identifiers and computes
- * the byte offset of the tag name portion.
- */
-function findTagMatchesByStringScan(code: string): TagFunctionMatch[] {
-  const results: TagFunctionMatch[] = [];
-  const lines = code.split('\n');
-  let offset = 0;
-
-  // Each entry: [keyword, type, separatorChar]
-  // 'simpletag_' and 'simpletag ' both extract a simple tag;
-  // 'container_' and 'container ' both extract a container tag.
-  const patterns: ReadonlyArray<[string, 'simple' | 'container']> = [
-    ['simpletag_', 'simple'],
-    ['simpletag ', 'simple'],
-    ['container_', 'container'],
-    ['container ', 'container'],
-  ];
-
-  for (const line of lines) {
-    if (line) {
-      for (const [prefix, tagType] of patterns) {
-        let searchFrom = 0;
-        while (true) {
-          const idx = line.indexOf(prefix, searchFrom);
-          if (idx < 0) break;
-
-          // Verify boundary before the keyword
-          if (idx === 0 || !isIdentChar(line[idx - 1] ?? '')) {
-            const nameStart = idx + prefix.length;
-            let end = nameStart;
-            while (end < line.length && isIdentChar(line[end] ?? '')) {
-              end++;
-            }
-            const tagName = line.slice(nameStart, end);
-            if (tagName.length > 0) {
-              results.push({ name: tagName, type: tagType, index: offset + nameStart });
-            }
-          }
-          searchFrom = idx + prefix.length;
-        }
-      }
-    }
-    offset += (line?.length ?? 0) + 1;
-  }
-
-  // Deduplicate: underscore form takes precedence over space form
-  const seen = new Map<string, TagFunctionMatch>();
-  for (const match of results) {
-    const key = `${match.type}:${match.name}`;
-    if (!seen.has(key)) {
-      seen.set(key, match);
-    }
-  }
-
-  return [...seen.values()];
 }
 
 /**
@@ -319,15 +253,4 @@ function computeNameOffset(lines: string[], symbol: PikeSymbol, tagName: string)
   }
 
   return -1;
-}
-
-/** Check whether a character is a valid Pike identifier character. */
-function isIdentChar(ch: string): boolean {
-  const code = ch.charCodeAt(0);
-  return (
-    (code >= 48 && code <= 57) || // 0-9
-    (code >= 65 && code <= 90) || // A-Z
-    (code >= 97 && code <= 122) || // a-z
-    code === 95
-  ); // _
 }
