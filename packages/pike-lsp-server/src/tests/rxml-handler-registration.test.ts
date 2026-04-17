@@ -7,6 +7,26 @@ import { invalidateRXMLDefinitionCaches } from '../features/rxml/definition-prov
 import { invalidateRXMLReferenceCaches } from '../features/rxml/references-provider.js';
 import { registerRXMLHandlers } from '../features/rxml/index.js';
 import { createMockDocuments, createMockServices } from './helpers/mock-services.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+
+/** Mock parseFn that extracts simpletag_/container_ method symbols from Pike source. */
+function mockParseFn(text: string): Promise<PikeSymbol[]> {
+  const symbols: PikeSymbol[] = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i]!.match(/void\s+(simpletag|container)[\s_](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1 },
+      });
+    }
+  }
+  return Promise.resolve(symbols);
+}
+const parseFn = mockParseFn;
 
 const createdDirs: string[] = [];
 

@@ -15,6 +15,26 @@ import {
 import { registerRXMLHandlers } from '../features/rxml/index.js';
 import { FileChangeType, registerFileWatcher } from '../features/file-watcher.js';
 import { createMockDocuments, createMockServices } from './helpers/mock-services.js';
+import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+
+/** Mock parseFn that extracts simpletag_/container_ method symbols from Pike source. */
+function mockParseFn(text: string): Promise<PikeSymbol[]> {
+  const symbols: PikeSymbol[] = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i]!.match(/void\s+(simpletag|container)[\s_](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1 },
+      });
+    }
+  }
+  return Promise.resolve(symbols);
+}
+const parseFn = mockParseFn;
 
 const createdDirs: string[] = [];
 
@@ -35,12 +55,12 @@ describe('RXML cache invalidation', () => {
     createdDirs.push(root);
 
     const modulePath = join(root, 'module.pike');
-    await writeFile(modulePath, 'simpletag foo() { return 1; }', 'utf-8');
+    await writeFile(modulePath, 'void simpletag_foo(mapping args) { return 1; }', 'utf-8');
 
     const first = await findTagDefinition('foo', [root], parseFn);
     expect(first).not.toBeNull();
 
-    await writeFile(modulePath, 'simpletag bar() { return 1; }', 'utf-8');
+    await writeFile(modulePath, 'void simpletag_bar(mapping args) { return 1; }', 'utf-8');
     const stale = await findTagDefinition('foo', [root], parseFn);
     expect(stale).not.toBeNull();
 
@@ -103,12 +123,12 @@ describe('RXML cache invalidation', () => {
     createdDirs.push(root);
 
     const modulePath = join(root, 'module.pike');
-    await writeFile(modulePath, 'simpletag foo() { return 1; }', 'utf-8');
+    await writeFile(modulePath, 'void simpletag_foo(mapping args) { return 1; }', 'utf-8');
 
     const first = await findTagReferences('foo', [root], true, parseFn);
     expect(first.length).toBeGreaterThan(0);
 
-    await writeFile(modulePath, 'simpletag bar() { return 1; }', 'utf-8');
+    await writeFile(modulePath, 'void simpletag_bar(mapping args) { return 1; }', 'utf-8');
     const stale = await findTagReferences('foo', [root], true, parseFn);
     expect(stale.length).toBeGreaterThan(0);
 
