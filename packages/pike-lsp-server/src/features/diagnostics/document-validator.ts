@@ -6,6 +6,10 @@
  *
  * Extracted from index.ts for maintainability (Issue #1289).
  */
+import {
+  classifyBridgeStartupError,
+  formatBridgeStartupError,
+} from '../../utils/bridge-startup-errors.js';
 
 import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
@@ -82,7 +86,21 @@ export function createDocumentValidator(deps: DocumentValidatorDeps): {
         await bridge.start();
         log.debug('Bridge started successfully for validation', { uri });
       } catch (err) {
-        connection.console.error(`[VALIDATE] Failed to start bridge: ${err}`);
+        const diagnostics = bridge.bridge?.getDiagnostics();
+        const pikePath = diagnostics?.options?.pikePath;
+        const scriptPath = diagnostics?.options?.analyzerPath;
+
+        const errorDetails = classifyBridgeStartupError(err, pikePath, scriptPath);
+
+        log.error('Bridge startup failed', {
+          kind: errorDetails.kind,
+          uri,
+          pikePath: errorDetails.pikePath,
+          scriptPath: errorDetails.scriptPath,
+          diagnostic: errorDetails.diagnostic,
+        });
+
+        connection.console.error(formatBridgeStartupError(errorDetails));
         return;
       }
     }

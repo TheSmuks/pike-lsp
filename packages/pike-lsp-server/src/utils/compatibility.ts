@@ -14,7 +14,7 @@ const UNKNOWN_VERSION: PikeVersionInfo = {
   string: 'Unknown',
 };
 
-const MIN_SUPPORTED_VERSION: PikeVersionInfo = {
+export const MIN_SUPPORTED_VERSION: PikeVersionInfo = {
   major: 8,
   minor: 0,
   build: 1116,

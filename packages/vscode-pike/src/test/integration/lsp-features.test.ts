@@ -1812,7 +1812,6 @@ suite('Waterfall Loading E2E Tests', () => {
       (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
       15000
     );
-
   });
 
   suiteTeardown(async () => {
@@ -1867,7 +1866,10 @@ suite('Waterfall Loading E2E Tests', () => {
     );
 
     assert.ok(completions, 'Should return completions');
-    assert.ok(completions.items.length > 0, `Expected non-empty completions, got ${completions.items.length}`);
+    assert.ok(
+      completions.items.length > 0,
+      `Expected non-empty completions, got ${completions.items.length}`
+    );
 
     // If WaterfallTestClass is present, verify it explicitly.
     // This is opportunistic — the QE does not always index class definitions.
