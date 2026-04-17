@@ -213,9 +213,13 @@ describe('WorkspaceIndex Lookup Performance (PERF-2085)', () => {
       const names = generateNames(100_000);
       addSymbols(index, names, 'file:///perf');
 
-      const p95 = measureP95(() => {
-        index.searchSymbols('handle');
-      }, 10, () => clearSearchCache(index));
+      const p95 = measureP95(
+        () => {
+          index.searchSymbols('handle');
+        },
+        10,
+        () => clearSearchCache(index)
+      );
 
       console.log(`  [PERF-2085] Prefix query p95: ${p95.toFixed(3)}ms (100K symbols)`);
       expect(p95).toBeLessThan(50.0);
@@ -227,9 +231,13 @@ describe('WorkspaceIndex Lookup Performance (PERF-2085)', () => {
       addSymbols(index, names, 'file:///perf');
 
       // 'ler' is a substring in names like 'handleItem0Handler' -> '...ler'
-      const p95 = measureP95(() => {
-        index.searchSymbols('ler');
-      }, 10, () => clearSearchCache(index));
+      const p95 = measureP95(
+        () => {
+          index.searchSymbols('ler');
+        },
+        10,
+        () => clearSearchCache(index)
+      );
 
       console.log(`  [PERF-2085] Substring query p95: ${p95.toFixed(3)}ms (100K symbols)`);
       expect(p95).toBeLessThan(200.0);
