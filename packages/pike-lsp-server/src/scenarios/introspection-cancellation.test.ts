@@ -54,7 +54,7 @@ function makeServices(bridgeOverride?: any) {
 function createMockBridge(analyzeResponse: () => Promise<any>) {
   return {
     isRunning: () => true,
-    analyze: analyzeResponse,
+    bridge: { analyze: analyzeResponse },
   };
 }
 

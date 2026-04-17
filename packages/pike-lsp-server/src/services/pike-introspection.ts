@@ -455,7 +455,6 @@ export class PikeIntrospectionService {
     for (const modPath of modulePaths) {
       if (this.populatedModules.has(modPath)) continue;
       this.throwIfCancelled(token);
-      if (this.populatedModules.has(modPath)) continue;
       const info = await stdlibIndex.getModule(modPath);
       if (info) {
         this.addModuleToIndex(info);
