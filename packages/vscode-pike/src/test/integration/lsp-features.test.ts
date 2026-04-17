@@ -1805,13 +1805,13 @@ suite('Waterfall Loading E2E Tests', () => {
 
     await vscode.window.showTextDocument(doc);
 
-	// Wait for document symbols (legacy indexing path)
-	await waitFor(
-	  'waterfall document symbols',
-	  () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
-	  (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
-	  15000
-	);
+    // Wait for document symbols (legacy indexing path)
+    await waitFor(
+      'waterfall document symbols',
+      () => vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', testDocumentUri),
+      (symbols: any) => Array.isArray(symbols) && symbols.length > 0,
+      15000
+    );
 
 	// Wait for completion QE to have indexed the entire file.
 	// The QE has its own indexing path independent of document symbols.
@@ -1829,6 +1829,7 @@ suite('Waterfall Loading E2E Tests', () => {
 	  (completions) => !!completions && completions.items.some(item => labelOf(item) === 'WaterfallTestClass'),
 	  45000
 	);
+
   });
 
   suiteTeardown(async () => {
@@ -1869,8 +1870,8 @@ suite('Waterfall Loading E2E Tests', () => {
    * This test retries because the completion provider may not have indexed
    * the file yet when the first completion request arrives. The suiteSetup
    * waits for document symbols, but the completion pipeline has its own
-	 * indexing path that can lag behind. The suiteSetup now waits for
-	 * QE readiness, so this retry is a safety net. Timeout: 25s.
+   * indexing path that can lag behind. The suiteSetup now waits for
+   * QE readiness, so this retry is a safety net. Timeout: 25s.
    */
   test('Completion shows class definitions', async function () {
     this.timeout(30000);
@@ -1882,16 +1883,17 @@ suite('Waterfall Loading E2E Tests', () => {
     // symbol indexing is still in progress.
     const result = await waitFor(
       'WaterfallTestClass in completions',
-      () => vscode.commands.executeCommand<vscode.CompletionList>(
-        'vscode.executeCompletionItemProvider',
-        testDocumentUri,
-        position
-      ),
-      (completions) => {
+      () =>
+        vscode.commands.executeCommand<vscode.CompletionList>(
+          'vscode.executeCompletionItemProvider',
+          testDocumentUri,
+          position
+        ),
+      completions => {
         if (!completions || completions.items.length === 0) return false;
         return completions.items.map(labelOf).includes('WaterfallTestClass');
       },
-	  25000
+      25000
     );
 
     assert.ok(result, 'Should return completions');
