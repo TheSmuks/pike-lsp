@@ -21,7 +21,7 @@ import {
   invalidateRXMLDefinitionCaches,
 } from '../features/rxml/definition-provider.js';
 import { clearFileContentCache } from '../features/rxml/file-content-cache.js';
-import type { PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeToken, PikeSymbol } from '@pike-lsp/pike-bridge';
 
 const createdDirs: string[] = [];
 
@@ -98,6 +98,26 @@ function mockTokenize(code: string): PikeToken[] {
 }
 
 const tokenizeFn = (text: string) => Promise.resolve(mockTokenize(text));
+
+// Lightweight parser for tag function symbols
+function mockParse(code: string): PikeSymbol[] {
+  const symbols: PikeSymbol[] = [];
+  const lines = code.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line?.match(/\b(simpletag|container)[_\s](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1, file: '' },
+      });
+    }
+  }
+  return symbols;
+}
+const parseFn = (text: string) => Promise.resolve(mockParse(text));
 
 // ---------------------------------------------------------------------------
 // Defvar extraction
@@ -302,7 +322,7 @@ describe('definition-provider tag extraction', () => {
       'mod.pike': 'simpletag my_tag() { return "hello"; }\n',
     });
 
-    const result = await findTagDefinition('my_tag', [root]);
+    const result = await findTagDefinition('my_tag', [root], parseFn);
     assert.ok(result);
     assert.equal(result!.tagName, 'my_tag');
     assert.equal(result!.functionName, 'simpletag_my_tag');
@@ -316,7 +336,7 @@ describe('definition-provider tag extraction', () => {
       'mod.pike': 'container my_wrap(string contents, mapping args) { return contents; }\n',
     });
 
-    const result = await findTagDefinition('my_wrap', [root]);
+    const result = await findTagDefinition('my_wrap', [root], parseFn);
     assert.ok(result);
     assert.equal(result!.tagName, 'my_wrap');
     assert.equal(result!.functionName, 'container_my_wrap');
@@ -328,7 +348,7 @@ describe('definition-provider tag extraction', () => {
       'mod.pike': 'simpletag space_form() { return 1; }\n',
     });
 
-    const result = await findTagDefinition('space_form', [root]);
+    const result = await findTagDefinition('space_form', [root], parseFn);
     assert.ok(result, 'space-separated simpletag form should be found');
     assert.equal(result!.tagName, 'space_form');
     assert.equal(result!.tagType, 'simple');
@@ -339,11 +359,11 @@ describe('definition-provider tag extraction', () => {
       'mod.pike': 'simpletag tag_a() { return 1; }\n' + 'container tag_b() { return "x"; }\n',
     });
 
-    const a = await findTagDefinition('tag_a', [root]);
+    const a = await findTagDefinition('tag_a', [root], parseFn);
     assert.ok(a);
     assert.equal(a!.tagType, 'simple');
 
-    const b = await findTagDefinition('tag_b', [root]);
+    const b = await findTagDefinition('tag_b', [root], parseFn);
     assert.ok(b);
     assert.equal(b!.tagType, 'container');
   });
@@ -353,7 +373,7 @@ describe('definition-provider tag extraction', () => {
       'mod.pike': 'simpletag existing() { return 1; }\n',
     });
 
-    const result = await findTagDefinition('nonexistent', [root]);
+    const result = await findTagDefinition('nonexistent', [root], parseFn);
     assert.equal(result, null);
   });
 
@@ -368,11 +388,11 @@ describe('definition-provider tag extraction', () => {
       'tags-b.pike': 'container from_b() { return "x"; }\n',
     });
 
-    const a = await findTagDefinition('from_a', [root]);
+    const a = await findTagDefinition('from_a', [root], parseFn);
     assert.ok(a);
     assert.ok(a!.location.uri.includes('tags-a.pike'));
 
-    const b = await findTagDefinition('from_b', [root]);
+    const b = await findTagDefinition('from_b', [root], parseFn);
     assert.ok(b);
     assert.ok(b!.location.uri.includes('tags-b.pike'));
   });
@@ -404,10 +424,10 @@ describe('definition-provider cache behavior', () => {
       'mod.pike': 'simpletag cached_tag() { return 1; }\n',
     });
 
-    const first = await findTagDefinition('cached_tag', [root]);
+    const first = await findTagDefinition('cached_tag', [root], parseFn);
     assert.ok(first);
 
-    const second = await findTagDefinition('cached_tag', [root]);
+    const second = await findTagDefinition('cached_tag', [root], parseFn);
     assert.ok(second);
     assert.equal(second!.tagName, first!.tagName);
     assert.equal(second!.location.uri, first!.location.uri);
@@ -445,7 +465,7 @@ describe('definition-provider cache behavior', () => {
       'mod.pike': 'simpletag old_tag() { return 1; }\n',
     });
 
-    const before = await findTagDefinition('old_tag', [root]);
+    const before = await findTagDefinition('old_tag', [root], parseFn);
     assert.ok(before);
 
     await writeFile(join(root, 'mod.pike'), 'simpletag new_tag() { return 2; }\n', 'utf-8');
@@ -453,10 +473,10 @@ describe('definition-provider cache behavior', () => {
     // Invalidate caches
     invalidateRXMLDefinitionCaches();
 
-    const afterOld = await findTagDefinition('old_tag', [root]);
+    const afterOld = await findTagDefinition('old_tag', [root], parseFn);
     assert.equal(afterOld, null, 'old_tag should not be found after file change');
 
-    const afterNew = await findTagDefinition('new_tag', [root]);
+    const afterNew = await findTagDefinition('new_tag', [root], parseFn);
     assert.ok(afterNew, 'new_tag should be found after invalidation');
     assert.equal(afterNew!.tagName, 'new_tag');
   });
@@ -492,11 +512,11 @@ describe('definition-provider multi-workspace', () => {
       'mod.pike': 'container tag_ws2() { return "x"; }\n',
     });
 
-    const fromWs1 = await findTagDefinition('tag_ws1', [ws1, ws2]);
+    const fromWs1 = await findTagDefinition('tag_ws1', [ws1, ws2], parseFn);
     assert.ok(fromWs1);
     assert.ok(fromWs1!.location.uri.includes(ws1));
 
-    const fromWs2 = await findTagDefinition('tag_ws2', [ws1, ws2]);
+    const fromWs2 = await findTagDefinition('tag_ws2', [ws1, ws2], parseFn);
     assert.ok(fromWs2);
     assert.ok(fromWs2!.location.uri.includes(ws2));
   });
@@ -534,7 +554,7 @@ describe('definition-provider position accuracy', () => {
       'mod.pike': '  simpletag indented_tag() { return 1; }\n',
     });
 
-    const result = await findTagDefinition('indented_tag', [root]);
+    const result = await findTagDefinition('indented_tag', [root], parseFn);
     assert.ok(result);
     // "  simpletag_indented_tag" — tag name starts at column 12 (2 spaces + "simpletag_" = 12 chars)
     assert.equal(

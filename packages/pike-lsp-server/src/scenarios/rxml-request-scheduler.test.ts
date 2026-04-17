@@ -37,7 +37,7 @@ async function cleanup(): Promise<void> {
   }
 }
 
-import type { PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeToken, PikeSymbol } from '@pike-lsp/pike-bridge';
 
 function mockTokenize(code: string): PikeToken[] {
   const tokens: PikeToken[] = [];
@@ -82,6 +82,26 @@ function mockTokenize(code: string): PikeToken[] {
 
 const tokenizeFn = (text: string) => Promise.resolve(mockTokenize(text));
 
+// Lightweight parser for tag function symbols
+function mockParse(code: string): PikeSymbol[] {
+  const symbols: PikeSymbol[] = [];
+  const lines = code.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line?.match(/\b(simpletag|container)[_\s](\w+)/);
+    if (match) {
+      symbols.push({
+        name: `${match[1]}_${match[2]}`,
+        kind: 'method',
+        modifiers: [],
+        position: { line: i + 1, column: 1, file: '' },
+      });
+    }
+  }
+  return symbols;
+}
+const parseFn = (text: string) => Promise.resolve(mockParse(text));
+
 describe('RXML request scheduler resilience', () => {
   it('should handle rapid concurrent findTagDefinition calls without error', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pike-sched-def-'));
@@ -100,11 +120,11 @@ describe('RXML request scheduler resilience', () => {
     // The scheduler should supersede earlier requests and return results
     // without throwing unhandled errors
     const results = await Promise.allSettled([
-      findTagDefinition('tag_0', [root]),
-      findTagDefinition('tag_1', [root]),
-      findTagDefinition('tag_2', [root]),
-      findTagDefinition('tag_3', [root]),
-      findTagDefinition('tag_4', [root]),
+      findTagDefinition('tag_0', [root], parseFn),
+      findTagDefinition('tag_1', [root], parseFn),
+      findTagDefinition('tag_2', [root], parseFn),
+      findTagDefinition('tag_3', [root], parseFn),
+      findTagDefinition('tag_4', [root], parseFn),
     ]);
 
     // All promises should settle (either fulfilled or gracefully handled)
@@ -137,9 +157,9 @@ describe('RXML request scheduler resilience', () => {
 
     // Fire off concurrent reference lookups
     const results = await Promise.allSettled([
-      findTagReferences('tag_0', [root], true),
-      findTagReferences('tag_1', [root], false),
-      findTagReferences('tag_2', [root], true),
+      findTagReferences('tag_0', [root], true, parseFn),
+      findTagReferences('tag_1', [root], false, parseFn),
+      findTagReferences('tag_2', [root], true, parseFn),
     ]);
 
     for (const result of results) {
@@ -224,7 +244,7 @@ describe('RXML request scheduler resilience', () => {
     await writeFile(join(root, 'module.pike'), 'simpletag alpha() { return 1; }', 'utf-8');
 
     // First request should complete normally
-    const first = await findTagDefinition('alpha', [root]);
+    const first = await findTagDefinition('alpha', [root], parseFn);
     assert.notEqual(first, null, 'First lookup should find alpha');
     assert.equal(first?.tagName, 'alpha');
 
@@ -235,7 +255,7 @@ describe('RXML request scheduler resilience', () => {
     await writeFile(join(root, 'module.pike'), 'simpletag beta() { return 2; }', 'utf-8');
 
     // After invalidation, should find the new tag
-    const second = await findTagDefinition('beta', [root]);
+    const second = await findTagDefinition('beta', [root], parseFn);
     assert.notEqual(second, null, 'Second lookup should find beta');
     assert.equal(second?.tagName, 'beta');
 

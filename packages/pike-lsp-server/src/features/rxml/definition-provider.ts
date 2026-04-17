@@ -26,7 +26,7 @@ import {
 } from './file-content-cache.js';
 import { RequestScheduler, RequestSupersededError } from '../../services/request-scheduler.js';
 import { extractDefvarsFromTokens } from '../roxen/defvar-scanner.js';
-import type { PikeToken } from '@pike-lsp/pike-bridge';
+import type { PikeToken, PikeSymbol } from '@pike-lsp/pike-bridge';
 
 import { findTagFunctionsInCode } from './module-scanner.js';
 
@@ -55,7 +55,8 @@ function makeWorkspaceKey(workspaceFolders: string[]): string {
 }
 
 async function getTagDefinitionIndex(
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null
 ): Promise<Map<string, RoxenTagInfo>> {
   const key = makeWorkspaceKey(workspaceFolders);
   const now = Date.now();
@@ -65,12 +66,17 @@ async function getTagDefinitionIndex(
   }
 
   const byTag = new Map<string, RoxenTagInfo>();
+  if (!parseFn) {
+    tagDefinitionIndexCache.set(key, { builtAt: now, byTag });
+    return byTag;
+  }
+
   const pikeFiles = await findPikeFiles(workspaceFolders);
 
   for (const file of pikeFiles) {
     const content = await readFileCached(file);
-
-    const matches = findTagFunctionsInCode(content);
+    const symbols = await parseFn(content);
+    const matches = findTagFunctionsInCode(content, symbols);
     for (const m of matches) {
       if (byTag.has(m.name)) {
         continue;
@@ -190,7 +196,8 @@ export interface RoxenModuleInfo {
  */
 export async function findTagDefinition(
   tagName: string,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null = null
 ): Promise<RoxenTagInfo | null> {
   if (!workspaceFolders.length) {
     return null;
@@ -203,7 +210,7 @@ export async function findTagDefinition(
       key: `findTag:${wsKey}`,
       run: async checkpoint => {
         checkpoint();
-        const index = await getTagDefinitionIndex(workspaceFolders);
+        const index = await getTagDefinitionIndex(workspaceFolders, parseFn);
         const indexed = index.get(tagName);
         if (indexed) {
           return indexed;
@@ -292,7 +299,8 @@ export async function findDefvarDefinition(
 export async function provideRXMLDefinition(
   document: TextDocument,
   position: Position,
-  workspaceFolders: string[]
+  workspaceFolders: string[],
+  parseFn: ((text: string) => Promise<PikeSymbol[]>) | null = null
 ): Promise<Location | null> {
   const content = document.getText();
   const offset = document.offsetAt(position);
@@ -300,7 +308,7 @@ export async function provideRXMLDefinition(
   // Check if we're on a tag name
   const tagMatch = findTagAtPosition(content, offset);
   if (tagMatch) {
-    const result = await findTagDefinition(tagMatch.tagName, workspaceFolders);
+    const result = await findTagDefinition(tagMatch.tagName, workspaceFolders, parseFn);
     return result?.location || null;
   }
 

@@ -37,17 +37,17 @@ describe('RXML cache invalidation', () => {
     const modulePath = join(root, 'module.pike');
     await writeFile(modulePath, 'simpletag foo() { return 1; }', 'utf-8');
 
-    const first = await findTagDefinition('foo', [root]);
+    const first = await findTagDefinition('foo', [root], parseFn);
     expect(first).not.toBeNull();
 
     await writeFile(modulePath, 'simpletag bar() { return 1; }', 'utf-8');
-    const stale = await findTagDefinition('foo', [root]);
+    const stale = await findTagDefinition('foo', [root], parseFn);
     expect(stale).not.toBeNull();
 
     invalidateRXMLDefinitionCaches(`file://${modulePath}`);
 
-    const refreshedFoo = await findTagDefinition('foo', [root]);
-    const refreshedBar = await findTagDefinition('bar', [root]);
+    const refreshedFoo = await findTagDefinition('foo', [root], parseFn);
+    const refreshedBar = await findTagDefinition('bar', [root], parseFn);
     expect(refreshedFoo).toBeNull();
     expect(refreshedBar).not.toBeNull();
   });
@@ -83,17 +83,17 @@ describe('RXML cache invalidation', () => {
     const templatePath = join(root, 'page.rxml');
     await writeFile(templatePath, '<emit />', 'utf-8');
 
-    const first = await findTagReferences('emit', [root], false);
+    const first = await findTagReferences('emit', [root], false, parseFn);
     expect(first.length).toBeGreaterThan(0);
 
     await writeFile(templatePath, '<set />', 'utf-8');
-    const stale = await findTagReferences('emit', [root], false);
+    const stale = await findTagReferences('emit', [root], false, parseFn);
     expect(stale.length).toBeGreaterThan(0);
 
     invalidateRXMLReferenceCaches(`file://${templatePath}`);
 
-    const refreshedEmit = await findTagReferences('emit', [root], false);
-    const refreshedSet = await findTagReferences('set', [root], false);
+    const refreshedEmit = await findTagReferences('emit', [root], false, parseFn);
+    const refreshedSet = await findTagReferences('set', [root], false, parseFn);
     expect(refreshedEmit.length).toBe(0);
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
@@ -105,17 +105,17 @@ describe('RXML cache invalidation', () => {
     const modulePath = join(root, 'module.pike');
     await writeFile(modulePath, 'simpletag foo() { return 1; }', 'utf-8');
 
-    const first = await findTagReferences('foo', [root], true);
+    const first = await findTagReferences('foo', [root], true, parseFn);
     expect(first.length).toBeGreaterThan(0);
 
     await writeFile(modulePath, 'simpletag bar() { return 1; }', 'utf-8');
-    const stale = await findTagReferences('foo', [root], true);
+    const stale = await findTagReferences('foo', [root], true, parseFn);
     expect(stale.length).toBeGreaterThan(0);
 
     invalidateRXMLReferenceCaches(`file://${modulePath}`);
 
-    const refreshedFoo = await findTagReferences('foo', [root], true);
-    const refreshedBar = await findTagReferences('bar', [root], true);
+    const refreshedFoo = await findTagReferences('foo', [root], true, parseFn);
+    const refreshedBar = await findTagReferences('bar', [root], true, parseFn);
     expect(refreshedFoo.length).toBe(0);
     expect(refreshedBar.length).toBeGreaterThan(0);
   });
@@ -128,7 +128,7 @@ describe('RXML cache invalidation', () => {
     const templateUri = `file://${templatePath}`;
     await writeFile(templatePath, '<emit />', 'utf-8');
 
-    const initial = await findTagReferences('emit', [root], false);
+    const initial = await findTagReferences('emit', [root], false, parseFn);
     expect(initial.length).toBeGreaterThan(0);
 
     const doc = TextDocument.create(templateUri, 'rxml', 2, '<set />');
@@ -138,8 +138,8 @@ describe('RXML cache invalidation', () => {
     await writeFile(templatePath, '<set />', 'utf-8');
     (docs as any).triggerDidChangeContent(templateUri);
 
-    const refreshedEmit = await findTagReferences('emit', [root], false);
-    const refreshedSet = await findTagReferences('set', [root], false);
+    const refreshedEmit = await findTagReferences('emit', [root], false, parseFn);
+    const refreshedSet = await findTagReferences('set', [root], false, parseFn);
     expect(refreshedEmit.length).toBe(0);
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
@@ -152,7 +152,7 @@ describe('RXML cache invalidation', () => {
     const templateUri = `file://${templatePath}`;
     await writeFile(templatePath, '<emit />', 'utf-8');
 
-    const initial = await findTagReferences('emit', [root], false);
+    const initial = await findTagReferences('emit', [root], false, parseFn);
     expect(initial.length).toBeGreaterThan(0);
 
     let watcherHandler: any = null;
@@ -184,8 +184,8 @@ describe('RXML cache invalidation', () => {
       });
     }
 
-    const refreshedEmit = await findTagReferences('emit', [root], false);
-    const refreshedSet = await findTagReferences('set', [root], false);
+    const refreshedEmit = await findTagReferences('emit', [root], false, parseFn);
+    const refreshedSet = await findTagReferences('set', [root], false, parseFn);
     expect(refreshedEmit.length).toBe(0);
     expect(refreshedSet.length).toBeGreaterThan(0);
   });
