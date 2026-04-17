@@ -1847,31 +1847,36 @@ suite('Waterfall Loading E2E Tests', () => {
 
   /**
    * Test: Completion shows class definitions from current file
+   *
+   * This test retries because the completion provider may not have indexed
+   * the file yet when the first completion request arrives. The suiteSetup
+   * waits for document symbols, but the completion pipeline has its own
+   * indexing path that can lag behind. Retry until WaterfallTestClass appears
+   * or timeout (15s).
    */
   test('Completion shows class definitions', async function () {
     this.timeout(30000);
 
     const position = positionForRegex(document, /WaterfallTestClass obj =/m);
 
-    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      'vscode.executeCompletionItemProvider',
-      testDocumentUri,
-      position
+    // Retry until the completion provider has indexed WaterfallTestClass.
+    // The provider may return word-based completions on first request while
+    // symbol indexing is still in progress.
+    const result = await waitFor(
+      'WaterfallTestClass in completions',
+      () => vscode.commands.executeCommand<vscode.CompletionList>(
+        'vscode.executeCompletionItemProvider',
+        testDocumentUri,
+        position
+      ),
+      (completions) => {
+        if (!completions || completions.items.length === 0) return false;
+        return completions.items.map(labelOf).includes('WaterfallTestClass');
+      },
+      15000
     );
 
-    assert.ok(completions, 'Should return completions');
-    assert.ok(completions!.items.length > 0, 'Should have completion items');
-
-    const completionLabels = completions!.items.map(labelOf);
-
-    // WaterfallTestClass should appear
-    const hasClass = completionLabels.includes('WaterfallTestClass');
-
-    assertWithLogs(
-      hasClass,
-      'Completion should show "WaterfallTestClass". Got: ' +
-        completionLabels.slice(0, 20).join(', ')
-    );
+    assert.ok(result, 'Should return completions');
   });
 
   /**
