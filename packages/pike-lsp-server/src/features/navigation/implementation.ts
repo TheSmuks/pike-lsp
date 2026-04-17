@@ -69,7 +69,7 @@ export function registerImplementationHandler(
         return [];
       }
 
-      const result = await pikeIntrospection.getInherits(candidateUri);
+      const result = await pikeIntrospection.getInherits(candidateUri, cancellationToken);
 
       if (cancellationToken?.isCancellationRequested) {
         return [];

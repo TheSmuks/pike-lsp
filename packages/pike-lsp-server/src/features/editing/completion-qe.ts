@@ -224,7 +224,8 @@ export async function handleQueryEngineCompletion(
       text: string;
       lineText: string;
       localSymbols: PikeSymbol[];
-    }
+    },
+    token?: import('vscode-languageserver').CancellationToken
   ) => Promise<void>,
   addMacrosToCompletions: (
     completions: CompletionItem[],
@@ -341,13 +342,17 @@ export async function handleQueryEngineCompletion(
         );
       }
 
-      await addAutoImportCompletions(completions, {
-        uri,
-        prefix,
-        text,
-        lineText,
-        localSymbols: cached?.symbols ?? [],
-      });
+      await addAutoImportCompletions(
+        completions,
+        {
+          uri,
+          prefix,
+          text,
+          lineText,
+          localSymbols: cached?.symbols ?? [],
+        },
+        cancellationToken
+      );
 
       maybeLogCompletionSchedulerMetrics(uri, 'qe_deduped');
       const macroNames = new Set(completions.map(c => c.label));
