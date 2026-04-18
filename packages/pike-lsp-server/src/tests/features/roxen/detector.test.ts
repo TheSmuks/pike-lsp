@@ -5,12 +5,8 @@ import {
   invalidateCache,
   isRoxenModule,
 } from '../../../features/roxen/detector.js';
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { RoxenModuleInfo } from '../../../features/roxen/types.js';
-
-type RoxenDetectorBridge = {
-  roxenDetect(code: string, filename?: string): Promise<RoxenModuleInfo>;
-};
 
 const nonRoxenModuleInfo: RoxenModuleInfo = {
   is_roxen_module: 0,
@@ -29,7 +25,7 @@ const nonRoxenModuleInfo: RoxenModuleInfo = {
   },
 };
 
-const createMockBridge = (result: RoxenModuleInfo): RoxenDetectorBridge => ({
+const createMockBridge = (result: RoxenModuleInfo): Pick<PikeBridge, 'roxenDetect'> => ({
   roxenDetect: async () => result,
 });
 
@@ -154,7 +150,7 @@ describe('Roxen Detector', () => {
 
     it('should handle bridge errors gracefully', async () => {
       const code = 'inherit "module";';
-      const bridge: RoxenDetectorBridge = {
+      const bridge: Pick<PikeBridge, 'roxenDetect'> = {
         roxenDetect: async () => {
           throw new Error('Bridge error');
         },
@@ -167,7 +163,7 @@ describe('Roxen Detector', () => {
       const code = 'inherit "module";';
       const cacheUri = 'file:///test/cache-test.pike';
       let callCount = 0;
-      const bridge: RoxenDetectorBridge = {
+      const bridge: Pick<PikeBridge, 'roxenDetect'> = {
         roxenDetect: async () => {
           callCount++;
           return roxenModuleInfo;
@@ -186,7 +182,7 @@ describe('Roxen Detector', () => {
     it('should not cache across different URIs', async () => {
       const code = 'inherit "module";';
       let callCount = 0;
-      const bridge: RoxenDetectorBridge = {
+      const bridge: Pick<PikeBridge, 'roxenDetect'> = {
         roxenDetect: async () => {
           callCount++;
           return roxenModuleInfo;
@@ -205,7 +201,7 @@ describe('Roxen Detector', () => {
       const code = 'inherit "module";';
       const invalidateTestUri = 'file:///test/invalidate-test.pike';
       let callCount = 0;
-      const bridge: RoxenDetectorBridge = {
+      const bridge: Pick<PikeBridge, 'roxenDetect'> = {
         roxenDetect: async () => {
           callCount++;
           return roxenModuleInfo;

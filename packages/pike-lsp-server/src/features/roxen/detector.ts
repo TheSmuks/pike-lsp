@@ -1,10 +1,6 @@
-import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import type { PikeBridge, PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { RoxenModuleInfo } from './types.js';
 import { Logger } from '@pike-lsp/core';
-
-type RoxenDetectorBridge = {
-  roxenDetect(code: string, filename?: string): Promise<RoxenModuleInfo>;
-};
 
 const cache = new Map<string, RoxenModuleInfo | null>();
 const log = new Logger('RoxenDetector');
@@ -24,7 +20,7 @@ function hasMarkers(code: string): boolean {
 export async function detectRoxenModule(
   code: string,
   uri: string,
-  bridge: RoxenDetectorBridge
+  bridge: Pick<PikeBridge, 'roxenDetect'>
 ): Promise<RoxenModuleInfo | null> {
   const cached = cache.get(uri);
   if (cached !== undefined) return cached;
