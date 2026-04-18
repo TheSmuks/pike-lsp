@@ -10,6 +10,10 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Location, DocumentHighlight, Position } from 'vscode-languageserver/node.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { DocumentCacheEntry } from '../../core/types.js';
+import { DocumentCache } from '../../services/document-cache.js';
+import { PikeIntrospectionService } from '../../services/pike-introspection.js';
+import { TypeDatabase } from '../../type-database.js';
+import { Logger } from '@pike-lsp/core';
 
 // =============================================================================
 // Handler Types
@@ -302,13 +306,7 @@ export function createMockConnection(): MockConnection {
 // =============================================================================
 
 /** No-op logger for tests */
-export const silentLogger = {
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  log: () => {},
-};
+export const silentLogger = new Logger('test');
 
 // =============================================================================
 // Cache & Symbol Builders
@@ -388,17 +386,12 @@ export interface MockServicesOverrides {
   symbols?: PikeSymbol[];
   symbolPositions?: Map<string, Position[]>;
   cacheEntries?: Map<string, DocumentCacheEntry>;
+  documentCache?: DocumentCache;
   inherits?: any[];
   bridge?: any;
   stdlibIndex?: any;
   workspaceIndex?: any;
-  pikeIntrospection?: {
-    getInherits(
-      uri: string
-    ): Promise<
-      Array<{ uri: string; ownerClass: string; ownerLine: number; inheritedName: string }>
-    >;
-  };
+  pikeIntrospection?: PikeIntrospectionService;
 }
 
 /**
@@ -439,15 +432,13 @@ export function createMockWorkspaceIndex(symbols: Map<string, any[]>) {
  * Accepts overrides for customization.
  */
 export function createMockServices(overrides?: MockServicesOverrides) {
-  const cacheMap = overrides?.cacheEntries ?? new Map<string, DocumentCacheEntry>();
+  const documentCache = overrides?.documentCache ?? new DocumentCache();
 
-  const documentCache = {
-    get: (uri: string) => cacheMap.get(uri),
-    entries: () => cacheMap.entries(),
-    keys: () => cacheMap.keys(),
-    waitFor: async (_uri: string) => {},
-    set: (uri: string, entry: DocumentCacheEntry) => cacheMap.set(uri, entry),
-  };
+  if (overrides?.cacheEntries) {
+    for (const [uri, entry] of overrides.cacheEntries) {
+      documentCache.set(uri, entry);
+    }
+  }
 
   return {
     bridge: overrides?.bridge ?? null,
@@ -455,7 +446,7 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     documentCache,
     stdlibIndex: overrides?.stdlibIndex ?? null,
     includeResolver: null,
-    typeDatabase: {},
+    typeDatabase: new TypeDatabase(),
     workspaceIndex: overrides?.workspaceIndex ?? {
       searchSymbols: () => [],
       getDocumentSymbols: () => [],
@@ -464,6 +455,6 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],
     moduleContext: null,
-    pikeIntrospection: overrides?.pikeIntrospection ?? undefined,
+    ...(overrides?.pikeIntrospection ? { pikeIntrospection: overrides.pikeIntrospection } : {}),
   };
 }

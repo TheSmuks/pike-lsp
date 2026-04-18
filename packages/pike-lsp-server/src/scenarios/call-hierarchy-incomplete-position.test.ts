@@ -17,12 +17,8 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCallHierarchyHandlers } from '../features/call-hierarchy.js';
-import {
-  createMockBridge,
-  createMockDocuments,
-  createMockServices,
-  makeCachedEntry,
-} from '../tests/helpers/test-helpers.js';
+import { createMockServices, makeCacheEntry } from '../tests/helpers/mock-services.js';
+import { createMockDocuments } from '../tests/helpers/test-helpers.js';
 import type { DocumentCacheEntry } from '../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
@@ -87,15 +83,16 @@ const TEST_URI = 'file:///test.pike';
 const SOURCE_TEXT = 'int myFunc() { return 0; }\n';
 
 function makeEntryWithSymbols(symbols: PikeSymbol[]): DocumentCacheEntry {
-  const base = makeCachedEntry(SOURCE_TEXT);
-  return { ...base, symbols };
+  const base = makeCacheEntry({ symbols });
+  return base;
 }
 
 function setup(symbols: PikeSymbol[]) {
   const conn = createCapturingConnection();
   const docs = createMockDocuments();
-  const bridge = createMockBridge();
-  const { services } = createMockServices(TEST_URI, bridge, makeEntryWithSymbols(symbols));
+  const services = createMockServices({
+    cacheEntries: new Map([[TEST_URI, makeEntryWithSymbols(symbols)]]),
+  });
 
   const doc = TextDocument.create(TEST_URI, 'pike', 1, SOURCE_TEXT);
   docs.emitOpen(doc);
