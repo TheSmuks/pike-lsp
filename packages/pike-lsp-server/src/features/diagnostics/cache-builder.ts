@@ -10,7 +10,6 @@
 
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry, CoreDiagnostic, CorePosition } from '../../core/types.js';
-import { TypeDatabase, CompiledProgramInfo } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 import {
   buildCallPositionIndex,
@@ -65,33 +64,6 @@ export async function buildCacheWithIntrospection(
     log,
     ensureLatest,
   } = ctx;
-
-  if (!ensureLatest('before_type_database_set')) {
-    return;
-  }
-
-  const symbolMap = new Map(introspectData.symbols.map(s => [s.name, s]));
-  const functionMap = new Map(introspectData.functions.map(s => [s.name, s]));
-  const variableMap = new Map(introspectData.variables.map(s => [s.name, s]));
-  const classMap = new Map(introspectData.classes.map(s => [s.name, s]));
-
-  const sizeBytes = TypeDatabase.estimateProgramSize(symbolMap, introspectData.inherits);
-
-  const programInfo: CompiledProgramInfo = {
-    uri,
-    version,
-    symbols: symbolMap,
-    functions: functionMap,
-    variables: variableMap,
-    classes: classMap,
-    inherits: introspectData.inherits,
-    imports: new Set(),
-    compiledAt: Date.now(),
-    sizeBytes,
-  };
-
-  services.typeDatabase.setProgram(programInfo);
-
   const legacySymbols: import('@pike-lsp/pike-bridge').PikeSymbol[] = [];
 
   log.debug('Introspection summary', {
