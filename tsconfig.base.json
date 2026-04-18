@@ -2,8 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
-    "moduleResolution": "node",
-    "types": ["node"],
+    "moduleResolution": "bundler",
     "lib": ["ES2022"],
     "strict": true,
     "noImplicitAny": true,
