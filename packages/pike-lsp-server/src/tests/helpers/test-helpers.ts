@@ -15,6 +15,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import assert from 'node:assert/strict';
 import {
   MockBridge as BaseMockBridge,
   FaultInjectableMockBridge,
@@ -52,26 +53,26 @@ export function createMockDocuments(hooks: MockDocumentHooks = {}): MockDocument
   // documents.onDidOpen / documents.onDidChangeContent etc. (Event properties),
   // we register listeners on those events and fire through the captured emitters.
 
-  // We use Object.assign to attach a reference to the internal emitter fire methods.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Extract private emitter fire methods for use in emit* helpers.
   const internals = docs as unknown as Record<string, unknown>;
 
+  // Validate internal fields exist — fail fast if vscode-languageserver changes them.
+  assert(
+    internals['_syncedDocuments'] instanceof Map,
+    'TextDocuments internal field mismatch — library may have been updated'
+  );
+
   // Access the internal emitter fire methods
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const syncedDocs = internals['_syncedDocuments'] as Map<string, TextDocument>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fireOpen = (
     internals['_onDidOpen'] as { fire: (event: { document: TextDocument }) => void }
   ).fire.bind(internals['_onDidOpen']);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fireClose = (
     internals['_onDidClose'] as { fire: (event: { document: TextDocument }) => void }
   ).fire.bind(internals['_onDidClose']);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fireChange = (
     internals['_onDidChangeContent'] as { fire: (event: { document: TextDocument }) => void }
   ).fire.bind(internals['_onDidChangeContent']);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fireSave = (
     internals['_onDidSave'] as { fire: (event: { document: TextDocument }) => void }
   ).fire.bind(internals['_onDidSave']);
