@@ -5,15 +5,16 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
-import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
 import {
   createMockBridge,
   createMockConnection,
   createMockDocuments,
+  asConnection,
+  asServices,
+  asTextDocuments,
   makeCachedEntry,
   type FaultInjectableMockBridge,
 } from '../tests/helpers/test-helpers.js';
@@ -103,11 +104,7 @@ function createHarness(
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   };
 
-  registerDiagnosticsHandlers(
-    conn as unknown as Connection,
-    services as unknown as Services,
-    docs as unknown as TextDocuments<TextDocument>
-  );
+  registerDiagnosticsHandlers(asConnection(conn), asServices(services), asTextDocuments(docs));
 
   return { docs, cache, diagnostics, consoleErrors };
 }
