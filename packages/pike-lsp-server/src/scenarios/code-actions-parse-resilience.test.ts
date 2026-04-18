@@ -5,7 +5,7 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
+import type { Connection } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
 import type { Services } from '../services/index.js';
@@ -114,7 +114,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
   registerCodeActionsHandler(
     connection as unknown as Connection,
     services as unknown as Services,
-    docs as unknown as TextDocuments<TextDocument>
+    docs
   );
 
   // Helper to trigger code action requests
