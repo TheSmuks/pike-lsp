@@ -371,7 +371,7 @@ export class StdlibIndexManager {
    * @param path - Path potentially with line number suffix
    * @returns Object with filePath and line (0-based for LSP)
    */
-  private parsePathWithLine(path: string): { filePath: string; line: number } {
+  private parsePathWithLine(path: string): { filePath: string; line?: number } {
     const colonIndex = path.lastIndexOf(':');
     if (colonIndex !== -1) {
       // Check if the part after the last colon is a number (line number)
@@ -385,8 +385,8 @@ export class StdlibIndexManager {
         };
       }
     }
-    // No line number found
-    return { filePath: path, line: 0 };
+    // No line number found — leave line undefined to signal inaccuracy
+    return { filePath: path };
   }
 
   /**
@@ -444,7 +444,9 @@ export class StdlibIndexManager {
         const { filePath, line } = this.parsePathWithLine(result.path);
         moduleInfo.resolvedPath = result.path; // Keep original with line number
         moduleInfo.filePath = filePath; // Without line number
-        moduleInfo.line = line; // 0-based for LSP
+        if (line !== undefined) {
+          moduleInfo.line = line; // 0-based for LSP
+        }
       }
       if (result.inherits) {
         moduleInfo.inherits = result.inherits;

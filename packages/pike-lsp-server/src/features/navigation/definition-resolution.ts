@@ -51,8 +51,11 @@ export async function resolveModulePath(
     // Convert file path to URI
     const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
 
-    // Get the line number (0-based) from module info, default to 0
-    const line = moduleInfo.line ?? 0;
+    // If no line number is available, we cannot accurately locate the symbol
+    const line = moduleInfo.line;
+    if (line === undefined) {
+      return null;
+    }
 
     // Find the specific symbol within the module if a member was requested
     // Note: IntrospectedSymbol doesn't have position info, so we return the module file
@@ -152,8 +155,11 @@ export async function resolveMemberAccess(
     // Build URI from module path
     const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
 
-    // Use the module's line number (0-based) if available
-    const line = moduleInfo.line ?? 0;
+    // If no line number is available, we cannot accurately locate the symbol
+    const line = moduleInfo.line;
+    if (line === undefined) {
+      return null;
+    }
     return {
       uri,
       range: {
@@ -209,8 +215,11 @@ export async function resolveModuleMember(
     // Build URI from module path
     const uri = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
 
-    // Use the module's line number (0-based) if available
-    const line = moduleInfo.line ?? 0;
+    // If no line number is available, we cannot accurately locate the symbol
+    const line = moduleInfo.line;
+    if (line === undefined) {
+      return null;
+    }
     return {
       uri,
       range: {
