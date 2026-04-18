@@ -46,7 +46,6 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
       | undefined,
     onRequest() {},
     onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
-    onDidChangeTextDocument() {},
     console: {
       log() {},
       warn() {},
