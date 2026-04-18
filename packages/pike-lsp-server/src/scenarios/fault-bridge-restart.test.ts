@@ -29,16 +29,13 @@ function createHarness(bridge: FaultInjectableMockBridge) {
 
   // Override sendDiagnostics to capture locally
   const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
-  const originalSendDiagnostics = conn.sendDiagnostics.bind(conn);
-  (conn as { sendDiagnostics: typeof originalSendDiagnostics }).sendDiagnostics = params => {
+  const originalSendDiagnostics = conn.sendDiagnostics;
+  conn.sendDiagnostics = params => {
     diagnostics.push(params);
     originalSendDiagnostics(params);
   };
   // Override console.error to capture errors
-  const originalConsoleError = conn.console.error;
-  (conn as { console: { error: typeof originalConsoleError } }).console.error = (
-    message: unknown
-  ) => {
+  conn.console.error = (message: unknown) => {
     consoleErrors.push(String(message));
   };
 

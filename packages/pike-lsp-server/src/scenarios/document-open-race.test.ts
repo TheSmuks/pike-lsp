@@ -1,4 +1,8 @@
-import { createMockConnection } from '../tests/helpers/test-helpers.js';
+import {
+  createMockConnection,
+  createMockDocuments,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 /**
  * Scenario: Document Symbols Race on File Open (Issue #1075)
  *
@@ -37,18 +41,20 @@ function createRealDocumentCache() {
 }
 
 function setupDocumentSymbolTest(cache: DocumentCache) {
-  const services = createMockServices();
-  (services as any).documentCache = {
-    get: (u: string) => cache.get(u),
-    waitFor: async (u: string) => cache.waitFor(u),
-    entries: () => cache.entries(),
-    keys: () => cache.keys(),
-  };
+  const { documentCache: _dc, ...servicesBase } = createMockServices();
+  const services = asServices({
+    ...servicesBase,
+    documentCache: {
+      get: (u: string) => cache.get(u),
+      waitFor: async (u: string) => cache.waitFor(u),
+      entries: () => cache.entries(),
+      keys: () => cache.keys(),
+    },
+  });
 
   const conn = createMockConnection();
-  registerDocumentSymbolHandler(asConnection(conn), asServices(services), {
-    get: () => undefined,
-  } as any);
+  const docs = createMockDocuments();
+  registerDocumentSymbolHandler(asConnection(conn), services, asTextDocuments(docs));
 
   return conn;
 }

@@ -27,10 +27,7 @@ function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
   const consoleErrors: string[] = [];
 
   // Override console.error to capture errors
-  const originalConsoleError = conn.console.error;
-  (conn as { console: { error: typeof originalConsoleError } }).console.error = (
-    message: unknown
-  ) => {
+  conn.console.error = (message: unknown) => {
     consoleErrors.push(String(message));
   };
 
