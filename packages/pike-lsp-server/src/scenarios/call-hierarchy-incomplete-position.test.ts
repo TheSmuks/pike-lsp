@@ -23,6 +23,8 @@ import {
   createMockDocuments,
   createMockServices,
   makeCachedEntry,
+  asConnection,
+  asTextDocuments,
 } from '../tests/helpers/test-helpers.js';
 import type { DocumentCacheEntry } from '../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
@@ -61,11 +63,7 @@ function setup(symbols: PikeSymbol[]) {
   const doc = TextDocument.create(TEST_URI, 'pike', 1, SOURCE_TEXT);
   docs.emitOpen(doc);
 
-  registerCallHierarchyHandlers(
-    conn as unknown as Parameters<typeof registerCallHierarchyHandlers>[0],
-    services,
-    docs as unknown as Parameters<typeof registerCallHierarchyHandlers>[2]
-  );
+  registerCallHierarchyHandlers(asConnection(conn), services, asTextDocuments(docs));
 
   return conn;
 }

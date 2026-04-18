@@ -5,12 +5,16 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
-import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry, CoreSymbol } from '../core/types.js';
-import { createMockDocuments, createMockConnection } from '../tests/helpers/test-helpers.js';
+import {
+  createMockDocuments,
+  createMockConnection,
+  asConnection,
+  asServices,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -84,11 +88,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     },
   };
 
-  registerCodeActionsHandler(
-    conn as unknown as Connection,
-    services as unknown as Services,
-    docs as unknown as TextDocuments<TextDocument>
-  );
+  registerCodeActionsHandler(asConnection(conn), asServices(services), asTextDocuments(docs));
 
   // Helper to trigger code action requests
   const triggerCodeActions = async (

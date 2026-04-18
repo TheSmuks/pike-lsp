@@ -15,7 +15,13 @@ import { TypeDatabase } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 
 // Re-export connection mock from test-helpers so scenario tests import one place
-export { createMockConnection, type MockConnection } from './test-helpers.js';
+export {
+  createMockConnection,
+  type MockConnection,
+  asConnection,
+  asServices,
+  asTextDocuments,
+} from './test-helpers.js';
 
 // Re-export mock-bridge types for convenience
 export {

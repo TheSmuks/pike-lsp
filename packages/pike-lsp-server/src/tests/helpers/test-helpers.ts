@@ -12,6 +12,7 @@
 
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
@@ -265,6 +266,25 @@ export interface MockConnection {
  * Create a mock LSP Connection that captures registered handlers.
  * Supports all navigation, reference, and symbol handlers.
  */
+
+/**
+ * Centralized type casts for test setup.
+ * MockConnection implements all methods the registration functions actually call,
+ * but doesn't satisfy the full Connection/Services/TextDocuments interfaces.
+ * These helpers centralize the structural cast in one place.
+ */
+export function asConnection(conn: MockConnection): Connection {
+  return conn as unknown as Connection;
+}
+
+export function asServices(services: object): Services {
+  return services as unknown as Services;
+}
+
+export function asTextDocuments(docs: MockDocuments): TextDocuments<TextDocument> {
+  return docs as unknown as TextDocuments<TextDocument>;
+}
+
 export function createMockConnection(): MockConnection {
   let _definitionHandler: DefinitionHandler | null = null;
   let _declarationHandler: DeclarationHandler | null = null;
