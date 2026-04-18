@@ -28,13 +28,14 @@ interface SetupOptions {
   code: string;
   uri?: string;
   symbols?: PikeSymbol[];
-  symbolPositions?: Map<string, { line: number; character: number }[]>;
+  symbolPositions?: Map<string, { line: number; character: number }>[];
   noCache?: boolean;
   noDocument?: boolean;
   inherits?: InheritanceInfo[];
   extraDocs?: Map<string, TextDocument>;
   extraCacheEntries?: Map<string, DocumentCacheEntry>;
   bridge?: any;
+  stdlibIndex?: any;
 }
 
 function setup(opts: SetupOptions) {
@@ -65,7 +66,11 @@ function setup(opts: SetupOptions) {
     );
   }
 
-  const services = createMockServices({ cacheEntries, bridge: opts.bridge ?? null });
+  const services = createMockServices({
+    cacheEntries,
+    bridge: opts.bridge ?? null,
+    stdlibIndex: opts.stdlibIndex,
+  });
   const documents = createMockDocuments(docsMap);
   const conn = createMockConnection();
 
@@ -651,6 +656,29 @@ myFunc(42);`;
 
       const result = await definition(1, 6);
       expect(result === null || !!(result as Location).uri).toBe(true);
+    });
+    it('should return null when stdlib module has no line number', async () => {
+      const stdlibIndex = {
+        getModule: async (path: string) => {
+          if (path === 'NoLineModule') {
+            return {
+              symbols: new Map([['someMethod', { name: 'someMethod', kind: 'method' }]]),
+              resolvedPath: '/usr/pike/lib/NoLineModule.pmod',
+              filePath: '/usr/pike/lib/NoLineModule.pmod',
+              line: undefined,
+            };
+          }
+          return null;
+        },
+      };
+
+      const { definition } = setup({
+        code: `import NoLineModule;\nNoLineModule.someMethod();`,
+        stdlibIndex,
+      });
+
+      const result = await definition(1, 15);
+      expect(result).toBeNull();
     });
   });
 
