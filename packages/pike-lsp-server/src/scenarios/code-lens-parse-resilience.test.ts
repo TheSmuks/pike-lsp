@@ -35,7 +35,6 @@ function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
     codeLensResolveHandler: undefined as ((lens: unknown) => Promise<unknown>) | undefined,
     onRequest() {},
     onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
-    onDidChangeTextDocument() {},
     console: {
       log() {},
       warn() {},
