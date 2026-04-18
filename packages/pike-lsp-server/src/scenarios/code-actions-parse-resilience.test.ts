@@ -5,7 +5,7 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection } from 'vscode-languageserver/node.js';
+import type { Connection, DidChangeConfigurationParams } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
 import type { Services } from '../services/index.js';
@@ -45,7 +45,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
         }) => Promise<unknown>)
       | undefined,
     onRequest() {},
-    onDidChangeConfiguration() {},
+    onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
     onDidChangeTextDocument() {},
     console: {
       log() {},
