@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { BridgeManager } from '../services/bridge-manager.js';
+import type { PikeIntrospectionService } from '../services/pike-introspection.js';
 import { Logger } from '@pike-lsp/core';
 
 describe('BridgeManager - stdlib prewarming', () => {
@@ -17,7 +18,7 @@ describe('BridgeManager - stdlib prewarming', () => {
         prewarmCalled = true;
         return { durationMs: 100, modulesLoaded: ['Stdio'], modulesFailed: [], totalSymbols: 50 };
       },
-    } as any;
+    } as unknown as PikeIntrospectionService;
 
     bm.setPikeIntrospection(mockIntrospection);
 

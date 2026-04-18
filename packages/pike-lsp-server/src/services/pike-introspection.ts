@@ -454,9 +454,16 @@ export class PikeIntrospectionService {
     const modulesFailed: string[] = [];
     let totalSymbols = 0;
 
-    for (const modulePath of PikeIntrospectionService.PREWARM_MODULES) {
-      try {
-        const info = await this.stdlibIndex.getModule(modulePath);
+    const results = await Promise.allSettled(
+      PikeIntrospectionService.PREWARM_MODULES.map(async (modulePath) => {
+        const info = await this.stdlibIndex!.getModule(modulePath);
+        return { modulePath, info };
+      })
+    );
+
+    for (const settled of results) {
+      if (settled.status === 'fulfilled') {
+        const { modulePath, info } = settled.value;
         if (info) {
           this.addModuleToIndex(info);
           modulesLoaded.push(modulePath);
@@ -464,10 +471,11 @@ export class PikeIntrospectionService {
         } else {
           modulesFailed.push(modulePath);
         }
-      } catch (error) {
-        modulesFailed.push(modulePath);
+      } else {
+        const modulePath = PikeIntrospectionService.PREWARM_MODULES[results.indexOf(settled)];
+        modulesFailed.push(modulePath!);
         this.services.logger?.debug(
-          `Failed to prewarm stdlib module ${modulePath}: ${error instanceof Error ? error.message : String(error)}`
+          `Failed to prewarm stdlib module ${modulePath}: ${settled.reason instanceof Error ? settled.reason.message : String(settled.reason)}`
         );
       }
     }

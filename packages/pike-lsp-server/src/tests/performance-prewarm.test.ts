@@ -1,28 +1,8 @@
 import { describe, it, expect } from 'bun:test';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
 import { createMockServices } from './helpers/mock-services.js';
-import type { StdlibIndexManager, StdlibModuleInfo } from '../stdlib-index.js';
-import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
+import { createMockStdlibIndex, makeModuleInfo } from './helpers/prewarm-test-helpers.js';
 
-function createMockStdlibIndex(modules: Map<string, StdlibModuleInfo>): StdlibIndexManager {
-  return {
-    getModule: async (modPath: string) => modules.get(modPath) ?? null,
-    getAvailableModules: () => [...modules.keys()],
-    getCachedModulePaths: () => [...modules.keys()],
-  } as unknown as StdlibIndexManager;
-}
-
-function makeModuleInfo(modulePath: string, symbolNames: string[]): StdlibModuleInfo {
-  const symbols = new Map<string, IntrospectedSymbol>();
-  for (const name of symbolNames) {
-    symbols.set(name, {
-      name,
-      kind: 'function',
-      type: { kind: 'mixed' },
-    } as IntrospectedSymbol);
-  }
-  return { modulePath, symbols, lastAccessed: Date.now(), accessCount: 1, sizeBytes: 1024 };
-}
 
 function createService(modules: Map<string, StdlibModuleInfo>) {
   const index = createMockStdlibIndex(modules);

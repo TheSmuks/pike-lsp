@@ -1,40 +1,8 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect } from 'bun:test';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
-import { silentLogger, createMockServices } from './helpers/mock-services.js';
-import type { StdlibIndexManager, StdlibModuleInfo } from '../stdlib-index.js';
-import type { IntrospectedSymbol } from '@pike-lsp/pike-bridge';
+import { createMockServices } from './helpers/mock-services.js';
+import { createMockStdlibIndex, makeModuleInfo } from './helpers/prewarm-test-helpers.js';
 
-function createMockStdlibIndex(
-  modules: Map<string, StdlibModuleInfo>,
-  failModules?: Set<string>
-): StdlibIndexManager {
-  return {
-    getModule: async (modPath: string) => {
-      if (failModules?.has(modPath)) throw new Error(`Failed to load ${modPath}`);
-      return modules.get(modPath) ?? null;
-    },
-    getAvailableModules: () => [...modules.keys()],
-    getCachedModulePaths: () => [...modules.keys()],
-  } as unknown as StdlibIndexManager;
-}
-
-function makeModuleInfo(modulePath: string, symbolNames: string[]): StdlibModuleInfo {
-  const symbols = new Map<string, IntrospectedSymbol>();
-  for (const name of symbolNames) {
-    symbols.set(name, {
-      name,
-      kind: 'function',
-      type: { kind: 'mixed' },
-    } as IntrospectedSymbol);
-  }
-  return {
-    modulePath,
-    symbols,
-    lastAccessed: Date.now(),
-    accessCount: 1,
-    sizeBytes: 1024,
-  };
-}
 
 describe('PikeIntrospectionService - prewarmStdlibIndex', () => {
   it('should return empty result when no stdlibIndex is set', async () => {
