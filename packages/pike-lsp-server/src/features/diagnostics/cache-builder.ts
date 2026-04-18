@@ -18,6 +18,7 @@ import {
 } from './symbol-index.js';
 import { extractDeprecatedFromSymbols } from './utils.js';
 import { buildStaleFallbackEntry } from './cache-helpers.js';
+import { resolveDependenciesViaBridge } from './dependency-resolver.js';
 
 /** Common context for all cache building paths */
 export interface CacheBuildContext {
@@ -134,11 +135,13 @@ export async function buildCacheWithIntrospection(
   }
 
   let dependencies: import('../../core/types.js').DocumentDependencies | undefined;
-  if (services.includeResolver) {
-    dependencies = await services.includeResolver.resolveDependencies(uri, legacySymbols);
-    if (!ensureLatest('post_dependency_resolve')) {
-      return;
-    }
+  try {
+    dependencies = await resolveDependenciesViaBridge(bridge, uri, legacySymbols, log);
+  } catch {
+    // Bridge resolution failure — continue without dependencies
+  }
+  if (!ensureLatest('post_dependency_resolve')) {
+    return;
   }
 
   const hierarchicalSymbols =
@@ -242,8 +245,12 @@ export async function buildCacheParseOnly(
   let dependencies: import('../../core/types.js').DocumentDependencies | undefined;
   if (analysisMode === 'typing' && previousEntry?.dependencies) {
     dependencies = previousEntry.dependencies;
-  } else if (services.includeResolver) {
-    dependencies = await services.includeResolver.resolveDependencies(uri, symbolsWithDeprecated);
+  } else {
+    try {
+      dependencies = await resolveDependenciesViaBridge(bridge, uri, symbolsWithDeprecated, log);
+    } catch {
+      // Bridge resolution failure — continue without dependencies
+    }
     if (!ensureLatest('post_dependency_resolve_fallback')) {
       return;
     }
