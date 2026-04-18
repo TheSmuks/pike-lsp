@@ -87,3 +87,16 @@ export const LSP = {
    */
   MAX_REFERENCES: 100,
 } as const;
+
+/**
+ * Maximum concurrent stdlib module resolution requests.
+ * Limits concurrent bridge.resolveStdlib() calls to prevent
+ * overwhelming the single-threaded bridge subprocess.
+ */
+export const MAX_CONCURRENT_STDLIB_REQUESTS = 5;
+
+/**
+ * Maximum number of stdlib module resolution results to cache.
+ * Uses LRU eviction when this limit is exceeded.
+ */
+export const MAX_STDLIB_CACHE_SIZE = 200;

@@ -341,11 +341,23 @@ describe('IncludeResolver resolveAndCache shared logic', () => {
       });
       const resolver = new IncludeResolver(bridgeManager, logger);
 
-      assert.deepStrictEqual(resolver.getStats(), { cachedIncludes: 0, totalSymbols: 0 });
+      assert.deepStrictEqual(resolver.getStats(), {
+        cachedIncludes: 0,
+        totalSymbols: 0,
+        stdlibCacheHits: 0,
+        stdlibCacheMisses: 0,
+        stdlibCacheSize: 0,
+      });
 
       await resolver.resolveDependencies('file:///test.pike', [makeIncludeSymbol('utils.pike')]);
 
-      assert.deepStrictEqual(resolver.getStats(), { cachedIncludes: 1, totalSymbols: 2 });
+      assert.deepStrictEqual(resolver.getStats(), {
+        cachedIncludes: 1,
+        totalSymbols: 2,
+        stdlibCacheHits: 0,
+        stdlibCacheMisses: 0,
+        stdlibCacheSize: 0,
+      });
     });
   });
 
