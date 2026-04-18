@@ -12,7 +12,7 @@
 
 import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
+import type { Connection } from 'vscode-languageserver/node.js';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
