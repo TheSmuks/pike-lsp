@@ -10,38 +10,18 @@
  *   import { createMockDocuments, createMockBridge, createMockServices, makeCachedEntry } from './test-helpers.js';
  */
 
+import { TextDocuments } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import type { Services } from '../../services/index.js';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { computeContentHash, computeLineHashes } from '../../services/document-cache.js';
+import assert from 'node:assert/strict';
 import {
   MockBridge as BaseMockBridge,
   FaultInjectableMockBridge,
   type FaultInjectionConfig,
   type MockBridgeConfig,
 } from './mock-bridge.js';
-
-// ---------------------------------------------------------------------------
-// Document mock
-// ---------------------------------------------------------------------------
-
-type OpenHandler = (event: { document: TextDocument }) => void;
-type SaveHandler = (event: { document: TextDocument }) => void;
-type ChangeHandler = (event: { document: TextDocument }) => void;
-type CloseHandler = (event: { document: TextDocument }) => void;
-
-export interface MockDocuments {
-  get(uri: string): TextDocument | undefined;
-  all(): TextDocument[];
-  onDidOpen(handler: OpenHandler): void;
-  onDidSave(handler: SaveHandler): void;
-  onDidChangeContent(handler: ChangeHandler): void;
-  onDidClose(handler: CloseHandler): void;
-  emitOpen(document: TextDocument): void;
-  emitSave(document: TextDocument): void;
-  emitChange(document: TextDocument): void;
-  emitClose(document: TextDocument): void;
-}
 
 export interface MockDocumentHooks {
   onEvent?: (event: {
@@ -51,53 +31,74 @@ export interface MockDocumentHooks {
   }) => void;
 }
 
-export function createMockDocuments(hooks: MockDocumentHooks = {}): MockDocuments {
-  let openHandler: OpenHandler | undefined;
-  let saveHandler: SaveHandler | undefined;
-  let changeHandler: ChangeHandler | undefined;
-  let closeHandler: CloseHandler | undefined;
-  const docs = new Map<string, TextDocument>();
+/**
+ * Creates a TextDocuments<TextDocument> instance with test-fire emit helpers.
+ * Internally builds a real TextDocuments and wires it to a mock connection
+ * whose notification handlers are captured for use in emit* methods.
+ */
+export type MockDocuments = TextDocuments<TextDocument> & {
+  emitOpen(document: TextDocument): void;
+  emitSave(document: TextDocument): void;
+  emitChange(document: TextDocument): void;
+  emitClose(document: TextDocument): void;
+};
 
-  return {
-    get(uri: string) {
-      return docs.get(uri);
-    },
-    all() {
-      return [...docs.values()];
-    },
-    onDidOpen(handler: OpenHandler) {
-      openHandler = handler;
-    },
-    onDidSave(handler: SaveHandler) {
-      saveHandler = handler;
-    },
-    onDidChangeContent(handler: ChangeHandler) {
-      changeHandler = handler;
-    },
-    onDidClose(handler: CloseHandler) {
-      closeHandler = handler;
-    },
+export function createMockDocuments(hooks: MockDocumentHooks = {}): MockDocuments {
+  const docs = new TextDocuments(TextDocument);
+
+  // The TextDocuments class stores internal state in private fields:
+  //   _syncedDocuments: Map<string, TextDocument>
+  //   _onDidOpen, _onDidClose, _onDidChangeContent, _onDidSave: Emitter instances
+  // We need to access them for the emit* helpers. Since the handlers call
+  // documents.onDidOpen / documents.onDidChangeContent etc. (Event properties),
+  // we register listeners on those events and fire through the captured emitters.
+
+  // Extract private emitter fire methods for use in emit* helpers.
+  const internals = docs as unknown as Record<string, unknown>;
+
+  // Validate internal fields exist — fail fast if vscode-languageserver changes them.
+  assert(
+    internals['_syncedDocuments'] instanceof Map,
+    'TextDocuments internal field mismatch — library may have been updated'
+  );
+
+  // Access the internal emitter fire methods
+  const syncedDocs = internals['_syncedDocuments'] as Map<string, TextDocument>;
+  const fireOpen = (
+    internals['_onDidOpen'] as { fire: (event: { document: TextDocument }) => void }
+  ).fire.bind(internals['_onDidOpen']);
+  const fireClose = (
+    internals['_onDidClose'] as { fire: (event: { document: TextDocument }) => void }
+  ).fire.bind(internals['_onDidClose']);
+  const fireChange = (
+    internals['_onDidChangeContent'] as { fire: (event: { document: TextDocument }) => void }
+  ).fire.bind(internals['_onDidChangeContent']);
+  const fireSave = (
+    internals['_onDidSave'] as { fire: (event: { document: TextDocument }) => void }
+  ).fire.bind(internals['_onDidSave']);
+
+  return Object.assign(docs, {
     emitOpen(document: TextDocument) {
-      docs.set(document.uri, document);
-      openHandler?.({ document });
+      syncedDocs.set(document.uri, document);
+      fireOpen({ document });
       hooks.onEvent?.({ type: 'open', uri: document.uri, version: document.version });
     },
     emitSave(document: TextDocument) {
-      docs.set(document.uri, document);
-      saveHandler?.({ document });
+      syncedDocs.set(document.uri, document);
+      fireSave({ document });
       hooks.onEvent?.({ type: 'save', uri: document.uri, version: document.version });
     },
     emitChange(document: TextDocument) {
-      docs.set(document.uri, document);
-      changeHandler?.({ document });
+      syncedDocs.set(document.uri, document);
+      fireChange({ document });
       hooks.onEvent?.({ type: 'change', uri: document.uri, version: document.version });
     },
     emitClose(document: TextDocument) {
-      docs.delete(document.uri);
-      closeHandler?.({ document });
+      syncedDocs.delete(document.uri);
+      fireClose({ document });
       hooks.onEvent?.({ type: 'close', uri: document.uri, version: document.version });
     },
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------

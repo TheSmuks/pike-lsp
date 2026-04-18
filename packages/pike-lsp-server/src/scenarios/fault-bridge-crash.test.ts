@@ -1,6 +1,6 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, TextDocuments } from 'vscode-languageserver/node.js';
+import type { Connection } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
 import type { Services } from '../services/index.js';
@@ -100,7 +100,7 @@ function createHarness(
   registerDiagnosticsHandlers(
     connection as unknown as Connection,
     services as unknown as Services,
-    docs as unknown as TextDocuments<TextDocument>
+    docs
   );
 
   return { docs, cache, diagnostics, consoleErrors };
