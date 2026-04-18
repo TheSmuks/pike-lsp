@@ -1,3 +1,4 @@
+import { createMockConnection } from '../tests/helpers/test-helpers.js';
 /**
  * Scenario: Document Symbols Race on File Open (Issue #1075)
  *
@@ -23,7 +24,6 @@ import assert from 'node:assert/strict';
 import { DocumentCache } from '../services/document-cache.js';
 import { registerDocumentSymbolHandler } from '../features/navigation/document-symbol.js';
 import {
-  createMockConnection,
   createMockServices,
   makeCacheEntry,
   sym,
