@@ -11,6 +11,8 @@ import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { BridgeManager } from './bridge-manager.js';
 import type { ResolvedInclude, ResolvedImport, DocumentDependencies } from '../core/types.js';
 import { Logger } from '@pike-lsp/core';
+import { LRUCache } from './lru-cache.js';
+import { MAX_CONCURRENT_STDLIB_REQUESTS, MAX_STDLIB_CACHE_SIZE } from '../constants/index.js';
 
 /**
  * Include Resolver Service
@@ -23,10 +25,22 @@ export class IncludeResolver {
   /** Reverse index: normalized resolvedPath -> ResolvedInclude for O(1) lookup. */
   private includePathIndex = new Map<string, ResolvedInclude>();
 
+  /** LRU cache for isStdlibModule() results. */
+  private readonly stdlibCache: LRUCache<string, boolean>;
+
+  /** Semaphore state for concurrency-limited stdlib resolution. */
+  private readonly stdlibSemaphore = {
+    maxConcurrent: MAX_CONCURRENT_STDLIB_REQUESTS,
+    active: 0,
+    queue: [] as Array<() => void>,
+  };
+
   constructor(
     private readonly bridge: BridgeManager | null,
     private readonly logger: Logger
-  ) {}
+  ) {
+    this.stdlibCache = new LRUCache<string, boolean>(MAX_STDLIB_CACHE_SIZE);
+  }
 
   /**
    * Resolve dependencies for a document.
@@ -223,21 +237,59 @@ export class IncludeResolver {
 
   /**
    * Check if a module is a stdlib module via bridge.resolveStdlib().
+   * Uses LRU cache and concurrency-limited semaphore for batching.
    */
   private async isStdlibModule(modulePath: string): Promise<boolean> {
     if (!this.bridge?.bridge) {
       return false;
     }
 
+    // Check cache first
+    const cached = this.stdlibCache.get(modulePath);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    // Acquire concurrency slot
+    await this.acquireStdlibSlot();
+
     try {
       const result = await this.bridge.bridge.resolveStdlib(modulePath);
-      return result.found === 1;
+      const isStdlib = result.found === 1;
+
+      // Cache the result
+      this.stdlibCache.set(modulePath, isStdlib);
+
+      return isStdlib;
     } catch (err) {
       this.logger.debug('Failed stdlib module resolution', {
         modulePath,
         error: err instanceof Error ? err.message : String(err),
       });
       return false;
+    } finally {
+      this.releaseStdlibSlot();
+    }
+  }
+
+  private async acquireStdlibSlot(): Promise<void> {
+    const sem = this.stdlibSemaphore;
+    if (sem.active < sem.maxConcurrent) {
+      sem.active++;
+      return;
+    }
+    return new Promise<void>(resolve => {
+      sem.queue.push(resolve);
+    });
+  }
+
+  private releaseStdlibSlot(): void {
+    const sem = this.stdlibSemaphore;
+    const next = sem.queue.shift();
+    if (next) {
+      next();
+    } else {
+      sem.active--;
     }
   }
 
@@ -271,12 +323,19 @@ export class IncludeResolver {
    */
   clear(): void {
     this.includePathIndex.clear();
+    this.stdlibCache.clear();
   }
 
   /**
    * Get cache statistics from the include path index.
    */
-  getStats(): { cachedIncludes: number; totalSymbols: number } {
+  getStats(): {
+    cachedIncludes: number;
+    totalSymbols: number;
+    stdlibCacheHits: number;
+    stdlibCacheMisses: number;
+    stdlibCacheSize: number;
+  } {
     let totalSymbols = 0;
 
     const cachedIncludes = this.includePathIndex.size;
@@ -284,7 +343,15 @@ export class IncludeResolver {
       totalSymbols += inc.symbols.length;
     }
 
-    return { cachedIncludes, totalSymbols };
+    const stdlibStats = this.stdlibCache.getStats();
+
+    return {
+      cachedIncludes,
+      totalSymbols,
+      stdlibCacheHits: stdlibStats.hits,
+      stdlibCacheMisses: stdlibStats.misses,
+      stdlibCacheSize: stdlibStats.size,
+    };
   }
 
   private normalizeFilePath(filePath: string): string {
