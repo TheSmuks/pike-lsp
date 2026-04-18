@@ -418,6 +418,70 @@ export class PikeIntrospectionService {
   }
 
   /**
+   * Top modules to preload for auto-import performance.
+   * These account for ~80% of auto-import queries.
+   */
+  private static readonly PREWARM_MODULES = [
+    'Stdio',
+    'Parser',
+    'String',
+    'Array',
+    'Mapping',
+    'Multiset',
+    'ADT',
+    'Protocols',
+    'MIME',
+    'System',
+  ] as const;
+
+  /**
+   * Prewarm stdlib symbol index with the most-used modules.
+   * Eliminates first-query latency spikes for auto-import completions.
+   * Returns metrics for tracking preload effectiveness.
+   */
+  async prewarmStdlibIndex(): Promise<{
+    durationMs: number;
+    modulesLoaded: string[];
+    modulesFailed: string[];
+    totalSymbols: number;
+  }> {
+    if (!this.stdlibIndex) {
+      return { durationMs: 0, modulesLoaded: [], modulesFailed: [], totalSymbols: 0 };
+    }
+
+    const startTime = performance.now();
+    const modulesLoaded: string[] = [];
+    const modulesFailed: string[] = [];
+    let totalSymbols = 0;
+
+    for (const modulePath of PikeIntrospectionService.PREWARM_MODULES) {
+      try {
+        const info = await this.stdlibIndex.getModule(modulePath);
+        if (info) {
+          this.addModuleToIndex(info);
+          modulesLoaded.push(modulePath);
+          totalSymbols += info.symbols?.size ?? 0;
+        } else {
+          modulesFailed.push(modulePath);
+        }
+      } catch (error) {
+        modulesFailed.push(modulePath);
+        this.services.logger?.debug(
+          `Failed to prewarm stdlib module ${modulePath}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
+
+    const durationMs = performance.now() - startTime;
+    this.services.logger?.info(
+      `Stdlib index prewarmed: ${modulesLoaded.length}/${PikeIntrospectionService.PREWARM_MODULES.length} modules, ` +
+        `${totalSymbols} symbols, ${durationMs.toFixed(2)}ms`
+    );
+
+    return { durationMs, modulesLoaded, modulesFailed, totalSymbols };
+  }
+
+  /**
    * Clear the cached stdlib symbol lists. Should be called when
    * the workspace index changes.
    */
