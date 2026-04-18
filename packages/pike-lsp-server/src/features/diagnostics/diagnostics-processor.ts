@@ -266,7 +266,9 @@ export async function processAnalysisResults(
     if (services.bridge?.bridge) {
       const roxenInfo = await detectRoxenModule(text, uri, services.bridge.bridge);
       if (roxenInfo && roxenInfo.is_roxen_module === 1) {
-        const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0);
+        const roxenDiags = await provideRoxenDiagnostics(uri, text, services.bridge.bridge, 0, {
+          ...roxenInfo,
+        });
         if (!ensureLatest('post_roxen_diagnostics')) return;
         for (const roxenDiag of roxenDiags) pushDiagnostic(roxenDiag);
         log.debug('Added Roxen diagnostics', { uri, count: roxenDiags.length });

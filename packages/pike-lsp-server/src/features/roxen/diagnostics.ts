@@ -4,16 +4,14 @@
 
 import type { Diagnostic } from 'vscode-languageserver';
 import { Logger } from '@pike-lsp/core';
-
-type RoxenRawDiagnostic = {
-  line?: number;
-  column?: number;
-  severity?: string;
-  message?: string;
-};
+import type { RoxenDiagnostic, RoxenValidationResult } from './types.js';
 
 type RoxenValidationBridge = {
-  roxenValidate(code: string, filename: string): Promise<{ diagnostics?: RoxenRawDiagnostic[] }>;
+  roxenValidate(
+    code: string,
+    filename: string,
+    moduleInfo?: Record<string, unknown>
+  ): Promise<RoxenValidationResult>;
 };
 
 type PendingDebounce = {
@@ -28,7 +26,8 @@ export async function provideRoxenDiagnostics(
   uri: string,
   code: string,
   bridge: RoxenValidationBridge,
-  debounceMs = 500
+  debounceMs = 500,
+  moduleInfo?: Record<string, unknown>
 ): Promise<Diagnostic[]> {
   return new Promise(resolve => {
     const pending: PendingDebounce = {
@@ -45,14 +44,25 @@ export async function provideRoxenDiagnostics(
 
     const timeout = setTimeout(async () => {
       try {
-        const result = await bridge.roxenValidate(code, uri);
-        const diagnostics = result.diagnostics || [];
+        const result = await bridge.roxenValidate(code, uri, moduleInfo);
+
+        if (result.error) {
+          log.warn('Roxen validation returned error', {
+            uri,
+            code: result.error.code,
+            message: result.error.message,
+          });
+          resolve([]);
+          return;
+        }
+
+        const diagnostics: RoxenDiagnostic[] = result.diagnostics ?? [];
 
         resolve(
-          diagnostics.map(d => {
+          diagnostics.map((d: RoxenDiagnostic) => {
             // Convert 1-based Pike line/column to 0-based LSP
-            const line = Math.max(0, (d.line ?? 1) - 1);
-            const column = Math.max(0, (d.column ?? 1) - 1);
+            const line = Math.max(0, d.line - 1);
+            const column = Math.max(0, d.column - 1);
 
             return {
               range: {
@@ -60,8 +70,8 @@ export async function provideRoxenDiagnostics(
                 end: { line, character: column },
               },
               severity: d.severity === 'error' ? 1 : d.severity === 'warning' ? 2 : 3,
-              message: d.message || '',
-              source: 'roxen', // Hardcoded - Pike doesn't return source
+              message: d.message,
+              source: 'roxen',
             };
           })
         );
