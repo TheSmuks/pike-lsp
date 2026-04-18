@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776532043292,
+  "lastUpdate": 1776535203877,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -120178,6 +120178,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.777213601694916,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "617b17b0eb375a80a4b0c4aa0f86066b6e92317d",
+          "message": "perf(#2189): Batch workspace diagnostic file reads with concurrency limit (#2191)\n\n* perf: Batch workspace diagnostic file reads with concurrency limit tracking\n\nCloses #2189\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #2191\n\nNow I have full context. Two changes needed:\n\n1. **workspace-diagnostics.test.ts line 14**: Update stale line reference `workspace-diagnostics.ts:247-255` → `workspace-diagnostics.ts:283-291`\n2. **workspace-diagnostics-retry.test.ts**: Add a test verifying pipelined read-analyze respects concurrency limitsNow add the pipeline concurrency test:Wait, I need to check the insertion point more carefully. The test should go before the closing `});` of the describe block, not after it. Let me re-read t\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve typecheck errors for PR #2191\n\nTwo issues to fix:\n1. `\"types\": [\"node\"]` in base config references `@types/node`, which may not be installed in the right location\n2. `\"moduleResolution\": \"node\"` is deprecated (node10 alias)\n\nLet me check if `@types/node` is installed and see how sibling packages handle this:`@types/node` is not installed anywhere. The fix is in `tsconfig.base.json`:\n\n1. Change `\"moduleResolution\": \"node\"` → `\"moduleResolution\": \"bundler\"` (modern replacement for the deprecated node10)\n2. Change `\"types\": [\"no\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve CI failures for PR #2191\n\npike-test (8.1116), testing-pyramid (invariants), vscode-e2e\n\nAll tests pass. Let me check the specific CI failures mentioned - the `testing-pyramid` invariants and `pike-test (8.1116)` checks.Missing import. Let me check the other new files too:TypeScript compiles clean. Let me check the `StdlibModuleInfo` type — it might be resolved via ambient declarations that only exist during type checking but not at runtime:All pass individually. Let me check the vsco\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-18T19:58:01+02:00",
+          "tree_id": "5cf796ad85a31e198527573e6379be5ac3f05c94",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/617b17b0eb375a80a4b0c4aa0f86066b6e92317d"
+        },
+        "date": 1776535203475,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.64609741666666,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 242.21444641666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 243.99030633333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 247.24348766666665,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.1683589375,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 4.065617485207101,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 50.268072727272724,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 4.974228094202898,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 4.081743148809524,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.1804217497942387,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.16433258216783217,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.45301318494055487,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.12736692164179106,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.1444524752678368,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00023664049092839273,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0005001380686457867,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0005032134254201134,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005111410169579828,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0005197359778791214,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0005101625664806519,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.2796649678102499,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.46504608333333,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.076201,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.2578978051498847,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.0002327646565305594,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0006302592955119642,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 4.4561706753246755,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 4.469134065359477,
             "unit": "ms"
           }
         ]
