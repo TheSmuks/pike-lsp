@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Logger } from '@pike-lsp/core';
+import { MAX_CACHE_FILE_SIZE, MAX_CACHE_DATA_SIZE } from '../constants/index.js';
 
 const log = new Logger('ResolutionCachePersistence');
 
@@ -50,12 +51,20 @@ export async function saveResolutionCache(
       payload.pikeVersion = pikeVersion;
     }
 
-    await fs.promises.writeFile(cacheFile, JSON.stringify(payload), 'utf-8');
+    const serialized = JSON.stringify(payload);
+    if (serialized.length > MAX_CACHE_FILE_SIZE) {
+      log.warn('Resolution cache exceeds size limit on save, skipping write', {
+        sizeBytes: serialized.length,
+        maxSize: MAX_CACHE_FILE_SIZE,
+      });
+      return;
+    }
+    await fs.promises.writeFile(cacheFile, serialized, 'utf-8');
 
     log.debug('Resolution cache saved', {
       path: cacheFile,
       pikeVersion,
-      sizeBytes: JSON.stringify(payload).length,
+      sizeBytes: serialized.length,
     });
   } catch (error) {
     log.warn('Failed to save resolution cache', {
@@ -66,8 +75,16 @@ export async function saveResolutionCache(
 
 export async function loadResolutionCache(currentPikeVersion?: string): Promise<string | null> {
   const cacheFile = getCacheFilePath();
-
   try {
+    const stat = await fs.promises.stat(cacheFile);
+    if (stat.size > MAX_CACHE_FILE_SIZE) {
+      log.debug('Resolution cache file exceeds size limit, discarding', {
+        sizeBytes: stat.size,
+        maxSize: MAX_CACHE_FILE_SIZE,
+      });
+      return null;
+    }
+
     const content = await fs.promises.readFile(cacheFile, 'utf-8');
     const parsed = JSON.parse(content) as unknown;
 
@@ -110,6 +127,14 @@ export async function loadResolutionCache(currentPikeVersion?: string): Promise<
 
     if (typeof cache['data'] !== 'string') {
       log.debug('Resolution cache has invalid data field, discarding');
+      return null;
+    }
+
+    if (cache['data'].length > MAX_CACHE_DATA_SIZE) {
+      log.debug('Resolution cache data exceeds size limit, discarding', {
+        dataLength: cache['data'].length,
+        maxSize: MAX_CACHE_DATA_SIZE,
+      });
       return null;
     }
 

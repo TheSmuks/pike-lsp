@@ -49,6 +49,20 @@ export const MAX_FILE_SIZE = 1024 * 1024; // 1MB
 export const TYPE_DB_MAX_MEMORY_BYTES = 50 * 1024 * 1024; // 50MB
 
 /**
+ * Maximum resolution cache file size (bytes).
+ * Files exceeding this size are rejected before reading
+ * to prevent unbounded memory allocation on corrupted caches.
+ */
+export const MAX_CACHE_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+/**
+ * Maximum resolution cache data payload size (bytes).
+ * The `data` string inside the cache JSON is validated
+ * against this limit after parsing.
+ */
+export const MAX_CACHE_DATA_SIZE = 8 * 1024 * 1024; // 8MB
+
+/**
  * Default max number of problems (diagnostics)
  */
 export const DEFAULT_MAX_PROBLEMS = 100;
