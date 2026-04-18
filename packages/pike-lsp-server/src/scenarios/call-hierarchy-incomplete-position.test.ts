@@ -103,7 +103,7 @@ function setup(symbols: PikeSymbol[]) {
   registerCallHierarchyHandlers(
     conn.connection as Parameters<typeof registerCallHierarchyHandlers>[0],
     services,
-    docs as unknown as Parameters<typeof registerCallHierarchyHandlers>[2]
+    docs
   );
 
   return conn;
