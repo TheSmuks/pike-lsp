@@ -11,18 +11,23 @@ describe('ResolutionCachePersistence', () => {
   const originalUnlink = fs.promises.unlink;
   const originalWriteFile = fs.promises.writeFile;
   const originalMkdir = fs.promises.mkdir;
+  const originalStat = fs.promises.stat;
 
   afterEach(() => {
     fs.promises.readFile = originalReadFile;
     fs.promises.unlink = originalUnlink;
     fs.promises.writeFile = originalWriteFile;
     fs.promises.mkdir = originalMkdir;
+    fs.promises.stat = originalStat;
   });
 
   describe('loadResolutionCache - ENOENT handling', () => {
     it('should return null silently when file does not exist (ENOENT)', async () => {
       const enoentErr = new Error('ENOENT: no such file');
       Object.defineProperty(enoentErr, 'code', { value: 'ENOENT' });
+      fs.promises.stat = mock(async () => {
+        throw enoentErr;
+      });
       fs.promises.readFile = mock(async () => {
         throw enoentErr;
       });
@@ -37,6 +42,10 @@ describe('ResolutionCachePersistence', () => {
     it('should return null for non-ENOENT errors (generic Error)', async () => {
       const genericErr = new Error('permission denied');
       // No 'code' property - simulates a non-ErrnoException error
+      fs.promises.stat = mock(async () => ({
+        size: 1024,
+        isFile: () => true,
+      }));
       fs.promises.readFile = mock(async () => {
         throw genericErr;
       });
@@ -49,6 +58,10 @@ describe('ResolutionCachePersistence', () => {
     });
 
     it('should return null for non-Error throws (e.g. string)', async () => {
+      fs.promises.stat = mock(async () => ({
+        size: 1024,
+        isFile: () => true,
+      }));
       fs.promises.readFile = mock(async () => {
         throw 'unexpected string error';
       });
@@ -62,6 +75,10 @@ describe('ResolutionCachePersistence', () => {
     it('should return null for ENOENT with code but not instanceof Error', async () => {
       // Object with code ENOENT but not an Error instance
       const notAnError = { code: 'ENOENT', message: 'fake' };
+      fs.promises.stat = mock(async () => ({
+        size: 1024,
+        isFile: () => true,
+      }));
       fs.promises.readFile = mock(async () => {
         throw notAnError;
       });
@@ -102,12 +119,6 @@ describe('ResolutionCachePersistence', () => {
   });
 
   describe('loadResolutionCache - file size limits', () => {
-    const originalStat = fs.promises.stat;
-
-    afterEach(() => {
-      fs.promises.stat = originalStat;
-    });
-
     it('should return null when stat reports file exceeding MAX_CACHE_FILE_SIZE', async () => {
       fs.promises.stat = mock(async () => ({
         size: 11 * 1024 * 1024,
