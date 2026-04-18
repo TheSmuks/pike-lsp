@@ -11,10 +11,18 @@ import type { Location, DocumentHighlight, Position } from 'vscode-languageserve
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 import type { DocumentCacheEntry } from '../../core/types.js';
 import { DocumentCache } from '../../services/document-cache.js';
-import { PikeIntrospectionService } from '../../services/pike-introspection.js';
 import { TypeDatabase } from '../../type-database.js';
 import { Logger } from '@pike-lsp/core';
 
+// Re-export connection mock from test-helpers so scenario tests import one place
+export { createMockConnection, type MockConnection } from './test-helpers.js';
+
+// Re-export mock-bridge types for convenience
+export {
+  type MockBridgeConfig,
+  type FaultInjectionConfig,
+  FaultInjectableMockBridge,
+} from './mock-bridge.js';
 // =============================================================================
 // Handler Types
 // =============================================================================
@@ -84,222 +92,6 @@ export type LinkedEditingRangeHandler = (params: {
   textDocument: { uri: string };
   position: { line: number; character: number };
 }) => import('vscode-languageserver/node.js').LinkedEditingRanges | null;
-
-// =============================================================================
-// Mock Connection
-// =============================================================================
-
-export interface MockConnection {
-  onDefinition: (handler: DefinitionHandler) => void;
-  onDeclaration: (handler: DeclarationHandler) => void;
-  onTypeDefinition: (handler: TypeDefinitionHandler) => void;
-  onReferences: (handler: ReferencesHandler) => void;
-  onDocumentHighlight: (handler: DocumentHighlightHandler) => void;
-  onImplementation: (handler: ImplementationHandler) => void;
-  onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
-  onWorkspaceSymbol: (handler: (...args: any[]) => any) => void;
-  onLinkedEditingRange: (handler: LinkedEditingRangeHandler) => void;
-  onRequest: (method: string, handler: (params: unknown) => unknown) => void;
-  sendDiagnostics: (params: { uri: string; diagnostics: any[] }) => void;
-  getSentDiagnostics: () => any[];
-  console: { log: (...args: any[]) => void };
-  languages: {
-    callHierarchy: {
-      onPrepare: (handler: any) => void;
-      onOutgoingCalls: (handler: any) => void;
-      onIncomingCalls: (handler: any) => void;
-    };
-    typeHierarchy: {
-      onPrepare: (handler: any) => void;
-      onSupertypes: (handler: any) => void;
-      onSubtypes: (handler: any) => void;
-    };
-    semanticTokens: {
-      on: (handler: any) => void;
-      onDelta: (handler: any) => void;
-    };
-    moniker: {
-      on: (handler: any) => void;
-    };
-  };
-  definitionHandler: DefinitionHandler;
-  declarationHandler: DeclarationHandler;
-  typeDefinitionHandler: TypeDefinitionHandler;
-  referencesHandler: ReferencesHandler;
-  documentHighlightHandler: DocumentHighlightHandler;
-  implementationHandler: ImplementationHandler;
-  documentSymbolHandler: DocumentSymbolHandler;
-  linkedEditingRangeHandler: LinkedEditingRangeHandler;
-  typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
-  typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
-  typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
-  semanticTokensHandler: any;
-  semanticTokensDeltaHandler: any;
-  monikerHandler: any;
-  getRequestHandler(method: string): ((params: unknown) => unknown) | undefined;
-}
-
-/**
- * Create a mock LSP Connection that captures registered handlers.
- * Supports all navigation, reference, and symbol handlers.
- */
-export function createMockConnection(): MockConnection {
-  let _definitionHandler: DefinitionHandler | null = null;
-  let _declarationHandler: DeclarationHandler | null = null;
-  let _typeDefinitionHandler: TypeDefinitionHandler | null = null;
-  let _referencesHandler: ReferencesHandler | null = null;
-  let _documentHighlightHandler: DocumentHighlightHandler | null = null;
-  let _implementationHandler: ImplementationHandler | null = null;
-  let _documentSymbolHandler: DocumentSymbolHandler | null = null;
-  let _linkedEditingRangeHandler: LinkedEditingRangeHandler | null = null;
-  let _typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler | null = null;
-  let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
-  const _sentDiagnostics: Array<{ uri: string; diagnostics: any[] }> = [];
-  let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
-  let _semanticTokensHandler: any = null;
-  let _semanticTokensDeltaHandler: any = null;
-  let _monikerHandler: any = null;
-  const _requestHandlers = new Map<string, (params: unknown) => unknown>();
-
-  return {
-    onDefinition(handler: DefinitionHandler) {
-      _definitionHandler = handler;
-    },
-    onDeclaration(handler: DeclarationHandler) {
-      _declarationHandler = handler;
-    },
-    onTypeDefinition(handler: TypeDefinitionHandler) {
-      _typeDefinitionHandler = handler;
-    },
-    onReferences(handler: ReferencesHandler) {
-      _referencesHandler = handler;
-    },
-    onDocumentHighlight(handler: DocumentHighlightHandler) {
-      _documentHighlightHandler = handler;
-    },
-    onImplementation(handler: ImplementationHandler) {
-      _implementationHandler = handler;
-    },
-    onDocumentSymbol(handler: DocumentSymbolHandler) {
-      _documentSymbolHandler = handler;
-    },
-    onWorkspaceSymbol() {},
-    onLinkedEditingRange(handler: LinkedEditingRangeHandler) {
-      _linkedEditingRangeHandler = handler;
-    },
-    onRequest(method: string, handler: (params: unknown) => unknown) {
-      _requestHandlers.set(method, handler);
-    },
-    sendDiagnostics(params: { uri: string; diagnostics: any[] }) {
-      _sentDiagnostics.push(params);
-    },
-    console: { log: () => {} },
-    languages: {
-      callHierarchy: {
-        onPrepare(_handler: any) {
-          /* Store for testing if needed */
-        },
-        onOutgoingCalls(_handler: any) {
-          /* Store for testing if needed */
-        },
-        onIncomingCalls(_handler: any) {
-          /* Store for testing if needed */
-        },
-      },
-      typeHierarchy: {
-        onPrepare(handler: TypeHierarchyPrepareHandler) {
-          _typeHierarchyPrepareHandler = handler;
-        },
-        onSupertypes(handler: TypeHierarchySupertypesHandler) {
-          _typeHierarchySupertypesHandler = handler;
-        },
-        onSubtypes(handler: TypeHierarchySubtypesHandler) {
-          _typeHierarchySubtypesHandler = handler;
-        },
-      },
-      semanticTokens: {
-        on(handler: any) {
-          _semanticTokensHandler = handler;
-        },
-        onDelta(handler: any) {
-          _semanticTokensDeltaHandler = handler;
-        },
-      },
-      moniker: {
-        on(handler: any) {
-          _monikerHandler = handler;
-        },
-      },
-    },
-    get definitionHandler(): DefinitionHandler {
-      if (!_definitionHandler) throw new Error('No definition handler registered');
-      return _definitionHandler;
-    },
-    get declarationHandler(): DeclarationHandler {
-      if (!_declarationHandler) throw new Error('No declaration handler registered');
-      return _declarationHandler;
-    },
-    get typeDefinitionHandler(): TypeDefinitionHandler {
-      if (!_typeDefinitionHandler) throw new Error('No type definition handler registered');
-      return _typeDefinitionHandler;
-    },
-    get referencesHandler(): ReferencesHandler {
-      if (!_referencesHandler) throw new Error('No references handler registered');
-      return _referencesHandler;
-    },
-    get documentHighlightHandler(): DocumentHighlightHandler {
-      if (!_documentHighlightHandler) throw new Error('No document highlight handler registered');
-      return _documentHighlightHandler;
-    },
-    get implementationHandler(): ImplementationHandler {
-      if (!_implementationHandler) throw new Error('No implementation handler registered');
-      return _implementationHandler;
-    },
-    get documentSymbolHandler(): DocumentSymbolHandler {
-      if (!_documentSymbolHandler) throw new Error('No document symbol handler registered');
-      return _documentSymbolHandler;
-    },
-    get linkedEditingRangeHandler(): LinkedEditingRangeHandler {
-      if (!_linkedEditingRangeHandler)
-        throw new Error('No linked editing range handler registered');
-      return _linkedEditingRangeHandler;
-    },
-    get typeHierarchyPrepareHandler(): TypeHierarchyPrepareHandler {
-      if (!_typeHierarchyPrepareHandler)
-        throw new Error('No type hierarchy prepare handler registered');
-      return _typeHierarchyPrepareHandler;
-    },
-    get typeHierarchySupertypesHandler(): TypeHierarchySupertypesHandler {
-      if (!_typeHierarchySupertypesHandler)
-        throw new Error('No type hierarchy supertypes handler registered');
-      return _typeHierarchySupertypesHandler;
-    },
-    get typeHierarchySubtypesHandler(): TypeHierarchySubtypesHandler {
-      if (!_typeHierarchySubtypesHandler)
-        throw new Error('No type hierarchy subtypes handler registered');
-      return _typeHierarchySubtypesHandler;
-    },
-    get semanticTokensHandler(): any {
-      if (!_semanticTokensHandler) throw new Error('No semantic tokens handler registered');
-      return _semanticTokensHandler;
-    },
-    get semanticTokensDeltaHandler(): any {
-      if (!_semanticTokensDeltaHandler)
-        throw new Error('No semantic tokens delta handler registered');
-      return _semanticTokensDeltaHandler;
-    },
-    get monikerHandler(): any {
-      if (!_monikerHandler) throw new Error('No moniker handler registered');
-      return _monikerHandler;
-    },
-    getRequestHandler(method: string): ((params: unknown) => unknown) | undefined {
-      return _requestHandlers.get(method);
-    },
-    getSentDiagnostics() {
-      return _sentDiagnostics;
-    },
-  };
-}
 
 // =============================================================================
 // Silent Logger
@@ -379,7 +171,7 @@ export function createMockDocuments(docs: Map<string, TextDocument>) {
 }
 
 // =============================================================================
-// Mock Services
+// Mock Services (full-featured, accepts overrides)
 // =============================================================================
 
 export interface MockServicesOverrides {
@@ -387,11 +179,17 @@ export interface MockServicesOverrides {
   symbolPositions?: Map<string, Position[]>;
   cacheEntries?: Map<string, DocumentCacheEntry>;
   documentCache?: DocumentCache;
-  inherits?: any[];
-  bridge?: any;
-  stdlibIndex?: any;
-  workspaceIndex?: any;
-  pikeIntrospection?: PikeIntrospectionService;
+  inherits?: unknown[];
+  bridge?: unknown;
+  stdlibIndex?: unknown;
+  workspaceIndex?: unknown;
+  pikeIntrospection?: {
+    getInherits(
+      uri: string
+    ): Promise<
+      Array<{ uri: string; ownerClass: string; ownerLine: number; inheritedName: string }>
+    >;
+  };
 }
 
 /**
@@ -399,10 +197,10 @@ export interface MockServicesOverrides {
  * Supports cross-file symbol resolution and inheritance queries.
  */
 export function createMockBridge(responses: {
-  findDefinition?: (file: string, symbol: string) => Promise<any>;
-  findReferences?: (file: string, symbol: string) => Promise<any[]>;
-  getInheritance?: (file: string, className: string) => Promise<any[]>;
-  resolveSymbol?: (file: string, symbol: string) => Promise<any>;
+  findDefinition?: (file: string, symbol: string) => Promise<unknown>;
+  findReferences?: (file: string, symbol: string) => Promise<unknown[]>;
+  getInheritance?: (file: string, className: string) => Promise<unknown[]>;
+  resolveSymbol?: (file: string, symbol: string) => Promise<unknown>;
 }) {
   return {
     bridge: {
@@ -417,7 +215,7 @@ export function createMockBridge(responses: {
 /**
  * Create a mock workspace index for symbol search across workspace.
  */
-export function createMockWorkspaceIndex(symbols: Map<string, any[]>) {
+export function createMockWorkspaceIndex(symbols: Map<string, unknown[]>) {
   return {
     searchSymbols: (query: string) => {
       return symbols.get(query) ?? [];
@@ -431,7 +229,7 @@ export function createMockWorkspaceIndex(symbols: Map<string, any[]>) {
  * Creates a documentCache backed by a simple Map.
  * Accepts overrides for customization.
  */
-export function createMockServices(overrides?: MockServicesOverrides) {
+export function buildMockServices(overrides?: MockServicesOverrides) {
   const documentCache = overrides?.documentCache ?? new DocumentCache();
 
   if (overrides?.cacheEntries) {
@@ -458,3 +256,9 @@ export function createMockServices(overrides?: MockServicesOverrides) {
     ...(overrides?.pikeIntrospection ? { pikeIntrospection: overrides.pikeIntrospection } : {}),
   };
 }
+
+/**
+ * Alias: createMockServices calls buildMockServices.
+ * Kept for backward compatibility with scenario tests that import from mock-services.
+ */
+export const createMockServices = buildMockServices;
