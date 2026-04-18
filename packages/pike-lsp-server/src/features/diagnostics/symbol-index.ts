@@ -8,9 +8,6 @@
 import type { CorePosition } from '../../core/types.js';
 import type { PikeSymbol, PikeToken } from '@pike-lsp/pike-bridge';
 import { createLexicalExclusionMap } from '../../utils/lexical-exclusion-map.js';
-import { Logger } from '@pike-lsp/core';
-
-const log = new Logger('symbol-index');
 
 /**
  * Build symbol name index for O(1) lookups.
@@ -163,8 +160,7 @@ function matchTokensToSymbolPositions(
 
 /**
  * Build symbol position index for O(1) lookups.
- * PERF-001: Uses Pike tokenization for accuracy and performance
- * PERF-004: Reuses tokens from analyze() to avoid separate findOccurrences() IPC call
+ * PERF-004: Reuses tokens from analyze() to avoid separate IPC call
  * PERF-1229: Accepts pre-split lines array to avoid redundant text.split('\n') calls
  */
 export async function buildSymbolPositionIndex(
@@ -172,10 +168,6 @@ export async function buildSymbolPositionIndex(
   symbols: PikeSymbol[],
   tokens?: PikeToken[],
   bridge?: {
-    isRunning: () => boolean;
-    findOccurrences: (
-      text: string
-    ) => Promise<{ occurrences: Array<{ text: string; line: number; character: number }> }>;
     tokenize: (text: string) => Promise<PikeToken[]>;
   },
   lines?: string[]
@@ -190,34 +182,7 @@ export async function buildSymbolPositionIndex(
     if (index.size > 0) return index;
   }
 
-  // PERF-001: Fallback to findOccurrences IPC call if tokens not available
-  if (bridge?.isRunning()) {
-    try {
-      const result = await bridge.findOccurrences(text);
-
-      const index = new Map<string, CorePosition[]>();
-      for (const occ of result.occurrences) {
-        if (!meta.symbolNames.has(occ.text)) continue;
-        if (exclusions.isCommentPosition(occ.line - 1, occ.character)) continue;
-
-        // Skip definition line
-        const defLine = meta.definitionLines.get(occ.text);
-        if (defLine !== undefined && occ.line === defLine) continue;
-
-        const pos: CorePosition = { line: occ.line - 1, character: occ.character };
-        if (!index.has(occ.text)) index.set(occ.text, []);
-        index.get(occ.text)!.push(pos);
-      }
-
-      if (index.size === meta.symbolNames.size) return index;
-    } catch (err) {
-      log.error('Token-based symbol position finding failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  // Final fallback: tokenize via bridge
+  // Fallback: tokenize via bridge
   return buildSymbolPositionIndexRegex(text, symbols, linesArray, tokens, bridge);
 }
 
