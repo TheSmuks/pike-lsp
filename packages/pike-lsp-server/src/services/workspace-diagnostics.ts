@@ -264,86 +264,62 @@ export class WorkspaceDiagnosticsManager {
             }
           };
 
-          type ItemResult =
-            | { uri: string; text: string }
-            | { uri: string; error: string; code?: string };
-          const itemResults: ItemResult[] = [];
-
           await Promise.all(
             batch.map(async item => {
               await acquire();
               try {
                 const fsPath = uriToFsPath(item.uri);
                 const text = await fs.readFile(fsPath, 'utf-8');
-                itemResults.push({ uri: item.uri, text });
+
+                // Analyze immediately while file content is in scope,
+                // bounding peak memory to MAX_CONCURRENT * max_file_size.
+                try {
+                  const analysis = await bridge.analyze(text, ['parse', 'diagnostics'], item.uri);
+                  processed.add(item.uri);
+
+                  const rawDiagnostics = analysis.result?.diagnostics?.diagnostics ?? [];
+
+                  if (rawDiagnostics.length > 0) {
+                    const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
+                      range: {
+                        start: { line: d.position.line, character: d.position.character },
+                        end: { line: d.position.line, character: d.position.character },
+                      },
+                      message: d.message,
+                      severity: d.severity ? convertSeverity(d.severity) : 2,
+                      source: 'pike-background',
+                    }));
+                    this.sendDiagnostics({ uri: item.uri, diagnostics });
+                    this.backgroundDiagnosticUris.add(item.uri);
+                    log.debug('Published background diagnostics', {
+                      uri: item.uri,
+                      count: diagnostics.length,
+                    });
+                  }
+                } catch (err) {
+                  log.debug('Background analysis failed', {
+                    uri: item.uri,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                }
               } catch (err) {
                 const code =
                   err instanceof Error && 'code' in err
                     ? (err as Error & { code: string }).code
                     : undefined;
-                const entry: ItemResult =
-                  code !== undefined
-                    ? {
-                        uri: item.uri,
-                        error: err instanceof Error ? err.message : String(err),
-                        code,
-                      }
-                    : { uri: item.uri, error: err instanceof Error ? err.message : String(err) };
-                itemResults.push(entry);
-              } finally {
-                release();
-              }
-            })
-          );
-
-          // Handle file-read errors synchronously, then analyze successes in parallel
-          for (const res of itemResults) {
-            if ('error' in res) {
-              if (res.code === 'ENOENT') {
-                processed.add(res.uri);
-              } else if (res.code === 'EACCES') {
-                log.warn('Permission denied, permanently skipping', { uri: res.uri });
-                this.failedUriAttempts.set(res.uri, WorkspaceDiagnosticsManager.MAX_FAILURES);
-              } else {
-                log.debug('Background diagnostic failed', { uri: res.uri, error: res.error });
-              }
-            }
-          }
-
-          // Analyze all successfully-read files concurrently
-          const successResults = itemResults.filter(
-            (r): r is { uri: string; text: string } => !('error' in r)
-          );
-          await Promise.all(
-            successResults.map(async res => {
-              try {
-                const analysis = await bridge.analyze(res.text, ['parse', 'diagnostics'], res.uri);
-                processed.add(res.uri);
-
-                const rawDiagnostics = analysis.result?.diagnostics?.diagnostics ?? [];
-
-                if (rawDiagnostics.length > 0) {
-                  const diagnostics: CoreDiagnostic[] = rawDiagnostics.map(d => ({
-                    range: {
-                      start: { line: d.position.line, character: d.position.character },
-                      end: { line: d.position.line, character: d.position.character },
-                    },
-                    message: d.message,
-                    severity: d.severity ? convertSeverity(d.severity) : 2,
-                    source: 'pike-background',
-                  }));
-                  this.sendDiagnostics({ uri: res.uri, diagnostics });
-                  this.backgroundDiagnosticUris.add(res.uri);
-                  log.debug('Published background diagnostics', {
-                    uri: res.uri,
-                    count: diagnostics.length,
+                if (code === 'ENOENT') {
+                  processed.add(item.uri);
+                } else if (code === 'EACCES') {
+                  log.warn('Permission denied, permanently skipping', { uri: item.uri });
+                  this.failedUriAttempts.set(item.uri, WorkspaceDiagnosticsManager.MAX_FAILURES);
+                } else {
+                  log.debug('Background diagnostic failed', {
+                    uri: item.uri,
+                    error: err instanceof Error ? err.message : String(err),
                   });
                 }
-              } catch (err) {
-                log.debug('Background analysis failed', {
-                  uri: res.uri,
-                  error: err instanceof Error ? err.message : String(err),
-                });
+              } finally {
+                release();
               }
             })
           );
