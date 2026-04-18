@@ -191,11 +191,20 @@ export interface MockConnection {
   onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
   onWorkspaceSymbol: (handler: (...args: unknown[]) => unknown) => void;
   onLinkedEditingRange: (handler: LinkedEditingRangeHandler) => void;
+  onCodeAction: (handler: unknown) => void;
+  onCodeLens: (handler: unknown) => void;
+  onCodeLensResolve: (handler: unknown) => void;
+  onDidChangeConfiguration: (handler: unknown) => void;
+  onDidChangeTextDocument: (handler: unknown) => void;
   onRequest: (method: string, handler: (params: unknown) => unknown) => void;
-  sendDiagnostics: (params: { uri: string; diagnostics: unknown[] }) => void;
+  sendDiagnostics: (params: { uri: string; version?: number; diagnostics: unknown[] }) => void;
   diagnosticsPublished: unknown[];
   getSentDiagnostics: () => unknown[];
-  console: { log: (...args: unknown[]) => void };
+  console: {
+    log: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
+  };
   languages: {
     callHierarchy: {
       onPrepare: (
@@ -242,6 +251,12 @@ export interface MockConnection {
   semanticTokensHandler: unknown;
   semanticTokensDeltaHandler: unknown;
   monikerHandler: unknown;
+  callHierarchyPrepareHandler: unknown;
+  callHierarchyIncomingCallsHandler: unknown;
+  callHierarchyOutgoingCallsHandler: unknown;
+  codeActionHandler: unknown;
+  codeLensHandler: unknown;
+  codeLensResolveHandler: unknown;
   getRequestHandler(method: string): ((params: unknown) => unknown) | undefined;
 }
 
@@ -264,8 +279,14 @@ export function createMockConnection(): MockConnection {
   let _semanticTokensHandler: unknown = null;
   let _semanticTokensDeltaHandler: unknown = null;
   let _monikerHandler: unknown = null;
+  let _callHierarchyPrepareHandler: unknown = null;
+  let _callHierarchyOutgoingCallsHandler: unknown = null;
+  let _callHierarchyIncomingCallsHandler: unknown = null;
+  let _codeActionHandler: unknown = null;
+  let _codeLensHandler: unknown = null;
+  let _codeLensResolveHandler: unknown = null;
   const diagnosticsPublished: unknown[] = [];
-  const _sentDiagnostics: Array<{ uri: string; diagnostics: unknown[] }> = [];
+  const _sentDiagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
   const _requestHandlers = new Map<string, (params: unknown) => unknown>();
 
   return {
@@ -294,19 +315,36 @@ export function createMockConnection(): MockConnection {
     onLinkedEditingRange(handler: LinkedEditingRangeHandler) {
       _linkedEditingRangeHandler = handler;
     },
+    onCodeAction(handler: unknown) {
+      _codeActionHandler = handler;
+    },
+    onCodeLens(handler: unknown) {
+      _codeLensHandler = handler;
+    },
+    onCodeLensResolve(handler: unknown) {
+      _codeLensResolveHandler = handler;
+    },
+    onDidChangeConfiguration() {},
+    onDidChangeTextDocument() {},
     onRequest(method: string, handler: (params: unknown) => unknown) {
       _requestHandlers.set(method, handler);
     },
-    sendDiagnostics(params: { uri: string; diagnostics: unknown[] }) {
+    sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
       _sentDiagnostics.push(params);
     },
     diagnosticsPublished,
-    console: { log: () => {} },
+    console: { log: () => {}, warn: () => {}, error: () => {} },
     languages: {
       callHierarchy: {
-        onPrepare(_handler) {},
-        onOutgoingCalls(_handler) {},
-        onIncomingCalls(_handler) {},
+        onPrepare(handler: unknown) {
+          _callHierarchyPrepareHandler = handler;
+        },
+        onOutgoingCalls(handler: unknown) {
+          _callHierarchyOutgoingCallsHandler = handler;
+        },
+        onIncomingCalls(handler: unknown) {
+          _callHierarchyIncomingCallsHandler = handler;
+        },
       },
       typeHierarchy: {
         onPrepare(handler: TypeHierarchyPrepareHandler) {
@@ -393,6 +431,24 @@ export function createMockConnection(): MockConnection {
     get monikerHandler(): unknown {
       if (!_monikerHandler) throw new Error('No moniker handler registered');
       return _monikerHandler;
+    },
+    get callHierarchyPrepareHandler(): unknown {
+      return _callHierarchyPrepareHandler;
+    },
+    get callHierarchyIncomingCallsHandler(): unknown {
+      return _callHierarchyIncomingCallsHandler;
+    },
+    get callHierarchyOutgoingCallsHandler(): unknown {
+      return _callHierarchyOutgoingCallsHandler;
+    },
+    get codeActionHandler(): unknown {
+      return _codeActionHandler;
+    },
+    get codeLensHandler(): unknown {
+      return _codeLensHandler;
+    },
+    get codeLensResolveHandler(): unknown {
+      return _codeLensResolveHandler;
     },
     getRequestHandler(method: string): ((params: unknown) => unknown) | undefined {
       return _requestHandlers.get(method);
