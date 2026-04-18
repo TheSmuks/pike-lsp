@@ -118,32 +118,288 @@ export function createMockBridge(
 }
 
 // ---------------------------------------------------------------------------
-// Connection mock
+// Connection mock (full-featured)
 // ---------------------------------------------------------------------------
 
+// Handler type aliases — defined here to avoid circular imports with mock-services.ts
+type DefinitionHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<
+  | import('vscode-languageserver/node.js').Location
+  | import('vscode-languageserver/node.js').Location[]
+  | null
+>;
+
+type DeclarationHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').Location | null>;
+
+type TypeDefinitionHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').Location | null>;
+
+type ReferencesHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+  context: { includeDeclaration: boolean };
+}) => Promise<import('vscode-languageserver/node.js').Location[]>;
+
+type DocumentHighlightHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').DocumentHighlight[] | null>;
+
+type ImplementationHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').Location[]>;
+
+type DocumentSymbolHandler = (params: {
+  textDocument: { uri: string };
+}) => Promise<import('vscode-languageserver/node.js').DocumentSymbol[] | null>;
+
+type TypeHierarchyPrepareHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
+type TypeHierarchySupertypesHandler = (params: {
+  item: import('vscode-languageserver/node.js').TypeHierarchyItem;
+  direction: 'parents' | 'children';
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
+type TypeHierarchySubtypesHandler = (params: {
+  item: import('vscode-languageserver/node.js').TypeHierarchyItem;
+  direction: 'parents' | 'children';
+}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
+
+type LinkedEditingRangeHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => import('vscode-languageserver/node.js').LinkedEditingRanges | null;
+
 export interface MockConnection {
-  sendDiagnostics(params: { uri: string; diagnostics: unknown[] }): void;
-  onDidChangeConfiguration(handler: (params: { settings: Record<string, unknown> }) => void): void;
-  onDidChangeTextDocument(
-    handler: (params: {
-      textDocument: { uri: string; version: number };
-      contentChanges: unknown[];
-    }) => void
-  ): void;
-  console: { log(): void; warn(): void; error(): void };
+  onDefinition: (handler: DefinitionHandler) => void;
+  onDeclaration: (handler: DeclarationHandler) => void;
+  onTypeDefinition: (handler: TypeDefinitionHandler) => void;
+  onReferences: (handler: ReferencesHandler) => void;
+  onDocumentHighlight: (handler: DocumentHighlightHandler) => void;
+  onImplementation: (handler: ImplementationHandler) => void;
+  onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
+  onWorkspaceSymbol: (handler: (...args: unknown[]) => unknown) => void;
+  onLinkedEditingRange: (handler: LinkedEditingRangeHandler) => void;
+  onRequest: (method: string, handler: (params: unknown) => unknown) => void;
+  sendDiagnostics: (params: { uri: string; diagnostics: unknown[] }) => void;
+  diagnosticsPublished: unknown[];
+  getSentDiagnostics: () => unknown[];
+  console: { log: (...args: unknown[]) => void };
+  languages: {
+    callHierarchy: {
+      onPrepare: (
+        handler: (params: {
+          textDocument: { uri: string };
+          position: { line: number; character: number };
+        }) => Promise<import('vscode-languageserver/node.js').CallHierarchyItem[] | null>
+      ) => void;
+      onOutgoingCalls: (
+        handler: (params: {
+          item: import('vscode-languageserver/node.js').CallHierarchyItem;
+        }) => Promise<import('vscode-languageserver/node.js').CallHierarchyOutgoingCall[] | null>
+      ) => void;
+      onIncomingCalls: (
+        handler: (params: {
+          item: import('vscode-languageserver/node.js').CallHierarchyItem;
+        }) => Promise<import('vscode-languageserver/node.js').CallHierarchyIncomingCall[] | null>
+      ) => void;
+    };
+    typeHierarchy: {
+      onPrepare: (handler: TypeHierarchyPrepareHandler) => void;
+      onSupertypes: (handler: TypeHierarchySupertypesHandler) => void;
+      onSubtypes: (handler: TypeHierarchySubtypesHandler) => void;
+    };
+    semanticTokens: {
+      on: (handler: unknown) => void;
+      onDelta: (handler: unknown) => void;
+    };
+    moniker: {
+      on: (handler: unknown) => void;
+    };
+  };
+  definitionHandler: DefinitionHandler;
+  declarationHandler: DeclarationHandler;
+  typeDefinitionHandler: TypeDefinitionHandler;
+  referencesHandler: ReferencesHandler;
+  documentHighlightHandler: DocumentHighlightHandler;
+  implementationHandler: ImplementationHandler;
+  documentSymbolHandler: DocumentSymbolHandler;
+  linkedEditingRangeHandler: LinkedEditingRangeHandler;
+  typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
+  typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
+  typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
+  semanticTokensHandler: unknown;
+  semanticTokensDeltaHandler: unknown;
+  monikerHandler: unknown;
+  getRequestHandler(method: string): ((params: unknown) => unknown) | undefined;
 }
 
-export function createMockConnection(): MockConnection & { diagnosticsPublished: unknown[] } {
+/**
+ * Create a mock LSP Connection that captures registered handlers.
+ * Supports all navigation, reference, and symbol handlers.
+ */
+export function createMockConnection(): MockConnection {
+  let _definitionHandler: DefinitionHandler | null = null;
+  let _declarationHandler: DeclarationHandler | null = null;
+  let _typeDefinitionHandler: TypeDefinitionHandler | null = null;
+  let _referencesHandler: ReferencesHandler | null = null;
+  let _documentHighlightHandler: DocumentHighlightHandler | null = null;
+  let _implementationHandler: ImplementationHandler | null = null;
+  let _documentSymbolHandler: DocumentSymbolHandler | null = null;
+  let _linkedEditingRangeHandler: LinkedEditingRangeHandler | null = null;
+  let _typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler | null = null;
+  let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
+  let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
+  let _semanticTokensHandler: unknown = null;
+  let _semanticTokensDeltaHandler: unknown = null;
+  let _monikerHandler: unknown = null;
   const diagnosticsPublished: unknown[] = [];
+  const _sentDiagnostics: Array<{ uri: string; diagnostics: unknown[] }> = [];
+  const _requestHandlers = new Map<string, (params: unknown) => unknown>();
 
   return {
-    diagnosticsPublished,
-    sendDiagnostics(params: { uri: string; diagnostics: unknown[] }) {
-      diagnosticsPublished.push(params);
+    onDefinition(handler: DefinitionHandler) {
+      _definitionHandler = handler;
     },
-    onDidChangeConfiguration() {},
-    onDidChangeTextDocument() {},
-    console: { log() {}, warn() {}, error() {} },
+    onDeclaration(handler: DeclarationHandler) {
+      _declarationHandler = handler;
+    },
+    onTypeDefinition(handler: TypeDefinitionHandler) {
+      _typeDefinitionHandler = handler;
+    },
+    onReferences(handler: ReferencesHandler) {
+      _referencesHandler = handler;
+    },
+    onDocumentHighlight(handler: DocumentHighlightHandler) {
+      _documentHighlightHandler = handler;
+    },
+    onImplementation(handler: ImplementationHandler) {
+      _implementationHandler = handler;
+    },
+    onDocumentSymbol(handler: DocumentSymbolHandler) {
+      _documentSymbolHandler = handler;
+    },
+    onWorkspaceSymbol() {},
+    onLinkedEditingRange(handler: LinkedEditingRangeHandler) {
+      _linkedEditingRangeHandler = handler;
+    },
+    onRequest(method: string, handler: (params: unknown) => unknown) {
+      _requestHandlers.set(method, handler);
+    },
+    sendDiagnostics(params: { uri: string; diagnostics: unknown[] }) {
+      _sentDiagnostics.push(params);
+    },
+    diagnosticsPublished,
+    console: { log: () => {} },
+    languages: {
+      callHierarchy: {
+        onPrepare(_handler) {},
+        onOutgoingCalls(_handler) {},
+        onIncomingCalls(_handler) {},
+      },
+      typeHierarchy: {
+        onPrepare(handler: TypeHierarchyPrepareHandler) {
+          _typeHierarchyPrepareHandler = handler;
+        },
+        onSupertypes(handler: TypeHierarchySupertypesHandler) {
+          _typeHierarchySupertypesHandler = handler;
+        },
+        onSubtypes(handler: TypeHierarchySubtypesHandler) {
+          _typeHierarchySubtypesHandler = handler;
+        },
+      },
+      semanticTokens: {
+        on(handler: unknown) {
+          _semanticTokensHandler = handler;
+        },
+        onDelta(handler: unknown) {
+          _semanticTokensDeltaHandler = handler;
+        },
+      },
+      moniker: {
+        on(handler: unknown) {
+          _monikerHandler = handler;
+        },
+      },
+    },
+    get definitionHandler(): DefinitionHandler {
+      if (!_definitionHandler) throw new Error('No definition handler registered');
+      return _definitionHandler;
+    },
+    get declarationHandler(): DeclarationHandler {
+      if (!_declarationHandler) throw new Error('No declaration handler registered');
+      return _declarationHandler;
+    },
+    get typeDefinitionHandler(): TypeDefinitionHandler {
+      if (!_typeDefinitionHandler) throw new Error('No type definition handler registered');
+      return _typeDefinitionHandler;
+    },
+    get referencesHandler(): ReferencesHandler {
+      if (!_referencesHandler) throw new Error('No references handler registered');
+      return _referencesHandler;
+    },
+    get documentHighlightHandler(): DocumentHighlightHandler {
+      if (!_documentHighlightHandler) throw new Error('No document highlight handler registered');
+      return _documentHighlightHandler;
+    },
+    get implementationHandler(): ImplementationHandler {
+      if (!_implementationHandler) throw new Error('No implementation handler registered');
+      return _implementationHandler;
+    },
+    get documentSymbolHandler(): DocumentSymbolHandler {
+      if (!_documentSymbolHandler) throw new Error('No document symbol handler registered');
+      return _documentSymbolHandler;
+    },
+    get linkedEditingRangeHandler(): LinkedEditingRangeHandler {
+      if (!_linkedEditingRangeHandler)
+        throw new Error('No linked editing range handler registered');
+      return _linkedEditingRangeHandler;
+    },
+    get typeHierarchyPrepareHandler(): TypeHierarchyPrepareHandler {
+      if (!_typeHierarchyPrepareHandler)
+        throw new Error('No type hierarchy prepare handler registered');
+      return _typeHierarchyPrepareHandler;
+    },
+    get typeHierarchySupertypesHandler(): TypeHierarchySupertypesHandler {
+      if (!_typeHierarchySupertypesHandler)
+        throw new Error('No type hierarchy supertypes handler registered');
+      return _typeHierarchySupertypesHandler;
+    },
+    get typeHierarchySubtypesHandler(): TypeHierarchySubtypesHandler {
+      if (!_typeHierarchySubtypesHandler)
+        throw new Error('No type hierarchy subtypes handler registered');
+      return _typeHierarchySubtypesHandler;
+    },
+    get semanticTokensHandler(): unknown {
+      if (!_semanticTokensHandler) throw new Error('No semantic tokens handler registered');
+      return _semanticTokensHandler;
+    },
+    get semanticTokensDeltaHandler(): unknown {
+      if (!_semanticTokensDeltaHandler)
+        throw new Error('No semantic tokens delta handler registered');
+      return _semanticTokensDeltaHandler;
+    },
+    get monikerHandler(): unknown {
+      if (!_monikerHandler) throw new Error('No moniker handler registered');
+      return _monikerHandler;
+    },
+    getRequestHandler(method: string): ((params: unknown) => unknown) | undefined {
+      return _requestHandlers.get(method);
+    },
+    getSentDiagnostics() {
+      return _sentDiagnostics;
+    },
   };
 }
 
