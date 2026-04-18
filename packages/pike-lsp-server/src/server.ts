@@ -364,6 +364,14 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       showErrorMessage: (message: string) => connection.window.showErrorMessage?.(message),
     });
 
+    // PERF-014: Wire pikeIntrospection into bridgeManager for stdlib prewarming.
+    // pikeIntrospection is created below (line ~466) with a late-binding services object
+    // that receives bridge/stdlibIndex via serviceRuntimeContext updates.
+    // We set it here so prewarm fires after bridge is ready.
+    if (pikeIntrospection) {
+      bridgeManager.setPikeIntrospection(pikeIntrospection);
+    }
+
     log('onInitialize completing');
 
     return {
@@ -492,6 +500,21 @@ registerServerRuntimeHandlers({
     stdlibIndex = index;
     pikeIntrospection = new PikeIntrospectionService(services, workspaceIndex, stdlibIndex);
     serviceRuntimeContext.update({ stdlibIndex, pikeIntrospection });
+    // PERF-014: Prewarm stdlib index now that it's available.
+    if (bridgeManager) {
+      bridgeManager.setPikeIntrospection(pikeIntrospection);
+      // Fire-and-forget prewarm — bridge is already running.
+      pikeIntrospection.prewarmStdlibIndex().then(
+        metrics => {
+          logger.info('[PERF-014] Stdlib prewarming complete (via setStdlibIndex)', metrics);
+        },
+        error => {
+          logger.warn('[PERF-014] Stdlib prewarming failed (via setStdlibIndex)', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      );
+    }
   },
   updateServices: patch => {
     serviceRuntimeContext.update(patch);

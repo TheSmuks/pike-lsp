@@ -1,3 +1,4 @@
+import type { PikeIntrospectionService } from './pike-introspection.js';
 import type {
   PikeBridge,
   PikeSymbol,
@@ -47,6 +48,13 @@ export interface HealthStatus {
   startupMetrics?: { [key: string]: number } | null;
   /** PERF-013: Whether version info fetch is currently in progress */
   versionFetchPending?: boolean;
+  /** PERF-014: Stdlib prewarming metrics */
+  prewarmMetrics?: {
+    durationMs: number;
+    modulesLoaded: string[];
+    modulesFailed: string[];
+    totalSymbols: number;
+  } | null;
 }
 
 /**
@@ -66,6 +74,15 @@ export class BridgeManager {
   private startupMetrics: { [key: string]: number } | null = null;
   /** PERF-013: Promise tracking for async version fetch */
   private versionFetchPromise: Promise<void> | null = null;
+  /** PERF-014: Reference to PikeIntrospection for stdlib prewarming */
+  private pikeIntrospection?: PikeIntrospectionService;
+  /** PERF-014: Stdlib prewarming metrics */
+  private prewarmMetrics: {
+    durationMs: number;
+    modulesLoaded: string[];
+    modulesFailed: string[];
+    totalSymbols: number;
+  } | null = null;
   /** Guard against stale writes after stop() */
   private stopped = false;
 
@@ -106,9 +123,18 @@ export class BridgeManager {
   }
 
   /**
+   * PERF-014: Set PikeIntrospection reference for stdlib prewarming.
+   * Called during server initialization after services are created.
+   */
+  setPikeIntrospection(introspection: PikeIntrospectionService): void {
+    this.pikeIntrospection = introspection;
+  }
+
+  /**
    * Start the bridge subprocess and cache version information.
    * PERF-011: Tracks startup timing for performance monitoring.
    * PERF-013: Fetches version info asynchronously to reduce perceived startup time.
+   * PERF-014: Prewarms stdlib index with top modules (fire-and-forget).
    */
   async start(): Promise<void> {
     if (!this.bridge) return;
@@ -130,6 +156,24 @@ export class BridgeManager {
     this.versionFetchPromise = this.fetchVersionInfoInternal().finally(() => {
       this.versionFetchPromise = null;
     });
+
+    // PERF-014: Prewarm stdlib index with top modules after bridge is ready.
+    // Fire and forget — does not block startup completion.
+    if (this.pikeIntrospection) {
+      this.pikeIntrospection.prewarmStdlibIndex().then(
+        metrics => {
+          if (this.stopped) return;
+          this.prewarmMetrics = metrics;
+          this.logger.info('[PERF-014] Stdlib prewarming complete', metrics);
+        },
+        error => {
+          if (this.stopped) return;
+          this.logger.warn('[PERF-014] Stdlib prewarming failed', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      );
+    }
   }
 
   /**
@@ -202,6 +246,8 @@ export class BridgeManager {
     this.bridgeStartTime = null;
     // PERF-013: Clear version fetch promise on stop
     this.versionFetchPromise = null;
+    // PERF-014: Clear prewarm metrics on stop
+    this.prewarmMetrics = null;
   }
 
   /**
@@ -227,6 +273,7 @@ export class BridgeManager {
       recentErrors: [...this.errorLog],
       startupMetrics: this.startupMetrics,
       versionFetchPending: this.versionFetchPromise !== null,
+      prewarmMetrics: this.prewarmMetrics,
     };
   }
 
