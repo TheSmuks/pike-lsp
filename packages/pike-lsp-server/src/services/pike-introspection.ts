@@ -418,6 +418,78 @@ export class PikeIntrospectionService {
   }
 
   /**
+   * Top modules to preload for auto-import performance.
+   * These account for ~80% of auto-import queries.
+   */
+  private static readonly PREWARM_MODULES = [
+    'Stdio',
+    'Parser',
+    'String',
+    'Array',
+    'Mapping',
+    'Multiset',
+    'ADT',
+    'Protocols',
+    'MIME',
+    'System',
+  ] as const;
+
+  /**
+   * Prewarm stdlib symbol index with the most-used modules.
+   * Eliminates first-query latency spikes for auto-import completions.
+   * Returns metrics for tracking preload effectiveness.
+   */
+  async prewarmStdlibIndex(): Promise<{
+    durationMs: number;
+    modulesLoaded: string[];
+    modulesFailed: string[];
+    totalSymbols: number;
+  }> {
+    if (!this.stdlibIndex) {
+      return { durationMs: 0, modulesLoaded: [], modulesFailed: [], totalSymbols: 0 };
+    }
+
+    const startTime = performance.now();
+    const modulesLoaded: string[] = [];
+    const modulesFailed: string[] = [];
+    let totalSymbols = 0;
+
+    const results = await Promise.allSettled(
+      PikeIntrospectionService.PREWARM_MODULES.map(async (modulePath) => {
+        const info = await this.stdlibIndex!.getModule(modulePath);
+        return { modulePath, info };
+      })
+    );
+
+    for (const settled of results) {
+      if (settled.status === 'fulfilled') {
+        const { modulePath, info } = settled.value;
+        if (info) {
+          this.addModuleToIndex(info);
+          modulesLoaded.push(modulePath);
+          totalSymbols += info.symbols?.size ?? 0;
+        } else {
+          modulesFailed.push(modulePath);
+        }
+      } else {
+        const modulePath = PikeIntrospectionService.PREWARM_MODULES[results.indexOf(settled)];
+        modulesFailed.push(modulePath!);
+        this.services.logger?.debug(
+          `Failed to prewarm stdlib module ${modulePath}: ${settled.reason instanceof Error ? settled.reason.message : String(settled.reason)}`
+        );
+      }
+    }
+
+    const durationMs = performance.now() - startTime;
+    this.services.logger?.info(
+      `Stdlib index prewarmed: ${modulesLoaded.length}/${PikeIntrospectionService.PREWARM_MODULES.length} modules, ` +
+        `${totalSymbols} symbols, ${durationMs.toFixed(2)}ms`
+    );
+
+    return { durationMs, modulesLoaded, modulesFailed, totalSymbols };
+  }
+
+  /**
    * Clear the cached stdlib symbol lists. Should be called when
    * the workspace index changes.
    */
