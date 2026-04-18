@@ -1,7 +1,8 @@
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection } from 'vscode-languageserver/node.js';
+import type { Connection, DidChangeConfigurationParams } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
 import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
@@ -46,7 +47,7 @@ function createHarness(
       diagnostics.push(params);
     },
     onRequest() {},
-    onDidChangeConfiguration() {},
+    onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
     onDidChangeTextDocument() {},
     console: {
       log() {},
