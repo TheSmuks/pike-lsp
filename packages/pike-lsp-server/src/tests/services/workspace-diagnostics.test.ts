@@ -11,7 +11,7 @@ import { convertSeverity } from '../../features/diagnostics/utils.js';
 import { CORE_DIAGNOSTIC_SEVERITY } from '../../core/types.js';
 import type { CoreDiagnostic } from '../../core/types.js';
 
-// The mapping closure extracted from processBatch (workspace-diagnostics.ts:247-255).
+// The mapping closure extracted from processBatch (workspace-diagnostics.ts:283-291).
 // Kept in sync manually — if the production code changes, update this too.
 function mapBridgeDiagnostic(d: {
   position: { line: number; character: number };

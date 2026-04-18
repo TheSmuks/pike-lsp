@@ -230,4 +230,61 @@ describe('WorkspaceDiagnostics processBatch retry (#1851)', () => {
 
     manager.dispose();
   });
+
+  it('pipelined read-analyze respects concurrency limit and processes all files', async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pike-test-'));
+    const files = ['a.pike', 'b.pike', 'c.pike', 'd.pike', 'e.pike'];
+    for (const f of files) {
+      await fs.writeFile(path.join(tmpDir, f), 'int main() {}\n');
+    }
+    const testUris = files.map(f => `file://${path.join(tmpDir, f)}`);
+
+    // Track max concurrent analyze invocations and which URIs completed
+    let activeConcurrent = 0;
+    let maxConcurrent = 0;
+    const analyzedUris: string[] = [];
+
+    const manager = new WorkspaceDiagnosticsManager({
+      scheduler: createMockScheduler(),
+      workspaceIndex: createMockWorkspaceIndex(testUris),
+      bridgeManager: {
+        bridge: {
+          isRunning: () => true,
+          analyze: async (_text: string, _modes: string[], uri: string) => {
+            activeConcurrent++;
+            if (activeConcurrent > maxConcurrent) {
+              maxConcurrent = activeConcurrent;
+            }
+            // Simulate slow analysis so concurrency overlaps
+            await new Promise(r => setTimeout(r, 50));
+            analyzedUris.push(uri);
+            activeConcurrent--;
+            return { result: { diagnostics: { diagnostics: [] } } };
+          },
+        },
+      } as unknown as BridgeManager,
+      idleDelayMs: 0,
+      batchSize: 10,
+      sendDiagnostics: () => {},
+      clearDiagnostics: () => {},
+    });
+
+    manager.onIndexingComplete();
+    await new Promise(r => setTimeout(r, 300));
+
+    const stats = manager.getStats();
+    assert.equal(stats.processedCount, 5, 'All 5 files must be processed');
+    assert.ok(
+      maxConcurrent <= 10,
+      `Max concurrent analyze calls (${maxConcurrent}) must not exceed MAX_CONCURRENT (10)`
+    );
+    assert.ok(maxConcurrent > 1, `Expected concurrency > 1, got ${maxConcurrent}`);
+    assert.deepEqual(
+      [...analyzedUris].sort(),
+      [...testUris].sort(),
+      'All URIs must be analyzed'
+    );
+
+    manager.dispose();
+  });
 });

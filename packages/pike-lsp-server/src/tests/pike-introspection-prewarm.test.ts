@@ -2,6 +2,7 @@ import { describe, it, expect } from 'bun:test';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
 import { createMockServices } from './helpers/mock-services.js';
 import { createMockStdlibIndex, makeModuleInfo } from './helpers/prewarm-test-helpers.js';
+import type { StdlibModuleInfo } from '../stdlib-index.js';
 
 
 describe('PikeIntrospectionService - prewarmStdlibIndex', () => {
