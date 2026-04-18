@@ -26,10 +26,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
   const conn = createMockConnection();
   const consoleErrors: string[] = [];
   // Override console.error to capture errors
-  const originalConsoleError = conn.console.error;
-  (conn as { console: { error: typeof originalConsoleError } }).console.error = (
-    message: unknown
-  ) => {
+  conn.console.error = (message: unknown) => {
     consoleErrors.push(String(message));
   };
 
