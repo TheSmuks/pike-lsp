@@ -369,6 +369,30 @@ describe('loadResolutionCache', () => {
     // Date.now() - 0 > MAX_CACHE_AGE_MS → expired
     assert.strictEqual(result, null);
   });
+
+  it('returns null when cache file exceeds MAX_CACHE_FILE_SIZE', async () => {
+    const oversizedPayload = {
+      version: 1,
+      pikeVersion: '1.0.0',
+      timestamp: Date.now(),
+      data: 'x'.repeat(11 * 1024 * 1024),
+    };
+    writeCacheFile(JSON.stringify(oversizedPayload));
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
+
+  it('returns null when cache data string exceeds MAX_CACHE_DATA_SIZE', async () => {
+    const payload = {
+      version: 1,
+      pikeVersion: '1.0.0',
+      timestamp: Date.now(),
+      data: 'y'.repeat(9 * 1024 * 1024),
+    };
+    writeCacheFile(JSON.stringify(payload));
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
+  });
 });
 
 describe('saveResolutionCache and loadResolutionCache round-trip', () => {
@@ -390,6 +414,13 @@ describe('saveResolutionCache and loadResolutionCache round-trip', () => {
     await saveResolutionCache('test-data-123', '2.0.0');
     const loaded = await loadResolutionCache('2.0.0');
     assert.strictEqual(loaded, 'test-data-123');
+  });
+
+  it('save skips write when serialized cache exceeds MAX_CACHE_FILE_SIZE', async () => {
+    const oversizedData = 'z'.repeat(11 * 1024 * 1024);
+    await saveResolutionCache(oversizedData, '1.0.0');
+    const result = await loadResolutionCache('1.0.0');
+    assert.strictEqual(result, null);
   });
 });
 

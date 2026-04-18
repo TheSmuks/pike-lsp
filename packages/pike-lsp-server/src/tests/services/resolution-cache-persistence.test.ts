@@ -100,4 +100,50 @@ describe('ResolutionCachePersistence', () => {
       await expect(deleteResolutionCache()).resolves.toBeUndefined();
     });
   });
+
+  describe('loadResolutionCache - file size limits', () => {
+    const originalStat = fs.promises.stat;
+
+    afterEach(() => {
+      fs.promises.stat = originalStat;
+    });
+
+    it('should return null when stat reports file exceeding MAX_CACHE_FILE_SIZE', async () => {
+      fs.promises.stat = mock(async () => ({
+        size: 11 * 1024 * 1024,
+        isFile: () => true,
+      }));
+      fs.promises.readFile = mock(async () =>
+        JSON.stringify({
+          version: 1,
+          timestamp: Date.now(),
+          data: 'irrelevant',
+        })
+      );
+
+      const { loadResolutionCache } =
+        await import('../../services/resolution-cache-persistence.js');
+      const result = await loadResolutionCache();
+      expect(result).toBeNull();
+    });
+
+    it('should return null when data string exceeds MAX_CACHE_DATA_SIZE', async () => {
+      fs.promises.stat = mock(async () => ({
+        size: 1024,
+        isFile: () => true,
+      }));
+      fs.promises.readFile = mock(async () =>
+        JSON.stringify({
+          version: 1,
+          timestamp: Date.now(),
+          data: 'x'.repeat(9 * 1024 * 1024),
+        })
+      );
+
+      const { loadResolutionCache } =
+        await import('../../services/resolution-cache-persistence.js');
+      const result = await loadResolutionCache();
+      expect(result).toBeNull();
+    });
+  });
 });
