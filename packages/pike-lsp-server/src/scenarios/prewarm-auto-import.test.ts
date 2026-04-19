@@ -4,7 +4,6 @@ import { createMockServices } from '../tests/helpers/mock-services.js';
 import { createMockStdlibIndex, makeModuleInfo } from '../tests/helpers/prewarm-test-helpers.js';
 import type { StdlibModuleInfo } from '../stdlib-index.js';
 
-
 describe('Scenario: Auto-import after prewarming', () => {
   let service: PikeIntrospectionService;
 
