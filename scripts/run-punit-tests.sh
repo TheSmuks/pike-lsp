@@ -39,8 +39,6 @@ if [ ! -d "$TEST_DIR" ]; then
     exit 1
 fi
 
-# Build module path: PUnit + pike-scripts (for LSP.pmod imports)
-MODULE_PATH="$PUNIT_DIR:$PIKE_SCRIPTS"
 
 # Parse options
 RUNNER_ARGS=()
@@ -68,5 +66,5 @@ echo "============================================"
 echo ""
 
 # Run PUnit test runner
-# -M adds module paths (colon-separated for Pike)
-pike -M "$MODULE_PATH" "$PUNIT_DIR/run_tests.pike" "${RUNNER_ARGS[@]}" "$TEST_DIR"
+# Each -M adds a module path (Pike does not support colon-separated -M on all versions)
+pike -M "$PUNIT_DIR" -M "$PIKE_SCRIPTS" "$PUNIT_DIR/run_tests.pike" "${RUNNER_ARGS[@]}" "$TEST_DIR"
