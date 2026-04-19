@@ -66,8 +66,8 @@ run_test "test/tests/smoke-test.pike" "End-to-End Smoke Test"
 # E2E foundation tests include module loading tests
 run_test "test/tests/e2e-foundation-tests.pike" "Module Loading Tests (E2E)"
 
-# Test 3: Foundation tests
-run_test "test/tests/foundation-tests.pike" "Foundation Unit Tests"
+# Test 3: Foundation tests — migrated to test/punit/foundation-tests.pike
+# run_test "test/tests/foundation-tests.pike" "Foundation Unit Tests"
 
 # Test 4: Parser tests
 run_test "test/tests/parser-tests.pike" "Parser Tests"
