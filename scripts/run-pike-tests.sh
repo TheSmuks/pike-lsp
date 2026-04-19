@@ -46,7 +46,7 @@ run_test() {
     echo "File: $test_file"
     echo "--------------------------------------------"
 
-    if pike "$test_file"; then
+    if pike -M "$PROJECT_ROOT/pike-scripts" "$test_file"; then
         passed_tests=$((passed_tests + 1))
         echo "✓ PASSED: $test_name"
     else

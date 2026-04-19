@@ -31,9 +31,11 @@ void setup_module_path() {
             break;
         }
         string parent = dirname(base_path);
-        if (parent == base_path) break;  // Reached root
+        if (parent == base_path || parent == "") break;  // Reached root
         base_path = parent;
     }
+    // If loop exhausted without finding pike-lsp, assume CWD is project root
+    if (basename(base_path) != "pike-lsp") base_path = ".";
     pike_scripts_path = combine_path(base_path, "pike-scripts");
     master()->add_module_path(pike_scripts_path);
 }
