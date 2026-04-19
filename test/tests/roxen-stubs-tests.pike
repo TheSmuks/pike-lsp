@@ -120,13 +120,13 @@ void test_rxml_module_loads() {
 }
 
 void test_module_exports_roxen() {
-    mixed mod = master()->resolv("LSP.RoxenStubs");
-    if (!mod->Roxen) error("RoxenStubs should export Roxen\n");
+    mixed mod = master()->resolv("LSP.RoxenStubs.Roxen");
+    if (!mod) error("LSP.RoxenStubs.Roxen should resolve\n");
 }
 
 void test_module_exports_rxml() {
-    mixed mod = master()->resolv("LSP.RoxenStubs");
-    if (!mod->RXML) error("RoxenStubs should export RXML\n");
+    mixed mod = master()->resolv("LSP.RoxenStubs.RXML");
+    if (!mod) error("LSP.RoxenStubs.RXML should resolve\n");
 }
 
 // =============================================================================
