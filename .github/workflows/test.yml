@@ -193,6 +193,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Check forbidden lockfiles
         run: bash scripts/check-lockfiles.sh
@@ -300,6 +302,9 @@ jobs:
 
       - name: Run Pike Tests
         run: ./scripts/run-pike-tests.sh
+
+      - name: Run PUnit Tests
+        run: ./scripts/run-punit-tests.sh --ci
 
       - name: Cross-version test summary
         if: always()
