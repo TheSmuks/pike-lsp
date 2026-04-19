@@ -84,7 +84,8 @@ void test_module_loads() {
 // =============================================================================
 
 void test_resolve_string_variable() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "string name = \"hello\";\nwrite(name);\n";
     mixed result = mod->resolve_variable_type(code, "test.pike", 2, "name");
     if (result == 0) error("Expected result for 'name', got 0\n");
@@ -95,14 +96,16 @@ void test_resolve_string_variable() {
 }
 
 void test_resolve_int_variable() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "int count = 42;\ncount += 1;\n";
     mixed result = mod->resolve_variable_type(code, "test.pike", 2, "count");
     if (result == 0) error("Expected result for 'count', got 0\n");
 }
 
 void test_resolve_returns_mapping_or_zero() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "int x = 1;\n";
     mixed result = mod->resolve_variable_type(code, "test.pike", 1, "x");
     if (result != 0 && !mappingp(result)) {
@@ -111,7 +114,8 @@ void test_resolve_returns_mapping_or_zero() {
 }
 
 void test_resolve_unknown_variable() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "int x = 1;\n";
     mixed result = mod->resolve_variable_type(code, "test.pike", 1, "nonexistent");
     // Unknown variable may return 0 or a mapping without type
@@ -119,7 +123,8 @@ void test_resolve_unknown_variable() {
 }
 
 void test_resolve_variable_has_type_field() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "string value = \"test\";\n";
     mixed result = mod->resolve_variable_type(code, "test.pike", 1, "value");
     if (mappingp(result)) {
@@ -128,7 +133,8 @@ void test_resolve_variable_has_type_field() {
 }
 
 void test_resolve_empty_code() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     mixed result = mod->resolve_variable_type("", "test.pike", 1, "x");
     // Should not throw; may return 0
     if (result != 0 && !mappingp(result)) {
@@ -137,7 +143,8 @@ void test_resolve_empty_code() {
 }
 
 void test_resolve_multiline_code() {
-    mixed mod = master()->resolv("LSP.Analysis.ScopeResolver");
+    program prog = master()->resolv("LSP.Analysis.ScopeResolver");
+    object mod = prog();
     string code = "class MyClass {\n"
                   "    string name;\n"
                   "    int age;\n"

@@ -93,7 +93,8 @@ void test_module_loads() {
 // =============================================================================
 
 void test_prepare_rename_finds_symbol() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int myVar = 5;\n";
     mapping result = mod->prepare_rename(code, "test.pike", 1, 4);
     if (!mappingp(result)) error("Expected mapping, got %O\n", result);
@@ -101,7 +102,8 @@ void test_prepare_rename_finds_symbol() {
 }
 
 void test_prepare_rename_returns_range() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int myVar = 5;\n";
     mapping result = mod->prepare_rename(code, "test.pike", 1, 4);
     if (result->result == 0) error("Should find symbol at position of myVar\n");
@@ -114,7 +116,8 @@ void test_prepare_rename_returns_range() {
 }
 
 void test_prepare_rename_no_symbol() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int x = 5;\n";
     // Position on the '=' sign (column 7, 0-indexed), which is not an identifier
     mapping result = mod->prepare_rename(code, "test.pike", 1, 7);
@@ -123,7 +126,8 @@ void test_prepare_rename_no_symbol() {
 }
 
 void test_prepare_rename_with_filename() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "string name = \"test\";\n";
     mapping result = mod->prepare_rename(code, "myfile.pike", 1, 7);
     if (!mappingp(result)) error("Expected mapping\n");
@@ -134,7 +138,8 @@ void test_prepare_rename_with_filename() {
 // =============================================================================
 
 void test_find_rename_positions_basic() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int counter = 0;\ncounter += 1;\n";
     mapping result = mod->find_rename_positions(code, "test.pike", "counter", 1, 4);
     if (!mappingp(result)) error("Expected mapping\n");
@@ -142,7 +147,8 @@ void test_find_rename_positions_basic() {
 }
 
 void test_find_rename_positions_returns_edits() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int counter = 0;\ncounter += 1;\nwrite((string)counter);\n";
     mapping result = mod->find_rename_positions(code, "test.pike", "counter", 1, 4);
     mapping r = result->result;
@@ -153,7 +159,8 @@ void test_find_rename_positions_returns_edits() {
 }
 
 void test_find_rename_positions_empty_code() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     mapping result = mod->find_rename_positions("", "test.pike", "x", 1, 0);
     if (!mappingp(result)) error("Expected mapping\n");
     mapping r = result->result;
@@ -161,7 +168,8 @@ void test_find_rename_positions_empty_code() {
 }
 
 void test_find_rename_positions_multiline() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     string code = "int total = 0;\n"
                   "foreach (values, int val) {\n"
                   "    total += val;\n"
@@ -177,7 +185,8 @@ void test_find_rename_positions_multiline() {
 // =============================================================================
 
 void test_prepare_rename_request() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     mapping params = ([
         "textDocument": (["uri": "file:///test.pike"]),
         "position": (["line": 0, "character": 4]),
@@ -188,7 +197,8 @@ void test_prepare_rename_request() {
 }
 
 void test_find_rename_positions_request() {
-    mixed mod = master()->resolv("LSP.Rename");
+    program prog = master()->resolv("LSP.Rename");
+    object mod = prog();
     mapping params = ([
         "textDocument": (["uri": "file:///test.pike"]),
         "position": (["line": 0, "character": 4]),
