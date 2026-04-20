@@ -279,7 +279,11 @@ describe('WorkspaceDiagnostics processBatch retry (#1851)', () => {
       `Max concurrent analyze calls (${maxConcurrent}) must not exceed MAX_CONCURRENT (10)`
     );
     assert.ok(maxConcurrent > 1, `Expected concurrency > 1, got ${maxConcurrent}`);
-    assert.deepEqual([...analyzedUris].sort(), [...testUris].sort(), 'All URIs must be analyzed');
+    assert.deepEqual(
+      [...analyzedUris].sort(),
+      [...testUris].sort(),
+      'All URIs must be analyzed'
+    );
 
     manager.dispose();
   });

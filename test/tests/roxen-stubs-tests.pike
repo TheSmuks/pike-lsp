@@ -199,7 +199,7 @@ void test_roxen_module_stub_defvar() {
     mixed mod = master()->resolv("LSP.RoxenStubs.Roxen");
     mixed m = mod->module();
     // defvar should not throw
-    m->defvar("myvar", "default", "My Variable", mod->TYPE_STRING, "A test variable");
+    m->defvar("myvar", "default", mod->TYPE_STRING, "My Variable", "A test variable");
 }
 
 // =============================================================================

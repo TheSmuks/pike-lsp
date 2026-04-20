@@ -22,6 +22,7 @@ void setup_module_path() {
         if (basename(base_path) == "pike-lsp") { break; }
         string parent = dirname(base_path);
         if (parent == base_path || parent == "") break;
+        base_path = parent;
     }
     if (basename(base_path) != "pike-lsp") base_path = ".";
     string pike_scripts_path = combine_path(base_path, "pike-scripts");
