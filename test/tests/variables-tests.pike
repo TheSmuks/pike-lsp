@@ -21,9 +21,9 @@ void setup_module_path() {
     for (int i = 0; i < 10; i++) {
         if (basename(base_path) == "pike-lsp") { break; }
         string parent = dirname(base_path);
-        if (parent == base_path) break;
-        base_path = parent;
+        if (parent == base_path || parent == "") break;
     }
+    if (basename(base_path) != "pike-lsp") base_path = ".";
     string pike_scripts_path = combine_path(base_path, "pike-scripts");
     master()->add_module_path(pike_scripts_path);
 }

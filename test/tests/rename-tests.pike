@@ -22,9 +22,10 @@ void setup_module_path() {
     for (int i = 0; i < 10; i++) {
         if (basename(base_path) == "pike-lsp") { break; }
         string parent = dirname(base_path);
-        if (parent == base_path) break;
+        if (parent == base_path || parent == "") break;
         base_path = parent;
     }
+    if (basename(base_path) != "pike-lsp") base_path = ".";
     string pike_scripts_path = combine_path(base_path, "pike-scripts");
     master()->add_module_path(pike_scripts_path);
 }
@@ -156,6 +157,12 @@ void test_find_rename_positions_returns_edits() {
     if (!intp(r->count)) error("count should be int\n");
     // Should find at least 2 occurrences of "counter"
     if (r->count < 2) error("Expected count >= 2 for 3 occurrences, got %d\n", r->count);
+    // Verify character positions: first 'counter' is at char 4 after 'int '
+    if (r->edits[0]->character != 4) error("Expected edits[0]->character == 4, got %d\n", r->edits[0]->character);
+    if (r->edits[0]->endCharacter != 11) error("Expected edits[0]->endCharacter == 11, got %d\n", r->edits[0]->endCharacter);
+    // Second 'counter' is at start of line 2 (char 0)
+    if (r->edits[1]->character != 0) error("Expected edits[1]->character == 0, got %d\n", r->edits[1]->character);
+    if (r->edits[1]->endCharacter != 7) error("Expected edits[1]->endCharacter == 7, got %d\n", r->edits[1]->endCharacter);
 }
 
 void test_find_rename_positions_empty_code() {
