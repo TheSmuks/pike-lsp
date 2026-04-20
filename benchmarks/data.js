@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776664648059,
+  "lastUpdate": 1776669956963,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -121818,6 +121818,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.631872685950413,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "385c4fda5ebdc512e464b8a1445d42050cd65e22",
+          "message": "fix(#2208): Log caught errors in cache-builder dependency resolution (#2213)\n\n* fix: Log caught errors in cache-builder dependency resolution\n\nCloses #2208\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #2213\n\nLet me read the three files that need changes, plus the scenario test directory for reference.Let me see the specific lines I need to revert in lifecycle.ts and pike-introspection.ts, plus read the existing scenario test file.Now let me find the specific arrow function that needs reverting in pike-introspection.ts. The issue mentions `(modulePath)` was changed to `modulePath`. Let me search for it.Found it at line 458. Let me see the context.Now I have all the information I need. Let me also rea\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #2213\n\nNow I can see the diffs clearly:\n\n1. **lifecycle.ts line 196**: `const perDocPromise = new Promise<void>(resolve => { resolvePending = resolve; });` should be multi-line (3 lines)\n2. **pike-introspection.ts line 458**: `async (modulePath) =>` should be `async modulePath =>`\n\nLet me apply both fixes:TypeScript compiles clean. Now write the KB entry:Both fixes applied:\n\n1. **lifecycle.ts**: Restored the `new Promise<void>(resolve => { resolvePending = resolve; });` to its original 3-line multi-lin\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve CI failures for PR #2213\n\nvscode-e2e, vscode-e2e (reliability-workflows)\n\nAll 3494 tests pass. The failures are in vscode-e2e, which runs in CI with VS Code extension infrastructure. Let me check what those tests look like and whether they're related to this PR.This PR doesn't touch any vscode-pike files. The vscode-e2e failures are likely pre-existing or flaky. Let me check if they're known flaky tests.Compilation clean. Let me check if these vscode-e2e tests fail on m\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-20T09:24:13+02:00",
+          "tree_id": "17f834f29830b83fd896bf22991bc9b7f3b00419",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/385c4fda5ebdc512e464b8a1445d42050cd65e22"
+        },
+        "date": 1776669956630,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 202.79537775,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 255.15107725,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 253.61018458333334,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 263.214373,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.566734700680272,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.589218291666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 68.01109008333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 6.4523418476190475,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.294037976744186,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.26344607267672754,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.26124655573060257,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.6457001087984863,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.20245735742971888,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.2001510134207241,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00029318196968410325,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.000555062521999296,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0005546036050406764,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005561562695355092,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.000561033035299582,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0005592952627597043,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.39915992091072494,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.94173033333334,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 255.019877,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3782060409652076,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.00027925440181902987,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0007104853876226303,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.659318208333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.6055664297520655,
             "unit": "ms"
           }
         ]
