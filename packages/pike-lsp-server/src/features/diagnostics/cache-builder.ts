@@ -137,8 +137,11 @@ export async function buildCacheWithIntrospection(
   let dependencies: import('../../core/types.js').DocumentDependencies | undefined;
   try {
     dependencies = await resolveDependenciesViaBridge(bridge, uri, legacySymbols, log);
-  } catch {
-    // Bridge resolution failure — continue without dependencies
+  } catch (err) {
+    log.debug('Bridge dependency resolution failed', {
+      uri,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
   if (!ensureLatest('post_dependency_resolve')) {
     return;
@@ -248,8 +251,11 @@ export async function buildCacheParseOnly(
   } else {
     try {
       dependencies = await resolveDependenciesViaBridge(bridge, uri, symbolsWithDeprecated, log);
-    } catch {
-      // Bridge resolution failure — continue without dependencies
+    } catch (err) {
+      log.debug('Bridge dependency resolution failed', {
+        uri,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
     if (!ensureLatest('post_dependency_resolve_fallback')) {
       return;
