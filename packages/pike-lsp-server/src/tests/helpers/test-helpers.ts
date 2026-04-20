@@ -352,6 +352,7 @@ export function createMockConnection(): MockConnection {
     },
     sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
       _sentDiagnostics.push(params);
+      diagnosticsPublished.push(params);
     },
     diagnosticsPublished,
     console: { log: () => {}, warn: () => {}, error: () => {} },
