@@ -99,6 +99,18 @@ export type LinkedEditingRangeHandler = (params: {
   position: { line: number; character: number };
 }) => import('vscode-languageserver/node.js').LinkedEditingRanges | null;
 
+/** Handler signature for onPrepareRename */
+export type PrepareRenameHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+}) => Promise<import('vscode-languageserver/node.js').Range | null>;
+
+/** Handler signature for onRenameRequest */
+export type RenameRequestHandler = (params: {
+  textDocument: { uri: string };
+  position: { line: number; character: number };
+  newName: string;
+}) => Promise<import('vscode-languageserver/node.js').WorkspaceEdit | null>;
 // =============================================================================
 // Silent Logger
 // =============================================================================
@@ -255,6 +267,7 @@ export function buildMockServices(overrides?: MockServicesOverrides) {
       searchSymbols: () => [],
       getDocumentSymbols: () => [],
       getAllDocumentUris: () => [],
+      getUrisForSymbolName: () => [],
     },
     globalSettings: { pikePath: 'pike', maxNumberOfProblems: 100, diagnosticDelay: 300 },
     includePaths: [],

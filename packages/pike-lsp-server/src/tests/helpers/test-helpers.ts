@@ -35,6 +35,8 @@ import type {
   TypeHierarchySupertypesHandler,
   TypeHierarchySubtypesHandler,
   LinkedEditingRangeHandler,
+  PrepareRenameHandler,
+  RenameRequestHandler,
 } from './mock-services.js';
 
 export interface MockDocumentHooks {
@@ -145,6 +147,8 @@ export interface MockConnection {
   onDocumentSymbol: (handler: DocumentSymbolHandler) => void;
   onWorkspaceSymbol: (handler: (...args: unknown[]) => unknown) => void;
   onLinkedEditingRange: (handler: LinkedEditingRangeHandler) => void;
+  onPrepareRename: (handler: PrepareRenameHandler) => void;
+  onRenameRequest: (handler: RenameRequestHandler) => void;
   onCodeAction: (handler: unknown) => void;
   onCodeLens: (handler: unknown) => void;
   onCodeLensResolve: (handler: unknown) => void;
@@ -199,6 +203,8 @@ export interface MockConnection {
   implementationHandler: ImplementationHandler;
   documentSymbolHandler: DocumentSymbolHandler;
   linkedEditingRangeHandler: LinkedEditingRangeHandler;
+  prepareRenameHandler: PrepareRenameHandler;
+  renameRequestHandler: RenameRequestHandler;
   typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler;
   typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler;
   typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler;
@@ -246,6 +252,8 @@ export function createMockConnection(): MockConnection {
   let _implementationHandler: ImplementationHandler | null = null;
   let _documentSymbolHandler: DocumentSymbolHandler | null = null;
   let _linkedEditingRangeHandler: LinkedEditingRangeHandler | null = null;
+  let _prepareRenameHandler: PrepareRenameHandler | null = null;
+  let _renameRequestHandler: RenameRequestHandler | null = null;
   let _typeHierarchyPrepareHandler: TypeHierarchyPrepareHandler | null = null;
   let _typeHierarchySupertypesHandler: TypeHierarchySupertypesHandler | null = null;
   let _typeHierarchySubtypesHandler: TypeHierarchySubtypesHandler | null = null;
@@ -287,6 +295,12 @@ export function createMockConnection(): MockConnection {
     onWorkspaceSymbol() {},
     onLinkedEditingRange(handler: LinkedEditingRangeHandler) {
       _linkedEditingRangeHandler = handler;
+    },
+    onPrepareRename(handler: PrepareRenameHandler) {
+      _prepareRenameHandler = handler;
+    },
+    onRenameRequest(handler: RenameRequestHandler) {
+      _renameRequestHandler = handler;
     },
     onCodeAction(handler: unknown) {
       _codeActionHandler = handler;
@@ -377,6 +391,14 @@ export function createMockConnection(): MockConnection {
       if (!_linkedEditingRangeHandler)
         throw new Error('No linked editing range handler registered');
       return _linkedEditingRangeHandler;
+    },
+    get prepareRenameHandler(): PrepareRenameHandler {
+      if (!_prepareRenameHandler) throw new Error('No prepare rename handler registered');
+      return _prepareRenameHandler;
+    },
+    get renameRequestHandler(): RenameRequestHandler {
+      if (!_renameRequestHandler) throw new Error('No rename request handler registered');
+      return _renameRequestHandler;
     },
     get typeHierarchyPrepareHandler(): TypeHierarchyPrepareHandler {
       if (!_typeHierarchyPrepareHandler)
