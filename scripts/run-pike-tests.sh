@@ -67,47 +67,47 @@ run_test "test/tests/smoke-test.pike" "End-to-End Smoke Test"
 run_test "test/tests/e2e-foundation-tests.pike" "Module Loading Tests (E2E)"
 
 
-# Test 4: Parser tests
+# Test 3: Parser tests
 run_test "test/tests/parser-tests.pike" "Parser Tests"
 
-# Test 5: Intelligence tests
+# Test 4: Intelligence tests
 run_test "test/tests/intelligence-tests.pike" "Intelligence Tests"
 
-# Test 6: Analysis tests
+# Test 5: Analysis tests
 run_test "test/tests/analysis-tests.pike" "Analysis Tests"
 
-# Test 7: Response format tests
+# Test 6: Response format tests
 run_test "test/tests/response-format-tests.pike" "Response Format Tests"
 
-# Test 8: Cross-version handler validation
+# Test 7: Cross-version handler validation
 run_test "test/tests/cross-version-tests.pike" "Cross-Version Handler Tests"
 
 
-# Test 9: CompilationCache tests
+# Test 8: CompilationCache tests
 run_test "test/tests/compilation-cache-tests.pike" "CompilationCache Tests"
 
-# Test 10: Rename tests
+# Test 9: Rename tests
 run_test "test/tests/rename-tests.pike" "Rename Tests"
 
-# Test 11: RoxenStubs tests (RoxenStubs, Roxen, RXML)
+# Test 10: RoxenStubs tests (RoxenStubs, Roxen, RXML)
 run_test "test/tests/roxen-stubs-tests.pike" "RoxenStubs Tests"
 
-# Test 12: ScopeResolver tests
+# Test 11: ScopeResolver tests
 run_test "test/tests/scope-resolver-tests.pike" "ScopeResolver Tests"
 
-# Test 13: Variables tests
+# Test 12: Variables tests
 run_test "test/tests/variables-tests.pike" "Variables Tests"
 
-# Test 14: Introspection tests
+# Test 13: Introspection tests
 run_test "test/tests/introspection-tests.pike" "Introspection Tests"
 
-# Test 15: ModuleResolution tests
+# Test 14: ModuleResolution tests
 run_test "test/tests/module-resolution-tests.pike" "ModuleResolution Tests"
 
-# Test 16: Resolution tests
+# Test 15: Resolution tests
 run_test "test/tests/resolution-tests.pike" "Resolution Tests"
 
-# Test 17: TypeAnalysis tests
+# Test 16: TypeAnalysis tests
 run_test "test/tests/type-analysis-tests.pike" "TypeAnalysis Tests"
 # Test 9: E2E foundation tests (run again for complete coverage)
 # Note: We already ran module loading tests at the start
