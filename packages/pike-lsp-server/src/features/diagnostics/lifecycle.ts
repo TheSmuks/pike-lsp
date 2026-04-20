@@ -193,9 +193,7 @@ export function registerDiagnosticsLifecycleHandlers(
           // Register per-document pending promise so waitFor blocks correctly
           // during batch config-change validation.
           let resolvePending: () => void;
-          const perDocPromise = new Promise<void>(resolve => {
-            resolvePending = resolve;
-          });
+          const perDocPromise = new Promise<void>(resolve => { resolvePending = resolve; });
           documentCache.setPending(document.uri, perDocPromise);
           try {
             await validateDocument(document, undefined, checkpoint);

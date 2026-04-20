@@ -455,7 +455,7 @@ export class PikeIntrospectionService {
     let totalSymbols = 0;
 
     const results = await Promise.allSettled(
-      PikeIntrospectionService.PREWARM_MODULES.map(async modulePath => {
+      PikeIntrospectionService.PREWARM_MODULES.map(async (modulePath) => {
         const info = await this.stdlibIndex!.getModule(modulePath);
         return { modulePath, info };
       })
