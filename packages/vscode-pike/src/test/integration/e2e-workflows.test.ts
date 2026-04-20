@@ -443,6 +443,21 @@ return 0;
           version => version > initialVersion
         );
 
+        // Wait for formatting to apply — on CI the re-indent edit may arrive
+        // after the move edit, so we poll until the pattern matches or timeout.
+        await waitFor(
+          `indent fix for ${fileName}`,
+          () => {
+            const movedLineText = doc
+              .getText()
+              .split('\n')
+              .find(line => line.includes(targetText));
+            return movedLineText ?? '';
+          },
+          (text: string) => expectedIndentPattern.test(text),
+          10000
+        );
+
         const movedLineText = doc
           .getText()
           .split('\n')
@@ -573,6 +588,21 @@ return 0;
           `move applied for ${fileName}`,
           () => doc.version,
           version => version > initialVersion
+        );
+
+        // Wait for formatting to apply — on CI the re-indent edit may arrive
+        // after the move edit, so we poll until the pattern matches or timeout.
+        await waitFor(
+          `indent fix for ${fileName}`,
+          () => {
+            const movedLineText = doc
+              .getText()
+              .split('\n')
+              .find(line => line.includes(targetText));
+            return movedLineText ?? '';
+          },
+          (text: string) => expectedIndentPattern.test(text),
+          10000
         );
 
         const movedLineText = doc
