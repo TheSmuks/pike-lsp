@@ -23,7 +23,6 @@ export async function resolveArrowWorkaround(
   cursorChar: number,
   cached: DocumentCacheEntry | undefined,
   services: Services,
-  documentCache: Services['documentCache'],
   completionContext: 'type' | 'expression',
   logger: Services['logger']
 ): Promise<CompletionItem[] | null> {
@@ -67,7 +66,7 @@ export async function resolveArrowWorkaround(
   const workspaceResult = resolveMembersFromWorkspace(
     typeName,
     prefixAfterCursor,
-    documentCache,
+    services,
     completionContext
   );
   if (workspaceResult) return workspaceResult;
@@ -183,14 +182,16 @@ export async function resolvePikeContextMemberAccess(
   );
   if (stdlibResult) return stdlibResult;
 
-  // Try workspace documents
+  // Try workspace documents via index
   logger.debug('Searching workspace documents', { typeName });
-  for (const [docUri, doc] of documentCache.entries()) {
-    const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
-    if (classSymbol) {
-      logger.debug('Found class in workspace', {
+  const classUri = services.workspaceIndex.findClassUri(typeName);
+  if (classUri) {
+    const classSymbol = services.workspaceIndex.getClassSymbol(typeName, classUri);
+    const doc = documentCache.get(classUri);
+    if (classSymbol && doc) {
+      logger.debug('Found class in workspace via index', {
         typeName,
-        uri: docUri,
+        uri: classUri,
         childrenCount: classSymbol.children?.length || 0,
       });
       return resolveWorkspaceClassMembers(
@@ -246,12 +247,14 @@ async function resolveMembersFromStdlib(
 function resolveMembersFromWorkspace(
   typeName: string,
   prefix: string,
-  documentCache: Services['documentCache'],
+  services: Services,
   completionContext: 'type' | 'expression'
 ): CompletionItem[] | null {
-  for (const [, doc] of documentCache.entries()) {
-    const classSymbol = doc.symbols.find(s => s.kind === 'class' && s.name === typeName);
-    if (classSymbol?.children) {
+  const classUri = services.workspaceIndex.findClassUri(typeName);
+  if (classUri) {
+    const classSymbol = services.workspaceIndex.getClassSymbol(typeName, classUri);
+    const doc = services.documentCache.get(classUri);
+    if (classSymbol?.children && doc) {
       const allMembers = collectClassMembers(classSymbol, doc);
       const completions: CompletionItem[] = [];
 

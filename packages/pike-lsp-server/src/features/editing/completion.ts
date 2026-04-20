@@ -289,7 +289,6 @@ export function registerCompletionHandlers(
       params.position.character,
       cached,
       services,
-      documentCache,
       completionContext,
       logger
     );

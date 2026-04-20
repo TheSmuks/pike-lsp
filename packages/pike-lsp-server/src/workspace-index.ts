@@ -329,6 +329,38 @@ export class WorkspaceIndex {
   }
 
   /**
+   * Find the URI of a class by name using the symbolLookup index.
+   * O(1) lookup by name, then O(uris with that name) to filter by kind.
+   */
+  findClassUri(className: string): string | null {
+    const entriesByUri = this.symbolLookup.get(className.toLowerCase());
+    if (!entriesByUri) return null;
+
+    for (const [, entry] of entriesByUri) {
+      if (entry.kind === 'class') {
+        return entry.uri;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Get a class symbol (with children) from a specific document URI.
+   * O(symbols in one document) — not O(symbols across all documents).
+   */
+  getClassSymbol(className: string, uri: string): PikeSymbol | null {
+    const doc = this.documents.get(uri);
+    if (!doc) return null;
+
+    for (const entry of doc.symbols) {
+      const symbol = 'symbol' in entry ? entry.symbol : entry;
+      if (symbol.kind === 'class' && symbol.name === className) {
+        return symbol;
+      }
+    }
+    return null;
+  }
+  /**
    * Get URIs of all documents containing a symbol with the given name.
    * Uses the symbolLookup index for O(1) lookup instead of scanning all documents.
    * Lookup is case-insensitive (symbol names are stored lowercased).
