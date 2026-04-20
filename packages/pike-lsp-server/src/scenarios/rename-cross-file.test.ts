@@ -118,51 +118,6 @@ int main() {
     });
   });
 
-  describe('Inherited member rename', () => {
-    it('should track inherited members through class hierarchy', () => {
-      const baseClass = {
-        name: 'BaseClass',
-        members: [
-          { name: 'sharedMethod', kind: 'method', line: 5 },
-          { name: 'baseVar', kind: 'variable', line: 10 },
-        ],
-      };
-
-      const derivedClass = {
-        name: 'DerivedClass',
-        inherits: ['BaseClass'],
-        members: [
-          { name: 'sharedMethod', kind: 'method', line: 8 },
-          { name: 'derivedVar', kind: 'variable', line: 15 },
-        ],
-      };
-
-      const inheritedMembers = derivedClass.members.filter(
-        m => m.name === 'sharedMethod' && baseClass.members.some(bm => bm.name === m.name)
-      );
-
-      assert.strictEqual(inheritedMembers.length, 1, 'Should find inherited member');
-    });
-
-    it('should rename inherited members across the hierarchy', () => {
-      const classes = [
-        { name: 'Base', members: [{ name: 'process', kind: 'method' }] },
-        { name: 'Middle', inherits: ['Base'], members: [{ name: 'process', kind: 'method' }] },
-        { name: 'Leaf', inherits: ['Middle'], members: [{ name: 'process', kind: 'method' }] },
-      ];
-
-      const symbolName = 'process';
-      let totalOccurrences = 0;
-
-      for (const cls of classes) {
-        const occurrences = cls.members.filter(m => m.name === symbolName).length;
-        totalOccurrences += occurrences;
-      }
-
-      assert.strictEqual(totalOccurrences, 3, 'Should rename across 3 classes in hierarchy');
-    });
-  });
-
   describe('Workspace symbol resolution', () => {
     it('should search all indexed workspace files', () => {
       const workspaceFiles = [

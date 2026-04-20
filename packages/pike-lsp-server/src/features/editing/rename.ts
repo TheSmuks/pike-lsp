@@ -7,7 +7,6 @@
  * - Scope-aware rename using symbolPositions index
  * - Cross-file rename with workspaceIndex search
  * - Collision detection for name conflicts
- * - Inherited member renaming support
  * - Pike's Rename.pike module integration for accurate tokenization
  */
 
@@ -240,15 +239,6 @@ export function registerRenameHandlers(
       }
     }
 
-    if (matchingSymbol) {
-      const inheritedMembers = getInheritedMembers(matchingSymbol, cached?.symbols ?? []);
-      if (inheritedMembers.length > 0) {
-        log.debug('Rename: symbol has inherited members', {
-          count: inheritedMembers.length,
-        });
-      }
-    }
-
     log.debug('Rename request', { oldName, newName, hasSymbol: !!matchingSymbol });
 
     const addEditsFromPositions = (targetUri: string, positions: Position[] | undefined): void => {
@@ -386,23 +376,4 @@ export function registerRenameHandlers(
 
     return { documentChanges };
   });
-}
-
-/**
- * Get inherited members for a symbol
- * Traces through inherit chain to find members with the same name
- */
-function getInheritedMembers(
-  symbol: { name: string; kind?: string; position?: { line: number } },
-  allSymbols: Array<{ name: string; kind?: string; position?: { line: number } }>
-): Array<{ name: string; kind?: string; position?: { line: number } }> {
-  const inherited: Array<{ name: string; kind?: string; position?: { line: number } }> = [];
-
-  for (const s of allSymbols) {
-    if (s.name === symbol.name && s !== symbol) {
-      inherited.push(s);
-    }
-  }
-
-  return inherited;
 }
