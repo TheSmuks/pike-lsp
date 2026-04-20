@@ -1,14 +1,20 @@
+/**
+ * Fault scenario: QE2 RFC invariants
+ * Tests that cancelled/superseded work never publishes outputs.
+ */
+
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, DidChangeConfigurationParams } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-
 import { registerDiagnosticsHandlers } from '../features/diagnostics/index.js';
-import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry } from '../core/types.js';
 import {
   createMockBridge,
+  createMockConnection,
   createMockDocuments,
+  asConnection,
+  asServices,
+  asTextDocuments,
   type FaultInjectableMockBridge,
 } from '../tests/helpers/test-helpers.js';
 
@@ -17,23 +23,20 @@ const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms
 function createHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
-  const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
   const consoleErrors: string[] = [];
 
-  const connection = {
-    sendDiagnostics(params: { uri: string; version?: number; diagnostics: unknown[] }) {
-      diagnostics.push(params);
-    },
-    onRequest() {},
-    onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
-    onDidChangeTextDocument() {},
-    console: {
-      log() {},
-      warn() {},
-      error(message: unknown) {
-        consoleErrors.push(String(message));
-      },
-    },
+  const conn = createMockConnection();
+
+  // Override sendDiagnostics to capture locally
+  const diagnostics: Array<{ uri: string; version?: number; diagnostics: unknown[] }> = [];
+  const originalSendDiagnostics = conn.sendDiagnostics;
+  conn.sendDiagnostics = params => {
+    diagnostics.push(params);
+    originalSendDiagnostics(params);
+  };
+  // Override console.error to capture errors
+  conn.console.error = (message: unknown) => {
+    consoleErrors.push(String(message));
   };
 
   const services = {
@@ -76,11 +79,7 @@ function createHarness(bridge: FaultInjectableMockBridge) {
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   };
 
-  registerDiagnosticsHandlers(
-    connection as unknown as Connection,
-    services as unknown as Services,
-    docs
-  );
+  registerDiagnosticsHandlers(asConnection(conn), asServices(services), asTextDocuments(docs));
 
   return { docs, diagnostics, consoleErrors };
 }

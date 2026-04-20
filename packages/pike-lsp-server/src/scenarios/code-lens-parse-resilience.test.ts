@@ -5,13 +5,16 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, DidChangeConfigurationParams } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-
 import { registerCodeLensHandlers } from '../features/advanced/code-lens.js';
-import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry, CoreSymbol } from '../core/types.js';
-import { createMockDocuments } from '../tests/helpers/test-helpers.js';
+import {
+  createMockDocuments,
+  createMockConnection,
+  asConnection,
+  asServices,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -20,28 +23,12 @@ function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
   const codeLenses: Array<{ uri: string; result: unknown }> = [];
+  const conn = createMockConnection();
   const consoleErrors: string[] = [];
 
-  const connection = {
-    onCodeLens(handler: (params: { textDocument: { uri: string } }) => Promise<unknown>) {
-      this.codeLensHandler = handler;
-    },
-    codeLensHandler: undefined as
-      | ((params: { textDocument: { uri: string } }) => Promise<unknown>)
-      | undefined,
-    onCodeLensResolve(handler: (lens: unknown) => Promise<unknown>) {
-      this.codeLensResolveHandler = handler;
-    },
-    codeLensResolveHandler: undefined as ((lens: unknown) => Promise<unknown>) | undefined,
-    onRequest() {},
-    onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
-    console: {
-      log() {},
-      warn() {},
-      error(message: unknown) {
-        consoleErrors.push(String(message));
-      },
-    },
+  // Override console.error to capture errors
+  conn.console.error = (message: unknown) => {
+    consoleErrors.push(String(message));
   };
 
   const services = {
@@ -93,15 +80,13 @@ function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
     logger: { debug() {}, info() {}, warn() {}, error() {} },
   };
 
-  registerCodeLensHandlers(
-    connection as unknown as Connection,
-    services as unknown as Services,
-    docs
-  );
+  registerCodeLensHandlers(asConnection(conn), asServices(services), asTextDocuments(docs));
 
   // Helper to trigger code lens requests
   const triggerCodeLens = async (uri: string) => {
-    const handler = connection.codeLensHandler;
+    const handler = conn.codeLensHandler as
+      | ((params: { textDocument: { uri: string } }) => Promise<unknown>)
+      | undefined;
     if (!handler) return [];
     const result = await handler({
       textDocument: { uri },
@@ -112,7 +97,9 @@ function createCodeLensHarness(bridge: FaultInjectableMockBridge) {
 
   // Helper to trigger code lens resolve
   const triggerCodeLensResolve = async (lens: unknown) => {
-    const handler = connection.codeLensResolveHandler;
+    const handler = conn.codeLensResolveHandler as
+      | ((lens: unknown) => Promise<unknown>)
+      | undefined;
     if (!handler) return lens;
     const result = await handler(lens);
     return result;

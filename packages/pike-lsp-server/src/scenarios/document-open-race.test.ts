@@ -23,15 +23,40 @@ import assert from 'node:assert/strict';
 import { DocumentCache } from '../services/document-cache.js';
 import { registerDocumentSymbolHandler } from '../features/navigation/document-symbol.js';
 import {
-  createMockConnection,
   createMockServices,
   makeCacheEntry,
   sym,
+  asConnection,
+  asServices,
 } from '../tests/helpers/mock-services.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import {
+  createMockConnection,
+  createMockDocuments,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 
 function createRealDocumentCache() {
   return new DocumentCache();
+}
+
+function setupDocumentSymbolTest(cache: DocumentCache) {
+  const { documentCache: _dc, ...servicesBase } = createMockServices();
+  const services = asServices({
+    ...servicesBase,
+    documentCache: {
+      get: (u: string) => cache.get(u),
+      waitFor: async (u: string) => cache.waitFor(u),
+      entries: () => cache.entries(),
+      keys: () => cache.keys(),
+    },
+  });
+
+  const conn = createMockConnection();
+  const docs = createMockDocuments();
+  registerDocumentSymbolHandler(asConnection(conn), services, asTextDocuments(docs));
+
+  return conn;
 }
 
 describe('Scenario: document symbols race on file open', () => {
@@ -55,12 +80,7 @@ describe('Scenario: document symbols race on file open', () => {
 
     cache.setPending(uri, validationPromise);
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -80,12 +100,7 @@ describe('Scenario: document symbols race on file open', () => {
 
     cache.set(uri, makeCacheEntry({ symbols: pikeSymbols, version: 1 }));
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -107,12 +122,7 @@ describe('Scenario: document symbols race on file open', () => {
 
     cache.setPending(uri, validationPromise);
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -123,12 +133,7 @@ describe('Scenario: document symbols race on file open', () => {
     const uri = 'file:///unknown.pike';
     const cache = createRealDocumentCache();
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
@@ -152,12 +157,7 @@ describe('Scenario: document symbols race on file open', () => {
 
     cache.setPending(uri, validationPromise);
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const startTime = Date.now();
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
@@ -181,12 +181,7 @@ describe('Scenario: document symbols race on file open', () => {
     });
     cache.setPending(uri, validationPromise);
 
-    const services = createMockServices({ documentCache: cache });
-
-    const conn = createMockConnection();
-    const documents = { get: () => undefined };
-
-    registerDocumentSymbolHandler(conn as any, services, documents as any);
+    const conn = setupDocumentSymbolTest(cache);
 
     const result = await conn.documentSymbolHandler({ textDocument: { uri } });
 
