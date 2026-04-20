@@ -580,4 +580,114 @@ describe('WorkspaceIndex', () => {
       await bridge.stop();
     });
   });
+
+  describe('findClassUri', () => {
+    it('should return URI for a class by name', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class MyClass { int x; }', 1);
+
+      const uri = index.findClassUri('MyClass');
+      assert.equal(uri, 'file:///a.pike', 'Should find class URI');
+
+      await bridge.stop();
+    });
+
+    it('should match case-insensitively', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class MyWidget { }', 1);
+
+      const uri = index.findClassUri('mywidget');
+      assert.equal(uri, 'file:///a.pike', 'Should match case-insensitively');
+
+      await bridge.stop();
+    });
+
+    it('should return null for non-existent class', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class Foo { }', 1);
+
+      const uri = index.findClassUri('NonExistentClass');
+      assert.equal(uri, null, 'Should return null for non-existent class');
+
+      await bridge.stop();
+    });
+
+    it('should disambiguate class from non-class symbol', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'void Widget() {}', 1);
+      await index.indexDocument('file:///b.pike', 'class Widget { }', 1);
+
+      const uri = index.findClassUri('Widget');
+      assert.equal(uri, 'file:///b.pike', 'Should return URI of the class, not the function');
+
+      await bridge.stop();
+    });
+
+    it('should return null after document removal', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class Foo { }', 1);
+      index.removeDocument('file:///a.pike');
+
+      const uri = index.findClassUri('Foo');
+      assert.equal(uri, null, 'Should return null after removal');
+
+      await bridge.stop();
+    });
+  });
+
+  describe('getClassSymbol', () => {
+    it('should return symbol with children', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument(
+        'file:///a.pike',
+        'class Handler { void process(); int count; }',
+        1
+      );
+
+      const uri = index.findClassUri('Handler');
+      assert.ok(uri, 'Should find Handler URI');
+
+      const sym = index.getClassSymbol('Handler', uri!);
+      assert.ok(sym, 'Should return a symbol');
+      assert.equal(sym!.kind, 'class');
+      assert.equal(sym!.name, 'Handler');
+      assert.ok(sym!.children, 'Should have children');
+      const childNames = sym!.children!.map(c => c.name);
+      assert.ok(childNames.includes('process'), 'Should contain process');
+      assert.ok(childNames.includes('count'), 'Should contain count');
+
+      await bridge.stop();
+    });
+
+    it('should return null for wrong URI', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class Foo { }', 1);
+
+      const sym = index.getClassSymbol('Foo', 'file:///other.pike');
+      assert.equal(sym, null, 'Should return null for wrong URI');
+
+      await bridge.stop();
+    });
+  });
 });
