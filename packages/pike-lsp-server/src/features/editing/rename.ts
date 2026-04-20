@@ -330,10 +330,14 @@ export function registerRenameHandlers(
       addEditsFromTextSearch(uri, text);
     }
 
-    for (const [otherUri, otherCached] of Array.from(documentCache.entries())) {
+    // Use workspace index to find files containing the symbol directly (O(K) where K = files with the symbol)
+    // instead of scanning all cached documents (O(N) where N = total cached documents)
+    const candidateUris = workspaceIndex.getUrisForSymbolName(oldName);
+    for (const otherUri of candidateUris) {
       if (otherUri === uri) continue;
 
-      if (otherCached.symbolPositions && matchingSymbol) {
+      const otherCached = documentCache.get(otherUri);
+      if (otherCached?.symbolPositions && matchingSymbol) {
         const positions = otherCached.symbolPositions.get(oldName);
         if (positions && positions.length > 0) {
           addEditsFromPositions(otherUri, positions);

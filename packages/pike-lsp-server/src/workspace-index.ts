@@ -328,6 +328,17 @@ export class WorkspaceIndex {
     this.searchCacheMisses = 0;
   }
 
+  /**
+   * Get URIs of all documents containing a symbol with the given name.
+   * Uses the symbolLookup index for O(1) lookup instead of scanning all documents.
+   * Lookup is case-insensitive (symbol names are stored lowercased).
+   */
+  getUrisForSymbolName(symbolName: string): string[] {
+    const entriesByUri = this.symbolLookup.get(symbolName.toLowerCase());
+    if (!entriesByUri) return [];
+    return Array.from(entriesByUri.keys());
+  }
+
   getAllDocumentUris(): string[] {
     return Array.from(this.documents.keys());
   }
