@@ -213,6 +213,9 @@ Before submitting any pull request, complete these steps.
   - All tests must pass
   - CI must pass on Pike 8.1116 (required)
 
+- [ ] **Run PUnit tests**: `./scripts/run-punit-tests.sh --ci`
+  - All PUnit tests must pass
+
 - [ ] **If changing Pike scripts**: Rebundle extension
   - Run: `bun run build` (calls bundle-server.sh)
   - Verify extension bundle includes updated pike-scripts
