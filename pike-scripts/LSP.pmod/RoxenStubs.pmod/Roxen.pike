@@ -97,7 +97,7 @@ class module {
     void create() {}
 
     //! Register a configuration variable (simplified stub)
-    void defvar(string name, mixed default_val, int type, string|void doc) {}
+    void defvar(string name, mixed default_val, int|string type, string|void doc, string|void more_doc) {}
 }
 
 //! Common Roxen type constants (matching Roxen 6.1 module.h)

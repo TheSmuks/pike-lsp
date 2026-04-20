@@ -67,4 +67,4 @@ echo ""
 
 # Run PUnit test runner
 # Each -M adds a module path (Pike does not support colon-separated -M on all versions)
-pike -M "$PUNIT_DIR" -M "$PIKE_SCRIPTS" "$PUNIT_DIR/run_tests.pike" "${RUNNER_ARGS[@]}" "$TEST_DIR"
+pike -I "$PUNIT_DIR" -M "$PUNIT_DIR" -M "$PIKE_SCRIPTS" "$PUNIT_DIR/run_tests.pike" "${RUNNER_ARGS[@]}" "$TEST_DIR"

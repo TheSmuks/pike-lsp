@@ -39,7 +39,7 @@ class TagSet {
     }
 
     Tag get_tag(string name) {
-        foreach (tags; Tag t) {
+        foreach (tags, Tag t) {
             if (t->name == name) return t;
         }
         return 0;
