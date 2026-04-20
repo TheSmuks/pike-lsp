@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776646390166,
+  "lastUpdate": 1776647382313,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -120670,6 +120670,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.571120934426229,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4b2fefcba92f57fad227cb456aec72a67915134d",
+          "message": "refactor(#2170): Replace createMockConnection with bridge/parser API (#2202)\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve merge conflict artifacts — duplicate import and type mismatch\n\n* refactor: Replace createMockConnection with bridge/parser API\n\nCloses #2170\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: populate diagnosticsPublished in createMockConnection.sendDiagnostics\n\nThe refactored createMockConnection in test-helpers.ts pushed to\n_sentDiagnostics but not to the public diagnosticsPublished array,\ncausing the diagnostics-flood stress test to fail with\n\"false == true\" on the assertion checking diagnosticsPublished.length.\n\nThe vscode-e2e failure was a downstream consequence — the\nvscode-e2e-category job depends on the test job, so when test (20.x)\nfailed, the e2e gate job also failed.\n\n* docs: add KB-2170 for createMockConnection migration fix\n\n* fix: address review feedback for PR #2202\n\nLet me read the files that need to be changed.Now let me read the rest of test-helpers.ts and find the pike-introspection.ts formatting change:Now let me see the full context of the pike-introspection.ts formatting change:Now I have all the context I need. Let me implement all the fixes:\n\n1. **prewarm-auto-import.test.ts**: Replace `as unknown as Services` with `asServices()`, update imports\n2. **pike-introspection.ts**: Revert `async modulePath =>` to `async (modulePath) =>`\n3. **test-helpers.t\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-20T03:07:56+02:00",
+          "tree_id": "1f30f2ca3556ddd568af0fbbece3b3c5a1d9a03d",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/4b2fefcba92f57fad227cb456aec72a67915134d"
+        },
+        "date": 1776647381807,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.54248758333335,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 260.599593,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 253.687643,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 261.6631903333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.5363828708240534,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.233297236641222,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 66.30198525,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 6.436398198113208,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.2083268396946565,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.24845728941441442,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2615262812006319,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.6302755235457064,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.2035453789670193,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19624333128457283,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.0002891318418002251,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0005782345391411366,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0006114020018519335,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005949043451535952,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0005975318861836315,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0006019715373910495,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.3825393577981651,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.41872641666666,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.1220285,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.3857198378223496,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.0002684245402668231,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.0007670473856453324,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.6033108429752065,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.5244743414634145,
             "unit": "ms"
           }
         ]
