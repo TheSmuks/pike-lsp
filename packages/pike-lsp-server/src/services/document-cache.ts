@@ -8,8 +8,12 @@
 import type { DocumentCacheEntry } from '../core/types.js';
 // PERF-1229: Removed crypto import — replaced SHA-256 with FNV-1a for content hashing.
 import { Logger } from '@pike-lsp/core';
+import { LRUCache } from '../utils/lru-cache.js';
 
 const log = new Logger('DocumentCache');
+
+/** Default maximum cached documents. Entries exceeding this are evicted LRU. */
+const DEFAULT_MAX_DOCUMENTS = 2000;
 
 /**
  * FNV-1a 32-bit hash — single canonical implementation.
@@ -73,11 +77,21 @@ export function computeSemanticLineHash(line: string): number {
  * Document cache for parsed symbols and diagnostics.
  *
  * Manages the cache of parsed documents, providing O(1) access
- * to document information by URI.
+ * to document information by URI. Backed by an LRU cache to
+ * prevent unbounded growth in large workspaces.
  */
 export class DocumentCache {
-  private cache = new Map<string, DocumentCacheEntry>();
-  private pending = new Map<string, Promise<void>>();
+  private readonly cache: LRUCache<string, DocumentCacheEntry>;
+  private readonly pending = new Map<string, Promise<void>>();
+
+  constructor(maxSize: number = DEFAULT_MAX_DOCUMENTS) {
+    this.cache = new LRUCache<string, DocumentCacheEntry>({
+      maxSize,
+      onEvict: uri => {
+        log.debug('DocumentCache LRU eviction', { uri });
+      },
+    });
+  }
 
   /**
    * Get cached document information.
@@ -160,7 +174,7 @@ export class DocumentCache {
    * @returns Iterable of [uri, entry] tuples
    */
   entries(): IterableIterator<[string, DocumentCacheEntry]> {
-    return this.cache.entries();
+    return this.cache.entries()[Symbol.iterator]();
   }
 
   /**
@@ -176,6 +190,6 @@ export class DocumentCache {
    * @returns Cache size
    */
   get size(): number {
-    return this.cache.size;
+    return this.cache.entryCount;
   }
 }
