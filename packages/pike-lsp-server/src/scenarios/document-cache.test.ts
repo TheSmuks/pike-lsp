@@ -260,3 +260,83 @@ describe('DocumentCache', () => {
     await cache.waitFor('file:///test.pike');
   });
 });
+
+describe('DocumentCache LRU eviction', () => {
+  it('evicts oldest entry when maxSize exceeded', () => {
+    const cache = new DocumentCache(3);
+    cache.set('file:///a.pike', makeEntry({ version: 1 }));
+    cache.set('file:///b.pike', makeEntry({ version: 2 }));
+    cache.set('file:///c.pike', makeEntry({ version: 3 }));
+    cache.set('file:///d.pike', makeEntry({ version: 4 }));
+
+    assert.strictEqual(cache.size, 3);
+    assert.strictEqual(cache.get('file:///a.pike'), undefined);
+    assert.strictEqual(cache.get('file:///b.pike')!.version, 2);
+    assert.strictEqual(cache.get('file:///d.pike')!.version, 4);
+  });
+
+  it('get() refreshes LRU position', () => {
+    const cache = new DocumentCache(3);
+    cache.set('file:///a.pike', makeEntry({ version: 1 }));
+    cache.set('file:///b.pike', makeEntry({ version: 2 }));
+    cache.set('file:///c.pike', makeEntry({ version: 3 }));
+
+    // Refresh 'a' to most-recent
+    cache.get('file:///a.pike');
+
+    // Add 4th entry — should evict 'b' (now oldest)
+    cache.set('file:///d.pike', makeEntry({ version: 4 }));
+
+    assert.strictEqual(cache.get('file:///b.pike'), undefined);
+    assert.strictEqual(cache.get('file:///a.pike')!.version, 1);
+  });
+
+  it('default maxSize accepts 2000 entries without eviction', () => {
+    const cache = new DocumentCache();
+    for (let i = 0; i < 2000; i++) {
+      cache.set(`file:///${i}.pike`, makeEntry());
+    }
+    assert.strictEqual(cache.size, 2000);
+    assert.ok(cache.has('file:///0.pike'));
+    assert.ok(cache.has('file:///1999.pike'));
+  });
+
+  it('custom maxSize constrains cache', () => {
+    const cache = new DocumentCache(5);
+    for (let i = 0; i < 7; i++) {
+      cache.set(`file:///${i}.pike`, makeEntry());
+    }
+    assert.strictEqual(cache.size, 5);
+    // First 2 should have been evicted
+    assert.strictEqual(cache.has('file:///0.pike'), false);
+    assert.strictEqual(cache.has('file:///1.pike'), false);
+    // Last 5 remain
+    assert.ok(cache.has('file:///2.pike'));
+    assert.ok(cache.has('file:///6.pike'));
+  });
+
+  it('entries() reflects post-eviction state', () => {
+    const cache = new DocumentCache(2);
+    cache.set('file:///a.pike', makeEntry({ version: 1 }));
+    cache.set('file:///b.pike', makeEntry({ version: 2 }));
+    cache.set('file:///c.pike', makeEntry({ version: 3 }));
+
+    const entries = Array.from(cache.entries());
+    const keys = entries.map(([k]) => k).sort();
+    assert.deepStrictEqual(keys, ['file:///b.pike', 'file:///c.pike']);
+  });
+
+  it('overwriting existing key does not evict', () => {
+    const cache = new DocumentCache(3);
+    cache.set('file:///a.pike', makeEntry({ version: 1 }));
+    cache.set('file:///b.pike', makeEntry({ version: 2 }));
+    cache.set('file:///c.pike', makeEntry({ version: 3 }));
+
+    const newEntry = makeEntry({ version: 99 });
+    cache.set('file:///a.pike', newEntry);
+
+    assert.strictEqual(cache.size, 3);
+    assert.strictEqual(cache.get('file:///a.pike')!.version, 99);
+    assert.strictEqual(cache.get('file:///b.pike')!.version, 2);
+  });
+});
