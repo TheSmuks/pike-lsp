@@ -77,9 +77,8 @@ describe('cache-builder bridge failure graceful degradation', () => {
 
     try {
       // Dynamic import to pick up the mocked module.
-      const { buildCacheWithIntrospection } = await import(
-        '../features/diagnostics/cache-builder.js'
-      );
+      const { buildCacheWithIntrospection } =
+        await import('../features/diagnostics/cache-builder.js');
 
       const log = new CapturingLogger('test-scenario');
 
