@@ -15,6 +15,7 @@ Single evidence bundle for promoting `rewrite/query-engine-v2-ra-parity` into `r
 - `cd packages/pike-lsp-server && bun test src/tests/query-engine-perf-gates.test.ts`
 - `bun run bench:gate -- --rounds=2 --base=origin/main --target=HEAD --iterations=2 --warmup=1 --mitata-time=200 --output=benchmark-branch-compare.json --budget=scripts/benchmark-budgets.json`
 - `pike test/tests/cross-version-tests.pike`
+- `./scripts/run-punit-tests.sh --ci`
 
 ## Evidence Artifacts
 

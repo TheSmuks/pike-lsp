@@ -115,7 +115,7 @@ during this audit.
 
 ## Test Coverage
 
-The existing `test/tests/cross-version-tests.pike` covers:
+The existing `test/tests/cross-version-tests.pike` and PUnit tests in `test/punit/` cover:
 
 - `Compat.trim_whites()` edge cases (spaces, newlines, empty string, tabs)
 - String handling across versions

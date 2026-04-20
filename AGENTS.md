@@ -99,6 +99,7 @@ cd packages/pike-lsp-server && bun test ./src/tests/smoke.test.ts && cd ../.. &&
 cd packages/pike-lsp-server && bun test ./dist/tests/integration-tests.js && cd ../.. && \
 pike test/tests/cross-version-tests.pike && \
 ./scripts/run-pike-tests.sh && \
+./scripts/run-punit-tests.sh --ci && \
 cd packages/vscode-pike && bun run bundle-server && cd ../.. && \
 cd packages/vscode-pike && bun run build:test && cd ../.. && \
 cd packages/vscode-pike && bun test src/test/mockOutputChannel.test.ts && cd ../.. && \
@@ -380,6 +381,7 @@ When modifying `.github/workflows/` files:
 - Stress tests in `src/testing/stress-scenarios/`
 - Fault injection tests in `src/scenarios/fault-*.test.ts`
 - Cross-version Pike handler tests in `test/tests/cross-version-tests.pike`
+- PUnit Pike tests in `test/punit/` (run via `./scripts/run-punit-tests.sh --ci`)
 - VSCode E2E tests split into categories by matrix grep
 - Source-tree E2E tests require `PIKE_SRC` + `ROXEN_SRC` env vars
 - Corpus test uses `BridgePool` (configurable via `PIKE_CORPUS_CONCURRENCY`)
