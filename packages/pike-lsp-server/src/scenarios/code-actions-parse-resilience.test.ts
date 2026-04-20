@@ -5,12 +5,16 @@
 
 import { describe, it } from 'bun:test';
 import assert from 'node:assert/strict';
-import type { Connection, DidChangeConfigurationParams } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCodeActionsHandler } from '../features/advanced/code-actions.js';
-import type { Services } from '../services/index.js';
 import type { DocumentCacheEntry, CoreSymbol } from '../core/types.js';
-import { createMockDocuments } from '../tests/helpers/test-helpers.js';
+import {
+  createMockDocuments,
+  createMockConnection,
+  asConnection,
+  asServices,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 import { FaultInjectableMockBridge } from '../tests/helpers/mock-bridge.js';
 
 const wait = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
@@ -19,40 +23,11 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
   const docs = createMockDocuments();
   const cache = new Map<string, DocumentCacheEntry>();
   const codeActions: Array<{ uri: string; result: unknown }> = [];
+  const conn = createMockConnection();
   const consoleErrors: string[] = [];
-
-  const connection = {
-    onCodeAction(
-      handler: (params: {
-        textDocument: { uri: string };
-        range: {
-          start: { line: number; character: number };
-          end: { line: number; character: number };
-        };
-        context: { diagnostics: unknown[]; only?: string[] };
-      }) => Promise<unknown>
-    ) {
-      this.codeActionHandler = handler;
-    },
-    codeActionHandler: undefined as
-      | ((params: {
-          textDocument: { uri: string };
-          range: {
-            start: { line: number; character: number };
-            end: { line: number; character: number };
-          };
-          context: { diagnostics: unknown[]; only?: string[] };
-        }) => Promise<unknown>)
-      | undefined,
-    onRequest() {},
-    onDidChangeConfiguration(_handler: (params: DidChangeConfigurationParams) => void) {},
-    console: {
-      log() {},
-      warn() {},
-      error(message: unknown) {
-        consoleErrors.push(String(message));
-      },
-    },
+  // Override console.error to capture errors
+  conn.console.error = (message: unknown) => {
+    consoleErrors.push(String(message));
   };
 
   const services = {
@@ -110,11 +85,7 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     },
   };
 
-  registerCodeActionsHandler(
-    connection as unknown as Connection,
-    services as unknown as Services,
-    docs
-  );
+  registerCodeActionsHandler(asConnection(conn), asServices(services), asTextDocuments(docs));
 
   // Helper to trigger code action requests
   const triggerCodeActions = async (
@@ -124,7 +95,16 @@ function createCodeActionsHarness(bridge: FaultInjectableMockBridge) {
     diagnostics: unknown[] = [],
     only?: string[]
   ) => {
-    const handler = connection.codeActionHandler;
+    const handler = conn.codeActionHandler as
+      | ((params: {
+          textDocument: { uri: string };
+          range: {
+            start: { line: number; character: number };
+            end: { line: number; character: number };
+          };
+          context: { diagnostics: unknown[]; only?: string[] };
+        }) => Promise<unknown>)
+      | undefined;
     if (!handler) return [];
     const result = await handler({
       textDocument: { uri },

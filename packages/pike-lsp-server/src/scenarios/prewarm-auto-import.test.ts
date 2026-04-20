@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { PikeIntrospectionService } from '../services/pike-introspection.js';
-import { createMockServices } from '../tests/helpers/mock-services.js';
+import { createMockServices, asServices } from '../tests/helpers/mock-services.js';
 import { createMockStdlibIndex, makeModuleInfo } from '../tests/helpers/prewarm-test-helpers.js';
 import type { StdlibModuleInfo } from '../stdlib-index.js';
-
 
 describe('Scenario: Auto-import after prewarming', () => {
   let service: PikeIntrospectionService;
@@ -16,7 +15,7 @@ describe('Scenario: Auto-import after prewarming', () => {
       ['Array', makeModuleInfo('Array', ['Array', 'sort', 'filter', 'map', 'reduce'])],
     ]);
     const index = createMockStdlibIndex(modules);
-    const services = createMockServices({ stdlibIndex: index });
+    const services = asServices(createMockServices({ stdlibIndex: index }));
     service = new PikeIntrospectionService(services, undefined, index);
     await service.prewarmStdlibIndex();
   });

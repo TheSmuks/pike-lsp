@@ -4,7 +4,6 @@ import { createMockServices } from './helpers/mock-services.js';
 import { createMockStdlibIndex, makeModuleInfo } from './helpers/prewarm-test-helpers.js';
 import type { StdlibModuleInfo } from '../stdlib-index.js';
 
-
 describe('PikeIntrospectionService - prewarmStdlibIndex', () => {
   it('should return empty result when no stdlibIndex is set', async () => {
     const services = createMockServices();

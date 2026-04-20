@@ -17,13 +17,20 @@ import type {
 } from 'vscode-languageserver/node.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { registerCallHierarchyHandlers } from '../features/call-hierarchy.js';
-import { createMockServices, makeCacheEntry } from '../tests/helpers/mock-services.js';
-import { createMockDocuments } from '../tests/helpers/test-helpers.js';
+import {
+  createMockBridge,
+  createMockConnection,
+  createMockDocuments,
+  createMockServices,
+  makeCachedEntry,
+  asConnection,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 import type { DocumentCacheEntry } from '../core/types.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
 
 // ---------------------------------------------------------------------------
-// Capturing mock connection
+// Helpers
 // ---------------------------------------------------------------------------
 
 type PrepareHandler = (params: {
@@ -39,69 +46,24 @@ type OutgoingHandler = (params: {
   item: CallHierarchyItem;
 }) => Promise<CallHierarchyOutgoingCall[] | null>;
 
-function createCapturingConnection() {
-  let prepareHandler: PrepareHandler | undefined;
-  let incomingHandler: IncomingHandler | undefined;
-  let outgoingHandler: OutgoingHandler | undefined;
-
-  const connection = {
-    languages: {
-      callHierarchy: {
-        onPrepare(handler: PrepareHandler) {
-          prepareHandler = handler;
-        },
-        onIncomingCalls(handler: IncomingHandler) {
-          incomingHandler = handler;
-        },
-        onOutgoingCalls(handler: OutgoingHandler) {
-          outgoingHandler = handler;
-        },
-      },
-    },
-    console: { log() {}, warn() {}, error() {} },
-  };
-
-  return {
-    connection: connection as unknown,
-    get prepare() {
-      return prepareHandler!;
-    },
-    get incoming() {
-      return incomingHandler!;
-    },
-    get outgoing() {
-      return outgoingHandler!;
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 const TEST_URI = 'file:///test.pike';
 const SOURCE_TEXT = 'int myFunc() { return 0; }\n';
 
 function makeEntryWithSymbols(symbols: PikeSymbol[]): DocumentCacheEntry {
-  const base = makeCacheEntry({ symbols });
-  return base;
+  const base = makeCachedEntry(SOURCE_TEXT);
+  return { ...base, symbols };
 }
 
 function setup(symbols: PikeSymbol[]) {
-  const conn = createCapturingConnection();
+  const conn = createMockConnection();
   const docs = createMockDocuments();
-  const services = createMockServices({
-    cacheEntries: new Map([[TEST_URI, makeEntryWithSymbols(symbols)]]),
-  });
+  const bridge = createMockBridge();
+  const { services } = createMockServices(TEST_URI, bridge, makeEntryWithSymbols(symbols));
 
   const doc = TextDocument.create(TEST_URI, 'pike', 1, SOURCE_TEXT);
   docs.emitOpen(doc);
 
-  registerCallHierarchyHandlers(
-    conn.connection as Parameters<typeof registerCallHierarchyHandlers>[0],
-    services,
-    docs
-  );
+  registerCallHierarchyHandlers(asConnection(conn), services, asTextDocuments(docs));
 
   return conn;
 }
@@ -122,7 +84,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         },
       ]);
 
-      const result = await conn.prepare({
+      const result = await (conn.callHierarchyPrepareHandler as PrepareHandler)({
         textDocument: { uri: TEST_URI },
         position: { line: 0, character: 5 },
       });
@@ -140,7 +102,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         },
       ]);
 
-      const result = await conn.prepare({
+      const result = await (conn.callHierarchyPrepareHandler as PrepareHandler)({
         textDocument: { uri: TEST_URI },
         position: { line: 0, character: 5 },
       });
@@ -158,7 +120,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         },
       ]);
 
-      const result = await conn.prepare({
+      const result = await (conn.callHierarchyPrepareHandler as PrepareHandler)({
         textDocument: { uri: TEST_URI },
         position: { line: 0, character: 5 },
       });
@@ -176,7 +138,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         } as PikeSymbol,
       ]);
 
-      const result = await conn.prepare({
+      const result = await (conn.callHierarchyPrepareHandler as PrepareHandler)({
         textDocument: { uri: TEST_URI },
         position: { line: 0, character: 5 },
       });
@@ -205,7 +167,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         selectionRange: { start: { line: -1, character: 0 }, end: { line: -1, character: 0 } },
       };
 
-      const result = await conn.incoming({ item });
+      const result = await (conn.callHierarchyIncomingCallsHandler as IncomingHandler)({ item });
 
       // Should not throw; result is null or empty
       assert.ok(result === null || Array.isArray(result));
@@ -231,7 +193,7 @@ describe('Call Hierarchy — incomplete position info', () => {
         selectionRange: { start: { line: -1, character: 0 }, end: { line: -1, character: 0 } },
       };
 
-      const result = await conn.outgoing({ item });
+      const result = await (conn.callHierarchyOutgoingCallsHandler as OutgoingHandler)({ item });
 
       // Should not throw; result is null or empty
       assert.ok(result === null || Array.isArray(result));
