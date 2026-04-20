@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776633832665,
+  "lastUpdate": 1776646390166,
   "repoUrl": "https://github.com/TheSmuks/pike-lsp",
   "entries": {
     "Pike LSP Performance": [
@@ -120506,6 +120506,170 @@ window.BENCHMARK_DATA = {
           {
             "name": "Completion: getCompletionContext (Large File, Cold Cache)",
             "value": 5.662019625,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "60717893+TheSmuks@users.noreply.github.com",
+            "name": "Smuks",
+            "username": "TheSmuks"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "70a250dd2250cad2a55cf94a334494287232816b",
+          "message": "test(#2198): Add PUnit tests for untested LSP.pmod modules (#2200)\n\n* test: Add PUnit tests for untested LSP.pmod modules\n\nCloses #2198\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve CI failures for PR #2200\n\npike-test (8.1116), pike-test (latest)\n\nLet me start by reading the CI failure details and the PR diff.The CI logs require authentication. Let me get the actual diff and look at the test files that were added, and check the pike test runner script.Now let me try to run the pike tests locally to see which ones fail:The test fails because `LSP.CompilationCache` returns 0 (module not found). The tests reference classes that don't exist in\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve CI failures for PR #2200\n\npike-test (8.1116), pike-test (latest)\n\nThe CI logs are truncated on the web page. Let me try to get the raw logs via the GitHub API, and also read the existing test files and workflow.Now I can see the failure. The PUnit test runner is failing because `test/punit/foundation-tests.pike` has an include file it can't find. Let me look at the relevant files.The error is clear: `test/punit/foundation-tests.pike:11:Couldn't find include file\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: resolve pike-test CI failures for PR #2200\n\nThree root causes:\n1. Rename.pike: off-by-one in search loop (j <= nth -> j < nth) and\n   missing bounds check on search_start caused crash on multi-line code\n2. RoxenStubs module.pike: self-referential constants (constant Roxen = Roxen)\n   resolved to 0; replaced with simple module index file\n3. RXML.pike: foreach separator syntax (tags; Tag t) not supported in Pike\n   8.1116; changed to (tags, Tag t)\n\nAlso fixed Roxen.pike defvar signature to accept 5 args matching test.\n\n* fix: resolve CI failures for PR #2200\n\npike-test (8.1116), pike-test (latest)\n\nThe log steps are truncated. Let me try to get the raw logs for the actual test failure.Found the issues: `rename-tests.pike` (1 failure) and `roxen-stubs-tests.pike` (21 failures). Let me read both failing tests.Now I see the problems. The `module.pike` references `Roxen` and `RXML` as unresolved symbols — they're not in the same file. And `Roxen.pike`'s `defvar` signature has 4 params but the te\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #2200\n\nI'll read all the files that need changes in parallel first.Now let me read the remaining test files that need the `setup_module_path` fix, and also the reference file (smoke-test.pike) for the pattern.I've read all files. Now I understand the patterns. Let me make all the edits:\n\n1. **Rename.pike**: Change `j < nth` back to `j <= nth`\n2. **rename-tests.pike**: Add character position assertions + fix `setup_module_path`\n3. **9 other test files**: Fix `setup_module_path` with `parent == \"\"` guard\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n* fix: address review feedback for PR #2200\n\nI'll read all the files that need changes in parallel.Now let me find the specific line in pike-introspection.ts that needs the cosmetic revert:The `(modulePath)` cosmetic change isn't present. Let me check what the actual formatting looks like:The `(modulePath)` issue is already resolved in the current codebase — it says `async modulePath` without parentheses. Now let me check the current state of the other files. The blank line issue in `prewarm-auto-import.test.ts` shows line 6 is blank and l\n\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: DGA Orchestrator <dga-bot@openclaw.ai>\nCo-authored-by: pike-agent[bot] <275450832+pike-agent[bot]@users.noreply.github.com>",
+          "timestamp": "2026-04-20T02:51:16+02:00",
+          "tree_id": "33dda10f0ab4915279537830871af3e27d7d59dc",
+          "url": "https://github.com/TheSmuks/pike-lsp/commit/70a250dd2250cad2a55cf94a334494287232816b"
+        },
+        "date": 1776646389543,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "PikeBridge.start() [Cold Start]",
+            "value": 201.16456783333334,
+            "unit": "ms"
+          },
+          {
+            "name": "PikeBridge.start() with detailed metrics [Cold Start]",
+            "value": 254.08117875,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + First Request (getVersionInfo)",
+            "value": 256.8983436666667,
+            "unit": "ms"
+          },
+          {
+            "name": "Cold Start + Introspect",
+            "value": 262.86319725,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Small File (~15 lines)",
+            "value": 1.5377157438752784,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Medium File (~100 lines)",
+            "value": 5.3186275859375,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: Large File (~1000 lines)",
+            "value": 67.20555083333333,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Legacy (3 calls: analyze + parse + analyzeUninitialized)",
+            "value": 6.483964952380952,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation Consolidated (1 call: analyze with all includes)",
+            "value": 5.204670877862595,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Hit: analyze with same document version",
+            "value": 0.26633087942122186,
+            "unit": "ms"
+          },
+          {
+            "name": "Cache Miss: analyze with different version",
+            "value": 0.2565472264808362,
+            "unit": "ms"
+          },
+          {
+            "name": "Closed File: analyze without version (stat-based key)",
+            "value": 0.631851082179132,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: compile main with inherited utils",
+            "value": 0.21356172051114025,
+            "unit": "ms"
+          },
+          {
+            "name": "Cross-file: recompile main (cache hit)",
+            "value": 0.19523128940176132,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio\") - warm",
+            "value": 0.00029758020968487746,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String\")",
+            "value": 0.0005772485049543848,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Array\")",
+            "value": 0.0005914111151736747,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Mapping\")",
+            "value": 0.0005905811767470552,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"Stdio.File\") - nested",
+            "value": 0.0005746920459192616,
+            "unit": "ms"
+          },
+          {
+            "name": "resolveStdlib(\"String.SplitIterator\") - nested",
+            "value": 0.0006027433682731159,
+            "unit": "ms"
+          },
+          {
+            "name": "First diagnostic after document change",
+            "value": 0.41192872894898586,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Validation with 250ms debounce",
+            "value": 250.66029266666666,
+            "unit": "ms"
+          },
+          {
+            "name": "[Debounce] Rapid edit simulation (5x50ms)",
+            "value": 253.99261891666666,
+            "unit": "ms"
+          },
+          {
+            "name": "Validation: sequential warm revalidation",
+            "value": 0.37591125167410716,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveStdlib(\"Stdio.File\")",
+            "value": 0.0002694525342109876,
+            "unit": "ms"
+          },
+          {
+            "name": "Hover: resolveModule(\"Stdio.File\")",
+            "value": 0.000753767454694608,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Warm Cache)",
+            "value": 5.636204355371901,
+            "unit": "ms"
+          },
+          {
+            "name": "Completion: getCompletionContext (Large File, Cold Cache)",
+            "value": 5.571120934426229,
             "unit": "ms"
           }
         ]
