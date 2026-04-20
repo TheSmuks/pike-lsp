@@ -334,9 +334,6 @@ export function registerDiagnosticsLifecycleHandlers(
       ?.engineCloseDocument({
         uri: event.document.uri,
       })
-      .then(() => {
-        documentSnapshots.delete(event.document.uri);
-      })
       .catch(err => {
         log.debug('Engine close document failed', {
           uri: event.document.uri,
