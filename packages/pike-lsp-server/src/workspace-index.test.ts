@@ -507,4 +507,77 @@ describe('WorkspaceIndex', () => {
       `Should produce exactly maxDepth-1=${maxDepth - 1} entries for a long name`
     );
   });
+
+  describe('getUrisForSymbolName', () => {
+    it('should return URIs for exact symbol match', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'void myFunc() {}', 1);
+
+      const uris = index.getUrisForSymbolName('myFunc');
+      assert.ok(uris.includes('file:///a.pike'), 'Should find myFunc in a.pike');
+
+      await bridge.stop();
+    });
+
+    it('should match case-insensitively', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'class MyClass {}', 1);
+
+      const uris = index.getUrisForSymbolName('myclass');
+      assert.ok(uris.includes('file:///a.pike'), 'Should match case-insensitively');
+
+      await bridge.stop();
+    });
+
+    it('should return empty array for no match', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'int foo = 1;', 1);
+
+      const uris = index.getUrisForSymbolName('baz');
+      assert.equal(uris.length, 0, 'Should return empty array');
+
+      await bridge.stop();
+    });
+
+    it('should return all URIs for multi-file match', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'void sharedHelper() {}', 1);
+      await index.indexDocument('file:///b.pike', 'void sharedHelper() {}', 1);
+      await index.indexDocument('file:///c.pike', 'int other = 1;', 1);
+
+      const uris = index.getUrisForSymbolName('sharedHelper');
+      assert.equal(uris.length, 2, 'Should find symbol in 2 files');
+      assert.ok(uris.includes('file:///a.pike'), 'Should include a.pike');
+      assert.ok(uris.includes('file:///b.pike'), 'Should include b.pike');
+      assert.ok(!uris.includes('file:///c.pike'), 'Should not include c.pike');
+
+      await bridge.stop();
+    });
+
+    it('should return empty array after document removal', async () => {
+      const bridge = new PikeBridge();
+      await bridge.start();
+
+      const index = new WorkspaceIndex(bridge);
+      await index.indexDocument('file:///a.pike', 'void myFunc() {}', 1);
+      index.removeDocument('file:///a.pike');
+
+      const uris = index.getUrisForSymbolName('myFunc');
+      assert.equal(uris.length, 0, 'Should return empty after removal');
+
+      await bridge.stop();
+    });
+  });
 });
