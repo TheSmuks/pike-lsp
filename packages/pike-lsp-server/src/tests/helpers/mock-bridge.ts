@@ -177,6 +177,32 @@ export class MockBridge {
     await this.maybeInjectFault('resolve');
     return { occurrences: [] };
   }
+
+  async prepareRename(
+    _code: string,
+    _line: number,
+    _character: number,
+    _filename?: string
+  ): Promise<unknown> {
+    await this.maybeInjectFault('prepareRename');
+    return null;
+  }
+
+  async findRenamePositions(
+    _code: string,
+    _symbolName: string,
+    _line: number,
+    _character: number,
+    _filename?: string
+  ): Promise<unknown> {
+    await this.maybeInjectFault('findRenamePositions');
+    return null;
+  }
+
+  async tokenize(_text: string): Promise<unknown[]> {
+    await this.maybeInjectFault('tokenize');
+    return [];
+  }
 }
 
 export class FaultInjectableMockBridge extends MockBridge {
