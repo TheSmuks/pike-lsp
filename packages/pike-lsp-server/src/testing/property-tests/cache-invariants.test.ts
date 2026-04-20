@@ -44,3 +44,36 @@ describe('Property Invariant: no stale cache writes', () => {
     );
   });
 });
+
+describe('Property Invariant: cache size bounded by maxSize', () => {
+  it('cache.size never exceeds constructor maxSize for any sequence of operations', () => {
+    assertInvariant(
+      'cache-size-bounded',
+      fc.property(
+        fc.integer({ min: 1, max: 10 }),
+        fc.array(
+          fc.oneof(
+            { arbitrary: documentUriArbitrary(), weight: 2 },
+            { arbitrary: fc.constant(undefined), weight: 1 }
+          ),
+          { minLength: 1, maxLength: 50 }
+        ),
+        (maxSize, uris) => {
+          const cache = new DocumentCache(maxSize);
+          for (const uri of uris) {
+            if (uri !== undefined) {
+              cache.set(uri, {
+                version: 1,
+                symbols: [],
+                diagnostics: [],
+                symbolPositions: new Map(),
+                symbolNames: new Map(),
+              });
+            }
+          }
+          assert.ok(cache.size <= maxSize, `size ${cache.size} exceeds maxSize ${maxSize}`);
+        }
+      )
+    );
+  });
+});
