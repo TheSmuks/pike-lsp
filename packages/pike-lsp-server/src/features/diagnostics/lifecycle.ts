@@ -177,26 +177,39 @@ export function registerDiagnosticsLifecycleHandlers(
         });
       });
 
-    documents.all().forEach(document => {
-      const globalSettings = getGlobalSettings();
-      const promise = diagnosticsScheduler.schedule({
-        requestClass: 'background',
-        key: `diagnostics:${document.uri}`,
-        coalesceMs: globalSettings.diagnosticDelay,
-        run: async checkpoint => {
+    const allDocuments = documents.all();
+    if (allDocuments.length === 0) {
+      return;
+    }
+
+    const globalSettings = getGlobalSettings();
+    const batchPromise = diagnosticsScheduler.schedule({
+      requestClass: 'background',
+      key: 'diagnostics:config-change-batch',
+      coalesceMs: globalSettings.diagnosticDelay,
+      run: async checkpoint => {
+        for (const document of allDocuments) {
           checkpoint();
-          await validateDocument(document, undefined, checkpoint);
-        },
-      });
-      documentCache.setPending(document.uri, promise);
-      promise.catch(err => {
-        if (err instanceof RequestSupersededError) {
-          return;
+          try {
+            await validateDocument(document, undefined, checkpoint);
+          } catch (err) {
+            if (err instanceof RequestSupersededError) {
+              return;
+            }
+            log.error('Config-change validation failed', {
+              uri: document.uri,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
         }
-        log.error('Config-change validation failed', {
-          uri: document.uri,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      },
+    });
+    batchPromise.catch(err => {
+      if (err instanceof RequestSupersededError) {
+        return;
+      }
+      log.error('Config-change batch validation failed', {
+        error: err instanceof Error ? err.message : String(err),
       });
     });
   });

@@ -164,3 +164,62 @@ describe('RequestScheduler regressions (#882)', () => {
     assert.equal(logged[0]?.meta?.error, 'forced processQueue failure');
   });
 });
+
+describe('Batch config-change validation (#2204)', () => {
+  it('does not delay interactive requests during batch config-change validation', async () => {
+    const scheduler = new RequestScheduler({ maxConcurrent: 2 });
+    const order: string[] = [];
+    let batchDocumentsValidated = 0;
+    const totalDocuments = 50;
+
+    const releaseGate: { fn?: () => void } = {};
+    const gate = new Promise<void>(resolve => {
+      releaseGate.fn = resolve;
+    });
+
+    // Schedule single batch background task that validates 50 documents sequentially
+    const batchPromise = scheduler.schedule({
+      requestClass: 'background',
+      run: async checkpoint => {
+        for (let i = 0; i < totalDocuments; i++) {
+          checkpoint();
+          // Simulate per-document validation work
+          if (i === 10) {
+            // Gate: wait for interactive request to arrive and prove it runs concurrently
+            await gate;
+          }
+          batchDocumentsValidated += 1;
+        }
+        order.push('batch-complete');
+      },
+    });
+
+    // Allow background to start
+    await new Promise(resolve => setTimeout(resolve, 20));
+
+    // Schedule interactive request while batch is running
+    const interactiveStart = Date.now();
+    const interactivePromise = scheduler.schedule({
+      requestClass: 'interactive',
+      run: async () => {
+        order.push('interactive');
+      },
+    });
+
+    await interactivePromise;
+    const interactiveLatencyMs = Date.now() - interactiveStart;
+
+    // Release the batch gate
+    const release = releaseGate.fn;
+    if (release) release();
+
+    await batchPromise;
+
+    // Interactive should complete while batch is still running (concurrent slot)
+    assert.equal(order.includes('interactive'), true);
+    assert.equal(order.indexOf('interactive') < order.indexOf('batch-complete'), true);
+    // Interactive latency must be bounded (not blocked behind 50 background validations)
+    assert.equal(interactiveLatencyMs < 100, true);
+    assert.equal(batchDocumentsValidated, totalDocuments);
+  });
+});
