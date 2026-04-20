@@ -23,6 +23,19 @@ import {
   type FaultInjectionConfig,
   type MockBridgeConfig,
 } from './mock-bridge.js';
+import type {
+  DefinitionHandler,
+  DeclarationHandler,
+  TypeDefinitionHandler,
+  ReferencesHandler,
+  DocumentHighlightHandler,
+  ImplementationHandler,
+  DocumentSymbolHandler,
+  TypeHierarchyPrepareHandler,
+  TypeHierarchySupertypesHandler,
+  TypeHierarchySubtypesHandler,
+  LinkedEditingRangeHandler,
+} from './mock-services.js';
 
 export interface MockDocumentHooks {
   onEvent?: (event: {
@@ -122,67 +135,6 @@ export function createMockBridge(
 // ---------------------------------------------------------------------------
 // Connection mock (full-featured)
 // ---------------------------------------------------------------------------
-
-// Handler type aliases — defined here to avoid circular imports with mock-services.ts
-type DefinitionHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<
-  | import('vscode-languageserver/node.js').Location
-  | import('vscode-languageserver/node.js').Location[]
-  | null
->;
-
-type DeclarationHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<import('vscode-languageserver/node.js').Location | null>;
-
-type TypeDefinitionHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<import('vscode-languageserver/node.js').Location | null>;
-
-type ReferencesHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-  context: { includeDeclaration: boolean };
-}) => Promise<import('vscode-languageserver/node.js').Location[]>;
-
-type DocumentHighlightHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<import('vscode-languageserver/node.js').DocumentHighlight[] | null>;
-
-type ImplementationHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<import('vscode-languageserver/node.js').Location[]>;
-
-type DocumentSymbolHandler = (params: {
-  textDocument: { uri: string };
-}) => Promise<import('vscode-languageserver/node.js').DocumentSymbol[] | null>;
-
-type TypeHierarchyPrepareHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
-
-type TypeHierarchySupertypesHandler = (params: {
-  item: import('vscode-languageserver/node.js').TypeHierarchyItem;
-  direction: 'parents' | 'children';
-}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
-
-type TypeHierarchySubtypesHandler = (params: {
-  item: import('vscode-languageserver/node.js').TypeHierarchyItem;
-  direction: 'parents' | 'children';
-}) => Promise<import('vscode-languageserver/node.js').TypeHierarchyItem[] | null>;
-
-type LinkedEditingRangeHandler = (params: {
-  textDocument: { uri: string };
-  position: { line: number; character: number };
-}) => import('vscode-languageserver/node.js').LinkedEditingRanges | null;
-
 export interface MockConnection {
   onDefinition: (handler: DefinitionHandler) => void;
   onDeclaration: (handler: DeclarationHandler) => void;

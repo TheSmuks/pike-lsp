@@ -1,8 +1,3 @@
-import {
-  createMockConnection,
-  createMockDocuments,
-  asTextDocuments,
-} from '../tests/helpers/test-helpers.js';
 /**
  * Scenario: Document Symbols Race on File Open (Issue #1075)
  *
@@ -35,6 +30,11 @@ import {
   asServices,
 } from '../tests/helpers/mock-services.js';
 import type { PikeSymbol } from '@pike-lsp/pike-bridge';
+import {
+  createMockConnection,
+  createMockDocuments,
+  asTextDocuments,
+} from '../tests/helpers/test-helpers.js';
 
 function createRealDocumentCache() {
   return new DocumentCache();
