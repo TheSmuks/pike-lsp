@@ -54,6 +54,7 @@ mapping find_rename_positions(string code, string filename, string symbolName, i
             int search_start = 0;
 
             for (int j = 0; j <= nth; j++) {
+                if (search_start > sizeof(line_code)) break;
                 int found = search(line_code, token_text, search_start);
                 if (found == -1) break;
                 char_pos = search_start + found;

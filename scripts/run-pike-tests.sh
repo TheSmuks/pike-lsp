@@ -46,7 +46,7 @@ run_test() {
     echo "File: $test_file"
     echo "--------------------------------------------"
 
-    if pike "$test_file"; then
+    if pike -M "$PROJECT_ROOT/pike-scripts" "$test_file"; then
         passed_tests=$((passed_tests + 1))
         echo "✓ PASSED: $test_name"
     else
@@ -84,6 +84,33 @@ run_test "test/tests/response-format-tests.pike" "Response Format Tests"
 # Test 8: Cross-version handler validation
 run_test "test/tests/cross-version-tests.pike" "Cross-Version Handler Tests"
 
+
+# Test 9: CompilationCache tests
+run_test "test/tests/compilation-cache-tests.pike" "CompilationCache Tests"
+
+# Test 10: Rename tests
+run_test "test/tests/rename-tests.pike" "Rename Tests"
+
+# Test 11: RoxenStubs tests (RoxenStubs, Roxen, RXML)
+run_test "test/tests/roxen-stubs-tests.pike" "RoxenStubs Tests"
+
+# Test 12: ScopeResolver tests
+run_test "test/tests/scope-resolver-tests.pike" "ScopeResolver Tests"
+
+# Test 13: Variables tests
+run_test "test/tests/variables-tests.pike" "Variables Tests"
+
+# Test 14: Introspection tests
+run_test "test/tests/introspection-tests.pike" "Introspection Tests"
+
+# Test 15: ModuleResolution tests
+run_test "test/tests/module-resolution-tests.pike" "ModuleResolution Tests"
+
+# Test 16: Resolution tests
+run_test "test/tests/resolution-tests.pike" "Resolution Tests"
+
+# Test 17: TypeAnalysis tests
+run_test "test/tests/type-analysis-tests.pike" "TypeAnalysis Tests"
 # Test 9: E2E foundation tests (run again for complete coverage)
 # Note: We already ran module loading tests at the start
 # This runs the full E2E suite
