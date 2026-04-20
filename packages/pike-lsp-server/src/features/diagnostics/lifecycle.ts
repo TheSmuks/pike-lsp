@@ -190,6 +190,11 @@ export function registerDiagnosticsLifecycleHandlers(
       run: async checkpoint => {
         for (const document of allDocuments) {
           checkpoint();
+          // Register per-document pending promise so waitFor blocks correctly
+          // during batch config-change validation.
+          let resolvePending: () => void;
+          const perDocPromise = new Promise<void>(resolve => { resolvePending = resolve; });
+          documentCache.setPending(document.uri, perDocPromise);
           try {
             await validateDocument(document, undefined, checkpoint);
           } catch (err) {
@@ -200,6 +205,8 @@ export function registerDiagnosticsLifecycleHandlers(
               uri: document.uri,
               error: err instanceof Error ? err.message : String(err),
             });
+          } finally {
+            resolvePending!();
           }
         }
       },
