@@ -1,3 +1,5 @@
+> **This project is in maintenance mode.** Its successor is [pike-language-server](https://github.com/TheSmuks/pike-language-server).
+
 # Pike LSP - Language Server for Pike
 
 [![CI Tests](https://github.com/TheSmuks/pike-lsp/workflows/Test/badge.svg)](https://github.com/TheSmuks/pike-lsp/actions/workflows/test.yml)
